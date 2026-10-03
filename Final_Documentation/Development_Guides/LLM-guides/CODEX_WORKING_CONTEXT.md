@@ -3698,3 +3698,24 @@ Critical fixes that made the gate pass:
   Auto Trader CDN behavior, media upload/reorder/delete, grants, rights,
   sandbox compatibility, validation, certification, endorsement, and
   production approval remain open.
+
+## 2026-10-03 Generic Page Attachment Navigation Fix
+
+- The disappearing page attachment was a generic `max-mode-widget` defect,
+  not a dealership-host defect. The dealership already set
+  `currentPageAttachment.invalidateOnNavigation=false` as required.
+- On a full document navigation, the intentionally memory-only anonymous token
+  was lost and the runtime issued a new guest session. The secure identity
+  reset correctly removed the old conversation but incorrectly removed the
+  host-opted page snapshots as well.
+- Widget core now retains only `current-page` attachments for same-runtime
+  `identity-changed` and `conversation-access-denied` recovery when the host
+  explicitly opts into navigation persistence. Conversation IDs/messages,
+  pending prompts, confirmations, debug state and all non-page attachments are
+  still cleared. Runtime changes, expiry and authorization failure remain
+  full-clear boundaries; bearer tokens are still never persisted.
+- Browser regression now forces an anonymous identity change while navigating
+  from dealership inventory to a vehicle detail page and verifies the existing
+  page chip before any destination-page action. Widget typecheck/build,
+  action-presentation smoke, site production build, Astro diagnostics,
+  content/static smoke and the complete Playwright suite passed.

@@ -292,7 +292,7 @@ const mockServer = createServer(async (request, response) => {
       })
       return
     }
-    if (payload.query === 'Tell me about 2025 Aster E1 using its current dealership facts.') {
+    if (payload.query === 'Load the current live stock record for 2025 Aster E1, then summarize its dealership facts.') {
       writeMockJson(response, 200, {
         success: true,
         type: 'INFORMATION_PROVIDED',
@@ -676,6 +676,7 @@ try {
   if (!firstVehicleDetailUrl) {
     throw new Error('Dealership vehicle card did not expose its detail route')
   }
+  anonymousSessionId = 'browser-smoke-navigation-session'
   await page.goto(`${origin}${firstVehicleDetailUrl}`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => document.querySelector('[data-vehicle-evidence]')?.getAttribute('aria-busy') === 'false')
   await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
@@ -689,6 +690,11 @@ try {
   )
   if (attachInsideInputShell) {
     throw new Error('Attach-current-page control is still inside the Companion input shell')
+  }
+  await currentPageChips.first().waitFor()
+  if ((await currentPageChips.count()) !== 1 ||
+      !(await currentPageChips.getByText('Northfield Motor House demo', { exact: false }).count())) {
+    throw new Error('Navigation-persistent page attachment disappeared after anonymous identity rotation')
   }
   await attachCurrentPageButton.click()
   await currentPageChips.nth(1).waitFor()
@@ -936,7 +942,7 @@ try {
   }
   const detailPresentationRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
-    return request.postDataJSON()?.query === 'Tell me about 2025 Aster E1 using its current dealership facts.'
+    return request.postDataJSON()?.query === 'Load the current live stock record for 2025 Aster E1, then summarize its dealership facts.'
   })
   const askAboutVehicleButton = inventoryPresentation.getByRole('button', { name: 'Ask about this' }).first()
   if (!(await inventoryPresentation.isVisible()) || !(await askAboutVehicleButton.isVisible())) {
@@ -1175,17 +1181,21 @@ try {
     await page.waitForFunction(() => {
       const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
       const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+      const retainedSessionAttachments = Array.isArray(state.attachedItems)
+        ? state.attachedItems.filter((item) => item?.type !== 'current-page')
+        : []
       return binding.sessionId === 'browser-smoke-session-rotated'
         && state.conversationId === null
         && Array.isArray(state.chatMessages)
         && state.chatMessages.every((message) => message.id === 'welcome')
+        && retainedSessionAttachments.length === 0
     }, undefined, { timeout: 5_000 })
   } catch {
     const storageState = await page.evaluate(() => ({
       binding: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}'),
       widget: JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}'),
     }))
-    throw new Error(`Anonymous identity rotation did not clear persisted state: ${JSON.stringify(storageState)}`)
+    throw new Error(`Anonymous identity rotation did not reset session state while retaining opted-in page context: ${JSON.stringify(storageState)}`)
   }
   await page.waitForTimeout(150)
   if (chatQueryCount !== requestsBeforeIdentityRotation) {

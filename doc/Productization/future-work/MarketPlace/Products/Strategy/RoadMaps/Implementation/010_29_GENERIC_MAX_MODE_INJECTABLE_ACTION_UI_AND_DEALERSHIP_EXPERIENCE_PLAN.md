@@ -954,3 +954,30 @@ or Platform-managed `UI_EXTENSION` packaging.
 - Production Coolify access was temporary and IP-scoped. Hetzner firewalls
   `10915120` and `10918233` were restored to their exact pre-deploy rule sets;
   the operator CIDR is absent and local Coolify API access again times out.
+
+### 17.7 Navigation-persistent page attachment correction (2026-10-03)
+
+- The dealership host was already using the generic, documented
+  `currentPageAttachment.invalidateOnNavigation=false` contract. The defect was
+  in widget core: a full document navigation discarded the memory-only public
+  runtime token, a fresh anonymous bootstrap returned a new session identity,
+  and the secure conversation reset also removed the opted-in local page
+  snapshots.
+- The generic session-reset boundary now retains only `current-page`
+  attachments when the host explicitly disables navigation invalidation and
+  the reset reason is same-runtime anonymous identity rotation or a stale
+  conversation handle. The previous conversation ID, messages, confirmations,
+  pending prompts, result/product attachments, debug state and server-owned
+  context still reset. A runtime change, expiry or authorization failure still
+  clears everything.
+- Bearer tokens remain memory-only. The correction does not weaken anonymous
+  runtime isolation, persist credentials, replay a denied request, or add any
+  dealership/vehicle rule to the widget.
+- Regression coverage now rotates the mock anonymous identity during a real
+  inventory-to-detail document navigation and asserts that the original page
+  chip remains visible before the destination page is attached. It also proves
+  multi-page limits and payloads, non-page attachment clearing, stale
+  conversation recovery, scoped tools, responsive layout and accessibility.
+- Local widget typecheck/build/action-presentation smoke, site production
+  build, Astro diagnostics, content/static gates and the complete Playwright
+  browser suite are green.

@@ -44,6 +44,7 @@ import { presentationReferenceAttachmentId } from "@/actionPresentation";
 import { ACTION_RESULT_ATTACHMENT_TYPE, toActionResultAttachedItem } from "@/attachments";
 import { buildCustomerAccountConnectUrl } from "@/chatResult";
 import { useMaxModeContextOptional } from "@/context";
+import { isCurrentPageAttachment } from "@/pageAttachment";
 import type {
   ChatMessage,
   CustomerAccountConnectAction,
@@ -623,6 +624,7 @@ export function useMaxModeController({
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [attachedItems, setAttachedItems] = useState<MaxModeHostAttachment[]>([]);
+  const navigationPersistentPageAttachmentsRef = useRef<MaxModeHostAttachment[]>([]);
   const [contextDocuments, setContextDocuments] = useState<Document[]>([]);
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null);
   const [isPanelVisible, setIsPanelVisible] = useState(true);
@@ -650,6 +652,12 @@ export function useMaxModeController({
     () => attachedItems.filter((item) => item.type !== "ai-search"),
     [attachedItems],
   );
+  useEffect(() => {
+    navigationPersistentPageAttachmentsRef.current =
+      hostConfig?.currentPageAttachment?.invalidateOnNavigation === false
+        ? attachedItems.filter(isCurrentPageAttachment)
+        : [];
+  }, [attachedItems, hostConfig?.currentPageAttachment?.invalidateOnNavigation]);
   const contextualToolsAvailable = Boolean(
     toolGroupDefinitions
       && (
@@ -795,6 +803,12 @@ export function useMaxModeController({
   });
 
   useEffect(() => subscribePublicRuntimeSessionInvalidation((event) => {
+    const retainedPageAttachments = (
+      event.reason === "identity-changed"
+      || event.reason === "conversation-access-denied"
+    )
+      ? navigationPersistentPageAttachmentsRef.current
+      : [];
     startNewConversation();
     setChatQuery("");
     setIsLoading(false);
@@ -810,6 +824,10 @@ export function useMaxModeController({
       sessionStorage.removeItem(PENDING_PROMPTS_KEY);
     } catch {}
     maxModeContext?.clearPersistedState();
+    if (retainedPageAttachments.length > 0) {
+      setAttachedItems(retainedPageAttachments);
+      maxModeContext?.updateMaxModeState({ attachedItems: retainedPageAttachments });
+    }
     emitEvent("conversation:reset", {
       reason: event.reason,
       previousSessionId: event.previousSessionId,
@@ -820,7 +838,7 @@ export function useMaxModeController({
         ? "That conversation is not available to this session. A new conversation is ready; please send your request again."
         : "For your security, the previous conversation was cleared. Please send your request again.",
     });
-  }), [maxModeContext, startNewConversation, toast]);
+  }), [maxModeContext, setAttachedItems, startNewConversation, toast]);
 
   const { handleChatQuery } = useChatFlow({
     chatQuery,
