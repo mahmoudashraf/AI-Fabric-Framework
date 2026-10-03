@@ -3788,3 +3788,10 @@ Critical fixes that made the gate pass:
   connector, action, prompt, or dealership-backend change.
 - Widget typecheck/build/action-presentation smoke and the complete public-site
   Node 22 verification suite, including Playwright, are green.
+- Commit `3d790acc532e9aac881f5e265e3325bd8e954c6e` is live through
+  public-site deployment `ljigymxdqpsuwszuhqf4ntd9`; canonical health reports
+  that exact commit. Hosted Playwright proved the Companion stayed collapsed,
+  the attached landing-page chip survived into Max Mode, and Max Mode exposed
+  zero attach-page actions.
+- Production firewall access was restored exactly and local Coolify access is
+  closed again with timeout/HTTP `000`.

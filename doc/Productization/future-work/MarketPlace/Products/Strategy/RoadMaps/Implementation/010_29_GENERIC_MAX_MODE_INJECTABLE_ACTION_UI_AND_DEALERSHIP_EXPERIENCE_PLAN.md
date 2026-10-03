@@ -1033,3 +1033,12 @@ or Platform-managed `UI_EXTENSION` packaging.
   Playwright browser smoke are green. Browser coverage proves silent capture on
   listing and detail pages, no page-capture action in Max Mode, retained context
   chips in Max Mode, and multi-page navigation continuity.
+- Commit `3d790acc532e9aac881f5e265e3325bd8e954c6e` is live through
+  production Coolify deployment `ljigymxdqpsuwszuhqf4ntd9`; canonical health
+  reports `UP` on that exact commit. A clean hosted browser attached the
+  dealership landing page while the Companion remained collapsed, then opened
+  Max Mode and observed one retained page chip and zero attach-page actions.
+- Temporary production access was closed after deployment. Both production
+  Hetzner firewalls exactly match their pre-deploy snapshots, contain zero
+  operator-CIDR entries, and local Coolify port `8000` again times out with HTTP
+  `000`.
