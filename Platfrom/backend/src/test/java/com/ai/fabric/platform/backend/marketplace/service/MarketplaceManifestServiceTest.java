@@ -467,7 +467,13 @@ class MarketplaceManifestServiceTest {
                   "protectedResourceBindingRef": "neutral-scope",
                   "requiredCapabilityGrants": ["records:read"],
                   "trustedResourcePlacements": [{"target": "PATH", "field": "scope"}],
-                  "request": {"query": {"q": "{{params.query}}"}}
+                  "request": {"query": {"q": "{{params.query}}"}},
+                  "response": {
+                    "collection-field-projections": [{
+                      "collection-json-pointer": "/results",
+                      "fields": {"recordId": "/metadata/recordId"}
+                    }]
+                  }
                 }
               }]}
             }

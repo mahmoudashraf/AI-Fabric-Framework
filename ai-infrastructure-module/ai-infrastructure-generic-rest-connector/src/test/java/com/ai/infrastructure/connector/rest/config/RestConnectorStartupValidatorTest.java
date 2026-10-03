@@ -36,6 +36,39 @@ class RestConnectorStartupValidatorTest {
     }
 
     @Test
+    void acceptsExplicitCollectionFieldProjectionOnProtectedProviderActions() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = providerActionRoute();
+        RestRoutingConfig.ResponseCollectionFieldProjection projection =
+            new RestRoutingConfig.ResponseCollectionFieldProjection();
+        projection.setCollectionJsonPointer("/results");
+        projection.setFields(Map.of("recordId", "/metadata/recordId"));
+        route.getResponse().setCollectionFieldProjections(List.of(projection));
+        config.setActions(Map.of("provider_search", route));
+
+        assertThatCode(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsCollectionFieldProjectionOnOrdinaryApplicationActions() {
+        RestRoutingConfig config = config();
+        config.getConnector().getUpstream().setBaseUrl("https://application.fixture.invalid");
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        route.setPath("/api/search");
+        RestRoutingConfig.ResponseCollectionFieldProjection projection =
+            new RestRoutingConfig.ResponseCollectionFieldProjection();
+        projection.setCollectionJsonPointer("/results");
+        projection.setFields(Map.of("recordId", "/metadata/recordId"));
+        route.getResponse().setCollectionFieldProjections(List.of(projection));
+        config.setActions(Map.of("application_search", route));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("collection-field-projections are supported only for protected provider routes");
+    }
+
+    @Test
     void rejectsCollectionFilteringOnOrdinaryApplicationActions() {
         RestRoutingConfig config = config();
         config.getConnector().getUpstream().setBaseUrl("https://application.fixture.invalid");

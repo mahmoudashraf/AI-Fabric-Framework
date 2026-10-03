@@ -270,9 +270,20 @@ public class RestConnectorStartupValidator {
                             + "': response.collection-filters are supported only for protected provider routes."
                     );
                 }
+                if (!profileRoute && response.getCollectionFieldProjections() != null
+                    && !response.getCollectionFieldProjections().isEmpty()) {
+                    throw new IllegalStateException(
+                        "Action route '" + actionId.trim()
+                            + "': response.collection-field-projections are supported only for protected provider routes."
+                    );
+                }
                 validateResponseCollectionFilters(
                     response.getCollectionFilters(),
                     "actions." + actionId.trim() + ".response.collection-filters"
+                );
+                validateResponseCollectionFieldProjections(
+                    response.getCollectionFieldProjections(),
+                    "actions." + actionId.trim() + ".response.collection-field-projections"
                 );
             }
         });
@@ -843,6 +854,39 @@ public class RestConnectorStartupValidator {
                 requireNonRootJsonPointer(filter.getCountJsonPointer(), path + ".count-json-pointer");
             }
             validateInclusionConditions(filter.getInclusionConditions(), path + ".inclusion-conditions", true);
+        }
+    }
+
+    private void validateResponseCollectionFieldProjections(
+        List<RestRoutingConfig.ResponseCollectionFieldProjection> projections,
+        String path
+    ) {
+        if (projections == null || projections.isEmpty()) {
+            return;
+        }
+        if (projections.size() > 10) {
+            throw new IllegalStateException(path + " supports at most 10 projections.");
+        }
+        Set<String> collectionPointers = new LinkedHashSet<>();
+        for (RestRoutingConfig.ResponseCollectionFieldProjection projection : projections) {
+            if (projection == null) {
+                throw new IllegalStateException(path + " contains an incomplete projection.");
+            }
+            requireNonRootJsonPointer(
+                projection.getCollectionJsonPointer(),
+                path + ".collection-json-pointer"
+            );
+            if (!collectionPointers.add(projection.getCollectionJsonPointer().trim())) {
+                throw new IllegalStateException(path + " contains a duplicate collection-json-pointer.");
+            }
+            Map<String, String> fields = projection.getFields();
+            if (fields == null || fields.isEmpty()) {
+                throw new IllegalStateException(path + ".fields must contain at least one projection.");
+            }
+            validateProjectionMap(fields, path + ".fields");
+            fields.forEach((field, pointer) ->
+                requireNonRootJsonPointer(pointer, path + ".fields." + field)
+            );
         }
     }
 

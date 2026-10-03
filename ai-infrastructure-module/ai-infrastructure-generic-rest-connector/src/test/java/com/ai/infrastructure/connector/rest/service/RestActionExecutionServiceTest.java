@@ -358,6 +358,14 @@ class RestActionExecutionServiceTest {
         condition.setAllowedValues(List.of("PUBLISHED"));
         filter.setInclusionConditions(List.of(condition));
         route.getResponse().setCollectionFilters(List.of(filter));
+        RestRoutingConfig.ResponseCollectionFieldProjection projection =
+            new RestRoutingConfig.ResponseCollectionFieldProjection();
+        projection.setCollectionJsonPointer("/results");
+        projection.setFields(Map.of(
+            "stockId", "/metadata/stockId",
+            "lifecycleState", "/metadata/lifecycleState"
+        ));
+        route.getResponse().setCollectionFieldProjections(List.of(projection));
         route.getResponse().setResult(Map.of(
             "_items", "{{body.results}}",
             "_count", "{{body.totalResults}}"
@@ -371,11 +379,11 @@ class RestActionExecutionServiceTest {
                     {
                       "results": [
                         {
-                          "metadata": {"stockId": "visible"},
+                          "metadata": {"stockId": "visible", "lifecycleState": "FORECOURT"},
                           "adverts": {"retailAdverts": {"advertiserAdvert": {"status": "PUBLISHED"}}}
                         },
                         {
-                          "metadata": {"stockId": "hidden"},
+                          "metadata": {"stockId": "hidden", "lifecycleState": "FORECOURT"},
                           "adverts": {"retailAdverts": {"advertiserAdvert": {"status": "NOT_PUBLISHED"}}}
                         }
                       ],
@@ -405,8 +413,12 @@ class RestActionExecutionServiceTest {
         assertThat(result.data()).containsEntry("_count", 1);
         assertThat((List<?>) result.data().get("_items"))
             .singleElement()
-            .satisfies(item -> assertThat(OBJECT_MAPPER.valueToTree(item).path("metadata").path("stockId").asText())
-                .isEqualTo("visible"));
+            .satisfies(item -> {
+                JsonNode projected = OBJECT_MAPPER.valueToTree(item);
+                assertThat(projected.path("metadata").path("stockId").asText()).isEqualTo("visible");
+                assertThat(projected.path("stockId").asText()).isEqualTo("visible");
+                assertThat(projected.path("lifecycleState").asText()).isEqualTo("FORECOURT");
+            });
     }
 
     private RestActionExecutionService service(RestRoutingConfig config) {

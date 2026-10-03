@@ -273,6 +273,14 @@ public class RestRoutingConfig {
         private List<ResponseCollectionFilter> collectionFilters = new ArrayList<>();
 
         /**
+         * Optional field projections applied to records in protected provider collections before
+         * response templates are evaluated. This lets a route expose an explicitly selected nested
+         * provider value under a stable outward field without changing the provider contract.
+         */
+        @Valid
+        private List<ResponseCollectionFieldProjection> collectionFieldProjections = new ArrayList<>();
+
+        /**
          * Optional authoritative override for whether a successful action result can ground an answer.
          * Canonical empty list results default to {@code INSUFFICIENT} when no override is configured.
          */
@@ -290,6 +298,17 @@ public class RestRoutingConfig {
         private String countJsonPointer;
         @Valid
         private List<RecordInclusionCondition> inclusionConditions = new ArrayList<>();
+    }
+
+    @Data
+    public static class ResponseCollectionFieldProjection {
+        private String collectionJsonPointer;
+
+        /**
+         * Outward field name to record-relative JSON Pointer. Every configured source is required;
+         * an absent value is treated as a malformed provider response.
+         */
+        private Map<String, String> fields = new LinkedHashMap<>();
     }
 
     @Data

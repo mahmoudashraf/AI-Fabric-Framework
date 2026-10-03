@@ -530,6 +530,68 @@ class HostedCanary:
             },
         )
 
+        media_query = self.http.request(
+            "POST",
+            f"{self.args.runtime_base_url}/api/chat/me/query-once",
+            headers={**origin_headers, "Authorization": f"Bearer {token}"},
+            json_body={
+                "query": "Find the indexed Northstar Trail E Hosted Contract Canary and return its current provider facts.",
+                "mode": "thinker",
+                "position": "search",
+                "context": {
+                    "vectorSpace": ENTITY_TYPE,
+                    "entityType": ENTITY_TYPE,
+                    "preferredVectorSpaces": [ENTITY_TYPE],
+                },
+            },
+            timeout=90,
+        )
+        media_body = media_query.body if isinstance(media_query.body, dict) else {}
+        action_records = [
+            record
+            for action in media_body.get("actions", [])
+            if isinstance(action, dict)
+            for record in (value(action, "actionResult", "data", "results") or [])
+            if isinstance(record, dict)
+        ]
+        action_media = [
+            images[0]
+            for record in action_records
+            for images in [value(record, "media", "images") or []]
+            if isinstance(images, list) and images
+        ]
+        action_media = [
+            image
+            for image in action_media
+            if isinstance(image, dict)
+            and bool(image.get("imageId"))
+            and host(str(image.get("href") or "")) == host(self.args.simulator_base_url)
+        ]
+        media_documents = value(media_body, "ragResponse", "documents") or []
+        indexed_media = [
+            document.get("metadata", {})
+            for document in media_documents
+            if isinstance(document, dict)
+            and isinstance(document.get("metadata"), dict)
+            and document.get("metadata", {}).get("imageId")
+            and host(str(document.get("metadata", {}).get("imageUrl") or "")) == host(self.args.simulator_base_url)
+        ]
+        self.expect(
+            "anonymous_chat_surfaces_provider_media_in_action_and_rag",
+            media_query.status == 200
+            and media_body.get("success") is True
+            and bool(action_media)
+            and bool(indexed_media),
+            {
+                "httpStatus": media_query.status,
+                "success": media_body.get("success"),
+                "actionMediaCount": len(action_media),
+                "indexedMediaDocumentCount": len(indexed_media),
+                "mediaHost": host(self.args.simulator_base_url),
+                "providerRequestId": media_body.get("providerRequestId"),
+            },
+        )
+
     def delete_canary_stock(self) -> None:
         if not self.created_stock:
             return

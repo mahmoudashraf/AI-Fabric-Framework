@@ -60,6 +60,12 @@ actions:
           inclusion-conditions:
             - json-pointer: /adverts/retailAdverts/advertiserAdvert/status
               allowed-values: [PUBLISHED]
+      collection-field-projections:
+        - collection-json-pointer: /results
+          fields:
+            stockId: /metadata/stockId
+            lifecycleState: /metadata/lifecycleState
+            lastUpdated: /metadata/lastUpdated
       result:
         _items: "{{body.results}}"
         _count: "{{body.totalResults}}"
@@ -97,6 +103,12 @@ actions:
           inclusion-conditions:
             - json-pointer: /adverts/retailAdverts/advertiserAdvert/status
               allowed-values: [PUBLISHED]
+      collection-field-projections:
+        - collection-json-pointer: /results
+          fields:
+            stockId: /metadata/stockId
+            lifecycleState: /metadata/lifecycleState
+            lastUpdated: /metadata/lastUpdated
       result:
         _items: "{{body.results}}"
         _count: "{{body.totalResults}}"

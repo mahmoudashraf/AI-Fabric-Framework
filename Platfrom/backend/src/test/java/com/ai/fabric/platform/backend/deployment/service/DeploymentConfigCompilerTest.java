@@ -93,7 +93,13 @@ class DeploymentConfigCompilerTest {
                     "connectionProfileRef":"neutral-provider",
                     "protectedResourceBindingRef":"neutral-scope",
                     "requiredCapabilityGrants":["records:read"],
-                    "trustedResourcePlacements":[{"target":"PATH","field":"scope"}]
+                    "trustedResourcePlacements":[{"target":"PATH","field":"scope"}],
+                    "response": {
+                      "collection-field-projections": [{
+                        "collection-json-pointer": "/results",
+                        "fields": {"recordId": "/metadata/recordId"}
+                      }]
+                    }
                   }
                 }]}
                 """,
@@ -251,6 +257,9 @@ class DeploymentConfigCompilerTest {
         assertThat(routing.path("runtime-data-sync").path("tenant-id").asText()).isEqualTo("tenant-neutral");
         assertThat(routing.path("actions").path("neutral_search").path("connection-profile-ref").asText())
             .isEqualTo("neutral-provider");
+        assertThat(routing.path("actions").path("neutral_search").path("response")
+            .path("collection-field-projections").get(0).path("fields").path("recordId").asText())
+            .isEqualTo("/metadata/recordId");
     }
 
     @Test

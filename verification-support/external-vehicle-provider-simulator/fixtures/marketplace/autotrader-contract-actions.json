@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-action-autotrader-contract-verification",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "pluginType": "ACTION",
   "displayName": "Internal Auto Trader Contract Verification Actions",
   "description": "Internal-only read actions for synthetic dealership stock exposed through the documented Auto Trader Stock API shape. It is not an Auto Trader service or endorsement.",
@@ -68,6 +68,16 @@
                 ]
               }
             ],
+            "collection-field-projections": [
+              {
+                "collection-json-pointer": "/results",
+                "fields": {
+                  "stockId": "/metadata/stockId",
+                  "lifecycleState": "/metadata/lifecycleState",
+                  "lastUpdated": "/metadata/lastUpdated"
+                }
+              }
+            ],
             "result": {
               "_items": "{{body.results}}",
               "_count": "{{body.totalResults}}",
@@ -131,6 +141,16 @@
                     "allowed-values": ["PUBLISHED"]
                   }
                 ]
+              }
+            ],
+            "collection-field-projections": [
+              {
+                "collection-json-pointer": "/results",
+                "fields": {
+                  "stockId": "/metadata/stockId",
+                  "lifecycleState": "/metadata/lifecycleState",
+                  "lastUpdated": "/metadata/lastUpdated"
+                }
               }
             ],
             "result": {

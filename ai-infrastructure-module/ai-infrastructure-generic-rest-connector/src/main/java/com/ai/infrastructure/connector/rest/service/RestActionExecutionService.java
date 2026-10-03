@@ -379,6 +379,7 @@ public class RestActionExecutionService {
         Object parsedBody = parseJsonLenient(rawBody);
         if (success) {
             parsedBody = filterResponseCollections(responseConfig, parsedBody);
+            parsedBody = projectResponseCollectionFields(responseConfig, parsedBody);
         }
         Map<String, Object> bodyCtx = new LinkedHashMap<>(ctx);
         bodyCtx.put("status", status);
@@ -490,6 +491,48 @@ public class RestActionExecutionService {
                     filter.getCountJsonPointer(),
                     objectMapper.getNodeFactory().numberNode(included.size())
                 );
+            }
+        }
+        return objectMapper.convertValue(objectRoot, Object.class);
+    }
+
+    private Object projectResponseCollectionFields(
+        RestRoutingConfig.Response responseConfig,
+        Object parsedBody
+    ) {
+        if (responseConfig == null || responseConfig.getCollectionFieldProjections() == null
+            || responseConfig.getCollectionFieldProjections().isEmpty()) {
+            return parsedBody;
+        }
+        JsonNode root = objectMapper.valueToTree(parsedBody);
+        if (!(root instanceof ObjectNode objectRoot)) {
+            throw malformedProviderResponse("Provider response field projections require a JSON object response.");
+        }
+        for (RestRoutingConfig.ResponseCollectionFieldProjection projection
+            : responseConfig.getCollectionFieldProjections()) {
+            JsonNode selected = objectRoot.at(projection.getCollectionJsonPointer());
+            if (!(selected instanceof ArrayNode sourceItems)) {
+                throw malformedProviderResponse("Provider response field projection did not resolve to a list.");
+            }
+            for (JsonNode item : sourceItems) {
+                if (!(item instanceof ObjectNode objectItem)) {
+                    throw malformedProviderResponse("Provider response collection contains a non-object item.");
+                }
+                for (Map.Entry<String, String> field : projection.getFields().entrySet()) {
+                    String targetField = field.getKey();
+                    if (objectItem.has(targetField)) {
+                        throw malformedProviderResponse(
+                            "Provider response field projection would overwrite an existing field."
+                        );
+                    }
+                    JsonNode source = objectItem.at(field.getValue());
+                    if (source.isMissingNode() || source.isNull()) {
+                        throw malformedProviderResponse(
+                            "Provider response field projection source is missing."
+                        );
+                    }
+                    objectItem.set(targetField, source.deepCopy());
+                }
             }
         }
         return objectMapper.convertValue(objectRoot, Object.class);

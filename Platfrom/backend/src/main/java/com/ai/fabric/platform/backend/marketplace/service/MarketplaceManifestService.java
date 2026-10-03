@@ -127,6 +127,9 @@ public class MarketplaceManifestService {
     private static final Set<String> PROVIDER_ACTION_COLLECTION_FILTER_FIELDS = Set.of(
         "collection-json-pointer", "count-json-pointer", "inclusion-conditions"
     );
+    private static final Set<String> PROVIDER_ACTION_COLLECTION_FIELD_PROJECTION_FIELDS = Set.of(
+        "collection-json-pointer", "fields"
+    );
     private static final Set<String> PROVIDER_ACTION_INCLUSION_CONDITION_FIELDS = Set.of(
         "json-pointer", "allowed-values"
     );
@@ -666,82 +669,133 @@ public class MarketplaceManifestService {
             throw invalid(plugin, version, prefix + " must be an object.");
         }
         JsonNode filters = response.path("collection-filters");
-        if (filters.isMissingNode() || filters.isNull()) {
-            return;
-        }
-        if (!filters.isArray() || filters.isEmpty() || filters.size() > 10) {
-            throw invalid(plugin, version, prefix + ".collection-filters must contain 1 to 10 filters.");
-        }
-        for (JsonNode filter : filters) {
-            if (!filter.isObject()) {
-                throw invalid(plugin, version, prefix + ".collection-filters entries must be objects.");
+        if (!filters.isMissingNode() && !filters.isNull()) {
+            if (!filters.isArray() || filters.isEmpty() || filters.size() > 10) {
+                throw invalid(plugin, version, prefix + ".collection-filters must contain 1 to 10 filters.");
             }
-            rejectUnknownFields(
-                plugin,
-                version,
-                filter,
-                PROVIDER_ACTION_COLLECTION_FILTER_FIELDS,
-                prefix + ".collection-filters"
-            );
-            requireJsonPointer(
-                plugin,
-                version,
-                filter.path("collection-json-pointer").asText(""),
-                prefix + ".collection-filters.collection-json-pointer"
-            );
-            if (StringUtils.hasText(filter.path("count-json-pointer").asText(""))) {
-                requireJsonPointer(
-                    plugin,
-                    version,
-                    filter.path("count-json-pointer").asText(""),
-                    prefix + ".collection-filters.count-json-pointer"
-                );
-            }
-            JsonNode conditions = filter.path("inclusion-conditions");
-            if (!conditions.isArray() || conditions.isEmpty() || conditions.size() > 20) {
-                throw invalid(
-                    plugin,
-                    version,
-                    prefix + ".collection-filters.inclusion-conditions must contain 1 to 20 conditions."
-                );
-            }
-            for (JsonNode condition : conditions) {
-                if (!condition.isObject()) {
-                    throw invalid(plugin, version, prefix + ".collection-filters inclusion condition must be an object.");
+            for (JsonNode filter : filters) {
+                if (!filter.isObject()) {
+                    throw invalid(plugin, version, prefix + ".collection-filters entries must be objects.");
                 }
                 rejectUnknownFields(
                     plugin,
                     version,
-                    condition,
-                    PROVIDER_ACTION_INCLUSION_CONDITION_FIELDS,
-                    prefix + ".collection-filters.inclusion-conditions"
+                    filter,
+                    PROVIDER_ACTION_COLLECTION_FILTER_FIELDS,
+                    prefix + ".collection-filters"
                 );
                 requireJsonPointer(
                     plugin,
                     version,
-                    condition.path("json-pointer").asText(""),
-                    prefix + ".collection-filters.inclusion-conditions.json-pointer"
+                    filter.path("collection-json-pointer").asText(""),
+                    prefix + ".collection-filters.collection-json-pointer"
                 );
-                JsonNode allowedValues = condition.path("allowed-values");
-                if (!allowedValues.isArray() || allowedValues.isEmpty() || allowedValues.size() > 50) {
+                if (StringUtils.hasText(filter.path("count-json-pointer").asText(""))) {
+                    requireJsonPointer(
+                        plugin,
+                        version,
+                        filter.path("count-json-pointer").asText(""),
+                        prefix + ".collection-filters.count-json-pointer"
+                    );
+                }
+                JsonNode conditions = filter.path("inclusion-conditions");
+                if (!conditions.isArray() || conditions.isEmpty() || conditions.size() > 20) {
                     throw invalid(
                         plugin,
                         version,
-                        prefix + ".collection-filters.inclusion-conditions.allowed-values must contain 1 to 50 values."
+                        prefix + ".collection-filters.inclusion-conditions must contain 1 to 20 conditions."
                     );
                 }
-                Set<String> unique = new LinkedHashSet<>();
-                for (JsonNode allowed : allowedValues) {
-                    String value = allowed.isValueNode() ? allowed.asText("").trim() : "";
-                    if (!StringUtils.hasText(value) || value.length() > 500 || !unique.add(value)) {
+                for (JsonNode condition : conditions) {
+                    if (!condition.isObject()) {
+                        throw invalid(plugin, version, prefix + ".collection-filters inclusion condition must be an object.");
+                    }
+                    rejectUnknownFields(
+                        plugin,
+                        version,
+                        condition,
+                        PROVIDER_ACTION_INCLUSION_CONDITION_FIELDS,
+                        prefix + ".collection-filters.inclusion-conditions"
+                    );
+                    requireJsonPointer(
+                        plugin,
+                        version,
+                        condition.path("json-pointer").asText(""),
+                        prefix + ".collection-filters.inclusion-conditions.json-pointer"
+                    );
+                    JsonNode allowedValues = condition.path("allowed-values");
+                    if (!allowedValues.isArray() || allowedValues.isEmpty() || allowedValues.size() > 50) {
                         throw invalid(
                             plugin,
                             version,
-                            prefix + ".collection-filters inclusion values must be non-empty, unique, and bounded."
+                            prefix + ".collection-filters.inclusion-conditions.allowed-values must contain 1 to 50 values."
                         );
+                    }
+                    Set<String> unique = new LinkedHashSet<>();
+                    for (JsonNode allowed : allowedValues) {
+                        String value = allowed.isValueNode() ? allowed.asText("").trim() : "";
+                        if (!StringUtils.hasText(value) || value.length() > 500 || !unique.add(value)) {
+                            throw invalid(
+                                plugin,
+                                version,
+                                prefix + ".collection-filters inclusion values must be non-empty, unique, and bounded."
+                            );
+                        }
                     }
                 }
             }
+        }
+
+        JsonNode projections = response.path("collection-field-projections");
+        if (projections.isMissingNode() || projections.isNull()) {
+            return;
+        }
+        if (!projections.isArray() || projections.isEmpty() || projections.size() > 10) {
+            throw invalid(
+                plugin,
+                version,
+                prefix + ".collection-field-projections must contain 1 to 10 projections."
+            );
+        }
+        Set<String> collectionPointers = new LinkedHashSet<>();
+        for (JsonNode projection : projections) {
+            if (!projection.isObject()) {
+                throw invalid(plugin, version, prefix + ".collection-field-projections entries must be objects.");
+            }
+            rejectUnknownFields(
+                plugin,
+                version,
+                projection,
+                PROVIDER_ACTION_COLLECTION_FIELD_PROJECTION_FIELDS,
+                prefix + ".collection-field-projections"
+            );
+            String collectionPointer = projection.path("collection-json-pointer").asText("").trim();
+            requireJsonPointer(
+                plugin,
+                version,
+                collectionPointer,
+                prefix + ".collection-field-projections.collection-json-pointer"
+            );
+            if (!collectionPointers.add(collectionPointer)) {
+                throw invalid(plugin, version, prefix + ".collection-field-projections contains a duplicate collection pointer.");
+            }
+            JsonNode fields = projection.path("fields");
+            if (!fields.isObject() || fields.isEmpty() || fields.size() > 100) {
+                throw invalid(
+                    plugin,
+                    version,
+                    prefix + ".collection-field-projections.fields must contain 1 to 100 projections."
+                );
+            }
+            fields.fields().forEachRemaining(field -> {
+                requireIdentifier(plugin, version, field.getKey(), prefix + ".collection-field-projections field");
+                requireJsonPointer(
+                    plugin,
+                    version,
+                    field.getValue().isTextual() ? field.getValue().asText("") : "",
+                    prefix + ".collection-field-projections.fields." + field.getKey()
+                );
+            });
         }
     }
 
