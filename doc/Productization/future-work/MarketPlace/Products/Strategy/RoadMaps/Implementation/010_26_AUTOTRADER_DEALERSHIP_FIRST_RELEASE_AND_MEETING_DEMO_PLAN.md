@@ -2,11 +2,12 @@
 
 - **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
   generic Max Mode first-delivery closure passed on 2026-10-02, and the same
-  deployment `dep-f023c863` was replaced by provider-backed v22 on 2026-10-03.
-  Its synthetic public-document contract canary passed `26/26` plus protected
-  staff/browser scenario proof. Released customer Auto Trader Marketplace
-  packaging and every real Auto Trader access/rights/certification gate remain
-  open.
+  deployment `dep-f023c863` is now provider-backed v24 with ordered synthetic
+  provider media carried through Data Sync, action results, RAG documents, and
+  reviewed host renderers. Its synthetic public-document contract canary
+  passed `28/28`; the production browser proof loaded all six provider images.
+  Released customer Auto Trader Marketplace packaging and every real Auto
+  Trader access/rights/certification gate remain open.
 - **Date:** 2026-09-25
 - **Last architecture review:** 2026-10-03
 - **Last implementation checkpoint:** 2026-10-03
@@ -35,6 +36,7 @@ Related plans and evidence:
 - [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
 - [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
 - [2026-10-03 synthetic public-contract hosted evidence](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json)
+- [2026-10-03 provider-media browser evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-03-dealership-provider-media-live.json)
 
 Quality and verification references in the public framework repository:
 
@@ -78,14 +80,14 @@ Implementation references:
 | Area | Current state | Evidence / remaining gate |
 | --- | --- | --- |
 | Dealership-owned backend | Hosted and healthy | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; 21 focused tests pass; public status reports six fictional vehicles and the assigned runtime |
-| Fictional inventory source | Provider-backed; media extension locally verified | Six clearly labelled synthetic stock records are read from the separate provider simulator. The current source change adds provider-shaped ordered `media.images` entries and public synthetic media delivery; hosted replacement and reindex evidence remain to be recorded before calling image rendering live-proven |
+| Fictional inventory source | Provider-backed and media-hosted verified | Six clearly labelled synthetic stock records are read from the separate provider simulator. Ordered `media.images` references use synthetic `imageId`/`href` values and public simulator WebPs; all six rendered and loaded in the production browser proof |
 | Customer application UI | Hosted and verified | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, Max Mode, and host-injected structured action presentations through the generic widget contract |
 | Staff workspace | Hosted and verified | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes, true server-side logout, and four fixed server-owned provider simulation scenarios; browser cannot choose account, target, credential, URL, or payload |
 | Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
-| Inventory Data Sync client | Superseded by provider-backed DATA composition | Historical backend-push evidence remains valid for its recorded version. Current v22 connector pulls the six synthetic records, performs current-record webhook upsert/delete, and reconciles runtime indexing `6 -> 7 -> 6`; the independent backend no longer pushes chat inventory |
-| Authorization and actions | Hosted and verified | Indexed inventory read action and grounded answer passed; confirmed test-drive action produced receipt `NFM-33B974CC`, persisted once, and appeared as `NEW` in the protected staff inbox |
-| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy; provider reads resolve through the provider profile, dealership writes retain their application upstream, and immutable v22 verification passed `25/0` with five non-applicable checks skipped |
-| Public catalogue | Live | Experiment entry, screenshot, sitemap, content/static smoke and responsive accessibility browser coverage pass; production public site commit `d969838139b76a7b6a77c319a1d110629e23fecd` exposes the protected provider-event demonstration panel |
+| Inventory Data Sync client | Superseded by provider-backed DATA composition | Historical backend-push evidence remains valid for its recorded version. Current v24 connector pulls six synthetic records with primary media projection, performs current-record webhook upsert/delete, and reconciles runtime indexing `6 -> 7 -> 6`; the independent backend no longer pushes chat inventory |
+| Authorization and actions | Hosted and verified | Indexed inventory action and grounded follow-up both preserve reviewed provider media; test-drive rejection, confirmed test drive, confirmed callback, protected staff readback, and cleanup all passed |
+| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy; provider reads resolve through the provider profile, bounded nested provider references are promoted by declared projections, dealership writes retain their application upstream, and immutable v24 is `APPLIED_VERIFIED` |
+| Public catalogue | Live | Experiment entry, sitemap, content/static smoke, responsive browser coverage, rich action renderers, detail navigation, and six-of-six provider image loading pass on production site commit `903e4b6a2333060a8a020dab4440d9ce77f118b9` |
 | Build and supply-chain posture | Implemented locally | Backend/site production images build; status exposes version/commit/build time; site and widget production dependency audits report zero findings; widget package/artifact ownership is LoomAI-labelled and locally bundled |
 | Auto Trader source | Not activated | No credential, advertiser grant, sandbox fixture or production data is claimed; meeting composition remains fictional |
 
@@ -116,23 +118,33 @@ hosted use: the initial login route is now the only unauthenticated staff route,
 and logout now sends the required CSRF token so the server session is actually
 invalidated.
 
-### Provider-backed replacement closure: 2026-10-03
+### Provider-backed replacement and media closure: 2026-10-03
 
-Deployment `dep-f023c863` is now v22 / `ver-7d7d8a20`, release
-`rel-4db12069`, source artifact `dsa-cf25dc3c`, on AI Fabric `0.8.8`.
-Verification `vrf-a069ec0c` passed `25`, failed `0`, and skipped `5`
-non-applicable checks. The six indexed chat records now come from the separately
+Deployment `dep-f023c863` is now v24 / `ver-e51ba303`, release
+`rel-cd3ebd96`, source artifact `dsa-20de18aa`, on AI Fabric `0.8.8`.
+Verification `vrf-fc0f9db8` is `PASSED` and the release is
+`APPLIED_VERIFIED`. The six indexed chat records now come from the separately
 hosted synthetic provider profile through deployment-local DATA sync; provider
-reads use the provider profile, while confirmed test-drive/callback writes stay
-with the independent dealership backend.
+reads use that profile, while confirmed test-drive/callback writes stay with
+the independent dealership backend.
 
-The repeatable exact-contract rehearsal passed 26 checks: documented synthetic
+The repeatable exact-contract rehearsal passed 28 checks: documented synthetic
 auth/stock envelopes, current-record fetch, signed `PUT`, wrong-signature,
 malformed and wrong-resource rejection, duplicate/delayed convergence, vector
-count `6 -> 7 -> 6`, and anonymous action-plus-indexed-evidence chat. All four
-fixed staff scenarios also completed, and the production staff UI exercised one
-through the browser without calling provider/internal routes directly. The
+count `6 -> 7 -> 6`, ordered media readback through both action and RAG paths,
+and anonymous action-plus-indexed-evidence chat. The production browser gate
+rendered six inventory cards, loaded six provider images from the simulator
+host, exercised detail/comparison views and grounded follow-up, and completed
+governed test-drive/callback journeys with protected readback and cleanup. The
 fixture was reset and six records were reconciled after the proof.
+
+Verification-only Marketplace versions are DATA `1.1.0`, ACTION `1.2.0`, and
+template `1.2.0`. The immutable runtime image digest is
+`sha256:789379c5a143014155cb704e99df397a0407f460131d73e1b9c03e18ed9b33ab`.
+The hosted contract evidence SHA-256 is
+`54dc1756ddf8cac697b418ee0d94b96f1b289013038a0edf14623e3d80892b30`;
+the production browser evidence SHA-256 is
+`7aae9382fe444a8a09681cb53812efab1d89b110ee76cd4de725c9133e2781d9`.
 
 This establishes only `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`. The source is
 synthetic and public-document-informed; it is not an Auto Trader sandbox,
@@ -1770,7 +1782,7 @@ provider product.
 
 | Decision | Status | Tracking consequence |
 | --- | --- | --- |
-| Keep the existing `dep-f023c863` evidence recorded as a backend-push fictional demo until replacement proof passes | Historical evidence preserved; live deployment replaced by v22 | Do not rewrite old v1-v21 evidence or claim the simulator supplied it; current state is separately recorded under the 2026-10-03 hosted evidence |
+| Keep the existing `dep-f023c863` evidence recorded as a backend-push fictional demo until replacement proof passes | Historical evidence preserved; live deployment replaced by provider-backed v24 | Do not rewrite old v1-v21 evidence or claim the simulator supplied it; current state is separately recorded under the 2026-10-03 hosted evidence |
 | One dealership equals one deployment and one provider advertiser/account scope | Agreed | Credentials, source state, webhooks, index, and actions remain deployment-local |
 | Do not introduce a standalone Auto Trader bridge | Agreed | Extend the existing generic connector and existing Marketplace primitives |
 | Keep dealership website/backend independent from provider integration | Agreed | Do not change its catalogue source; it continues to own presentation and leads |

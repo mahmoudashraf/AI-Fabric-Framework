@@ -27,7 +27,7 @@
     {
       "details": {
         "advertiserPresent": true,
-        "fixtureVersion": "external-vehicle-provider-v1",
+        "fixtureVersion": "external-vehicle-provider-v2-media",
         "httpStatus": 200
       },
       "name": "simulator_fixture_scope",
@@ -69,11 +69,22 @@
     },
     {
       "details": {
-        "deploymentVersionId": "ver-7d7d8a20",
+        "cacheControl": "max-age=31536000, public, immutable",
+        "contentType": "image/webp",
         "httpStatus": 200,
-        "releaseId": "rel-4db12069",
+        "imageIdPresent": true,
+        "mediaHost": "external-vehicle-provider-simulator.46.224.145.148.sslip.io"
+      },
+      "name": "stock_primary_media_public_delivery",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deploymentVersionId": "ver-e51ba303",
+        "httpStatus": 200,
+        "releaseId": "rel-cd3ebd96",
         "releaseStatus": "APPLIED_VERIFIED",
-        "sourceArtifactId": "dsa-cf25dc3c",
+        "sourceArtifactId": "dsa-20de18aa",
         "verificationStatus": "PASSED"
       },
       "name": "immutable_deployment_release_verified",
@@ -139,7 +150,7 @@
         "deliveryStatuses": [
           200
         ],
-        "eventId": "evt-55a6033c185b51f78a897912c09ad1b2e112e8f881bb25eb1e7bf393560f6984"
+        "eventId": "evt-0fb2f38bd0c70972f643140bf750a40334ca2ecfc150250ece00feaa909fac3a"
       },
       "name": "signed_put_notification_accepted",
       "status": "PASSED"
@@ -147,7 +158,7 @@
     {
       "details": {
         "attemptCount": 1,
-        "eventId": "evt-55a6033c185b51f78a897912c09ad1b2e112e8f881bb25eb1e7bf393560f6984",
+        "eventId": "evt-0fb2f38bd0c70972f643140bf750a40334ca2ecfc150250ece00feaa909fac3a",
         "status": "COMPLETED",
         "targetedRecord": true
       },
@@ -199,7 +210,7 @@
           200
         ],
         "duplicateCount": 1,
-        "eventId": "evt-cf3cf7b718cd6e1692758e79ba76d4e51b76b816a86c626820e219a240228ed1",
+        "eventId": "evt-87b6e947bc80952b8ed0c421338a0103c2cdf42a56fa5ad72af2fe40297a6594",
         "status": "COMPLETED"
       },
       "name": "duplicate_notification_is_idempotent",
@@ -207,7 +218,7 @@
     },
     {
       "details": {
-        "eventId": "evt-3aa0a5585873e88736743cfb7ee8283a1082641355e19b70bb840bba34c7e652",
+        "eventId": "evt-96d019f05be6bd354d1bdd7abb4f41062634105374fcfe19249db57d0fac8b4e",
         "status": "COMPLETED",
         "targetedRecord": true,
         "vectorCount": 7
@@ -233,12 +244,24 @@
         "answerContainsCanary": true,
         "documentsCount": 1,
         "httpStatus": 200,
-        "providerRequestId": "rag-3631b8f3-4e6c-4e3c-8a1e-c1078652226c",
+        "providerRequestId": "rag-56d18fb3-82da-4bac-9a1c-56ae1d7260eb",
         "sourcesCount": 1,
         "success": true,
         "type": "INFORMATION_PROVIDED"
       },
       "name": "anonymous_chat_uses_provider_action_and_indexed_evidence",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "actionMediaCount": 7,
+        "httpStatus": 200,
+        "indexedMediaDocumentCount": 7,
+        "mediaHost": "external-vehicle-provider-simulator.46.224.145.148.sslip.io",
+        "providerRequestId": "rag-a19ef6c8-489d-4d23-9f45-94b78d1e2902",
+        "success": true
+      },
+      "name": "anonymous_chat_surfaces_provider_media_in_action_and_rag",
       "status": "PASSED"
     },
     {
@@ -254,7 +277,7 @@
         "deliveryStatuses": [
           200
         ],
-        "eventId": "evt-4c59a843a0ee51c262e3621444370677c31c6b373478b4fd0fe332983b834211",
+        "eventId": "evt-90aff167d91450955ac95ef3109c059e66b9854c3810309705b724093eb96495",
         "status": "COMPLETED"
       },
       "name": "signed_delete_notification_completed",
@@ -270,7 +293,7 @@
     }
   ],
   "claim": "PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED",
-  "completedAt": "2026-10-03T04:08:19.789027Z",
+  "completedAt": "2026-10-03T09:09:00.772087Z",
   "counts": {
     "afterTargetedDelete": 6,
     "afterTargetedUpsert": 7,
@@ -279,9 +302,9 @@
   "error": null,
   "fixture": {
     "advertiserId": "990001",
-    "fixtureVersion": "external-vehicle-provider-v1",
-    "resetAt": "2026-10-03T04:07:49.547404Z",
-    "resetId": "15ad0ff4-ed2f-431f-bb4b-c35563edff40"
+    "fixtureVersion": "external-vehicle-provider-v2-media",
+    "resetAt": "2026-10-03T08:09:21.576358Z",
+    "resetId": "7e00edab-0a83-46e2-a206-9a29e07041a3"
   },
   "nonClaims": [
     "This is not an official Auto Trader sandbox.",
@@ -290,12 +313,12 @@
     "Partner grants, data rights, sandbox validation, and production go-live evidence remain open."
   ],
   "release": {
-    "deploymentVersionId": "ver-7d7d8a20",
-    "imageDigest": "sha256:a37d4241b74d994760512e2279b280b9d6f0ed899ab943b9a8c991c9850ce8d0",
-    "releaseId": "rel-4db12069",
-    "sourceArtifactId": "dsa-cf25dc3c",
-    "sourceGitCommit": "8c5a650e5d58d64e9ead8fa386c4dcda211a46eb",
-    "verificationRunId": "vrf-a069ec0c"
+    "deploymentVersionId": "ver-e51ba303",
+    "imageDigest": "sha256:789379c5a143014155cb704e99df397a0407f460131d73e1b9c03e18ed9b33ab",
+    "releaseId": "rel-cd3ebd96",
+    "sourceArtifactId": "dsa-20de18aa",
+    "sourceGitCommit": "738fad457e607b2f00c3184dd4f7c78eee7764a2",
+    "verificationRunId": "vrf-fc0f9db8"
   },
   "schemaVersion": "loomai-autotrader-public-contract-hosted-canary-v1",
   "scope": {
@@ -308,6 +331,6 @@
     "sourceId": "autotrader-dealership-stock-source",
     "webhookSourceId": "autotrader-stock-events"
   },
-  "startedAt": "2026-10-03T04:08:04.814613Z",
+  "startedAt": "2026-10-03T09:08:39.456419Z",
   "status": "PASSED"
 }

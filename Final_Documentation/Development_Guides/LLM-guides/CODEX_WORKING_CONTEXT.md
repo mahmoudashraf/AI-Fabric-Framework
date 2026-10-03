@@ -3669,3 +3669,32 @@ Critical fixes that made the gate pass:
   has no operator rule and local production Coolify access times out. Local
   temporary credential, cookie, payload, evidence-copy, and screenshot files
   were truncated and removed after the private handoff was updated.
+
+## 2026-10-03 Provider Stock Media Hosted Closure
+
+- Supersede the current deployment identity in the earlier v22 entry with
+  `dep-f023c863` v24 / `ver-e51ba303`, source artifact `dsa-20de18aa`, release
+  `rel-cd3ebd96`, and verification `vrf-fc0f9db8`. Release state is
+  `APPLIED_VERIFIED`; runtime/connector are healthy on AI Fabric `0.8.8`.
+- Runtime source `738fad457e607b2f00c3184dd4f7c78eee7764a2` promotes only declared,
+  trusted nested provider references through generic connector field
+  projections. Verification-only packages are DATA `1.1.0`, ACTION `1.2.0`,
+  and template `1.2.0`; the runtime image digest is
+  `sha256:789379c5a143014155cb704e99df397a0407f460131d73e1b9c03e18ed9b33ab`.
+- Simulator fixture `external-vehicle-provider-v2-media` returns ordered
+  synthetic `media.images` references and hosts its own WebPs. Hosted canary
+  passed `28/28`, including action and RAG media readback and vector convergence
+  `6 -> 7 -> 6`.
+- Production public site commit
+  `903e4b6a2333060a8a020dab4440d9ce77f118b9` passed the complete live browser
+  gate: six cards, six provider images loaded, detail/comparison, six-source
+  grounded follow-up, governed write rejection/confirmation, protected staff
+  readback, cleanup, page attachment, and zero forbidden requests/failures.
+- Sanitized evidence: hosted contract SHA-256
+  `54dc1756ddf8cac697b418ee0d94b96f1b289013038a0edf14623e3d80892b30`;
+  browser gate SHA-256
+  `7aae9382fe444a8a09681cb53812efab1d89b110ee76cd4de725c9133e2781d9`.
+- Preserve the boundary: this proves synthetic stock-media reads only. Real
+  Auto Trader CDN behavior, media upload/reorder/delete, grants, rights,
+  sandbox compatibility, validation, certification, endorsement, and
+  production approval remain open.

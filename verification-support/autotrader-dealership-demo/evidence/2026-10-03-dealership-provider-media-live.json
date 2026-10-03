@@ -1,0 +1,129 @@
+{
+  "status": "PASS",
+  "origin": "https://loomai.pro",
+  "deploymentJourney": {
+    "conversationId": "chat-37e4beea-5b0b-41a2-b5d1-85a936c3dca4",
+    "queryCount": 18,
+    "hostToolLabels": [
+      "Search stock",
+      "Electric cars",
+      "Family options",
+      "Compare cars"
+    ],
+    "hostToolState": {
+      "groupLabels": [
+        "Browse stock",
+        "This vehicle"
+      ],
+      "activeTools": [
+        "Search stock",
+        "Electric cars",
+        "Family options",
+        "Compare cars"
+      ],
+      "activeScope": "default",
+      "contextualDisabled": true
+    },
+    "clickedHostTool": "Electric cars",
+    "vehicleCount": 6,
+    "sessionRenewal": {
+      "sameSession": true,
+      "sessionIdPresent": true
+    },
+    "contextualSuggestions": {
+      "count": 4,
+      "status": 200
+    }
+  },
+  "presentations": {
+    "inventory": {
+      "actionName": "dealership_search_inventory",
+      "rendererId": "loomai.vehicle-inventory.v1",
+      "schemaVersion": "loomai.vehicle-list.v1",
+      "projectedItemCount": 6,
+      "renderedCardCount": 6,
+      "filterLabels": [],
+      "imageCount": 6,
+      "loadedImageCount": 6,
+      "providerImageCount": 6,
+      "imageHosts": [
+        "external-vehicle-provider-simulator.46.224.145.148.sslip.io"
+      ]
+    },
+    "detail": "loomai.vehicle-detail.v1",
+    "comparison": "loomai.vehicle-comparison.v1"
+  },
+  "groundedFollowUp": {
+    "providerRequestId": "rag-d9e9798e-3947-4a78-8c2c-a5e9b0068c07",
+    "conversationId": "chat-37e4beea-5b0b-41a2-b5d1-85a936c3dca4",
+    "sourceCount": 6,
+    "documentCount": 6,
+    "action": "dealership_search_inventory",
+    "readActionStatuses": [
+      "PLANNED"
+    ],
+    "searchSourceStatuses": [
+      "SUCCEEDED"
+    ],
+    "executedActions": [
+      "dealership_search_inventory"
+    ]
+  },
+  "writes": {
+    "rejectedTestDrive": {
+      "cancelled": true
+    },
+    "confirmedTestDrive": {
+      "entryType": "CLARIFICATION_REQUIRED",
+      "providerRequestId": "rag-46aa76e9-1a92-4de4-87c4-e84b1b21652b",
+      "conversationId": "chat-37e4beea-5b0b-41a2-b5d1-85a936c3dca4",
+      "actionSuccess": true,
+      "receiptCode": "NFM-C94C1F0F",
+      "actionStatus": "NEW"
+    },
+    "confirmedCallback": {
+      "entryType": "CLARIFICATION_REQUIRED",
+      "providerRequestId": "rag-b499036d-b543-48df-afb9-ee1235ec2d11",
+      "conversationId": "chat-37e4beea-5b0b-41a2-b5d1-85a936c3dca4",
+      "actionSuccess": true,
+      "receiptCode": "NFM-BE465C06",
+      "actionStatus": "NEW"
+    }
+  },
+  "staffReadback": [
+    {
+      "receiptCode": "NFM-C94C1F0F",
+      "persistedExactlyOnce": true,
+      "vehicle": "2025 Aster E1",
+      "contactReadback": true
+    },
+    {
+      "receiptCode": "NFM-BE465C06",
+      "persistedExactlyOnce": true,
+      "vehicle": "2025 Aster E1",
+      "contactReadback": true
+    }
+  ],
+  "staffCleanup": [
+    {
+      "receiptCode": "NFM-C94C1F0F",
+      "status": "CANCELLED"
+    },
+    {
+      "receiptCode": "NFM-BE465C06",
+      "status": "CANCELLED"
+    }
+  ],
+  "suggestionRequests": 1,
+  "detailNavigation": {
+    "path": "/demos/dealership-ai/vehicles/aster-e1-motion",
+    "title": "2025 Aster E1",
+    "currentPageAttachRemove": true
+  },
+  "forbiddenBrowserRequests": [],
+  "failures": [],
+  "screenshots": [
+    "/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/loomai-site/test-results/dealership-live/meeting-demo-desktop.png",
+    "/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/loomai-site/test-results/dealership-live/meeting-demo-mobile.png"
+  ]
+}

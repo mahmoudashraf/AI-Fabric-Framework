@@ -39,9 +39,9 @@
 - **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
   source `86abb0320c5af2397231cf40077194ba0435efd2`, completed
   `2026-09-28T11:46:36Z`; dealership deployment `dep-f023c863`, runtime image
-  source `8c5a650e5d58d64e9ead8fa386c4dcda211a46eb`, deployment version
-  `ver-7d7d8a20`, source artifact `dsa-cf25dc3c`, and release
-  `rel-4db12069`, verified 2026-10-03
+  source `738fad457e607b2f00c3184dd4f7c78eee7764a2`, deployment version
+  `ver-e51ba303`, source artifact `dsa-20de18aa`, and release
+  `rel-cd3ebd96`, verified 2026-10-03
 
 Related plans:
 
@@ -353,7 +353,7 @@ on 2026-10-03.
 | Connector persistence | Deployment PostgreSQL is reused through connector-owned schema/role; every expected standard/preview bootstrap row must be found, deleted, and proven absent before connector restart on its restricted role | Hosted Coolify lifecycle and PostgreSQL backup/restore passed; ownership and ACLs are preserved for restricted roles |
 | Marketplace DATA modes | `EXTERNAL_SYNC_HTTP` with `HTTP_JSON` is validated, compiled, hashed, exported/imported, provisioned, and capability-gated | Implemented locally |
 | HTTP DATA execution | Page/size and cursor sources execute in the deployment connector, validate every record against the protected resource, and push only normalized operations to the colocated runtime | Hosted two-profile/two-deployment isolation, indexing, retrieval, mutation, and failure proof passed |
-| Current dealership demo source | Deployment `dep-f023c863` v22 indexes six fictional rows through provider-backed DATA sync from the separately hosted simulator. The independent dealership backend no longer pushes those records and remains responsible only for presentation and dealer-owned writes | Hosted replacement passed; no Auto Trader claim |
+| Current dealership demo source | Deployment `dep-f023c863` v24 indexes six fictional rows and their bounded primary media projection through provider-backed DATA sync from the separately hosted simulator. The independent dealership backend no longer pushes those records and remains responsible only for presentation and dealer-owned writes | Hosted replacement and media proof passed; no Auto Trader claim |
 | External binding precedent | Document Knowledge Operations now provides target-scoped customer-storage bindings, secret references, safe readback, export/import boundaries, lifecycle cleanup, and operations UI | Reuse/generalize the lifecycle pattern; do not overload the document-storage-specific contract |
 | Runtime Data Sync | Deployment runtime exposes batch/upsert/delete and vector-space contracts | Reuse as the normalized indexing boundary |
 | Index work reconciliation | Runtime admin exposes per-work indexing status and vector overview | Reuse with customer-safe projection |
@@ -368,8 +368,8 @@ on 2026-10-03.
 | Auto Trader packages | DRAFT catalog reservations exist, with no executable versions | Correctly blocked pending partner grants and schemas |
 | Provider-backed action routing | Provider-profile routes resolve through `ProviderHttpClient` independently of the application upstream. Protected collection filters remove non-published records before response templates or model facts are built | Hosted provider read plus independent dealership-write composition passed |
 | Generic hosted evidence | Independent HTTPS simulator, two isolated deployments, exact immutable runtime artifact, full lifecycle matrix, and cleanup | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` on staging; this is not named-provider evidence |
-| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, ordered synthetic `media.images` references, public simulator media delivery, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | The original hosted 26-check contract canary passed before the media extension. The media contract and delivery tests pass locally; hosted simulator replacement, deployment apply/reindex, action/RAG image readback, and browser proof remain required before the media extension is called hosted-proven |
-| Auto Trader hosted evidence | None | Blocking |
+| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, ordered synthetic `media.images` references, public simulator media delivery, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | Hosted v24 contract canary passed `28/28`; action/RAG media readback and six-of-six production browser image loading are proven. This remains synthetic public-document rehearsal, not sandbox/provider validation |
+| Real Auto Trader hosted evidence | None | Blocking; the synthetic public-document rehearsal above is not provider evidence |
 
 ### 4.1 Implementation checkpoint
 
@@ -533,6 +533,52 @@ token was revoked, the pre-rollout server snapshot was deleted, temporary SSH
 and firewall allowances were removed or restored to their pre-run state, local
 production Coolify access was closed, and local temporary credentials and
 response artifacts were erased after the ignored private handoff was updated.
+
+### 4.4 Hosted stock-media closure
+
+The superseding media canary completed at `2026-10-03T09:09:00Z` with status
+`PASSED`, all `28/28` checks green, and the same bounded claim
+`PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`.
+
+- Deployment `dep-f023c863` is active on v24 / `ver-e51ba303`, source artifact
+  `dsa-20de18aa`, runtime source
+  `738fad457e607b2f00c3184dd4f7c78eee7764a2`, release `rel-cd3ebd96`, and
+  verification `vrf-fc0f9db8`. The release is `APPLIED_VERIFIED`.
+- The runtime image digest is
+  `sha256:789379c5a143014155cb704e99df397a0407f460131d73e1b9c03e18ed9b33ab`.
+- Verification-only Marketplace versions are DATA `1.1.0`, ACTION `1.2.0`,
+  and template `1.2.0`. They remain internal contract-canary packages, not
+  released customer Auto Trader packages.
+- The simulator fixture is `external-vehicle-provider-v2-media`. Each stock
+  record carries an ordered `media.images` collection with synthetic
+  `imageId`/`href` values and a cacheable simulator-hosted WebP. No invented
+  Auto Trader CDN URL is used.
+- Declared generic connector field projections preserve bounded trusted nested
+  references for action results. Data Sync carries the reviewed primary image
+  into RAG metadata. The dealership host maps those values into generic rich
+  renderers only after an explicit HTTPS media-host allowlist check.
+- The hosted contract canary proved action and RAG media readback while retaining
+  signed targeted reconciliation and `6 -> 7 -> 6` vector convergence.
+- The production browser gate at `https://loomai.pro` rendered six inventory
+  cards and loaded all six images from the simulator host. Detail navigation,
+  comparison, a six-source/six-document grounded follow-up, rejected and
+  confirmed writes, staff readback, cleanup, page attach/remove, and forbidden-
+  request checks all passed with no browser failures.
+
+The canonical contract evidence is
+[2026-10-03-autotrader-public-contract-hosted.json](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json),
+SHA-256
+`54dc1756ddf8cac697b418ee0d94b96f1b289013038a0edf14623e3d80892b30`.
+The production browser evidence is
+[2026-10-03-dealership-provider-media-live.json](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-03-dealership-provider-media-live.json),
+SHA-256
+`7aae9382fe444a8a09681cb53812efab1d89b110ee76cd4de725c9133e2781d9`.
+Both artifacts are bounded and sanitized.
+
+This does not claim Auto Trader-hosted image delivery, Media Updates access,
+upload/reorder/delete support, sandbox compatibility, data rights,
+certification, endorsement, or production approval. Real media writes remain a
+separate partner-granted capability and go-live gate.
 
 ## 5. Target Deployment-Local Architecture
 

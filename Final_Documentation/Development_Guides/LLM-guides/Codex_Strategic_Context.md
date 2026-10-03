@@ -634,3 +634,12 @@ Current P0 cleanup items:
   state is `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`, never an Auto Trader
   sandbox, compatibility, rights, certification, endorsement, or production
   claim. Partner onboarding and real sandbox evidence are the next gate.
+- 2026-10-03 stock-media closure supersedes the current-state part of the v22
+  entry: deployment `dep-f023c863` is now provider-backed v24. The integration
+  keeps Auto Trader-style ordered image identity with provider stock, projects
+  one reviewed image through Data Sync/action facts, and lets the customer host
+  render only allowlisted HTTPS media; generic widget core remains domain- and
+  provider-neutral. The synthetic canary passed `28/28`, and the production
+  browser loaded all six provider images through action/RAG-backed journeys.
+  Media upload, ordering writes, real CDN behavior, sandbox compatibility,
+  rights, and certification remain partner-gated non-claims.
