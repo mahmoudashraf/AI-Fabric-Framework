@@ -981,3 +981,14 @@ or Platform-managed `UI_EXTENSION` packaging.
 - Local widget typecheck/build/action-presentation smoke, site production
   build, Astro diagnostics, content/static gates and the complete Playwright
   browser suite are green.
+- Commit `a500211720d38b2cb168b94225c7ad9ef44c1781` is live on production
+  public-site Coolify deployment `kv6qmlaigg8yuhfbkmoctghm`.
+  `https://loomai.pro/health` reports `UP` on that exact commit.
+- A fresh hosted browser context attached the inventory page, performed a full
+  document navigation to `2025 Aster E1`, observed the inventory page chip
+  still present, and then added the vehicle detail as a second page
+  attachment. The canary issued no chat query or write action.
+- Temporary production control-plane access was removed after verification.
+  Hetzner firewalls `10915120` and `10918233` contain zero entries for the
+  operator IPv4/IPv6 CIDRs, and local Coolify port `8000` again returns HTTP
+  `000` by timeout.

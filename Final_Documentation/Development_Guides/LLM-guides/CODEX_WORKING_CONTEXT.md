@@ -3719,3 +3719,11 @@ Critical fixes that made the gate pass:
   page chip before any destination-page action. Widget typecheck/build,
   action-presentation smoke, site production build, Astro diagnostics,
   content/static smoke and the complete Playwright suite passed.
+- Commit `a500211720d38b2cb168b94225c7ad9ef44c1781` is live on production
+  public-site deployment `kv6qmlaigg8yuhfbkmoctghm`; canonical health reports
+  `UP` on that exact commit. A clean hosted browser attached inventory,
+  navigated to `2025 Aster E1`, retained the inventory chip, and added the
+  detail page as a second attachment without issuing a chat query or write.
+- Temporary production Coolify access was closed after proof. Firewalls
+  `10915120` and `10918233` report zero current operator IPv4/IPv6 entries, and
+  the direct local port-8000 probe returns timeout/HTTP `000`.
