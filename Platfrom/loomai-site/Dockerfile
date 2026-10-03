@@ -22,8 +22,11 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+ARG SOURCE_COMMIT=unknown
+
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV APP_BUILD_COMMIT=${SOURCE_COMMIT}
 
 COPY --from=build /workspace/Platfrom/loomai-site/dist ./dist
 COPY --from=build /workspace/Platfrom/loomai-site/deploy/container/server.mjs ./server.mjs
