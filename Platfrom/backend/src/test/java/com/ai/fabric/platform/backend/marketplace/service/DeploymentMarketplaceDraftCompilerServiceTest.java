@@ -70,6 +70,57 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileActionContributionNormalizesSourceProjectionAndPinnedTargets() throws Exception {
+        JsonNode action = objectMapper.readTree("""
+            {
+              "actionId": "inventory_search",
+              "adapterType": "connector-http",
+              "readOnly": true,
+              "route": {
+                "sourceProjection": {
+                  "sourceRef": "inventory-source",
+                  "filters": [{"param": "query", "fields": ["name"], "operator": "EQUALS_IGNORE_CASE"}],
+                  "outputFields": ["recordId", "name"],
+                  "limitParam": "limit",
+                  "defaultLimit": 10,
+                  "maxLimit": 25,
+                  "requireSuccessfulSync": true,
+                  "maxStalenessSeconds": 1800
+                },
+                "response": {
+                  "pinnedTargetsFromCollection": {
+                    "collectionJsonPointer": "/results",
+                    "idJsonPointer": "/recordId",
+                    "vectorSpace": "records",
+                    "contentFields": {"name": "/name"},
+                    "metadataFields": {"recordId": "/recordId"},
+                    "maxTargets": 8,
+                    "maxContentChars": 1200
+                  }
+                },
+                "authz": {
+                  "enabled": true,
+                  "resourceId": "inventory-search",
+                  "operationType": "SEARCH"
+                }
+              }
+            }
+            """);
+
+        ObjectNode compiled = compilerService.compileActionContribution(action, install(), plugin(), version());
+        JsonNode route = compiled.path("route");
+
+        assertThat(route.has("sourceProjection")).isFalse();
+        assertThat(route.path("source-projection").path("source-ref").asText()).isEqualTo("inventory-source");
+        assertThat(route.path("source-projection").path("output-fields")).hasSize(2);
+        assertThat(route.path("source-projection").path("require-successful-sync").asBoolean()).isTrue();
+        assertThat(route.path("response").path("pinned-targets-from-collection")
+            .path("collection-json-pointer").asText()).isEqualTo("/results");
+        assertThat(route.path("authz").path("resource-id").asText()).isEqualTo("inventory-search");
+        assertThat(route.path("authz").path("operation-type").asText()).isEqualTo("SEARCH");
+    }
+
+    @Test
     void compileActionContributionPreservesMcpExecutionMetadata() throws Exception {
         JsonNode action = objectMapper.readTree("""
             {

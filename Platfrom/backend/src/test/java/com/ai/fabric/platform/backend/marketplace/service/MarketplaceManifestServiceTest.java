@@ -448,6 +448,71 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void connectorHttpActionManifestAllowsDeploymentLocalSourceProjectionRoutes() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true, "requiresExternalHttpExecution": false},
+              "contributions": {"actions": [{
+                "actionId": "inventory_search",
+                "adapterType": "connector-http",
+                "readOnly": true,
+                "route": {
+                  "sourceProjection": {
+                    "sourceRef": "inventory-source",
+                    "filters": [{"param": "query", "fields": ["name"], "operator": "EQUALS_IGNORE_CASE"}],
+                    "outputFields": ["recordId", "name"],
+                    "defaultLimit": 10,
+                    "maxLimit": 25,
+                    "requireSuccessfulSync": true,
+                    "maxStalenessSeconds": 1800
+                  },
+                  "response": {"result": {"results": "{{body.results}}"}}
+                }
+              }]}
+            }
+            """;
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            service.parseAndValidate(actionPlugin(), version(manifest));
+
+        assertThat(parsed.contributions().actionIds()).containsExactly("inventory_search");
+    }
+
+    @Test
+    void sourceProjectionActionManifestRejectsProviderRequestSettings() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {"actions": [{
+                "actionId": "inventory_search",
+                "adapterType": "connector-http",
+                "readOnly": true,
+                "route": {
+                  "sourceProjection": {
+                    "sourceRef": "inventory-source",
+                    "outputFields": ["recordId"]
+                  },
+                  "method": "GET",
+                  "request": {"query": {"page": 1}}
+                }
+              }]}
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("must not declare HTTP/provider request settings");
+    }
+
+    @Test
     void providerActionManifestRequiresRelativeBoundedAuthorityRoute() {
         String valid = """
             {

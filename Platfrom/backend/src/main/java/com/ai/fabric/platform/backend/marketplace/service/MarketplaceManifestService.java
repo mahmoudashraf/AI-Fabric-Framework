@@ -558,13 +558,23 @@ public class MarketplaceManifestService {
             if (route.isObject()) {
                 String url = route.path("url").asText("").trim();
                 String path = route.path("path").asText("").trim();
-                if (StringUtils.hasText(url) && StringUtils.hasText(path)) {
-                    throw invalid(plugin, version, "action route may declare either url or path, not both.");
+                JsonNode sourceProjection = route.path("sourceProjection");
+                boolean sourceProjectionPresent = !sourceProjection.isMissingNode() && !sourceProjection.isNull();
+                int targetCount = (StringUtils.hasText(url) ? 1 : 0)
+                    + (StringUtils.hasText(path) ? 1 : 0)
+                    + (sourceProjectionPresent ? 1 : 0);
+                if (route.has("source-projection")) {
+                    throw invalid(plugin, version, "action route manifests must use sourceProjection; source-projection is an internal compiled property.");
                 }
-                if (!StringUtils.hasText(url) && !StringUtils.hasText(path)) {
-                    throw invalid(plugin, version, "action route must declare url or path when route is present.");
+                if (targetCount > 1) {
+                    throw invalid(plugin, version, "action route may declare exactly one of url, path, or sourceProjection.");
                 }
-                if (StringUtils.hasText(route.path("connectionProfileRef").asText(""))) {
+                if (targetCount == 0) {
+                    throw invalid(plugin, version, "action route must declare url, path, or sourceProjection when route is present.");
+                }
+                if (sourceProjectionPresent) {
+                    validateSourceProjectionActionRoute(plugin, version, actionId.trim(), route, sourceProjection);
+                } else if (StringUtils.hasText(route.path("connectionProfileRef").asText(""))) {
                     validateProviderActionRoute(plugin, version, actionId.trim(), route);
                 }
             }
@@ -598,6 +608,80 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private void validateSourceProjectionActionRoute(MarketplacePluginEntity plugin,
+                                                     MarketplacePluginVersionEntity version,
+                                                     String actionId,
+                                                     JsonNode route,
+                                                     JsonNode sourceProjection) {
+        String prefix = "action '" + actionId + "' sourceProjection route ";
+        if (!sourceProjection.isObject()) {
+            throw invalid(plugin, version, prefix + "sourceProjection must be an object.");
+        }
+        requireIdentifier(plugin, version, sourceProjection.path("sourceRef").asText(""), prefix + "sourceRef");
+        if (route.has("method")
+            || route.has("connectionProfileRef")
+            || route.has("protectedResourceBindingRef")
+            || route.has("requiredCapabilityGrants")
+            || route.has("trustedResourcePlacements")
+            || route.has("idempotencyHeader")
+            || route.has("headers")
+            || route.has("request")) {
+            throw invalid(plugin, version, prefix + "must not declare HTTP/provider request settings.");
+        }
+
+        JsonNode filters = sourceProjection.path("filters");
+        if (!filters.isMissingNode() && (!filters.isArray() || filters.size() > 20)) {
+            throw invalid(plugin, version, prefix + "filters must be an array with at most 20 entries.");
+        }
+        Set<String> supportedOperators = Set.of(
+            "EQUALS_IGNORE_CASE",
+            "NUMBER_LESS_THAN_OR_EQUAL",
+            "ANY_TOKEN_EQUALS_IGNORE_CASE"
+        );
+        if (filters.isArray()) {
+            for (JsonNode filter : filters) {
+                if (!filter.isObject()) {
+                    throw invalid(plugin, version, prefix + "filter entries must be objects.");
+                }
+                requireIdentifier(plugin, version, filter.path("param").asText(""), prefix + "filter param");
+                JsonNode fields = filter.path("fields");
+                if (!fields.isArray() || fields.isEmpty() || fields.size() > 20) {
+                    throw invalid(plugin, version, prefix + "filter fields must be a non-empty array with at most 20 entries.");
+                }
+                for (JsonNode field : fields) {
+                    requireIdentifier(plugin, version, field.asText(""), prefix + "filter field");
+                }
+                String operator = normalizeUppercaseValue(filter.path("operator").asText("EQUALS_IGNORE_CASE"));
+                if (!supportedOperators.contains(operator)) {
+                    throw invalid(plugin, version, prefix + "filter operator is unsupported: " + operator);
+                }
+            }
+        }
+
+        JsonNode outputFields = sourceProjection.path("outputFields");
+        if (!outputFields.isArray() || outputFields.isEmpty() || outputFields.size() > 100) {
+            throw invalid(plugin, version, prefix + "outputFields must be a non-empty array with at most 100 entries.");
+        }
+        for (JsonNode field : outputFields) {
+            requireIdentifier(plugin, version, field.asText(""), prefix + "output field");
+        }
+        if (sourceProjection.has("limitParam")) {
+            requireIdentifier(plugin, version, sourceProjection.path("limitParam").asText(""), prefix + "limitParam");
+        }
+        validateOptionalIntegerRange(plugin, version, sourceProjection, "defaultLimit", 1, 500, prefix);
+        validateOptionalIntegerRange(plugin, version, sourceProjection, "maxLimit", 1, 500, prefix);
+        int defaultLimit = sourceProjection.path("defaultLimit").asInt(10);
+        int maxLimit = sourceProjection.path("maxLimit").asInt(50);
+        if (defaultLimit > maxLimit) {
+            throw invalid(plugin, version, prefix + "defaultLimit must not exceed maxLimit.");
+        }
+        validateOptionalIntegerRange(plugin, version, sourceProjection, "maxStalenessSeconds", 10, 604_800, prefix);
+        if (sourceProjection.has("requireSuccessfulSync")
+            && !sourceProjection.path("requireSuccessfulSync").isBoolean()) {
+            throw invalid(plugin, version, prefix + "requireSuccessfulSync must be a boolean.");
+        }
     }
 
     private void validateProviderActionRoute(MarketplacePluginEntity plugin,

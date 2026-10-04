@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-action-autotrader-contract-verification",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "pluginType": "ACTION",
   "displayName": "Internal Auto Trader Contract Verification Actions",
   "description": "Internal-only read actions for synthetic dealership stock exposed through the documented Auto Trader Stock API shape. It is not an Auto Trader service or endorsement.",
@@ -12,14 +12,14 @@
   "pricing": {"pricingModel": "FREE"},
   "permissions": {
     "contributesActions": true,
-    "requiresExternalHttpExecution": true
+    "requiresExternalHttpExecution": false
   },
   "contributions": {
     "actions": [
       {
         "actionId": "dealership_search_inventory",
         "adapterType": "connector-http",
-        "description": "Read the dealership account's current provider stock and apply the buyer's stated preferences to the returned facts.",
+        "description": "Query the dealership deployment's synchronized current-stock projection and apply every buyer preference as a typed filter.",
         "category": "dealership_inventory",
         "readOnly": true,
         "anonymousAllowed": true,
@@ -32,7 +32,7 @@
               "sourcePath": "results",
               "target": "items",
               "maxItems": 24,
-              "includeFields": ["vehicle", "advertiser", "adverts", "metadata", "features", "media"]
+              "includeFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"]
             }
           ]
         },
@@ -45,55 +45,72 @@
           {"name": "limit", "description": "Maximum number of vehicles to return.", "type": "INTEGER", "required": false, "min": 1, "max": 24}
         ],
         "route": {
-          "connectionProfileRef": "autotrader-stock-provider",
-          "protectedResourceBindingRef": "autotrader-dealership-account",
-          "requiredCapabilityGrants": ["stock:read"],
-          "trustedResourcePlacements": [
-            {"target": "QUERY", "field": "advertiserId"}
-          ],
-          "method": "GET",
-          "path": "/stock",
-          "request": {"query": {"lifecycleState": "FORECOURT", "page": 1, "pageSize": 200}},
+          "sourceProjection": {
+            "sourceRef": "autotrader-dealership-stock-source",
+            "filters": [
+              {"param": "make", "fields": ["make"], "operator": "EQUALS_IGNORE_CASE"},
+              {"param": "fuelType", "fields": ["fuelType"], "operator": "EQUALS_IGNORE_CASE"},
+              {"param": "bodyType", "fields": ["bodyType"], "operator": "EQUALS_IGNORE_CASE"},
+              {"param": "maxPriceGbp", "fields": ["priceGbp"], "operator": "NUMBER_LESS_THAN_OR_EQUAL"},
+              {"param": "maxMileage", "fields": ["mileage"], "operator": "NUMBER_LESS_THAN_OR_EQUAL"}
+            ],
+            "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"],
+            "limitParam": "limit",
+            "defaultLimit": 10,
+            "maxLimit": 24,
+            "requireSuccessfulSync": true,
+            "maxStalenessSeconds": 1800
+          },
           "response": {
-            "success-http-status": [200],
-            "collection-filters": [
-              {
-                "collection-json-pointer": "/results",
-                "count-json-pointer": "/totalResults",
-                "inclusion-conditions": [
-                  {
-                    "json-pointer": "/adverts/retailAdverts/advertiserAdvert/status",
-                    "allowed-values": ["PUBLISHED"]
-                  }
-                ]
-              }
-            ],
-            "collection-field-projections": [
-              {
-                "collection-json-pointer": "/results",
-                "fields": {
-                  "stockId": "/metadata/stockId",
-                  "lifecycleState": "/metadata/lifecycleState",
-                  "lastUpdated": "/metadata/lastUpdated"
-                }
-              }
-            ],
             "result": {
               "_items": "{{body.results}}",
-              "_count": "{{body.totalResults}}",
+              "_count": "{{body.returnedCount}}",
+              "_totalCount": "{{body.totalResults}}",
               "results": "{{body.results}}",
               "total": "{{body.totalResults}}",
-              "source": {"label": "Fictional Auto Trader contract-simulator stock"},
+              "appliedFilters": "{{body.appliedFilters}}",
+              "source": "{{body.source}}",
               "dataNotice": "Synthetic demonstration records returned through the documented Auto Trader Stock API response shape."
             },
+            "pinnedTargetsFromCollection": {
+              "collectionJsonPointer": "/results",
+              "idJsonPointer": "/stockId",
+              "vectorSpace": "dealer-vehicle",
+              "contentFields": {
+                "make": "/make",
+                "model": "/model",
+                "derivative": "/derivative",
+                "year": "/year",
+                "priceGbp": "/priceGbp",
+                "mileage": "/mileage",
+                "fuelType": "/fuelType",
+                "transmission": "/transmission",
+                "bodyType": "/bodyType",
+                "availability": "/availability"
+              },
+              "metadataFields": {
+                "stockId": "/stockId",
+                "make": "/make",
+                "model": "/model",
+                "year": "/year",
+                "imageUrl": "/imageUrl"
+              },
+              "maxTargets": 8,
+              "maxContentChars": 1200
+            },
             "message": "Provider stock search completed."
+          },
+          "authz": {
+            "enabled": true,
+            "resourceId": "inventory-search",
+            "operationType": "SEARCH"
           }
         }
       },
       {
         "actionId": "dealership_get_vehicle",
         "adapterType": "connector-http",
-        "description": "Load one current provider stock record by a trusted stock ID resolved from attached context or an earlier result.",
+        "description": "Load one current synchronized stock record by a trusted stock ID resolved from attached context or an earlier result.",
         "category": "dealership_inventory",
         "readOnly": true,
         "anonymousAllowed": true,
@@ -105,7 +122,7 @@
             {
               "sourcePath": "vehicleRecord",
               "target": "vehicle",
-              "includeFields": ["vehicle", "advertiser", "adverts", "metadata", "features", "media"]
+              "includeFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"]
             }
           ]
         },
@@ -118,53 +135,60 @@
           }
         ],
         "route": {
-          "connectionProfileRef": "autotrader-stock-provider",
-          "protectedResourceBindingRef": "autotrader-dealership-account",
-          "requiredCapabilityGrants": ["stock:read"],
-          "trustedResourcePlacements": [
-            {"target": "QUERY", "field": "advertiserId"}
-          ],
-          "method": "GET",
-          "path": "/stock",
-          "request": {
-            "query": {"stockId": "{{params.vehicle}}", "lifecycleState": "FORECOURT", "page": 1, "pageSize": 1}
+          "sourceProjection": {
+            "sourceRef": "autotrader-dealership-stock-source",
+            "filters": [
+              {"param": "vehicle", "fields": ["stockId"], "operator": "EQUALS_IGNORE_CASE"}
+            ],
+            "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"],
+            "defaultLimit": 1,
+            "maxLimit": 1,
+            "requireSuccessfulSync": true,
+            "maxStalenessSeconds": 1800
           },
           "response": {
-            "success-http-status": [200],
-            "collection-filters": [
-              {
-                "collection-json-pointer": "/results",
-                "count-json-pointer": "/totalResults",
-                "inclusion-conditions": [
-                  {
-                    "json-pointer": "/adverts/retailAdverts/advertiserAdvert/status",
-                    "allowed-values": ["PUBLISHED"]
-                  }
-                ]
-              }
-            ],
-            "collection-field-projections": [
-              {
-                "collection-json-pointer": "/results",
-                "fields": {
-                  "stockId": "/metadata/stockId",
-                  "lifecycleState": "/metadata/lifecycleState",
-                  "lastUpdated": "/metadata/lastUpdated"
-                }
-              }
-            ],
             "result": {
               "_items": "{{body.results}}",
-              "_count": "{{body.totalResults}}",
+              "_count": "{{body.returnedCount}}",
+              "_totalCount": "{{body.totalResults}}",
               "vehicleRecord": "{{body.results[0]}}",
               "total": "{{body.totalResults}}",
-              "source": {
-                "label": "Fictional Auto Trader contract-simulator stock",
-                "refreshedAt": "{{body.results[0].metadata.lastUpdated}}"
-              },
+              "source": "{{body.source}}",
               "dataNotice": "Synthetic demonstration record returned through the documented Auto Trader Stock API response shape."
             },
+            "pinnedTargetsFromCollection": {
+              "collectionJsonPointer": "/results",
+              "idJsonPointer": "/stockId",
+              "vectorSpace": "dealer-vehicle",
+              "contentFields": {
+                "make": "/make",
+                "model": "/model",
+                "derivative": "/derivative",
+                "year": "/year",
+                "priceGbp": "/priceGbp",
+                "mileage": "/mileage",
+                "fuelType": "/fuelType",
+                "transmission": "/transmission",
+                "bodyType": "/bodyType",
+                "availability": "/availability",
+                "features": "/features"
+              },
+              "metadataFields": {
+                "stockId": "/stockId",
+                "make": "/make",
+                "model": "/model",
+                "year": "/year",
+                "imageUrl": "/imageUrl"
+              },
+              "maxTargets": 1,
+              "maxContentChars": 1600
+            },
             "message": "Current provider stock details loaded."
+          },
+          "authz": {
+            "enabled": true,
+            "resourceId": "{{params.vehicle}}",
+            "operationType": "READ"
           }
         }
       }

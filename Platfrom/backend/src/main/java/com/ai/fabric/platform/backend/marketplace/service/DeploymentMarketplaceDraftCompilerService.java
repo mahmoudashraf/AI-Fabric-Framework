@@ -882,7 +882,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
         }
         if (actionEntry.path("route").isObject()) {
-            compiled.set("route", actionEntry.path("route").deepCopy());
+            compiled.set("route", compileActionRoute(actionEntry.path("route")));
         }
         if (actionEntry.path("postPolicies").isArray()) {
             compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
@@ -892,6 +892,50 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         applyMarketplaceProvenance(compiled, install, plugin, version);
         return compiled;
+    }
+
+    private ObjectNode compileActionRoute(JsonNode routeEntry) {
+        ObjectNode route = ((ObjectNode) routeEntry).deepCopy();
+        JsonNode sourceProjectionEntry = route.remove("sourceProjection");
+        if (sourceProjectionEntry instanceof ObjectNode sourceProjection) {
+            ObjectNode compiledProjection = sourceProjection.deepCopy();
+            rename(compiledProjection, "sourceRef", "source-ref");
+            rename(compiledProjection, "outputFields", "output-fields");
+            rename(compiledProjection, "limitParam", "limit-param");
+            rename(compiledProjection, "defaultLimit", "default-limit");
+            rename(compiledProjection, "maxLimit", "max-limit");
+            rename(compiledProjection, "requireSuccessfulSync", "require-successful-sync");
+            rename(compiledProjection, "maxStalenessSeconds", "max-staleness-seconds");
+            route.set("source-projection", compiledProjection);
+        }
+        JsonNode responseEntry = route.path("response");
+        if (responseEntry instanceof ObjectNode response) {
+            JsonNode pinnedTargetsEntry = response.remove("pinnedTargetsFromCollection");
+            if (pinnedTargetsEntry instanceof ObjectNode pinnedTargets) {
+                ObjectNode compiledPinnedTargets = pinnedTargets.deepCopy();
+                rename(compiledPinnedTargets, "collectionJsonPointer", "collection-json-pointer");
+                rename(compiledPinnedTargets, "idJsonPointer", "id-json-pointer");
+                rename(compiledPinnedTargets, "vectorSpace", "vector-space");
+                rename(compiledPinnedTargets, "contentFields", "content-fields");
+                rename(compiledPinnedTargets, "metadataFields", "metadata-fields");
+                rename(compiledPinnedTargets, "maxTargets", "max-targets");
+                rename(compiledPinnedTargets, "maxContentChars", "max-content-chars");
+                response.set("pinned-targets-from-collection", compiledPinnedTargets);
+            }
+        }
+        JsonNode authzEntry = route.path("authz");
+        if (authzEntry instanceof ObjectNode authz) {
+            rename(authz, "resourceId", "resource-id");
+            rename(authz, "operationType", "operation-type");
+        }
+        return route;
+    }
+
+    private void rename(ObjectNode node, String from, String to) {
+        JsonNode value = node.remove(from);
+        if (value != null && !node.has(to)) {
+            node.set(to, value);
+        }
     }
 
     ObjectNode compileMcpServerContribution(JsonNode serverEntry,
