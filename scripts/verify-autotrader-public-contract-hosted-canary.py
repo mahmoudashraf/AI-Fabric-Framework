@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -506,16 +507,45 @@ class HostedCanary:
         actions = query_body.get("actions", [])
         action_names = [item.get("action") for item in actions if isinstance(item, dict)]
         answer = str(query_body.get("answer") or query_body.get("safeSummary") or "")
+        action_records = [
+            record
+            for action in actions
+            if isinstance(action, dict)
+            for record in (value(action, "actionResult", "data", "results") or [])
+            if isinstance(record, dict)
+        ]
+        canary_record = next(
+            (record for record in action_records if record.get("stockId") == self.canary_stock_id),
+            None,
+        )
+        structured_facts_exact = (
+            isinstance(canary_record, dict)
+            and float(canary_record.get("priceGbp") or -1) == 42995.0
+            and int(canary_record.get("mileage") or -1) == 12
+            and canary_record.get("fuelType") == "Electric"
+            and canary_record.get("transmission") == "Automatic"
+        )
+        answer_price_present = re.search(r"(?:£|GBP\s*)?42[,.\s]?995(?:\.0+)?", answer, re.IGNORECASE) is not None
+        answer_mileage_present = re.search(
+            r"(?:mileage\D{0,20}12\b|\b12\s*(?:miles?|mi)\b)",
+            answer,
+            re.IGNORECASE,
+        ) is not None
+        answer_facts_present = (
+            "Northstar Trail E" in answer
+            and answer_price_present
+            and answer_mileage_present
+            and "Electric" in answer
+            and "Automatic" in answer
+        )
         documents = value(query_body, "ragResponse", "documents") or []
         self.expect(
             "anonymous_chat_uses_provider_action_and_indexed_evidence",
             query.status == 200
             and query_body.get("success") is True
             and "dealership_search_inventory" in action_names
-            and "Northstar Trail E" in answer
-            and "42,995" in answer
-            and "12 miles" in answer
-            and "Automatic" in answer
+            and structured_facts_exact
+            and answer_facts_present
             and len(query_body.get("sources", [])) > 0
             and len(documents) > 0,
             {
@@ -526,6 +556,11 @@ class HostedCanary:
                 "sourcesCount": len(query_body.get("sources", [])),
                 "documentsCount": len(documents),
                 "answerContainsCanary": "Northstar Trail E" in answer,
+                "structuredFactsExact": structured_facts_exact,
+                "answerPricePresent": answer_price_present,
+                "answerMileagePresent": answer_mileage_present,
+                "answerFuelPresent": "Electric" in answer,
+                "answerTransmissionPresent": "Automatic" in answer,
                 "providerRequestId": query_body.get("providerRequestId"),
             },
         )
