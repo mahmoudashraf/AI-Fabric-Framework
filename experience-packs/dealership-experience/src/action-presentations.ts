@@ -116,7 +116,7 @@ export function dealershipActionPresentationConfig(
             { sourcePath: 'dataNotice' },
           ],
           objects: [
-            { sourcePath: 'source', target: 'source', includeFields: ['label', 'refreshedAt'] },
+            { sourcePath: 'source', target: 'source', includeFields: ['sourceId', 'sourceVersion', 'synchronizedAt', 'freshnessSeconds'] },
             {
               sourcePath: 'appliedFilters',
               target: 'appliedFilters',
@@ -129,24 +129,25 @@ export function dealershipActionPresentationConfig(
               target: 'items',
               includeFields: [
                 'stockId',
-                'lifecycleState',
-                'lastUpdated',
-                'vehicle.make',
-                'vehicle.model',
-                'vehicle.derivative',
-                'vehicle.yearOfManufacture',
-                'vehicle.odometerReadingMiles',
-                'vehicle.fuelType',
-                'vehicle.transmissionType',
-                'vehicle.bodyType',
-                'adverts.retailAdverts.totalPrice.amountGBP',
+                'make',
+                'model',
+                'derivative',
+                'year',
+                'priceGbp',
+                'mileage',
+                'fuelType',
+                'transmission',
+                'bodyType',
+                'availability',
+                'advertStatus',
                 'features',
-                'media.images',
+                'imageId',
+                'imageUrl',
               ],
               maxItems: 12,
               reference: {
                 lookupField: 'stockId',
-                labelFields: ['yearOfManufacture', 'make', 'model'],
+                labelFields: ['year', 'make', 'model'],
                 scope: 'dealer-vehicle',
               },
             },
@@ -166,27 +167,28 @@ export function dealershipActionPresentationConfig(
               target: 'vehicle',
               includeFields: [
                 'stockId',
-                'lifecycleState',
-                'lastUpdated',
-                'vehicle.make',
-                'vehicle.model',
-                'vehicle.derivative',
-                'vehicle.yearOfManufacture',
-                'vehicle.odometerReadingMiles',
-                'vehicle.fuelType',
-                'vehicle.transmissionType',
-                'vehicle.bodyType',
-                'adverts.retailAdverts.totalPrice.amountGBP',
+                'make',
+                'model',
+                'derivative',
+                'year',
+                'priceGbp',
+                'mileage',
+                'fuelType',
+                'transmission',
+                'bodyType',
+                'availability',
+                'advertStatus',
                 'features',
-                'media.images',
+                'imageId',
+                'imageUrl',
               ],
               reference: {
                 lookupField: 'stockId',
-                labelFields: ['yearOfManufacture', 'make', 'model'],
+                labelFields: ['year', 'make', 'model'],
                 scope: 'dealer-vehicle',
               },
             },
-            { sourcePath: 'source', target: 'source', includeFields: ['label', 'refreshedAt'] },
+            { sourcePath: 'source', target: 'source', includeFields: ['sourceId', 'sourceVersion', 'synchronizedAt', 'freshnessSeconds'] },
           ],
         },
         rendererContext,
@@ -835,8 +837,11 @@ function formatDate(value: unknown) {
 
 function sourceLine(data: Readonly<SafeRecord>, vehicle?: SafeRecord) {
   const source = recordValue(data.source)
-  const label = textValue(source?.label) || textValue(vehicle?.sourceLabel) || 'Dealership source'
-  const updatedAt = source?.refreshedAt || vehicle?.sourceUpdatedAt
+  const label = textValue(source?.label)
+    || textValue(source?.sourceId)
+    || textValue(vehicle?.sourceLabel)
+    || 'Dealership source'
+  const updatedAt = source?.refreshedAt || source?.synchronizedAt || vehicle?.sourceUpdatedAt
   return updatedAt ? `${label} · refreshed ${formatDate(updatedAt)}` : label
 }
 
@@ -844,11 +849,12 @@ function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
   const stockId = textValue(vehicle.stockId)
   return {
     ...vehicle,
-    registrationYear: vehicle.registrationYear ?? vehicle.yearOfManufacture,
+    registrationYear: vehicle.registrationYear ?? vehicle.year ?? vehicle.yearOfManufacture,
     priceGbp: vehicle.priceGbp ?? vehicle.amountGBP,
     mileage: vehicle.mileage ?? vehicle.odometerReadingMiles,
     transmission: vehicle.transmission ?? vehicle.transmissionType,
     sourceUpdatedAt: vehicle.sourceUpdatedAt ?? vehicle.lastUpdated,
+    lifecycleState: vehicle.lifecycleState ?? vehicle.availability,
     slug: vehicle.slug,
     features: featureNames(vehicle.features),
     imageUrl: vehicle.imageUrl ?? primaryImageHref(vehicle.images),

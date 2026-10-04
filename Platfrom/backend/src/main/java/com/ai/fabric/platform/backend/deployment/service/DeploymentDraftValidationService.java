@@ -144,7 +144,7 @@ public class DeploymentDraftValidationService {
             List<DraftValidationIssue> issues = new ArrayList<>();
             ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
             validateEntities(entityNode, providerNode, issues);
-            validateRouting(routingNode, actionValidation, issues);
+            validateRouting(routingNode, marketplaceDatasetNode, actionValidation, issues);
             validateProviders(providerNode, issues);
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
@@ -1249,8 +1249,12 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private void validateRouting(JsonNode routingNode, ActionValidationSummary actionValidation, List<DraftValidationIssue> issues) {
+    private void validateRouting(JsonNode routingNode,
+                                 JsonNode marketplaceDatasetNode,
+                                 ActionValidationSummary actionValidation,
+                                 List<DraftValidationIssue> issues) {
         Set<String> actionNames = actionValidation.actionNames();
+        Map<String, SourceProjectionSource> httpDataSources = marketplaceHttpDataSources(marketplaceDatasetNode);
         JsonNode connector = routingNode.path("connector");
         if (!connector.isObject()) {
             issues.add(error("routing", "CONNECTOR_OBJECT_REQUIRED", "$.connector", "connector object is required."));
@@ -1295,13 +1299,13 @@ public class DeploymentDraftValidationService {
             JsonNode mergedRoute = inlineRoutesByAction.containsKey(routeName)
                 ? mergeRouteNodes(inlineRoutesByAction.get(routeName), route)
                 : route;
-            validateRoute("$.actions." + routeName, mergedRoute, connector, issues);
+            validateRoute("$.actions." + routeName, mergedRoute, connector, httpDataSources, issues);
         }
 
         Set<String> actionsWithInlineRoutes = new HashSet<>();
         for (InlineActionRoute inlineRoute : actionValidation.inlineRoutes()) {
             actionsWithInlineRoutes.add(inlineRoute.actionName());
-            validateRoute(inlineRoute.path(), inlineRoute.route(), connector, issues);
+            validateRoute(inlineRoute.path(), inlineRoute.route(), connector, httpDataSources, issues);
         }
 
         for (String actionName : actionNames) {
@@ -1370,12 +1374,25 @@ public class DeploymentDraftValidationService {
     private void validateRoute(String basePath,
                                JsonNode route,
                                JsonNode connector,
+                               Map<String, SourceProjectionSource> httpDataSources,
                                List<DraftValidationIssue> issues) {
         String url = route.path("url").asText("").trim();
         String path = route.path("path").asText("").trim();
+        JsonNode sourceProjection = route.get("source-projection");
+        boolean sourceProjectionPresent = sourceProjection != null && !sourceProjection.isNull();
+        boolean sourceProjectionValidShape = sourceProjectionPresent && sourceProjection.isObject();
+        int targetCount = (url.isEmpty() ? 0 : 1) + (path.isEmpty() ? 0 : 1) + (sourceProjectionPresent ? 1 : 0);
 
-        if (url.isEmpty() && path.isEmpty()) {
-            issues.add(error("routing", "ROUTE_TARGET_REQUIRED", basePath, "Each action route must define either url or path."));
+        if (targetCount == 0) {
+            issues.add(error("routing", "ROUTE_TARGET_REQUIRED", basePath, "Each action route must define exactly one of url, path, or source-projection."));
+        } else if (targetCount > 1) {
+            issues.add(error("routing", "ROUTE_TARGET_CONFLICT", basePath, "Action route targets are mutually exclusive; define only one of url, path, or source-projection."));
+        }
+
+        if (sourceProjectionPresent && !sourceProjectionValidShape) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_OBJECT_REQUIRED", basePath + ".source-projection", "source-projection must be an object."));
+        } else if (sourceProjectionValidShape) {
+            validateSourceProjectionRoute(basePath, route, sourceProjection, httpDataSources, issues);
         } else if (!url.isEmpty()) {
             if (!isAbsoluteHttpUrl(url)) {
                 issues.add(error("routing", "ROUTE_URL_INVALID", basePath + ".url", "Action route url must be a valid absolute http(s) URL."));
@@ -1390,11 +1407,13 @@ public class DeploymentDraftValidationService {
             }
         }
 
-        String method = route.path("method").asText("").trim();
-        if (method.isEmpty()) {
-            issues.add(error("routing", "ROUTE_METHOD_REQUIRED", basePath + ".method", "Action route method is required."));
-        } else if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").contains(method.toUpperCase(Locale.ROOT))) {
-            issues.add(warning("routing", "ROUTE_METHOD_UNRECOGNIZED", basePath + ".method", "Action route method is not part of the current supported template set: " + method));
+        if (!sourceProjectionPresent) {
+            String method = route.path("method").asText("").trim();
+            if (method.isEmpty()) {
+                issues.add(error("routing", "ROUTE_METHOD_REQUIRED", basePath + ".method", "Action route method is required."));
+            } else if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").contains(method.toUpperCase(Locale.ROOT))) {
+                issues.add(warning("routing", "ROUTE_METHOD_UNRECOGNIZED", basePath + ".method", "Action route method is not part of the current supported template set: " + method));
+            }
         }
 
         JsonNode successHttpStatus = route.path("response").path("success-http-status");
@@ -1410,6 +1429,163 @@ public class DeploymentDraftValidationService {
         }
     }
 
+    private void validateSourceProjectionRoute(String basePath,
+                                               JsonNode route,
+                                               JsonNode sourceProjection,
+                                               Map<String, SourceProjectionSource> httpDataSources,
+                                               List<DraftValidationIssue> issues) {
+        String sourceRef = sourceProjection.path("source-ref").asText("").trim();
+        SourceProjectionSource source = httpDataSources.get(sourceRef);
+        if (sourceRef.isEmpty()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_SOURCE_REQUIRED", basePath + ".source-projection.source-ref", "source-projection.source-ref is required."));
+        } else if (source == null) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_SOURCE_UNKNOWN", basePath + ".source-projection.source-ref", "source-projection.source-ref must reference a configured marketplace HTTP data source."));
+        } else if (!source.enabled()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_SOURCE_DISABLED", basePath + ".source-projection.source-ref", "source-projection.source-ref must reference an enabled marketplace HTTP data source."));
+        } else if (source.entityFields().isEmpty()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_ENTITY_FIELDS_REQUIRED", basePath + ".source-projection.source-ref", "source-projection requires mapped entity fields on the referenced HTTP data source."));
+        }
+
+        JsonNode filters = sourceProjection.path("filters");
+        if (!filters.isMissingNode() && !filters.isArray()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTERS_ARRAY_REQUIRED", basePath + ".source-projection.filters", "source-projection.filters must be an array."));
+        } else if (filters.isArray() && filters.size() > 20) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTER_LIMIT_EXCEEDED", basePath + ".source-projection.filters", "source-projection supports at most 20 filters."));
+        } else if (filters.isArray()) {
+            for (int index = 0; index < filters.size(); index++) {
+                validateSourceProjectionFilter(
+                    basePath + ".source-projection.filters[" + index + "]",
+                    filters.get(index),
+                    source,
+                    issues
+                );
+            }
+        }
+
+        JsonNode outputFields = sourceProjection.path("output-fields");
+        if (!outputFields.isMissingNode() && !outputFields.isArray()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_OUTPUT_FIELDS_ARRAY_REQUIRED", basePath + ".source-projection.output-fields", "source-projection.output-fields must be an array."));
+        } else if (outputFields.isArray() && outputFields.size() > 100) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_OUTPUT_FIELD_LIMIT_EXCEEDED", basePath + ".source-projection.output-fields", "source-projection supports at most 100 output fields."));
+        } else if (outputFields.isArray() && source != null) {
+            for (int index = 0; index < outputFields.size(); index++) {
+                String field = outputFields.path(index).asText("").trim();
+                if (field.isEmpty() || !source.entityFields().contains(field)) {
+                    issues.add(error(
+                        "routing",
+                        "ROUTE_SOURCE_PROJECTION_OUTPUT_FIELD_UNKNOWN",
+                        basePath + ".source-projection.output-fields[" + index + "]",
+                        "source-projection output fields must use mapped entity fields from the referenced HTTP data source."
+                    ));
+                }
+            }
+        }
+
+        String limitParam = sourceProjection.path("limit-param").asText("limit").trim();
+        if (!SAFE_ONCE_PARAM.matcher(limitParam).matches()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_LIMIT_PARAM_INVALID", basePath + ".source-projection.limit-param", "source-projection.limit-param must be a safe parameter identifier."));
+        }
+
+        int defaultLimit = sourceProjection.path("default-limit").asInt(10);
+        int maxLimit = sourceProjection.path("max-limit").asInt(50);
+        if (defaultLimit < 1 || defaultLimit > 500) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_DEFAULT_LIMIT_INVALID", basePath + ".source-projection.default-limit", "source-projection.default-limit must be between 1 and 500."));
+        }
+        if (maxLimit < 1 || maxLimit > 500) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_MAX_LIMIT_INVALID", basePath + ".source-projection.max-limit", "source-projection.max-limit must be between 1 and 500."));
+        }
+        if (defaultLimit > maxLimit) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_LIMIT_ORDER_INVALID", basePath + ".source-projection", "source-projection.default-limit must not exceed max-limit."));
+        }
+
+        int maxStalenessSeconds = sourceProjection.path("max-staleness-seconds").asInt(1800);
+        if (maxStalenessSeconds < 10 || maxStalenessSeconds > 604_800) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_STALENESS_INVALID", basePath + ".source-projection.max-staleness-seconds", "source-projection.max-staleness-seconds must be between 10 and 604800."));
+        }
+
+        if (sourceProjection.has("require-successful-sync")
+            && !sourceProjection.path("require-successful-sync").isBoolean()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_SYNC_REQUIREMENT_INVALID", basePath + ".source-projection.require-successful-sync", "source-projection.require-successful-sync must be a boolean."));
+        }
+
+        boolean providerOnlySettingsPresent = !route.path("connection-profile-ref").asText("").trim().isEmpty()
+            || !route.path("protected-resource-binding-ref").asText("").trim().isEmpty()
+            || !route.path("idempotency-header").asText("").trim().isEmpty()
+            || (route.path("headers").isObject() && !route.path("headers").isEmpty())
+            || (route.path("trusted-resource-placements").isArray() && !route.path("trusted-resource-placements").isEmpty())
+            || (route.path("required-capability-grants").isArray() && !route.path("required-capability-grants").isEmpty())
+            || (route.path("request").path("query").isObject() && !route.path("request").path("query").isEmpty())
+            || (route.path("request").has("body") && !route.path("request").path("body").isNull());
+        if (providerOnlySettingsPresent) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_PROVIDER_SETTINGS_CONFLICT", basePath, "source-projection routes cannot contain provider or HTTP request settings."));
+        }
+    }
+
+    private void validateSourceProjectionFilter(String path,
+                                                JsonNode filter,
+                                                SourceProjectionSource source,
+                                                List<DraftValidationIssue> issues) {
+        if (!filter.isObject()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTER_OBJECT_REQUIRED", path, "Each source-projection filter must be an object."));
+            return;
+        }
+        String param = filter.path("param").asText("").trim();
+        if (!SAFE_ONCE_PARAM.matcher(param).matches()) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTER_PARAM_INVALID", path + ".param", "Source-projection filter param must be a safe parameter identifier."));
+        }
+        JsonNode fields = filter.path("fields");
+        if (!fields.isArray() || fields.isEmpty() || fields.size() > 10) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTER_FIELDS_INVALID", path + ".fields", "Source-projection filter fields must contain between 1 and 10 mapped entity fields."));
+        } else if (source != null) {
+            for (int index = 0; index < fields.size(); index++) {
+                String field = fields.path(index).asText("").trim();
+                if (field.isEmpty() || !source.entityFields().contains(field)) {
+                    issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTER_FIELD_UNKNOWN", path + ".fields[" + index + "]", "Source-projection filter fields must use mapped entity fields from the referenced HTTP data source."));
+                }
+            }
+        }
+        String operator = filter.path("operator").asText("EQUALS_IGNORE_CASE").trim().toUpperCase(Locale.ROOT);
+        Set<String> supportedOperators = Set.of(
+            "EQUALS_IGNORE_CASE",
+            "NUMBER_LESS_THAN_OR_EQUAL",
+            "ANY_TOKEN_EQUALS_IGNORE_CASE"
+        );
+        if (!supportedOperators.contains(operator)) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_FILTER_OPERATOR_UNSUPPORTED", path + ".operator", "Source-projection filter operator is unsupported."));
+        } else if ("NUMBER_LESS_THAN_OR_EQUAL".equals(operator) && (!fields.isArray() || fields.size() != 1)) {
+            issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_NUMERIC_FILTER_FIELD_COUNT_INVALID", path + ".fields", "Numeric source-projection filters require exactly one field."));
+        } else if ("ANY_TOKEN_EQUALS_IGNORE_CASE".equals(operator)) {
+            String delimiter = filter.path("token-delimiter").asText(",");
+            if (delimiter.isEmpty() || delimiter.length() > 10) {
+                issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_TOKEN_DELIMITER_INVALID", path + ".token-delimiter", "Token filter delimiter must contain 1 to 10 characters."));
+            }
+        }
+    }
+
+    private Map<String, SourceProjectionSource> marketplaceHttpDataSources(JsonNode marketplaceDatasetNode) {
+        Map<String, SourceProjectionSource> sources = new LinkedHashMap<>();
+        JsonNode datasets = marketplaceDatasetNode.path("datasets");
+        if (!datasets.isArray()) {
+            return sources;
+        }
+        for (JsonNode dataset : datasets) {
+            JsonNode source = dataset.path("syncConnector").path("httpSource");
+            String sourceId = source.path("sourceId").asText("").trim();
+            if (!sourceId.isEmpty()) {
+                Set<String> entityFields = new HashSet<>();
+                JsonNode mappedFields = source.path("mapping").path("entityFields");
+                if (mappedFields.isObject()) {
+                    mappedFields.fieldNames().forEachRemaining(entityFields::add);
+                }
+                sources.put(
+                    sourceId,
+                    new SourceProjectionSource(source.path("enabled").asBoolean(true), Set.copyOf(entityFields))
+                );
+            }
+        }
+        return sources;
+    }
+
     private JsonNode mergeRouteNodes(JsonNode baseRoute, JsonNode overrideRoute) {
         if (!(baseRoute instanceof com.fasterxml.jackson.databind.node.ObjectNode baseObject)) {
             return overrideRoute;
@@ -1419,12 +1595,12 @@ public class DeploymentDraftValidationService {
         }
         com.fasterxml.jackson.databind.node.ObjectNode merged = baseObject.deepCopy();
         mergeInto(merged, overrideObject);
-        String url = merged.path("url").asText("").trim();
-        String path = merged.path("path").asText("").trim();
-        if (!url.isEmpty()) {
-            merged.remove("path");
-        } else if (!path.isEmpty()) {
-            merged.remove("url");
+        if (overrideObject.has("source-projection") && !overrideObject.path("source-projection").isNull()) {
+            merged.remove(List.of("url", "path"));
+        } else if (overrideObject.has("url") && !overrideObject.path("url").asText("").trim().isEmpty()) {
+            merged.remove(List.of("path", "source-projection"));
+        } else if (overrideObject.has("path") && !overrideObject.path("path").asText("").trim().isEmpty()) {
+            merged.remove(List.of("url", "source-projection"));
         }
         return merged;
     }
@@ -2707,5 +2883,8 @@ public class DeploymentDraftValidationService {
     }
 
     private record InlineActionRoute(String actionName, JsonNode route, String path) {
+    }
+
+    private record SourceProjectionSource(boolean enabled, Set<String> entityFields) {
     }
 }

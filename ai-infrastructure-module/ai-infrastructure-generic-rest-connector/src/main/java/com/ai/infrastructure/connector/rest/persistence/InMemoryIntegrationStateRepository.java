@@ -1,6 +1,7 @@
 package com.ai.infrastructure.connector.rest.persistence;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -14,6 +15,7 @@ public class InMemoryIntegrationStateRepository implements IntegrationStateRepos
 
     private final Map<String, SyncState> syncStates = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> records = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, SourceProjectionRecord>> projections = new ConcurrentHashMap<>();
     private final Map<String, IndexWorkState> work = new ConcurrentHashMap<>();
     private final Map<String, WebhookEvent> events = new ConcurrentHashMap<>();
     private final Map<String, Long> eventRejections = new ConcurrentHashMap<>();
@@ -116,6 +118,55 @@ public class InMemoryIntegrationStateRepository implements IntegrationStateRepos
         if (sourceRecords != null) {
             sourceRecords.remove(recordId);
         }
+        Map<String, SourceProjectionRecord> sourceProjections = projections.get(sourceId);
+        if (sourceProjections != null) {
+            sourceProjections.remove(recordId);
+        }
+    }
+
+    @Override
+    public synchronized void applyProjectionChanges(
+        String sourceId,
+        String runId,
+        List<SourceProjectionRecord> upserts,
+        Set<String> deletes
+    ) {
+        Map<String, String> sourceRecords = records.computeIfAbsent(sourceId, ignored -> new ConcurrentHashMap<>());
+        Map<String, SourceProjectionRecord> sourceProjections = projections.computeIfAbsent(
+            sourceId,
+            ignored -> new ConcurrentHashMap<>()
+        );
+        if (upserts != null) {
+            for (SourceProjectionRecord record : upserts) {
+                if (record == null) {
+                    continue;
+                }
+                sourceRecords.put(record.recordId(), record.fingerprint());
+                sourceProjections.put(record.recordId(), normalizedProjection(record));
+            }
+        }
+        if (deletes != null) {
+            for (String recordId : deletes) {
+                sourceRecords.remove(recordId);
+                sourceProjections.remove(recordId);
+            }
+        }
+    }
+
+    @Override
+    public ProjectionQueryResult queryProjection(String sourceId, ProjectionQuery query) {
+        List<ProjectionCriterion> criteria = query != null && query.criteria() != null
+            ? query.criteria()
+            : List.of();
+        int limit = query != null ? Math.max(1, query.limit()) : 1;
+        List<SourceProjectionRecord> matches = projections.getOrDefault(sourceId, Map.of()).values().stream()
+            .filter(record -> criteria.stream().allMatch(criterion -> matches(record, criterion)))
+            .sorted(Comparator.comparing(SourceProjectionRecord::recordId))
+            .toList();
+        return new ProjectionQueryResult(
+            List.copyOf(matches.subList(0, Math.min(limit, matches.size()))),
+            matches.size()
+        );
     }
 
     @Override
@@ -200,5 +251,49 @@ public class InMemoryIntegrationStateRepository implements IntegrationStateRepos
 
     private SyncCounts emptyCounts() {
         return new SyncCounts(0, 0, 0, 0, 0, 0, 0);
+    }
+
+    private SourceProjectionRecord normalizedProjection(SourceProjectionRecord record) {
+        return new SourceProjectionRecord(
+            record.recordId(),
+            record.fingerprint(),
+            record.content(),
+            record.entity() != null ? Map.copyOf(record.entity()) : Map.of(),
+            record.metadata() != null ? Map.copyOf(record.metadata()) : Map.of(),
+            record.updatedAt() != null ? record.updatedAt() : Instant.now()
+        );
+    }
+
+    private boolean matches(SourceProjectionRecord record, ProjectionCriterion criterion) {
+        if (record == null || criterion == null || criterion.fields() == null || criterion.fields().isEmpty()
+            || criterion.values() == null || criterion.values().isEmpty() || criterion.operator() == null) {
+            return false;
+        }
+        return switch (criterion.operator()) {
+            case EQUALS_IGNORE_CASE -> criterion.fields().stream().anyMatch(field ->
+                criterion.values().stream().anyMatch(value -> equalsIgnoreCase(record.entity().get(field), value))
+            );
+            case ANY_TOKEN_EQUALS_IGNORE_CASE -> criterion.fields().stream().anyMatch(field ->
+                criterion.values().stream().anyMatch(value -> equalsIgnoreCase(record.entity().get(field), value))
+            );
+            case NUMBER_LESS_THAN_OR_EQUAL -> criterion.fields().stream().anyMatch(field ->
+                numberAtMost(record.entity().get(field), criterion.values().getFirst())
+            );
+        };
+    }
+
+    private boolean equalsIgnoreCase(Object actual, String expected) {
+        return actual != null && expected != null && actual.toString().trim().equalsIgnoreCase(expected.trim());
+    }
+
+    private boolean numberAtMost(Object actual, String expectedMaximum) {
+        if (actual == null || expectedMaximum == null) {
+            return false;
+        }
+        try {
+            return new BigDecimal(actual.toString()).compareTo(new BigDecimal(expectedMaximum)) <= 0;
+        } catch (NumberFormatException exception) {
+            return false;
+        }
     }
 }

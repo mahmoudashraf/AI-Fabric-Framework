@@ -108,6 +108,15 @@ class ProviderIntegrationFoundationTest {
         assertThat(state.counts().sourceCount()).isEqualTo(3);
         assertThat(state.counts().indexedCount()).isEqualTo(3);
         assertThat(repository.activeRecordIds("catalog-source")).containsExactlyInAnyOrder("item-1", "item-2", "item-3");
+        IntegrationStateRepository.ProjectionQueryResult projection = repository.queryProjection(
+            "catalog-source",
+            new IntegrationStateRepository.ProjectionQuery(List.of(), 10)
+        );
+        assertThat(projection.totalMatches()).isEqualTo(3);
+        assertThat(projection.records())
+            .extracting(IntegrationStateRepository.SourceProjectionRecord::recordId)
+            .containsExactly("item-1", "item-2", "item-3");
+        assertThat(projection.records().getFirst().entity()).containsEntry("name", "Alpha");
         assertThat(indexedOperations).hasSize(3);
         assertThat(indexedOperations).allSatisfy(operation -> {
             assertThat(operation.path("vectorSpace").asText()).isEqualTo("catalog-entry");
@@ -409,6 +418,15 @@ class ProviderIntegrationFoundationTest {
         assertThat(upsert.completedUpserts()).isEqualTo(1);
         assertThat(observedQuery.get()).containsEntry("scope", "scope-8").containsEntry("stockId", "stock-42");
         assertThat(repository.activeRecordIds("targeted-source")).containsExactly("stock-42");
+        assertThat(repository.queryProjection(
+            "targeted-source",
+            new IntegrationStateRepository.ProjectionQuery(List.of(), 10)
+        ).records())
+            .singleElement()
+            .satisfies(record -> {
+                assertThat(record.recordId()).isEqualTo("stock-42");
+                assertThat(record.entity()).containsEntry("name", "Current vehicle");
+            });
         assertThat(indexedOperations).singleElement().satisfies(operation -> {
             assertThat(operation.path("type").asText()).isEqualTo("UPSERT");
             assertThat(operation.path("id").asText()).isEqualTo("stock-42");
@@ -421,6 +439,10 @@ class ProviderIntegrationFoundationTest {
 
         assertThat(delete.completedDeletes()).isEqualTo(1);
         assertThat(repository.activeRecordIds("targeted-source")).isEmpty();
+        assertThat(repository.queryProjection(
+            "targeted-source",
+            new IntegrationStateRepository.ProjectionQuery(List.of(), 10)
+        ).records()).isEmpty();
         assertThat(indexedOperations).singleElement().satisfies(operation -> {
             assertThat(operation.path("type").asText()).isEqualTo("DELETE");
             assertThat(operation.path("id").asText()).isEqualTo("stock-42");

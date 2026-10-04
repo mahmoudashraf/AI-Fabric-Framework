@@ -26,6 +26,19 @@ public interface IntegrationStateRepository {
 
     void markRecordDeleted(String sourceId, String recordId);
 
+    /**
+     * Atomically applies the queryable, safe projection produced by one successful source reconciliation.
+     * The projection contains only fields explicitly allowlisted by the data-source mapping.
+     */
+    void applyProjectionChanges(
+        String sourceId,
+        String runId,
+        List<SourceProjectionRecord> upserts,
+        Set<String> deletes
+    );
+
+    ProjectionQueryResult queryProjection(String sourceId, ProjectionQuery query);
+
     void recordWork(String workId, String sourceId, String recordId, String operation, String status);
 
     void updateWork(String workId, String status, String errorCode);
@@ -87,6 +100,41 @@ public interface IntegrationStateRepository {
         String errorCode,
         Instant createdAt,
         Instant updatedAt
+    ) {
+    }
+
+    record SourceProjectionRecord(
+        String recordId,
+        String fingerprint,
+        String content,
+        Map<String, Object> entity,
+        Map<String, Object> metadata,
+        Instant updatedAt
+    ) {
+    }
+
+    record ProjectionQuery(
+        List<ProjectionCriterion> criteria,
+        int limit
+    ) {
+    }
+
+    record ProjectionCriterion(
+        List<String> fields,
+        ProjectionOperator operator,
+        List<String> values
+    ) {
+    }
+
+    enum ProjectionOperator {
+        EQUALS_IGNORE_CASE,
+        NUMBER_LESS_THAN_OR_EQUAL,
+        ANY_TOKEN_EQUALS_IGNORE_CASE
+    }
+
+    record ProjectionQueryResult(
+        List<SourceProjectionRecord> records,
+        long totalMatches
     ) {
     }
 

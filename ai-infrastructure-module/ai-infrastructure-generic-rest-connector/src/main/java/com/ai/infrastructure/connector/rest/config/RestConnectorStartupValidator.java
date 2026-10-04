@@ -52,7 +52,7 @@ public class RestConnectorStartupValidator {
         validateAuthz(config);
         validateConnectionProfiles(config);
         validateProtectedResources(config);
-        validateRoutes(config);
+        validateRoutes(config, serviceProperties);
         validateDataSources(config, serviceProperties);
         validateWebhooks(config, serviceProperties);
         validateRuntimeDataSync(config);
@@ -152,7 +152,7 @@ public class RestConnectorStartupValidator {
         }
     }
 
-    private void validateRoutes(RestRoutingConfig config) {
+    private void validateRoutes(RestRoutingConfig config, RestConnectorServiceProperties serviceProperties) {
         if (config.getActions() == null || config.getActions().isEmpty()) {
             log.warn("No actions configured under 'actions'. /actions/execute will return ACTION_NOT_SUPPORTED.");
             return;
@@ -173,16 +173,25 @@ public class RestConnectorStartupValidator {
             String url = route.getUrl();
             String path = route.getPath();
             boolean profileRoute = StringUtils.hasText(route.getConnectionProfileRef());
-            if (!StringUtils.hasText(url) && !StringUtils.hasText(path)) {
+            boolean projectionRoute = route.getSourceProjection() != null;
+            if (projectionRoute) {
+                if (StringUtils.hasText(url) || StringUtils.hasText(path) || profileRoute) {
+                    throw new IllegalStateException(
+                        "Action route '" + actionId.trim()
+                            + "' source-projection is mutually exclusive with url, path, and connection-profile-ref."
+                    );
+                }
+                validateSourceProjectionRoute(config, serviceProperties, actionId.trim(), route);
+            } else if (!StringUtils.hasText(url) && !StringUtils.hasText(path)) {
                 throw new IllegalStateException("Action route '" + actionId.trim() + "' must set either url or path.");
             }
 
-            if (StringUtils.hasText(url)) {
+            if (!projectionRoute && StringUtils.hasText(url)) {
                 if (profileRoute) {
                     throw new IllegalStateException("Action route '" + actionId.trim() + "' cannot use an absolute url with connection-profile-ref.");
                 }
                 validateUrl(url.trim(), "actions." + actionId.trim() + ".url");
-            } else {
+            } else if (!projectionRoute) {
                 if (!baseUrlPresent && !profileRoute) {
                     throw new IllegalStateException("Action route '" + actionId.trim() + "' uses path but connector.upstream.base-url is missing.");
                 }
@@ -228,15 +237,17 @@ public class RestConnectorStartupValidator {
                 }
             }
 
-            String method = route.getMethod();
-            if (!StringUtils.hasText(method)) {
-                throw new IllegalStateException("Action route '" + actionId.trim() + "': method is required.");
-            }
-            if (profileRoute && !Set.of("GET", "POST", "PUT", "PATCH", "DELETE")
-                .contains(method.trim().toUpperCase(Locale.ROOT))) {
-                throw new IllegalStateException(
-                    "Action route '" + actionId.trim() + "': provider routes support GET, POST, PUT, PATCH, or DELETE."
-                );
+            if (!projectionRoute) {
+                String method = route.getMethod();
+                if (!StringUtils.hasText(method)) {
+                    throw new IllegalStateException("Action route '" + actionId.trim() + "': method is required.");
+                }
+                if (profileRoute && !Set.of("GET", "POST", "PUT", "PATCH", "DELETE")
+                    .contains(method.trim().toUpperCase(Locale.ROOT))) {
+                    throw new IllegalStateException(
+                        "Action route '" + actionId.trim() + "': provider routes support GET, POST, PUT, PATCH, or DELETE."
+                    );
+                }
             }
 
             if (profileRoute) {
@@ -285,8 +296,130 @@ public class RestConnectorStartupValidator {
                     response.getCollectionFieldProjections(),
                     "actions." + actionId.trim() + ".response.collection-field-projections"
                 );
+                validatePinnedTargetsFromCollection(
+                    response.getPinnedTargetsFromCollection(),
+                    "actions." + actionId.trim() + ".response.pinned-targets-from-collection"
+                );
             }
         });
+    }
+
+    private void validatePinnedTargetsFromCollection(
+        RestRoutingConfig.PinnedTargetsFromCollection config,
+        String path
+    ) {
+        if (config == null) {
+            return;
+        }
+        requireJsonPointer(config.getCollectionJsonPointer(), path + ".collection-json-pointer");
+        requireJsonPointer(config.getIdJsonPointer(), path + ".id-json-pointer");
+        requireId(config.getVectorSpace(), path + " vector space");
+        validateProjectionPointers(config.getContentFields(), path + ".content-fields", 20);
+        validateProjectionPointers(config.getMetadataFields(), path + ".metadata-fields", 20);
+        if (config.getContentFields().isEmpty() && config.getMetadataFields().isEmpty()) {
+            throw new IllegalStateException(path + " must declare content-fields or metadata-fields.");
+        }
+    }
+
+    private void validateProjectionPointers(Map<String, String> fields, String path, int maxFields) {
+        if (fields == null || fields.size() > maxFields) {
+            throw new IllegalStateException(path + " exceeds the supported field boundary.");
+        }
+        fields.forEach((name, pointer) -> {
+            requireId(name, path + " field");
+            requireJsonPointer(pointer, path + "." + name);
+        });
+    }
+
+    private void validateSourceProjectionRoute(
+        RestRoutingConfig config,
+        RestConnectorServiceProperties serviceProperties,
+        String actionId,
+        RestRoutingConfig.ActionRoute route
+    ) {
+        requirePersistence(serviceProperties, "source projection action routes");
+        RestRoutingConfig.SourceProjectionQuery projection = route.getSourceProjection();
+        if (!StringUtils.hasText(projection.getSourceRef())) {
+            throw new IllegalStateException("Action route '" + actionId + "' source-projection.source-ref is required.");
+        }
+        RestRoutingConfig.HttpDataSource source = config.getDataSources().get(projection.getSourceRef().trim());
+        if (source == null || !source.isEnabled()) {
+            throw new IllegalStateException(
+                "Action route '" + actionId + "' references an unavailable HTTP data source projection."
+            );
+        }
+        Set<String> entityFields = source.getMapping() != null && source.getMapping().getEntityFields() != null
+            ? source.getMapping().getEntityFields().keySet()
+            : Set.of();
+        if (entityFields.isEmpty()) {
+            throw new IllegalStateException(
+                "Action route '" + actionId + "' source projection requires mapped entity fields."
+            );
+        }
+        if (projection.getDefaultLimit() > projection.getMaxLimit()) {
+            throw new IllegalStateException(
+                "Action route '" + actionId + "' source-projection.default-limit must not exceed max-limit."
+            );
+        }
+        requireId(projection.getLimitParam(), "source projection limit parameter");
+        if (projection.getOutputFields() != null) {
+            if (projection.getOutputFields().size() > 100
+                || projection.getOutputFields().stream().anyMatch(field -> !entityFields.contains(field))) {
+                throw new IllegalStateException(
+                    "Action route '" + actionId + "' source-projection.output-fields must use mapped entity fields."
+                );
+            }
+        }
+        List<RestRoutingConfig.SourceProjectionFilter> filters = projection.getFilters() != null
+            ? projection.getFilters()
+            : List.of();
+        if (filters.size() > 20) {
+            throw new IllegalStateException(
+                "Action route '" + actionId + "' source-projection supports at most 20 filters."
+            );
+        }
+        for (RestRoutingConfig.SourceProjectionFilter filter : filters) {
+            if (filter == null || filter.getOperator() == null || !StringUtils.hasText(filter.getParam())) {
+                throw new IllegalStateException(
+                    "Action route '" + actionId + "' contains an incomplete source projection filter."
+                );
+            }
+            requireId(filter.getParam(), "source projection filter parameter");
+            if (filter.getFields() == null || filter.getFields().isEmpty() || filter.getFields().size() > 10
+                || filter.getFields().stream().anyMatch(field -> !entityFields.contains(field))) {
+                throw new IllegalStateException(
+                    "Action route '" + actionId + "' source projection filters must use mapped entity fields."
+                );
+            }
+            if (filter.getOperator() == RestRoutingConfig.SourceProjectionFilterOperator.NUMBER_LESS_THAN_OR_EQUAL
+                && filter.getFields().size() != 1) {
+                throw new IllegalStateException(
+                    "Action route '" + actionId + "' numeric source projection filters require exactly one field."
+                );
+            }
+            if (filter.getOperator() == RestRoutingConfig.SourceProjectionFilterOperator.ANY_TOKEN_EQUALS_IGNORE_CASE
+                && (!StringUtils.hasText(filter.getTokenDelimiter()) || filter.getTokenDelimiter().length() > 10)) {
+                throw new IllegalStateException(
+                    "Action route '" + actionId + "' token filter delimiter must contain 1 to 10 characters."
+                );
+            }
+        }
+        if (route.getRequest() != null
+            && ((route.getRequest().getQuery() != null && !route.getRequest().getQuery().isEmpty())
+                || route.getRequest().getBody() != null)) {
+            throw new IllegalStateException(
+                "Action route '" + actionId + "' source projection does not accept HTTP request templates."
+            );
+        }
+        if ((route.getHeaders() != null && !route.getHeaders().isEmpty())
+            || (route.getTrustedResourcePlacements() != null && !route.getTrustedResourcePlacements().isEmpty())
+            || (route.getRequiredCapabilityGrants() != null && !route.getRequiredCapabilityGrants().isEmpty())
+            || StringUtils.hasText(route.getProtectedResourceBindingRef())
+            || StringUtils.hasText(route.getIdempotencyHeader())) {
+            throw new IllegalStateException(
+                "Action route '" + actionId + "' source projection contains provider-only route settings."
+            );
+        }
     }
 
     private void validateConnectionProfiles(RestRoutingConfig config) {

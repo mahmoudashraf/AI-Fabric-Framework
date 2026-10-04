@@ -13,12 +13,21 @@ actions:
           target: items
           maxItems: 24
           includeFields:
-            - vehicle
-            - advertiser
-            - adverts
-            - metadata
+            - stockId
+            - make
+            - model
+            - derivative
+            - year
+            - priceGbp
+            - mileage
+            - fuelType
+            - transmission
+            - bodyType
+            - availability
+            - advertStatus
             - features
-            - media
+            - imageId
+            - imageUrl
     params:
       - name: make
         description: Exact make filter when the buyer specified one.
@@ -60,12 +69,21 @@ actions:
         - sourcePath: vehicleRecord
           target: vehicle
           includeFields:
-            - vehicle
-            - advertiser
-            - adverts
-            - metadata
+            - stockId
+            - make
+            - model
+            - derivative
+            - year
+            - priceGbp
+            - mileage
+            - fuelType
+            - transmission
+            - bodyType
+            - availability
+            - advertStatus
             - features
-            - media
+            - imageId
+            - imageUrl
     params:
       - name: vehicle
         description: Exact Auto Trader stock ID from trusted attached vehicle context or a prior provider stock result. Do not ask the buyer for this internal lookup value.
@@ -101,7 +119,6 @@ actions:
             - bodyType
             - exteriorColour
             - seats
-            - electricRangeMiles
             - location
             - lifecycleState
             - summary

@@ -104,6 +104,87 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsDeploymentLocalSourceProjectionRouteWithoutHttpTargetOrMethod() {
+        DeploymentDraftEntity draft = sourceProjectionDraft("neutral-source", false);
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain(
+                "ROUTE_TARGET_REQUIRED",
+                "ROUTE_METHOD_REQUIRED",
+                "ROUTE_SOURCE_PROJECTION_SOURCE_UNKNOWN",
+                "ROUTE_SOURCE_PROJECTION_SOURCE_DISABLED"
+            );
+    }
+
+    @Test
+    void validateRejectsSourceProjectionRouteThatReferencesUnknownOrDisabledSource() {
+        DeploymentDraftEntity unknownSourceDraft = sourceProjectionDraft("missing-source", false);
+        unknownSourceDraft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+        DeploymentDraftEntity disabledSourceDraft = sourceProjectionDraft("neutral-source", false);
+        disabledSourceDraft.setMarketplaceDatasetConfigJson(httpDatasetConfig(false, true));
+
+        DraftValidationResponse unknownSourceResponse = service.validate(unknownSourceDraft);
+        DraftValidationResponse disabledSourceResponse = service.validate(disabledSourceDraft);
+
+        assertThat(unknownSourceResponse.issues())
+            .extracting("code")
+            .contains("ROUTE_SOURCE_PROJECTION_SOURCE_UNKNOWN");
+        assertThat(disabledSourceResponse.issues())
+            .extracting("code")
+            .contains("ROUTE_SOURCE_PROJECTION_SOURCE_DISABLED");
+    }
+
+    @Test
+    void validateRejectsSourceProjectionRouteMixedWithHttpTarget() {
+        DeploymentDraftEntity draft = sourceProjectionDraft("neutral-source", true);
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ROUTE_TARGET_CONFLICT");
+    }
+
+    @Test
+    void validateRejectsSourceProjectionFieldsOutsideMappedEntityProjection() {
+        DeploymentDraftEntity draft = sourceProjectionDraft("neutral-source", false);
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+        draft.setRoutingConfigJson(draft.getRoutingConfigJson()
+            .replace("\"filters\": []", "\"filters\": [{\"param\":\"query\",\"fields\":[\"secret\"]}]")
+            .replace("\"output-fields\": [\"title\"]", "\"output-fields\": [\"secret\"]"));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains(
+                "ROUTE_SOURCE_PROJECTION_FILTER_FIELD_UNKNOWN",
+                "ROUTE_SOURCE_PROJECTION_OUTPUT_FIELD_UNKNOWN"
+            );
+    }
+
+    @Test
+    void validateRejectsProviderSettingsOnDeploymentLocalSourceProjectionRoute() {
+        DeploymentDraftEntity draft = sourceProjectionDraft("neutral-source", false);
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+        draft.setRoutingConfigJson(draft.getRoutingConfigJson().replace(
+            "\"source-projection\": {",
+            "\"connection-profile-ref\": \"provider-profile\", \"source-projection\": {"
+        ));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ROUTE_SOURCE_PROJECTION_PROVIDER_SETTINGS_CONFLICT");
+    }
+
+    @Test
     void validateAcceptsPublishableRoutingDraft() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -4141,6 +4222,42 @@ class DeploymentDraftValidationServiceTest {
         );
     }
 
+    private DeploymentDraftEntity sourceProjectionDraft(String sourceRef, boolean includeHttpPath) {
+        DeploymentDraftEntity draft = marketplaceDatasetDraft();
+        draft.setActionsConfigJson("""
+            {
+              "actions": [{
+                "name": "search_records",
+                "description": "Search synchronized records"
+              }]
+            }
+            """);
+        String optionalPath = includeHttpPath ? "\"path\": \"/records\"," : "";
+        draft.setRoutingConfigJson("""
+            {
+              "connector": {
+                "inbound-auth": {"allow-unauthenticated": true},
+                "upstream": {"base-url": "https://customer.example"}
+              },
+              "authz": {"enabled": false},
+              "actions": {
+                "search_records": {
+                  %s
+                  "source-projection": {
+                    "source-ref": "%s",
+                    "filters": [],
+                    "output-fields": ["title"],
+                    "default-limit": 10,
+                    "max-limit": 50,
+                    "max-staleness-seconds": 1800
+                  }
+                }
+              }
+            }
+            """.formatted(optionalPath, sourceRef));
+        return draft;
+    }
+
     private String httpDatasetConfig(boolean connectorPullEnabled, boolean customerBackendPushEnabled) {
         return """
             {
@@ -4162,7 +4279,13 @@ class DeploymentDraftValidationServiceTest {
                   "connectorType": "HTTP_JSON",
                   "connectionProfile": {"profileId": "neutral-provider"},
                   "protectedResource": {"resourceId": "scope-1"},
-                  "httpSource": {"sourceId": "neutral-source", "enabled": %s}
+                  "httpSource": {
+                    "sourceId": "neutral-source",
+                    "enabled": %s,
+                    "mapping": {
+                      "entityFields": {"title": "/title", "amount": "/amount"}
+                    }
+                  }
                 }
               }]
             }

@@ -1,22 +1,39 @@
 package com.ai.infrastructure.connector.rest.persistence;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 public class JdbcIntegrationStateRepository implements IntegrationStateRepository {
 
     private final JdbcTemplate jdbc;
+    private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
     public JdbcIntegrationStateRepository(JdbcTemplate jdbc) {
+        this(jdbc, new ObjectMapper());
+    }
+
+    public JdbcIntegrationStateRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
+        this.objectMapper = objectMapper;
+        this.transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(
+            Objects.requireNonNull(jdbc.getDataSource(), "JdbcTemplate DataSource is required")
+        ));
     }
 
     @Override
@@ -149,6 +166,86 @@ public class JdbcIntegrationStateRepository implements IntegrationStateRepositor
     }
 
     @Override
+    public void applyProjectionChanges(
+        String sourceId,
+        String runId,
+        List<SourceProjectionRecord> upserts,
+        Set<String> deletes
+    ) {
+        transactionTemplate.executeWithoutResult(status -> {
+            if (upserts != null) {
+                for (SourceProjectionRecord record : upserts) {
+                    if (record == null) {
+                        continue;
+                    }
+                    Instant updatedAt = record.updatedAt() != null ? record.updatedAt() : Instant.now();
+                    jdbc.update("""
+                        INSERT INTO integration_source_record
+                            (source_id, record_id, fingerprint, last_seen_run, active, content_text,
+                             entity_data, metadata_data, updated_at)
+                        VALUES (?, ?, ?, ?, TRUE, ?, CAST(? AS JSONB), CAST(? AS JSONB), ?)
+                        ON CONFLICT (source_id, record_id) DO UPDATE
+                           SET fingerprint = EXCLUDED.fingerprint,
+                               last_seen_run = EXCLUDED.last_seen_run,
+                               active = TRUE,
+                               content_text = EXCLUDED.content_text,
+                               entity_data = EXCLUDED.entity_data,
+                               metadata_data = EXCLUDED.metadata_data,
+                               updated_at = EXCLUDED.updated_at
+                        """,
+                        sourceId,
+                        record.recordId(),
+                        record.fingerprint(),
+                        runId,
+                        record.content() != null ? record.content() : "",
+                        writeJson(record.entity()),
+                        writeJson(record.metadata()),
+                        Timestamp.from(updatedAt)
+                    );
+                }
+            }
+            if (deletes != null) {
+                Instant now = Instant.now();
+                for (String recordId : deletes) {
+                    jdbc.update(
+                        "UPDATE integration_source_record SET active = FALSE, updated_at = ? WHERE source_id = ? AND record_id = ?",
+                        Timestamp.from(now), sourceId, recordId
+                    );
+                }
+            }
+        });
+    }
+
+    @Override
+    public ProjectionQueryResult queryProjection(String sourceId, ProjectionQuery query) {
+        ProjectionQuery safeQuery = query != null ? query : new ProjectionQuery(List.of(), 1);
+        StringBuilder sql = new StringBuilder("""
+            SELECT record_id, fingerprint, content_text, entity_data::text AS entity_json,
+                   metadata_data::text AS metadata_json, updated_at,
+                   COUNT(*) OVER() AS total_matches
+              FROM integration_source_record
+             WHERE source_id = ? AND active = TRUE
+            """);
+        List<Object> args = new ArrayList<>();
+        args.add(sourceId);
+        if (safeQuery.criteria() != null) {
+            for (ProjectionCriterion criterion : safeQuery.criteria()) {
+                appendCriterion(sql, args, criterion);
+            }
+        }
+        sql.append(" ORDER BY record_id LIMIT ?");
+        args.add(Math.max(1, safeQuery.limit()));
+
+        List<ProjectionRow> rows = jdbc.query(
+            sql.toString(),
+            (rs, rowNum) -> new ProjectionRow(mapProjection(rs), rs.getLong("total_matches")),
+            args.toArray()
+        );
+        long total = rows.isEmpty() ? 0L : rows.getFirst().totalMatches();
+        return new ProjectionQueryResult(rows.stream().map(ProjectionRow::record).toList(), total);
+    }
+
+    @Override
     public void recordWork(String workId, String sourceId, String recordId, String operation, String status) {
         Instant now = Instant.now();
         jdbc.update("""
@@ -268,6 +365,71 @@ public class JdbcIntegrationStateRepository implements IntegrationStateRepositor
         return count != null ? count : 0L;
     }
 
+    private void appendCriterion(StringBuilder sql, List<Object> args, ProjectionCriterion criterion) {
+        if (criterion == null || criterion.operator() == null || criterion.fields() == null
+            || criterion.fields().isEmpty() || criterion.values() == null || criterion.values().isEmpty()) {
+            throw new IllegalArgumentException("Projection query criterion is incomplete.");
+        }
+        List<String> alternatives = new ArrayList<>();
+        switch (criterion.operator()) {
+            case EQUALS_IGNORE_CASE, ANY_TOKEN_EQUALS_IGNORE_CASE -> {
+                for (String field : criterion.fields()) {
+                    for (String value : criterion.values()) {
+                        alternatives.add("LOWER(COALESCE(entity_data ->> ?, '')) = LOWER(?)");
+                        args.add(field);
+                        args.add(value);
+                    }
+                }
+            }
+            case NUMBER_LESS_THAN_OR_EQUAL -> {
+                if (criterion.values().size() != 1) {
+                    throw new IllegalArgumentException("Numeric projection criteria require exactly one value.");
+                }
+                for (String field : criterion.fields()) {
+                    alternatives.add("(jsonb_typeof(entity_data -> ?) = 'number' AND (entity_data ->> ?)::numeric <= CAST(? AS numeric))");
+                    args.add(field);
+                    args.add(field);
+                    args.add(criterion.values().getFirst());
+                }
+            }
+        }
+        if (alternatives.isEmpty()) {
+            throw new IllegalArgumentException("Projection query criterion produced no predicates.");
+        }
+        sql.append(" AND (").append(String.join(" OR ", alternatives)).append(')');
+    }
+
+    private SourceProjectionRecord mapProjection(ResultSet rs) throws SQLException {
+        return new SourceProjectionRecord(
+            rs.getString("record_id"),
+            rs.getString("fingerprint"),
+            rs.getString("content_text"),
+            readJsonMap(rs.getString("entity_json")),
+            readJsonMap(rs.getString("metadata_json")),
+            instant(rs, "updated_at")
+        );
+    }
+
+    private String writeJson(Map<String, Object> value) {
+        try {
+            return objectMapper.writeValueAsString(value != null ? value : Map.of());
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to serialize integration source projection.", exception);
+        }
+    }
+
+    private Map<String, Object> readJsonMap(String value) {
+        if (value == null || value.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(value, new TypeReference<>() { });
+            return parsed != null && !parsed.isEmpty() ? Map.copyOf(parsed) : Map.of();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to deserialize integration source projection.", exception);
+        }
+    }
+
     private SyncState mapSyncState(ResultSet rs) throws SQLException {
         return new SyncState(
             rs.getString("source_id"),
@@ -322,5 +484,8 @@ public class JdbcIntegrationStateRepository implements IntegrationStateRepositor
             return value;
         }
         return value.substring(0, max);
+    }
+
+    private record ProjectionRow(SourceProjectionRecord record, long totalMatches) {
     }
 }

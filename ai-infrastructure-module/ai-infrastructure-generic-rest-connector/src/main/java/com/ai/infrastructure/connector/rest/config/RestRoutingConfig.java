@@ -190,6 +190,13 @@ public class RestRoutingConfig {
 
         private String idempotencyHeader;
 
+        /**
+         * Optional deployment-local query over the safe projection maintained by an HTTP data source.
+         * This is mutually exclusive with HTTP/provider routing.
+         */
+        @Valid
+        private SourceProjectionQuery sourceProjection;
+
         @Valid
         private List<ResourcePlacement> trustedResourcePlacements = new ArrayList<>();
 
@@ -203,6 +210,46 @@ public class RestRoutingConfig {
 
         @Valid
         private ActionAuthz authz = new ActionAuthz();
+    }
+
+    @Data
+    public static class SourceProjectionQuery {
+        private String sourceRef;
+
+        @Valid
+        private List<SourceProjectionFilter> filters = new ArrayList<>();
+
+        private List<String> outputFields = new ArrayList<>();
+
+        private String limitParam = "limit";
+
+        @Min(1)
+        @Max(500)
+        private int defaultLimit = 10;
+
+        @Min(1)
+        @Max(500)
+        private int maxLimit = 50;
+
+        private boolean requireSuccessfulSync = true;
+
+        @Min(10)
+        @Max(604_800)
+        private int maxStalenessSeconds = 1800;
+    }
+
+    @Data
+    public static class SourceProjectionFilter {
+        private String param;
+        private List<String> fields = new ArrayList<>();
+        private SourceProjectionFilterOperator operator = SourceProjectionFilterOperator.EQUALS_IGNORE_CASE;
+        private String tokenDelimiter = ",";
+    }
+
+    public enum SourceProjectionFilterOperator {
+        EQUALS_IGNORE_CASE,
+        NUMBER_LESS_THAN_OR_EQUAL,
+        ANY_TOKEN_EQUALS_IGNORE_CASE
     }
 
     @Data
@@ -267,6 +314,13 @@ public class RestRoutingConfig {
         private Object pinnedTargets;
 
         /**
+         * Declaratively converts safe response records into bounded action-result targets for
+         * deterministic conversational follow-ups.
+         */
+        @Valid
+        private PinnedTargetsFromCollection pinnedTargetsFromCollection;
+
+        /**
          * Optional fail-closed filters applied to provider collections before response templates are resolved.
          */
         @Valid
@@ -309,6 +363,23 @@ public class RestRoutingConfig {
          * an absent value is treated as a malformed provider response.
          */
         private Map<String, String> fields = new LinkedHashMap<>();
+    }
+
+    @Data
+    public static class PinnedTargetsFromCollection {
+        private String collectionJsonPointer;
+        private String idJsonPointer;
+        private String vectorSpace;
+        private Map<String, String> contentFields = new LinkedHashMap<>();
+        private Map<String, String> metadataFields = new LinkedHashMap<>();
+
+        @Min(1)
+        @Max(50)
+        private int maxTargets = 8;
+
+        @Min(40)
+        @Max(4000)
+        private int maxContentChars = 1000;
     }
 
     @Data

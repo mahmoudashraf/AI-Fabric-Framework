@@ -107,10 +107,12 @@ public class HttpDataSyncService {
                     "Runtime indexing did not complete every accepted operation."
                 );
             }
-            for (RuntimeDataSyncClient.SyncRecord record : records) {
-                repository.markRecordSeen(sourceId, record.id(), record.fingerprint(), runId);
-            }
-            deletes.forEach(id -> repository.markRecordDeleted(sourceId, id));
+            repository.applyProjectionChanges(
+                sourceId,
+                runId,
+                records.stream().map(this::projectionRecord).toList(),
+                Set.copyOf(deletes)
+            );
             repository.completeSync(sourceId, runId, fetched.cursor(), counts);
             return repository.syncState(sourceId).orElseThrow();
         } catch (ProviderCallException ex) {
@@ -167,14 +169,14 @@ public class HttpDataSyncService {
             }
             String runId = "record-" + UUID.randomUUID();
             if (fetched.record() != null) {
-                repository.markRecordSeen(
+                repository.applyProjectionChanges(
                     sourceId,
-                    fetched.record().id(),
-                    fetched.record().fingerprint(),
-                    runId
+                    runId,
+                    List.of(projectionRecord(fetched.record())),
+                    Set.of()
                 );
             } else if (fetched.delete()) {
-                repository.markRecordDeleted(sourceId, safeRecordKey);
+                repository.applyProjectionChanges(sourceId, runId, List.of(), Set.of(safeRecordKey));
             }
             return new RecordReconcileResult(
                 sourceId,
@@ -513,6 +515,19 @@ public class HttpDataSyncService {
         String content = content(record, mapping.getContentFields());
         String fingerprint = Hashing.sha256Hex(canonical(entity) + "\n" + canonical(metadata) + "\n" + content);
         return new RuntimeDataSyncClient.SyncRecord(id, content, Map.copyOf(entity), Map.copyOf(metadata), fingerprint);
+    }
+
+    private IntegrationStateRepository.SourceProjectionRecord projectionRecord(
+        RuntimeDataSyncClient.SyncRecord record
+    ) {
+        return new IntegrationStateRepository.SourceProjectionRecord(
+            record.id(),
+            record.fingerprint(),
+            record.content(),
+            record.entity(),
+            record.metadata(),
+            clock.instant()
+        );
     }
 
     private String validateRecordBoundary(

@@ -18,6 +18,52 @@ class RestConnectorStartupValidatorTest {
     }
 
     @Test
+    void acceptsBoundedQueryableSourceProjectionAction() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = sourceProjectionActionRoute();
+        route.setMethod(null);
+        config.setActions(Map.of("search_records", route));
+
+        assertThatCode(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsSourceProjectionActionMixedWithHttpRouteTarget() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = sourceProjectionActionRoute();
+        route.setPath("/records");
+        config.setActions(Map.of("search_records", route));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("source-projection is mutually exclusive");
+    }
+
+    @Test
+    void rejectsSourceProjectionActionWithoutDurablePersistence() {
+        RestRoutingConfig config = config();
+        config.setActions(Map.of("search_records", sourceProjectionActionRoute()));
+        RestConnectorServiceProperties properties = new RestConnectorServiceProperties();
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, properties))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("source projection action routes require rest-connector.persistence.enabled=true");
+    }
+
+    @Test
+    void rejectsSourceProjectionActionThatExposesAnUnmappedField() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = sourceProjectionActionRoute();
+        route.getSourceProjection().setOutputFields(List.of("title", "providerSecret"));
+        config.setActions(Map.of("search_records", route));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("output-fields must use mapped entity fields");
+    }
+
+    @Test
     void acceptsFailClosedCollectionFilteringOnProtectedProviderActions() {
         RestRoutingConfig config = config();
         RestRoutingConfig.ActionRoute route = providerActionRoute();
@@ -240,6 +286,7 @@ class RestConnectorStartupValidatorTest {
         source.getMapping().setIdJsonPointer("/id");
         source.getMapping().setResourceJsonPointer("/scopeId");
         source.getMapping().setContentFields(Map.of("title", "/title"));
+        source.getMapping().setEntityFields(Map.of("title", "/title"));
         config.setDataSources(Map.of("neutral-source", source));
 
         config.getRuntimeDataSync().setEnabled(true);
@@ -260,6 +307,20 @@ class RestConnectorStartupValidatorTest {
         placement.setTarget(RestRoutingConfig.ResourcePlacement.Target.QUERY);
         placement.setField("scopeId");
         route.setTrustedResourcePlacements(List.of(placement));
+        return route;
+    }
+
+    private RestRoutingConfig.ActionRoute sourceProjectionActionRoute() {
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        RestRoutingConfig.SourceProjectionQuery projection = new RestRoutingConfig.SourceProjectionQuery();
+        projection.setSourceRef("neutral-source");
+        projection.setOutputFields(List.of("title"));
+        RestRoutingConfig.SourceProjectionFilter filter = new RestRoutingConfig.SourceProjectionFilter();
+        filter.setParam("title");
+        filter.setFields(List.of("title"));
+        filter.setOperator(RestRoutingConfig.SourceProjectionFilterOperator.EQUALS_IGNORE_CASE);
+        projection.setFilters(List.of(filter));
+        route.setSourceProjection(projection);
         return route;
     }
 

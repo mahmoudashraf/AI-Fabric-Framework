@@ -5,6 +5,8 @@ import com.ai.infrastructure.connector.rest.api.ActionResultDto;
 import com.ai.infrastructure.connector.rest.api.TraceContextDto;
 import com.ai.infrastructure.connector.rest.api.VerifiedAuthContextDto;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
+import com.ai.infrastructure.connector.rest.persistence.InMemoryIntegrationStateRepository;
+import com.ai.infrastructure.connector.rest.persistence.IntegrationStateRepository;
 import com.ai.infrastructure.connector.rest.template.TemplateEngine;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,9 +20,11 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -419,6 +423,90 @@ class RestActionExecutionServiceTest {
                 assertThat(projected.path("stockId").asText()).isEqualTo("visible");
                 assertThat(projected.path("lifecycleState").asText()).isEqualTo("FORECOURT");
             });
+    }
+
+    @Test
+    void sourceProjectionRouteFiltersDurableDataAndCreatesConversationTargets() {
+        RestRoutingConfig config = new RestRoutingConfig();
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        RestRoutingConfig.SourceProjectionQuery projection = new RestRoutingConfig.SourceProjectionQuery();
+        projection.setSourceRef("stock-source");
+        projection.setOutputFields(List.of("stockId", "make", "model", "fuelType", "priceGbp"));
+        projection.setDefaultLimit(5);
+        projection.setMaxLimit(10);
+        RestRoutingConfig.SourceProjectionFilter fuelFilter = new RestRoutingConfig.SourceProjectionFilter();
+        fuelFilter.setParam("fuelType");
+        fuelFilter.setFields(List.of("fuelType"));
+        fuelFilter.setOperator(RestRoutingConfig.SourceProjectionFilterOperator.EQUALS_IGNORE_CASE);
+        projection.setFilters(List.of(fuelFilter));
+        route.setSourceProjection(projection);
+        route.getResponse().setResult(Map.of(
+            "_items", "{{body.results}}",
+            "_count", "{{body.returnedCount}}",
+            "_totalCount", "{{body.totalResults}}",
+            "source", "{{body.source}}"
+        ));
+        RestRoutingConfig.PinnedTargetsFromCollection pinned = new RestRoutingConfig.PinnedTargetsFromCollection();
+        pinned.setCollectionJsonPointer("/results");
+        pinned.setIdJsonPointer("/stockId");
+        pinned.setVectorSpace("dealer-vehicle");
+        pinned.setContentFields(Map.of("make", "/make", "model", "/model", "priceGbp", "/priceGbp"));
+        pinned.setMetadataFields(Map.of("make", "/make", "model", "/model"));
+        route.getResponse().setPinnedTargetsFromCollection(pinned);
+        config.getActions().put("search_stock", route);
+
+        InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
+        repository.startSync("stock-source", "run-1", "source-v1");
+        repository.applyProjectionChanges(
+            "stock-source",
+            "run-1",
+            List.of(new IntegrationStateRepository.SourceProjectionRecord(
+                "stock-1",
+                "fingerprint-1",
+                "make: Northstar\nmodel: S4",
+                Map.of(
+                    "stockId", "stock-1",
+                    "make", "Northstar",
+                    "model", "S4",
+                    "fuelType", "Electric",
+                    "priceGbp", 20_000
+                ),
+                Map.of(),
+                Instant.now()
+            )),
+            Set.of()
+        );
+        repository.completeSync(
+            "stock-source",
+            "run-1",
+            null,
+            new IntegrationStateRepository.SyncCounts(1, 1, 1, 0, 1, 1, 0)
+        );
+        RestActionExecutionService service = new RestActionExecutionService(
+            config,
+            new TemplateEngine(),
+            OBJECT_MAPPER,
+            new InMemoryIdempotencyStore(config, Clock.systemUTC()),
+            new RestAuthzProxyService(config),
+            null,
+            null,
+            new SourceProjectionQueryService(repository)
+        );
+
+        ActionResultDto result = service.execute(new ActionExecuteRequestDto(
+            "search_stock",
+            Map.of("fuelType", "electric"),
+            null,
+            verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("_count", 1).containsEntry("_totalCount", 1);
+        assertThat(result.pinnedTargets()).singleElement().satisfies(target -> {
+            assertThat(target.id()).isEqualTo("stock-1");
+            assertThat(target.vectorSpace()).isEqualTo("dealer-vehicle");
+            assertThat(target.contentText()).contains("make: Northstar", "model: S4");
+        });
     }
 
     private RestActionExecutionService service(RestRoutingConfig config) {

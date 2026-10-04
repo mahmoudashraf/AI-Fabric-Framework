@@ -54,6 +54,7 @@ public class RestActionExecutionService {
     private final RestAuthzProxyService authzProxyService;
     private final ProviderHttpClient providerHttpClient;
     private final ProtectedResourceService protectedResourceService;
+    private final SourceProjectionQueryService sourceProjectionQueryService;
 
     private final HttpClient httpClient;
 
@@ -62,7 +63,26 @@ public class RestActionExecutionService {
                                      ObjectMapper objectMapper,
                                      IdempotencyStore idempotencyStore,
                                      RestAuthzProxyService authzProxyService) {
-        this(config, templateEngine, objectMapper, idempotencyStore, authzProxyService, null, null);
+        this(config, templateEngine, objectMapper, idempotencyStore, authzProxyService, null, null, null);
+    }
+
+    public RestActionExecutionService(RestRoutingConfig config,
+                                     TemplateEngine templateEngine,
+                                     ObjectMapper objectMapper,
+                                     IdempotencyStore idempotencyStore,
+                                     RestAuthzProxyService authzProxyService,
+                                     ProviderHttpClient providerHttpClient,
+                                     ProtectedResourceService protectedResourceService) {
+        this(
+            config,
+            templateEngine,
+            objectMapper,
+            idempotencyStore,
+            authzProxyService,
+            providerHttpClient,
+            protectedResourceService,
+            null
+        );
     }
 
     @Autowired
@@ -72,7 +92,8 @@ public class RestActionExecutionService {
                                      IdempotencyStore idempotencyStore,
                                      RestAuthzProxyService authzProxyService,
                                      ProviderHttpClient providerHttpClient,
-                                     ProtectedResourceService protectedResourceService) {
+                                     ProtectedResourceService protectedResourceService,
+                                     SourceProjectionQueryService sourceProjectionQueryService) {
         this.config = config;
         this.templateEngine = templateEngine;
         this.objectMapper = objectMapper;
@@ -80,6 +101,7 @@ public class RestActionExecutionService {
         this.authzProxyService = authzProxyService;
         this.providerHttpClient = providerHttpClient;
         this.protectedResourceService = protectedResourceService;
+        this.sourceProjectionQueryService = sourceProjectionQueryService;
 
         Duration connectTimeout = Duration.ofMillis(Math.max(100, config != null && config.getConnector() != null && config.getConnector().getHttp() != null
             ? config.getConnector().getHttp().getConnectTimeoutMs()
@@ -117,7 +139,8 @@ public class RestActionExecutionService {
 
     private ActionResultDto executeOnce(RestRoutingConfig.ActionRoute route, ActionExecuteRequestDto request, long startMs) {
         boolean providerRoute = StringUtils.hasText(route.getConnectionProfileRef());
-        ResolvedUpstream resolved = providerRoute ? null : resolveUpstream(route);
+        boolean projectionRoute = route.getSourceProjection() != null;
+        ResolvedUpstream resolved = providerRoute || projectionRoute ? null : resolveUpstream(route);
         Map<String, Object> ctx = templateEngine.contextFor(request, resolved);
         ActionResultDto authzResult = authorizeAction(route, request, ctx);
         if (authzResult != null) {
@@ -126,6 +149,9 @@ public class RestActionExecutionService {
 
         if (providerRoute) {
             return executeProviderRoute(route, request, ctx, startMs);
+        }
+        if (projectionRoute) {
+            return executeProjectionRoute(route, request, ctx, startMs);
         }
 
         URI uri = buildUpstreamUri(resolved, route, ctx);
@@ -186,6 +212,26 @@ public class RestActionExecutionService {
         }
 
         return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Upstream service unavailable.");
+    }
+
+    private ActionResultDto executeProjectionRoute(
+        RestRoutingConfig.ActionRoute route,
+        ActionExecuteRequestDto request,
+        Map<String, Object> ctx,
+        long startMs
+    ) {
+        if (sourceProjectionQueryService == null) {
+            return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Source projection query service is unavailable.");
+        }
+        try {
+            Map<String, Object> response = sourceProjectionQueryService.query(
+                route.getSourceProjection(),
+                request != null ? request.params() : Map.of()
+            );
+            return normalizeResponse(route, request, 200, writeJson(response), null, Map.of(), ctx, startMs);
+        } catch (SourceProjectionQueryService.ProjectionQueryException exception) {
+            return ActionResultDto.failure(exception.errorCode(), exception.getMessage());
+        }
     }
 
     private ActionResultDto executeProviderRoute(
@@ -411,6 +457,12 @@ public class RestActionExecutionService {
             Object templated = templateEngine.resolve(responseConfig.getPinnedTargets(), bodyCtx);
             pinnedTargets = parsePinnedTargets(templated);
         }
+        if (responseConfig != null && responseConfig.getPinnedTargetsFromCollection() != null) {
+            pinnedTargets = mergePinnedTargets(
+                pinnedTargets,
+                parsePinnedTargetsFromCollection(responseConfig.getPinnedTargetsFromCollection(), parsedBody)
+            );
+        }
 
         String errorCode = null;
         if (!success) {
@@ -602,6 +654,82 @@ public class RestActionExecutionService {
             return List.of(objectMapper.convertValue(templated, ActionTargetRefDto.class));
         } catch (Exception ex) {
             return List.of();
+        }
+    }
+
+    private List<ActionTargetRefDto> parsePinnedTargetsFromCollection(
+        RestRoutingConfig.PinnedTargetsFromCollection config,
+        Object parsedBody
+    ) {
+        JsonNode root = objectMapper.valueToTree(parsedBody);
+        JsonNode selected = root.at(config.getCollectionJsonPointer());
+        if (!(selected instanceof ArrayNode records)) {
+            throw malformedProviderResponse("Pinned target collection did not resolve to a list.");
+        }
+        List<ActionTargetRefDto> out = new ArrayList<>();
+        for (JsonNode record : records) {
+            if (out.size() >= config.getMaxTargets()) {
+                break;
+            }
+            if (!record.isObject()) {
+                throw malformedProviderResponse("Pinned target collection contains a non-object item.");
+            }
+            JsonNode idNode = record.at(config.getIdJsonPointer());
+            if (!idNode.isValueNode() || !StringUtils.hasText(idNode.asText())) {
+                throw malformedProviderResponse("Pinned target record has no configured identity.");
+            }
+            List<String> content = new ArrayList<>();
+            config.getContentFields().forEach((label, pointer) -> {
+                JsonNode value = record.at(pointer);
+                if (value.isValueNode() && StringUtils.hasText(value.asText())) {
+                    content.add(label + ": " + value.asText().trim());
+                }
+            });
+            String contentText = content.isEmpty() ? null : String.join("\n", content);
+            if (contentText != null && contentText.length() > config.getMaxContentChars()) {
+                contentText = contentText.substring(0, config.getMaxContentChars()).trim();
+            }
+            Map<String, String> metadata = new LinkedHashMap<>();
+            config.getMetadataFields().forEach((name, pointer) -> {
+                JsonNode value = record.at(pointer);
+                if (value.isValueNode() && StringUtils.hasText(value.asText())) {
+                    metadata.put(name, value.asText().trim());
+                }
+            });
+            out.add(new ActionTargetRefDto(
+                idNode.asText().trim(),
+                config.getVectorSpace().trim(),
+                contentText,
+                Collections.unmodifiableMap(metadata)
+            ));
+        }
+        return out.isEmpty() ? List.of() : Collections.unmodifiableList(out);
+    }
+
+    private List<ActionTargetRefDto> mergePinnedTargets(
+        List<ActionTargetRefDto> first,
+        List<ActionTargetRefDto> second
+    ) {
+        Map<String, ActionTargetRefDto> merged = new LinkedHashMap<>();
+        addPinnedTargets(merged, first);
+        addPinnedTargets(merged, second);
+        return merged.isEmpty() ? List.of() : List.copyOf(merged.values());
+    }
+
+    private void addPinnedTargets(
+        Map<String, ActionTargetRefDto> merged,
+        List<ActionTargetRefDto> refs
+    ) {
+        if (refs == null) {
+            return;
+        }
+        for (ActionTargetRefDto ref : refs) {
+            if (ref == null || !StringUtils.hasText(ref.id())) {
+                continue;
+            }
+            String key = (StringUtils.hasText(ref.vectorSpace()) ? ref.vectorSpace().trim() : "")
+                + "\u0000" + ref.id().trim();
+            merged.putIfAbsent(key, ref);
         }
     }
 

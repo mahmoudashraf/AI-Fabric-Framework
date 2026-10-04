@@ -25,7 +25,7 @@ const scenarios = [
   {
     id: 'contextual-follow-up',
     purpose: 'Resolve a follow-up from the same conversation without making the user repeat the candidates.',
-    prompt: 'Of those, which has the longest electric range, and is it an SUV?',
+    prompt: 'Of those, which has the lowest mileage, and what body type is it?',
   },
   {
     id: 'vehicle-comparison',
@@ -437,10 +437,10 @@ function scenarioAssertions(id, result, observedQueries) {
   }
   if (id === 'contextual-follow-up') {
     const statesPrice = /(?:GBP\s*|£\s*)\d/i.test(answer)
-    const statesAuthoritativePrice = /(?:GBP\s*|£\s*)31[, ]?950(?:\.00)?/i.test(answer)
+    const statesAuthoritativePrice = /(?:GBP\s*|£\s*)22[, ]?750(?:\.00)?/i.test(answer)
     return [
-      check('follow-up resolves the prior result set', includesAll(answer, ['Aster E1', '298', 'SUV']), 'Aster E1, 298 miles, and SUV', summarizeText(answer)),
-      check('follow-up does not invent a price', !statesPrice || statesAuthoritativePrice, 'Omit price or preserve GBP 31,950 from current inventory evidence.', summarizeText(answer)),
+      check('follow-up resolves the prior result set', includesAll(answer, ['Morrow C2', '1,980', 'Hatchback']) || includesAll(answer, ['Morrow C2', '1980', 'Hatchback']), 'Morrow C2, 1,980 miles, and Hatchback', summarizeText(answer)),
+      check('follow-up does not invent a price', !statesPrice || statesAuthoritativePrice, 'Omit price or preserve GBP 22,750 from current provider evidence.', summarizeText(answer)),
       check('follow-up is grounded', grounded, 'Action or non-action RAG evidence.', evidence.groundingPath),
     ]
   }
@@ -640,9 +640,13 @@ function responseEvidence(value) {
 
 function summarizeExecutedAction(entry) {
   const evidence = parseJson(entry?.evidenceSummary)
+  const paramsObserved = entry?.params !== null
+    && typeof entry?.params === 'object'
+    && !Array.isArray(entry.params)
   return {
     action: entry?.action || null,
-    params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+    paramsObserved,
+    params: paramsObserved ? entry.params : null,
     success: entry?.success === true,
     groundingUsable: entry?.groundingUsable === true,
     groundingSufficiency: entry?.groundingSufficiency || null,
@@ -708,11 +712,14 @@ function buildRecommendations(results, globalAssertions, policy) {
 
   const continuityHealthy = globalAssertions.find(({ name }) => name === 'one iterative conversation is used')?.passed
     && byId['contextual-follow-up']?.evidence.historyMessagesCount > 0
+    && byId['contextual-follow-up']?.assertions.some(
+      ({ name, passed }) => name === 'follow-up resolves the prior result set' && passed,
+    )
   recommendations.push({
     priority: continuityHealthy ? 'KEEP' : 'HIGH',
     owner: 'DEPLOYMENT_CONFIGURATION',
     finding: continuityHealthy
-      ? 'Conversation-level iteration preserved history and resolved the contextual follow-up.'
+      ? 'Conversation-level iteration preserved history and demonstrably resolved the contextual follow-up.'
       : 'Conversation continuity or contextual follow-up resolution failed.',
     recommendation: continuityHealthy
       ? 'Keep runtime-owned conversation memory. Do not confuse a multi-turn session with read-action planner iteration.'
@@ -818,7 +825,7 @@ function buildRecommendations(results, globalAssertions, policy) {
     recommendations.push({
       priority: 'HIGH',
       owner: 'DEPLOYMENT_PROMPT_AND_EVIDENCE_PROJECTION',
-      finding: 'The contextual answer selected the correct vehicle, range, and body type but introduced a price that conflicts with the authoritative action result.',
+      finding: 'The contextual answer selected the correct vehicle, mileage, and body type but introduced a price that conflicts with the authoritative action result.',
       recommendation: 'After the framework grounding blocker is fixed, constrain post-action generation to copy structured commercial facts exactly and omit unrequested fields rather than reconstructing them.',
       evidenceScenarioIds: ['contextual-follow-up'],
     })
@@ -888,15 +895,24 @@ function isReadActionEvidence(document) {
 
 function numericItemCount(value) {
   if (!value || typeof value !== 'object') return null
-  if (Number.isFinite(Number(value.itemsCount))) return Number(value.itemsCount)
-  if (Number.isFinite(Number(value._count))) return Number(value._count)
-  if (Number.isFinite(Number(value.total))) return Number(value.total)
+  if (isNumericScalar(value.itemsCount)) return Number(value.itemsCount)
+  if (isNumericScalar(value._count)) return Number(value._count)
+  if (isNumericScalar(value.total)) return Number(value.total)
   if (Array.isArray(value.items)) return value.items.length
   if (Array.isArray(value._items)) return value._items.length
   if (value.actionResultData && typeof value.actionResultData === 'object') {
     return numericItemCount(value.actionResultData)
   }
   return null
+}
+
+function isNumericScalar(value) {
+  return value !== null
+    && value !== undefined
+    && value !== ''
+    && !Array.isArray(value)
+    && typeof value !== 'object'
+    && Number.isFinite(Number(value))
 }
 
 function extractItemIds(value) {
