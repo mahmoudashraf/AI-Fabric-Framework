@@ -1123,3 +1123,21 @@ or Platform-managed `UI_EXTENSION` packaging.
 - Marketplace lifecycle, version approval, and template binding remain the
   explicit deferred Platform productization work; the package must not be
   mislabeled as a DATA or ACTION plugin.
+
+### 17.10 External developer documentation (2026-10-04)
+
+- Added `max-mode-widget/docs/EXTERNAL_DEVELOPER_GUIDE.md` as the external
+  integration entry point for the generic chat application. It covers the
+  three supported auth postures, reviewed bundle pinning, routes, host-owned
+  tool scopes, page attachments, bounded action presentations, lifecycle API,
+  CORS/CSP, security, acceptance, and troubleshooting.
+- Added
+  `experience-packs/dealership-experience/docs/EXTERNAL_DEVELOPER_GUIDE.md` for
+  the pack-specific contract. It covers one-script and explicit mounting,
+  secret-free bootstrap configuration, runtime descriptor discovery, page and
+  vehicle context, capability gating, default action names, rich result
+  schemas, confirmed writes, media policy, acceptance, and upgrades.
+- Both READMEs link to their external guide and both package manifests include
+  `docs` in the reviewed package payload. The guides state explicitly that the
+  browser layers do not own provider integration, indexing, authorization, or
+  application side effects.

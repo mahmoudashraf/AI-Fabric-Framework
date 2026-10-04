@@ -4,7 +4,10 @@ Embeddable LoomAI companion and Max Mode interface for customer applications.
 Build and serve the reviewed bundle from the integrating application's own
 versioned assets; do not load an unpinned third-party CDN copy.
 
-For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
+For customer and partner onboarding, start with the
+[External Developer Guide](docs/EXTERNAL_DEVELOPER_GUIDE.md). For the detailed
+API reference, see [docs/GUIDE.md](docs/GUIDE.md). Auth-mode architecture lives
+in [docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
 
 ## Quick Start
 
@@ -52,7 +55,7 @@ That's it. A floating chat button appears in the bottom-right corner.
 </script>
 ```
 
-### Option 2: npm (React apps)
+### Option 2: npm (React apps with approved registry access)
 
 ```bash
 npm install @loom-ai-labs/max-mode-widget

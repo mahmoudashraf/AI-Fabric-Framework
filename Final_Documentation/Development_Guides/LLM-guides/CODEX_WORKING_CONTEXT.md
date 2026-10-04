@@ -3823,3 +3823,20 @@ Critical fixes that made the gate pass:
 - Production firewalls `10915120` and `10918233` were restored to exact pre-run
   hashes, contain zero operator-CIDR matches, and local Coolify port `8000` is
   closed with HTTP `000`.
+
+## 2026-10-04 External Chat And Dealership-Pack Developer Guides
+
+- Added customer-facing integration guides at
+  `max-mode-widget/docs/EXTERNAL_DEVELOPER_GUIDE.md` and
+  `experience-packs/dealership-experience/docs/EXTERNAL_DEVELOPER_GUIDE.md`.
+- The generic guide covers reviewed distribution, all three auth modes,
+  routes, host tools, page attachments, safe action presentations, browser API,
+  CORS/CSP, security, acceptance and troubleshooting without domain coupling.
+- The pack guide covers secret-free bootstrap JSON, the exact public runtime
+  descriptor, inventory/detail page integration, default tools/actions, rich
+  result schemas, confirmed writes, media policy, upgrade procedure and the
+  boundary between UI, provider integration, indexing and application-owned
+  effects.
+- Both READMEs now point to the external guides and package payloads include
+  their `docs` directories. No runtime, connector, framework, deployment, or
+  public-site behavior changed.

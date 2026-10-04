@@ -4,6 +4,9 @@ Provider-neutral automotive-retail configuration and action-result UI for the
 generic LoomAI Max Mode widget. The pack contains no Auto Trader credentials,
 provider client, dealership-specific inventory, or protected backend access.
 
+Customer and partner implementations should start with the
+[External Developer Guide](docs/EXTERNAL_DEVELOPER_GUIDE.md).
+
 Each dealership supplies:
 
 - its public runtime descriptor URL;
