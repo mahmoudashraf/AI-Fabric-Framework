@@ -58,6 +58,21 @@ const scenarios = [
     prompt: 'What does local delivery cost and what must be ready before handover?',
   },
   {
+    id: 'approved-test-drive-policy',
+    purpose: 'Return eligibility requirements from the approved test-drive policy without starting a booking.',
+    prompt: 'What age and driving licence history does Northfield require for a test drive? Do not book one.',
+  },
+  {
+    id: 'approved-complaints-policy',
+    purpose: 'Return the exact acknowledgement and response targets from the approved complaints policy.',
+    prompt: 'How quickly will Northfield acknowledge my complaint and provide a substantive response?',
+  },
+  {
+    id: 'approved-opening-accessibility',
+    purpose: 'Ground opening hours and accessibility facilities in the approved showroom document.',
+    prompt: 'What are Northfield Riverside weekday opening hours, and is the showroom step-free?',
+  },
+  {
     id: 'governed-write-intent',
     purpose: 'Explain the write-action requirements without executing or confirming a lead.',
     prompt: 'I want to book a test drive for the Aster E1. Tell me what details and confirmation you need, but do not submit anything.',
@@ -481,6 +496,31 @@ function scenarioAssertions(id, result, observedQueries) {
       check('answer includes handover prerequisites', /(cleared funds)/i.test(answer) && /(identit|photo identification)/i.test(answer) && /insurance/i.test(answer), 'Cleared funds, identity and insurance evidence.', summarizeText(answer)),
     ]
   }
+  if (id === 'approved-test-drive-policy') {
+    return [
+      check('approved test-drive evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
+      check('answer preserves exact test-drive eligibility', /\b21\b/.test(answer) && /12\s+months?/i.test(answer), 'Minimum age 21 and a licence held for at least 12 months.', summarizeText(answer)),
+      check('answer does not start a booking', evidence.successfulWriteActions.length === 0, 'Policy answer only; no successful test-drive write.', evidence.successfulWriteActions),
+    ]
+  }
+  if (id === 'approved-complaints-policy') {
+    return [
+      check('approved complaints evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
+      check(
+        'answer preserves exact complaint targets',
+        /(?:two|2)\s+working\s+days?/i.test(answer) && /(?:ten|10)\s+working\s+days?/i.test(answer),
+        'Acknowledgement within two working days and a substantive response within 10 working days.',
+        summarizeText(answer),
+      ),
+    ]
+  }
+  if (id === 'approved-opening-accessibility') {
+    return [
+      check('approved showroom evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
+      check('answer preserves weekday opening hours', /09:00/.test(answer) && /18:00/.test(answer), '09:00 to 18:00 on weekdays.', summarizeText(answer)),
+      check('answer identifies step-free access', /step[- ]free/i.test(answer), 'Step-free entrance/access.', summarizeText(answer)),
+    ]
+  }
   if (id === 'governed-write-intent') {
     const confirmationWasSent = observedQueries.some(({ request }) => request.query === 'Yes, confirm')
     const exposesInternalTarget = /\bvehicleId\b/i.test(answer)
@@ -733,6 +773,9 @@ function buildRecommendations(results, globalAssertions, policy) {
     byId['approved-warranty-policy'],
     byId['approved-reservation-policy'],
     byId['approved-delivery-operations'],
+    byId['approved-test-drive-policy'],
+    byId['approved-complaints-policy'],
+    byId['approved-opening-accessibility'],
   ]
   if (documentPolicyScenarios.some((scenario) => scenario?.status !== 'PASS')) {
     recommendations.push({
@@ -740,7 +783,14 @@ function buildRecommendations(results, globalAssertions, policy) {
       owner: 'DEPLOYMENT_KNOWLEDGE_BOUNDARY',
       finding: 'At least one dealership policy or operations answer did not preserve the approved document terms.',
       recommendation: 'Verify the document source registration, active version, document vector-space allowlist and public-approved metadata filter before changing prompts.',
-      evidenceScenarioIds: ['approved-warranty-policy', 'approved-reservation-policy', 'approved-delivery-operations'],
+      evidenceScenarioIds: [
+        'approved-warranty-policy',
+        'approved-reservation-policy',
+        'approved-delivery-operations',
+        'approved-test-drive-policy',
+        'approved-complaints-policy',
+        'approved-opening-accessibility',
+      ],
     })
   }
 
