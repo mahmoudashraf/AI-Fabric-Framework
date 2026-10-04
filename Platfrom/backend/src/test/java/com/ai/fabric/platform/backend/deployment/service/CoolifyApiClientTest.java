@@ -546,6 +546,22 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void logsRetriesBeyondThePreviousRateLimitAttemptCeiling() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        HttpServer server = logsExtendedRateLimitServer(requests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            String logs = client.logs(connection(server), "app-uuid", 50);
+
+            assertThat(logs).contains("Recovered after rate limit window");
+            assertThat(requests.get()).isEqualTo(7);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void getDeploymentReadsCoolifyDeploymentStatusByUuid() throws Exception {
         HttpServer server = deploymentServer();
         try {
@@ -1035,6 +1051,26 @@ class CoolifyApiClientTest {
                 return;
             }
             sendJson(exchange, 200, "{\"logs\":\"Bridge started\\nReady\"}");
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer logsExtendedRateLimitServer(AtomicInteger requests) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/logs", exchange -> {
+            int attempt = requests.incrementAndGet();
+            if (!"GET".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            if (attempt <= 6) {
+                exchange.getResponseHeaders().add("Retry-After", "0");
+                sendJson(exchange, 429, "{\"message\":\"rate limited\"}");
+                return;
+            }
+            sendJson(exchange, 200, "{\"logs\":\"Recovered after rate limit window\"}");
         });
         server.start();
         return server;

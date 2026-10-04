@@ -29,8 +29,9 @@ import java.util.stream.Collectors;
 public class CoolifyApiClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(45);
-    private static final int MAX_RETRY_ATTEMPTS = 6;
+    private static final int MAX_RETRY_ATTEMPTS = 8;
     private static final Duration RETRY_BASE_DELAY = Duration.ofSeconds(1);
+    private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(30);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -989,7 +990,7 @@ public class CoolifyApiClient {
             .firstValue("Retry-After")
             .flatMap(this::parseRetryAfter)
             .orElse(RETRY_BASE_DELAY.multipliedBy(1L << Math.max(0, attempt - 1)));
-        Thread.sleep(Math.min(delay.toMillis(), 15_000L));
+        Thread.sleep(Math.min(delay.toMillis(), MAX_RETRY_DELAY.toMillis()));
     }
 
     private Optional<Duration> parseRetryAfter(String value) {
