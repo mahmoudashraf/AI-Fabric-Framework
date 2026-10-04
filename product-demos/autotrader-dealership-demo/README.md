@@ -11,6 +11,7 @@ through the central Platform.
 - Reusable chat shell: `max-mode-widget`
 - Runtime composition files: `backend/deployment/runtime`
 - Generic REST Connector routing: `backend/deployment/connector`
+- Approved policy and operations fixtures: `backend/deployment/document-sources`
 
 The included dealership, vehicles, people and requests are fictional. No Auto
 Trader credential, API, sandbox or production data is used by this source
@@ -23,6 +24,7 @@ browser -> dealership backend        structured inventory and staff workspace
 browser -> assigned LoomAI runtime   anonymous Companion / Max Mode chat
 dealership backend -> runtime        private inventory Data Sync and work status
 runtime connector -> backend         protected authorization and confirmed actions
+deployment -> customer storage       read-only document discovery and indexing
 ```
 
 The browser receives no dealership internal key, runtime trusted-backend key,

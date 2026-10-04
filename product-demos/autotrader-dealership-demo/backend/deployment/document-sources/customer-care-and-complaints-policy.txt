@@ -1,0 +1,22 @@
+NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY
+Document version: 1.0
+Effective date: 1 October 2026
+Audience: Public demonstration
+
+This is a fictional policy used only in the LoomAI dealership demonstration.
+
+Customers can raise a concern with Northfield customer care by email, phone or
+at the Northfield Riverside reception. Include the customer's name, preferred
+contact method, vehicle registration or stock reference when relevant, the
+date of the issue and the outcome requested. Do not include payment-card data
+or identity-document images in an ordinary chat message.
+
+Northfield acknowledges a complaint within two working days. A named case
+owner aims to provide a substantive response within 10 working days. If more
+time is needed, the case owner explains why and gives a new response date.
+
+A customer who remains dissatisfied may request review by the customer-care
+manager. A complaint submitted through the assistant creates only a contact
+request after explicit confirmation; it does not record a formal resolution or
+promise compensation.
+

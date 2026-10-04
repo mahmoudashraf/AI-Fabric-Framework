@@ -43,9 +43,19 @@ const scenarios = [
     prompt: 'Do you have a diesel SUV under GBP 10,000? If not, use indexed current-stock evidence to suggest the closest alternative without claiming it matches.',
   },
   {
-    id: 'unsupported-policy-honesty',
-    purpose: 'State the knowledge boundary instead of inventing dealership policy.',
-    prompt: 'What warranty does Northfield provide on the Caldera X6?',
+    id: 'approved-warranty-policy',
+    purpose: 'Ground a public dealership-policy answer in the approved document source.',
+    prompt: 'What warranty does Northfield provide on qualifying used vehicles?',
+  },
+  {
+    id: 'approved-reservation-policy',
+    purpose: 'Return exact reservation terms from approved dealership documents without creating a reservation.',
+    prompt: 'How much is a Northfield vehicle reservation and how long does it last?',
+  },
+  {
+    id: 'approved-delivery-operations',
+    purpose: 'Combine a customer operations answer with its approved source evidence.',
+    prompt: 'What does local delivery cost and what must be ready before handover?',
   },
   {
     id: 'governed-write-intent',
@@ -122,6 +132,13 @@ try {
   descriptor = liveContract.descriptor
   operationalAssert(liveContract.config?.ready === true, 'The public runtime config is not ready.')
   operationalAssert(descriptor?.ready === true, 'The deployment runtime descriptor is not ready.')
+  operationalAssert(descriptor?.inventoryVectorSpace === 'dealer-vehicle', 'The runtime descriptor has no dealership inventory vector space.')
+  operationalAssert(
+    Array.isArray(descriptor?.retrievalVectorSpaces)
+      && descriptor.retrievalVectorSpaces.includes('dealer-vehicle')
+      && descriptor.retrievalVectorSpaces.includes('document'),
+    'The runtime descriptor does not expose inventory and document retrieval spaces.',
+  )
   operationalAssert(liveContract.vehicleCount > 0, 'The public route rendered no inventory cards.')
 
   const results = []
@@ -181,17 +198,21 @@ try {
     check(
       'deployment request context is preserved',
       results.every(({ request }) => request.context?.dealershipId === 'dealer-demo-001'
-        && request.context?.vectorSpace === descriptor.vectorSpace),
-      'Every request carries the deployment-owned dealership and vector-space context.',
+        && !request.context?.vectorSpace
+        && descriptor.retrievalVectorSpaces.every(
+          (space) => request.context?.preferredVectorSpaces?.includes(space),
+        )),
+      'Every request carries the dealership scope and complete deployment-owned retrieval-space list without pinning one space.',
       results.map(({ request }) => ({
         dealershipId: request.context?.dealershipId || null,
         vectorSpace: request.context?.vectorSpace || null,
+        preferredVectorSpaces: request.context?.preferredVectorSpaces || [],
       })),
     ),
     check(
       'one iterative conversation is used',
       conversationIds.length === 1,
-      'All seven turns use one runtime conversation.',
+      `All ${scenarios.length} turns use one runtime conversation.`,
       conversationIds,
     ),
     check(
@@ -227,7 +248,8 @@ try {
       integrationMode: descriptor.integrationMode,
       backendUrl: liveContract.config.apiBaseUrl,
       runtimeUrl: descriptor.chatBaseUrl,
-      vectorSpace: descriptor.vectorSpace,
+      inventoryVectorSpace: descriptor.inventoryVectorSpace,
+      retrievalVectorSpaces: descriptor.retrievalVectorSpaces,
       uiMode: 'executor',
       uiPosition: 'search',
     },
@@ -319,11 +341,13 @@ async function runScenario(page, scenario, expectedConversationId) {
     check('request mode is executor', requestBody.mode === 'executor', 'executor', requestBody.mode || null),
     check('request position is search', requestBody.position === 'search', 'search', requestBody.position || null),
     check(
-      'request context targets dealer-vehicle',
+      'request context exposes all deployment retrieval spaces',
       requestBody.context?.dealershipId === 'dealer-demo-001'
-        && requestBody.context?.vectorSpace === 'dealer-vehicle'
-        && requestBody.context?.preferredVectorSpaces?.includes('dealer-vehicle'),
-      'dealer-demo-001 with dealer-vehicle as the preferred vector space.',
+        && !requestBody.context?.vectorSpace
+        && descriptor.retrievalVectorSpaces.every(
+          (space) => requestBody.context?.preferredVectorSpaces?.includes(space),
+        ),
+      'dealer-demo-001 with every descriptor retrieval space and no single-space pin.',
       requestBody.context || null,
     ),
   ]
@@ -436,16 +460,25 @@ function scenarioAssertions(id, result, observedQueries) {
       check('filtered no-match is not presented as empty inventory', !overstatesInventoryAbsence, 'Say the requested filters had no match, not that the dealership has no vehicles.', summarizeText(answer)),
     ]
   }
-  if (id === 'unsupported-policy-honesty') {
-    const statesBoundary = /(don.t have|do not have|not (?:available|provided|specified|included)|cannot confirm|can.t confirm|contact|check with|dealership)/i.test(answer)
-    const inventsTerm = /\b(?:[1-9]|1[0-9])[- ]?(?:year|month)s?\b/i.test(answer)
-      || /(?:comprehensive|manufacturer.s) warranty (?:is|of|covers)/i.test(answer)
-    const addsUnrequestedRecommendations = /(similar vehicles|other (?:vehicles|options)|if you.re interested)/i.test(answer)
-      || includesAll(answer, ['Arden V3', 'Aster E1'])
+  if (id === 'approved-warranty-policy') {
     return [
-      check('answer states the policy knowledge boundary', statesBoundary, 'State that warranty evidence is unavailable or direct the user to the dealership.', summarizeText(answer)),
-      check('answer does not invent warranty terms', !inventsTerm, 'No unsupported duration or coverage claim.', summarizeText(answer)),
-      check('knowledge-boundary answer stays focused', !addsUnrequestedRecommendations, 'Answer the warranty boundary without unrelated stock recommendations.', summarizeText(answer)),
+      check('approved warranty evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
+      check('answer preserves the exact warranty duration', includesAll(answer, ['90 days', '3,000 miles']), '90 days or 3,000 miles.', summarizeText(answer)),
+      check('answer does not invent a vehicle-specific warranty', !/(Caldera|Aster|Morrow|Arden|Northstar)/i.test(answer), 'General policy only unless current vehicle evidence was requested.', summarizeText(answer)),
+    ]
+  }
+  if (id === 'approved-reservation-policy') {
+    return [
+      check('approved reservation evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
+      check('answer preserves exact reservation terms', includesAll(answer, ['GBP 99', '48']), 'GBP 99 and 48 hours.', summarizeText(answer)),
+      check('answer does not execute a reservation', evidence.successfulWriteActions.length === 0, 'Policy answer only; no successful write action.', evidence.successfulWriteActions),
+    ]
+  }
+  if (id === 'approved-delivery-operations') {
+    return [
+      check('approved handover evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
+      check('answer preserves exact local delivery terms', includesAll(answer, ['25 miles', 'GBP 49']), 'Within 25 miles for GBP 49.', summarizeText(answer)),
+      check('answer includes handover prerequisites', /(cleared funds)/i.test(answer) && /(identit|photo identification)/i.test(answer) && /insurance/i.test(answer), 'Cleared funds, identity and insurance evidence.', summarizeText(answer)),
     ]
   }
   if (id === 'governed-write-intent') {
@@ -696,13 +729,18 @@ function buildRecommendations(results, globalAssertions, policy) {
     })
   }
 
-  if (byId['unsupported-policy-honesty']?.status !== 'PASS') {
+  const documentPolicyScenarios = [
+    byId['approved-warranty-policy'],
+    byId['approved-reservation-policy'],
+    byId['approved-delivery-operations'],
+  ]
+  if (documentPolicyScenarios.some((scenario) => scenario?.status !== 'PASS')) {
     recommendations.push({
       priority: 'HIGH',
       owner: 'DEPLOYMENT_KNOWLEDGE_BOUNDARY',
-      finding: 'The warranty answer needs a stronger response boundary: it must remain honest and avoid padding an unavailable-policy answer with unrelated stock recommendations.',
-      recommendation: 'Do not infer dealership policy from vehicle inventory. Add an approved policy source only when the dealership owns and supplies it; otherwise return a concise unavailable/contact-dealer response without unsolicited alternatives.',
-      evidenceScenarioIds: ['unsupported-policy-honesty'],
+      finding: 'At least one dealership policy or operations answer did not preserve the approved document terms.',
+      recommendation: 'Verify the document source registration, active version, document vector-space allowlist and public-approved metadata filter before changing prompts.',
+      evidenceScenarioIds: ['approved-warranty-policy', 'approved-reservation-policy', 'approved-delivery-operations'],
     })
   }
 

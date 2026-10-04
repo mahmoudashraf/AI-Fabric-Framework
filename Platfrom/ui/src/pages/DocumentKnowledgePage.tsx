@@ -67,6 +67,7 @@ import {
   upsertDocumentStorageBinding,
   verifyDocumentRetrieval,
   type DeploymentMarketplaceInstallSummary,
+  type DiscoveredDocumentSource,
   type DocumentSourceSummary,
   type UpsertDocumentStorageBindingRequest,
 } from '../api/platformApi'
@@ -75,6 +76,13 @@ import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 const DOCUMENT_PLUGIN_IDS = new Set([
   'mkp-data-document-knowledge-s3',
   'mkp-data-document-knowledge-mounted-demo',
+  'mkp-data-dealership-knowledge-v1',
+  'mkp-data-dealership-knowledge-mounted-demo-v1',
+])
+
+const PUBLIC_AUDIENCE_DOCUMENT_PLUGIN_IDS = new Set([
+  'mkp-data-dealership-knowledge-v1',
+  'mkp-data-dealership-knowledge-mounted-demo-v1',
 ])
 
 type BindingForm = {
@@ -170,6 +178,10 @@ export function DocumentKnowledgePage() {
   const [discoveryCursor, setDiscoveryCursor] = useState<string | undefined>()
   const [retrievalQuery, setRetrievalQuery] = useState('Summarize the approved document evidence.')
   const [removeSource, setRemoveSource] = useState<DocumentSourceSummary | null>(null)
+  const [registrationSource, setRegistrationSource] = useState<DiscoveredDocumentSource | null>(null)
+  const [registrationCategory, setRegistrationCategory] = useState('')
+  const [registrationVisibility, setRegistrationVisibility] = useState('tenant')
+  const [registrationApproved, setRegistrationApproved] = useState(false)
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -201,6 +213,7 @@ export function DocumentKnowledgePage() {
     () => documentInstall(installsQuery.data ?? [], dataset),
     [dataset, installsQuery.data],
   )
+  const publicAudiencePackage = install != null && PUBLIC_AUDIENCE_DOCUMENT_PLUGIN_IDS.has(install.pluginId)
   const matchingProfiles = useMemo(() => (
     (profilesQuery.data ?? []).filter((profile) => (
       profile.active
@@ -314,13 +327,21 @@ export function DocumentKnowledgePage() {
     onSuccess: (result) => setDiscoveryCursor(result.nextCursor ?? undefined),
   })
   const registerMutation = useMutation({
-    mutationFn: (objectReference: string) => registerDocumentSource(selectedDeploymentId, {
+    mutationFn: (input: { objectReference: string; sourceCategory: string; visibility: string }) => registerDocumentSource(selectedDeploymentId, {
       datasetId,
-      objectReference,
-      visibility: 'tenant',
+      objectReference: input.objectReference,
+      visibility: input.visibility,
+      metadata: {
+        sourceCategory: input.sourceCategory,
+        ...(publicAudiencePackage ? { publicationStatus: 'PUBLIC_APPROVED' } : {}),
+      },
     }),
     onSuccess: async (source) => {
       setSelectedSourceId(source.sourceId)
+      setRegistrationSource(null)
+      setRegistrationCategory('')
+      setRegistrationVisibility('tenant')
+      setRegistrationApproved(false)
       await invalidateDocumentState()
     },
   })
@@ -555,7 +576,13 @@ export function DocumentKnowledgePage() {
                         <Button
                           size="small" startIcon={<DescriptionRoundedIcon />}
                           disabled={!!source.registeredSourceId || !canOperate || registerMutation.isPending}
-                          onClick={() => registerMutation.mutate(source.objectReference)}
+                          onClick={() => {
+                            setRegistrationSource(source)
+                            setRegistrationCategory('')
+                            setRegistrationVisibility('tenant')
+                            setRegistrationApproved(false)
+                            registerMutation.reset()
+                          }}
                         >Register</Button>
                       </TableCell>
                     </TableRow>
@@ -725,6 +752,87 @@ export function DocumentKnowledgePage() {
           ) : null}
         </Stack>
       </Paper>
+
+      <Dialog
+        open={registrationSource != null}
+        onClose={() => !registerMutation.isPending && setRegistrationSource(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Register approved document source</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity={publicAudiencePackage ? 'warning' : 'info'}>
+              {publicAudiencePackage
+                ? 'This package can ground anonymous website answers. Register only dealership-owned material approved for public visitors.'
+                : 'Confirm the source audience and category before creating derived indexing evidence.'}
+            </Alert>
+            <TextField
+              fullWidth
+              size="small"
+              label="Source"
+              value={registrationSource?.displayName ?? ''}
+              disabled
+            />
+            <TextField
+              fullWidth
+              required
+              size="small"
+              label="Source category"
+              placeholder="policy, operations, support"
+              value={registrationCategory}
+              onChange={(event) => setRegistrationCategory(event.target.value)}
+              inputProps={{ maxLength: 64 }}
+              helperText="A short stable label included with retrieval evidence."
+            />
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="Visibility"
+              value={registrationVisibility}
+              disabled={publicAudiencePackage}
+              onChange={(event) => setRegistrationVisibility(event.target.value)}
+            >
+              <MenuItem value="tenant">Tenant</MenuItem>
+              <MenuItem value="private">Private</MenuItem>
+              <MenuItem value="internal">Internal</MenuItem>
+            </TextField>
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={registrationApproved}
+                  onChange={(event) => setRegistrationApproved(event.target.checked)}
+                />
+              )}
+              label={publicAudiencePackage
+                ? 'I confirm this file is approved for anonymous public answers.'
+                : 'I confirm this source and audience are approved for indexing.'}
+            />
+            {registerMutation.isError ? <Alert severity="error">{errorText(registerMutation.error)}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={registerMutation.isPending} onClick={() => setRegistrationSource(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            startIcon={<DescriptionRoundedIcon />}
+            disabled={
+              registerMutation.isPending
+              || !registrationSource
+              || !registrationCategory.trim()
+              || !registrationApproved
+            }
+            onClick={() => registrationSource && registerMutation.mutate({
+              objectReference: registrationSource.objectReference,
+              sourceCategory: registrationCategory.trim(),
+              visibility: registrationVisibility,
+            })}
+          >
+            Register source
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={removeSource != null} onClose={() => setRemoveSource(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Remove indexed document evidence?</DialogTitle>

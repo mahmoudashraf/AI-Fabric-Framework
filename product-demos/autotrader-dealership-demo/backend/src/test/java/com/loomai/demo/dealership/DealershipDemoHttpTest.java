@@ -183,6 +183,9 @@ class DealershipDemoHttpTest {
                 .value("/api/chat/me/conversations"))
             .andExpect(jsonPath("$.runtimeRoutes.conversationItemUrlTemplate")
                 .value("/api/chat/me/conversations/{conversationId}"))
+            .andExpect(jsonPath("$.inventoryVectorSpace").value("dealer-vehicle"))
+            .andExpect(jsonPath("$.retrievalVectorSpaces[0]").value("dealer-vehicle"))
+            .andExpect(jsonPath("$.retrievalVectorSpaces[1]").value("document"))
             .andReturn().getResponse().getContentAsString();
 
         assertThat(body)

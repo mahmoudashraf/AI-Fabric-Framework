@@ -69,6 +69,8 @@ LOOMAI_RUNTIME_ASSERTION_AUDIENCE=<deployment-audience>
 LOOMAI_RUNTIME_DEPLOYMENT_ID=<deployment-id>
 LOOMAI_RUNTIME_CUSTOMER_ID=<customer-id>
 LOOMAI_RUNTIME_TENANT_ID=<tenant-id>
+LOOMAI_RUNTIME_INVENTORY_VECTOR_SPACE=dealer-vehicle
+LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES=dealer-vehicle,document
 LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID=autotrader-dealership-stock-source
 LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID=autotrader-stock-events
 ```
@@ -114,6 +116,9 @@ DEALERSHIP_DEMO_RUNTIME_BASE_URL=https://<assigned-runtime>
 ## Deployment contracts
 
 - `deployment/runtime/ai-entity-config.yml` registers `dealer-vehicle`.
+- `deployment/document-sources` contains public-safe fictional policy and
+  operations documents for the mounted-folder staging proof. Production
+  dealerships supply their approved replacements from customer-owned storage.
 - `deployment/runtime/ai-actions.yml` defines provider inventory reads, the
   dealer-owned comparison read, and two confirmed dealer-owned lead writes.
 - `deployment/connector/actions-routing.yml` routes stock search/detail through
@@ -121,7 +126,8 @@ DEALERSHIP_DEMO_RUNTIME_BASE_URL=https://<assigned-runtime>
   binding. Comparison, callback, and test-drive routes remain on this backend.
 - `deployment/platform/staging-profile.json` composes the provider profile,
   protected resource, complete baseline, targeted current-record fetch,
-  signed notification ingress, indexing mapping, and runtime source identity.
+  signed notification ingress, indexing mapping, runtime source identity, and
+  prompts that distinguish live inventory facts from approved document terms.
 
 The provider baseline requests only `lifecycleState=FORECOURT`, uses
 `advertiserId`, `page`, and `pageSize`, and stores stable stock/search IDs.

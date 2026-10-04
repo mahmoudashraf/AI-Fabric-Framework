@@ -1,0 +1,23 @@
+NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS
+Document version: 1.0
+Effective date: 1 October 2026
+Audience: Public demonstration
+
+This is a fictional policy used only in the LoomAI dealership demonstration.
+
+The driver must be at least 21 years old and must present an original full UK
+or EU driving licence held for at least 12 months. Northfield may request a
+second proof of address when the licence address is not current.
+
+A test-drive request needs the customer's name, email address, phone number,
+the selected vehicle and, when available, a preferred date or time. The
+customer must explicitly confirm submission. The request is not a booking
+until a dealership team member checks vehicle and staff availability and sends
+a confirmed appointment.
+
+Only the named, verified driver may drive. Normal demonstrations are
+accompanied by a Northfield team member, use an agreed route and last up to 45
+minutes. Additional drivers must meet the same requirements and be approved in
+advance. Accessibility or child-seat needs should be mentioned when requesting
+the appointment so the team can prepare safely.
+

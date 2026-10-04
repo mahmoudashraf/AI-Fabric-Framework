@@ -72,7 +72,8 @@ export interface DealershipRuntimeDescriptor {
     conversationsUrl: string
     conversationItemUrlTemplate: string
   }
-  vectorSpace: string
+  inventoryVectorSpace: string
+  retrievalVectorSpaces: string[]
 }
 
 export interface DealershipVehicleContext {

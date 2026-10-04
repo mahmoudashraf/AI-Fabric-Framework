@@ -93,7 +93,8 @@ public class DealershipDemoProperties {
         private String shellConfigPath = "/api/chat/me/shell-config";
         private String conversationsPath = "/api/chat/me/conversations";
         private String conversationItemPathTemplate = "/api/chat/me/conversations/{conversationId}";
-        private String vectorSpace = "dealer-vehicle";
+        private String inventoryVectorSpace = "dealer-vehicle";
+        private List<String> retrievalVectorSpaces = new ArrayList<>(List.of("dealer-vehicle", "document"));
         private String integrationSourceId;
         private String integrationWebhookSourceId;
         private Duration assertionTtl = Duration.ofMinutes(2);
@@ -119,8 +120,14 @@ public class DealershipDemoProperties {
         public void setConversationsPath(String conversationsPath) { this.conversationsPath = conversationsPath; }
         public String getConversationItemPathTemplate() { return conversationItemPathTemplate; }
         public void setConversationItemPathTemplate(String conversationItemPathTemplate) { this.conversationItemPathTemplate = conversationItemPathTemplate; }
-        public String getVectorSpace() { return vectorSpace; }
-        public void setVectorSpace(String vectorSpace) { this.vectorSpace = vectorSpace; }
+        public String getInventoryVectorSpace() { return inventoryVectorSpace; }
+        public void setInventoryVectorSpace(String inventoryVectorSpace) { this.inventoryVectorSpace = inventoryVectorSpace; }
+        public List<String> getRetrievalVectorSpaces() { return retrievalVectorSpaces; }
+        public void setRetrievalVectorSpaces(List<String> retrievalVectorSpaces) {
+            this.retrievalVectorSpaces = retrievalVectorSpaces == null
+                ? new ArrayList<>()
+                : new ArrayList<>(retrievalVectorSpaces);
+        }
         public String getIntegrationSourceId() { return integrationSourceId; }
         public void setIntegrationSourceId(String integrationSourceId) { this.integrationSourceId = integrationSourceId; }
         public String getIntegrationWebhookSourceId() { return integrationWebhookSourceId; }

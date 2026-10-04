@@ -40,7 +40,7 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
         Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("149"))
+            .target(MigrationVersion.fromVersion("152"))
             .load()
             .migrate();
 
@@ -58,7 +58,9 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
             assertThat(seeds.keySet()).containsExactlyInAnyOrder(
                 "mkp-data-document-knowledge-s3",
                 "mkp-data-document-knowledge-mounted-demo",
-                "mkp-template-document-knowledge-assistant"
+                "mkp-template-document-knowledge-assistant",
+                "mkp-data-dealership-knowledge-v1",
+                "mkp-data-dealership-knowledge-mounted-demo-v1"
             );
 
             var s3 = parse(seeds.get("mkp-data-document-knowledge-s3"));
@@ -93,6 +95,39 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
             assertThat(template.manifest().path("contributions").path("template").path("requiredPluginRefs"))
                 .extracting(value -> value.asText())
                 .containsExactly("mkp-data-document-knowledge-s3@1.1.0");
+
+            var dealership = parse(seeds.get("mkp-data-dealership-knowledge-v1"));
+            assertThat(dealership.manifest().path("compatibility").path("supportedAuthModes"))
+                .extracting(value -> value.asText())
+                .contains("PUBLIC_RUNTIME_ANONYMOUS");
+            var publicApprovalField = findArrayEntry(
+                dealership.manifest().path("installForm"),
+                "id",
+                "publicContentApprovalConfirmed"
+            );
+            assertThat(publicApprovalField).isNotNull();
+            assertThat(publicApprovalField.path("type").asText()).isEqualTo("boolean");
+            assertThat(publicApprovalField.path("required").asBoolean()).isTrue();
+            assertThat(dealership.datasets()).singleElement().satisfies(dataset -> {
+                assertThat(dataset.connectorType()).isEqualTo("S3_COMPATIBLE_OBJECT_STORAGE");
+                assertThat(dataset.documentPolicy().path("allowedMetadataKeys"))
+                    .extracting(value -> value.asText())
+                    .contains("sourceCategory", "publicationStatus");
+            });
+            var filters = dealership.manifest()
+                .path("contributions")
+                .path("knowledgeSources")
+                .path(0)
+                .path("filters");
+            assertThat(filters.path("datasetId").asText()).isEqualTo("document-knowledge");
+            assertThat(filters.path("publicationStatus").asText()).isEqualTo("PUBLIC_APPROVED");
+
+            var dealershipMounted = parse(seeds.get("mkp-data-dealership-knowledge-mounted-demo-v1"));
+            assertThat(dealershipMounted.manifest().path("compatibility").path("supportedDeploymentTargets"))
+                .extracting(value -> value.asText())
+                .containsExactly("custom-start-from-scratch");
+            assertThat(dealershipMounted.datasets()).singleElement()
+                .satisfies(dataset -> assertThat(dataset.connectorType()).isEqualTo("MOUNTED_FOLDER"));
         }
     }
 
@@ -121,7 +156,9 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
             where p.id in (
                 'mkp-data-document-knowledge-s3',
                 'mkp-data-document-knowledge-mounted-demo',
-                'mkp-template-document-knowledge-assistant'
+                'mkp-template-document-knowledge-assistant',
+                'mkp-data-dealership-knowledge-v1',
+                'mkp-data-dealership-knowledge-mounted-demo-v1'
             )
               and v.status = 'PUBLISHED'
             order by p.id
@@ -149,6 +186,19 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
             return result.next()
                 && result.getString("definition").contains("plugin_id, tenant_id, dataset_id, scope_key");
         }
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode findArrayEntry(
+        com.fasterxml.jackson.databind.JsonNode array,
+        String field,
+        String value
+    ) {
+        for (var entry : array) {
+            if (value.equals(entry.path(field).asText())) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     private boolean columnExists(Statement statement, String table, String column) throws Exception {

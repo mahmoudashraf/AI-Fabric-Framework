@@ -67,7 +67,8 @@ public class RuntimeIntegrationController {
                 "conversationsUrl", runtime.getConversationsPath(),
                 "conversationItemUrlTemplate", runtime.getConversationItemPathTemplate()
             ),
-            "vectorSpace", runtime.getVectorSpace(),
+            "inventoryVectorSpace", runtime.getInventoryVectorSpace(),
+            "retrievalVectorSpaces", runtime.getRetrievalVectorSpaces(),
             "dataNotice", "The browser receives only public runtime routes. Backend credentials remain server-side."
         ));
     }
@@ -95,7 +96,8 @@ public class RuntimeIntegrationController {
     public Map<String, Object> staffStatus() {
         Map<String, Object> integration = new LinkedHashMap<>();
         integration.put("runtimeConfigured", properties.getRuntime().isEnabled());
-        integration.put("vectorSpace", properties.getRuntime().getVectorSpace());
+        integration.put("inventoryVectorSpace", properties.getRuntime().getInventoryVectorSpace());
+        integration.put("retrievalVectorSpaces", properties.getRuntime().getRetrievalVectorSpaces());
         integration.put("sourceId", properties.getRuntime().getIntegrationSourceId());
         try {
             JsonNode source = connectorOperations.sourceStatus();

@@ -284,7 +284,8 @@ public routing metadata only:
   "ready": true,
   "integrationMode": "public-runtime-anonymous",
   "chatBaseUrl": "https://deployment.example.com",
-  "vectorSpace": "dealer-vehicle",
+  "inventoryVectorSpace": "dealer-vehicle",
+  "retrievalVectorSpaces": ["dealer-vehicle", "document"],
   "runtimeRoutes": {
     "bootstrapUrl": "/api/public/chat/session",
     "renewUrl": "/api/public/chat/session/renew",
@@ -302,12 +303,17 @@ Validation is fail closed:
 
 - `success` and `ready` must both be `true`;
 - `integrationMode` must be `public-runtime-anonymous`;
-- `chatBaseUrl`, `vectorSpace`, and every route must be present; and
+- `chatBaseUrl`, `inventoryVectorSpace`, at least one
+  `retrievalVectorSpaces` entry, and every route must be present; and
 - all URLs must use HTTP or HTTPS.
 
 The browser must not discover the runtime through the central Platform on each
 request. The dealership backend publishes its already assigned deployment.
 `dealer.id` is browser-visible request context, not an authorization boundary.
+`inventoryVectorSpace` scopes trusted vehicle attachments. The pack sends the
+complete `retrievalVectorSpaces` list as a preference so an informational turn
+can retrieve both inventory and approved dealership documents without pinning
+the whole conversation to one entity type.
 The runtime and connector must derive the permitted dealership account from
 their trusted deployment and protected-resource bindings.
 
@@ -641,7 +647,8 @@ routes. Do not expose the private connector origin in browser CORS.
 - [ ] Runtime descriptor contains routes but no credential.
 - [ ] Browser traffic goes to the assigned runtime, never a connector.
 - [ ] Anonymous capabilities are explicitly allowlisted.
-- [ ] `dealer.id` and `vectorSpace` are scoped to the intended deployment.
+- [ ] `dealer.id`, `inventoryVectorSpace`, and `retrievalVectorSpaces` are
+      scoped to the intended deployment.
 - [ ] Runtime and connector authorization does not trust browser-supplied
       `dealer.id`, stock IDs, or result references as authority.
 - [ ] Attached stock IDs are re-resolved and authorized server-side.
@@ -698,9 +705,9 @@ routes. Do not expose the private connector origin in browser CORS.
 
 ### `The assigned public runtime is not ready`
 
-Check `success`, `ready`, `integrationMode`, `chatBaseUrl`, `vectorSpace`, and
-all required descriptor routes. Do not substitute central Platform URLs for a
-deployment-local runtime.
+Check `success`, `ready`, `integrationMode`, `chatBaseUrl`,
+`inventoryVectorSpace`, `retrievalVectorSpaces`, and all required descriptor
+routes. Do not substitute central Platform URLs for a deployment-local runtime.
 
 ### `The LoomAI chat bundle manifest is invalid`
 

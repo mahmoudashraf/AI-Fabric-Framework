@@ -1,0 +1,24 @@
+NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY
+Document version: 1.0
+Effective date: 1 October 2026
+Audience: Public demonstration
+
+This is a fictional policy used only in the LoomAI dealership demonstration.
+
+A customer may request a 48-hour reservation on one currently available
+vehicle. The reservation amount is GBP 99. A reservation begins only after a
+Northfield team member confirms current availability and issues a reservation
+receipt. A chat message or callback request does not reserve a vehicle.
+
+The GBP 99 reservation amount is applied to the purchase price if the sale
+continues. It is refundable when the customer cancels before the 48-hour hold
+expires, when Northfield cannot supply the materially described vehicle, or
+when the customer rejects the vehicle at the first arranged inspection or test
+drive. Approved refunds return to the original payment method and normally
+appear within three to five working days.
+
+At the end of 48 hours an unextended reservation expires and the vehicle may
+return to sale. Northfield cannot accept a reservation for a vehicle already
+sold, withdrawn, or under an earlier confirmed hold. Extending a hold requires
+written confirmation from the dealership team.
+

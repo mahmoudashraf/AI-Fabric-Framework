@@ -100,9 +100,7 @@ export async function mount(
         requestContext: {
           ...config.requestContext,
           dealershipId: config.dealer.id,
-          vectorSpace: descriptor.vectorSpace,
-          entityType: descriptor.vectorSpace,
-          preferredVectorSpaces: [descriptor.vectorSpace],
+          preferredVectorSpaces: descriptor.retrievalVectorSpaces,
           sourceMode: config.dealer.sourceMode || 'DEALERSHIP_INVENTORY',
         },
         defaultConversationMode: 'executor',
@@ -203,7 +201,7 @@ function createController(
       maxMode.attachItem({
         type: 'vehicle',
         contextLabel,
-        data: vehicleAttachment(vehicle, descriptor.vectorSpace, contextLabel),
+        data: vehicleAttachment(vehicle, descriptor.inventoryVectorSpace, contextLabel),
       })
     },
     sendMessage(message, requestContext = {}) {
@@ -333,7 +331,14 @@ function assertRuntimeDescriptor(descriptor: DealershipRuntimeDescriptor) {
   if (descriptor.integrationMode !== 'public-runtime-anonymous') {
     throw new Error('The assigned runtime does not expose the required anonymous browser contract.')
   }
-  if (!descriptor.vectorSpace?.trim()) throw new Error('The runtime descriptor has no vector space.')
+  if (!descriptor.inventoryVectorSpace?.trim()) {
+    throw new Error('The runtime descriptor has no inventory vector space.')
+  }
+  if (!Array.isArray(descriptor.retrievalVectorSpaces)
+    || descriptor.retrievalVectorSpaces.length === 0
+    || descriptor.retrievalVectorSpaces.some((value) => !value?.trim())) {
+    throw new Error('The runtime descriptor has no valid retrieval vector spaces.')
+  }
   normalizeHttpUrl(descriptor.chatBaseUrl)
   const routes = descriptor.runtimeRoutes
   for (const key of [

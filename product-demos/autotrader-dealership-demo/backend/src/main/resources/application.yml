@@ -80,7 +80,8 @@ dealership:
     shell-config-path: ${LOOMAI_RUNTIME_SHELL_CONFIG_PATH:/api/chat/me/shell-config}
     conversations-path: ${LOOMAI_RUNTIME_CONVERSATIONS_PATH:/api/chat/me/conversations}
     conversation-item-path-template: ${LOOMAI_RUNTIME_CONVERSATION_ITEM_PATH_TEMPLATE:/api/chat/me/conversations/{conversationId}}
-    vector-space: ${LOOMAI_RUNTIME_VECTOR_SPACE:dealer-vehicle}
+    inventory-vector-space: ${LOOMAI_RUNTIME_INVENTORY_VECTOR_SPACE:dealer-vehicle}
+    retrieval-vector-spaces: ${LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES:dealer-vehicle,document}
     integration-source-id: ${LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID:}
     integration-webhook-source-id: ${LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID:}
     assertion-ttl: ${LOOMAI_RUNTIME_ASSERTION_TTL:PT2M}

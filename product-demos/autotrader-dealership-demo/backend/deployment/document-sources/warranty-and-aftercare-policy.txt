@@ -1,0 +1,42 @@
+NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY
+Document version: 2.0
+Effective date: 1 October 2026
+Audience: Public demonstration
+
+This is a fictional policy used only in the LoomAI dealership demonstration.
+
+STANDARD COVER
+
+Every qualifying used vehicle sold directly by Northfield Motor House includes
+a limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover
+starts when the customer collects the vehicle or the vehicle is delivered.
+
+The standard warranty covers sudden mechanical failure of internally
+lubricated engine, gearbox and drivetrain components, plus failure of major
+factory-fitted electrical components. A repair must be authorised by
+Northfield before work begins.
+
+BATTERY AND MANUFACTURER COVER
+
+The standard warranty covers the 12-volt auxiliary battery for sudden failure
+during the first 30 days. Electric-vehicle traction batteries are not given a
+new capacity guarantee by this policy. Any remaining manufacturer traction
+battery warranty is vehicle-specific and must be checked against the vehicle
+listing and manufacturer record.
+
+EXCLUSIONS
+
+Normal wear, routine servicing, tyres, brake friction materials, bulbs,
+cosmetic damage, accidental damage, misuse, unauthorised modification and
+faults disclosed before purchase are excluded. The policy does not replace any
+statutory consumer rights.
+
+HOW TO REQUEST AFTERCARE
+
+Contact the Northfield customer-care team before authorising repairs. Provide
+the vehicle registration or stock reference, current mileage, a description of
+the fault and any warning-light photograph. The team acknowledges a complete
+request within one working day and provides the next diagnostic step. An
+independent repair invoice is not automatically reimbursable without prior
+written authorisation.
+

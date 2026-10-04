@@ -247,7 +247,8 @@ const mockServer = createServer(async (request, response) => {
         conversationsUrl: '/api/chat/me/conversations',
         conversationItemUrlTemplate: '/api/chat/me/conversations/{conversationId}',
       },
-      vectorSpace: 'dealer-vehicle',
+      inventoryVectorSpace: 'dealer-vehicle',
+      retrievalVectorSpaces: ['dealer-vehicle', 'document'],
     })
     return
   }
