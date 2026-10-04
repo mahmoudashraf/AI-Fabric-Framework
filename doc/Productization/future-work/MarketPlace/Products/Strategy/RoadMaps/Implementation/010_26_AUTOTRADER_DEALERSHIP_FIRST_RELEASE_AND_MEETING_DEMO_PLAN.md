@@ -2004,3 +2004,10 @@ inventing a Marketplace plugin type. Platform-managed package approval,
 template binding, review/diff, export/import, origin policy, and version rollout
 remain follow-on productization work. Until those exist, a reviewed host pins
 the content-hashed pack and explicit configuration directly.
+
+The extraction is live as of 2026-10-04. The Northfield meeting demo consumes
+the standalone package from production public-site deployment
+`pi8co9ldjsxneez3i9eow2k4` at commit
+`603818ef324335d27f0b5670158144b64f5ed7fa`; a hosted canary proved the
+manifest-selected package, SRI, Browse stock tools, vehicle-context tools, and
+direct assigned-runtime readiness without issuing a query or write action.

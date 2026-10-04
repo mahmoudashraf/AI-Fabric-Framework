@@ -3795,3 +3795,31 @@ Critical fixes that made the gate pass:
   zero attach-page actions.
 - Production firewall access was restored exactly and local Coolify access is
   closed again with timeout/HTTP `000`.
+
+## 2026-10-04 Reusable Dealership Experience Pack
+
+- Extracted reusable automotive-retail UI behavior into
+  `experience-packs/dealership-experience`; the generic `max-mode-widget`
+  remains domain-neutral and knows only host configuration, scoped tools,
+  presentation contracts, attachments, and conversation mechanics.
+- The package ships ESM plus content-hashed/SRI-protected browser IIFE builds,
+  supports explicit mount or one-script public bootstrap, and owns dealership
+  tool defaults plus bounded inventory/detail/comparison presentations. Public
+  bootstrap configuration must remain secret-free.
+- The Northfield public-site demo now consumes the package and retains only
+  host identity, copy, capabilities, page context, safe media/detail routes,
+  demo fallbacks, and deployment discovery. Its previous local renderer and
+  duplicated tool definitions were removed.
+- Local gates passed: package typecheck/build, generic-widget typecheck and
+  action-presentation smoke, complete public-site verification/Playwright, and
+  the production Dockerfile build plus container health/manifest checks. A
+  second-origin fictional dealer proved reduced capabilities and cross-origin
+  installation without Northfield coupling.
+- Commit `603818ef324335d27f0b5670158144b64f5ed7fa` is live through Coolify
+  deployment `pi8co9ldjsxneez3i9eow2k4`. Canonical health reports that exact
+  commit. Hosted Playwright proved the hashed pack/SRI, six inventory records,
+  four Browse stock tools, six Aster E1 contextual tools, and Browse switching
+  without issuing a query or write.
+- Production firewalls `10915120` and `10918233` were restored to exact pre-run
+  hashes, contain zero operator-CIDR matches, and local Coolify port `8000` is
+  closed with HTTP `000`.

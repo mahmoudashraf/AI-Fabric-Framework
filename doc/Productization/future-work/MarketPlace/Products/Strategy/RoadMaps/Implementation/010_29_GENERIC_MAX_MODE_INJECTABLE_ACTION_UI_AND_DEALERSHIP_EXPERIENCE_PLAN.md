@@ -1,7 +1,7 @@
 # 010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan
 
-**Status:** First delivery and reusable dealership-pack extraction implemented;
-standalone pack production rollout pending final live proof
+**Status:** First delivery and reusable dealership-pack extraction implemented,
+deployed, and live-verified; Marketplace lifecycle remains deferred
 **Created:** 2026-10-01
 **Revised:** 2026-10-04
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
@@ -1099,8 +1099,27 @@ or Platform-managed `UI_EXTENSION` packaging.
   receives a reduced capability set with no compare/write controls, loads the
   generic widget cross-origin by verified manifest, and talks directly to its
   assigned runtime. No Northfield constant exists in package source.
-- Production rollout identity and hosted proof remain to be appended after the
-  public-site deployment reaches terminal success. Marketplace lifecycle,
-  version approval, and template binding remain the explicit deferred Platform
-  productization work; the package must not be mislabeled as a DATA or ACTION
-  plugin.
+- Implementation commit `603818ef324335d27f0b5670158144b64f5ed7fa` is
+  live through production public-site Coolify deployment
+  `pi8co9ldjsxneez3i9eow2k4`. `https://loomai.pro/health` reports `UP` on that
+  exact commit.
+- Production publishes
+  `dealership-experience.dbe6728a25484a9c.iife.js` with SHA-256
+  `dbe6728a25484a9c4c9f9a0e3f94ec3a8fdc540f8e2840da37a629bd1201b301`.
+  The manifest is `no-store`; the content-addressed artifact is immutable and
+  both resources expose the reviewed cross-origin distribution headers.
+- A clean hosted Playwright canary rendered six current Northfield vehicles and
+  proved that the demo loaded the manifest-selected pack with matching SRI and
+  initialized through `window.LoomAIDealershipExperience`. Inventory exposed
+  `Browse stock` with Search stock, Electric cars, Family options, and Compare
+  cars. The `2025 Aster E1` detail page selected `This vehicle` with Live
+  details, Everyday use, Trade-offs, Location, Test drive, and Callback while
+  retaining an available Browse scope. The canary issued no AI query or write
+  action.
+- Temporary production access used only `8000/tcp`. Hetzner firewalls
+  `10915120` and `10918233` were restored to exact pre-run rule hashes, contain
+  zero operator-CIDR matches, and direct local Coolify access again returns
+  timeout/HTTP `000`.
+- Marketplace lifecycle, version approval, and template binding remain the
+  explicit deferred Platform productization work; the package must not be
+  mislabeled as a DATA or ACTION plugin.
