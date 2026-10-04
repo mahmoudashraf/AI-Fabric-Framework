@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-action-autotrader-contract-verification",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "pluginType": "ACTION",
   "displayName": "Internal Auto Trader Contract Verification Actions",
   "description": "Internal-only read actions for synthetic dealership stock exposed through the documented Auto Trader Stock API shape. It is not an Auto Trader service or endorsement.",
@@ -110,7 +110,7 @@
       {
         "actionId": "dealership_get_vehicle",
         "adapterType": "connector-http",
-        "description": "Load one current synchronized stock record by a trusted stock ID resolved from attached context or an earlier result.",
+        "description": "Load one current synchronized stock record only when a trusted attached or conversation working target supplies its provider stock ID. A buyer-facing name in a new request is discovery input and must use inventory search instead.",
         "category": "dealership_inventory",
         "readOnly": true,
         "anonymousAllowed": true,
@@ -131,7 +131,16 @@
             "name": "vehicle",
             "description": "Exact provider stock ID from trusted attached context or an earlier provider result. Do not ask the buyer for this internal value.",
             "type": "STRING",
-            "required": true
+            "required": true,
+            "visibility": "INTERNAL",
+            "askUser": false,
+            "resolveFrom": {
+              "source": "ATTACHMENT_METADATA",
+              "metadataKeys": ["stockId", "vehicleId", "id"]
+            },
+            "evidenceBound": true,
+            "evidenceKeys": ["stockId", "vehicleId", "id"],
+            "evidenceFallbackPolicy": "CLARIFY"
           }
         ],
         "route": {

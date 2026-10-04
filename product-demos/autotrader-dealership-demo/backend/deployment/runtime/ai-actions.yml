@@ -57,7 +57,7 @@ actions:
         max: 24
 
   - name: dealership_get_vehicle
-    description: Load one authoritative current provider stock record by the trusted Auto Trader stock ID resolved from attached context or a prior stock result.
+    description: Load one authoritative current provider stock record only when a trusted attached or conversation working target supplies its provider stock ID. A buyer-facing name in a new request is discovery input and must use inventory search instead.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
@@ -89,6 +89,20 @@ actions:
         description: Exact Auto Trader stock ID from trusted attached vehicle context or a prior provider stock result. Do not ask the buyer for this internal lookup value.
         type: STRING
         required: true
+        visibility: INTERNAL
+        askUser: false
+        resolveFrom:
+          source: ATTACHMENT_METADATA
+          metadataKeys:
+            - stockId
+            - vehicleId
+            - id
+        evidenceBound: true
+        evidenceKeys:
+          - stockId
+          - vehicleId
+          - id
+        evidenceFallbackPolicy: CLARIFY
 
   - name: dealership_compare_vehicles
     description: Compare current structured facts for two to four buyer-named active dealership vehicles.
