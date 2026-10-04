@@ -1978,3 +1978,29 @@ schemas, notification contract, data rights, and validation checklist; compare
 them field by field with the provenance matrix; then author and verify the
 customer-facing packages. Public-document assumptions must never silently
 become production package facts.
+
+## 23. Reusable Dealership Experience Packaging Decision
+
+- **Decision date:** 2026-10-04
+- **Detailed contract:**
+  [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md#179-standalone-dealership-experience-pack-2026-10-04)
+
+The native LoomAI public-site route remains the meeting-demo dealership
+website, but it is no longer the owner of reusable assistant behavior. The
+inventory/detail/comparison UI, dealership tool defaults, safe action mappings,
+runtime descriptor binding, and widget setup now live in the provider-neutral
+`experience-packs/dealership-experience` package.
+
+Each future dealership website supplies branding, dealership ID, current page
+context, enabled capabilities, approved media/detail routes, and its assigned
+deployment discovery URL. The package may be installed as ESM or an
+integrity-addressed script with public bootstrap JSON. The website still owns
+its ordinary catalogue and leads; the deployment still owns AI traffic,
+provider DATA/ACTION integrations, policy, confirmation, and indexed evidence.
+No Auto Trader client or provider credential enters the browser package.
+
+This extraction advances D4 and the customer-facing portion of D5 without
+inventing a Marketplace plugin type. Platform-managed package approval,
+template binding, review/diff, export/import, origin policy, and version rollout
+remain follow-on productization work. Until those exist, a reviewed host pins
+the content-hashed pack and explicit configuration directly.

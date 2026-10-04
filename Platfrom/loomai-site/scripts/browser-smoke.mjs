@@ -23,6 +23,7 @@ let chatQueryCount = 0
 let staleConversationAccessRequestCount = 0
 let exposeRecentConversationForNavigation = false
 let recentConversationListCount = 0
+let externalDealershipBundle = null
 
 const mockVehicles = [
   {
@@ -115,6 +116,14 @@ function writeMockJson(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
+function writeMockHtml(response, status, body) {
+  response.writeHead(status, {
+    'Cache-Control': 'no-store',
+    'Content-Type': 'text/html; charset=utf-8',
+  })
+  response.end(body)
+}
+
 async function readMockJson(request) {
   const chunks = []
   for await (const chunk of request) {
@@ -128,6 +137,54 @@ const mockServer = createServer(async (request, response) => {
   const url = new URL(request.url || '/', mockOrigin)
   if (request.method === 'OPTIONS') {
     writeMockJson(response, 204, {})
+    return
+  }
+
+  if (url.pathname === '/external-dealership-host') {
+    if (!externalDealershipBundle) {
+      writeMockHtml(response, 503, '<!doctype html><title>Bundle unavailable</title>')
+      return
+    }
+    writeMockHtml(response, 200, `<!doctype html>
+      <html lang="en">
+        <head><meta charset="utf-8"><title>Harbour Motors</title></head>
+        <body>
+          <main id="dealer-content"><h1>Harbour Motors inventory</h1><p>Independent dealership host.</p></main>
+          <script
+            src="${origin}/vendor/${externalDealershipBundle.file}"
+            data-bootstrap-url="${mockOrigin}/external-dealership-config.json"
+            crossorigin="anonymous"
+            integrity="sha256-${externalDealershipBundle.integrity}"
+          ></script>
+        </body>
+      </html>`)
+    return
+  }
+
+  if (url.pathname === '/external-dealership-config.json') {
+    writeMockJson(response, 200, {
+      backendBaseUrl: mockOrigin,
+      widget: { manifestUrl: `${origin}/vendor/max-mode-widget-manifest.json` },
+      dealer: {
+        id: 'dealer-harbour-smoke',
+        assistantLabel: 'Harbour AI',
+        sourceMode: 'DEALERSHIP_INVENTORY',
+      },
+      page: {
+        kind: 'inventory',
+        rootSelector: '#dealer-content',
+        contextLabel: 'Harbour Motors inventory',
+      },
+      capabilities: {
+        comparison: false,
+        testDrive: false,
+        callback: false,
+      },
+      presentation: {
+        detailBasePath: '/vehicles/',
+        imageHostAllowlist: [],
+      },
+    })
     return
   }
 
@@ -528,6 +585,74 @@ try {
     throw new Error('Legacy widget compatibility URL is missing or remains long-lived')
   }
 
+  const dealershipManifestResponse = await fetch(`${origin}/vendor/dealership-experience-manifest.json`)
+  if (dealershipManifestResponse.headers.get('cache-control') !== 'no-store') {
+    throw new Error(`Dealership experience manifest is cacheable: ${dealershipManifestResponse.headers.get('cache-control')}`)
+  }
+  if (dealershipManifestResponse.headers.get('access-control-allow-origin') !== '*' ||
+      dealershipManifestResponse.headers.get('cross-origin-resource-policy') !== 'cross-origin') {
+    throw new Error('Dealership experience manifest is not available to reviewed external hosts')
+  }
+  const dealershipManifest = await dealershipManifestResponse.json()
+  if (dealershipManifest.schemaVersion !== 'loomai-dealership-experience-bundle-v1' ||
+      !/^dealership-experience\.[a-f0-9]{16}\.iife\.js$/.test(dealershipManifest.file || '')) {
+    throw new Error('Dealership experience manifest did not expose a valid content-hashed bundle')
+  }
+  const dealershipBundleResponse = await fetch(`${origin}/vendor/${dealershipManifest.file}`)
+  if (dealershipBundleResponse.headers.get('cache-control') !== 'public, max-age=31536000, immutable' ||
+      dealershipBundleResponse.headers.get('access-control-allow-origin') !== '*' ||
+      dealershipBundleResponse.headers.get('cross-origin-resource-policy') !== 'cross-origin') {
+    throw new Error('Content-hashed dealership experience is not immutable and cross-origin installable')
+  }
+  const dealershipBundleBytes = Buffer.from(await dealershipBundleResponse.arrayBuffer())
+  const dealershipBundleSha256 = createHash('sha256').update(dealershipBundleBytes).digest('hex')
+  if (dealershipBundleSha256 !== dealershipManifest.sha256) {
+    throw new Error('Dealership experience manifest did not match the served bundle SHA-256')
+  }
+  externalDealershipBundle = {
+    file: dealershipManifest.file,
+    integrity: Buffer.from(dealershipBundleSha256, 'hex').toString('base64'),
+  }
+
+  const externalInstallContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'reduce',
+  })
+  const externalInstallPage = await externalInstallContext.newPage()
+  const externalHostResponse = await externalInstallPage.goto(
+    `${mockOrigin}/external-dealership-host`,
+    { waitUntil: 'networkidle' },
+  )
+  if (!externalHostResponse?.ok()) {
+    throw new Error(`External dealership host returned ${externalHostResponse?.status()}`)
+  }
+  await externalInstallPage.waitForFunction(() => Boolean(
+    window.LoomAIDealershipExperience?.mount && window.MaxMode?.open,
+  ))
+  await externalInstallPage.evaluate(() => window.MaxMode.open())
+  const externalMaxMode = externalInstallPage.locator('[data-max-mode-view]')
+  await externalMaxMode.waitFor()
+  await externalMaxMode.getByText('Harbour AI', { exact: true }).first().waitFor()
+  const externalBrowseTools = await externalMaxMode.locator('[data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if (JSON.stringify(externalBrowseTools) !== JSON.stringify([
+    'Search stock',
+    'Electric cars',
+    'Family options',
+  ])) {
+    throw new Error(`External dealer did not receive its bounded capability set: ${JSON.stringify(externalBrowseTools)}`)
+  }
+  if (!(await externalMaxMode.locator('[data-max-mode-tool-scope="contextual"]').isDisabled())) {
+    throw new Error('External inventory host unexpectedly enabled contextual tools without context')
+  }
+  const externalPackScript = externalInstallPage.locator('script[data-bootstrap-url]')
+  if (new URL(await externalPackScript.getAttribute('src')).origin !== origin ||
+      await externalPackScript.getAttribute('integrity') !== `sha256-${externalDealershipBundle.integrity}`) {
+    throw new Error('External dealer did not install the reviewed content-hashed experience pack')
+  }
+  await externalInstallContext.close()
+
   const routes = [
     '/',
     '/products',
@@ -635,10 +760,23 @@ try {
     const detail = await page.locator('[data-runtime-state-detail]').textContent()
     throw new Error(`Dealership assistant did not become ready: ${detail}`)
   }
+  const loadedDealershipScript = page.locator('script[data-dealership-experience-bundle]')
+  const loadedDealershipSource = await loadedDealershipScript.getAttribute('src')
+  const loadedDealershipSha256 = await loadedDealershipScript.getAttribute('data-dealership-experience-bundle-sha256')
+  const loadedDealershipIntegrity = await loadedDealershipScript.getAttribute('integrity')
+  if (loadedDealershipSource !== `/vendor/${dealershipManifest.file}` ||
+      loadedDealershipSha256 !== dealershipManifest.sha256 ||
+      loadedDealershipIntegrity !== `sha256-${Buffer.from(dealershipBundleSha256, 'hex').toString('base64')}`) {
+    throw new Error('Dealership demo did not load the packaged experience manifest version')
+  }
+  const packApiReady = await page.evaluate(() => Boolean(window.LoomAIDealershipExperience?.mount))
+  if (!packApiReady) {
+    throw new Error('Dealership demo did not initialize through the packaged browser API')
+  }
   const loadedWidgetScript = page.locator('script[data-max-mode-bundle]')
   const loadedWidgetSource = await loadedWidgetScript.getAttribute('src')
   const loadedWidgetSha256 = await loadedWidgetScript.getAttribute('data-max-mode-bundle-sha256')
-  if (loadedWidgetSource !== `/vendor/${widgetManifest.file}` || loadedWidgetSha256 !== widgetManifest.sha256) {
+  if (new URL(loadedWidgetSource, origin).pathname !== `/vendor/${widgetManifest.file}` || loadedWidgetSha256 !== widgetManifest.sha256) {
     throw new Error('Dealership loaded a stable or mismatched widget bundle instead of the manifest version')
   }
   await page.evaluate(() => window.MaxMode.open())

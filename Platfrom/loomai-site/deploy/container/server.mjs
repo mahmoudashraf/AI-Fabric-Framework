@@ -168,13 +168,13 @@ function cacheControl(targetPath) {
   if (targetPath.endsWith('.html') || targetPath.endsWith('.xml') || targetPath.endsWith('.txt')) {
     return 'public, max-age=0, must-revalidate'
   }
-  if (targetPath.endsWith(`${path.sep}vendor${path.sep}max-mode-widget-manifest.json`)) {
+  if (/vendor[\\/](?:max-mode-widget|dealership-experience)-manifest\.json$/.test(targetPath)) {
     return 'no-store'
   }
-  if (targetPath.endsWith(`${path.sep}vendor${path.sep}max-mode-widget.iife.js`)) {
+  if (/vendor[\\/](?:max-mode-widget|dealership-experience)\.iife\.js$/.test(targetPath)) {
     return 'public, max-age=0, must-revalidate'
   }
-  if (/max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(targetPath)) {
+  if (/(?:max-mode-widget|dealership-experience)\.[a-f0-9]{16}\.iife\.js$/.test(targetPath)) {
     return 'public, max-age=31536000, immutable'
   }
   if (targetPath.includes(`${path.sep}_astro${path.sep}`)) {
@@ -193,10 +193,15 @@ function contentType(targetPath, extension) {
 
 function serveFile(request, response, targetPath, statusCode = 200) {
   const extension = path.extname(targetPath).toLowerCase()
+  const publicBrowserDistribution = /vendor[\\/](?:max-mode-widget|dealership-experience)(?:-manifest|\.[a-f0-9]{16})?\.(?:json|iife\.js)$/.test(targetPath)
   response.writeHead(statusCode, {
     'Cache-Control': cacheControl(targetPath),
     'Content-Type': contentType(targetPath, extension),
     ...securityHeaders(extension !== '.html'),
+    ...(publicBrowserDistribution ? {
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    } : {}),
   })
   if (request.method === 'HEAD') {
     response.end()

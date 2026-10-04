@@ -8,10 +8,10 @@
     "npm": ">=9.6.5"
   },
   "scripts": {
-    "dev": "npm run prepare:widget && astro dev --host 127.0.0.1 --port 4321",
+    "dev": "npm run prepare:browser-assets && astro dev --host 127.0.0.1 --port 4321",
     "check": "astro check",
-    "prepare:widget": "npm --prefix ../../max-mode-widget run build && node scripts/copy-widget.mjs",
-    "clean:widget": "node scripts/clean-widget.mjs",
+    "prepare:browser-assets": "npm --prefix ../../max-mode-widget run build && npm --prefix ../../experience-packs/dealership-experience run build && node scripts/copy-browser-assets.mjs",
+    "clean:browser-assets": "node scripts/clean-browser-assets.mjs",
     "build": "node scripts/build-site.mjs",
     "preview": "astro preview --host 127.0.0.1 --port 4321",
     "start": "node deploy/container/server.mjs",

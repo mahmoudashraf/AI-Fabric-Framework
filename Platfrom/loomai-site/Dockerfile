@@ -10,6 +10,14 @@ RUN npm ci
 COPY max-mode-widget ./
 RUN npm run typecheck
 
+WORKDIR /workspace/experience-packs/dealership-experience
+
+COPY experience-packs/dealership-experience/package.json experience-packs/dealership-experience/package-lock.json ./
+RUN npm ci
+
+COPY experience-packs/dealership-experience ./
+RUN npm run typecheck
+
 WORKDIR /workspace/Platfrom/loomai-site
 
 COPY Platfrom/loomai-site/package.json Platfrom/loomai-site/package-lock.json ./

@@ -40,39 +40,14 @@ async function startVehicleDetail(app: HTMLElement) {
     try {
       const label = `${response.vehicle.registrationYear} ${response.vehicle.make} ${response.vehicle.model}`
       await initializeDealershipAssistant(apiBaseUrl, {
+        pageKind: 'vehicle-detail',
         rootSelector: '#vehicle-detail-content',
         maxChars: 4000,
         contextLabel: `Viewing ${label}`,
+        subjectLabel: label,
         welcomeMessage: `I can answer questions about this ${label} using its current indexed dealership evidence and live facts.`,
         placeholder: 'Ask about this vehicle...',
         emptyMessage: 'Attach this page for its visible details, or ask a grounded question about this vehicle.',
-        toolGroups: {
-          initialScope: 'contextual',
-          default: {
-            label: 'Browse stock',
-            icon: 'search',
-            tools: [
-              { label: 'Search stock', query: 'Show me the current dealership inventory and help me narrow it down.', position: 'search', mode: 'executor', icon: 'search' },
-              { label: 'Electric cars', query: 'Show me electric cars in current stock.', position: 'search', mode: 'executor', icon: 'sparkles' },
-              { label: 'Family options', query: 'Which current vehicles are practical for a family? Use current dealership evidence.', position: 'search', mode: 'executor', icon: 'shield' },
-              { label: 'Compare cars', query: 'Help me choose two current vehicles and compare their dealership facts.', position: 'search', mode: 'executor', icon: 'compare' },
-            ],
-          },
-          contextual: {
-            label: 'This vehicle',
-            icon: 'details',
-            contextLabel: label,
-            availableWithoutAttachments: true,
-            tools: [
-              { label: 'Live details', query: `Load the authoritative current details for the ${label}.`, position: 'search', mode: 'executor', icon: 'details' },
-              { label: 'Everyday use', query: `Is the current ${label} suitable for everyday driving?`, position: 'search', mode: 'executor', icon: 'shield' },
-              { label: 'Trade-offs', query: `Explain the important trade-offs for the current ${label}.`, position: 'search', mode: 'executor', icon: 'compare' },
-              { label: 'Location', query: `Where is the current ${label} located? Use current dealership facts.`, position: 'search', mode: 'executor', icon: 'location' },
-              { label: 'Test drive', query: `I would like to request a test drive for the ${label}.`, position: 'search', mode: 'executor', icon: 'calendar' },
-              { label: 'Callback', query: `I would like the dealership to call me about the ${label}.`, position: 'search', mode: 'executor', icon: 'phone' },
-            ],
-          },
-        },
         starterSuggestions: [
           'Which features stand out?',
           'How does its mileage compare?',

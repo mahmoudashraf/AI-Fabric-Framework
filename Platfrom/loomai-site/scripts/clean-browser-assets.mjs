@@ -11,6 +11,9 @@ for (const entry of await readdir(directory).catch(() => [])) {
     entry === 'max-mode-widget.iife.js'
     || entry === 'max-mode-widget-manifest.json'
     || /^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(entry)
+    || entry === 'dealership-experience.iife.js'
+    || entry === 'dealership-experience-manifest.json'
+    || /^dealership-experience\.[a-f0-9]{16}\.iife\.js$/.test(entry)
   ) {
     await rm(path.join(directory, entry), { force: true })
   }

@@ -74,34 +74,49 @@ for (const required of [
   'assets/demos/dealership/vehicle-01.webp',
   'assets/demos/dealership/vehicle-05.webp',
   'vendor/max-mode-widget-manifest.json',
+  'vendor/dealership-experience-manifest.json',
 ]) {
   if (!existsSync(path.join(dist, required))) {
     errors.push(`Missing required static output: ${required}`)
   }
 }
 
-const widgetManifestPath = path.join(dist, 'vendor/max-mode-widget-manifest.json')
-if (existsSync(widgetManifestPath)) {
+verifyBrowserBundleManifest({
+  manifestName: 'max-mode-widget-manifest.json',
+  schemaVersion: 'loomai-widget-bundle-v1',
+  filePattern: /^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/,
+  label: 'Widget',
+})
+verifyBrowserBundleManifest({
+  manifestName: 'dealership-experience-manifest.json',
+  schemaVersion: 'loomai-dealership-experience-bundle-v1',
+  filePattern: /^dealership-experience\.[a-f0-9]{16}\.iife\.js$/,
+  label: 'Dealership experience',
+})
+
+function verifyBrowserBundleManifest({ manifestName, schemaVersion, filePattern, label }) {
+  const manifestPath = path.join(dist, 'vendor', manifestName)
+  if (!existsSync(manifestPath)) return
   try {
-    const widgetManifest = JSON.parse(readFileSync(widgetManifestPath, 'utf8'))
-    if (widgetManifest.schemaVersion !== 'loomai-widget-bundle-v1') {
-      errors.push('Widget bundle manifest has an unsupported schema version')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    if (manifest.schemaVersion !== schemaVersion) {
+      errors.push(`${label} bundle manifest has an unsupported schema version`)
     }
-    if (!/^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(widgetManifest.file || '')) {
-      errors.push('Widget bundle manifest has an invalid file name')
+    if (!filePattern.test(manifest.file || '')) {
+      errors.push(`${label} bundle manifest has an invalid file name`)
     } else {
-      const widgetBundlePath = path.join(dist, 'vendor', widgetManifest.file)
-      if (!existsSync(widgetBundlePath)) {
-        errors.push(`Missing content-hashed widget bundle: vendor/${widgetManifest.file}`)
+      const bundlePath = path.join(dist, 'vendor', manifest.file)
+      if (!existsSync(bundlePath)) {
+        errors.push(`Missing content-hashed ${label.toLowerCase()} bundle: vendor/${manifest.file}`)
       } else {
-        const actualSha256 = createHash('sha256').update(readFileSync(widgetBundlePath)).digest('hex')
-        if (widgetManifest.sha256 !== actualSha256) {
-          errors.push('Widget bundle manifest SHA-256 does not match the emitted bundle')
+        const actualSha256 = createHash('sha256').update(readFileSync(bundlePath)).digest('hex')
+        if (manifest.sha256 !== actualSha256) {
+          errors.push(`${label} bundle manifest SHA-256 does not match the emitted bundle`)
         }
       }
     }
   } catch (error) {
-    errors.push(`Widget bundle manifest is not valid JSON: ${error instanceof Error ? error.message : error}`)
+    errors.push(`${label} bundle manifest is not valid JSON: ${error instanceof Error ? error.message : error}`)
   }
 }
 

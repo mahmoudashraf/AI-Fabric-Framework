@@ -54,54 +54,15 @@ export type VehicleDetailResponse = {
   dataNotice: string
 }
 
-type RuntimeDescriptor = {
-  success: boolean
-  ready: boolean
-  integrationMode: 'public-runtime-anonymous'
-  chatBaseUrl: string
-  runtimeRoutes: {
-    bootstrapUrl: string
-    renewUrl: string
-    queryUrl: string
-    suggestionsUrl: string
-    authContextUrl: string
-    shellConfigUrl: string
-    conversationsUrl: string
-    conversationItemUrlTemplate: string
-  }
-  vectorSpace: string
-}
-
-type StarterPrompt = {
-  label: string
-  query: string
-  position: 'landing' | 'catalog' | 'search' | 'cart'
-  mode: 'executor'
-  icon?: 'calendar' | 'compare' | 'details' | 'location' | 'phone' | 'search' | 'shield' | 'sparkles'
-}
-
-type ToolGroup = {
-  label: string
-  icon?: StarterPrompt['icon']
-  tools: StarterPrompt[]
-  contextLabel?: string
-  availableWithoutAttachments?: boolean
-}
-
-type ToolGroups = {
-  initialScope?: 'default' | 'contextual'
-  default: ToolGroup
-  contextual: ToolGroup
-}
-
 type AssistantOptions = {
+  pageKind: 'inventory' | 'vehicle-detail'
   rootSelector: string
   maxChars: number
   contextLabel: string
+  subjectLabel?: string
   welcomeMessage: string
   placeholder: string
   emptyMessage: string
-  toolGroups: ToolGroups
   starterSuggestions: string[]
   onRuntimeState: (
     state: 'checking' | 'ready' | 'unavailable',
@@ -110,16 +71,35 @@ type AssistantOptions = {
   ) => void
 }
 
-type MaxModeBrowserApi = {
-  init: (config: Record<string, unknown>) => void
-  attachItem: (item: { type: string; data: Record<string, unknown>; contextLabel?: string }) => void
-  sendMessage: (message: string, options?: Record<string, unknown>) => void
+type DealershipExperienceBrowserApi = {
+  mount: (config: Record<string, unknown>) => Promise<unknown>
+  attachVehicle: (vehicle: Vehicle) => boolean
+  sendMessage: (message: string, requestContext?: Record<string, unknown>) => boolean
 }
 
 declare global {
   interface Window {
-    MaxMode?: MaxModeBrowserApi
+    LoomAIDealershipExperience?: DealershipExperienceBrowserApi
   }
+}
+
+const DEMO_IMAGE_FALLBACKS: Record<string, string> = {
+  'DEMO-1001': '/assets/demos/dealership/vehicle-01.webp',
+  'DEMO-1002': '/assets/demos/dealership/vehicle-02.webp',
+  'DEMO-1003': '/assets/demos/dealership/vehicle-03.webp',
+  'DEMO-1004': '/assets/demos/dealership/vehicle-04.webp',
+  'DEMO-1005': '/assets/demos/dealership/vehicle-05.webp',
+  'DEMO-1006': '/assets/demos/dealership/vehicle-04.webp',
+  'DEMO-1099': '/assets/demos/dealership/vehicle-03.webp',
+}
+
+const DEMO_DETAIL_SLUGS: Record<string, string> = {
+  'DEMO-1001': 'aster-e1-motion',
+  'DEMO-1002': 'northstar-s4-touring',
+  'DEMO-1003': 'morrow-c2-city',
+  'DEMO-1004': 'caldera-x6-adventure',
+  'DEMO-1005': 'arden-v3-executive',
+  'DEMO-1006': 'aster-e2-sport',
 }
 
 export async function resolveDealershipApiBaseUrl(app: HTMLElement) {
@@ -144,145 +124,62 @@ export async function initializeDealershipAssistant(
   apiBaseUrl: string,
   options: AssistantOptions,
 ) {
-  options.onRuntimeState('checking', 'Connecting assistant', 'Checking the assigned LoomAI deployment')
-  const descriptor = await fetchDealershipJson<RuntimeDescriptor>(`${apiBaseUrl}/api/public/runtime-descriptor`)
-  if (!descriptor.success || !descriptor.ready || descriptor.integrationMode !== 'public-runtime-anonymous') {
-    throw new Error('The assigned public runtime is not ready.')
+  await loadDealershipExperienceBundle()
+  if (!window.LoomAIDealershipExperience) {
+    throw new Error('The LoomAI dealership experience did not load.')
   }
-  const chatBaseUrl = normalizeBaseUrl(descriptor.chatBaseUrl)
-  await loadWidgetBundle()
-  if (!window.MaxMode) throw new Error('The LoomAI chat surface did not load.')
-  registerDealershipActionPresentationElements()
-
-  const routes = descriptor.runtimeRoutes
-  window.MaxMode.init({
-    integrationMode: 'public-runtime-anonymous',
-    apiConfig: {
-      chatBaseUrl,
-      runtimeRoutes: {
-        chatQueryUrl: absoluteRuntimeUrl(chatBaseUrl, routes.queryUrl),
-        suggestionsUrl: absoluteRuntimeUrl(chatBaseUrl, routes.suggestionsUrl),
-        authContextUrl: absoluteRuntimeUrl(chatBaseUrl, routes.authContextUrl),
-        shellConfigUrl: absoluteRuntimeUrl(chatBaseUrl, routes.shellConfigUrl),
-        conversationsUrl: absoluteRuntimeUrl(chatBaseUrl, routes.conversationsUrl),
-        conversationItemUrlTemplate: absoluteRuntimeTemplateUrl(chatBaseUrl, routes.conversationItemUrlTemplate),
-      },
-      runtimeAuth: {
-        bootstrapUrl: absoluteRuntimeUrl(chatBaseUrl, routes.bootstrapUrl),
-        renewUrl: absoluteRuntimeUrl(chatBaseUrl, routes.renewUrl),
-        authContextUrl: absoluteRuntimeUrl(chatBaseUrl, routes.authContextUrl),
-        probeAuthContextOnOpen: true,
-      },
-      probeShellConfigOnOpen: true,
+  await window.LoomAIDealershipExperience.mount({
+    backendBaseUrl: apiBaseUrl,
+    widget: {
+      manifestUrl: '/vendor/max-mode-widget-manifest.json',
     },
-    features: {
-      cart: false,
-      debug: false,
-      conversations: true,
-      quickActions: true,
-    },
-    theme: {
-      primaryColor: '#123b35',
-      borderRadius: '0.5rem',
-      fontFamily: 'Inter, system-ui, sans-serif',
-      darkMode: false,
-    },
-    launcher: false,
-    host: {
+    dealer: {
+      id: 'dealer-demo-001',
       assistantLabel: 'Northfield AI',
+      sourceMode: 'DEMONSTRATION_INVENTORY',
+    },
+    page: {
+      kind: options.pageKind,
+      rootSelector: options.rootSelector,
+      maxChars: options.maxChars,
+      maxPages: 3,
+      maxTotalChars: 10000,
+      contextLabel: options.contextLabel,
+      subjectLabel: options.subjectLabel,
+    },
+    capabilities: {
+      comparison: true,
+      testDrive: true,
+      callback: true,
+    },
+    copy: {
       welcomeMessage: options.welcomeMessage,
-      toolGroups: options.toolGroups,
+      placeholder: options.placeholder,
+      emptyMessage: options.emptyMessage,
       starterSuggestions: options.starterSuggestions,
-      requestContext: {
-        dealershipId: 'dealer-demo-001',
-        vectorSpace: descriptor.vectorSpace,
-        entityType: descriptor.vectorSpace,
-        preferredVectorSpaces: [descriptor.vectorSpace],
-        sourceMode: 'DEMONSTRATION_INVENTORY',
-      },
-      defaultConversationMode: 'executor',
-      effectiveConversationMode: 'executor',
-      allowedConversationModes: ['executor'],
-      actionPresentation: dealershipActionPresentationConfig(),
-      showUtilityPanel: false,
-      companionDock: true,
-      currentPageAttachment: {
-        enabled: true,
-        maxChars: options.maxChars,
-        maxPages: 3,
-        maxTotalChars: 10000,
-        rootSelector: options.rootSelector,
-        invalidateOnNavigation: false,
-      },
-      companionContextLabel: options.contextLabel,
-      companionModeLabel: 'Vehicle assistant',
-      companionPlaceholder: options.placeholder,
-      companionEmptyMessage: options.emptyMessage,
     },
-    onEvent(event: { type?: string }) {
-      if (event?.type === 'error') {
-        options.onRuntimeState('unavailable', 'Assistant needs attention', 'The deployment returned an operational error')
-      }
+    presentation: {
+      detailBasePath: '/demos/dealership-ai/vehicles/',
+      imageHostAllowlist: [
+        'external-vehicle-provider-simulator.46.224.145.148.sslip.io',
+        'm.atcdn.co.uk',
+      ],
+      imageFallbacks: DEMO_IMAGE_FALLBACKS,
+      detailSlugs: DEMO_DETAIL_SLUGS,
     },
+    onRuntimeState: options.onRuntimeState,
   })
-
-  options.onRuntimeState('ready', 'Assistant ready', 'Connected directly to the assigned LoomAI deployment')
 }
 
 export function attachDealershipVehicle(vehicle: Vehicle) {
-  const contextLabel = `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`
-  window.MaxMode?.attachItem({
-    type: 'vehicle',
-    contextLabel,
-    data: {
-      id: vehicle.id,
-      vectorSpace: 'dealer-vehicle',
-      entityType: 'dealer-vehicle',
-      stockId: vehicle.stockId,
-      name: contextLabel,
-      content: `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model} ${vehicle.derivative}. ${vehicle.summary}`,
-      derivative: vehicle.derivative,
-      priceGbp: vehicle.priceGbp,
-      priceFormatted: vehicle.priceFormatted,
-      currency: vehicle.currency,
-      mileage: vehicle.mileage,
-      fuelType: vehicle.fuelType,
-      bodyType: vehicle.bodyType,
-      lifecycleState: vehicle.lifecycleState,
-      sourceLabel: vehicle.sourceLabel,
-      sourceUpdatedAt: vehicle.sourceUpdatedAt,
-      metadata: {
-        stockId: vehicle.stockId,
-        make: vehicle.make,
-        model: vehicle.model,
-        derivative: vehicle.derivative,
-        priceGbp: vehicle.priceGbp,
-        priceFormatted: vehicle.priceFormatted,
-        mileage: vehicle.mileage,
-        fuelType: vehicle.fuelType,
-        bodyType: vehicle.bodyType,
-        lifecycleState: vehicle.lifecycleState,
-        sourceLabel: vehicle.sourceLabel,
-        sourceUpdatedAt: vehicle.sourceUpdatedAt,
-      },
-    },
-  })
+  return window.LoomAIDealershipExperience?.attachVehicle(vehicle) === true
 }
 
 export function sendDealershipAssistantMessage(
   prompt: string,
   requestContext: Record<string, unknown>,
 ) {
-  if (!window.MaxMode) return false
-  window.setTimeout(() => {
-    window.MaxMode?.sendMessage(prompt, {
-      open: true,
-      position: 'search',
-      mode: 'executor',
-      requestContext,
-    })
-  }, 0)
-  return true
+  return window.LoomAIDealershipExperience?.sendMessage(prompt, requestContext) === true
 }
 
 export async function fetchDealershipJson<T>(url: string): Promise<T> {
@@ -332,19 +229,19 @@ function normalizeBaseUrl(value: string) {
   return parsed.toString().replace(/\/$/, '')
 }
 
-async function loadWidgetBundle() {
-  if (window.MaxMode) return
-  const existing = document.querySelector<HTMLScriptElement>('script[data-max-mode-bundle]')
+async function loadDealershipExperienceBundle() {
+  if (window.LoomAIDealershipExperience) return
+  const existing = document.querySelector<HTMLScriptElement>('script[data-dealership-experience-bundle]')
   if (existing) {
-    await waitForScript(existing)
+    await waitForScript(existing, () => Boolean(window.LoomAIDealershipExperience))
     return
   }
-  const manifestResponse = await fetch('/vendor/max-mode-widget-manifest.json', {
+  const manifestResponse = await fetch('/vendor/dealership-experience-manifest.json', {
     cache: 'no-store',
     headers: { Accept: 'application/json' },
   })
   if (!manifestResponse.ok) {
-    throw new Error('The LoomAI chat bundle manifest could not be loaded.')
+    throw new Error('The LoomAI dealership experience manifest could not be loaded.')
   }
   const manifest = await manifestResponse.json() as {
     schemaVersion?: string
@@ -352,45 +249,43 @@ async function loadWidgetBundle() {
     sha256?: string
   }
   if (
-    manifest.schemaVersion !== 'loomai-widget-bundle-v1'
-    || !/^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(manifest.file || '')
+    manifest.schemaVersion !== 'loomai-dealership-experience-bundle-v1'
+    || !/^dealership-experience\.[a-f0-9]{16}\.iife\.js$/.test(manifest.file || '')
     || !/^[a-f0-9]{64}$/.test(manifest.sha256 || '')
     || !manifest.file?.includes(manifest.sha256!.slice(0, 16))
   ) {
-    throw new Error('The LoomAI chat bundle manifest is invalid.')
+    throw new Error('The LoomAI dealership experience manifest is invalid.')
   }
+  const bundleFile = manifest.file as string
+  const bundleSha256 = manifest.sha256 as string
   const script = document.createElement('script')
-  script.src = `/vendor/${manifest.file}`
+  script.src = `/vendor/${bundleFile}`
   script.async = true
-  script.dataset.maxModeBundle = 'true'
-  script.dataset.maxModeBundleSha256 = manifest.sha256
+  script.crossOrigin = 'anonymous'
+  script.integrity = `sha256-${hexToBase64(bundleSha256)}`
+  script.dataset.dealershipExperienceBundle = 'true'
+  script.dataset.dealershipExperienceBundleSha256 = bundleSha256
   document.head.append(script)
-  await waitForScript(script)
+  await waitForScript(script, () => Boolean(window.LoomAIDealershipExperience))
 }
 
-function waitForScript(script: HTMLScriptElement) {
+function waitForScript(script: HTMLScriptElement, ready: () => boolean) {
   return new Promise<void>((resolve, reject) => {
-    if (window.MaxMode) {
+    if (ready()) {
       resolve()
       return
     }
-    script.addEventListener('load', () => resolve(), { once: true })
-    script.addEventListener('error', () => reject(new Error('The LoomAI chat bundle could not be loaded.')), { once: true })
+    script.addEventListener('load', () => {
+      if (ready()) resolve()
+      else reject(new Error('The LoomAI dealership experience loaded without its browser API.'))
+    }, { once: true })
+    script.addEventListener('error', () => reject(new Error('The LoomAI dealership experience could not be loaded.')), { once: true })
   })
 }
 
-function absoluteRuntimeUrl(baseUrl: string, value: string) {
-  if (/^https?:\/\//i.test(value)) return normalizeBaseUrl(value)
-  const base = new URL(baseUrl)
-  return new URL(value.startsWith('/') ? value : `/${value}`, base.origin).toString()
+function hexToBase64(value: string) {
+  const bytes = value.match(/.{2}/g)?.map((pair) => Number.parseInt(pair, 16)) || []
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
-
-function absoluteRuntimeTemplateUrl(baseUrl: string, value: string) {
-  return absoluteRuntimeUrl(baseUrl, value)
-    .replaceAll('%7BconversationId%7D', '{conversationId}')
-    .replaceAll('%7bconversationId%7d', '{conversationId}')
-}
-import {
-  dealershipActionPresentationConfig,
-  registerDealershipActionPresentationElements,
-} from './dealership-action-presentations'

@@ -6,17 +6,20 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
-const generatedWidgetDirectory = path.join(root, 'public/vendor')
+const generatedBrowserAssetDirectory = path.join(root, 'public/vendor')
 
-async function cleanGeneratedWidget() {
-  const entries = await readdir(generatedWidgetDirectory).catch(() => [])
+async function cleanGeneratedBrowserAssets() {
+  const entries = await readdir(generatedBrowserAssetDirectory).catch(() => [])
   for (const entry of entries) {
     if (
       entry === 'max-mode-widget.iife.js'
       || entry === 'max-mode-widget-manifest.json'
       || /^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(entry)
+      || entry === 'dealership-experience.iife.js'
+      || entry === 'dealership-experience-manifest.json'
+      || /^dealership-experience\.[a-f0-9]{16}\.iife\.js$/.test(entry)
     ) {
-      await rm(path.join(generatedWidgetDirectory, entry), { force: true })
+      await rm(path.join(generatedBrowserAssetDirectory, entry), { force: true })
     }
   }
 }
@@ -37,8 +40,8 @@ function run(command, args) {
 }
 
 try {
-  await run('npm', ['run', 'prepare:widget'])
+  await run('npm', ['run', 'prepare:browser-assets'])
   await run('npm', ['exec', '--', 'astro', 'build'])
 } finally {
-  await cleanGeneratedWidget()
+  await cleanGeneratedBrowserAssets()
 }

@@ -1,9 +1,9 @@
 # 010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan
 
-**Status:** First-delivery scope fully implemented, deployed, and live verified;
-explicit follow-ons remain deferred
+**Status:** First delivery and reusable dealership-pack extraction implemented;
+standalone pack production rollout pending final live proof
 **Created:** 2026-10-01
-**Revised:** 2026-10-02
+**Revised:** 2026-10-04
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
 dealership-owned component package
 **Related live baseline:** Dealership deployment `dep-f023c863`, version `v21` /
@@ -32,6 +32,9 @@ The first delivery includes:
 - a provider-neutral renderer registry and explicit action-presentation mapping;
 - a bounded safe presentation projection rather than raw provider payloads;
 - deterministic inventory, vehicle-detail, and vehicle-comparison components;
+- a standalone provider-neutral dealership experience package distributed as
+  ESM and an integrity-addressed browser IIFE;
+- one-script public bootstrap and explicit-init installation contracts;
 - safe result selection and follow-up commands that continue through the
   assigned deployment;
 - reuse of the existing generic clarification, confirmation, and receipt flow;
@@ -43,7 +46,7 @@ The first delivery explicitly defers:
 - AI Fabric automatic action-result promotion into the conversation working set
   from G3/D1;
 - a new Marketplace `UI_EXTENSION` package type and complete Platform lifecycle
-  management for independently distributed UI extensions;
+  management for reviewed experience-pack versions;
 - a new typed action-proposal endpoint while the existing chat,
   clarification, and confirmation route remains sufficient;
 - custom replacements for the existing parameter and confirmation UI unless
@@ -332,9 +335,15 @@ declare a write confirmed by itself.
 
 ## 6. Dealership Component Package
 
-Dealership components should live with the dealership customer experience in
-`Platfrom/loomai-site`, or in a later reusable private Marketplace UI package.
-They must not be added to `max-mode-widget` core.
+Dealership components live in the reusable private package
+`experience-packs/dealership-experience`. They must not be added to
+`max-mode-widget` core. A customer website consumes the pack as an ESM module
+or browser IIFE and supplies only dealer identity, deployment discovery, page
+context, enabled capabilities, branding, and approved navigation/media policy.
+
+The pack is provider-neutral. Auto Trader, another inventory provider, or a
+dealership-owned system remains a deployment DATA/ACTION integration concern;
+the browser pack never identifies or calls the provider.
 
 ### 6.1 Vehicle inventory results
 
@@ -497,11 +506,11 @@ control for a capability absent from the deployment shell/action contract.
 
 ## 10. Platform And Marketplace Configuration
 
-### 10.1 First delivery configuration
+### 10.1 Current reusable package configuration
 
-To keep the first implementation focused, the reviewed dealership components
-are built with `Platfrom/loomai-site` and supplied to the generic widget through
-host configuration. That configuration declares:
+The reviewed dealership components are built as
+`@loom-ai-labs/dealership-experience-pack` and supplied to the generic widget
+through its existing host configuration. The package declares:
 
 - exact existing action-to-renderer mappings;
 - supported presentation schema versions;
@@ -510,10 +519,17 @@ host configuration. That configuration declares:
 - approved same-site navigation targets; and
 - the existing theme, labels, mode, position, and deployment routes.
 
-The first delivery does not add a new Marketplace package type, Platform editor,
-remote component loader, or independently hosted renderer bundle. This keeps
-the security and deployment surface bounded while proving the generic widget
-contract with a real customer application.
+The package exposes a content-hashed IIFE manifest and stable current URL. The
+manifest is `no-store`; hashed artifacts are immutable and use SRI. Distribution
+responses explicitly permit reviewed cross-origin installation. A host may
+initialize the package directly or provide one public, secret-free bootstrap
+JSON URL on the script element. The package then loads the generic Max Mode
+bundle from its reviewed manifest and obtains the deployment-local public
+runtime descriptor from the dealership host.
+
+The current delivery does not add a new Marketplace package type or Platform
+editor. Those lifecycle controls remain deferred, but reusable package
+distribution itself is now implemented and verified.
 
 The host build and live canary must validate that:
 
@@ -631,7 +647,8 @@ existing package label.
 
 ### Phase 3: focused hosted canary
 
-1. Build and deploy the generic widget and host-bundled dealership components.
+1. Build and deploy the generic widget and standalone dealership experience
+   package, then make the current dealership host consume only that package.
 2. Exercise search, detail, comparison, grounded follow-up, test-drive
    clarification, reject, confirm, receipt, and staff readback in one session.
 3. Repeat the read-only sequence and retain safe request IDs and screenshots.
@@ -794,8 +811,8 @@ framework, Platform, provider, or data-operation work.
   `action-result-context` with source-message/action provenance,
   `trust=REQUIRES_SERVER_RESOLUTION`, and `actionEligible=false`.
 - Kept dealership action names, fields, prompts, components, and styling out of
-  widget core. The host-owned package is implemented in
-  `Platfrom/loomai-site/src/scripts/dealership-action-presentations.ts`.
+  widget core. The first implementation was host-owned; section 17.9 records
+  its later extraction into the standalone dealership experience package.
 - Added inventory, vehicle-detail, and desktop/mobile vehicle-comparison
   presentations using the five-action dealership catalogue installed on the
   deployment. Trusted vehicle resolution remains a server-owned helper rather
@@ -881,9 +898,9 @@ framework, Platform, provider, or data-operation work.
 The first-delivery boundary in section 1.1 is fully implemented and live
 verified. The generic widget contains no hardcoded dealership, vehicle, Auto
 Trader, dealership action-name, business-field, query-text, or answer-text
-matching. Domain components and mappings remain in the customer host package
-and communicate only through the generic bounded projection and command
-contracts.
+matching. Domain components and mappings communicate only through the generic
+bounded projection and command contracts. Section 17.9 supersedes the original
+host-local packaging location without changing this trust boundary.
 
 This completion verdict does not include the explicitly deferred items in
 Phase 4. In particular, it is not evidence of real Auto Trader access, rights,
@@ -1042,3 +1059,48 @@ or Platform-managed `UI_EXTENSION` packaging.
   Hetzner firewalls exactly match their pre-deploy snapshots, contain zero
   operator-CIDR entries, and local Coolify port `8000` again times out with HTTP
   `000`.
+
+### 17.9 Standalone dealership experience pack (2026-10-04)
+
+- Extracted the reusable automotive-retail layer from `Platfrom/loomai-site`
+  into `experience-packs/dealership-experience`. The package owns the two-scope
+  dealership tool defaults, inventory/detail/comparison presentation schemas,
+  bounded action projections, custom elements, safe follow-up commands, runtime
+  descriptor binding, and Max Mode initialization.
+- The generic `max-mode-widget` remains unchanged by the extraction and still
+  understands only provider-neutral host configuration, `default` and
+  `contextual` tool scopes, bounded presentation contracts, attachments, and
+  conversation mechanics. A source scan found dealership/vehicle vocabulary
+  only in its pre-existing generic contract smoke fixture, not production
+  widget source.
+- Removed the public site's local dealership renderer module and duplicated
+  page-level tool definitions. The Northfield host now supplies only dealer
+  identity, copy, page kind/context, enabled capabilities, approved media
+  origins, demo-only image/slug fallbacks, and deployment discovery.
+- Added ESM and IIFE builds. The browser artifact supports explicit
+  initialization and one-script `data-bootstrap-url` installation. Bootstrap
+  JSON is public configuration only and must not contain provider credentials,
+  connector secrets, runtime assertions, or API keys.
+- Added content-hashed package publication beside the generic widget manifest,
+  SRI on both dynamically loaded layers, immutable cache policy for hashed
+  files, `no-store` manifests, and explicit CORS/Cross-Origin-Resource-Policy
+  headers for reviewed external hosts.
+- Capability flags control both visible tools and structured-result CTAs. A
+  host cannot advertise comparison, test drive, or callback through package
+  defaults when that capability is disabled.
+- Local verification is green: strict package typecheck, ESM/IIFE/declaration
+  builds, Astro diagnostics, production site build, static hash checks, content
+  checks, and full Playwright browser smoke. The existing Northfield suite still
+  proves anonymous chat, tools, attachments, rich inventory/detail/comparison,
+  governed writes, navigation continuity, responsive layout, and
+  accessibility through the new package.
+- A second-origin `Harbour AI` browser canary installs the hashed package by one
+  script plus public bootstrap JSON, uses a distinct dealer ID and branding,
+  receives a reduced capability set with no compare/write controls, loads the
+  generic widget cross-origin by verified manifest, and talks directly to its
+  assigned runtime. No Northfield constant exists in package source.
+- Production rollout identity and hosted proof remain to be appended after the
+  public-site deployment reaches terminal success. Marketplace lifecycle,
+  version approval, and template binding remain the explicit deferred Platform
+  productization work; the package must not be mislabeled as a DATA or ACTION
+  plugin.

@@ -1,3 +1,9 @@
+import type {
+  DealershipActionNames,
+  DealershipPresentationConfig,
+  MaxModeActionPresentationConfig,
+} from './types'
+
 type SafeRecord = Record<string, unknown>
 
 type PresentationReference = {
@@ -27,28 +33,15 @@ type PresentationCommands = {
   navigate(input: { url: string; target?: 'same-window' | 'new-window' }): void
 }
 
-type ActionPresentationConfig = {
-  renderers: Array<{
-    id: string
-    kind: 'custom-element'
-    elementName: string
-    schemaVersions: string[]
-  }>
-  mappings: Array<{
-    actionName: string
-    rendererId: string
-    schemaVersion: string
-    projection: SafeRecord
-    rendererContext?: Record<string, string | number | boolean>
-  }>
-}
-
 const INVENTORY_ELEMENT = 'loomai-dealership-inventory'
 const DETAIL_ELEMENT = 'loomai-dealership-vehicle-detail'
 const COMPARISON_ELEMENT = 'loomai-dealership-vehicle-comparison'
-const DEALERSHIP_RENDERER_CONTEXT = {
-  detailBasePath: '/demos/dealership-ai/vehicles/',
-  imageHostAllowlist: 'external-vehicle-provider-simulator.46.224.145.148.sslip.io,m.atcdn.co.uk',
+const DEFAULT_ACTION_NAMES: DealershipActionNames = {
+  searchInventory: 'dealership_search_inventory',
+  getVehicle: 'dealership_get_vehicle',
+  compareVehicles: 'dealership_compare_vehicles',
+  requestTestDrive: 'dealership_request_test_drive',
+  requestCallback: 'dealership_request_callback',
 }
 const VEHICLE_FIELDS = [
   'stockId',
@@ -79,13 +72,18 @@ const VEHICLE_FIELDS = [
 ]
 
 export function registerDealershipActionPresentationElements() {
+  if (typeof customElements === 'undefined') return
   defineElement(INVENTORY_ELEMENT, DealershipInventoryPresentation)
   defineElement(DETAIL_ELEMENT, DealershipVehicleDetailPresentation)
   defineElement(COMPARISON_ELEMENT, DealershipVehicleComparisonPresentation)
 }
 
-export function dealershipActionPresentationConfig(): ActionPresentationConfig {
-  return {
+export function dealershipActionPresentationConfig(
+  config: DealershipPresentationConfig = {},
+): MaxModeActionPresentationConfig {
+  const actionNames = { ...DEFAULT_ACTION_NAMES, ...config.actionNames }
+  const rendererContext = presentationRendererContext(config)
+  const result: MaxModeActionPresentationConfig = {
     renderers: [
       {
         id: 'loomai.vehicle-inventory.v1',
@@ -108,7 +106,7 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
     ],
     mappings: [
       {
-        actionName: 'dealership_search_inventory',
+        actionName: actionNames.searchInventory,
         rendererId: 'loomai.vehicle-inventory.v1',
         schemaVersion: 'loomai.vehicle-list.v1',
         projection: {
@@ -154,10 +152,10 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
             },
           ],
         },
-        rendererContext: DEALERSHIP_RENDERER_CONTEXT,
+        rendererContext,
       },
       {
-        actionName: 'dealership_get_vehicle',
+        actionName: actionNames.getVehicle,
         rendererId: 'loomai.vehicle-detail.v1',
         schemaVersion: 'loomai.vehicle-detail.v1',
         projection: {
@@ -191,10 +189,10 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
             { sourcePath: 'source', target: 'source', includeFields: ['label', 'refreshedAt'] },
           ],
         },
-        rendererContext: DEALERSHIP_RENDERER_CONTEXT,
+        rendererContext,
       },
       {
-        actionName: 'dealership_compare_vehicles',
+        actionName: actionNames.compareVehicles,
         rendererId: 'loomai.vehicle-comparison.v1',
         schemaVersion: 'loomai.vehicle-comparison.v1',
         projection: {
@@ -216,13 +214,36 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
             },
           ],
         },
-        rendererContext: DEALERSHIP_RENDERER_CONTEXT,
+        rendererContext,
       },
     ],
   }
+  if (config.capabilities?.comparison === false) {
+    result.renderers = result.renderers.filter((renderer) => renderer.id !== 'loomai.vehicle-comparison.v1')
+    result.mappings = result.mappings.filter((mapping) => mapping.actionName !== actionNames.compareVehicles)
+  }
+  return result
 }
 
-abstract class DealershipPresentationElement extends HTMLElement {
+function presentationRendererContext(
+  config: DealershipPresentationConfig,
+): Record<string, string | number | boolean> {
+  return {
+    detailBasePath: config.detailBasePath || '/vehicles/',
+    imageHostAllowlist: (config.imageHostAllowlist || []).join(','),
+    imageFallbacks: JSON.stringify(config.imageFallbacks || {}),
+    detailSlugs: JSON.stringify(config.detailSlugs || {}),
+    comparisonEnabled: config.capabilities?.comparison !== false,
+    testDriveEnabled: config.capabilities?.testDrive === true,
+    callbackEnabled: config.capabilities?.callback === true,
+  }
+}
+
+const DealershipHTMLElement: typeof HTMLElement = typeof HTMLElement === 'undefined'
+  ? class {} as unknown as typeof HTMLElement
+  : HTMLElement
+
+abstract class DealershipPresentationElement extends DealershipHTMLElement {
   protected root: ShadowRoot
   protected input?: PresentationInput
   protected commandApi?: PresentationCommands
@@ -267,6 +288,10 @@ abstract class DealershipPresentationElement extends HTMLElement {
     return Boolean(this.input?.selectedResultKeys.includes(key))
   }
 
+  protected capability(name: 'comparisonEnabled' | 'testDriveEnabled' | 'callbackEnabled') {
+    return this.input?.context[name] === true
+  }
+
   protected ask(query: string, keys: string[] = []) {
     if (!this.commandApi) return
     void this.commandApi.ask({ query, resultReferenceKeys: keys }).catch(() => {
@@ -282,6 +307,7 @@ abstract class DealershipPresentationElement extends HTMLElement {
 
   protected openDetail(vehicle: SafeRecord) {
     const slug = textValue(vehicle.slug)
+      || configuredMapValue(this.input?.context.detailSlugs, textValue(vehicle.stockId))
     const basePath = textValue(this.input?.context.detailBasePath) || '/demos/dealership-ai/vehicles/'
     if (!slug || !this.commandApi) return
     this.commandApi.navigate({ url: `${basePath}${encodeURIComponent(slug)}` })
@@ -340,23 +366,25 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
     }
     container.append(grid)
 
-    const toolbar = document.createElement('div')
-    toolbar.className = 'compare-toolbar'
-    const selected = document.createElement('p')
-    selected.textContent = this.compareKeys.size === 0
-      ? 'Select two to four vehicles for a grounded comparison.'
-      : `${this.compareKeys.size} vehicle${this.compareKeys.size === 1 ? '' : 's'} selected`
-    const compare = createButton('Compare selected', 'primary')
-    compare.disabled = this.compareKeys.size < 2 || this.compareKeys.size > 4
-    compare.addEventListener('click', () => {
-      const references = [...this.compareKeys]
-        .map((key) => this.referenceFor(key))
-        .filter((reference): reference is PresentationReference => Boolean(reference))
-      const labels = references.map((reference) => reference.label).join(', ')
-      this.ask(`Compare these selected current vehicles using dealership facts: ${labels}. Explain meaningful trade-offs without inventing specifications.`, references.map((reference) => reference.key))
-    })
-    toolbar.append(selected, compare)
-    container.append(toolbar)
+    if (this.capability('comparisonEnabled')) {
+      const toolbar = document.createElement('div')
+      toolbar.className = 'compare-toolbar'
+      const selected = document.createElement('p')
+      selected.textContent = this.compareKeys.size === 0
+        ? 'Select two to four vehicles for a grounded comparison.'
+        : `${this.compareKeys.size} vehicle${this.compareKeys.size === 1 ? '' : 's'} selected`
+      const compare = createButton('Compare selected', 'primary')
+      compare.disabled = this.compareKeys.size < 2 || this.compareKeys.size > 4
+      compare.addEventListener('click', () => {
+        const references = [...this.compareKeys]
+          .map((key) => this.referenceFor(key))
+          .filter((reference): reference is PresentationReference => Boolean(reference))
+        const labels = references.map((reference) => reference.label).join(', ')
+        this.ask(`Compare these selected current vehicles using dealership facts: ${labels}. Explain meaningful trade-offs without inventing specifications.`, references.map((reference) => reference.key))
+      })
+      toolbar.append(selected, compare)
+      container.append(toolbar)
+    }
   }
 
   private vehicleCard(vehicle: SafeRecord, reference?: PresentationReference) {
@@ -386,7 +414,7 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
     ])
     content.append(eyebrow, title, derivative, price, facts)
 
-    if (reference) {
+    if (reference && this.capability('comparisonEnabled')) {
       const compareLabel = document.createElement('label')
       compareLabel.className = 'selection-control'
       const checkbox = document.createElement('input')
@@ -412,7 +440,10 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
     const actions = document.createElement('div')
     actions.className = 'card-actions'
     const details = createButton('View details', 'secondary')
-    details.disabled = !textValue(vehicle.slug)
+    details.disabled = !(
+      textValue(vehicle.slug)
+      || configuredMapValue(this.input?.context.detailSlugs, textValue(vehicle.stockId))
+    )
     details.addEventListener('click', () => this.openDetail(vehicle))
     actions.append(details)
     if (reference) {
@@ -421,11 +452,17 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
       const attach = createButton(this.isAttached(reference.key) ? 'Remove context' : 'Keep in context', 'quiet')
       attach.setAttribute('aria-pressed', String(this.isAttached(reference.key)))
       attach.addEventListener('click', () => this.toggleAttachment(reference))
-      const testDrive = createButton('Request test drive', 'primary')
-      testDrive.addEventListener('click', () => this.ask(`I would like to request a test drive for ${reference.label}.`, [reference.key]))
-      const callback = createButton('Request callback', 'secondary')
-      callback.addEventListener('click', () => this.ask(`I would like the dealership to call me about ${reference.label}.`, [reference.key]))
-      actions.append(ask, attach, testDrive, callback)
+      actions.append(ask, attach)
+      if (this.capability('testDriveEnabled')) {
+        const testDrive = createButton('Request test drive', 'primary')
+        testDrive.addEventListener('click', () => this.ask(`I would like to request a test drive for ${reference.label}.`, [reference.key]))
+        actions.append(testDrive)
+      }
+      if (this.capability('callbackEnabled')) {
+        const callback = createButton('Request callback', 'secondary')
+        callback.addEventListener('click', () => this.ask(`I would like the dealership to call me about ${reference.label}.`, [reference.key]))
+        actions.append(callback)
+      }
     }
     content.append(actions)
     card.append(content)
@@ -505,14 +542,21 @@ class DealershipVehicleDetailPresentation extends DealershipPresentationElement 
       suitability.addEventListener('click', () => this.ask(`Is ${reference.label} suitable for everyday driving? Explain using current facts and identify unknowns.`, [reference.key]))
       const tradeoffs = createButton('Explain trade-offs', 'secondary')
       tradeoffs.addEventListener('click', () => this.ask(`Explain the important trade-offs for ${reference.label} using current dealership facts.`, [reference.key]))
-      const testDrive = createButton('Request test drive', 'primary')
-      testDrive.addEventListener('click', () => this.ask(`I would like to request a test drive for ${reference.label}.`, [reference.key]))
-      const callback = createButton('Request callback', 'secondary')
-      callback.addEventListener('click', () => this.ask(`I would like the dealership to call me about ${reference.label}.`, [reference.key]))
       const attach = createButton(this.isAttached(reference.key) ? 'Remove context' : 'Keep in context', 'quiet')
       attach.setAttribute('aria-pressed', String(this.isAttached(reference.key)))
       attach.addEventListener('click', () => this.toggleAttachment(reference))
-      actions.append(suitability, tradeoffs, testDrive, callback, attach)
+      actions.append(suitability, tradeoffs)
+      if (this.capability('testDriveEnabled')) {
+        const testDrive = createButton('Request test drive', 'primary')
+        testDrive.addEventListener('click', () => this.ask(`I would like to request a test drive for ${reference.label}.`, [reference.key]))
+        actions.append(testDrive)
+      }
+      if (this.capability('callbackEnabled')) {
+        const callback = createButton('Request callback', 'secondary')
+        callback.addEventListener('click', () => this.ask(`I would like the dealership to call me about ${reference.label}.`, [reference.key]))
+        actions.append(callback)
+      }
+      actions.append(attach)
       container.append(actions)
     }
   }
@@ -737,8 +781,9 @@ function safeVehicleImageUrl(
     }
   }
 
-  const localPath = textValue(vehicle.imagePath) || demoImageForStock(textValue(vehicle.stockId))
-  return /^\/assets\/demos\/dealership\/vehicle-[0-9]{2}\.webp$/.test(localPath) ? localPath : ''
+  const localPath = textValue(vehicle.imagePath)
+    || configuredMapValue(context?.imageFallbacks, textValue(vehicle.stockId))
+  return safeSameOriginAssetUrl(localPath)
 }
 
 function primaryImageHref(value: unknown) {
@@ -804,7 +849,7 @@ function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
     mileage: vehicle.mileage ?? vehicle.odometerReadingMiles,
     transmission: vehicle.transmission ?? vehicle.transmissionType,
     sourceUpdatedAt: vehicle.sourceUpdatedAt ?? vehicle.lastUpdated,
-    slug: vehicle.slug ?? demoSlugForStock(stockId),
+    slug: vehicle.slug,
     features: featureNames(vehicle.features),
     imageUrl: vehicle.imageUrl ?? primaryImageHref(vehicle.images),
   }
@@ -817,29 +862,27 @@ function featureNames(value: unknown) {
     .filter(Boolean)
 }
 
-function demoImageForStock(stockId: string) {
-  const images: Record<string, string> = {
-    'DEMO-1001': '/assets/demos/dealership/vehicle-01.webp',
-    'DEMO-1002': '/assets/demos/dealership/vehicle-02.webp',
-    'DEMO-1003': '/assets/demos/dealership/vehicle-03.webp',
-    'DEMO-1004': '/assets/demos/dealership/vehicle-04.webp',
-    'DEMO-1005': '/assets/demos/dealership/vehicle-05.webp',
-    'DEMO-1006': '/assets/demos/dealership/vehicle-04.webp',
-    'DEMO-1099': '/assets/demos/dealership/vehicle-03.webp',
+function configuredMapValue(value: unknown, key: string) {
+  const encoded = textValue(value)
+  if (!encoded || !key) return ''
+  try {
+    const parsed = JSON.parse(encoded) as unknown
+    const record = recordValue(parsed)
+    return textValue(record?.[key])
+  } catch {
+    return ''
   }
-  return images[stockId] || ''
 }
 
-function demoSlugForStock(stockId: string) {
-  const slugs: Record<string, string> = {
-    'DEMO-1001': 'aster-e1-motion',
-    'DEMO-1002': 'northstar-s4-touring',
-    'DEMO-1003': 'morrow-c2-city',
-    'DEMO-1004': 'caldera-x6-adventure',
-    'DEMO-1005': 'arden-v3-executive',
-    'DEMO-1006': 'aster-e2-sport',
+function safeSameOriginAssetUrl(value: string) {
+  if (!value || typeof window === 'undefined') return ''
+  try {
+    const parsed = new URL(value, window.location.href)
+    if (parsed.origin !== window.location.origin) return ''
+    return parsed.toString()
+  } catch {
+    return ''
   }
-  return slugs[stockId] || ''
 }
 
 function filterLabels(filters?: SafeRecord) {
