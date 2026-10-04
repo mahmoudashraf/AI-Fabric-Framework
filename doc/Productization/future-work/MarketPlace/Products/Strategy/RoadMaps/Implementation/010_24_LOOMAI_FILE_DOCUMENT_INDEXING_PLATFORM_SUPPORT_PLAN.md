@@ -6,7 +6,7 @@ Created: 2026-09-22
 
 Current supported baseline:
 
-- AI Fabric `0.8.5` only
+- AI Fabric `0.8.8` only
 - private LoomAI runtime and Platform `Platform-V11`
 - V04 deployment lifecycle
 - current-only greenfield policy; no older framework/runtime compatibility path
@@ -92,7 +92,7 @@ write authority.
 
 ### 3.1 Framework capability already available
 
-AI Fabric `0.8.5` includes the document-indexing core introduced in `0.8.0`:
+AI Fabric `0.8.8` includes the document-indexing core introduced in `0.8.0`:
 
 - Spring AI `DocumentReader`, transformer, and token splitting integration;
 - trusted file/classpath/in-memory resource policy;
@@ -149,10 +149,12 @@ The private runtime and Platform now implement the first bounded release:
 - deployment workspace operations and Platform UI; and
 - the `document-knowledge-operations-v1` reusable verification suite.
 
-This is source-complete and locally verified. It is not yet a hosted-production
-claim: external S3-compatible staging and controlled-production canaries,
-isolation/restart/failure/lifecycle evidence, and the full live Platform release
-gate remain mandatory.
+The generic capability is source-complete and hosted-proven for its bounded
+first-release contract. The Northfield dealership template now also has a
+separate deployment-specific hosted proof, recorded in section 25. Each new
+customer composition still requires its own source binding, isolation,
+retrieval, restart and lifecycle evidence; the generic proof is not permission
+to treat a mounted demo folder as customer production storage.
 
 Existing Marketplace and Shopify records called "documents" are already-shaped
 Data Sync records. They do not prove raw file parsing, chunk manifests, file
@@ -1265,7 +1267,7 @@ decision unless a future product decision explicitly replaces this plan.
 
 Document Knowledge Operations is complete only when:
 
-- LoomAI uses AI Fabric `0.8.5` document contracts directly;
+- LoomAI uses AI Fabric `0.8.8` document contracts directly;
 - no parallel reader, splitter, vector store, queue or deployment lifecycle is
   introduced;
 - a current Marketplace DATA plugin and TEMPLATE compose the capability;
@@ -1376,3 +1378,71 @@ one of eleven first-product answer-quality checks because Shopify output exposed
 internal terminology. Those findings are unrelated to document storage,
 indexing, retrieval, isolation, durability, or lifecycle behavior and were not
 hidden, skipped, or weakened for this proof.
+
+## 25. Dealership Template Document-Knowledge Closure
+
+Recorded on 2026-10-04 for AI Fabric `0.8.8` and Platform `Platform-V11`.
+
+The reusable capability is now composed into the current Northfield dealership
+deployment through ordinary Platform primitives:
+
+- production DATA package `mkp-data-dealership-knowledge-v1@1.0.0` binds
+  customer-managed S3-compatible storage;
+- demo DATA package
+  `mkp-data-dealership-knowledge-mounted-demo-v1@1.0.0` binds a bounded
+  operator-mounted folder;
+- both packages contribute dataset `document-knowledge`, entity/vector space
+  `document`, a filtered deployment-private knowledge source, and the existing
+  `EXTERNAL_DOCUMENT_STORAGE` document policy;
+- the active demo install is `mpi-c35e9789` on deployment `dep-f023c863`;
+- immutable deployment version `ver-ab658ab1` (`v25`) was applied as release
+  `rel-4328efde` using source artifact `dsa-2d1661ea`; and
+- the release reached `APPLIED_VERIFIED`, verification `PASSED`, and
+  provisioning `ACTIVE`.
+
+The runtime image is
+`ghcr.io/mahmoudashraf/ai-fabric-runtime:014fb7afa8ecc67c8220ff007f437ebd35f1db81`
+with immutable OCI digest
+`sha256:592a939ec831314c7bf7b24860cdb153c401ecfc4e29e2d11b0b48f4bff6835d`.
+Platform backend commit `014fb7afa8ecc67c8220ff007f437ebd35f1db81`
+corrects source-mount ownership: mounted document storage belongs only to the
+runtime. The action connector has no document storage mount. Demo files are
+ordinary files inside the single deployment-owned parent mount, owned by the
+runtime identity; nested Coolify file bind mounts are not used because they can
+remain unreadable to a long-running non-root Java process.
+
+The hosted fixture contains six meaningful public-safe documents:
+
+| Source | Controlled answer evidence |
+| --- | --- |
+| Used vehicle warranty and aftercare | 90 days or 3,000 miles; 12-volt battery cover for 30 days |
+| Vehicle reservation and deposit | GBP 99; 48-hour hold |
+| Test-drive requirements | Minimum age 21; full UK/EU licence held for at least 12 months |
+| Collection, delivery and handover operations | GBP 49 within 25 miles; cleared funds, identity and insurance prerequisites |
+| Customer care and complaints | Acknowledge within two working days; substantive response within 10 working days |
+| Riverside showroom information | Weekday 09:00-18:00; step-free access |
+
+The repeatable source verifier is
+`scripts/verify-dealership-document-knowledge.py`. Its bounded
+[live evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-document-knowledge-live.json)
+records six discovered, previewed, indexed and active version-1 sources with a
+matching retrieval proof for every source. Its SHA-256 is
+`48c47d515ba1af1f1d96bd9852049855b5af383692b6cc1e05b6f48df414cc6a`.
+The production browser quality
+matrix separately reports `capabilityGates.documentKnowledge.status=PASS` for
+six of six generated policy/operations answers in
+[live conversational evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-live-quality.json).
+That evidence SHA-256 is
+`07e7529768be4673a82540625487e771ab5fc831e855d9a3dc27482c6e989299`.
+
+That broader conversational report remains `NEEDS_IMPROVEMENT` because three
+pre-existing inventory/action scenarios did not satisfy their strict
+filter/follow-up assertions. Those failures are retained as a separate action
+contract regression and do not weaken or conceal the six-of-six document
+capability result.
+
+The mounted folder remains a demo/small-data mechanism only. A production
+dealership must provide its own approved S3-compatible source binding and owns
+source backup, retention, residency, encryption and deletion. LoomAI manages
+the deployment-local indexing lifecycle and derived evidence, not the
+customer's object storage.

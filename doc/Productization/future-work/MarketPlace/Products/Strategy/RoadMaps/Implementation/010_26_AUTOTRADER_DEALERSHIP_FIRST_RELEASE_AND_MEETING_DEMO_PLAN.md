@@ -4,13 +4,16 @@
   generic Max Mode first-delivery closure passed on 2026-10-02, and the same
   deployment `dep-f023c863` is now provider-backed v24 with ordered synthetic
   provider media carried through Data Sync, action results, RAG documents, and
-  reviewed host renderers. Its synthetic public-document contract canary
-  passed `28/28`; the production browser proof loaded all six provider images.
+  reviewed host renderers. Deployment v25 additionally has six approved
+  dealership policy/operations documents indexed and live; its dedicated
+  document-source proof and all six generated-answer scenarios pass. Its
+  synthetic public-document contract canary passed `28/28`; the production
+  browser proof loaded all six provider images.
   Released customer Auto Trader Marketplace packaging and every real Auto
   Trader access/rights/certification gate remain open.
 - **Date:** 2026-09-25
 - **Last architecture review:** 2026-10-03
-- **Last implementation checkpoint:** 2026-10-03
+- **Last implementation checkpoint:** 2026-10-04
 - **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
@@ -40,6 +43,8 @@ Related plans and evidence:
 - [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
 - [2026-10-03 synthetic public-contract hosted evidence](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json)
 - [2026-10-03 provider-media browser evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-03-dealership-provider-media-live.json)
+- [2026-10-04 dealership document-knowledge evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-document-knowledge-live.json)
+- [2026-10-04 dealership live quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-live-quality.json)
 
 Quality and verification references in the public framework repository:
 
@@ -88,9 +93,10 @@ Implementation references:
 | Staff workspace | Hosted and verified | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes, true server-side logout, and four fixed server-owned provider simulation scenarios; browser cannot choose account, target, credential, URL, or payload |
 | Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
 | Inventory Data Sync client | Superseded by provider-backed DATA composition | Historical backend-push evidence remains valid for its recorded version. Current v24 connector pulls six synthetic records with primary media projection, performs current-record webhook upsert/delete, and reconciles runtime indexing `6 -> 7 -> 6`; the independent backend no longer pushes chat inventory |
+| Dealership document knowledge | Hosted and verified on v25 | Six approved fictional policy/operations files use the mounted-folder demo DATA package, are active at source version 1, and pass six-of-six live generated-answer checks. Customer production uses the sibling customer-managed S3 package, never the demo mount |
 | Authorization and actions | Hosted and verified | Indexed inventory action and grounded follow-up both preserve reviewed provider media; test-drive rejection, confirmed test drive, confirmed callback, protected staff readback, and cleanup all passed |
 | Generic REST Connector routing | Hosted and verified | Deployment connector is healthy; provider reads resolve through the provider profile, bounded nested provider references are promoted by declared projections, dealership writes retain their application upstream, and immutable v24 is `APPLIED_VERIFIED` |
-| Public catalogue | Live | Experiment entry, sitemap, content/static smoke, responsive browser coverage, rich action renderers, detail navigation, and six-of-six provider image loading pass on production site commit `903e4b6a2333060a8a020dab4440d9ce77f118b9` |
+| Public catalogue | Live | Experiment entry, sitemap, content/static smoke, responsive browser coverage, rich action renderers, detail navigation, six-of-six provider image loading, and document-aware retrieval context are live on production site commit `3586eaad8a4451b34055cc7df8746a2272993801` |
 | Build and supply-chain posture | Implemented locally | Backend/site production images build; status exposes version/commit/build time; site and widget production dependency audits report zero findings; widget package/artifact ownership is LoomAI-labelled and locally bundled |
 | Auto Trader source | Not activated | No credential, advertiser grant, sandbox fixture or production data is claimed; meeting composition remains fictional |
 
@@ -153,6 +159,32 @@ This establishes only `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`. The source is
 synthetic and public-document-informed; it is not an Auto Trader sandbox,
 emulator, data grant, compatibility result, certification, endorsement, or
 production approval.
+
+### Dealership document-knowledge closure: 2026-10-04
+
+The same dealership deployment now runs v25 / `ver-ab658ab1`, release
+`rel-4328efde`, source artifact `dsa-2d1661ea`. The release is
+`APPLIED_VERIFIED`, verification is `PASSED`, and provisioning is `ACTIVE` on
+runtime source `014fb7afa8ecc67c8220ff007f437ebd35f1db81` and OCI digest
+`sha256:592a939ec831314c7bf7b24860cdb153c401ecfc4e29e2d11b0b48f4bff6835d`.
+
+Marketplace install `mpi-c35e9789` adds the demo-only mounted-folder DATA
+package. The runtime owns one parent document mount; the connector owns none.
+Six approved Northfield policy and operations fixtures are independently
+registered, previewed, indexed and active at version 1. Their exact bounded
+facts cover warranty, reservation, test-drive eligibility, local delivery and
+handover, complaint timing, and showroom hours/accessibility.
+
+The source lifecycle verifier passed six of six retrieval proofs. The live
+production browser quality run also passed all six document answer scenarios
+and the governed no-submit test-drive explanation in one anonymous
+conversation. This proves meaningful use of dealership-owned knowledge in
+customer answers, not merely nonzero vectors.
+
+The broader quality report remains non-green for three existing inventory
+action/filter/follow-up assertions. Keep those findings open under the action
+contract quality work; do not misclassify them as a document-indexing failure
+and do not weaken their assertions to manufacture a global green result.
 
 ## 1. Executive Decision
 

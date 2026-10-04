@@ -42,6 +42,9 @@
   source `738fad457e607b2f00c3184dd4f7c78eee7764a2`, deployment version
   `ver-e51ba303`, source artifact `dsa-20de18aa`, and release
   `rel-cd3ebd96`, verified 2026-10-03
+- **Dealership-owned knowledge:** separately hosted-proven on deployment v25
+  on 2026-10-04. It uses the generic Document Knowledge Operations DATA
+  capability and is not Auto Trader data or partner-readiness evidence.
 
 Related plans:
 
@@ -1805,6 +1808,22 @@ integration substrate is staging-hosted verified and the fictional dealership
 hosted deployment gate has passed. Partner sandbox, advertiser, data-rights,
 package, certification, and production evidence remain separate open gates.
 ```
+
+### 13.1 Dealership knowledge is a separate provider boundary
+
+The dealership template now indexes six approved dealership-owned policy and
+operations documents through the generic Document Knowledge Operations
+capability. Their dedicated source and generated-answer gates pass on v25.
+This capability complements provider stock: Auto Trader or its synthetic
+profile remains authoritative for current stock facts, while dealership
+documents remain authoritative for warranty, reservation, test-drive,
+handover, complaints, opening-hours and accessibility terms.
+
+Do not place these files in the Auto Trader DATA package, infer them from stock
+payloads, or count their successful retrieval as Auto Trader sandbox or
+certification evidence. Production source files use customer-managed storage;
+the mounted folder is confined to the meeting demo and other explicitly
+accepted small-data canaries.
 
 ## 14. Official Auto Trader Evidence
 

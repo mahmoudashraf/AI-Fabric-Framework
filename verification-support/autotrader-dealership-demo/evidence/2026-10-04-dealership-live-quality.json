@@ -1,0 +1,2854 @@
+{
+  "schemaVersion": "loomai-dealership-live-quality-v1",
+  "status": "NEEDS_IMPROVEMENT",
+  "diagnosticOnly": false,
+  "target": {
+    "publicRoute": "https://loomai.pro/demos/dealership-ai",
+    "integrationMode": "public-runtime-anonymous",
+    "backendUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+    "runtimeUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
+    "inventoryVectorSpace": "dealer-vehicle",
+    "retrievalVectorSpaces": [
+      "dealer-vehicle",
+      "document"
+    ],
+    "uiMode": "executor",
+    "uiPosition": "search"
+  },
+  "run": {
+    "startedAt": "2026-10-04T13:15:29.392Z",
+    "completedAt": "2026-10-04T13:16:35.118Z",
+    "viewport": "390x844",
+    "scenarioCount": 12,
+    "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+    "oneConversation": true,
+    "writeConfirmed": false
+  },
+  "observedPolicy": {
+    "profile": "PRODUCTION_CHAT",
+    "mode": "executor",
+    "position": "search",
+    "actionsEnabled": true,
+    "retrievalEnabled": true,
+    "readActionResolutionPlanningMode": "ITERATIVE",
+    "readActionResolutionMaxIterations": 2,
+    "readActionResolutionMaxTotalActions": 2,
+    "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "allowedReadActions": [
+      "dealership_compare_vehicles",
+      "dealership_get_vehicle",
+      "dealership_search_inventory"
+    ],
+    "retrievalVectorSpaces": [
+      "dealer-vehicle",
+      "document"
+    ]
+  },
+  "capabilityGates": {
+    "documentKnowledge": {
+      "status": "PASS",
+      "scenarioCount": 6,
+      "expectedScenarioCount": 6,
+      "scenarioIds": [
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility"
+      ]
+    }
+  },
+  "globalAssertions": [
+    {
+      "name": "all turns use the requested UI mode",
+      "passed": true,
+      "expected": "Every live browser request uses executor mode.",
+      "observed": [
+        "executor"
+      ]
+    },
+    {
+      "name": "all turns use the requested UI position",
+      "passed": true,
+      "expected": "Every live browser request uses search position.",
+      "observed": [
+        "search"
+      ]
+    },
+    {
+      "name": "deployment request context is preserved",
+      "passed": true,
+      "expected": "Every request carries the dealership scope and complete deployment-owned retrieval-space list without pinning one space.",
+      "observed": [
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "one iterative conversation is used",
+      "passed": true,
+      "expected": "All 12 turns use one runtime conversation.",
+      "observed": [
+        "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+      ]
+    },
+    {
+      "name": "no write confirmation was sent",
+      "passed": true,
+      "expected": "The quality run never sends the confirmation phrase.",
+      "observed": false
+    },
+    {
+      "name": "no domain write completed",
+      "passed": true,
+      "expected": "No dealership lead or other write action succeeds.",
+      "observed": []
+    },
+    {
+      "name": "browser and runtime transport remained healthy",
+      "passed": true,
+      "expected": "No page errors, failed requests, or 4xx/5xx chat responses.",
+      "observed": []
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "structured-current-stock-action",
+      "purpose": "Use the authoritative stock action for exact filters and current commercial facts.",
+      "prompt": "Show me current electric vehicles under GBP 40,000.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 5506,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": null,
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "ACTION_EXECUTED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-c7b05763-cce2-4f5a-9a6e-8ebb60977542",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the current stock evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on the forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on the forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on the forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on the forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, **2025**, **£39,250**, **3,760 miles**, available on the forecourt"
+      },
+      "evidence": {
+        "groundingPath": "ACTION",
+        "actionUsed": true,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 1,
+        "documentCount": 1,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_search_inventory"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_search_inventory",
+            "params": {},
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": true
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_search_inventory",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Provider stock search completed.",
+            "itemsCount": 6,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "ACTION_EXECUTED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the current stock evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on the forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on the forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on the forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on the forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, *..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "The runtime creates one conversation for the matrix.",
+          "observed": {
+            "requestConversationId": null,
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "inventory search action executed",
+          "passed": true,
+          "expected": "dealership_search_inventory",
+          "observed": [
+            "dealership_search_inventory"
+          ]
+        },
+        {
+          "name": "three electric matches returned",
+          "passed": false,
+          "expected": 3,
+          "observed": null
+        },
+        {
+          "name": "all matching models are named",
+          "passed": true,
+          "expected": "Aster E1, Morrow C2, and Aster E2",
+          "observed": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the current stock evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on the forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on the forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on the forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on the forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, *..."
+        },
+        {
+          "name": "answer respects the explicit buyer criteria",
+          "passed": true,
+          "expected": "Do not claim buyer criteria are absent after applying electric and budget filters.",
+          "observed": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the current stock evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on the forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on the forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on the forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on the forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, *..."
+        }
+      ]
+    },
+    {
+      "id": "contextual-follow-up",
+      "purpose": "Resolve a follow-up from the same conversation without making the user repeat the candidates.",
+      "prompt": "Of those, which has the longest electric range, and is it an SUV?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 2657,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "CLARIFICATION_REQUIRED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-0900a63a-8207-4ac2-9856-8e9f6ed9dcbb",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "I can answer using the information approved for this assistant, including products, policies, comparisons, cart, and approved order help."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 2,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "CLARIFICATION_REQUIRED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "I can answer using the information approved for this assistant, including products, policies, comparisons, cart, and approved order help."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 2
+        },
+        {
+          "name": "follow-up resolves the prior result set",
+          "passed": false,
+          "expected": "Aster E1, 298 miles, and SUV",
+          "observed": "I can answer using the information approved for this assistant, including products, policies, comparisons, cart, and approved order help."
+        },
+        {
+          "name": "follow-up does not invent a price",
+          "passed": true,
+          "expected": "Omit price or preserve GBP 31,950 from current inventory evidence.",
+          "observed": "I can answer using the information approved for this assistant, including products, policies, comparisons, cart, and approved order help."
+        },
+        {
+          "name": "follow-up is grounded",
+          "passed": false,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "NONE"
+        }
+      ]
+    },
+    {
+      "id": "vehicle-comparison",
+      "purpose": "Compare named current-stock vehicles using action or indexed evidence.",
+      "prompt": "Compare the Aster E1 and Morrow C2 for motorway family use using current stock facts.",
+      "status": "PASS",
+      "durationMs": 2988,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "ACTION_EXECUTED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-60cb6103-90dc-4e90-80bd-56cb30f37198",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "**Fictional demonstration inventory**\n\nFor motorway family use, the **Aster E1 Motion Long Range** fits better from the evidence provided:\n\n- **Aster E1 Motion Long Range** — **£31,950.00**, **4,850** miles, **2025**, **Electric**, **SUV**, **5** seats, **298** miles range, **ACTIVE**\n  - Fits because it is a **SUV** with **5** seats and the summary says it is a “quiet, roomy electric SUV with confident motorway range and a flexible family cabin.”\n- **Morrow C2 City Electric** — **£22,750.00**, **1,980** miles, **2025**, **Electric**, **Hatchback**, **5** seats, **241** miles range, **ACTIVE**\n  - Fits less closely for motorway family use because it is a **Hatchback**; the summary describes it as “compact” with “easy parking” and “useful everyday range.”\n\nNo exact filtered search was provided, so this is a direct comparison from the current evidence only."
+      },
+      "evidence": {
+        "groundingPath": "ACTION",
+        "actionUsed": true,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 1,
+        "documentCount": 1,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_compare_vehicles"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_compare_vehicles",
+            "params": {},
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": 2,
+            "itemIds": [
+              "veh-aster-e1",
+              "veh-morrow-c2"
+            ],
+            "truncated": false
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_compare_vehicles",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Current vehicles compared.",
+            "itemsCount": 2,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 4,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "ACTION_EXECUTED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration inventory**\n\nFor motorway family use, the **Aster E1 Motion Long Range** fits better from the evidence provided:\n\n- **Aster E1 Motion Long Range** — **£31,950.00**, **4,850** miles, **2025**, **Electric**, **SUV**, **5** seats, **298** miles range, **ACTIVE**\n  - Fits because it is a **SUV** with **5** seats and the summary says it is a “quiet, roomy electric SUV with confident motorway range and a flexible family cabin.”\n- **Morrow C2 City Electric** — **£22,750.00**, **1,980** miles, **2025**, **Electric**, **Hatchback**, **5** seats, **241** miles range, **ACTIVE**\n  - Fits less closely for motorway family use because it is a **Hatchback**; the summary describes it as “compact” with “easy parking” and “useful everyday range.”\n\nNo exact filtered search was provi..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 4
+        },
+        {
+          "name": "both requested vehicles are compared",
+          "passed": true,
+          "expected": "Aster E1 and Morrow C2",
+          "observed": "**Fictional demonstration inventory**\n\nFor motorway family use, the **Aster E1 Motion Long Range** fits better from the evidence provided:\n\n- **Aster E1 Motion Long Range** — **£31,950.00**, **4,850** miles, **2025**, **Electric**, **SUV**, **5** seats, **298** miles range, **ACTIVE**\n  - Fits because it is a **SUV** with **5** seats and the summary says it is a “quiet, roomy electric SUV with confident motorway range and a flexible family cabin.”\n- **Morrow C2 City Electric** — **£22,750.00**, **1,980** miles, **2025**, **Electric**, **Hatchback**, **5** seats, **241** miles range, **ACTIVE**\n  - Fits less closely for motorway family use because it is a **Hatchback**; the summary describes it as “compact” with “easy parking” and “useful everyday range.”\n\nNo exact filtered search was provi..."
+        },
+        {
+          "name": "comparison is grounded",
+          "passed": true,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "ACTION"
+        },
+        {
+          "name": "comparison uses a suitable evidence path",
+          "passed": true,
+          "expected": "Comparison action, inventory action, or indexed evidence.",
+          "observed": {
+            "executedActions": [
+              "dealership_compare_vehicles"
+            ],
+            "groundingPath": "ACTION"
+          }
+        }
+      ]
+    },
+    {
+      "id": "semantic-rag",
+      "purpose": "Use semantic evidence for a need that is not an exact inventory filter.",
+      "prompt": "Which current vehicle is best suited to towing and poor-weather driving? Use current evidence and explain why.",
+      "status": "PASS",
+      "durationMs": 4631,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-83ad496e-f7d2-4bb2-8d45-333fe8b84b39",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "For towing and poor-weather driving, the best fit in the current evidence is the **Caldera X6 Adventure AWD**.\n\nWhy it fits:\n- **Body type:** SUV, which suits towing and mixed-weather use better than the estate and crossover options shown.\n- **Transmission:** Automatic.\n- **Drive focus:** The derivative includes **AWD**, which is the clearest poor-weather advantage in the evidence.\n- **Current facts:** 2023, Petrol, mileage **17420**, price **29800.0**.\n\nOther current vehicles shown:\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, 2025, mileage **4850**, price **31950.0**. Good SUV shape, but the evidence does not show AWD or towing-specific capability.\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, 2025, mileage **3760**, price **39250.0**. Strong on traction by name, but it is a crossover rather than an SUV and no towing-specific evidence is shown.\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, 2024, mileage **8920**, price **27400.0**. Practical, but the body type is less suited to towing and poor-weather use than the SUV AWD option.\n\nThis is **fictional demonstration inventory**."
+      },
+      "evidence": {
+        "groundingPath": "ACTION_AND_RAG",
+        "actionUsed": true,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "DEMO-1002",
+            "title": null,
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6428872346878052
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6405290365219116
+          },
+          {
+            "id": "DEMO-1001",
+            "title": null,
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6321591734886169
+          },
+          {
+            "id": "DEMO-1006",
+            "title": null,
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6300854682922363
+          },
+          {
+            "id": "DEMO-1004",
+            "title": null,
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6278929114341736
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_search_inventory"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_search_inventory",
+            "params": {
+              "limit": 24
+            },
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": 2,
+            "itemIds": [],
+            "truncated": false
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_search_inventory",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Provider stock search completed.",
+            "itemsCount": 6,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 6,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "For towing and poor-weather driving, the best fit in the current evidence is the **Caldera X6 Adventure AWD**.\n\nWhy it fits:\n- **Body type:** SUV, which suits towing and mixed-weather use better than the estate and crossover options shown.\n- **Transmission:** Automatic.\n- **Drive focus:** The derivative includes **AWD**, which is the clearest poor-weather advantage in the evidence.\n- **Current facts:** 2023, Petrol, mileage **17420**, price **29800.0**.\n\nOther current vehicles shown:\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, 2025, mileage **4850**, price **31950.0**. Good SUV shape, but the evidence does not show AWD or towing-specific capability.\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, 2025, mileage **3760**, price **39250.0**. Strong on tracti..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 6
+        },
+        {
+          "name": "semantic recommendation identifies the relevant vehicle",
+          "passed": true,
+          "expected": "Caldera X6 with towing or AWD rationale.",
+          "observed": "For towing and poor-weather driving, the best fit in the current evidence is the **Caldera X6 Adventure AWD**.\n\nWhy it fits:\n- **Body type:** SUV, which suits towing and mixed-weather use better than the estate and crossover options shown.\n- **Transmission:** Automatic.\n- **Drive focus:** The derivative includes **AWD**, which is the clearest poor-weather advantage in the evidence.\n- **Current facts:** 2023, Petrol, mileage **17420**, price **29800.0**.\n\nOther current vehicles shown:\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, 2025, mileage **4850**, price **31950.0**. Good SUV shape, but the evidence does not show AWD or towing-specific capability.\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, 2025, mileage **3760**, price **39250.0**. Strong on tracti..."
+        },
+        {
+          "name": "semantic recommendation is grounded",
+          "passed": true,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "ACTION_AND_RAG"
+        }
+      ]
+    },
+    {
+      "id": "empty-action-rag-fallback",
+      "purpose": "Fall back to indexed evidence when an authoritative action finds no exact match.",
+      "prompt": "Do you have a diesel SUV under GBP 10,000? If not, use indexed current-stock evidence to suggest the closest alternative without claiming it matches.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 3563,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "ACTION_EXECUTED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-c3efbaa8-99b2-443a-b845-b98501e51f62",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the live evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, **2025**, **£39,250**, **3,760 miles**, available on forecourt\n\nThe evidence does not include your exact search criteria, so I cannot say which of these is the exact match."
+      },
+      "evidence": {
+        "groundingPath": "ACTION",
+        "actionUsed": true,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 1,
+        "documentCount": 1,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_search_inventory"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_search_inventory",
+            "params": {},
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": true
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_search_inventory",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Provider stock search completed.",
+            "itemsCount": 6,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 8,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "ACTION_EXECUTED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the live evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, **2025**, **£39,250**, **3..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 8
+        },
+        {
+          "name": "authoritative inventory action ran first",
+          "passed": true,
+          "expected": "dealership_search_inventory",
+          "observed": [
+            "dealership_search_inventory"
+          ]
+        },
+        {
+          "name": "the exact search returned no sufficient match",
+          "passed": false,
+          "expected": "itemsCount=0 or explicit INSUFFICIENT evidence when the unusable payload is not projected.",
+          "observed": {
+            "action": "dealership_search_inventory",
+            "params": {},
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": true
+          }
+        },
+        {
+          "name": "empty action is insufficient grounding",
+          "passed": false,
+          "expected": "INSUFFICIENT with groundingUsable=false.",
+          "observed": {
+            "action": "dealership_search_inventory",
+            "params": {},
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": true
+          }
+        },
+        {
+          "name": "indexed evidence supplemented the empty action",
+          "passed": false,
+          "expected": "At least one non-action retrieval document.",
+          "observed": []
+        },
+        {
+          "name": "answer distinguishes no match from a grounded alternative",
+          "passed": false,
+          "expected": "State that there is no exact match, name an indexed alternative, and identify its relaxed constraints.",
+          "observed": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the live evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, **2025**, **£39,250**, **3..."
+        },
+        {
+          "name": "filtered no-match is not presented as empty inventory",
+          "passed": true,
+          "expected": "Say the requested filters had no match, not that the dealership has no vehicles.",
+          "observed": "**Fictional demonstration inventory**\n\nI can see 6 used cars in the live evidence:\n\n- **Aster E1 Motion Long Range** — SUV, Electric, Automatic, **2025**, **£31,950**, **4,850 miles**, available on forecourt\n- **Northstar S4 Touring Hybrid** — Estate, Hybrid, Automatic, **2024**, **£27,400**, **8,920 miles**, available on forecourt\n- **Morrow C2 City Electric** — Hatchback, Electric, Automatic, **2025**, **£22,750**, **1,980 miles**, available on forecourt\n- **Caldera X6 Adventure AWD** — SUV, Petrol, Automatic, **2023**, **£29,800**, **17,420 miles**, available on forecourt\n- **Arden V3 Executive Plug-in Hybrid** — Saloon, Plug-in hybrid, Automatic, **2024**, **£34,600**, **6,310 miles**, reserved\n- **Aster E2 Sport Dual Motor** — Crossover, Electric, Automatic, **2025**, **£39,250**, **3..."
+        }
+      ]
+    },
+    {
+      "id": "approved-warranty-policy",
+      "purpose": "Ground a public dealership-policy answer in the approved document source.",
+      "prompt": "What warranty does Northfield provide on qualifying used vehicles?",
+      "status": "PASS",
+      "durationMs": 4432,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-67dbeea1-990e-45e8-b252-760583ef3472",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**.\n\nKey terms from the approved policy document **“NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY”**:\n- Cover starts when the customer collects the vehicle or it is delivered.\n- It covers sudden mechanical failure of:\n  - internally lubricated engine components\n  - gearbox components\n  - drivetrain components\n  - major factory-fitted electrical components\n- The 12-volt auxiliary battery is covered for sudden failure during the first 30 days.\n- A repair must be authorised by Northfield before work begins.\n- Exclusions include normal wear, routine servicing, tyres, brake friction materials, bulbs, cosmetic damage, accidental damage, misuse, unauthorised modification and faults disclosed before purchase.\n- The policy does not replace statutory consumer rights.\n\nThis is fictional demonstration policy evidence."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8454799056053162
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7642279863357544
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7634174227714539
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7589497566223145
+          },
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7562577724456787
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 10,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**.\n\nKey terms from the approved policy document **“NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY”**:\n- Cover starts when the customer collects the vehicle or it is delivered.\n- It covers sudden mechanical failure of:\n  - internally lubricated engine components\n  - gearbox components\n  - drivetrain components\n  - major factory-fitted electrical components\n- The 12-volt auxiliary battery is covered for sudden failure during the first 30 days.\n- A repair must be authorised by Northfield before work begins.\n- Exclusions include normal wear, routine servicing, tyres, brake friction materials, bulbs, cosmetic damage, accidental damage, misuse, unauthorised m..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 10
+        },
+        {
+          "name": "approved warranty evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8454799056053162
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7642279863357544
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7634174227714539
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7589497566223145
+            },
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7562577724456787
+            }
+          ]
+        },
+        {
+          "name": "answer preserves the exact warranty duration",
+          "passed": true,
+          "expected": "90 days or 3,000 miles.",
+          "observed": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**.\n\nKey terms from the approved policy document **“NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY”**:\n- Cover starts when the customer collects the vehicle or it is delivered.\n- It covers sudden mechanical failure of:\n  - internally lubricated engine components\n  - gearbox components\n  - drivetrain components\n  - major factory-fitted electrical components\n- The 12-volt auxiliary battery is covered for sudden failure during the first 30 days.\n- A repair must be authorised by Northfield before work begins.\n- Exclusions include normal wear, routine servicing, tyres, brake friction materials, bulbs, cosmetic damage, accidental damage, misuse, unauthorised m..."
+        },
+        {
+          "name": "answer does not invent a vehicle-specific warranty",
+          "passed": true,
+          "expected": "General policy only unless current vehicle evidence was requested.",
+          "observed": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**.\n\nKey terms from the approved policy document **“NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY”**:\n- Cover starts when the customer collects the vehicle or it is delivered.\n- It covers sudden mechanical failure of:\n  - internally lubricated engine components\n  - gearbox components\n  - drivetrain components\n  - major factory-fitted electrical components\n- The 12-volt auxiliary battery is covered for sudden failure during the first 30 days.\n- A repair must be authorised by Northfield before work begins.\n- Exclusions include normal wear, routine servicing, tyres, brake friction materials, bulbs, cosmetic damage, accidental damage, misuse, unauthorised m..."
+        }
+      ]
+    },
+    {
+      "id": "approved-reservation-policy",
+      "purpose": "Return exact reservation terms from approved dealership documents without creating a reservation.",
+      "prompt": "How much is a Northfield vehicle reservation and how long does it last?",
+      "status": "PASS",
+      "durationMs": 4910,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-219dc684-e706-44ce-9284-28d01f80fd5d",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "Northfield’s vehicle reservation is **GBP 99** and it lasts **48 hours**.\n\nKey points from the approved policy document **“NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY”**:\n- A reservation can be requested on **one currently available vehicle**\n- It **begins only after** a Northfield team member confirms availability and issues a reservation receipt\n- The **GBP 99** amount is **applied to the purchase price** if the sale continues\n- It is **refundable** if cancelled before the 48-hour hold expires, if Northfield cannot supply the materially described vehicle, or if the customer rejects the vehicle at the first arranged inspection or test drive\n- An unextended reservation **expires at the end of 48 hours**\n\nThis is fictional demonstration policy data."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.850193440914154
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7443597912788391
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7373731136322021
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7304130792617798
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7127503752708435
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 12,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield’s vehicle reservation is **GBP 99** and it lasts **48 hours**.\n\nKey points from the approved policy document **“NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY”**:\n- A reservation can be requested on **one currently available vehicle**\n- It **begins only after** a Northfield team member confirms availability and issues a reservation receipt\n- The **GBP 99** amount is **applied to the purchase price** if the sale continues\n- It is **refundable** if cancelled before the 48-hour hold expires, if Northfield cannot supply the materially described vehicle, or if the customer rejects the vehicle at the first arranged inspection or test drive\n- An unextended reservation **expires at the end of 48 hours**\n\nThis is fictional demonstration policy data."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 12
+        },
+        {
+          "name": "approved reservation evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.850193440914154
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7443597912788391
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7373731136322021
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7304130792617798
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7127503752708435
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact reservation terms",
+          "passed": true,
+          "expected": "GBP 99 and 48 hours.",
+          "observed": "Northfield’s vehicle reservation is **GBP 99** and it lasts **48 hours**.\n\nKey points from the approved policy document **“NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY”**:\n- A reservation can be requested on **one currently available vehicle**\n- It **begins only after** a Northfield team member confirms availability and issues a reservation receipt\n- The **GBP 99** amount is **applied to the purchase price** if the sale continues\n- It is **refundable** if cancelled before the 48-hour hold expires, if Northfield cannot supply the materially described vehicle, or if the customer rejects the vehicle at the first arranged inspection or test drive\n- An unextended reservation **expires at the end of 48 hours**\n\nThis is fictional demonstration policy data."
+        },
+        {
+          "name": "answer does not execute a reservation",
+          "passed": true,
+          "expected": "Policy answer only; no successful write action.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-delivery-operations",
+      "purpose": "Combine a customer operations answer with its approved source evidence.",
+      "prompt": "What does local delivery cost and what must be ready before handover?",
+      "status": "PASS",
+      "durationMs": 3750,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-9a22a8a7-1153-4bfd-a5ca-10ac76107ea1",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the following must be ready:\n- **Cleared funds**\n- **Identity verification**\n- **Photo identification**\n- **Evidence of insurance effective from handover**\n- **Any agreed part-exchange keys and documents**\n- **A completed remote condition review**\n\nThe handover check also covers:\n- Registration details\n- Recorded mileage\n- Agreed accessories\n- Charging cable where applicable\n- Keys\n- Service history supplied with the vehicle\n- Dashboard warning lights\n- Visible condition with the customer\n\nSource document: **NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7690566182136536
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7037515044212341
+          },
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6898990273475647
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6892435550689697
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6844006776809692
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 14,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the following must be ready:\n- **Cleared funds**\n- **Identity verification**\n- **Photo identification**\n- **Evidence of insurance effective from handover**\n- **Any agreed part-exchange keys and documents**\n- **A completed remote condition review**\n\nThe handover check also covers:\n- Registration details\n- Recorded mileage\n- Agreed accessories\n- Charging cable where applicable\n- Keys\n- Service history supplied with the vehicle\n- Dashboard warning lights\n- Visible condition with the customer\n\nSource document: **NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 14
+        },
+        {
+          "name": "approved handover evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7690566182136536
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7037515044212341
+            },
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6898990273475647
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6892435550689697
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6844006776809692
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact local delivery terms",
+          "passed": true,
+          "expected": "Within 25 miles for GBP 49.",
+          "observed": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the following must be ready:\n- **Cleared funds**\n- **Identity verification**\n- **Photo identification**\n- **Evidence of insurance effective from handover**\n- **Any agreed part-exchange keys and documents**\n- **A completed remote condition review**\n\nThe handover check also covers:\n- Registration details\n- Recorded mileage\n- Agreed accessories\n- Charging cable where applicable\n- Keys\n- Service history supplied with the vehicle\n- Dashboard warning lights\n- Visible condition with the customer\n\nSource document: **NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS**."
+        },
+        {
+          "name": "answer includes handover prerequisites",
+          "passed": true,
+          "expected": "Cleared funds, identity and insurance evidence.",
+          "observed": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the following must be ready:\n- **Cleared funds**\n- **Identity verification**\n- **Photo identification**\n- **Evidence of insurance effective from handover**\n- **Any agreed part-exchange keys and documents**\n- **A completed remote condition review**\n\nThe handover check also covers:\n- Registration details\n- Recorded mileage\n- Agreed accessories\n- Charging cable where applicable\n- Keys\n- Service history supplied with the vehicle\n- Dashboard warning lights\n- Visible condition with the customer\n\nSource document: **NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS**."
+        }
+      ]
+    },
+    {
+      "id": "approved-test-drive-policy",
+      "purpose": "Return eligibility requirements from the approved test-drive policy without starting a booking.",
+      "prompt": "What age and driving licence history does Northfield require for a test drive? Do not book one.",
+      "status": "PASS",
+      "durationMs": 3628,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-0b336295-b499-4c92-85ed-40f450c87930",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "Northfield requires the driver to be:\n\n- at least 21 years old\n- holding an original full UK or EU driving licence\n- licensed for at least 12 months\n\nNorthfield may also request a second proof of address when the licence address is not current.\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. You asked not to book one, so I have only given the requirements."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8389178514480591
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7456526160240173
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7429894208908081
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7333666682243347
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7163903713226318
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 14,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield requires the driver to be:\n\n- at least 21 years old\n- holding an original full UK or EU driving licence\n- licensed for at least 12 months\n\nNorthfield may also request a second proof of address when the licence address is not current.\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. You asked not to book one, so I have only given the requirements."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 14
+        },
+        {
+          "name": "approved test-drive evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8389178514480591
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7456526160240173
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7429894208908081
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7333666682243347
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7163903713226318
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact test-drive eligibility",
+          "passed": true,
+          "expected": "Minimum age 21 and a licence held for at least 12 months.",
+          "observed": "Northfield requires the driver to be:\n\n- at least 21 years old\n- holding an original full UK or EU driving licence\n- licensed for at least 12 months\n\nNorthfield may also request a second proof of address when the licence address is not current.\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. You asked not to book one, so I have only given the requirements."
+        },
+        {
+          "name": "answer does not start a booking",
+          "passed": true,
+          "expected": "Policy answer only; no successful test-drive write.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-complaints-policy",
+      "purpose": "Return the exact acknowledgement and response targets from the approved complaints policy.",
+      "prompt": "How quickly will Northfield acknowledge my complaint and provide a substantive response?",
+      "status": "PASS",
+      "durationMs": 3551,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-2a01ac56-d916-40b5-90a0-6af830f7df82",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "Northfield acknowledges a complaint within **two working days** and a named case owner aims to provide a **substantive response within 10 working days**.\n\nSource document: **NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8181442618370056
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.728308916091919
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7072029113769531
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6838955879211426
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6705127954483032
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 12,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield acknowledges a complaint within **two working days** and a named case owner aims to provide a **substantive response within 10 working days**.\n\nSource document: **NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 12
+        },
+        {
+          "name": "approved complaints evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8181442618370056
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.728308916091919
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7072029113769531
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6838955879211426
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6705127954483032
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact complaint targets",
+          "passed": true,
+          "expected": "Acknowledgement within two working days and a substantive response within 10 working days.",
+          "observed": "Northfield acknowledges a complaint within **two working days** and a named case owner aims to provide a **substantive response within 10 working days**.\n\nSource document: **NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY**."
+        }
+      ]
+    },
+    {
+      "id": "approved-opening-accessibility",
+      "purpose": "Ground opening hours and accessibility facilities in the approved showroom document.",
+      "prompt": "What are Northfield Riverside weekday opening hours, and is the showroom step-free?",
+      "status": "PASS",
+      "durationMs": 4367,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-3ad6e29b-b67f-4869-bd3a-0d081498b98b",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: Northfield Motor House - Riverside Showroom Information."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8613567352294922
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7322561740875244
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7243345379829407
+          },
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7138317823410034
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7089224457740784
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 14,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: Northfield Motor House - Riverside Showroom Information."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 14
+        },
+        {
+          "name": "approved showroom evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8613567352294922
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7322561740875244
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7243345379829407
+            },
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7138317823410034
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7089224457740784
+            }
+          ]
+        },
+        {
+          "name": "answer preserves weekday opening hours",
+          "passed": true,
+          "expected": "09:00 to 18:00 on weekdays.",
+          "observed": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: Northfield Motor House - Riverside Showroom Information."
+        },
+        {
+          "name": "answer identifies step-free access",
+          "passed": true,
+          "expected": "Step-free entrance/access.",
+          "observed": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: Northfield Motor House - Riverside Showroom Information."
+        }
+      ]
+    },
+    {
+      "id": "governed-write-intent",
+      "purpose": "Explain the write-action requirements without executing or confirming a lead.",
+      "prompt": "I want to book a test drive for the Aster E1. Tell me what details and confirmation you need, but do not submit anything.",
+      "status": "PASS",
+      "durationMs": 4037,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-aade8ae0-1bce-4186-85c0-4c3eff4298f1",
+        "conversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+        "answer": "For a test drive request for the Aster E1, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Your explicit confirmation to submit the request\n\nYou also need to meet the test-drive requirements:\n\n- Be at least 21 years old\n- Bring an original full UK or EU driving licence held for at least 12 months\n- If the licence address is not current, a second proof of address may be requested\n- Only the named, verified driver may drive\n- Any additional driver must meet the same requirements and be approved in advance\n- Mention any accessibility or child-seat needs when requesting the appointment\n\nThis is fictional demonstration policy from Northfield Motor House - TEST DRIVE REQUIREMENTS."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8151633739471436
+          },
+          {
+            "id": "DEMO-1001",
+            "title": null,
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7982447147369385
+          },
+          {
+            "id": "DEMO-1006",
+            "title": null,
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7638726830482483
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7325873970985413
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7314047813415527
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 14,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "For a test drive request for the Aster E1, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Your explicit confirmation to submit the request\n\nYou also need to meet the test-drive requirements:\n\n- Be at least 21 years old\n- Bring an original full UK or EU driving licence held for at least 12 months\n- If the licence address is not current, a second proof of address may be requested\n- Only the named, verified driver may drive\n- Any additional driver must meet the same requirements and be approved in advance\n- Mention any accessibility or child-seat needs when requesting the appointment\n\nThis is fictional demonstration policy from Northfield Motor House - TEST DRIVE REQUIREMENTS."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+          "observed": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d0c222a0-4133-4429-9f63-6a23466113e3.",
+          "observed": {
+            "requestConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3",
+            "responseConversationId": "chat-d0c222a0-4133-4429-9f63-6a23466113e3"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 14
+        },
+        {
+          "name": "no write action completed",
+          "passed": true,
+          "expected": "No successful test-drive or callback write.",
+          "observed": []
+        },
+        {
+          "name": "no confirmation turn was sent",
+          "passed": true,
+          "expected": "No \"Yes, confirm\" request.",
+          "observed": false
+        },
+        {
+          "name": "no receipt was issued",
+          "passed": true,
+          "expected": "No dealership lead receipt.",
+          "observed": []
+        },
+        {
+          "name": "assistant respects the no-submit instruction",
+          "passed": true,
+          "expected": "Explain needed details/confirmation without claiming submission.",
+          "observed": "For a test drive request for the Aster E1, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Your explicit confirmation to submit the request\n\nYou also need to meet the test-drive requirements:\n\n- Be at least 21 years old\n- Bring an original full UK or EU driving licence held for at least 12 months\n- If the licence address is not current, a second proof of address may be requested\n- Only the named, verified driver may drive\n- Any additional driver must meet the same requirements and be approved in advance\n- Mention any accessibility or child-seat needs when requesting the appointment\n\nThis is fictional demonstration policy from Northfield Motor House - TEST DRIVE REQUIREMENTS."
+        },
+        {
+          "name": "internal target ids stay hidden",
+          "passed": true,
+          "expected": "Do not ask a buyer for vehicleId.",
+          "observed": "For a test drive request for the Aster E1, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Your explicit confirmation to submit the request\n\nYou also need to meet the test-drive requirements:\n\n- Be at least 21 years old\n- Bring an original full UK or EU driving licence held for at least 12 months\n- If the licence address is not current, a second proof of address may be requested\n- Only the named, verified driver may drive\n- Any additional driver must meet the same requirements and be approved in advance\n- Mention any accessibility or child-seat needs when requesting the appointment\n\nThis is fictional demonstration policy from Northfield Motor House - TEST DRIVE REQUIREMENTS."
+        },
+        {
+          "name": "customer-facing requirements are complete",
+          "passed": true,
+          "expected": "Explain name, email, phone, and final confirmation.",
+          "observed": "For a test drive request for the Aster E1, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Your explicit confirmation to submit the request\n\nYou also need to meet the test-drive requirements:\n\n- Be at least 21 years old\n- Bring an original full UK or EU driving licence held for at least 12 months\n- If the licence address is not current, a second proof of address may be requested\n- Only the named, verified driver may drive\n- Any additional driver must meet the same requirements and be approved in advance\n- Mention any accessibility or child-seat needs when requesting the appointment\n\nThis is fictional demonstration policy from Northfield Motor House - TEST DRIVE REQUIREMENTS."
+        }
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "KEEP",
+      "owner": "UI_INTEGRATION",
+      "finding": "The browser integration consistently used executor mode, search position, and deployment-owned context.",
+      "recommendation": "Keep the current UI contract. Do not select thinker/executor dynamically in browser code.",
+      "evidenceScenarioIds": [
+        "structured-current-stock-action",
+        "contextual-follow-up",
+        "vehicle-comparison",
+        "semantic-rag",
+        "empty-action-rag-fallback",
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility",
+        "governed-write-intent"
+      ]
+    },
+    {
+      "priority": "KEEP",
+      "owner": "DEPLOYMENT_CONFIGURATION",
+      "finding": "Conversation-level iteration preserved history and resolved the contextual follow-up.",
+      "recommendation": "Keep runtime-owned conversation memory. Do not confuse a multi-turn session with read-action planner iteration.",
+      "evidenceScenarioIds": [
+        "contextual-follow-up"
+      ]
+    },
+    {
+      "priority": "HIGH",
+      "owner": "DEPLOYMENT_ACTION_CONTRACT",
+      "finding": "The no-match prompt did not produce a verifiable zero-result authoritative inventory action.",
+      "recommendation": "Make the search action return an explicit stable item count and no-match state before tuning planner modes.",
+      "evidenceScenarioIds": [
+        "empty-action-rag-fallback"
+      ]
+    },
+    {
+      "priority": "NONE_FROM_THIS_RUN",
+      "owner": "FRAMEWORK",
+      "finding": "This run produced no evidence that requires a framework code change.",
+      "recommendation": "Prefer deployment policy, action-contract, indexing, and knowledge-boundary changes first. Raise a framework issue only with provider request IDs from a failed explicit capability.",
+      "evidenceScenarioIds": [
+        "structured-current-stock-action",
+        "contextual-follow-up",
+        "empty-action-rag-fallback"
+      ]
+    }
+  ],
+  "mutations": {
+    "deploymentChanged": false,
+    "frameworkChanged": false,
+    "liveConfigurationChanged": false,
+    "domainWriteConfirmed": false
+  }
+}

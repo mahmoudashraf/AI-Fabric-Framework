@@ -79,6 +79,15 @@ const scenarios = [
   },
 ]
 
+const documentKnowledgeScenarioIds = [
+  'approved-warranty-policy',
+  'approved-reservation-policy',
+  'approved-delivery-operations',
+  'approved-test-drive-policy',
+  'approved-complaints-policy',
+  'approved-opening-accessibility',
+]
+
 const startedAt = new Date().toISOString()
 const browserFailures = []
 const observedQueries = []
@@ -253,6 +262,9 @@ try {
   const recommendations = buildRecommendations(results, globalAssertions, observedPolicy)
   const qualityPassed = results.every(({ status }) => status === 'PASS')
     && globalAssertions.every(({ passed }) => passed)
+  const documentKnowledgeResults = results.filter(({ id }) => documentKnowledgeScenarioIds.includes(id))
+  const documentKnowledgePassed = documentKnowledgeResults.length === documentKnowledgeScenarioIds.length
+    && documentKnowledgeResults.every(({ status }) => status === 'PASS')
 
   report = {
     schemaVersion: 'loomai-dealership-live-quality-v1',
@@ -278,6 +290,14 @@ try {
       writeConfirmed: false,
     },
     observedPolicy,
+    capabilityGates: {
+      documentKnowledge: {
+        status: documentKnowledgePassed ? 'PASS' : 'FAIL',
+        scenarioCount: documentKnowledgeResults.length,
+        expectedScenarioCount: documentKnowledgeScenarioIds.length,
+        scenarioIds: documentKnowledgeScenarioIds,
+      },
+    },
     globalAssertions,
     scenarios: results,
     recommendations,

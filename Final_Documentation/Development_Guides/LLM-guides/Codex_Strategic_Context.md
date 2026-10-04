@@ -643,3 +643,14 @@ Current P0 cleanup items:
   browser loaded all six provider images through action/RAG-backed journeys.
   Media upload, ordering writes, real CDN behavior, sandbox compatibility,
   rights, and certification remain partner-gated non-claims.
+- 2026-10-04 dealership document-knowledge decision: dealership-owned policy
+  and operations documents are a separate generic DATA capability, not
+  provider stock and not an Auto Trader package concern. Production customers
+  provide approved S3-compatible source storage; LoomAI owns deployment-local
+  parsing/index lifecycle and derived evidence, but does not become the source
+  storage provider. A mounted parent folder is allowed only for bounded demos
+  or explicitly accepted small-data deployments. The runtime alone receives
+  that mount; action connectors must not receive source files. The Northfield
+  v25 proof indexes six approved files and passes six-of-six generated-answer
+  checks. This does not erase separately observed inventory action/filter
+  regressions and does not create any Auto Trader rights or readiness claim.

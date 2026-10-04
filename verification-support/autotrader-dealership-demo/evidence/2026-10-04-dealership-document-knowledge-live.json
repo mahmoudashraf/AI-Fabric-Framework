@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "loomai-dealership-document-knowledge-verification-v1",
+  "status": "PASS",
+  "deploymentId": "dep-f023c863",
+  "datasetId": "document-knowledge",
+  "connectorType": "MOUNTED_FOLDER",
+  "verifiedAt": "2026-10-04T13:01:39Z",
+  "sources": [
+    {
+      "filename": "warranty-and-aftercare-policy.txt",
+      "sourceId": "doc-81b992add50eb052ed37b68abdc19002",
+      "sourceCategory": "warranty-aftercare",
+      "activeVersion": 1,
+      "evidenceCount": 1,
+      "query": "How long is the Northfield standard used vehicle warranty?"
+    },
+    {
+      "filename": "vehicle-reservation-and-deposit-policy.txt",
+      "sourceId": "doc-3aa6dfa2cfaa63db7e73a5177aaec1b2",
+      "sourceCategory": "reservation-deposit",
+      "activeVersion": 1,
+      "evidenceCount": 1,
+      "query": "What is the Northfield vehicle reservation amount and how long is the hold?"
+    },
+    {
+      "filename": "test-drive-requirements-policy.txt",
+      "sourceId": "doc-d633b6c382baa899d60dac874163319e",
+      "sourceCategory": "test-drive",
+      "activeVersion": 1,
+      "evidenceCount": 1,
+      "query": "What age and driving licence history are required for a Northfield test drive?"
+    },
+    {
+      "filename": "collection-delivery-and-handover-operations.json",
+      "sourceId": "doc-f920a5f4ee73f02a43c3fd4490564def",
+      "sourceCategory": "collection-delivery",
+      "activeVersion": 1,
+      "evidenceCount": 1,
+      "query": "What does local vehicle delivery cost and how far does it cover?"
+    },
+    {
+      "filename": "customer-care-and-complaints-policy.txt",
+      "sourceId": "doc-73049c222c339840a3135346858f9c1b",
+      "sourceCategory": "customer-care-complaints",
+      "activeVersion": 1,
+      "evidenceCount": 1,
+      "query": "When will Northfield acknowledge and respond to a complaint?"
+    },
+    {
+      "filename": "showroom-accessibility-and-opening-hours.txt",
+      "sourceId": "doc-e9ffbfdc4afa611317889444b7f53783",
+      "sourceCategory": "showroom-accessibility",
+      "activeVersion": 1,
+      "evidenceCount": 1,
+      "query": "What are Northfield Riverside weekday opening hours and accessibility facilities?"
+    }
+  ]
+}

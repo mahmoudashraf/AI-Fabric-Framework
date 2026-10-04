@@ -1141,3 +1141,29 @@ or Platform-managed `UI_EXTENSION` packaging.
   `docs` in the reviewed package payload. The guides state explicitly that the
   browser layers do not own provider integration, indexing, authorization, or
   application side effects.
+
+### 17.11 Dealership document-knowledge consumption (2026-10-04)
+
+- The dealership experience pack now consumes the deployment descriptor's
+  complete `retrievalVectorSpaces` list instead of pinning every chat turn to
+  the inventory vector space. The current descriptor exposes
+  `dealer-vehicle` and `document`.
+- This remains generic UI behavior: the pack forwards deployment-declared
+  retrieval scopes, while the deployment owns source routing, metadata
+  filters, prompts and authority. The generic widget contains no warranty,
+  policy, document-storage or dealership indexing logic.
+- The Northfield host uses current inventory actions for live commercial facts
+  and approved document evidence for warranty, reservation, test-drive,
+  handover, complaints, opening-hours and accessibility answers. Combined
+  questions may retrieve both source classes without a browser-side routing
+  decision.
+- Production site commit
+  `3586eaad8a4451b34055cc7df8746a2272993801` is live through Coolify
+  deployment `p84o9igmjtbxjp5ydmat8hy0`. Canonical `/health` reports that exact
+  commit.
+- The live quality matrix used the same `executor` / `search` UI contract and
+  one anonymous conversation. Its `documentKnowledge` capability gate passed
+  all six approved document scenarios and completed no write action.
+- Three inventory action/filter/follow-up assertions remain separately open in
+  the broader matrix. The document capability verdict does not suppress or
+  reclassify those action-contract findings.

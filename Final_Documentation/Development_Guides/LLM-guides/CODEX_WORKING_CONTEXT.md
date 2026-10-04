@@ -3840,3 +3840,59 @@ Critical fixes that made the gate pass:
 - Both READMEs now point to the external guides and package payloads include
   their `docs` directories. No runtime, connector, framework, deployment, or
   public-site behavior changed.
+
+## 2026-10-04 Dealership Document Knowledge Live Closure
+
+- The current-only baseline remains AI Fabric `0.8.8`, Platform
+  `Platform-V11`, and V04. Do not add an older runtime or compatibility path.
+- Marketplace now publishes the production customer-storage package
+  `mkp-data-dealership-knowledge-v1@1.0.0` and the demo-only mounted-folder
+  package `mkp-data-dealership-knowledge-mounted-demo-v1@1.0.0`. Both use the
+  existing DATA contribution, `EXTERNAL_DOCUMENT_STORAGE`, dataset
+  `document-knowledge`, entity/vector space `document`, and active-version
+  retrieval filtering.
+- Deployment `dep-f023c863` has enabled install `mpi-c35e9789`, immutable v25
+  `ver-ab658ab1`, target `dtp-coolify-staging-behavior`, source artifact
+  `dsa-2d1661ea`, and release `rel-4328efde`. The release is
+  `APPLIED_VERIFIED` / `PASSED` / `ACTIVE`.
+- Runtime source is `014fb7afa8ecc67c8220ff007f437ebd35f1db81`; OCI digest is
+  `sha256:592a939ec831314c7bf7b24860cdb153c401ecfc4e29e2d11b0b48f4bff6835d`.
+  Platform backend deployment `wt0evm3ce3rt64f8mipi7gil` runs that source.
+- Correct Coolify storage ownership is runtime-only. Runtime app
+  `ch2krdi77bxm6n6u3ylqbry6` has `/app/data` plus one parent
+  `/app/document-sources` mount. The six source documents are ordinary files
+  inside that parent directory, owned by runtime UID `10001`; do not recreate
+  nested Coolify file mounts. Connector app `n4bpcgb58voq2ld94p4r1k41` has no
+  document storage and no document chmod post-deploy command.
+- The runtime post-deploy permission command is stable and idempotent: it only
+  normalizes directory ownership/mode `10001:0`/`0750` and file
+  ownership/mode `10001:0`/`0640`. Local Lucene remains stop-first for runtime
+  replacement.
+- Six meaningful fictional public documents are live: used-vehicle warranty,
+  reservation/deposit, test-drive eligibility, delivery/handover,
+  complaints/customer care, and showroom hours/accessibility. Controlled facts
+  include `90 days / 3,000 miles`, `GBP 99 / 48 hours`, age `21 / 12 months`,
+  `GBP 49 / 25 miles`, `two / 10 working days`, and weekday
+  `09:00-18:00 / step-free`.
+- `scripts/verify-dealership-document-knowledge.py` passed all six source
+  discovery, preview, index, active-version and retrieval checks. Evidence is
+  `verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-document-knowledge-live.json`.
+- The public site is live at commit
+  `3586eaad8a4451b34055cc7df8746a2272993801`, Coolify deployment
+  `p84o9igmjtbxjp5ydmat8hy0`; canonical health reports that exact commit. The
+  experience pack forwards both `dealer-vehicle` and `document` as
+  deployment-declared preferred retrieval spaces without adding document logic
+  to generic widget core.
+- Live browser quality uses one anonymous `executor` / `search` conversation.
+  `capabilityGates.documentKnowledge` passed six of six generated answers and
+  completed no write. Full evidence is
+  `verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-live-quality.json`.
+- Keep the broader quality verdict honest: it is `NEEDS_IMPROVEMENT` because
+  three existing inventory/action scenarios failed strict parameter,
+  follow-up, or insufficient-action assertions. Those are separate action
+  contract regressions; do not weaken their checks or misreport them as a
+  document-indexing failure.
+- Production customers must replace the mounted fixtures with approved
+  customer-managed S3-compatible storage. LoomAI does not own source backup,
+  retention, residency, encryption, or source deletion and must not market the
+  demo mount as managed storage.
