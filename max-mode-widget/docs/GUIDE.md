@@ -300,7 +300,7 @@ When your host already has route-level integration metadata, prefer wiring those
 | `cart` | `boolean` | `true` | Enable shopping cart panel and cart-related quick actions. This feature only becomes active when `crudBaseUrl` is configured. |
 | `debug` | `boolean` | `false` | Enable debug inspector panel showing raw API requests/responses. Useful during development. |
 | `conversations` | `boolean` | `true` | Enable conversation history. Users can view, load, and delete past conversations. |
-| `quickActions` | `boolean` | `true` | Show quick action buttons (Search Products, My Cart, Track Order, etc.). |
+| `quickActions` | `boolean` | `true` | Show quick action buttons in desktop and mobile Max Mode. The Companion dock remains conversation-only. |
 
 ### `host.toolGroups`
 
@@ -317,9 +317,11 @@ For a detail page that is itself contextual, set
 attachment may provide a more specific label through
 `MaxMode.attachItem({ type, contextLabel, data })`.
 
-The same state and tools render in Companion, desktop Max Mode, and the mobile
-quick-actions sheet. Hosts that omit `toolGroups` continue to use
-`host.starterPrompts` or runtime shell prompts unchanged.
+Tool-group state is shared across the widget, but the selectors and tools render
+only in desktop Max Mode and the mobile quick-actions sheet. The Companion dock
+is intentionally conversation-only so its transcript keeps the available
+vertical space. Hosts that omit `toolGroups` continue to use
+`host.starterPrompts` or runtime shell prompts in Max Mode unchanged.
 
 ### `theme`
 

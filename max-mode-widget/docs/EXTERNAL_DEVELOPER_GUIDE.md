@@ -303,6 +303,11 @@ returns to `default`. On a detail page, set
 `availableWithoutAttachments: true` only when the page itself is trusted
 context.
 
+Tool-group selectors and their quick actions are available in desktop and
+mobile Max Mode only. The Companion dock keeps the same conversation and
+attachments but does not render this tool surface, preserving its limited
+vertical space for messages and the composer.
+
 ## 9. Current-Page Attachments
 
 Page capture is opt-in:

@@ -244,9 +244,11 @@ widget conversation state and is not durable across browser tabs.
 
 ### Scoped host tools
 
-`host.toolGroups` provides one generic two-scope tool surface across Companion,
-desktop Max Mode, and mobile Max Mode. The widget understands only `default`
-and `contextual`; the host owns every visible label, icon semantic, and query.
+`host.toolGroups` provides one generic two-scope tool surface in desktop and
+mobile Max Mode. The widget understands only `default` and `contextual`; the
+host owns every visible label, icon semantic, and query. The Companion dock
+shares the active context but intentionally omits tool selectors and quick
+actions to preserve room for the conversation.
 
 ```js
 MaxMode.init({

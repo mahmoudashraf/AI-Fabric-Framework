@@ -330,7 +330,8 @@ their trusted deployment and protected-resource bindings.
 ```
 
 The pack starts in `Browse stock`. `This vehicle` remains visible but disabled
-until a vehicle is attached.
+until a vehicle is attached. These scoped tools render in Max Mode; the compact
+Companion dock remains conversation-only.
 
 ### 8.2 Vehicle detail page
 
@@ -344,7 +345,9 @@ until a vehicle is attached.
 ```
 
 The pack starts in `This vehicle`, keeps that group available from trusted page
-context, and still lets the user switch to `Browse stock`.
+context, and still lets the user switch to `Browse stock` in Max Mode. The
+Companion dock retains the same vehicle context without rendering either tool
+group.
 
 Choose `rootSelector` carefully. Current-page capture uses text from this root.
 Do not include account menus, finance applications, hidden forms, analytics
@@ -672,15 +675,16 @@ routes. Do not expose the private connector origin in browser CORS.
 
 ### Inventory page
 
-- [ ] Browse stock is initially selected.
-- [ ] This vehicle is visible but unavailable before context exists.
+- [ ] Max Mode starts with Browse stock selected.
+- [ ] Max Mode shows This vehicle as unavailable before context exists.
+- [ ] The Companion dock shows no scoped tools or quick-action toolbar.
 - [ ] Search stock returns a rich inventory presentation.
 - [ ] Filters and images reflect current approved action facts.
 - [ ] Selecting a result can attach it and open contextual tools.
 
 ### Detail page
 
-- [ ] This vehicle is initially selected with the correct visible label.
+- [ ] Max Mode initially selects This vehicle with the correct visible label.
 - [ ] Live details returns the authoritative current stock record.
 - [ ] Browse stock remains available without dropping context.
 - [ ] Current-page capture includes the intended visible vehicle text only.

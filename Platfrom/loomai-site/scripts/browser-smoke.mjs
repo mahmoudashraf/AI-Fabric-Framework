@@ -58,34 +58,22 @@ const mockVehicles = [
   },
 ]
 
-const mockAutoTraderVehicles = mockVehicles.map((vehicle, index) => ({
-  metadata: {
-    stockId: vehicle.stockId,
-    lifecycleState: 'FORECOURT',
-    lastUpdated: vehicle.sourceUpdatedAt,
-  },
-  vehicle: {
-    make: vehicle.make,
-    model: vehicle.model,
-    derivative: vehicle.derivative,
-    yearOfManufacture: String(vehicle.registrationYear),
-    odometerReadingMiles: vehicle.mileage,
-    fuelType: vehicle.fuelType,
-    transmissionType: vehicle.transmission,
-    bodyType: vehicle.bodyType,
-  },
-  adverts: {
-    retailAdverts: {
-      totalPrice: { amountGBP: vehicle.priceGbp },
-    },
-  },
-  features: vehicle.features.map((name) => ({ name, type: 'Standard' })),
-  media: {
-    images: [{
-      imageId: `simulator-vehicle-0${index + 1}`,
-      href: `${simulatorMediaOrigin}/media/w720h540/simulator-vehicle-0${index + 1}.webp`,
-    }],
-  },
+const mockActionVehicles = mockVehicles.map((vehicle, index) => ({
+  stockId: vehicle.stockId,
+  make: vehicle.make,
+  model: vehicle.model,
+  derivative: vehicle.derivative,
+  year: vehicle.registrationYear,
+  priceGbp: vehicle.priceGbp,
+  mileage: vehicle.mileage,
+  fuelType: vehicle.fuelType,
+  transmission: vehicle.transmission,
+  bodyType: vehicle.bodyType,
+  availability: vehicle.lifecycleState,
+  advertStatus: 'LIVE',
+  features: vehicle.features,
+  imageId: `simulator-vehicle-0${index + 1}`,
+  imageUrl: `${simulatorMediaOrigin}/media/w720h540/simulator-vehicle-0${index + 1}.webp`,
 }))
 
 const expectedBrowseTools = [
@@ -341,9 +329,9 @@ const mockServer = createServer(async (request, response) => {
           actionResult: {
             success: true,
             data: {
-              _items: mockAutoTraderVehicles.slice(0, 2),
+              _items: mockActionVehicles.slice(0, 2),
               _count: 2,
-              results: mockAutoTraderVehicles.slice(0, 2),
+              results: mockActionVehicles.slice(0, 2),
               total: 2,
               appliedFilters: { fuelType: 'Electric', maxPriceGbp: 40000, sort: 'recommended' },
               source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
@@ -365,7 +353,7 @@ const mockServer = createServer(async (request, response) => {
           actionResult: {
             success: true,
             data: {
-              vehicleRecord: mockAutoTraderVehicles[0],
+              vehicleRecord: mockActionVehicles[0],
               source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
               dataNotice: 'Fictional demonstration inventory. Confirm current availability with the dealership.',
             },
@@ -801,14 +789,9 @@ try {
   const listingCompanion = page.locator('section[aria-label="Northfield AI"]')
   await listingCompanion.waitFor()
   await listingCompanion.getByRole('textbox', { name: 'Ask Northfield AI' }).focus()
-  const companionContextualScope = listingCompanion.locator('[data-max-mode-tool-scope="contextual"]')
-  await companionContextualScope.waitFor()
-  const companionBrowseTools = await listingCompanion.locator('[data-max-mode-quick-action]').evaluateAll(
-    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
-  )
-  if (!(await companionContextualScope.isDisabled()) ||
-      JSON.stringify(companionBrowseTools) !== JSON.stringify(expectedBrowseTools)) {
-    throw new Error('Companion dock did not expose the generic two-group Browse stock state')
+  if ((await listingCompanion.locator('[data-max-mode-tool-scope]').count()) !== 0 ||
+      (await listingCompanion.locator('[data-max-mode-quick-action]').count()) !== 0) {
+    throw new Error('Companion dock exposed tools reserved for Max Mode')
   }
   await listingCompanion.getByRole('button', { name: 'Minimize assistant' }).click()
   await page.locator('select[name="make"]').selectOption('Aster')
