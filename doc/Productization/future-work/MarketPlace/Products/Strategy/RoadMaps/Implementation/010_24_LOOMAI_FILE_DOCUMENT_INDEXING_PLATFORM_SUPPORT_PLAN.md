@@ -6,7 +6,7 @@ Created: 2026-09-22
 
 Current supported baseline:
 
-- AI Fabric `0.8.8` only
+- AI Fabric `0.8.10` only
 - private LoomAI runtime and Platform `Platform-V11`
 - V04 deployment lifecycle
 - current-only greenfield policy; no older framework/runtime compatibility path
@@ -1435,11 +1435,15 @@ six of six generated policy/operations answers in
 That evidence SHA-256 is
 `07e7529768be4673a82540625487e771ab5fc831e855d9a3dc27482c6e989299`.
 
-That broader conversational report remains `NEEDS_IMPROVEMENT` because three
-pre-existing inventory/action scenarios did not satisfy their strict
-filter/follow-up assertions. Those failures are retained as a separate action
-contract regression and do not weaken or conceal the six-of-six document
-capability result.
+That immutable 2026-10-04 conversational report is `NEEDS_IMPROVEMENT` because
+three pre-existing inventory/action scenarios did not satisfy their strict
+filter/follow-up assertions. Those failures never weakened the six-of-six
+document capability result. The separate production-quality action work later
+closed all three on dealership deployment v28: two fresh strict reports at
+`verification-support/autotrader-dealership-demo/evidence/2026-10-05-dealership-live-quality-v28-run-1.json`
+and `verification-support/autotrader-dealership-demo/evidence/2026-10-05-dealership-live-quality-v28-run-2.json`
+each pass `12/12`, including the same six document scenarios. The historical
+failure artifact remains preserved rather than relabelled.
 
 The mounted folder remains a demo/small-data mechanism only. A production
 dealership must provide its own approved S3-compatible source binding and owns

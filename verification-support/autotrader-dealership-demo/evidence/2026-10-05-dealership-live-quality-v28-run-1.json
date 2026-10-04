@@ -1,0 +1,3110 @@
+{
+  "schemaVersion": "loomai-dealership-live-quality-v1",
+  "status": "PASS",
+  "diagnosticOnly": false,
+  "target": {
+    "publicRoute": "https://loomai.pro/demos/dealership-ai",
+    "integrationMode": "public-runtime-anonymous",
+    "backendUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+    "runtimeUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
+    "inventoryVectorSpace": "dealer-vehicle",
+    "retrievalVectorSpaces": [
+      "dealer-vehicle",
+      "document"
+    ],
+    "uiMode": "executor",
+    "uiPosition": "search"
+  },
+  "run": {
+    "startedAt": "2026-10-04T23:12:43.791Z",
+    "completedAt": "2026-10-04T23:13:50.033Z",
+    "viewport": "390x844",
+    "scenarioCount": 12,
+    "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+    "oneConversation": true,
+    "writeConfirmed": false
+  },
+  "observedPolicy": {
+    "profile": "PRODUCTION_CHAT",
+    "mode": "executor",
+    "position": "search",
+    "actionsEnabled": true,
+    "retrievalEnabled": true,
+    "readActionResolutionPlanningMode": "ITERATIVE",
+    "readActionResolutionMaxIterations": 2,
+    "readActionResolutionMaxTotalActions": 2,
+    "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "allowedReadActions": [
+      "dealership_compare_vehicles",
+      "dealership_get_vehicle",
+      "dealership_search_inventory"
+    ],
+    "retrievalVectorSpaces": [
+      "dealer-vehicle",
+      "document"
+    ]
+  },
+  "capabilityGates": {
+    "documentKnowledge": {
+      "status": "PASS",
+      "scenarioCount": 6,
+      "expectedScenarioCount": 6,
+      "scenarioIds": [
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility"
+      ]
+    }
+  },
+  "globalAssertions": [
+    {
+      "name": "all turns use the requested UI mode",
+      "passed": true,
+      "expected": "Every live browser request uses executor mode.",
+      "observed": [
+        "executor"
+      ]
+    },
+    {
+      "name": "all turns use the requested UI position",
+      "passed": true,
+      "expected": "Every live browser request uses search position.",
+      "observed": [
+        "search"
+      ]
+    },
+    {
+      "name": "deployment request context is preserved",
+      "passed": true,
+      "expected": "Every request carries the dealership scope and complete deployment-owned retrieval-space list without pinning one space.",
+      "observed": [
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "vectorSpace": null,
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "one iterative conversation is used",
+      "passed": true,
+      "expected": "All 12 turns use one runtime conversation.",
+      "observed": [
+        "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+      ]
+    },
+    {
+      "name": "no write confirmation was sent",
+      "passed": true,
+      "expected": "The quality run never sends the confirmation phrase.",
+      "observed": false
+    },
+    {
+      "name": "no domain write completed",
+      "passed": true,
+      "expected": "No dealership lead or other write action succeeds.",
+      "observed": []
+    },
+    {
+      "name": "browser and runtime transport remained healthy",
+      "passed": true,
+      "expected": "No page errors, failed requests, or 4xx/5xx chat responses.",
+      "observed": []
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "structured-current-stock-action",
+      "purpose": "Use the authoritative stock action for exact filters and current commercial facts.",
+      "prompt": "Show me current electric vehicles under GBP 40,000.",
+      "status": "PASS",
+      "durationMs": 2726,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": null,
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "ACTION_EXECUTED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-e1bf873a-713b-4cbc-9348-847bf8d478db",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "**Fictional demonstration inventory**\n\nI found 3 matching vehicles in the live evidence:\n\n- **Aster E1 Motion Long Range** — **2025** — **£31,950** — **4,850** miles — **Electric** — **SUV** — **FORECOURT**\n- **Morrow C2 City Electric** — **2025** — **£22,750** — **1,980** miles — **Electric** — **Hatchback** — **FORECOURT**\n- **Aster E2 Sport Dual Motor** — **2025** — **£39,250** — **3,760** miles — **Electric** — **Crossover** — **FORECOURT**\n\nAll three are published and automatic. The evidence shows the search was filtered to electric vehicles with a maximum price of **£40,000**."
+      },
+      "evidence": {
+        "groundingPath": "ACTION",
+        "actionUsed": true,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 1,
+        "documentCount": 1,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_search_inventory"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_search_inventory",
+            "paramsObserved": false,
+            "params": null,
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": 3,
+            "itemIds": [
+              "DEMO-1001",
+              "DEMO-1003",
+              "DEMO-1006"
+            ],
+            "truncated": false
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_search_inventory",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Provider stock search completed.",
+            "itemsCount": 3,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "ACTION_EXECUTED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration inventory**\n\nI found 3 matching vehicles in the live evidence:\n\n- **Aster E1 Motion Long Range** — **2025** — **£31,950** — **4,850** miles — **Electric** — **SUV** — **FORECOURT**\n- **Morrow C2 City Electric** — **2025** — **£22,750** — **1,980** miles — **Electric** — **Hatchback** — **FORECOURT**\n- **Aster E2 Sport Dual Motor** — **2025** — **£39,250** — **3,760** miles — **Electric** — **Crossover** — **FORECOURT**\n\nAll three are published and automatic. The evidence shows the search was filtered to electric vehicles with a maximum price of **£40,000**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "The runtime creates one conversation for the matrix.",
+          "observed": {
+            "requestConversationId": null,
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "inventory search action executed",
+          "passed": true,
+          "expected": "dealership_search_inventory",
+          "observed": [
+            "dealership_search_inventory"
+          ]
+        },
+        {
+          "name": "three electric matches returned",
+          "passed": true,
+          "expected": 3,
+          "observed": 3
+        },
+        {
+          "name": "all matching models are named",
+          "passed": true,
+          "expected": "Aster E1, Morrow C2, and Aster E2",
+          "observed": "**Fictional demonstration inventory**\n\nI found 3 matching vehicles in the live evidence:\n\n- **Aster E1 Motion Long Range** — **2025** — **£31,950** — **4,850** miles — **Electric** — **SUV** — **FORECOURT**\n- **Morrow C2 City Electric** — **2025** — **£22,750** — **1,980** miles — **Electric** — **Hatchback** — **FORECOURT**\n- **Aster E2 Sport Dual Motor** — **2025** — **£39,250** — **3,760** miles — **Electric** — **Crossover** — **FORECOURT**\n\nAll three are published and automatic. The evidence shows the search was filtered to electric vehicles with a maximum price of **£40,000**."
+        },
+        {
+          "name": "answer respects the explicit buyer criteria",
+          "passed": true,
+          "expected": "Do not claim buyer criteria are absent after applying electric and budget filters.",
+          "observed": "**Fictional demonstration inventory**\n\nI found 3 matching vehicles in the live evidence:\n\n- **Aster E1 Motion Long Range** — **2025** — **£31,950** — **4,850** miles — **Electric** — **SUV** — **FORECOURT**\n- **Morrow C2 City Electric** — **2025** — **£22,750** — **1,980** miles — **Electric** — **Hatchback** — **FORECOURT**\n- **Aster E2 Sport Dual Motor** — **2025** — **£39,250** — **3,760** miles — **Electric** — **Crossover** — **FORECOURT**\n\nAll three are published and automatic. The evidence shows the search was filtered to electric vehicles with a maximum price of **£40,000**."
+        }
+      ]
+    },
+    {
+      "id": "contextual-follow-up",
+      "purpose": "Resolve a follow-up from the same conversation without making the user repeat the candidates.",
+      "prompt": "Of those, which has the lowest mileage, and what body type is it?",
+      "status": "PASS",
+      "durationMs": 4008,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-619e4861-89af-4a4d-b5bc-24f742f652e4",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "**Fictional demonstration data:** the lowest mileage is **1,980** on the **Morrow C2 City Electric**. Its body type is **Hatchback**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "DEMO-1006",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E2 derivative: Sport Dual Motor registrationYear: 2025 fuelType: Electric bodyType: Crossover transmission: Automatic mileage: 3760 priceGbp: 39250.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7164586186408997
+          },
+          {
+            "id": "DEMO-1003",
+            "title": null,
+            "contentPreview": "content: make: Morrow model: C2 derivative: City Electric registrationYear: 2025 fuelType: Electric bodyType: Hatchback transmission: Automatic mileage: 1980 priceGbp: 22750.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7086427807807922
+          },
+          {
+            "id": "DEMO-1001",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E1 derivative: Motion Long Range registrationYear: 2025 fuelType: Electric bodyType: SUV transmission: Automatic mileage: 4850 priceGbp: 31950.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7075228691101074
+          },
+          {
+            "id": "DEMO-1005",
+            "title": null,
+            "contentPreview": "content: make: Arden model: V3 derivative: Executive Plug-in Hybrid registrationYear: 2024 fuelType: Plug-in hybrid bodyType: Saloon transmission: Automatic mileage: 6310 priceGbp: 34600.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.703845202922821
+          },
+          {
+            "id": "DEMO-1002",
+            "title": null,
+            "contentPreview": "content: make: Northstar model: S4 derivative: Touring Hybrid registrationYear: 2024 fuelType: Hybrid bodyType: Estate transmission: Automatic mileage: 8920 priceGbp: 27400.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7024507522583008
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "ANSWER_FROM_CONTEXT",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "ANSWER_FROM_CONTEXT",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 2,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration data:** the lowest mileage is **1,980** on the **Morrow C2 City Electric**. Its body type is **Hatchback**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 2
+        },
+        {
+          "name": "follow-up resolves the prior result set",
+          "passed": true,
+          "expected": "Morrow C2, 1,980 miles, and Hatchback",
+          "observed": "**Fictional demonstration data:** the lowest mileage is **1,980** on the **Morrow C2 City Electric**. Its body type is **Hatchback**."
+        },
+        {
+          "name": "follow-up does not invent a price",
+          "passed": true,
+          "expected": "Omit price or preserve GBP 22,750 from current provider evidence.",
+          "observed": "**Fictional demonstration data:** the lowest mileage is **1,980** on the **Morrow C2 City Electric**. Its body type is **Hatchback**."
+        },
+        {
+          "name": "follow-up is grounded",
+          "passed": true,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "RAG"
+        }
+      ]
+    },
+    {
+      "id": "vehicle-comparison",
+      "purpose": "Compare named current-stock vehicles using action or indexed evidence.",
+      "prompt": "Compare the Aster E1 and Morrow C2 for motorway family use using current stock facts.",
+      "status": "PASS",
+      "durationMs": 3521,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "ACTION_EXECUTED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-1920648d-edcf-4c72-bf39-3f12e5e5a897",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "**Fictional demonstration inventory**\n\n- **Aster E1 Motion Long Range** — **£31,950.00**, **4,850** miles, **2025**, **ACTIVE**\n  - Electric SUV\n  - 298-mile electric range\n  - Summary: a quiet, roomy electric SUV with confident motorway range and a flexible family cabin.\n\n- **Morrow C2 City Electric** — **£22,750.00**, **1,980** miles, **2025**, **ACTIVE**\n  - Electric hatchback\n  - 241-mile electric range\n  - Summary: a compact electric hatchback with simple controls, easy parking and useful everyday range.\n\nBoth vehicles are from **Demonstration inventory**."
+      },
+      "evidence": {
+        "groundingPath": "ACTION",
+        "actionUsed": true,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 1,
+        "documentCount": 1,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_compare_vehicles"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_compare_vehicles",
+            "paramsObserved": false,
+            "params": null,
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": 2,
+            "itemIds": [
+              "veh-aster-e1",
+              "veh-morrow-c2"
+            ],
+            "truncated": false
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_compare_vehicles",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Current vehicles compared.",
+            "itemsCount": 2,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 4,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "ACTION_EXECUTED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration inventory**\n\n- **Aster E1 Motion Long Range** — **£31,950.00**, **4,850** miles, **2025**, **ACTIVE**\n  - Electric SUV\n  - 298-mile electric range\n  - Summary: a quiet, roomy electric SUV with confident motorway range and a flexible family cabin.\n\n- **Morrow C2 City Electric** — **£22,750.00**, **1,980** miles, **2025**, **ACTIVE**\n  - Electric hatchback\n  - 241-mile electric range\n  - Summary: a compact electric hatchback with simple controls, easy parking and useful everyday range.\n\nBoth vehicles are from **Demonstration inventory**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 4
+        },
+        {
+          "name": "both requested vehicles are compared",
+          "passed": true,
+          "expected": "Aster E1 and Morrow C2",
+          "observed": "**Fictional demonstration inventory**\n\n- **Aster E1 Motion Long Range** — **£31,950.00**, **4,850** miles, **2025**, **ACTIVE**\n  - Electric SUV\n  - 298-mile electric range\n  - Summary: a quiet, roomy electric SUV with confident motorway range and a flexible family cabin.\n\n- **Morrow C2 City Electric** — **£22,750.00**, **1,980** miles, **2025**, **ACTIVE**\n  - Electric hatchback\n  - 241-mile electric range\n  - Summary: a compact electric hatchback with simple controls, easy parking and useful everyday range.\n\nBoth vehicles are from **Demonstration inventory**."
+        },
+        {
+          "name": "comparison is grounded",
+          "passed": true,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "ACTION"
+        },
+        {
+          "name": "comparison uses a suitable evidence path",
+          "passed": true,
+          "expected": "Comparison action, inventory action, or indexed evidence.",
+          "observed": {
+            "executedActions": [
+              "dealership_compare_vehicles"
+            ],
+            "groundingPath": "ACTION"
+          }
+        }
+      ]
+    },
+    {
+      "id": "semantic-rag",
+      "purpose": "Use semantic evidence for a need that is not an exact inventory filter.",
+      "prompt": "Which current vehicle is best suited to towing and poor-weather driving? Use current evidence and explain why.",
+      "status": "PASS",
+      "durationMs": 5141,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-4df1ec10-bdb9-4b53-adcb-91657245d998",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "For towing and poor-weather driving, the best fit in the current inventory is the **Caldera X6 Adventure AWD**.\n\nWhy it fits:\n- **SUV body type**: suits towing and rougher conditions better than the hatchback.\n- **Adventure AWD** derivative: the AWD wording is the clearest current evidence pointing to better poor-weather traction.\n- **Automatic transmission**: helpful for easier control in mixed conditions.\n- **2023** with **17420** mileage and **priceGbp: 29800.0**.\n\nOther current vehicles in the fictional demonstration inventory:\n- **Aster E1 Motion Long Range** — **2025**, **SUV**, **Electric**, **Automatic**, **4850**, **priceGbp: 31950.0**\n- **Northstar S4 Touring Hybrid** — **2024**, **Estate**, **Hybrid**, **Automatic**, **8920**, **priceGbp: 27400.0**\n- **Morrow C2 City Electric** — **2025**, **Hatchback**, **Electric**, **Automatic**, **1980**, **priceGbp: 22750.0**\n\nWhy the Caldera is the best current choice:\n- It is the only listed vehicle with an **Adventure AWD** derivative.\n- It keeps the **SUV** body type, which is the strongest match here for towing and poor-weather use.\n- The other options are either an estate or hatchback, or do not show AWD in the current evidence.\n\nThe inventory above is **fictional demonstration data**."
+      },
+      "evidence": {
+        "groundingPath": "ACTION_AND_RAG",
+        "actionUsed": true,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "DEMO-1002",
+            "title": null,
+            "contentPreview": "content: make: Northstar model: S4 derivative: Touring Hybrid registrationYear: 2024 fuelType: Hybrid bodyType: Estate transmission: Automatic mileage: 8920 priceGbp: 27400.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6398915648460388
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6365078091621399
+          },
+          {
+            "id": "DEMO-1001",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E1 derivative: Motion Long Range registrationYear: 2025 fuelType: Electric bodyType: SUV transmission: Automatic mileage: 4850 priceGbp: 31950.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6294426321983337
+          },
+          {
+            "id": "DEMO-1006",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E2 derivative: Sport Dual Motor registrationYear: 2025 fuelType: Electric bodyType: Crossover transmission: Automatic mileage: 3760 priceGbp: 39250.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.627208411693573
+          },
+          {
+            "id": "DEMO-1004",
+            "title": null,
+            "contentPreview": "content: make: Caldera model: X6 derivative: Adventure AWD registrationYear: 2023 fuelType: Petrol bodyType: SUV transmission: Automatic mileage: 17420 priceGbp: 29800.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6260180473327637
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_search_inventory"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_search_inventory",
+            "paramsObserved": true,
+            "params": {
+              "limit": 24
+            },
+            "success": true,
+            "groundingUsable": true,
+            "groundingSufficiency": null,
+            "itemsCount": 4,
+            "itemIds": [
+              "DEMO-1001",
+              "DEMO-1002",
+              "DEMO-1003"
+            ],
+            "truncated": false
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_search_inventory",
+            "success": true,
+            "groundingSufficiency": null,
+            "errorCode": null,
+            "message": "Provider stock search completed.",
+            "itemsCount": 6,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 6,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "For towing and poor-weather driving, the best fit in the current inventory is the **Caldera X6 Adventure AWD**.\n\nWhy it fits:\n- **SUV body type**: suits towing and rougher conditions better than the hatchback.\n- **Adventure AWD** derivative: the AWD wording is the clearest current evidence pointing to better poor-weather traction.\n- **Automatic transmission**: helpful for easier control in mixed conditions.\n- **2023** with **17420** mileage and **priceGbp: 29800.0**.\n\nOther current vehicles in the fictional demonstration inventory:\n- **Aster E1 Motion Long Range** — **2025**, **SUV**, **Electric**, **Automatic**, **4850**, **priceGbp: 31950.0**\n- **Northstar S4 Touring Hybrid** — **2024**, **Estate**, **Hybrid**, **Automatic**, **8920**, **priceGbp: 27400.0**\n- **Morrow C2 City Electric** ..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 6
+        },
+        {
+          "name": "semantic recommendation identifies the relevant vehicle",
+          "passed": true,
+          "expected": "Caldera X6 with towing or AWD rationale.",
+          "observed": "For towing and poor-weather driving, the best fit in the current inventory is the **Caldera X6 Adventure AWD**.\n\nWhy it fits:\n- **SUV body type**: suits towing and rougher conditions better than the hatchback.\n- **Adventure AWD** derivative: the AWD wording is the clearest current evidence pointing to better poor-weather traction.\n- **Automatic transmission**: helpful for easier control in mixed conditions.\n- **2023** with **17420** mileage and **priceGbp: 29800.0**.\n\nOther current vehicles in the fictional demonstration inventory:\n- **Aster E1 Motion Long Range** — **2025**, **SUV**, **Electric**, **Automatic**, **4850**, **priceGbp: 31950.0**\n- **Northstar S4 Touring Hybrid** — **2024**, **Estate**, **Hybrid**, **Automatic**, **8920**, **priceGbp: 27400.0**\n- **Morrow C2 City Electric** ..."
+        },
+        {
+          "name": "semantic recommendation is grounded",
+          "passed": true,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "ACTION_AND_RAG"
+        }
+      ]
+    },
+    {
+      "id": "empty-action-rag-fallback",
+      "purpose": "Fall back to indexed evidence when an authoritative action finds no exact match.",
+      "prompt": "Do you have a diesel SUV under GBP 10,000? If not, use indexed current-stock evidence to suggest the closest alternative without claiming it matches.",
+      "status": "PASS",
+      "durationMs": 5973,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-6b3a3e0d-f100-4cb6-a64b-ca5c331402cf",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "**Fictional demonstration stock**\n\nThere is **no exact match** for a **diesel SUV under GBP 10,000** in the current indexed stock evidence.\n\nClosest alternative, keeping the **SUV** body type and relaxing the **fuel type** and **price** constraints:\n- **Caldera X6 Adventure AWD** — **2023**, **Petrol**, **SUV**, **Automatic**, **17420** miles, **GBP 29800.0**\n\nWhy it fits best:\n- It matches the requested **SUV** body type.\n- It is the only current-stock SUV shown in the evidence.\n- The only relaxed constraints are **diesel** and **under GBP 10,000**."
+      },
+      "evidence": {
+        "groundingPath": "ACTION_AND_RAG",
+        "actionUsed": true,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "DEMO-1001",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E1 derivative: Motion Long Range registrationYear: 2025 fuelType: Electric bodyType: SUV transmission: Automatic mileage: 4850 priceGbp: 31950.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8138728737831116
+          },
+          {
+            "id": "DEMO-1002",
+            "title": null,
+            "contentPreview": "content: make: Northstar model: S4 derivative: Touring Hybrid registrationYear: 2024 fuelType: Hybrid bodyType: Estate transmission: Automatic mileage: 8920 priceGbp: 27400.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8122647404670715
+          },
+          {
+            "id": "DEMO-1004",
+            "title": null,
+            "contentPreview": "content: make: Caldera model: X6 derivative: Adventure AWD registrationYear: 2023 fuelType: Petrol bodyType: SUV transmission: Automatic mileage: 17420 priceGbp: 29800.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8101890087127686
+          },
+          {
+            "id": "DEMO-1005",
+            "title": null,
+            "contentPreview": "content: make: Arden model: V3 derivative: Executive Plug-in Hybrid registrationYear: 2024 fuelType: Plug-in hybrid bodyType: Saloon transmission: Automatic mileage: 6310 priceGbp: 34600.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8094762563705444
+          },
+          {
+            "id": "DEMO-1006",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E2 derivative: Sport Dual Motor registrationYear: 2025 fuelType: Electric bodyType: Crossover transmission: Automatic mileage: 3760 priceGbp: 39250.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8029811978340149
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [
+          "dealership_search_inventory"
+        ],
+        "actionEvidence": [
+          {
+            "action": "dealership_search_inventory",
+            "paramsObserved": true,
+            "params": {
+              "bodyType": "SUV",
+              "fuelType": "diesel",
+              "maxPriceGbp": 10000,
+              "limit": 5
+            },
+            "success": true,
+            "groundingUsable": false,
+            "groundingSufficiency": "INSUFFICIENT",
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": false
+          }
+        ],
+        "actionResults": [
+          {
+            "action": "dealership_search_inventory",
+            "success": true,
+            "groundingSufficiency": "INSUFFICIENT",
+            "errorCode": null,
+            "message": "Provider stock search completed.",
+            "itemsCount": 0,
+            "receiptCode": null
+          }
+        ],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          },
+          {
+            "iteration": 2,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          },
+          {
+            "iteration": 2,
+            "status": "PLANNED",
+            "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 8,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "**Fictional demonstration stock**\n\nThere is **no exact match** for a **diesel SUV under GBP 10,000** in the current indexed stock evidence.\n\nClosest alternative, keeping the **SUV** body type and relaxing the **fuel type** and **price** constraints:\n- **Caldera X6 Adventure AWD** — **2023**, **Petrol**, **SUV**, **Automatic**, **17420** miles, **GBP 29800.0**\n\nWhy it fits best:\n- It matches the requested **SUV** body type.\n- It is the only current-stock SUV shown in the evidence.\n- The only relaxed constraints are **diesel** and **under GBP 10,000**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 8
+        },
+        {
+          "name": "authoritative inventory action ran first",
+          "passed": true,
+          "expected": "dealership_search_inventory",
+          "observed": [
+            "dealership_search_inventory"
+          ]
+        },
+        {
+          "name": "the exact search returned no sufficient match",
+          "passed": true,
+          "expected": "itemsCount=0 or explicit INSUFFICIENT evidence when the unusable payload is not projected.",
+          "observed": {
+            "action": "dealership_search_inventory",
+            "paramsObserved": true,
+            "params": {
+              "bodyType": "SUV",
+              "fuelType": "diesel",
+              "maxPriceGbp": 10000,
+              "limit": 5
+            },
+            "success": true,
+            "groundingUsable": false,
+            "groundingSufficiency": "INSUFFICIENT",
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": false
+          }
+        },
+        {
+          "name": "empty action is insufficient grounding",
+          "passed": true,
+          "expected": "INSUFFICIENT with groundingUsable=false.",
+          "observed": {
+            "action": "dealership_search_inventory",
+            "paramsObserved": true,
+            "params": {
+              "bodyType": "SUV",
+              "fuelType": "diesel",
+              "maxPriceGbp": 10000,
+              "limit": 5
+            },
+            "success": true,
+            "groundingUsable": false,
+            "groundingSufficiency": "INSUFFICIENT",
+            "itemsCount": null,
+            "itemIds": [],
+            "truncated": false
+          }
+        },
+        {
+          "name": "indexed evidence supplemented the empty action",
+          "passed": true,
+          "expected": "At least one non-action retrieval document.",
+          "observed": [
+            {
+              "id": "DEMO-1001",
+              "title": null,
+              "contentPreview": "content: make: Aster model: E1 derivative: Motion Long Range registrationYear: 2025 fuelType: Electric bodyType: SUV transmission: Automatic mileage: 4850 priceGbp: 31950.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+              "type": "dealer-vehicle",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8138728737831116
+            },
+            {
+              "id": "DEMO-1002",
+              "title": null,
+              "contentPreview": "content: make: Northstar model: S4 derivative: Touring Hybrid registrationYear: 2024 fuelType: Hybrid bodyType: Estate transmission: Automatic mileage: 8920 priceGbp: 27400.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+              "type": "dealer-vehicle",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8122647404670715
+            },
+            {
+              "id": "DEMO-1004",
+              "title": null,
+              "contentPreview": "content: make: Caldera model: X6 derivative: Adventure AWD registrationYear: 2023 fuelType: Petrol bodyType: SUV transmission: Automatic mileage: 17420 priceGbp: 29800.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+              "type": "dealer-vehicle",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8101890087127686
+            },
+            {
+              "id": "DEMO-1005",
+              "title": null,
+              "contentPreview": "content: make: Arden model: V3 derivative: Executive Plug-in Hybrid registrationYear: 2024 fuelType: Plug-in hybrid bodyType: Saloon transmission: Automatic mileage: 6310 priceGbp: 34600.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+              "type": "dealer-vehicle",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8094762563705444
+            },
+            {
+              "id": "DEMO-1006",
+              "title": null,
+              "contentPreview": "content: make: Aster model: E2 derivative: Sport Dual Motor registrationYear: 2025 fuelType: Electric bodyType: Crossover transmission: Automatic mileage: 3760 priceGbp: 39250.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+              "type": "dealer-vehicle",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8029811978340149
+            }
+          ]
+        },
+        {
+          "name": "answer distinguishes no match from a grounded alternative",
+          "passed": true,
+          "expected": "State that there is no exact match, name an indexed alternative, and identify its relaxed constraints.",
+          "observed": "**Fictional demonstration stock**\n\nThere is **no exact match** for a **diesel SUV under GBP 10,000** in the current indexed stock evidence.\n\nClosest alternative, keeping the **SUV** body type and relaxing the **fuel type** and **price** constraints:\n- **Caldera X6 Adventure AWD** — **2023**, **Petrol**, **SUV**, **Automatic**, **17420** miles, **GBP 29800.0**\n\nWhy it fits best:\n- It matches the requested **SUV** body type.\n- It is the only current-stock SUV shown in the evidence.\n- The only relaxed constraints are **diesel** and **under GBP 10,000**."
+        },
+        {
+          "name": "filtered no-match is not presented as empty inventory",
+          "passed": true,
+          "expected": "Say the requested filters had no match, not that the dealership has no vehicles.",
+          "observed": "**Fictional demonstration stock**\n\nThere is **no exact match** for a **diesel SUV under GBP 10,000** in the current indexed stock evidence.\n\nClosest alternative, keeping the **SUV** body type and relaxing the **fuel type** and **price** constraints:\n- **Caldera X6 Adventure AWD** — **2023**, **Petrol**, **SUV**, **Automatic**, **17420** miles, **GBP 29800.0**\n\nWhy it fits best:\n- It matches the requested **SUV** body type.\n- It is the only current-stock SUV shown in the evidence.\n- The only relaxed constraints are **diesel** and **under GBP 10,000**."
+        }
+      ]
+    },
+    {
+      "id": "approved-warranty-policy",
+      "purpose": "Ground a public dealership-policy answer in the approved document source.",
+      "prompt": "What warranty does Northfield provide on qualifying used vehicles?",
+      "status": "PASS",
+      "durationMs": 3978,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-7de7186a-1b70-4f10-b00e-2ceee5200d2c",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**. Cover starts when the customer collects the vehicle or it is delivered.\n\nIt covers:\n- sudden mechanical failure of internally lubricated engine, gearbox and drivetrain components\n- failure of major factory-fitted electrical components\n- the 12-volt auxiliary battery for sudden failure during the first 30 days\n\nImportant exclusions:\n- normal wear and routine servicing\n- tyres, brake friction materials and bulbs\n- cosmetic damage, accidental damage, misuse and unauthorised modification\n- faults disclosed before purchase\n\nA repair must be authorised by Northfield before work begins, and the policy does not replace statutory consumer rights.\n\nSource document: **NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8082886934280396
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7505533695220947
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7429558634757996
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7394936084747314
+          },
+          {
+            "id": "DEMO-1002",
+            "title": null,
+            "contentPreview": "content: make: Northstar model: S4 derivative: Touring Hybrid registrationYear: 2024 fuelType: Hybrid bodyType: Estate transmission: Automatic mileage: 8920 priceGbp: 27400.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7347996234893799
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 10,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**. Cover starts when the customer collects the vehicle or it is delivered.\n\nIt covers:\n- sudden mechanical failure of internally lubricated engine, gearbox and drivetrain components\n- failure of major factory-fitted electrical components\n- the 12-volt auxiliary battery for sudden failure during the first 30 days\n\nImportant exclusions:\n- normal wear and routine servicing\n- tyres, brake friction materials and bulbs\n- cosmetic damage, accidental damage, misuse and unauthorised modification\n- faults disclosed before purchase\n\nA repair must be authorised by Northfield before work begins, and the policy does not replace statutory consumer rights.\n\nSource document: **NORTHFIELD MO..."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 10
+        },
+        {
+          "name": "approved warranty evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8082886934280396
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7505533695220947
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7429558634757996
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7394936084747314
+            },
+            {
+              "id": "DEMO-1002",
+              "title": null,
+              "contentPreview": "content: make: Northstar model: S4 derivative: Touring Hybrid registrationYear: 2024 fuelType: Hybrid bodyType: Estate transmission: Automatic mileage: 8920 priceGbp: 27400.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+              "type": "dealer-vehicle",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7347996234893799
+            }
+          ]
+        },
+        {
+          "name": "answer preserves the exact warranty duration",
+          "passed": true,
+          "expected": "90 days or 3,000 miles.",
+          "observed": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**. Cover starts when the customer collects the vehicle or it is delivered.\n\nIt covers:\n- sudden mechanical failure of internally lubricated engine, gearbox and drivetrain components\n- failure of major factory-fitted electrical components\n- the 12-volt auxiliary battery for sudden failure during the first 30 days\n\nImportant exclusions:\n- normal wear and routine servicing\n- tyres, brake friction materials and bulbs\n- cosmetic damage, accidental damage, misuse and unauthorised modification\n- faults disclosed before purchase\n\nA repair must be authorised by Northfield before work begins, and the policy does not replace statutory consumer rights.\n\nSource document: **NORTHFIELD MO..."
+        },
+        {
+          "name": "answer does not invent a vehicle-specific warranty",
+          "passed": true,
+          "expected": "General policy only unless current vehicle evidence was requested.",
+          "observed": "Northfield’s qualifying used vehicles include a limited warranty for **90 days or 3,000 miles, whichever occurs first**. Cover starts when the customer collects the vehicle or it is delivered.\n\nIt covers:\n- sudden mechanical failure of internally lubricated engine, gearbox and drivetrain components\n- failure of major factory-fitted electrical components\n- the 12-volt auxiliary battery for sudden failure during the first 30 days\n\nImportant exclusions:\n- normal wear and routine servicing\n- tyres, brake friction materials and bulbs\n- cosmetic damage, accidental damage, misuse and unauthorised modification\n- faults disclosed before purchase\n\nA repair must be authorised by Northfield before work begins, and the policy does not replace statutory consumer rights.\n\nSource document: **NORTHFIELD MO..."
+        }
+      ]
+    },
+    {
+      "id": "approved-reservation-policy",
+      "purpose": "Return exact reservation terms from approved dealership documents without creating a reservation.",
+      "prompt": "How much is a Northfield vehicle reservation and how long does it last?",
+      "status": "PASS",
+      "durationMs": 3651,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-287d8fb5-0d15-43af-aeb8-f60deabb9eb0",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "Northfield vehicle reservation is **GBP 99** and it lasts **48 hours**.\n\nApproved policy evidence says:\n- A customer may request a **48-hour reservation** on one currently available vehicle.\n- The **GBP 99** reservation amount is **applied to the purchase price** if the sale continues.\n- It is **refundable** if the customer cancels before the 48-hour hold expires, Northfield cannot supply the materially described vehicle, or the customer rejects the vehicle at the first arranged inspection or test drive.\n- A reservation starts only after a Northfield team member confirms current availability and issues a reservation receipt.\n- An unextended reservation expires at the end of **48 hours**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8613086938858032
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7616569995880127
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7606803178787231
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7413709163665771
+          },
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.732281506061554
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 12,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield vehicle reservation is **GBP 99** and it lasts **48 hours**.\n\nApproved policy evidence says:\n- A customer may request a **48-hour reservation** on one currently available vehicle.\n- The **GBP 99** reservation amount is **applied to the purchase price** if the sale continues.\n- It is **refundable** if the customer cancels before the 48-hour hold expires, Northfield cannot supply the materially described vehicle, or the customer rejects the vehicle at the first arranged inspection or test drive.\n- A reservation starts only after a Northfield team member confirms current availability and issues a reservation receipt.\n- An unextended reservation expires at the end of **48 hours**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 12
+        },
+        {
+          "name": "approved reservation evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8613086938858032
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7616569995880127
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7606803178787231
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7413709163665771
+            },
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.732281506061554
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact reservation terms",
+          "passed": true,
+          "expected": "GBP 99 and 48 hours.",
+          "observed": "Northfield vehicle reservation is **GBP 99** and it lasts **48 hours**.\n\nApproved policy evidence says:\n- A customer may request a **48-hour reservation** on one currently available vehicle.\n- The **GBP 99** reservation amount is **applied to the purchase price** if the sale continues.\n- It is **refundable** if the customer cancels before the 48-hour hold expires, Northfield cannot supply the materially described vehicle, or the customer rejects the vehicle at the first arranged inspection or test drive.\n- A reservation starts only after a Northfield team member confirms current availability and issues a reservation receipt.\n- An unextended reservation expires at the end of **48 hours**."
+        },
+        {
+          "name": "answer does not execute a reservation",
+          "passed": true,
+          "expected": "Policy answer only; no successful write action.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-delivery-operations",
+      "purpose": "Combine a customer operations answer with its approved source evidence.",
+      "prompt": "What does local delivery cost and what must be ready before handover?",
+      "status": "PASS",
+      "durationMs": 3990,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-223eb961-c933-4aa9-955d-9c14415310a4",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the customer must have:\n- an appointment and a final balance statement\n- photo identification\n- evidence of insurance effective from handover\n- any agreed part-exchange keys and documents\n- cleared funds\n- a completed identity check\n- a completed remote condition review\n\nThe vehicle is released only after cleared funds, identity verification and insurance evidence are complete."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8182214498519897
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7486196160316467
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7329854369163513
+          },
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.72532719373703
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7249256372451782
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 14,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the customer must have:\n- an appointment and a final balance statement\n- photo identification\n- evidence of insurance effective from handover\n- any agreed part-exchange keys and documents\n- cleared funds\n- a completed identity check\n- a completed remote condition review\n\nThe vehicle is released only after cleared funds, identity verification and insurance evidence are complete."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 14
+        },
+        {
+          "name": "approved handover evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8182214498519897
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7486196160316467
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7329854369163513
+            },
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.72532719373703
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7249256372451782
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact local delivery terms",
+          "passed": true,
+          "expected": "Within 25 miles for GBP 49.",
+          "observed": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the customer must have:\n- an appointment and a final balance statement\n- photo identification\n- evidence of insurance effective from handover\n- any agreed part-exchange keys and documents\n- cleared funds\n- a completed identity check\n- a completed remote condition review\n\nThe vehicle is released only after cleared funds, identity verification and insurance evidence are complete."
+        },
+        {
+          "name": "answer includes handover prerequisites",
+          "passed": true,
+          "expected": "Cleared funds, identity and insurance evidence.",
+          "observed": "Local delivery is **GBP 49** within **25 miles of Northfield Riverside**.\n\nBefore handover, the customer must have:\n- an appointment and a final balance statement\n- photo identification\n- evidence of insurance effective from handover\n- any agreed part-exchange keys and documents\n- cleared funds\n- a completed identity check\n- a completed remote condition review\n\nThe vehicle is released only after cleared funds, identity verification and insurance evidence are complete."
+        }
+      ]
+    },
+    {
+      "id": "approved-test-drive-policy",
+      "purpose": "Return eligibility requirements from the approved test-drive policy without starting a booking.",
+      "prompt": "What age and driving licence history does Northfield require for a test drive? Do not book one.",
+      "status": "PASS",
+      "durationMs": 3991,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-360150ba-13cd-4669-a103-2efe07cfe1b1",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "Northfield requires the driver to be:\n\n- at least 21 years old\n- holding an original full UK or EU driving licence\n- licensed for at least 12 months\n\nIt may also request a second proof of address if the licence address is not current.\n\nSource document: **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8503084778785706
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.743999719619751
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.738466739654541
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7375938892364502
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7251753211021423
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 16,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield requires the driver to be:\n\n- at least 21 years old\n- holding an original full UK or EU driving licence\n- licensed for at least 12 months\n\nIt may also request a second proof of address if the licence address is not current.\n\nSource document: **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 16
+        },
+        {
+          "name": "approved test-drive evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8503084778785706
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.743999719619751
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.738466739654541
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7375938892364502
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7251753211021423
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact test-drive eligibility",
+          "passed": true,
+          "expected": "Minimum age 21 and a licence held for at least 12 months.",
+          "observed": "Northfield requires the driver to be:\n\n- at least 21 years old\n- holding an original full UK or EU driving licence\n- licensed for at least 12 months\n\nIt may also request a second proof of address if the licence address is not current.\n\nSource document: **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**."
+        },
+        {
+          "name": "answer does not start a booking",
+          "passed": true,
+          "expected": "Policy answer only; no successful test-drive write.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-complaints-policy",
+      "purpose": "Return the exact acknowledgement and response targets from the approved complaints policy.",
+      "prompt": "How quickly will Northfield acknowledge my complaint and provide a substantive response?",
+      "status": "PASS",
+      "durationMs": 3571,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-de39844c-536e-4da4-b716-977633bd8f4c",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "Northfield acknowledges a complaint within **two working days** and a named case owner aims to provide a **substantive response within 10 working days**.\n\nSource document: **NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8385991454124451
+          },
+          {
+            "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7357904314994812
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7040958404541016
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6815075278282166
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.6752106547355652
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 16,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield acknowledges a complaint within **two working days** and a named case owner aims to provide a **substantive response within 10 working days**.\n\nSource document: **NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 16
+        },
+        {
+          "name": "approved complaints evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8385991454124451
+            },
+            {
+              "id": "aidoc-6edd2c061fe0b145c30809837e04207dfde4f6dba5d2ad55",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - USED VEHICLE WARRANTY AND AFTERCARE POLICY\nDocument version: 2.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nSTANDARD COVER\n\nEvery qualifying used vehicle sold directly by Northfield Motor House includes\na limited warranty for 90 days or 3,000 miles, whichever occurs first. Cover\nstarts when the customer collects the vehicle or the vehicle is delivered.\n\nThe standard warranty covers sudden mechanical failure of internally\nlubricated engine, gearbox and drivetrain components, plus failure of major\nfactory-fitted electrical components. A repair must be authorised by\nNorthfield before work begins.\n\nBATTERY AND MANUFACTURER COVER\n\nThe standard warranty covers the 12-volt auxiliary battery for sudden failure\nduring the first 30 days. Electric-vehicle traction batteries are not given a\nnew capacity guarantee by this policy. Any remaining manufacturer traction\nbattery warr...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7357904314994812
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7040958404541016
+            },
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6815075278282166
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.6752106547355652
+            }
+          ]
+        },
+        {
+          "name": "answer preserves exact complaint targets",
+          "passed": true,
+          "expected": "Acknowledgement within two working days and a substantive response within 10 working days.",
+          "observed": "Northfield acknowledges a complaint within **two working days** and a named case owner aims to provide a **substantive response within 10 working days**.\n\nSource document: **NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY**."
+        }
+      ]
+    },
+    {
+      "id": "approved-opening-accessibility",
+      "purpose": "Ground opening hours and accessibility facilities in the approved showroom document.",
+      "prompt": "What are Northfield Riverside weekday opening hours, and is the showroom step-free?",
+      "status": "PASS",
+      "durationMs": 3915,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-af341118-821a-4f27-8a83-9089cc28825a",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: **NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION**."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8561362624168396
+          },
+          {
+            "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+            "title": null,
+            "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7314864993095398
+          },
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7228944301605225
+          },
+          {
+            "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7086924910545349
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7061554789543152
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 16,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: **NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION**."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 16
+        },
+        {
+          "name": "approved showroom evidence was retrieved",
+          "passed": true,
+          "expected": "Non-action document evidence.",
+          "observed": [
+            {
+              "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.8561362624168396
+            },
+            {
+              "id": "aidoc-0b54579cb22942427c7f6b078c8842b0954b4ec683c79d16",
+              "title": null,
+              "contentPreview": "content: NORTHFIELD MOTOR HOUSE - COLLECTION, DELIVERY AND HANDOVER OPERATIONS\n\nThis is a fictional operations guide used only in the LoomAI dealership demonstration.\n\nBefore collection, the customer receives an appointment and a final balance statement. The customer must bring photo identification, evidence of insurance effective from handover, and any agreed part-exchange keys and documents. Northfield releases the vehicle only after cleared funds and the identity check are complete.\n\nThe handover adviser checks the registration details, recorded mileage, agreed accessories, charging cable where applicable, keys, service history supplied with the vehicle, dashboard warning lights and visible condition with the customer. The customer receives a handover summary and contact route for aftercare.\n\nStandard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery from 26 to 75 miles is quoted individually. Delivery beyond 75 miles is not offered by the demo...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7314864993095398
+            },
+            {
+              "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7228944301605225
+            },
+            {
+              "id": "aidoc-5bd6e326c5932867bc0259ec86aafb62176f6436ab21bb5e",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - CUSTOMER CARE AND COMPLAINTS POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nCustomers can raise a concern with Northfield customer care by email, phone or\nat the Northfield Riverside reception. Include the customer's name, preferred\ncontact method, vehicle registration or stock reference when relevant, the\ndate of the issue and the outcome requested. Do not include payment-card data\nor identity-document images in an ordinary chat message.\n\nNorthfield acknowledges a complaint within two working days. A named case\nowner aims to provide a substantive response within 10 working days. If more\ntime is needed, the case owner explains why and gives a new response date.\n\nA customer who remains dissatisfied may request review by the customer-care\nmanager. A complaint submitted through the assistant creates only a contact\nrequest after explicit confir...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7086924910545349
+            },
+            {
+              "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+              "title": null,
+              "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+              "type": "document",
+              "vectorSpace": "dealer-vehicle",
+              "score": 0.7061554789543152
+            }
+          ]
+        },
+        {
+          "name": "answer preserves weekday opening hours",
+          "passed": true,
+          "expected": "09:00 to 18:00 on weekdays.",
+          "observed": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: **NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION**."
+        },
+        {
+          "name": "answer identifies step-free access",
+          "passed": true,
+          "expected": "Step-free entrance/access.",
+          "observed": "Northfield Riverside weekday opening hours are Monday to Friday 09:00 to 18:00.\n\nYes — the showroom has step-free access.\n\nSource document: **NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION**."
+        }
+      ]
+    },
+    {
+      "id": "governed-write-intent",
+      "purpose": "Explain the write-action requirements without executing or confirming a lead.",
+      "prompt": "I want to book a test drive for the Aster E1. Tell me what details and confirmation you need, but do not submit anything.",
+      "status": "PASS",
+      "durationMs": 4477,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "preferredVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ],
+          "sourceMode": "DEMONSTRATION_INVENTORY"
+        }
+      },
+      "response": {
+        "success": true,
+        "type": "INFORMATION_PROVIDED",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-862f45ab-4c4b-4110-9521-dda50a30d9bd",
+        "conversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+        "answer": "To book a test drive, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Any accessibility or child-seat needs, if relevant\n\nYou also need to explicitly confirm submission.\n\nFor the driver, the requirements are:\n\n- At least 21 years old\n- An original full UK or EU driving licence held for at least 12 months\n- A second proof of address may be requested if the licence address is not current\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. I have not submitted anything."
+      },
+      "evidence": {
+        "groundingPath": "RAG",
+        "actionUsed": false,
+        "ragAttempted": true,
+        "ragUsed": true,
+        "sourceCount": 5,
+        "documentCount": 5,
+        "externalDocuments": [
+          {
+            "id": "aidoc-d4869d828383999e338d49f6dbecbf6f9b340912b4239927",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nThe driver must be at least 21 years old and must present an original full UK\nor EU driving licence held for at least 12 months. Northfield may request a\nsecond proof of address when the licence address is not current.\n\nA test-drive request needs the customer's name, email address, phone number,\nthe selected vehicle and, when available, a preferred date or time. The\ncustomer must explicitly confirm submission. The request is not a booking\nuntil a dealership team member checks vehicle and staff availability and sends\na confirmed appointment.\n\nOnly the named, verified driver may drive. Normal demonstrations are\naccompanied by a Northfield team member, use an agreed route and last up to 45\nminutes. Additional drivers must meet the same requirements and be approved in\nadvance. Acce...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.8283404111862183
+          },
+          {
+            "id": "DEMO-1001",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E1 derivative: Motion Long Range registrationYear: 2025 fuelType: Electric bodyType: SUV transmission: Automatic mileage: 4850 priceGbp: 31950.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7955271005630493
+          },
+          {
+            "id": "DEMO-1006",
+            "title": null,
+            "contentPreview": "content: make: Aster model: E2 derivative: Sport Dual Motor registrationYear: 2025 fuelType: Electric bodyType: Crossover transmission: Automatic mileage: 3760 priceGbp: 39250.0 features: [{\"name\":\"Synthetic provider contract fixture\",\"type\":\"Standard\"},{\"name\":\"Automatic transmission\",\"type\":\"Standard\"}]",
+            "type": "dealer-vehicle",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7644683122634888
+          },
+          {
+            "id": "aidoc-7f39171efd21629d82e7b8b61f9af132df9e0030ebd6ec91",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - VEHICLE RESERVATION AND DEPOSIT POLICY\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is a fictional policy used only in the LoomAI dealership demonstration.\n\nA customer may request a 48-hour reservation on one currently available\nvehicle. The reservation amount is GBP 99. A reservation begins only after a\nNorthfield team member confirms current availability and issues a reservation\nreceipt. A chat message or callback request does not reserve a vehicle.\n\nThe GBP 99 reservation amount is applied to the purchase price if the sale\ncontinues. It is refundable when the customer cancels before the 48-hour hold\nexpires, when Northfield cannot supply the materially described vehicle, or\nwhen the customer rejects the vehicle at the first arranged inspection or test\ndrive. Approved refunds return to the original payment method and normally\nappear within three to five working days.\n\nAt the end of 48 hours an unextended reservatio...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7593634128570557
+          },
+          {
+            "id": "aidoc-5c6b2b60bc6697a89e8c1ca208fc9ce845fbb0b239cffc10",
+            "title": null,
+            "contentPreview": "NORTHFIELD MOTOR HOUSE - RIVERSIDE SHOWROOM INFORMATION\nDocument version: 1.0\nEffective date: 1 October 2026\nAudience: Public demonstration\n\nThis is fictional public information used only in the LoomAI dealership\ndemonstration.\n\nNorthfield Riverside sales opening hours are Monday to Friday 09:00 to 18:00,\nSaturday 09:00 to 17:00 and Sunday 10:00 to 16:00. Public-holiday hours may\ndiffer and should be confirmed with the team before travel.\n\nThe customer entrance and sales floor have step-free access. Two accessible\nparking bays are beside the main entrance, and an accessible toilet is\navailable on the ground floor. Customers may request a quiet appointment,\nseating during handover or extra time to inspect vehicle controls. Assistance\ndogs are welcome.\n\nVehicle-specific location and availability must be checked from current stock\ndata because vehicles can move between sites. This document describes the\nRiverside visitor facilities; it must not be used to claim that a named vehicle\nis cur...",
+            "type": "document",
+            "vectorSpace": "dealer-vehicle",
+            "score": 0.7464914321899414
+          }
+        ],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          },
+          {
+            "iteration": 1,
+            "status": "PLANNED",
+            "decision": "USE_RAG_ONLY",
+            "useRag": null
+          }
+        ],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 16,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": true,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": true,
+            "type": "INFORMATION_PROVIDED"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "To book a test drive, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Any accessibility or child-seat needs, if relevant\n\nYou also need to explicitly confirm submission.\n\nFor the driver, the requirements are:\n\n- At least 21 years old\n- An original full UK or EU driving licence held for at least 12 months\n- A second proof of address may be requested if the licence address is not current\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. I have not submitted anything."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context exposes all deployment retrieval spaces",
+          "passed": true,
+          "expected": "dealer-demo-001 with every descriptor retrieval space and no single-space pin.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "preferredVectorSpaces": [
+              "dealer-vehicle",
+              "document"
+            ],
+            "sourceMode": "DEMONSTRATION_INVENTORY"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+          "observed": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-540582e2-799c-4b30-afc3-2440e0bdc8a6.",
+          "observed": {
+            "requestConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6",
+            "responseConversationId": "chat-540582e2-799c-4b30-afc3-2440e0bdc8a6"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": true,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 16
+        },
+        {
+          "name": "no write action completed",
+          "passed": true,
+          "expected": "No successful test-drive or callback write.",
+          "observed": []
+        },
+        {
+          "name": "no confirmation turn was sent",
+          "passed": true,
+          "expected": "No \"Yes, confirm\" request.",
+          "observed": false
+        },
+        {
+          "name": "no receipt was issued",
+          "passed": true,
+          "expected": "No dealership lead receipt.",
+          "observed": []
+        },
+        {
+          "name": "assistant respects the no-submit instruction",
+          "passed": true,
+          "expected": "Explain needed details/confirmation without claiming submission.",
+          "observed": "To book a test drive, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Any accessibility or child-seat needs, if relevant\n\nYou also need to explicitly confirm submission.\n\nFor the driver, the requirements are:\n\n- At least 21 years old\n- An original full UK or EU driving licence held for at least 12 months\n- A second proof of address may be requested if the licence address is not current\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. I have not submitted anything."
+        },
+        {
+          "name": "internal target ids stay hidden",
+          "passed": true,
+          "expected": "Do not ask a buyer for vehicleId.",
+          "observed": "To book a test drive, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Any accessibility or child-seat needs, if relevant\n\nYou also need to explicitly confirm submission.\n\nFor the driver, the requirements are:\n\n- At least 21 years old\n- An original full UK or EU driving licence held for at least 12 months\n- A second proof of address may be requested if the licence address is not current\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. I have not submitted anything."
+        },
+        {
+          "name": "customer-facing requirements are complete",
+          "passed": true,
+          "expected": "Explain name, email, phone, and final confirmation.",
+          "observed": "To book a test drive, I need:\n\n- Your name\n- Your email address\n- Your phone number\n- The selected vehicle: Aster E1\n- A preferred date or time, if you have one\n- Any accessibility or child-seat needs, if relevant\n\nYou also need to explicitly confirm submission.\n\nFor the driver, the requirements are:\n\n- At least 21 years old\n- An original full UK or EU driving licence held for at least 12 months\n- A second proof of address may be requested if the licence address is not current\n\nThis is fictional demonstration policy from **NORTHFIELD MOTOR HOUSE - TEST DRIVE REQUIREMENTS**. I have not submitted anything."
+        }
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "KEEP",
+      "owner": "UI_INTEGRATION",
+      "finding": "The browser integration consistently used executor mode, search position, and deployment-owned context.",
+      "recommendation": "Keep the current UI contract. Do not select thinker/executor dynamically in browser code.",
+      "evidenceScenarioIds": [
+        "structured-current-stock-action",
+        "contextual-follow-up",
+        "vehicle-comparison",
+        "semantic-rag",
+        "empty-action-rag-fallback",
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility",
+        "governed-write-intent"
+      ]
+    },
+    {
+      "priority": "KEEP",
+      "owner": "DEPLOYMENT_CONFIGURATION",
+      "finding": "Conversation-level iteration preserved history and demonstrably resolved the contextual follow-up.",
+      "recommendation": "Keep runtime-owned conversation memory. Do not confuse a multi-turn session with read-action planner iteration.",
+      "evidenceScenarioIds": [
+        "contextual-follow-up"
+      ]
+    },
+    {
+      "priority": "KEEP",
+      "owner": "DEPLOYMENT_CONFIGURATION",
+      "finding": "The current ITERATIVE planner with RAG_IF_ACTIONS_INSUFFICIENT cooperation supplemented an empty action with indexed evidence.",
+      "recommendation": "Keep executor/search and the current fallback policy. Canary PARALLEL_ACTIONS_AND_RAG only for broad mixed queries where measured quality justifies additional model/retrieval cost.",
+      "evidenceScenarioIds": [
+        "empty-action-rag-fallback"
+      ]
+    },
+    {
+      "priority": "NONE_FROM_THIS_RUN",
+      "owner": "FRAMEWORK",
+      "finding": "This run produced no evidence that requires a framework code change.",
+      "recommendation": "Prefer deployment policy, action-contract, indexing, and knowledge-boundary changes first. Raise a framework issue only with provider request IDs from a failed explicit capability.",
+      "evidenceScenarioIds": []
+    }
+  ],
+  "mutations": {
+    "deploymentChanged": false,
+    "frameworkChanged": false,
+    "liveConfigurationChanged": false,
+    "domainWriteConfirmed": false
+  }
+}

@@ -566,9 +566,10 @@ runtime, and Platform contract at a time.
 - Verification and product claims must target the current immutable release;
   a pass on an older release does not count as current evidence.
 
-As of 2026-09-30, the only supported AI Fabric baseline is `0.8.5`. The
-matching LoomAI Platform/runtime rollout, bounded dealership-demo evidence, and
-the separately deferred Shopify full-gate blocker are recorded in
-`CODEX_WORKING_CONTEXT.md` and the private session handoff. Do not describe the
-global Platform release gate as green until that recorded Shopify blocker is
+As of 2026-10-05, the only supported AI Fabric baseline is `0.8.10`. The
+matching LoomAI Platform/runtime rollout and bounded dealership v28 evidence
+are recorded in `CODEX_WORKING_CONTEXT.md` and the private session handoff. The
+dealership-specific `28/28` provider canary and repeated `12/12` browser suites
+do not constitute a global Platform release gate. Do not describe that global
+gate as green until the separately recorded owner-deferred Shopify blocker is
 resolved and a fresh full run passes.

@@ -10,8 +10,8 @@
   data-rights, advertiser, package, certification, and production gate remains
   open. LoomAI is not yet entitled to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
-- **Last contract review:** 2026-10-03
-- **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04
+- **Last contract review:** 2026-10-05
+- **Current LoomAI baseline:** AI Fabric `0.8.10`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
   Trader advertiser scope
@@ -38,13 +38,18 @@
   parallel integration contract
 - **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
   source `86abb0320c5af2397231cf40077194ba0435efd2`, completed
-  `2026-09-28T11:46:36Z`; dealership deployment `dep-f023c863`, runtime image
-  source `738fad457e607b2f00c3184dd4f7c78eee7764a2`, deployment version
-  `ver-e51ba303`, source artifact `dsa-20de18aa`, and release
-  `rel-cd3ebd96`, verified 2026-10-03
-- **Dealership-owned knowledge:** separately hosted-proven on deployment v25
-  on 2026-10-04. It uses the generic Document Knowledge Operations DATA
-  capability and is not Auto Trader data or partner-readiness evidence.
+  `2026-09-28T11:46:36Z`; current dealership deployment `dep-f023c863`, runtime
+  source `6d08b3276b656c7e786cc3a70b559d8061d6204c`, deployment version
+  `ver-ba6d6caf`, source artifact `dsa-4fdcd9fa`, release `rel-f142cd17`, and
+  verification `vrf-a230a2ec`, verified 2026-10-05
+- **Current quality closure:** the synthetic public-document contract canary
+  passes `28/28`, including `6 -> 7 -> 6` targeted reconciliation, and two
+  independent one-conversation browser suites pass `12/12`. This verifies the
+  current fictional composition and does not alter the partner gates above.
+- **Dealership-owned knowledge:** introduced and hosted-proven on deployment
+  v25 on 2026-10-04, then retained and reverified on current v28. It uses the
+  generic Document Knowledge Operations DATA capability and is not Auto Trader
+  data or partner-readiness evidence.
 
 Related plans:
 
@@ -543,7 +548,8 @@ The superseding media canary completed at `2026-10-03T09:09:00Z` with status
 `PASSED`, all `28/28` checks green, and the same bounded claim
 `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`.
 
-- Deployment `dep-f023c863` is active on v24 / `ver-e51ba303`, source artifact
+- At this historical checkpoint, deployment `dep-f023c863` was active on v24 /
+  `ver-e51ba303`, source artifact
   `dsa-20de18aa`, runtime source
   `738fad457e607b2f00c3184dd4f7c78eee7764a2`, release `rel-cd3ebd96`, and
   verification `vrf-fc0f9db8`. The release is `APPLIED_VERIFIED`.
@@ -582,6 +588,26 @@ This does not claim Auto Trader-hosted image delivery, Media Updates access,
 upload/reorder/delete support, sandbox compatibility, data rights,
 certification, endorsement, or production approval. Real media writes remain a
 separate partner-granted capability and go-live gate.
+
+### 4.5 Current v28 provider-contract and quality closure
+
+The current immutable checkpoint is v28 / `ver-ba6d6caf`, release
+`rel-f142cd17`, verification `vrf-a230a2ec`, source artifact `dsa-4fdcd9fa`,
+and AI Fabric `0.8.10`. The provider canary again passed `28/28`, including
+targeted convergence `6 -> 7 -> 6`, after the production-grade structured
+projection and trusted-target corrections. Two independent one-conversation
+browser suites then passed `12/12`, including inventory filters, contextual
+follow-up, comparison, empty-action RAG cooperation, all six document answers,
+and governed-write guidance without executing a write.
+
+Current bounded evidence is:
+
+- `verification-support/external-vehicle-provider-simulator/evidence/2026-10-05-autotrader-public-contract-hosted-v28.json`;
+- `verification-support/autotrader-dealership-demo/evidence/2026-10-05-dealership-live-quality-v28-run-1.json`; and
+- `verification-support/autotrader-dealership-demo/evidence/2026-10-05-dealership-live-quality-v28-run-2.json`.
+
+This advances the fictional composition evidence only. It does not advance
+phase 6 or 7 and does not constitute a real Auto Trader interoperability claim.
 
 ## 5. Target Deployment-Local Architecture
 
@@ -1374,8 +1400,8 @@ Current execution status:
 | 3 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | TLS-originated signed ingress, dedupe, ordering, rejection, replay, retry, dead-letter, and baseline convergence passed on staging |
 | 3A | `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | Targeted current-record reconciliation, persisted verified record key, shared mapping, source locking, provider-only action routing, response filtering, rejection, duplicate, delayed, upsert, and delete paths passed on the replacement staging deployment |
 | 4 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Scoped operations/discovery, immutable apply/rollback, durable restart, destructive restore, and complete cleanup passed; UI remains source-build verified |
-| 5 | `DEALERSHIP_DEMO_READY` | Approved fictional data, dealership-owned lead boundary, ordinary customer demo app, direct browser chat, indexing, retrieval, confirmation, restart durability, and staff readback passed on staging; the initial closure used AI Fabric `0.8.5` and the latest first-delivery closure uses `0.8.8` |
-| 5A | `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | Public-contract simulator profile, verification-only Marketplace versions, provider-backed deployment v22, protected staff scenarios, exact wire canary, indexing, action facts, RAG evidence, and cleanup passed live |
+| 5 | `DEALERSHIP_DEMO_READY` | Approved fictional data, dealership-owned lead boundary, ordinary customer demo app, direct browser chat, indexing, retrieval, confirmation, restart durability, and staff readback passed on staging; the current v28 closure uses AI Fabric `0.8.10` and passed two strict `12/12` conversational runs |
+| 5A | `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | Public-contract simulator profile, verification-only Marketplace versions, provider-backed deployment v28, protected staff scenarios, exact wire canary, typed projection queries, action facts, RAG evidence, `28/28` checks, and cleanup passed live |
 | 6 | `BLOCKED_EXTERNAL` | Requires Auto Trader partner sandbox identity, exact grants, advertiser, schemas, events, and validation support |
 | 7 | `BLOCKED_EXTERNAL` | Requires production approval, rights, bindings, go-live validation, and controlled production proof |
 

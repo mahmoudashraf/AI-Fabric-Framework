@@ -1,12 +1,15 @@
 # 010.25 Auto Trader Connect LoomAI Capability Productization Analysis
 
-- **Status:** Product and integration analysis; proposed packages and generic connector extensions are not implemented or hosted-proven
+- **Status:** Product and integration analysis; the provider-neutral substrate
+  and fictional dealership composition are now hosted-proven as recorded in
+  canonical plan `010.27`, while every real Auto Trader partner gate remains
+  open
 - **Date:** 2026-09-25
 - **Generic-contract alignment:** reviewed 2026-09-27; `010.27` is canonical
   for token exchange, protected resources, HTTP sync, inbound events,
   persistence, and internal service-auth contracts
 - **Decision scope:** UK automotive retail integrations using Auto Trader Connect
-- **Current LoomAI baseline:** AI Fabric `0.8.5`, Platform `Platform-V11`, V04 deployment lifecycle
+- **Current LoomAI baseline:** AI Fabric `0.8.10`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Compatibility posture:** current-only greenfield design; no legacy runtime or plugin compatibility path
 
 Related LoomAI plans:

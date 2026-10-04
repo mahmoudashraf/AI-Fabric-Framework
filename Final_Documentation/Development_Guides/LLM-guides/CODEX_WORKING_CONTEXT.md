@@ -3896,3 +3896,57 @@ Critical fixes that made the gate pass:
   customer-managed S3-compatible storage. LoomAI does not own source backup,
   retention, residency, encryption, or source deletion and must not market the
   demo mount as managed storage.
+
+## 2026-10-05 Dealership Production-Quality Inventory And Target Closure
+
+- Supersede the current dealership runtime identity above with deployment
+  `dep-f023c863` v28 / `ver-ba6d6caf`, release `rel-f142cd17`, verification
+  `vrf-a230a2ec`, source artifact `dsa-4fdcd9fa`, and AI Fabric `0.8.10`.
+  Release state is `APPLIED_VERIFIED` / `PASSED`; runtime liveness/readiness
+  and connector health are `UP`.
+- Runtime source is `6d08b3276b656c7e786cc3a70b559d8061d6204c`; immutable OCI
+  digest is
+  `sha256:68d6ad2cc7f0719a1cd29aa1eb38f3d1e5cce6d90780fbe45233aaa05f7511e4`.
+  The staging Platform backend is healthy on that exact source through Coolify
+  deployment `g3h0b34u70nijafmera5j9fq`.
+- AI Fabric `0.8.10` source is
+  `8d2e440c2db0467c05e85129c3b1397a27f79df0`, tag
+  `ai-fabric-framework-v0.8.10`. Maven Central and framework CI passed; focused
+  affected suites passed core `697/697`, chat session `63/63`, and curated
+  modules `5/5`.
+- The generic connector now keeps a durable structured projection of records
+  that completed runtime indexing. Baseline reconciliation, targeted refresh,
+  and tombstones update it atomically. A deployment-local internal query route
+  provides typed predicates, deterministic ordering, limits, applied-filter
+  evidence, freshness, and explicit no-match sufficiency over the full
+  synchronized source. This replaces the faulty one-page provider filtering
+  path without answer-text matching or dealership logic in connector core.
+- AI Fabric now projects bounded safe read-action items into the conversation
+  working set and activates persisted targets only after intent extraction for
+  explicit target-resolution intent. Request attachments remain authoritative;
+  owner/session isolation, reuse bounds, expiry, and future-turn rejection fail
+  closed. This prevents an unrelated new vehicle query from inheriting an old
+  action-result target.
+- Marketplace ACTION `mkv-701fd272@1.3.1` and template
+  `mkv-811a85df@1.3.1` compile the dealership boundary. Current install
+  `mpi-dc1930e8` makes `dealership_get_vehicle.vehicle` internal,
+  non-user-askable, and attachment/evidence-bound. Newly named buyer-facing
+  vehicles route through `dealership_search_inventory`; no untrusted name is
+  promoted into a protected resource ID.
+- Final source reconciliation completed `6/6` with six indexed records. The
+  hosted synthetic provider canary passed `28/28` and converged `6 -> 7 -> 6`.
+  Evidence is
+  `verification-support/external-vehicle-provider-simulator/evidence/2026-10-05-autotrader-public-contract-hosted-v28.json`.
+- Two fresh strict browser quality runs each passed `12/12` in one anonymous
+  `executor` / `search` conversation. Both passed all global assertions and all
+  six dealership-document scenarios, sent no confirmation phrase, completed
+  no domain write, and observed no browser/runtime transport failure. Evidence
+  is `2026-10-05-dealership-live-quality-v28-run-1.json` and
+  `2026-10-05-dealership-live-quality-v28-run-2.json` under the dealership
+  evidence directory.
+- The three findings in the immutable 2026-10-04 `NEEDS_IMPROVEMENT` report
+  are closed for the current fictional composition. The checks were satisfied
+  or made evidence-correct; none was removed or weakened. Real Auto Trader
+  credentials, advertiser rights, sandbox interoperability, certification,
+  production approval, and customer storage onboarding remain open external
+  gates.

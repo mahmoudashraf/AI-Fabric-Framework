@@ -1,13 +1,14 @@
 # 010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan
 
 **Status:** First delivery and reusable dealership-pack extraction implemented,
-deployed, and live-verified; Marketplace lifecycle remains deferred
+deployed, and live-verified; Marketplace-managed UI-extension lifecycle remains
+deferred
 **Created:** 2026-10-01
-**Revised:** 2026-10-04
+**Revised:** 2026-10-05
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
 dealership-owned component package
-**Related live baseline:** Dealership deployment `dep-f023c863`, version `v21` /
-`ver-1459db9f`, release `rel-58af17bb`, AI Fabric `0.8.8`
+**Related live baseline:** Dealership deployment `dep-f023c863`, version `v28` /
+`ver-ba6d6caf`, release `rel-f142cd17`, AI Fabric `0.8.10`
 
 ## 1. Purpose
 
@@ -1164,6 +1165,28 @@ or Platform-managed `UI_EXTENSION` packaging.
 - The live quality matrix used the same `executor` / `search` UI contract and
   one anonymous conversation. Its `documentKnowledge` capability gate passed
   all six approved document scenarios and completed no write action.
-- Three inventory action/filter/follow-up assertions remain separately open in
-  the broader matrix. The document capability verdict does not suppress or
-  reclassify those action-contract findings.
+- The original 2026-10-04 broader matrix retains three inventory
+  action/filter/follow-up failures as historical evidence. The current v28
+  action/runtime correction closes them in two independent strict `12/12`
+  reports without changing the generic renderer contract or weakening an
+  assertion.
+
+### 17.12 Current action and target quality closure (2026-10-05)
+
+- The generic UI remains unchanged and domain-neutral: it renders only
+  host-injected reviewed projections and sends all discovery, target, RAG, and
+  write decisions to the assigned deployment.
+- The live deployment now queries a durable connector-side structured source
+  projection for typed inventory filters. This fixes correctness over the full
+  synchronized source without browser filtering or prose parsing.
+- AI Fabric `0.8.10` scopes persisted action-result targets to explicit
+  target-resolution intent. Request attachments remain authoritative, and a
+  new buyer-facing vehicle name is discovered through search rather than
+  accepted as a trusted resource ID.
+- The current Marketplace ACTION and template are `1.3.1`; deployment v28 is
+  `APPLIED_VERIFIED`. The provider canary passed `28/28`, and two strict
+  browser runs passed `12/12` in one conversation each with no confirmed or
+  completed write.
+- This closes the current dealership UI/action quality defect while preserving
+  the package boundary: no vehicle, dealership, or Auto Trader matching was
+  added to `max-mode-widget`.

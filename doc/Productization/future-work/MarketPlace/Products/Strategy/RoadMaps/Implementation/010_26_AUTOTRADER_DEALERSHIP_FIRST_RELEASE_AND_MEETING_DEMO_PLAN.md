@@ -2,19 +2,18 @@
 
 - **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
   generic Max Mode first-delivery closure passed on 2026-10-02, and the same
-  deployment `dep-f023c863` is now provider-backed v24 with ordered synthetic
-  provider media carried through Data Sync, action results, RAG documents, and
-  reviewed host renderers. Deployment v25 additionally has six approved
-  dealership policy/operations documents indexed and live; its dedicated
-  document-source proof and all six generated-answer scenarios pass. Its
-  synthetic public-document contract canary passed `28/28`; the production
-  browser proof loaded all six provider images.
+  deployment `dep-f023c863` is now provider-backed v28 on AI Fabric `0.8.10`.
+  Ordered synthetic provider media flows through Data Sync, action results,
+  RAG documents, and reviewed host renderers. Six approved dealership
+  policy/operations documents remain indexed and live. The current synthetic
+  public-document contract canary passed `28/28`, and two independent strict
+  browser quality runs passed `12/12` in one conversation each with no write.
   Released customer Auto Trader Marketplace packaging and every real Auto
   Trader access/rights/certification gate remain open.
 - **Date:** 2026-09-25
-- **Last architecture review:** 2026-10-03
-- **Last implementation checkpoint:** 2026-10-04
-- **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04 deployment lifecycle
+- **Last architecture review:** 2026-10-05
+- **Last implementation checkpoint:** 2026-10-05
+- **Current LoomAI baseline:** AI Fabric `0.8.10`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
 - **Auto Trader write posture:** analysis only; provider writes remain outside
@@ -45,6 +44,9 @@ Related plans and evidence:
 - [2026-10-03 provider-media browser evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-03-dealership-provider-media-live.json)
 - [2026-10-04 dealership document-knowledge evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-document-knowledge-live.json)
 - [2026-10-04 dealership live quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-04-dealership-live-quality.json)
+- [2026-10-05 synthetic public-contract v28 evidence](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-05-autotrader-public-contract-hosted-v28.json)
+- [2026-10-05 dealership v28 quality run 1](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-05-dealership-live-quality-v28-run-1.json)
+- [2026-10-05 dealership v28 quality run 2](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-05-dealership-live-quality-v28-run-2.json)
 
 Quality and verification references in the public framework repository:
 
@@ -92,10 +94,10 @@ Implementation references:
 | Customer application UI | Hosted and verified | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, Max Mode, and host-injected structured action presentations through the generic widget contract |
 | Staff workspace | Hosted and verified | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes, true server-side logout, and four fixed server-owned provider simulation scenarios; browser cannot choose account, target, credential, URL, or payload |
 | Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
-| Inventory Data Sync client | Superseded by provider-backed DATA composition | Historical backend-push evidence remains valid for its recorded version. Current v24 connector pulls six synthetic records with primary media projection, performs current-record webhook upsert/delete, and reconciles runtime indexing `6 -> 7 -> 6`; the independent backend no longer pushes chat inventory |
-| Dealership document knowledge | Hosted and verified on v25 | Six approved fictional policy/operations files use the mounted-folder demo DATA package, are active at source version 1, and pass six-of-six live generated-answer checks. Customer production uses the sibling customer-managed S3 package, never the demo mount |
-| Authorization and actions | Hosted and verified | Indexed inventory action and grounded follow-up both preserve reviewed provider media; test-drive rejection, confirmed test drive, confirmed callback, protected staff readback, and cleanup all passed |
-| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy; provider reads resolve through the provider profile, bounded nested provider references are promoted by declared projections, dealership writes retain their application upstream, and immutable v24 is `APPLIED_VERIFIED` |
+| Inventory Data Sync client | Superseded by provider-backed DATA composition | Historical backend-push evidence remains valid for its recorded version. Current v28 connector pulls six synthetic records with primary media projection, performs current-record webhook upsert/delete, and reconciles runtime indexing `6 -> 7 -> 6`; the independent backend no longer pushes chat inventory |
+| Dealership document knowledge | Hosted and verified on v28 | Six approved fictional policy/operations files use the mounted-folder demo DATA package, are active at source version 1, and pass six-of-six live generated-answer checks in both current strict runs. Customer production uses the sibling customer-managed S3 package, never the demo mount |
+| Authorization and actions | Hosted and verified on v28 | Projection-backed inventory search applies typed filters over the full synchronized source; trusted current-vehicle actions accept only attachment/evidence-bound internal IDs; contextual follow-up, comparison, no-match RAG cooperation, governed-write guidance, and all current strict assertions passed twice |
+| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy; provider reads resolve through the provider profile, synchronized source records are queried through a generic typed projection route, dealership writes retain their application upstream, and immutable v28 is `APPLIED_VERIFIED` |
 | Public catalogue | Live | Experiment entry, sitemap, content/static smoke, responsive browser coverage, rich action renderers, detail navigation, six-of-six provider image loading, and document-aware retrieval context are live on production site commit `3586eaad8a4451b34055cc7df8746a2272993801` |
 | Build and supply-chain posture | Implemented locally | Backend/site production images build; status exposes version/commit/build time; site and widget production dependency audits report zero findings; widget package/artifact ownership is LoomAI-labelled and locally bundled |
 | Auto Trader source | Not activated | No credential, advertiser grant, sandbox fixture or production data is claimed; meeting composition remains fictional |
@@ -181,10 +183,63 @@ and the governed no-submit test-drive explanation in one anonymous
 conversation. This proves meaningful use of dealership-owned knowledge in
 customer answers, not merely nonzero vectors.
 
-The broader quality report remains non-green for three existing inventory
-action/filter/follow-up assertions. Keep those findings open under the action
-contract quality work; do not misclassify them as a document-indexing failure
-and do not weaken their assertions to manufacture a global green result.
+That 2026-10-04 broader report remains immutable evidence of three inventory
+action/filter/follow-up failures. It is superseded for current release status
+by the v28 production-quality closure below; its assertions were corrected or
+satisfied rather than removed or weakened.
+
+### Production-quality inventory and target closure: 2026-10-05
+
+Deployment `dep-f023c863` now runs v28 / `ver-ba6d6caf`, release
+`rel-f142cd17`, verification `vrf-a230a2ec`, and source artifact
+`dsa-4fdcd9fa`. The release is `APPLIED_VERIFIED` / `PASSED` on AI Fabric
+`0.8.10`, runtime source `6d08b3276b656c7e786cc3a70b559d8061d6204c`,
+and immutable image digest
+`sha256:68d6ad2cc7f0719a1cd29aa1eb38f3d1e5cce6d90780fbe45233aaa05f7511e4`.
+Runtime readiness/liveness and connector health are `UP`.
+
+The three quality defects were closed at their owning boundaries:
+
+1. The connector now maintains a durable, deployment-local structured
+   projection of successfully indexed source records. Baseline sync, targeted
+   refresh, and tombstones update it atomically, and the generic internal query
+   route applies typed predicates, deterministic ordering, bounded limits,
+   freshness, and explicit no-match sufficiency over the complete synchronized
+   source rather than filtering one provider page.
+2. AI Fabric `0.8.10` activates persisted action-result targets only after
+   intent extraction and only for an intent that requires target resolution.
+   Explicit request attachments remain authoritative; unrelated later turns,
+   expired turns, future turns, sessions, tenants, and deployments cannot
+   inherit a stale target.
+3. `dealership_get_vehicle` now accepts `vehicle` only as an internal,
+   non-user-askable, attachment/evidence-bound identifier. A newly named
+   buyer-facing vehicle routes through inventory discovery instead of being
+   treated as a trusted resource ID. This preserves fail-closed authorization
+   without domain matching in framework code.
+
+Marketplace ACTION `1.3.1` (`mkv-701fd272`) and template `1.3.1`
+(`mkv-811a85df`) compile this contract; install `mpi-dc1930e8` is current.
+The final reconciliation completed six of six records with six indexed vectors.
+
+The hosted synthetic provider canary passed all `28/28` checks and restored
+vector counts `6 -> 7 -> 6`. Two fresh strict browser runs independently passed
+all `12/12` scenarios in one conversation each. Every global assertion passed:
+`executor` / `search`, complete deployment retrieval scope, conversation
+continuity, no confirmation phrase, no domain write, and no browser/runtime
+transport failure. Both runs also passed all six dealership-document answers.
+The evidence hashes are:
+
+- provider canary:
+  `bcb3e40bbf02c4230d5997e26e26ec13141b1afb3bd7d5c8c35d0df798ef485c`;
+- quality run 1:
+  `20f5a3f8a568f66188df770336e3093a235eb88b24951d88ceeaefdb1fd1a819`;
+- quality run 2:
+  `91c7d5c0cea6192447a26ebbb9743c3efe1ef303bc52c1ecd78f346346a70e44`.
+
+This closes the three known fictional-dealership inventory/action quality
+findings. It does not close real Auto Trader credentials, advertiser rights,
+sandbox validation, certification, production approval, or customer storage
+onboarding.
 
 ## 1. Executive Decision
 
@@ -1546,7 +1601,7 @@ These changes must contain no hard-coded Auto Trader domain behavior.
   The reviewed LoomAI `max-mode-widget` UI dependency/bundle is expected and is
   not an AI Fabric runtime dependency.
 - The separate LoomAI deployment image is independently verified to contain the
-  required released AI Fabric artifacts (`0.8.8` at the 2026-10-03 checkpoint)
+  required released AI Fabric artifacts (`0.8.10` at the current checkpoint)
   and no locally substituted framework build. Historical evidence continues to
   name the exact older artifact it actually exercised.
 - Backend tests pass without skips.
@@ -1830,6 +1885,9 @@ Version `v15` / `ver-d8d76d70`, release `rel-f899de18`, remains a historical
 quality comparison baseline. The later first-delivery closure superseded its
 live status with deployment `dep-f023c863` version `v21` / `ver-1459db9f`,
 release `rel-58af17bb`, verification `vrf-6388d613`, on AI Fabric `0.8.8`.
+The current production-quality checkpoint supersedes that live identity with
+v28 / `ver-ba6d6caf`, release `rel-f142cd17`, verification `vrf-a230a2ec`, on
+AI Fabric `0.8.10`.
 
 The two lists below deliberately separate reusable LoomAI or AI Fabric
 mechanics from dealership behavior. Generic code must not contain dealership,
@@ -1854,13 +1912,14 @@ The detailed implementation contract for G7/D4 is maintained separately in
 | G8 | Prompt governance | Prefer typed contracts and policy over accumulating prompt instructions | Version prompt overlays, show their diff in deployment review, and rerun the bounded quality corpus for every change. Do not use prompts to implement authorization, trusted-target resolution, grounding sufficiency, confirmation, or application validation. |
 | G9 | AI Fabric attachment contract and generic chat UI | Distinguish transient untrusted page context from authoritative pinned targets | Add provider-neutral attachment semantics for `kind=TRANSIENT_CONTEXT`, `trust=UNTRUSTED`, `scope=TURN`, and `actionEligible=false`. The generic chat UI may capture a user-requested, bounded current-page text snapshot and resend it only while its page-title chip remains attached. AI Fabric may use that text as answer evidence, but must not treat it as instructions, a trusted target, or a source of executable action parameters; it must not persist it in the conversation working set or index it. Enforce a deployment-owned server character ceiling in addition to the UI limit, report truncation, omit an invented vector space, strip URL query/fragment data by default, and prove prompt-injection resistance, removal behavior, route-change invalidation, PII handling, and tenant/session isolation. |
 
-The framework-level items in this list are G3 and G9. For G3, AI Fabric already
-provides conversation working-set target seeding for retrieved documents. The
-remaining opportunity is a generic, declarative action-result projection into
-that same bounded mechanism. It should be proposed to AI Fabric only with a
-provider-neutral contract and focused evidence; the current v15 result does not
-justify an urgent G3 framework patch because configured RAG fallback recovers
-safely.
+The framework-level items in this list are G3 and G9. G3 is implemented in the
+current AI Fabric line: action contracts can declaratively project bounded safe
+items into the conversation working set, and `0.8.10` activates those persisted
+targets only after intent extraction for explicit target-resolution intent.
+Request attachments have precedence; owner/session isolation, bounded reuse,
+and expired/future turn rejection are covered by framework tests. The v28
+dealership canary proves the provider-neutral mechanism without vehicle logic
+in framework code. G9 remains a separate generic contract gap.
 
 G9 is a separate generic contract gap. The current AI Fabric attachment path
 models attachments as authoritative pinned targets and can retain them for
@@ -1950,7 +2009,7 @@ after the multi-page source had already been deployed.
 | D4 | Dealership customer experience | Add structured vehicle and comparison presentation to Companion and Max Mode | Render vehicle cards and comparison tables from action facts while keeping the generated grounded explanation. Preserve the existing `executor` mode and `search` position; do not introduce browser-side mode selection or a second AI runtime. |
 | D5 | Dealership Marketplace packaging | Remove demo constants from the reusable dealership template | Bind dealership ID, approved origins, application URLs, advertiser scope, plugin versions, vector profile, sync schedule, webhook verification, and secret references at installation. `dealer-demo-001` and fictional source URLs remain fixtures only, never product defaults. |
 | D6 | Dealership data operations | Add automatic post-release inventory sync and reconciliation | Require source count, accepted count, indexed count, tombstones, work completion, and freshness to reconcile before the dealership deployment is marked ready. Production-sized customers provide an approved managed vector/object-storage service; local mounted/Lucene storage remains limited to demos or small explicitly accepted deployments. |
-| D7 | Dealership prompts and model policy | Freeze the current v15 prompt/model baseline until new repeatable evidence fails | Keep `gpt-5.4-mini` for orchestration at temperature `0` and generation at `0.1`. Do not add more wording for `those`; solve that structurally through D1. Any later prompt change must target a named failed scenario and must not introduce text matching, fabricated facts, or Auto Trader claims. |
+| D7 | Dealership prompts and model policy | Freeze the current v28 prompt/model baseline until new repeatable evidence fails | Keep `gpt-5.4-mini` for orchestration at temperature `0` and generation at `0.1`. The v28 prompt only states the typed discovery/trusted-target boundary; target continuity is enforced structurally through G3/D1. Any later prompt change must target a named failed scenario and must not introduce text matching, fabricated facts, or Auto Trader claims. |
 | D8 | Dealership performance and cost | Establish quality-preserving latency and cost budgets | The current strict run observed roughly three to nine seconds per turn, with the mixed semantic action-plus-RAG case the slowest. Measure p50/p95 by grounding path and canary parallel action/RAG only for broad mixed queries where measured quality and latency justify the extra retrieval/model cost. |
 | D9 | Auto Trader activation | Keep real provider work behind the existing sandbox and production gates | Replace the fictional source only after credentials, advertiser grant, exact capabilities, data rights, retention/attribution rules, and go-live checks are available. None of G1-G9 or D1-D8 changes the current no-connectivity/no-endorsement claim. |
 
@@ -1973,6 +2032,14 @@ after the multi-page source had already been deployed.
 8. Productize D5 and D6 before onboarding a real dealership.
 9. Optimize models, prompts, latency, or parallel retrieval only after the
    repeated quality gate remains green.
+
+As of the 2026-10-05 v28 closure, G3, D1, D2, and the dealership slice of G5
+are implemented and live-proven. G4 has sufficient bounded evaluation output
+for the current gate, while broader operator-facing diagnostics remain a
+separate product improvement. G7/D4 are already delivered through the generic
+renderer registry and dealership experience pack. G1, G2, G6, G9, D3, D5,
+D6, D8, and real-provider D9 retain their stated scope and are not silently
+claimed complete by this quality closure.
 
 Do not reopen the already-fixed empty-action grounding issue unless a future
 run again reports explicit insufficient action evidence as usable grounding or
