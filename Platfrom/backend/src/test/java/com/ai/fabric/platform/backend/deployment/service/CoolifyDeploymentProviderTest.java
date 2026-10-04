@@ -127,7 +127,7 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
-    void reconcilesMountedDocumentStorageForRuntimeAndConnectorOnlyForTheExplicitDemoConnector() {
+    void reconcilesMountedDocumentStorageOnlyForTheExplicitDemoConnector() {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -155,15 +155,6 @@ class CoolifyDeploymentProviderTest {
             null,
             objectMapper.createObjectNode()
         );
-        CoolifyApplicationSummary connector = new CoolifyApplicationSummary(
-            "connector-uuid",
-            "connector-dep-123",
-            "https://connector.example",
-            "running",
-            null,
-            null,
-            objectMapper.createObjectNode()
-        );
         RailwayServicePlanSummary mountedPlan = new RailwayServicePlanSummary(
             "runtime",
             "/",
@@ -175,26 +166,12 @@ class CoolifyDeploymentProviderTest {
             ))
         );
 
-        provider.reconcileMountedDocumentSourceStorage(
-            connection,
-            deployment,
-            profile,
-            runtime,
-            connector,
-            mountedPlan
-        );
+        provider.reconcileMountedDocumentSourceStorage(connection, deployment, profile, runtime, mountedPlan);
 
         verify(coolifyApiClient).reconcilePersistentDirectoryStorage(
             connection,
             "runtime-uuid",
             "loomai-documents-dep-123-dtp-coolify-staging",
-            "/srv/loomai/document-sources/dep-123/dtp-coolify-staging",
-            "/app/document-sources"
-        );
-        verify(coolifyApiClient).reconcilePersistentDirectoryStorage(
-            connection,
-            "connector-uuid",
-            "loomai-documents-dep-123-dtp-coolify-staging-connector",
             "/srv/loomai/document-sources/dep-123/dtp-coolify-staging",
             "/app/document-sources"
         );

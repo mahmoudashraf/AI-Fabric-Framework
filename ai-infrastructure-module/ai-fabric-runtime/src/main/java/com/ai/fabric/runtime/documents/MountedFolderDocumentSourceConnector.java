@@ -232,10 +232,14 @@ public class MountedFolderDocumentSourceConnector implements DocumentSourceConne
             }
             rejectSymbolicSegments(normalized);
             Path real = normalized.toRealPath(LinkOption.NOFOLLOW_LINKS);
-            if (!real.startsWith(root)
-                || !Files.isRegularFile(real, LinkOption.NOFOLLOW_LINKS)
-                || !Files.isReadable(real)) {
-                throw DocumentConnectorSupport.invalid("Document source is not a readable regular file.");
+            if (!real.startsWith(root)) {
+                throw DocumentConnectorSupport.invalid("Document source resolves outside the configured source scope.");
+            }
+            if (!Files.isRegularFile(real, LinkOption.NOFOLLOW_LINKS)) {
+                throw DocumentConnectorSupport.invalid("Document source is not a regular file.");
+            }
+            if (!Files.isReadable(real)) {
+                throw DocumentConnectorSupport.invalid("Document source is not readable by the runtime identity.");
             }
             return real;
         } catch (IOException exception) {
