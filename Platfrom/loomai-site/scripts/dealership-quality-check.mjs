@@ -586,6 +586,7 @@ function responseEvidence(value) {
     .map((document) => ({
       id: document?.id || null,
       title: document?.title || null,
+      contentPreview: summarizeText(document?.content, 1_000),
       type: document?.type || null,
       vectorSpace: document?.metadata?.vectorSpace || document?.vectorSpace || null,
       score: typeof document?.score === 'number' ? document.score : null,
@@ -680,12 +681,30 @@ function isExplicitlyInsufficient(entry) {
 }
 
 function answerMentionsRetrievedDocument(answer, documents) {
-  const normalizedAnswer = normalizeComparableText(answer)
-  return documents.some(({ id }) => {
-    const entityId = String(id || '').split('::')[0].replace(/^veh[-_:]?/i, '')
-    const terms = normalizeComparableText(entityId).split(' ').filter((term) => term.length > 1)
-    return terms.length >= 2 && terms.every((term) => normalizedAnswer.includes(term))
+  const answerTerms = new Set(evidenceTerms(answer))
+  return documents.some(({ title, contentPreview }) => {
+    const terms = uniqueStrings([
+      ...evidenceTerms(title),
+      ...evidenceTerms(contentPreview),
+    ])
+    const sharedTerms = terms.filter((term) => answerTerms.has(term))
+    return sharedTerms.length >= 2
   })
+}
+
+function evidenceTerms(value) {
+  const ignored = new Set([
+    'content', 'make', 'model', 'derivative', 'registrationyear', 'fueltype', 'bodytype',
+    'transmission', 'mileage', 'pricegbp', 'features', 'name', 'type', 'standard',
+    'provider', 'contract', 'fixture', 'current', 'vehicle', 'vehicles', 'stock',
+    'automatic', 'forecourt', 'published',
+  ])
+  return uniqueStrings(
+    String(value || '')
+      .match(/[A-Za-z][A-Za-z0-9-]*/g) || [],
+  )
+    .map((term) => term.toLowerCase())
+    .filter((term) => (term.length >= 4 || /\d/.test(term)) && !ignored.has(term))
 }
 
 function normalizeComparableText(value) {
