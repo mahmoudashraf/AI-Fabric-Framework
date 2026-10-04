@@ -525,6 +525,11 @@ class HostedCanary:
             and canary_record.get("fuelType") == "Electric"
             and canary_record.get("transmission") == "Automatic"
         )
+        provider_action_media_present = (
+            isinstance(canary_record, dict)
+            and bool(canary_record.get("imageId"))
+            and host(str(canary_record.get("imageUrl") or "")) == host(self.args.simulator_base_url)
+        )
         answer_price_present = re.search(r"(?:£|GBP\s*)?42[,.\s]?995(?:\.0+)?", answer, re.IGNORECASE) is not None
         answer_mileage_present = re.search(
             r"(?:mileage\D{0,20}12\b|\b12\s*(?:miles?|mi)\b)",
@@ -545,6 +550,7 @@ class HostedCanary:
             and query_body.get("success") is True
             and "dealership_search_inventory" in action_names
             and structured_facts_exact
+            and provider_action_media_present
             and answer_facts_present
             and len(query_body.get("sources", [])) > 0
             and len(documents) > 0,
@@ -561,6 +567,7 @@ class HostedCanary:
                 "answerMileagePresent": answer_mileage_present,
                 "answerFuelPresent": "Electric" in answer,
                 "answerTransmissionPresent": "Automatic" in answer,
+                "providerActionMediaPresent": provider_action_media_present,
                 "providerRequestId": query_body.get("providerRequestId"),
             },
         )
@@ -582,32 +589,16 @@ class HostedCanary:
             timeout=90,
         )
         media_body = media_query.body if isinstance(media_query.body, dict) else {}
-        action_records = [
-            record
-            for action in media_body.get("actions", [])
-            if isinstance(action, dict)
-            for record in (value(action, "actionResult", "data", "results") or [])
-            if isinstance(record, dict)
-        ]
-        action_media = [
-            images[0]
-            for record in action_records
-            for images in [value(record, "media", "images") or []]
-            if isinstance(images, list) and images
-        ]
-        action_media = [
-            image
-            for image in action_media
-            if isinstance(image, dict)
-            and bool(image.get("imageId"))
-            and host(str(image.get("href") or "")) == host(self.args.simulator_base_url)
-        ]
         media_documents = value(media_body, "ragResponse", "documents") or []
         indexed_media = [
             document.get("metadata", {})
             for document in media_documents
             if isinstance(document, dict)
             and isinstance(document.get("metadata"), dict)
+            and (
+                document.get("id") == self.canary_stock_id
+                or document.get("metadata", {}).get("stockId") == self.canary_stock_id
+            )
             and document.get("metadata", {}).get("imageId")
             and host(str(document.get("metadata", {}).get("imageUrl") or "")) == host(self.args.simulator_base_url)
         ]
@@ -615,12 +606,12 @@ class HostedCanary:
             "anonymous_chat_surfaces_provider_media_in_action_and_rag",
             media_query.status == 200
             and media_body.get("success") is True
-            and bool(action_media)
+            and provider_action_media_present
             and bool(indexed_media),
             {
                 "httpStatus": media_query.status,
                 "success": media_body.get("success"),
-                "actionMediaCount": len(action_media),
+                "providerActionMediaPresent": provider_action_media_present,
                 "indexedMediaDocumentCount": len(indexed_media),
                 "mediaHost": host(self.args.simulator_base_url),
                 "providerRequestId": media_body.get("providerRequestId"),
