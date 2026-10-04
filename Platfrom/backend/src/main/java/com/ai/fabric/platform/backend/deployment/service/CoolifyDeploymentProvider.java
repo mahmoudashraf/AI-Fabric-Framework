@@ -383,21 +383,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 null
             )
         );
-        tracked(
-            progressTracker,
-            "reconcile_coolify_document_source_storage",
-            "Create or verify the optional Coolify mounted document source directory for non-production demos.",
-            () -> {
-                reconcileMountedDocumentSourceStorage(
-                    connection,
-                    deployment,
-                    profile,
-                    runtimeApplication,
-                    source.runtimePlan()
-                );
-                return null;
-            }
-        );
         boolean localLuceneRuntime = usesLocalLuceneVectorStore(source.runtimePlan());
         if (localLuceneRuntime) {
             tracked(
@@ -473,6 +458,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 )
             );
         }
+
+        CoolifyApplicationSummary mountedSourceConnectorApplication = connectorApplication;
+        tracked(
+            progressTracker,
+            "reconcile_coolify_document_source_storage",
+            "Create or verify the optional Coolify mounted document source directory for each deployment service that reads it.",
+            () -> {
+                reconcileMountedDocumentSourceStorage(
+                    connection,
+                    deployment,
+                    profile,
+                    runtimeApplication,
+                    mountedSourceConnectorApplication,
+                    source.runtimePlan()
+                );
+                return null;
+            }
+        );
 
         CoolifyApplicationSummary vectorizationRunnerApplication = null;
         DeploymentProviderResourceHandleEntity provisionalVectorizationRunnerHandle = null;
@@ -936,6 +939,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         DeploymentEntity deployment,
         DeploymentTargetProfileEntity profile,
         CoolifyApplicationSummary runtimeApplication,
+        CoolifyApplicationSummary connectorApplication,
         RailwayServicePlanSummary runtimePlan
     ) {
         if (!hasEnvironmentValue(
@@ -951,13 +955,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         String deploymentSegment = safePathSegment(deployment.getId());
         String profileSegment = safePathSegment(profile.getId());
+        String storageName = "loomai-documents-" + deploymentSegment + "-" + profileSegment;
+        String hostPath = DOCUMENT_SOURCE_HOST_ROOT + "/" + deploymentSegment + "/" + profileSegment;
         coolifyApiClient.reconcilePersistentDirectoryStorage(
             connection,
             runtimeApplication.uuid(),
-            "loomai-documents-" + deploymentSegment + "-" + profileSegment,
-            DOCUMENT_SOURCE_HOST_ROOT + "/" + deploymentSegment + "/" + profileSegment,
+            storageName,
+            hostPath,
             DOCUMENT_SOURCE_MOUNT_PATH
         );
+        if (connectorApplication != null) {
+            coolifyApiClient.reconcilePersistentDirectoryStorage(
+                connection,
+                connectorApplication.uuid(),
+                storageName + "-connector",
+                hostPath,
+                DOCUMENT_SOURCE_MOUNT_PATH
+            );
+        }
     }
 
     void reconcileLocalLuceneRuntimeStorage(
