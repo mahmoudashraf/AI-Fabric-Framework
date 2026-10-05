@@ -396,6 +396,13 @@ React consumers can register a `kind: "react"` renderer and import the exported
 action-presentation types. Unknown renderers, incompatible schemas, missing
 configuration, and renderer failures preserve the generic action-result view.
 
+The generic fallback is responsive and schema-neutral. It unwraps common
+`data` plus `message`/`success` action envelopes, renders nested records and
+arrays as bounded structured rows, wraps long values on narrow screens, and
+omits recognized credential/secret fields. The fallback is a readable safety
+net; use an allowlisted custom presentation when an action has a stable
+customer-facing result contract.
+
 - Chat, auth bootstrap, auth-context, suggestions, and secure `/chat/me/*` conversation routes use `chatBaseUrl`.
 - Business CRUD such as carts still require `crudBaseUrl`.
 - If `crudBaseUrl` is omitted, the widget automatically disables cart/business CRUD UI instead of falling back to `chatBaseUrl`.

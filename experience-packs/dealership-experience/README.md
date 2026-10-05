@@ -79,3 +79,9 @@ By default the pack injects a mobile Max Mode rail with `Stock`, `Vehicle`, and
 tool scope, Vehicle opens the contextual scope when available, and Sources
 opens retrieved evidence. Override `toolRail` in the public pack configuration
 when a dealership needs a different reviewed command set.
+
+When `testDrive` or `callback` is enabled, the pack also maps the corresponding
+confirmed write action to a responsive request-receipt presentation. It shows
+only the safe reference, lifecycle status, vehicle label, submitted time, and
+customer-facing message; contact details and connector internals are not part
+of the projection.

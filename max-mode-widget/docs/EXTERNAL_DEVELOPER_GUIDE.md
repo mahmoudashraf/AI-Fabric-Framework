@@ -450,6 +450,14 @@ Use an experience pack when a reusable domain needs several coordinated
 tools, projections, and renderers. Do not add domain vocabulary to the generic
 widget.
 
+Actions without a matching reviewed presentation use the generic fallback.
+The fallback understands common nested `data` plus `message`/`success`
+envelopes, recursively renders bounded records and arrays, switches to a
+single-column layout on narrow screens, wraps long values, and omits fields
+whose names identify recognized credentials or secrets. This improves default
+presentation but does not replace a custom allowlisted projection for a stable
+domain result contract.
+
 ## 12. Events
 
 Use `onEvent` for host analytics and operational UI:

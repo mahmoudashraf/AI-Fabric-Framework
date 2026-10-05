@@ -465,7 +465,7 @@ Override names when a reviewed deployment uses different stable codes:
 The override changes presentation mapping. The deployment action catalog and
 selection prompt must independently advertise the same names.
 
-## 12. Rich Read-Result Contracts
+## 12. Rich Result Contracts
 
 The pack never hands an unbounded raw action payload to a renderer. It maps an
 exact action name and schema version to allowlisted fields.
@@ -602,6 +602,34 @@ Return two to four normalized public vehicle records under `_items`:
 
 The connector and runtime may carry additional internal fields, but the pack
 does not project them into its custom elements.
+
+### 12.4 Confirmed request receipt: `loomai.dealership-request-receipt.v1`
+
+When `capabilities.testDrive` or `capabilities.callback` is enabled, the pack
+maps the matching confirmed write action to a compact request receipt. The
+projection accepts the safe receipt fields either directly in the normalized
+action result or under a standard nested `data` envelope:
+
+```json
+{
+  "data": {
+    "receiptCode": "DEALER-REQUEST-001",
+    "actionType": "dealership_request_test_drive",
+    "status": "NEW",
+    "createdAt": "2026-10-05T10:35:14Z",
+    "vehicle": "2025 Example E1",
+    "message": "Your request is in the dealership review inbox."
+  },
+  "message": "Your request is in the dealership review inbox.",
+  "success": true
+}
+```
+
+Only `receiptCode`, `actionType`, `status`, `createdAt`, `vehicle`, `message`,
+and `success` are projected. The renderer does not receive contact details,
+provider credentials, internal targets, or the unbounded connector payload.
+If the result does not match this reviewed mapping, the generic widget fallback
+still renders a responsive bounded representation.
 
 ## 13. Write Actions
 

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Button } from "@/ui/button";
 import { Card, CardContent } from "@/ui/card";
 import { CheckCircle2, ExternalLink, Paperclip, Search, Sparkles, Star } from "lucide-react";
@@ -17,6 +19,10 @@ type ResultRecord = Record<string, any>;
 const PRIMARY_ARRAY_KEYS = ["items", "products", "results"];
 const SECONDARY_ARRAY_KEYS = ["documents", "policies"];
 const SUMMARY_FIELDS = new Set(["query", "count", "totalResults", "returnedResults"]);
+const ACTION_RESULT_ENVELOPE_FIELDS = new Set(["message", "success", "error", "errorCode"]);
+const SENSITIVE_FIELD_PATTERN = /(authorization|cookie|credential|password|private|secret|token|api.?key)/i;
+const MAX_GENERIC_FIELDS = 24;
+const MAX_GENERIC_ARRAY_ITEMS = 20;
 
 const isRecord = (value: unknown): value is ResultRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,6 +57,18 @@ const isProductLike = (item: any) => {
 const hasRenderableArray = (value: ResultRecord) =>
   Object.values(value).some((entry) => Array.isArray(entry));
 
+const flattenActionResultEnvelope = (value: ResultRecord): ResultRecord | null => {
+  if (!isRecord(value.data)) return null;
+  const siblingKeys = Object.keys(value).filter((key) => key !== "data");
+  if (!siblingKeys.every((key) => ACTION_RESULT_ENVELOPE_FIELDS.has(key))) return null;
+
+  const flattened = { ...value.data };
+  for (const key of siblingKeys) {
+    if (flattened[key] === undefined) flattened[key] = value[key];
+  }
+  return flattened;
+};
+
 const unwrapActionResultData = (value: any): any => {
   if (!isRecord(value)) return value;
 
@@ -66,6 +84,11 @@ const unwrapActionResultData = (value: any): any => {
   if (isRecord(value.data)) {
     if (hasRenderableArray(value.data)) {
       return value.data;
+    }
+
+    const flattened = flattenActionResultEnvelope(value);
+    if (flattened) {
+      return flattened;
     }
 
     if (isRecord(value.data.data) && hasRenderableArray(value.data.data)) {
@@ -102,6 +125,92 @@ const formatPrice = (price: any) => {
   const raw = String(price);
   return /^[^\d-]/.test(raw) ? raw : `$${raw}`;
 };
+
+const visibleRecordEntries = (record: ResultRecord) =>
+  Object.entries(record)
+    .filter(([key, value]) => value !== undefined && !SENSITIVE_FIELD_PATTERN.test(key))
+    .slice(0, MAX_GENERIC_FIELDS);
+
+function StructuredResultValue({ value, depth = 0 }: { value: unknown; depth?: number }): ReactNode {
+  if (Array.isArray(value)) {
+    const visible = value.slice(0, MAX_GENERIC_ARRAY_ITEMS);
+    if (visible.length === 0) return <span className="text-muted-foreground">None</span>;
+    return (
+      <ul className="m-0 min-w-0 space-y-1.5 p-0 list-none">
+        {visible.map((item, index) => (
+          <li key={index} className="min-w-0 rounded-md border border-gray-200 bg-white/80 px-2.5 py-2 dark:border-gray-700 dark:bg-gray-900/50">
+            <StructuredResultValue value={item} depth={depth + 1} />
+          </li>
+        ))}
+        {value.length > visible.length && (
+          <li className="text-xs text-muted-foreground">{value.length - visible.length} more values</li>
+        )}
+      </ul>
+    );
+  }
+
+  if (isRecord(value)) {
+    if (depth >= 3) {
+      return <span className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{formatFieldValue(value)}</span>;
+    }
+    return (
+      <StructuredResultRecord
+        record={value}
+        depth={depth + 1}
+        className="rounded-md border border-gray-200 bg-white/70 dark:border-gray-700 dark:bg-gray-900/40"
+      />
+    );
+  }
+
+  if (typeof value === "boolean") {
+    return (
+      <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${value ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"}`}>
+        {value ? "Yes" : "No"}
+      </span>
+    );
+  }
+
+  return (
+    <span className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+      {formatFieldValue(value)}
+    </span>
+  );
+}
+
+function StructuredResultRecord({
+  record,
+  depth = 0,
+  className = "",
+}: {
+  record: ResultRecord;
+  depth?: number;
+  className?: string;
+}) {
+  const entries = visibleRecordEntries(record);
+  if (entries.length === 0) {
+    return <p className="m-0 text-xs text-muted-foreground">No displayable result details.</p>;
+  }
+  return (
+    <dl className={`m-0 min-w-0 divide-y divide-gray-200 overflow-hidden dark:divide-gray-700 ${className}`}>
+      {entries.map(([key, value]) => (
+        <div
+          key={key}
+          className="grid min-w-0 grid-cols-1 gap-1 px-3 py-2.5 sm:grid-cols-[minmax(100px,0.35fr)_minmax(0,1fr)] sm:gap-3"
+        >
+          <dt className="min-w-0 text-[11px] font-bold uppercase text-muted-foreground">
+            {formatFieldName(key)}
+          </dt>
+          <dd className="m-0 min-w-0 text-left text-sm font-medium text-foreground">
+            <StructuredResultValue value={value} depth={depth} />
+          </dd>
+        </div>
+      ))}
+      {Object.keys(record).length > entries.length && (
+        <div className="px-3 py-2 text-xs text-muted-foreground">Additional internal fields are not displayed.</div>
+      )}
+    </dl>
+  );
+}
 
 export const ActionResultRenderer = ({
   data,
@@ -336,31 +445,13 @@ export const ActionResultRenderer = ({
         )}
         <CardContent className="p-3 pr-12">
           {typeof item === "object" && item !== null ? (
-            <div className="space-y-2">
-              {Object.entries(item)
-                .filter(([key]) => !["imageUrl", "image", "images"].includes(key))
-                .map(([key, value]) => (
-                  <div key={key} className="flex items-start justify-between gap-2">
-                    <span className="text-muted-foreground font-semibold min-w-[100px]">{formatFieldName(key)}:</span>
-                    <span className="text-foreground text-right flex-1 font-medium">
-                      {typeof value === "object" && value !== null && !Array.isArray(value) ? (
-                        <div className="space-y-1">
-                          {Object.entries(value).map(([nestedKey, nestedValue]) => (
-                            <div key={nestedKey} className="text-[10px]">
-                              <span className="text-muted-foreground">{formatFieldName(nestedKey)}: </span>
-                              <span>{formatFieldValue(nestedValue)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        formatFieldValue(value)
-                      )}
-                    </span>
-                  </div>
-                ))}
-            </div>
+            <StructuredResultRecord
+              record={Object.fromEntries(
+                Object.entries(item).filter(([key]) => !["imageUrl", "image", "images"].includes(key)),
+              )}
+            />
           ) : (
-            <p className="text-foreground">{formatFieldValue(item)}</p>
+            <p className="min-w-0 text-foreground"><StructuredResultValue value={item} /></p>
           )}
         </CardContent>
       </Card>
@@ -474,20 +565,14 @@ export const ActionResultRenderer = ({
     return (
       <div className="mt-3">
         <Card
-          className="text-sm bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border-2 border-blue-200"
+          className="min-w-0 overflow-hidden border border-blue-200 bg-white/70 text-sm shadow-sm backdrop-blur-sm dark:border-blue-800 dark:bg-gray-800/70"
           style={{
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
           }}
+          data-max-mode-generic-action-result
         >
-          <CardContent className="p-3">
-            <div className="space-y-2">
-              {Object.entries(displayData).map(([key, value]) => (
-                <div key={key} className="flex items-start justify-between gap-2">
-                  <span className="text-muted-foreground font-semibold min-w-[120px]">{formatFieldName(key)}:</span>
-                  <span className="text-foreground text-right flex-1 font-medium">{formatFieldValue(value)}</span>
-                </div>
-              ))}
-            </div>
+          <CardContent className="min-w-0 p-0">
+            <StructuredResultRecord record={displayData} />
           </CardContent>
         </Card>
       </div>

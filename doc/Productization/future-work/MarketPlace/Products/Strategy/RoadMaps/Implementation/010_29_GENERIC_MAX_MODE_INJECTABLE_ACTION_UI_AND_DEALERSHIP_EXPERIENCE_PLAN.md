@@ -1272,3 +1272,29 @@ or Platform-managed `UI_EXTENSION` packaging.
   `10915120` and `10918233` were restored exactly to their pre-run hashes,
   contain zero operator entries, and direct local Coolify access again times
   out with HTTP `000`.
+
+### 17.15 Responsive action-result receipts and generic fallback (2026-10-05)
+
+- Replaced the generic action-result object's fixed two-column/stringified JSON
+  treatment with a bounded recursive structured renderer. It unwraps common
+  nested action envelopes, uses a one-column mobile layout, wraps long values,
+  bounds field/array/depth counts, and omits recognized sensitive field names.
+- Kept the generic widget domain-neutral. It contains no vehicle, dealership,
+  test-drive, or callback matching; unknown action results use the same generic
+  fallback for every host.
+- Added the dealership-pack-owned
+  `loomai.dealership-request-receipt.v1` presentation for confirmed test-drive
+  and callback results. Exact configured action mappings project only safe
+  receipt fields from direct or nested normalized action results.
+- The dedicated receipt presents a customer-facing outcome, status, public
+  reference, vehicle label, and submitted time. It does not expose contact
+  details, connector internals, trusted target identifiers, or raw JSON.
+- Browser coverage now executes a realistic confirmation response, proves the
+  custom receipt is selected instead of the fallback on desktop and mobile,
+  checks the 390-pixel viewport boundary, and separately proves a nested
+  unknown action result remains readable through the generic fallback.
+- Local verification passed widget typecheck, ESM/CJS/declaration/IIFE builds,
+  action-presentation smoke, dealership pack typecheck/build, Astro
+  diagnostics, the 29-page production build, content/static gates, and the
+  complete Playwright browser suite. Hosted rollout evidence is recorded after
+  the exact implementation commit is deployed.

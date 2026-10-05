@@ -382,6 +382,34 @@ const mockServer = createServer(async (request, response) => {
       })
       return
     }
+    if (payload.query === 'Show a generic action result.') {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'ACTION_EXECUTED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'Generic operation completed.',
+        actions: [{
+          action: 'demo_generic_operation',
+          actionResult: {
+            success: true,
+            data: {
+              data: {
+                referenceCode: 'GENERIC-001',
+                status: 'READY',
+                summary: 'The generic result remains readable without a host-specific renderer.',
+                details: {
+                  owner: 'Demo team',
+                  nextStep: 'Review the structured result.',
+                },
+              },
+              message: 'The generic operation completed successfully.',
+              success: true,
+            },
+          },
+        }],
+      })
+      return
+    }
     if (payload.query === 'Request a test drive for the Aster E1') {
       writeMockJson(response, 200, {
         success: false,
@@ -437,6 +465,21 @@ const mockServer = createServer(async (request, response) => {
         actions: [{
           action: 'dealership_request_test_drive',
           executed: true,
+          actionResult: {
+            success: true,
+            data: {
+              data: {
+                receiptCode: 'NFM-DEMO-RECEIPT-001',
+                actionType: 'dealership_request_test_drive',
+                status: 'NEW',
+                createdAt: '2026-10-05T10:35:14.429Z',
+                vehicle: '2025 Aster E1',
+                message: 'Your request is in the dealership review inbox. A team member will use the contact details you confirmed.',
+              },
+              message: 'Your request is in the dealership review inbox. A team member will use the contact details you confirmed.',
+              success: true,
+            },
+          },
         }],
       })
       return
@@ -1288,6 +1331,21 @@ try {
     throw new Error('Confirmation follow-up did not preserve executor mode')
   }
   await page.getByText('Test-drive request created.', { exact: true }).first().waitFor()
+  const desktopRequestReceipt = page.locator(
+    '[data-max-mode-action-presentation="loomai.dealership-request-receipt.v1"]',
+  ).last()
+  await desktopRequestReceipt.waitFor()
+  const desktopRequestReceiptContent = desktopRequestReceipt
+    .locator('loomai-dealership-request-receipt')
+    .locator('.workspace')
+  await desktopRequestReceiptContent.waitFor()
+  const desktopRequestReceiptText = await desktopRequestReceiptContent.textContent()
+  if (!desktopRequestReceiptText?.includes('Request received') ||
+      !desktopRequestReceiptText.includes('NFM-DEMO-RECEIPT-001') ||
+      !desktopRequestReceiptText.includes('2025 Aster E1') ||
+      await desktopRequestReceipt.locator('[data-max-mode-generic-action-result]').count() !== 0) {
+    throw new Error(`Confirmed test-drive result did not use the rich receipt presentation: ${desktopRequestReceiptText}`)
+  }
   if (anonymousRenewalCount < 1) {
     throw new Error('The anonymous browser session did not renew before expiry')
   }
@@ -1679,6 +1737,50 @@ try {
   await mobileConfirmButton.click()
   await mobileConfirmationResponse
   await mobileConfirmationPage.getByText('Test-drive request created.', { exact: true }).first().waitFor()
+  const mobileRequestReceipt = mobileConfirmationPage.locator(
+    '[data-max-mode-action-presentation="loomai.dealership-request-receipt.v1"]',
+  ).last()
+  await mobileRequestReceipt.waitFor()
+  const mobileRequestReceiptBox = await mobileRequestReceipt.boundingBox()
+  const mobileRequestReceiptContent = mobileRequestReceipt
+    .locator('loomai-dealership-request-receipt')
+    .locator('.workspace')
+  await mobileRequestReceiptContent.waitFor()
+  const mobileRequestReceiptText = await mobileRequestReceiptContent.textContent()
+  if (!mobileRequestReceiptBox || mobileRequestReceiptBox.x < 0 ||
+      mobileRequestReceiptBox.x + mobileRequestReceiptBox.width > 390 ||
+      !mobileRequestReceiptText?.includes('Request received') ||
+      !mobileRequestReceiptText.includes('NFM-DEMO-RECEIPT-001')) {
+    throw new Error(`Mobile confirmed-action receipt is missing or overflows: ${JSON.stringify({ mobileRequestReceiptBox, mobileRequestReceiptText })}`)
+  }
+  await mobileRequestReceipt.evaluate((element) => element.scrollIntoView({ block: 'center' }))
+  await mobileConfirmationPage.screenshot({
+    path: path.join(screenshotDir, 'dealership-request-receipt-mobile.png'),
+    animations: 'disabled',
+  })
+  const mobileGenericResultResponse = mobileConfirmationPage.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/chat/me/query')) return false
+    return response.request().postDataJSON()?.query === 'Show a generic action result.'
+  })
+  await mobileConfirmationPage.evaluate(() => {
+    window.MaxMode.sendMessage('Show a generic action result.', {
+      mode: 'executor',
+      position: 'search',
+      open: true,
+    })
+  })
+  await mobileGenericResultResponse
+  const mobileGenericResult = mobileConfirmationPage.locator('[data-max-mode-generic-action-result]').last()
+  await mobileGenericResult.waitFor()
+  const mobileGenericResultBox = await mobileGenericResult.boundingBox()
+  const mobileGenericResultText = await mobileGenericResult.textContent()
+  if (!mobileGenericResultBox || mobileGenericResultBox.x < 0 ||
+      mobileGenericResultBox.x + mobileGenericResultBox.width > 390 ||
+      !mobileGenericResultText?.includes('Reference Code') ||
+      !mobileGenericResultText.includes('GENERIC-001') ||
+      !mobileGenericResultText.includes('Demo team')) {
+    throw new Error(`Generic mobile action result is unreadable or overflows: ${JSON.stringify({ mobileGenericResultBox, mobileGenericResultText })}`)
+  }
   await mobileConfirmationContext.close()
 
   const viewports = [

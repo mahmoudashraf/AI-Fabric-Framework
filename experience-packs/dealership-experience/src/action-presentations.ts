@@ -36,6 +36,7 @@ type PresentationCommands = {
 const INVENTORY_ELEMENT = 'loomai-dealership-inventory'
 const DETAIL_ELEMENT = 'loomai-dealership-vehicle-detail'
 const COMPARISON_ELEMENT = 'loomai-dealership-vehicle-comparison'
+const REQUEST_RECEIPT_ELEMENT = 'loomai-dealership-request-receipt'
 const DEFAULT_ACTION_NAMES: DealershipActionNames = {
   searchInventory: 'dealership_search_inventory',
   getVehicle: 'dealership_get_vehicle',
@@ -76,6 +77,7 @@ export function registerDealershipActionPresentationElements() {
   defineElement(INVENTORY_ELEMENT, DealershipInventoryPresentation)
   defineElement(DETAIL_ELEMENT, DealershipVehicleDetailPresentation)
   defineElement(COMPARISON_ELEMENT, DealershipVehicleComparisonPresentation)
+  defineElement(REQUEST_RECEIPT_ELEMENT, DealershipRequestReceiptPresentation)
 }
 
 export function dealershipActionPresentationConfig(
@@ -102,6 +104,12 @@ export function dealershipActionPresentationConfig(
         kind: 'custom-element',
         elementName: COMPARISON_ELEMENT,
         schemaVersions: ['loomai.vehicle-comparison.v1'],
+      },
+      {
+        id: 'loomai.dealership-request-receipt.v1',
+        kind: 'custom-element',
+        elementName: REQUEST_RECEIPT_ELEMENT,
+        schemaVersions: ['loomai.dealership-request-receipt.v1'],
       },
     ],
     mappings: [
@@ -220,11 +228,56 @@ export function dealershipActionPresentationConfig(
       },
     ],
   }
+  if (config.capabilities?.testDrive === true) {
+    result.mappings.push(requestReceiptMapping(
+      actionNames.requestTestDrive,
+      'test-drive',
+      rendererContext,
+    ))
+  }
+  if (config.capabilities?.callback === true) {
+    result.mappings.push(requestReceiptMapping(
+      actionNames.requestCallback,
+      'callback',
+      rendererContext,
+    ))
+  }
   if (config.capabilities?.comparison === false) {
     result.renderers = result.renderers.filter((renderer) => renderer.id !== 'loomai.vehicle-comparison.v1')
     result.mappings = result.mappings.filter((mapping) => mapping.actionName !== actionNames.compareVehicles)
   }
   return result
+}
+
+function requestReceiptMapping(
+  actionName: string,
+  requestKind: 'test-drive' | 'callback',
+  rendererContext: Record<string, string | number | boolean>,
+): NonNullable<MaxModeActionPresentationConfig['mappings']>[number] {
+  const receiptFields = [
+    'receiptCode',
+    'actionType',
+    'status',
+    'createdAt',
+    'vehicle',
+    'message',
+    'success',
+  ]
+  return {
+    actionName,
+    rendererId: 'loomai.dealership-request-receipt.v1',
+    schemaVersion: 'loomai.dealership-request-receipt.v1',
+    projection: {
+      fields: receiptFields.flatMap((field) => [
+        { sourcePath: `data.${field}`, target: field },
+        { sourcePath: field, target: field },
+      ]),
+    },
+    rendererContext: {
+      ...rendererContext,
+      requestKind,
+    },
+  }
 }
 
 function presentationRendererContext(
@@ -681,6 +734,58 @@ class DealershipVehicleComparisonPresentation extends DealershipPresentationElem
   }
 }
 
+class DealershipRequestReceiptPresentation extends DealershipPresentationElement {
+  protected renderContent(container: HTMLElement) {
+    const data = this.input?.presentationData || {}
+    const requestKind = textValue(this.input?.context.requestKind) === 'callback'
+      ? 'callback'
+      : 'test-drive'
+    const receiptCode = textValue(data.receiptCode)
+    const status = textValue(data.status)
+    const successful = data.success !== false && status.toUpperCase() !== 'FAILED'
+    const requestLabel = requestKind === 'callback' ? 'Callback request' : 'Test-drive request'
+    container.append(createHeader(
+      requestLabel,
+      successful ? 'Request received' : 'Request update',
+      receiptCode ? `Reference ${receiptCode}` : 'Dealership workflow',
+    ))
+
+    const receipt = document.createElement('section')
+    receipt.className = 'request-receipt'
+    receipt.dataset.dealershipRequestReceipt = requestKind
+
+    const statusLine = document.createElement('div')
+    statusLine.className = 'request-receipt__status'
+    const marker = document.createElement('span')
+    marker.className = successful ? 'request-marker request-marker--success' : 'request-marker request-marker--warning'
+    marker.textContent = successful ? 'Received' : 'Needs attention'
+    const state = document.createElement('span')
+    state.className = 'request-state'
+    state.textContent = status ? lifecycleLabel(status) : successful ? 'Submitted' : 'Not completed'
+    statusLine.append(marker, state)
+    receipt.append(statusLine)
+
+    const message = document.createElement('p')
+    message.className = 'request-message'
+    message.textContent = textValue(data.message)
+      || (successful
+        ? 'The dealership has received your request.'
+        : 'The dealership request was not completed.')
+    receipt.append(message)
+
+    const facts: Array<[string, string]> = []
+    const vehicle = textValue(data.vehicle)
+    const createdAt = textValue(data.createdAt)
+    if (vehicle) facts.push(['Vehicle', vehicle])
+    if (receiptCode) facts.push(['Reference', receiptCode])
+    if (status) facts.push(['Status', lifecycleLabel(status)])
+    if (createdAt) facts.push(['Submitted', formatDate(createdAt)])
+    if (facts.length > 0) receipt.append(createFacts(facts, 'request-facts'))
+
+    container.append(receipt)
+  }
+}
+
 function defineElement(name: string, constructor: CustomElementConstructor) {
   if (!customElements.get(name)) customElements.define(name, constructor)
 }
@@ -1004,6 +1109,17 @@ function createStyles() {
     .comparison-mobile__card h3, .comparison-mobile__card > strong, .comparison-mobile__card > .facts { margin-right: 12px; margin-left: 12px; }
     .comparison-mobile__card h3 { margin-top: 12px; margin-bottom: 6px; font-size: 16px; letter-spacing: 0; }
     .comparison-mobile__card > .facts { margin-top: 14px; margin-bottom: 14px; }
+    .request-receipt { display: grid; gap: 14px; padding: 18px; background: #f8fbfa; }
+    .request-receipt__status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .request-marker, .request-state { display: inline-flex; min-height: 28px; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 800; }
+    .request-marker--success { background: #dff4e9; color: #126044; }
+    .request-marker--warning { background: #fff0d5; color: #81520d; }
+    .request-state { border: 1px solid #cddbd8; background: #fff; color: #34534d; }
+    .request-message { max-width: 68ch; margin: 0; color: #294740; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+    .request-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+    .request-facts div { min-width: 0; border-left: 3px solid #80b7aa; background: #fff; padding: 10px 12px; }
+    .request-facts dt { color: #778983; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .request-facts dd { margin: 3px 0 0; color: #263f3a; font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
     .empty-state { margin: 16px; border: 1px dashed #aabdb8; border-radius: 8px; background: #fff; padding: 24px; text-align: center; }
     .empty-state strong { display: block; margin-bottom: 5px; }
     .empty-state p { margin: 0; color: #60736f; font-size: 13px; }
@@ -1020,6 +1136,8 @@ function createStyles() {
       .comparison-scroll { display: none; }
       .comparison-mobile { display: grid; gap: 10px; padding: 12px; }
       .comparison-selection { grid-template-columns: 1fr; padding: 0 12px 12px; }
+      .request-receipt { padding: 14px; }
+      .request-facts { grid-template-columns: 1fr; }
     }
     @media (prefers-reduced-motion: reduce) {
       .button { transition: none; }
