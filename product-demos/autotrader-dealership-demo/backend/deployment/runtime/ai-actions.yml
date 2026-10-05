@@ -94,11 +94,13 @@ actions:
         resolveFrom:
           source: ATTACHMENT_METADATA
           metadataKeys:
+            - lookupValue
             - stockId
             - vehicleId
             - id
         evidenceBound: true
         evidenceKeys:
+          - lookupValue
           - stockId
           - vehicleId
           - id

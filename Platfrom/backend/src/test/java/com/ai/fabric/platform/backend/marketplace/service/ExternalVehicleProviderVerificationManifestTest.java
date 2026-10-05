@@ -56,7 +56,7 @@ class ExternalVehicleProviderVerificationManifestTest {
                     .isEqualTo("/media/images/0/href");
             }
             if ("mkp-action-autotrader-contract-verification".equals(pluginId)) {
-                assertThat(manifest.path("version").asText()).isEqualTo("1.3.1");
+                assertThat(manifest.path("version").asText()).isEqualTo("1.3.2");
                 JsonNode actions = manifest.path("contributions").path("actions");
                 assertThat(actions.path(0).path("llmFacts").path("lists").path(0)
                     .path("includeFields")).anyMatch(field -> "imageUrl".equals(field.asText()));
@@ -75,15 +75,18 @@ class ExternalVehicleProviderVerificationManifestTest {
                 assertThat(trustedVehicleParam.path("resolveFrom").path("source").asText())
                     .isEqualTo("ATTACHMENT_METADATA");
                 assertThat(trustedVehicleParam.path("resolveFrom").path("metadataKeys"))
+                    .anyMatch(key -> "lookupValue".equals(key.asText()))
                     .anyMatch(key -> "stockId".equals(key.asText()));
                 assertThat(trustedVehicleParam.path("evidenceBound").asBoolean()).isTrue();
+                assertThat(trustedVehicleParam.path("evidenceKeys"))
+                    .anyMatch(key -> "lookupValue".equals(key.asText()));
                 assertThat(trustedVehicleParam.path("evidenceFallbackPolicy").asText()).isEqualTo("CLARIFY");
             }
             if ("mkp-template-autotrader-dealership-verification".equals(pluginId)) {
-                assertThat(manifest.path("version").asText()).isEqualTo("1.3.1");
+                assertThat(manifest.path("version").asText()).isEqualTo("1.3.2");
                 assertThat(manifest.path("contributions").path("template").path("requiredPluginRefs"))
                     .anyMatch(ref -> ref.asText().equals("mkp-data-autotrader-contract-verification@1.1.0"))
-                    .anyMatch(ref -> ref.asText().equals("mkp-action-autotrader-contract-verification@1.3.1"));
+                    .anyMatch(ref -> ref.asText().equals("mkp-action-autotrader-contract-verification@1.3.2"));
             }
         }
     }
