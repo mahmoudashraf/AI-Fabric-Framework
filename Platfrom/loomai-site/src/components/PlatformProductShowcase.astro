@@ -2,14 +2,21 @@
 import {
   Activity,
   ArrowRight,
+  Bot,
   Boxes,
+  Building2,
+  CircleCheckBig,
   Database,
   ExternalLink,
+  FileText,
   LayoutTemplate,
+  PackageCheck,
   Plug,
   Rocket,
+  Server,
   ShieldCheck,
   SlidersHorizontal,
+  Store,
 } from '@lucide/astro'
 import type { Product } from '../data/types'
 import PlatformSystemVisual from './PlatformSystemVisual.astro'
@@ -121,6 +128,153 @@ const { product } = Astro.props
         <Activity size={25} stroke-width={1.55} aria-hidden="true" />
         <span><strong>Deployment-local runtime</strong><small>Chat · sync · actions · evidence</small></span>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="platform-case" aria-labelledby="platform-live-composition-title">
+  <div class="loom-container">
+    <div class="platform-case__heading">
+      <div>
+        <p class="loom-eyebrow">A real Platform composition</p>
+        <h2 id="platform-live-composition-title">The workflow, with real names.</h2>
+        <p>
+          Northfield Dealership AI Demo is a running LoomAI deployment. These are
+          the actual Platform records and packages behind the public experience.
+        </p>
+      </div>
+      <span class="platform-case__live">
+        <CircleCheckBig size={16} stroke-width={1.9} aria-hidden="true" />
+        Applied & verified · 5 Oct 2026
+      </span>
+    </div>
+
+    <div class="platform-case__board">
+      <header class="platform-case__board-header">
+        <span>Live composition</span>
+        <strong>Northfield Dealership AI Demo</strong>
+        <code>dep-f023c863</code>
+      </header>
+
+      <div class="platform-case__map">
+        <section class="platform-case__customer" aria-labelledby="platform-case-customer">
+          <div class="platform-case__section-title">
+            <Building2 size={24} stroke-width={1.55} aria-hidden="true" />
+            <span>
+              <small>Customer boundary</small>
+              <strong id="platform-case-customer">Northfield Motor House Demo</strong>
+            </span>
+          </div>
+          <dl>
+            <div>
+              <dt>Tenant</dt>
+              <dd>Northfield Public Showroom</dd>
+            </div>
+            <div>
+              <dt>Experience</dt>
+              <dd>Northfield AI</dd>
+            </div>
+            <div>
+              <dt>Owned here</dt>
+              <dd>Website, identity and confirmed enquiries</dd>
+            </div>
+          </dl>
+        </section>
+
+        <div class="platform-case__map-arrow" aria-hidden="true"><ArrowRight size={22} /></div>
+
+        <section class="platform-case__composition" aria-labelledby="platform-case-composition">
+          <div class="platform-case__section-title">
+            <Boxes size={24} stroke-width={1.55} aria-hidden="true" />
+            <span>
+              <small>LoomAI Platform</small>
+              <strong id="platform-case-composition">Compiled composition</strong>
+            </span>
+          </div>
+
+          <div class="platform-case__template">
+            <LayoutTemplate size={19} stroke-width={1.6} aria-hidden="true" />
+            <span><small>Template</small><strong>Custom / Start from scratch</strong></span>
+            <code>CONVERSATIONAL</code>
+          </div>
+
+          <ul class="platform-case__packages" aria-label="Enabled Marketplace packages">
+            <li>
+              <Database size={18} stroke-width={1.6} aria-hidden="true" />
+              <span>
+                <strong>Internal Auto Trader Contract Verification Source</strong>
+                <small>Synthetic provider stock · DATA 1.1.0</small>
+              </span>
+            </li>
+            <li>
+              <FileText size={18} stroke-width={1.6} aria-hidden="true" />
+              <span>
+                <strong>Dealership Knowledge - Mounted Demo Folder</strong>
+                <small>Dealer policies and operations · DATA 1.0.0</small>
+              </span>
+            </li>
+            <li>
+              <PackageCheck size={18} stroke-width={1.6} aria-hidden="true" />
+              <span>
+                <strong>Internal Auto Trader Contract Verification Actions</strong>
+                <small>Live stock reads · ACTION 1.3.2</small>
+              </span>
+            </li>
+          </ul>
+
+          <div class="platform-case__profiles">
+            <span><small>Models</small><strong>OpenAI · gpt-5.4-mini</strong></span>
+            <span><small>Embeddings</small><strong>text-embedding-3-small · 512</strong></span>
+            <span><small>Vector store</small><strong>Lucene · local managed</strong></span>
+          </div>
+        </section>
+
+        <div class="platform-case__map-arrow" aria-hidden="true"><ArrowRight size={22} /></div>
+
+        <section class="platform-case__runtime" aria-labelledby="platform-case-runtime">
+          <div class="platform-case__section-title">
+            <Server size={24} stroke-width={1.55} aria-hidden="true" />
+            <span>
+              <small>Deployment-local</small>
+              <strong id="platform-case-runtime">Northfield runtime</strong>
+            </span>
+          </div>
+          <ul>
+            <li><span>Runtime API</span><strong>dep-f023c863</strong><i>UP</i></li>
+            <li><span>Connector API</span><strong>dep-f023c863-connector</strong><i>UP</i></li>
+            <li><span>Published release</span><strong>v30 · AI Fabric 0.8.11</strong><i>LIVE</i></li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="platform-case__evidence" aria-label="Live deployment evidence">
+        <span><strong>3</strong><small>enabled packages</small></span>
+        <span><strong>6 + 6</strong><small>stock and policy records indexed</small></span>
+        <span><strong>5</strong><small>governed actions</small></span>
+        <span><strong>26 / 0</strong><small>verification checks passed / failed</small></span>
+      </div>
+
+      <div class="platform-case__journey" aria-label="Customer interaction path">
+        <span><Store size={19} aria-hidden="true" /> Dealership website</span>
+        <ArrowRight size={18} aria-hidden="true" />
+        <span><Bot size={19} aria-hidden="true" /> Northfield AI</span>
+        <ArrowRight size={18} aria-hidden="true" />
+        <span><Database size={19} aria-hidden="true" /> Live stock + grounded policies</span>
+        <ArrowRight size={18} aria-hidden="true" />
+        <span><ShieldCheck size={19} aria-hidden="true" /> Governed dealership request</span>
+      </div>
+    </div>
+
+    <div class="platform-case__footer">
+      <p>
+        <strong>Boundary:</strong> the LoomAI deployment and records above are live.
+        The dealership, vehicles and provider contract are fictional demonstration
+        data, not an Auto Trader production integration or endorsement.
+      </p>
+      <a class="loom-button loom-button--secondary" href="/demos/dealership-ai">
+        Open the dealership experience
+        <ArrowRight size={16} aria-hidden="true" />
+      </a>
     </div>
   </div>
 </section>
@@ -345,6 +499,399 @@ const { product } = Astro.props
     color: var(--loom-blue-vivid);
   }
 
+  .platform-case {
+    background: #f4f7ff;
+    border-block: 1px solid var(--loom-border-default);
+    padding-block: 5.5rem;
+  }
+
+  .platform-case__heading {
+    align-items: end;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .platform-case__heading > div {
+    max-width: 52rem;
+  }
+
+  .platform-case__heading h2 {
+    font-size: 3rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .platform-case__heading > div > p:last-child {
+    font-size: 1.02rem;
+    margin: 0;
+  }
+
+  .platform-case__live {
+    align-items: center;
+    background: #eaf9f2;
+    border: 1px solid #9dddc2;
+    border-radius: 999px;
+    color: #08784e;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    font-weight: 760;
+    gap: 0.42rem;
+    min-height: 2.2rem;
+    padding-inline: 0.8rem;
+  }
+
+  .platform-case__board {
+    background: #fff;
+    border: 1px solid #9db7e5;
+    border-radius: 0.5rem;
+    box-shadow: 0 18px 46px rgb(7 24 63 / 9%);
+    overflow: hidden;
+  }
+
+  .platform-case__board-header {
+    align-items: center;
+    background: var(--loom-navy-950);
+    color: #fff;
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: auto 1fr auto;
+    min-height: 4.2rem;
+    padding: 0.85rem 1.2rem;
+  }
+
+  .platform-case__board-header > span {
+    color: #91baff;
+    font-size: 0.64rem;
+    font-weight: 760;
+    text-transform: uppercase;
+  }
+
+  .platform-case__board-header strong {
+    font-size: 0.9rem;
+    min-width: 0;
+  }
+
+  .platform-case__board-header code {
+    background: rgb(255 255 255 / 10%);
+    border: 1px solid rgb(255 255 255 / 16%);
+    border-radius: 0.3rem;
+    color: #bfeaff;
+    font-size: 0.67rem;
+    padding: 0.34rem 0.5rem;
+  }
+
+  .platform-case__map {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.82fr) 2.4rem minmax(25rem, 1.65fr) 2.4rem minmax(14rem, 0.95fr);
+  }
+
+  .platform-case__map > section {
+    min-width: 0;
+    padding: 1.4rem;
+  }
+
+  .platform-case__customer {
+    background: #fbfdff;
+  }
+
+  .platform-case__composition {
+    border-inline: 1px solid var(--loom-border-default);
+    position: relative;
+  }
+
+  .platform-case__composition::before {
+    background: var(--loom-gradient-brand);
+    content: "";
+    height: 3px;
+    inset: 0 0 auto;
+    position: absolute;
+  }
+
+  .platform-case__runtime {
+    background: #f6f9ff;
+  }
+
+  .platform-case__section-title {
+    align-items: center;
+    display: flex;
+    gap: 0.7rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .platform-case__section-title > svg {
+    color: var(--loom-indigo-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-case__section-title small,
+  .platform-case__section-title strong {
+    display: block;
+  }
+
+  .platform-case__section-title small {
+    color: var(--loom-blue-600);
+    font-size: 0.58rem;
+    font-weight: 760;
+    margin-bottom: 0.12rem;
+    text-transform: uppercase;
+  }
+
+  .platform-case__section-title strong {
+    font-size: 0.86rem;
+    line-height: 1.25;
+  }
+
+  .platform-case__customer dl {
+    margin: 0;
+  }
+
+  .platform-case__customer dl > div {
+    border-top: 1px solid var(--loom-border-default);
+    padding-block: 0.68rem;
+  }
+
+  .platform-case__customer dt {
+    color: var(--loom-text-muted);
+    font-size: 0.58rem;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+  }
+
+  .platform-case__customer dd {
+    font-size: 0.72rem;
+    font-weight: 650;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .platform-case__map-arrow {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: flex;
+    justify-content: center;
+  }
+
+  .platform-case__template {
+    align-items: center;
+    border-block: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: auto 1fr auto;
+    padding-block: 0.7rem;
+  }
+
+  .platform-case__template > svg {
+    color: var(--loom-blue-600);
+  }
+
+  .platform-case__template small,
+  .platform-case__template strong {
+    display: block;
+  }
+
+  .platform-case__template small {
+    color: var(--loom-text-muted);
+    font-size: 0.58rem;
+  }
+
+  .platform-case__template strong {
+    font-size: 0.75rem;
+  }
+
+  .platform-case__template code {
+    background: #eef3ff;
+    border-radius: 0.25rem;
+    color: var(--loom-indigo-500);
+    font-size: 0.55rem;
+    font-weight: 760;
+    padding: 0.3rem 0.42rem;
+  }
+
+  .platform-case__packages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .platform-case__packages li {
+    align-items: center;
+    border-bottom: 1px solid var(--loom-border-default);
+    display: flex;
+    gap: 0.65rem;
+    padding-block: 0.72rem;
+  }
+
+  .platform-case__packages svg {
+    color: var(--loom-cyan-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-case__packages strong,
+  .platform-case__packages small {
+    display: block;
+  }
+
+  .platform-case__packages strong {
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+
+  .platform-case__packages small {
+    color: var(--loom-text-muted);
+    font-size: 0.59rem;
+    line-height: 1.35;
+    margin-top: 0.12rem;
+  }
+
+  .platform-case__profiles {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: 0.8rem;
+  }
+
+  .platform-case__profiles span {
+    min-width: 0;
+  }
+
+  .platform-case__profiles small,
+  .platform-case__profiles strong {
+    display: block;
+  }
+
+  .platform-case__profiles small {
+    color: var(--loom-text-muted);
+    font-size: 0.54rem;
+    margin-bottom: 0.16rem;
+    text-transform: uppercase;
+  }
+
+  .platform-case__profiles strong {
+    font-size: 0.6rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .platform-case__runtime ul {
+    display: grid;
+    gap: 0.55rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .platform-case__runtime li {
+    border-bottom: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 0.2rem;
+    grid-template-columns: 1fr auto;
+    padding-bottom: 0.58rem;
+  }
+
+  .platform-case__runtime li > span {
+    color: var(--loom-text-muted);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+  }
+
+  .platform-case__runtime li > strong {
+    font-size: 0.68rem;
+    grid-column: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .platform-case__runtime li > i {
+    align-self: center;
+    color: var(--loom-success);
+    font-size: 0.54rem;
+    font-style: normal;
+    font-weight: 780;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .platform-case__evidence {
+    border-top: 1px solid var(--loom-border-default);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .platform-case__evidence > span {
+    align-items: center;
+    display: flex;
+    gap: 0.6rem;
+    min-height: 4.2rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .platform-case__evidence > span + span {
+    border-left: 1px solid var(--loom-border-default);
+  }
+
+  .platform-case__evidence strong {
+    color: var(--loom-blue-600);
+    font-size: 1.2rem;
+    white-space: nowrap;
+  }
+
+  .platform-case__evidence small {
+    color: var(--loom-text-secondary);
+    font-size: 0.62rem;
+    line-height: 1.3;
+  }
+
+  .platform-case__journey {
+    align-items: center;
+    background: var(--loom-navy-950);
+    color: #fff;
+    display: flex;
+    gap: 0.9rem;
+    justify-content: center;
+    min-height: 4.4rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .platform-case__journey > span {
+    align-items: center;
+    display: inline-flex;
+    font-size: 0.65rem;
+    font-weight: 690;
+    gap: 0.4rem;
+  }
+
+  .platform-case__journey > span svg {
+    color: var(--loom-cyan-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-case__journey > svg {
+    color: #7faeff;
+    flex: 0 0 auto;
+  }
+
+  .platform-case__footer {
+    align-items: center;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+    margin-top: 1.2rem;
+  }
+
+  .platform-case__footer p {
+    font-size: 0.76rem;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 52rem;
+  }
+
+  .platform-case__footer .loom-button {
+    flex: 0 0 auto;
+  }
+
   @media (max-width: 68rem) {
     .platform-hero__grid {
       grid-template-columns: 1fr;
@@ -380,6 +927,33 @@ const { product } = Astro.props
     .platform-primitives__boundary > svg {
       transform: rotate(90deg);
     }
+
+    .platform-case__map {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-case__composition {
+      border-block: 1px solid var(--loom-border-default);
+      border-inline: 0;
+    }
+
+    .platform-case__map-arrow {
+      min-height: 2.4rem;
+    }
+
+    .platform-case__map-arrow svg {
+      transform: rotate(90deg);
+    }
+
+    .platform-case__journey {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .platform-case__journey > svg {
+      align-self: center;
+      transform: rotate(90deg);
+    }
   }
 
   @media (max-width: 47.99rem) {
@@ -408,6 +982,45 @@ const { product } = Astro.props
 
     .platform-primitives__flow li {
       min-height: 0;
+    }
+
+    .platform-case {
+      padding-block: 3.5rem;
+    }
+
+    .platform-case__heading {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .platform-case__heading h2 {
+      font-size: 2rem;
+    }
+
+    .platform-case__board-header {
+      align-items: start;
+      grid-template-columns: 1fr;
+    }
+
+    .platform-case__board-header code {
+      justify-self: start;
+    }
+
+    .platform-case__profiles,
+    .platform-case__evidence {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-case__evidence > span + span {
+      border-left: 0;
+      border-top: 1px solid var(--loom-border-default);
+    }
+
+    .platform-case__footer {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 1rem;
     }
   }
 </style>

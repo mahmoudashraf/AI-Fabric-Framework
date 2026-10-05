@@ -784,6 +784,18 @@ try {
   if (JSON.stringify(platformLifecycle) !== JSON.stringify(['Validate', 'Publish', 'Apply', 'Verify'])) {
     throw new Error(`Platform visual exposes the wrong lifecycle: ${JSON.stringify(platformLifecycle)}`)
   }
+  await page.getByRole('heading', { name: 'The workflow, with real names.' }).waitFor()
+  await page.getByText('Northfield Dealership AI Demo', { exact: true }).first().waitFor()
+  await page.getByText('dep-f023c863', { exact: true }).first().waitFor()
+  for (const packageName of [
+    'Internal Auto Trader Contract Verification Source',
+    'Dealership Knowledge - Mounted Demo Folder',
+    'Internal Auto Trader Contract Verification Actions',
+  ]) {
+    await page.getByText(packageName, { exact: true }).waitFor()
+  }
+  await page.getByText('v30 · AI Fabric 0.8.11', { exact: true }).waitFor()
+  await page.getByText('The dealership, vehicles and provider contract are fictional demonstration data, not an Auto Trader production integration or endorsement.', { exact: false }).waitFor()
 
   await page.goto(`${origin}/experiments`, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Governed actions' }).click()
