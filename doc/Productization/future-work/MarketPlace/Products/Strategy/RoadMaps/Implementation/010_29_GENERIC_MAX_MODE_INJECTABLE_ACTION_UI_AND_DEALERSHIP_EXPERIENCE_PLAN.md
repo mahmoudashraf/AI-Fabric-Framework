@@ -1257,5 +1257,18 @@ or Platform-managed `UI_EXTENSION` packaging.
 - Local verification passed widget typecheck, ESM/IIFE builds, action
   presentation smoke, dealership pack typecheck/build, Astro diagnostics, the
   29-page production build, content/static gates, and the complete Playwright
-  browser suite. Production deployment identity and hosted proof are recorded
-  after release below.
+  browser suite.
+- Implementation commit `0a413c497d691745d08056e585be4b5ae28e6896` is
+  live through production public-site Coolify deployment
+  `s9oekekujywr2a72ge3xemz6`. Canonical and sslip health report `UP` on that
+  exact source. Production publishes widget bundle
+  `max-mode-widget.5c88840b900d1977.iife.js` and dealership pack
+  `dealership-experience.157c6f22438e49e6.iife.js`.
+- A clean hosted mobile browser opened the Aster E1 detail experience and found
+  exactly `Stock` and `Vehicle` in the initially available rail, with no Cart
+  or Product control. Stock opened all four Browse stock tools; Vehicle opened
+  all six This vehicle tools. The canary issued no chat query or write action.
+- Temporary production access used only `8000/tcp`. Hetzner firewalls
+  `10915120` and `10918233` were restored exactly to their pre-run hashes,
+  contain zero operator entries, and direct local Coolify access again times
+  out with HTTP `000`.

@@ -3975,3 +3975,35 @@ Critical fixes that made the gate pass:
   `41f32d4672e78ee97a91f229c2d14a7067e38e6afaab3dd419e5fdff0c11242b`;
   the operator CIDR is absent and local access to Coolify port `8000` again
   times out.
+
+## 2026-10-05 Configurable Mobile Max Mode Tool Rail Closure
+
+- Generic mobile Max Mode no longer hard-codes the legacy `Actions`, `Cart`,
+  `Docs`, or `Products` floating buttons. `host.toolRail` is the new bounded,
+  JSON-safe host contract and supports only `open-tools`, `open-documents`, and
+  normal chat-route `prompt` commands. It accepts at most six reviewed items
+  and no arbitrary callbacks, CSS, URLs, connector calls, or domain logic.
+- The shared desktop/mobile tool surfaces also no longer branch on Product
+  labels. They uniformly execute host-provided prompts. Shopify commerce
+  controls remain in its explicit shopping workspace rather than generic
+  defaults.
+- The dealership experience pack owns its default rail: `Stock` selects Browse
+  stock, `Vehicle` selects This vehicle when context is available, and
+  `Sources` opens evidence when documents exist. No dealership or vehicle
+  vocabulary was added to generic production widget code.
+- Local widget typecheck/build/smoke, dealership pack typecheck/build, Astro
+  diagnostics, the 29-page production build, content/static gates, and the
+  complete Playwright browser suite passed.
+- Production public-site deployment `s9oekekujywr2a72ge3xemz6` runs commit
+  `0a413c497d691745d08056e585be4b5ae28e6896`; canonical and sslip health both
+  report `UP` on that source. Published bundles are
+  `max-mode-widget.5c88840b900d1977.iife.js` and
+  `dealership-experience.157c6f22438e49e6.iife.js`.
+- Hosted mobile proof on the Aster E1 page found only Stock and Vehicle before
+  retrieval, no Cart/Product control, all four Browse stock tools, and all six
+  This vehicle tools. It issued no AI query and no write action.
+- Temporary production access used only port `8000`. Firewalls `10915120` and
+  `10918233` were restored to hashes
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc` and
+  `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`;
+  both have zero operator entries and direct Coolify access is closed again.
