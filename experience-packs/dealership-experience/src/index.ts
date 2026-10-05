@@ -3,6 +3,7 @@ import {
   registerDealershipActionPresentationElements,
 } from './action-presentations'
 import { createDealershipToolGroups } from './tool-groups'
+import { createDealershipToolRail } from './tool-rail'
 import type {
   DealershipExperienceConfig,
   DealershipExperienceController,
@@ -14,6 +15,7 @@ import type {
 
 export * from './types'
 export { createDealershipToolGroups } from './tool-groups'
+export { createDealershipToolRail } from './tool-rail'
 export {
   dealershipActionPresentationConfig,
   registerDealershipActionPresentationElements,
@@ -54,6 +56,7 @@ export async function mount(
       subjectLabel: config.page.subjectLabel,
       capabilities,
     })
+    const toolRail = config.toolRail || createDealershipToolRail()
     const copy = resolveCopy(config)
 
     maxMode.init({
@@ -96,6 +99,7 @@ export async function mount(
         assistantLabel: config.dealer.assistantLabel,
         welcomeMessage: copy.welcomeMessage,
         toolGroups,
+        toolRail,
         starterSuggestions: copy.starterSuggestions,
         requestContext: {
           ...config.requestContext,
@@ -309,6 +313,7 @@ function validateConfig(input: DealershipExperienceConfig) {
   if (!input.page?.rootSelector?.trim()) throw new Error('A page content root selector is required.')
   if (!input.page?.contextLabel?.trim()) throw new Error('A visible page context label is required.')
   if (input.toolGroups) assertToolGroups(input.toolGroups)
+  if (input.toolRail) assertToolRail(input.toolRail)
   return input
 }
 
@@ -320,6 +325,25 @@ function assertToolGroups(groups: DealershipExperienceConfig['toolGroups']) {
   for (const group of [groups.default, groups.contextual]) {
     if (!group?.label?.trim() || !Array.isArray(group.tools) || group.tools.length === 0) {
       throw new Error('Each dealership tool group requires a label and at least one tool.')
+    }
+  }
+}
+
+function assertToolRail(rail: DealershipExperienceConfig['toolRail']) {
+  if (!rail || !Array.isArray(rail.items) || rail.items.length > 6) {
+    throw new Error('The dealership tool rail requires at most six configured items.')
+  }
+  const ids = new Set<string>()
+  for (const item of rail.items) {
+    if (!item?.id?.trim() || !item.label?.trim() || ids.has(item.id.trim())) {
+      throw new Error('Each dealership tool rail item requires a unique id and visible label.')
+    }
+    ids.add(item.id.trim())
+    if (!['open-tools', 'open-documents', 'prompt'].includes(item.action)) {
+      throw new Error('A dealership tool rail item uses an unsupported action.')
+    }
+    if (item.action === 'prompt' && !item.query?.trim()) {
+      throw new Error('Prompt tool rail items require a non-empty query.')
     }
   }
 }

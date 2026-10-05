@@ -1220,3 +1220,42 @@ or Platform-managed `UI_EXTENSION` packaging.
 - No runtime, AI Fabric, Marketplace plugin, deployment template, prompt, or
   action contract changed. Temporary production Coolify access was closed and
   firewall `10918233` was restored to its exact pre-run rules.
+
+### 17.14 Host-configurable mobile Max Mode tool rail (2026-10-05)
+
+- Removed the legacy hard-coded `Actions`, `Cart`, `Docs`, and `Products`
+  floating controls from generic mobile Max Mode. The generic application no
+  longer invents commerce controls or product-search behavior when a host does
+  not configure them.
+- Added the bounded, JSON-safe `host.toolRail` contract. A host may expose at
+  most six ordered commands using only `open-tools`, `open-documents`, or
+  `prompt`; the widget owns rendering, validation, accessibility, responsive
+  placement, and normal chat-route execution. Arbitrary callbacks, components,
+  CSS, URLs, connector calls, and domain logic are not accepted.
+- `open-tools` selects either the generic `default` or `contextual` tool scope;
+  `open-documents` opens retrieved/attached evidence and remains hidden until
+  evidence exists; `prompt` submits a bounded host query through the ordinary
+  runtime path. Context-required commands remain disabled until trusted page or
+  attachment context is available.
+- Replaced label-triggered `Search Products` and `Browse Products` branches in
+  the shared desktop/mobile tool surfaces with uniform execution of the
+  host-provided query. Commerce-specific experiences remain the responsibility
+  of an explicit host pack, such as the dedicated Shopify workspace.
+- The dealership experience pack now supplies its own default rail: `Stock`
+  opens Browse stock tools, `Vehicle` opens This vehicle tools when context is
+  available, and `Sources` opens current evidence. These labels and semantics
+  exist only in the pack; no vehicle or dealership vocabulary entered generic
+  widget production code.
+- A host may override the dealership defaults with the same bounded public
+  configuration contract. The pack validates item count, stable unique IDs,
+  visible labels, supported actions, and required prompt text before mounting.
+- External widget and dealership-pack guides document the contract, security
+  boundary, configuration examples, and acceptance checks. Browser coverage
+  asserts the exact dealership rail, rejects any leaked `Cart` or `Products`
+  command, opens both generic tool scopes, and retains the existing governed
+  action/confirmation proof.
+- Local verification passed widget typecheck, ESM/IIFE builds, action
+  presentation smoke, dealership pack typecheck/build, Astro diagnostics, the
+  29-page production build, content/static gates, and the complete Playwright
+  browser suite. Production deployment identity and hosted proof are recorded
+  after release below.

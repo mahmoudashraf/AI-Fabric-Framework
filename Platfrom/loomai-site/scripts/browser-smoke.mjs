@@ -1610,7 +1610,41 @@ try {
   })
   await mobileConfirmationPage.locator('[data-card-ask]').first().click()
   await mobileVehicleResponse
-  await mobileConfirmationPage.getByRole('button', { name: 'Open quick actions' }).click()
+  const mobileToolRail = mobileConfirmationPage.locator('[data-max-mode-tool-rail]')
+  await mobileToolRail.waitFor()
+  await mobileToolRail.locator('[data-max-mode-tool-rail-item="sources"]').waitFor()
+  const mobileToolRailItems = await mobileToolRail.locator('[data-max-mode-tool-rail-item]').evaluateAll(
+    (elements) => elements.map((element) => ({
+      id: element.getAttribute('data-max-mode-tool-rail-item'),
+      label: element.getAttribute('aria-label'),
+    })),
+  )
+  if (JSON.stringify(mobileToolRailItems.map((item) => item.id)) !== JSON.stringify([
+    'browse-stock',
+    'current-vehicle',
+    'sources',
+  ])) {
+    throw new Error(`Mobile Max Mode exposed the wrong dealership tool rail: ${JSON.stringify(mobileToolRailItems)}`)
+  }
+  if (mobileToolRailItems.some((item) => /cart|product/i.test(`${item.id} ${item.label}`))) {
+    throw new Error(`Generic mobile tool rail leaked a commerce control: ${JSON.stringify(mobileToolRailItems)}`)
+  }
+  await mobileToolRail.locator('[data-max-mode-tool-rail-item="browse-stock"]').click()
+  const mobileBrowseScope = mobileConfirmationPage.locator(
+    '[data-max-mode-tool-scope="default"]:visible',
+  )
+  await mobileBrowseScope.waitFor()
+  const mobileBrowseTools = await mobileConfirmationPage.locator(
+    '[data-max-mode-quick-action]:visible',
+  ).evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if ((await mobileBrowseScope.getAttribute('aria-selected')) !== 'true' ||
+      JSON.stringify(mobileBrowseTools) !== JSON.stringify(expectedBrowseTools)) {
+    throw new Error(`Mobile Stock rail command did not open Browse stock tools: ${JSON.stringify(mobileBrowseTools)}`)
+  }
+  await mobileConfirmationPage.getByRole('button', { name: 'Close tools' }).click()
+  await mobileToolRail.locator('[data-max-mode-tool-rail-item="current-vehicle"]').click()
   const mobileContextualScope = mobileConfirmationPage.locator(
     '[data-max-mode-tool-scope="contextual"]:visible',
   )
@@ -1624,7 +1658,7 @@ try {
       JSON.stringify(mobileContextualTools) !== JSON.stringify(expectedContextualTools)) {
     throw new Error(`Mobile Max Mode did not expose the selected contextual tool group: ${JSON.stringify(mobileContextualTools)}`)
   }
-  await mobileConfirmationPage.getByRole('button', { name: 'Close quick actions' }).click()
+  await mobileConfirmationPage.getByRole('button', { name: 'Close tools' }).click()
   const mobileActionResponse = mobileConfirmationPage.waitForResponse((response) => {
     if (!response.url().endsWith('/api/chat/me/query')) return false
     return response.request().postDataJSON()?.query === 'Request a test drive for the Aster E1'

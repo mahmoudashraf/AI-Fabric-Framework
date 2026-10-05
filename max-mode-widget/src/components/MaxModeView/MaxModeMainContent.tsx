@@ -1,7 +1,7 @@
 import { DesktopContextPanel } from "../DesktopContextPanel";
 import { MessageList } from "../Chat/MessageList";
 import { MobileContextSheet } from "../MobileContextSheet";
-import { MobileFloatingActions } from "../MobileFloatingActions";
+import { MobileToolRail } from "../MobileToolRail";
 import { MobileNewDocsPreviewPanel } from "../MobileNewDocsPreviewPanel";
 
 import type { MaxModeController } from "@/hooks/useMaxModeController";
@@ -44,25 +44,18 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
     addToCart,
     cartEnabled,
     handleAttachDocument,
-    isAISearchOpen,
-    setIsAISearchOpen,
-    aiSearchCategories,
-    aiSearchRowRef,
-    aiSearchButtonRef,
-    handleAISearchCategory,
     isFloatingMenuCollapsed,
     setIsFloatingMenuCollapsed,
-    openCart,
     isNewDocsPreviewOpen,
     handleCloseNewDocsPreview,
     isBottomSheetOpen,
     setIsBottomSheetOpen,
     handleOpenBottomSheet,
-    isQuickActionsOpen,
     setIsQuickActionsOpen,
-    isBrowseProductsOpen,
-    setIsBrowseProductsOpen,
-    browseProductCategories,
+    toolRailItems,
+    activeToolScope,
+    contextualToolsAvailable,
+    selectToolScope,
     handleQuickAction,
     proceedToCheckoutFromCart,
     attachCartToChat,
@@ -144,26 +137,20 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         onAttachDocument={handleAttachDocument}
       />
 
-      <MobileFloatingActions
-        isAISearchOpen={isAISearchOpen}
-        setIsAISearchOpen={setIsAISearchOpen}
-        aiSearchCategories={aiSearchCategories}
-        aiSearchRowRef={aiSearchRowRef}
-        aiSearchButtonRef={aiSearchButtonRef}
-        onAISearchCategory={handleAISearchCategory}
-        isFloatingMenuCollapsed={isFloatingMenuCollapsed}
-        setIsFloatingMenuCollapsed={setIsFloatingMenuCollapsed}
+      <MobileToolRail
+        items={toolRailItems}
+        activeToolScope={activeToolScope}
+        contextualToolsAvailable={contextualToolsAvailable}
         contextDocumentsCount={contextDocuments.length}
+        collapsed={isFloatingMenuCollapsed}
+        onCollapsedChange={setIsFloatingMenuCollapsed}
+        onOpenTools={(scope) => {
+          selectToolScope(scope);
+          setIsQuickActionsOpen(true);
+        }}
         onOpenDocuments={handleOpenBottomSheet}
-        onOpenCart={openCart}
-        showCart={cartEnabled}
-        isQuickActionsOpen={isQuickActionsOpen}
-        setIsQuickActionsOpen={setIsQuickActionsOpen}
-        isBrowseProductsOpen={isBrowseProductsOpen}
-        setIsBrowseProductsOpen={setIsBrowseProductsOpen}
-        browseProductCategories={browseProductCategories}
-        onBrowseProductCategory={(category) => {
-          handleQuickAction(category.query, "search", "navigator");
+        onPrompt={(item) => {
+          if (item.query) handleQuickAction(item.query, item.position, item.mode);
         }}
       />
 

@@ -180,11 +180,13 @@ export type MaxModeHostStarterPromptIcon =
   | "calendar"
   | "compare"
   | "details"
+  | "documents"
   | "location"
   | "phone"
   | "search"
   | "shield"
-  | "sparkles";
+  | "sparkles"
+  | "tools";
 
 export interface MaxModeHostStarterPrompt {
   label: string;
@@ -224,6 +226,46 @@ export interface MaxModeHostToolGroups {
   contextual: MaxModeHostToolGroup;
 }
 
+export type MaxModeHostToolRailTone = "primary" | "teal" | "violet" | "amber" | "neutral";
+
+interface MaxModeHostToolRailItemBase {
+  /** Stable host-owned identifier used for rendering and test automation. */
+  id: string;
+  /** Short visible label. Keep this compact because the rail is mobile-first. */
+  label: string;
+  /** Provider-neutral icon semantic rendered by the widget. */
+  icon?: MaxModeHostStarterPromptIcon;
+  /** Bounded widget-owned color treatment. Arbitrary CSS is not accepted. */
+  tone?: MaxModeHostToolRailTone;
+}
+
+export type MaxModeHostToolRailItem = MaxModeHostToolRailItemBase & (
+  | {
+      action: "open-tools";
+      /** Optional tool scope to select before opening the mobile tool sheet. */
+      scope?: MaxModeToolScope;
+    }
+  | {
+      action: "open-documents";
+    }
+  | {
+      action: "prompt";
+      /** Host-owned prompt sent through the normal chat route. */
+      query: string;
+      position?: MaxModePosition;
+      mode?: MaxModeMode;
+      /** Disable the prompt until contextual page or attachment state exists. */
+      requiresContext?: boolean;
+    }
+);
+
+export interface MaxModeHostToolRailConfig {
+  /** Ordered host-owned commands. An explicit empty array hides the rail. */
+  items: MaxModeHostToolRailItem[];
+  /** Start the mobile rail collapsed. Defaults to false. */
+  initiallyCollapsed?: boolean;
+}
+
 export interface MaxModeHostCustomerAccountAuthConfig {
   /** Bridge Customer Account OAuth start URL exposed by the Shopify bootstrap */
   startUrl?: string;
@@ -261,6 +303,8 @@ export interface MaxModeHostConfig {
    * and `contextual`; all labels, icons, and queries remain host-owned.
    */
   toolGroups?: MaxModeHostToolGroups;
+  /** Optional generic command rail rendered in mobile Max Mode. */
+  toolRail?: MaxModeHostToolRailConfig;
   /** Optional host-owned starter suggestions shown above the composer */
   starterSuggestions?: string[];
   /** Optional host-owned request payload merged into query and suggestions calls */
@@ -384,6 +428,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     welcomeMessage: undefined,
     starterPrompts: undefined,
     toolGroups: undefined,
+    toolRail: undefined,
     starterSuggestions: undefined,
     requestContext: undefined,
     requestContextProvider: undefined,

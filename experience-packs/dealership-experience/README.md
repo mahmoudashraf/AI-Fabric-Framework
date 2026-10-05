@@ -13,6 +13,7 @@ Each dealership supplies:
 - dealer identity and branding;
 - the current page kind and visible context;
 - installed capabilities;
+- optional mobile Max Mode rail overrides;
 - approved image hosts and detail routes; and
 - optional safe host copy or tool overrides.
 
@@ -72,3 +73,9 @@ credentials.
 Use `attachVehicle`, `sendMessage`, and `destroy` on the exported browser API
 for host-page interactions. The generic widget remains unaware of vehicles,
 dealership actions, and provider payload fields.
+
+By default the pack injects a mobile Max Mode rail with `Stock`, `Vehicle`, and
+`Sources`. These are ordinary generic widget commands: Stock opens the default
+tool scope, Vehicle opens the contextual scope when available, and Sources
+opens retrieved evidence. Override `toolRail` in the public pack configuration
+when a dealership needs a different reviewed command set.

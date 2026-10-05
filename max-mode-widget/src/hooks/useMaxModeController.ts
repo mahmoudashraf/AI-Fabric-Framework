@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Ban,
+  BookOpen,
   Bot,
   Calendar,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   GitCompare,
   HelpCircle,
   Info,
+  LayoutGrid,
   MapPin,
   Phone,
   Search,
@@ -22,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 import type { MaxModeMode, MaxModePosition, QuickAction } from "@/constants";
-import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
+import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, SEARCH_CATEGORIES } from "@/constants";
 import {
   emitEvent,
   getWidgetConfig,
@@ -31,6 +33,8 @@ import {
   type MaxModeHostConfig,
   type MaxModeHostStarterPrompt,
   type MaxModeHostStarterPromptIcon,
+  type MaxModeHostToolRailItem,
+  type MaxModeHostToolRailTone,
   type MaxModeToolScope,
   type MaxModeWidgetConfig,
 } from "@/config";
@@ -226,15 +230,17 @@ const HOST_PROMPT_ICONS = {
   calendar: Calendar,
   compare: GitCompare,
   details: FileText,
+  documents: BookOpen,
   location: MapPin,
   phone: Phone,
   search: Search,
   shield: Shield,
   sparkles: Sparkles,
+  tools: LayoutGrid,
 } satisfies Record<MaxModeHostStarterPromptIcon, typeof Zap>;
 
 function hostPromptIcon(icon?: MaxModeHostStarterPromptIcon) {
-  return icon ? HOST_PROMPT_ICONS[icon] : Zap;
+  return icon && HOST_PROMPT_ICONS[icon] ? HOST_PROMPT_ICONS[icon] : Zap;
 }
 
 export interface MaxModeResolvedToolGroup {
@@ -253,6 +259,110 @@ type MaxModeToolGroupDefinitions = {
     availableWithoutAttachments: boolean;
   };
 };
+
+export interface MaxModeResolvedToolRailItem {
+  id: string;
+  label: string;
+  icon: QuickAction["icon"];
+  tone: MaxModeHostToolRailTone;
+  action: "open-tools" | "open-documents" | "prompt";
+  scope?: MaxModeToolScope;
+  query?: string;
+  position?: MaxModePosition;
+  mode?: MaxModeMode;
+  requiresContext: boolean;
+}
+
+const TOOL_RAIL_TONES = new Set<MaxModeHostToolRailTone>([
+  "primary",
+  "teal",
+  "violet",
+  "amber",
+  "neutral",
+]);
+const TOOL_RAIL_POSITIONS = new Set<MaxModePosition>(["landing", "catalog", "search", "cart"]);
+
+function deriveToolRailItems(
+  hostConfig: MaxModeHostConfig | undefined,
+  toolGroups: MaxModeResolvedToolGroup[],
+  quickActions: QuickAction[],
+  defaultConversationMode: MaxModeMode,
+  allowedConversationModes: MaxModeMode[],
+): MaxModeResolvedToolRailItem[] {
+  const configured = hostConfig?.toolRail;
+  if (configured) {
+    const seenIds = new Set<string>();
+    return (configured.items || [])
+      .slice(0, 6)
+      .flatMap((item: MaxModeHostToolRailItem, index) => {
+        const id = typeof item?.id === "string"
+          ? item.id.trim().replace(/[^a-zA-Z0-9_.:-]+/g, "-").slice(0, 64)
+          : "";
+        const label = typeof item?.label === "string" ? item.label.trim().slice(0, 32) : "";
+        if (!id || !label || seenIds.has(id)) return [];
+        if (!["open-tools", "open-documents", "prompt"].includes(item.action)) return [];
+        if (item.action === "prompt" && !item.query?.trim()) return [];
+        seenIds.add(id);
+        const defaultIcon = item.action === "open-documents"
+          ? "documents"
+          : item.action === "open-tools"
+            ? "tools"
+            : "sparkles";
+        const fallbackTones: MaxModeHostToolRailTone[] = ["primary", "teal", "violet", "amber"];
+        return [{
+          id,
+          label,
+          icon: hostPromptIcon(item.icon ?? defaultIcon),
+          tone: item.tone && TOOL_RAIL_TONES.has(item.tone)
+            ? item.tone
+            : fallbackTones[index % fallbackTones.length],
+          action: item.action,
+          scope: item.action === "open-tools"
+            ? item.scope === "contextual" ? "contextual" : "default"
+            : undefined,
+          query: item.action === "prompt" ? item.query.trim().slice(0, 1000) : undefined,
+          position: item.action === "prompt"
+            ? item.position && TOOL_RAIL_POSITIONS.has(item.position) ? item.position : "search"
+            : undefined,
+          mode: item.action === "prompt"
+            ? item.mode && allowedConversationModes.includes(item.mode) ? item.mode : defaultConversationMode
+            : undefined,
+          requiresContext: item.action === "prompt" && item.requiresContext === true,
+        }];
+      });
+  }
+
+  const fallback: MaxModeResolvedToolRailItem[] = toolGroups.length > 0
+    ? toolGroups.map((group, index) => ({
+        id: `tools-${group.scope}`,
+        label: group.label.slice(0, 32),
+        icon: group.icon,
+        tone: index === 0 ? "primary" : "teal",
+        action: "open-tools",
+        scope: group.scope,
+        requiresContext: false,
+      }))
+    : quickActions.length > 0
+      ? [{
+          id: "tools",
+          label: "Tools",
+          icon: LayoutGrid,
+          tone: "primary",
+          action: "open-tools",
+          scope: "default",
+          requiresContext: false,
+        }]
+      : [];
+  fallback.push({
+    id: "sources",
+    label: "Sources",
+    icon: BookOpen,
+    tone: "violet",
+    action: "open-documents",
+    requiresContext: false,
+  });
+  return fallback;
+}
 
 function deriveHostPromptActions(
   prompts: MaxModeHostStarterPrompt[] | undefined,
@@ -337,7 +447,7 @@ function deriveQuickActions(
     (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
   );
   if (!starterPrompts?.length) {
-    return QUICK_ACTIONS;
+    return [];
   }
   return starterPrompts.map((prompt, index) => {
     const palette = shellPromptPalette(index);
@@ -633,7 +743,9 @@ export function useMaxModeController({
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [confirmationStatus, setConfirmationStatus] = useState<{ [key: string]: 'pending' | 'confirmed' | 'rejected' }>({});
   const [isAISearchOpen, setIsAISearchOpen] = useState(false);
-  const [isFloatingMenuCollapsed, setIsFloatingMenuCollapsed] = useState(false);
+  const [isFloatingMenuCollapsed, setIsFloatingMenuCollapsed] = useState(
+    hostConfig?.toolRail?.initiallyCollapsed === true,
+  );
   const [newDocuments, setNewDocuments] = useState<Document[]>([]);
   const [isNewDocsPreviewOpen, setIsNewDocsPreviewOpen] = useState(false);
   const [viewedDocumentIds, setViewedDocumentIds] = useState<Set<string>>(new Set());
@@ -708,6 +820,16 @@ export function useMaxModeController({
       ? toolGroupDefinitions.contextual.actions
       : toolGroupDefinitions.default.actions)
     : legacyQuickActions;
+  const toolRailItems = useMemo(
+    () => deriveToolRailItems(
+      hostConfig,
+      toolGroups,
+      quickActions,
+      defaultConversationMode,
+      allowedConversationModes,
+    ),
+    [allowedConversationModes, defaultConversationMode, hostConfig, quickActions, toolGroups],
+  );
 
   useEffect(() => {
     setCurrentMode((current) => allowedConversationModes.includes(current) ? current : effectiveConversationMode);
@@ -1496,6 +1618,7 @@ export function useMaxModeController({
     // derived constants
     quickActions,
     toolGroups,
+    toolRailItems,
     activeToolScope,
     activeContextLabel,
     contextualToolsAvailable,

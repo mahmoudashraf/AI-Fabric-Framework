@@ -6,11 +6,13 @@ export type DealershipToolIcon =
   | 'calendar'
   | 'compare'
   | 'details'
+  | 'documents'
   | 'location'
   | 'phone'
   | 'search'
   | 'shield'
   | 'sparkles'
+  | 'tools'
 
 export interface DealershipTool {
   label: string
@@ -32,6 +34,37 @@ export interface DealershipToolGroups {
   initialScope: 'default' | 'contextual'
   default: DealershipToolGroup
   contextual: DealershipToolGroup
+}
+
+export type DealershipToolRailTone = 'primary' | 'teal' | 'violet' | 'amber' | 'neutral'
+
+interface DealershipToolRailItemBase {
+  id: string
+  label: string
+  icon?: DealershipToolIcon
+  tone?: DealershipToolRailTone
+}
+
+export type DealershipToolRailItem = DealershipToolRailItemBase & (
+  | {
+      action: 'open-tools'
+      scope?: 'default' | 'contextual'
+    }
+  | {
+      action: 'open-documents'
+    }
+  | {
+      action: 'prompt'
+      query: string
+      position?: 'landing' | 'catalog' | 'search' | 'cart'
+      mode?: 'conversational' | 'navigator' | 'navigator_deep' | 'thinker_deep' | 'cart_assistant' | 'executor'
+      requiresContext?: boolean
+    }
+)
+
+export interface DealershipToolRailConfig {
+  items: DealershipToolRailItem[]
+  initiallyCollapsed?: boolean
 }
 
 export interface DealershipCapabilities {
@@ -127,6 +160,7 @@ export interface DealershipExperienceConfig {
   capabilities?: DealershipCapabilities
   copy?: DealershipExperienceCopy
   toolGroups?: DealershipToolGroups
+  toolRail?: DealershipToolRailConfig
   presentation?: DealershipPresentationConfig
   requestContext?: Record<string, unknown>
   theme?: {

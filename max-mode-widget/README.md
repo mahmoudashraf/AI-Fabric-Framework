@@ -190,16 +190,31 @@ interface MaxModeWidgetConfig {
       initialScope?: "default" | "contextual";
       default: {
         label: string;
-        icon?: "calendar" | "compare" | "details" | "location" | "phone" | "search" | "shield" | "sparkles";
+        icon?: "calendar" | "compare" | "details" | "documents" | "location" | "phone" | "search" | "shield" | "sparkles" | "tools";
         tools: MaxModeHostStarterPrompt[];
       };
       contextual: {
         label: string;
-        icon?: "calendar" | "compare" | "details" | "location" | "phone" | "search" | "shield" | "sparkles";
+        icon?: "calendar" | "compare" | "details" | "documents" | "location" | "phone" | "search" | "shield" | "sparkles" | "tools";
         tools: MaxModeHostStarterPrompt[];
         contextLabel?: string;
         availableWithoutAttachments?: boolean;
       };
+    };
+    toolRail?: {
+      initiallyCollapsed?: boolean;
+      items: Array<{
+        id: string;
+        label: string;
+        icon?: "calendar" | "compare" | "details" | "documents" | "location" | "phone" | "search" | "shield" | "sparkles" | "tools";
+        tone?: "primary" | "teal" | "violet" | "amber" | "neutral";
+        action: "open-tools" | "open-documents" | "prompt";
+        scope?: "default" | "contextual";
+        query?: string;
+        position?: "landing" | "catalog" | "search" | "cart";
+        mode?: MaxModeMode;
+        requiresContext?: boolean;
+      }>;
     };
     actionPresentation?: MaxModeActionPresentationConfig;
     currentPageAttachment?: {
@@ -288,6 +303,35 @@ attachment selects `default` again. Set
 the host page itself is sufficient context. An attachment's explicit
 `contextLabel` takes precedence. If `toolGroups` is absent, existing flat
 `starterPrompts` behavior remains unchanged.
+
+### Configurable mobile tool rail
+
+`host.toolRail` controls the compact command rail in mobile Max Mode. Widget
+core supports only three provider-neutral commands:
+
+- `open-tools` selects an optional `default` or `contextual` scope and opens
+  that host-owned tool sheet;
+- `open-documents` opens retrieved sources and is hidden until sources exist;
+- `prompt` sends a bounded host-owned prompt through the normal chat route.
+
+```js
+host: {
+  toolRail: {
+    items: [
+      { id: 'browse', label: 'Browse', icon: 'search', tone: 'primary', action: 'open-tools', scope: 'default' },
+      { id: 'context', label: 'Context', icon: 'details', tone: 'teal', action: 'open-tools', scope: 'contextual' },
+      { id: 'sources', label: 'Sources', icon: 'documents', tone: 'violet', action: 'open-documents' },
+    ],
+  },
+}
+```
+
+The rail accepts at most six items and no arbitrary CSS or callback functions.
+Context-dependent commands stay disabled until context exists. When omitted,
+the widget derives domain-neutral tool-scope entries plus Sources. An explicit
+empty `items` array hides the rail. The generic rail has no built-in Product or
+Cart controls; commerce belongs in a host experience such as the dedicated
+Shopify workspace.
 
 `crudBaseUrl` is optional for secure chat-only integrations.
 

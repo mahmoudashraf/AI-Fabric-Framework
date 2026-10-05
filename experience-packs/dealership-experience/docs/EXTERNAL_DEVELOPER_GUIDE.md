@@ -422,6 +422,22 @@ authorized, and verified.
 Use `toolGroups` to replace these defaults. Tool overrides remain prompts sent
 through chat; they are not direct API calls.
 
+### Mobile Max Mode rail
+
+The default dealership rail is injected by this experience pack, not by the
+generic widget:
+
+| Rail item | Generic command | Result |
+| --- | --- | --- |
+| Stock | `open-tools`, `default` | Opens Browse stock tools |
+| Vehicle | `open-tools`, `contextual` | Opens This vehicle tools; disabled without context |
+| Sources | `open-documents` | Opens retrieved evidence; hidden until evidence exists |
+
+Override `toolRail` with up to six JSON-safe items when needed. A configured
+`prompt` item still sends a normal chat request and does not bypass action
+authorization or confirmation. Do not put provider credentials, direct dealer
+API calls, or browser-authorized writes in rail configuration.
+
 ## 11. Default Action Names
 
 | Pack capability | Default action | Access |
@@ -678,6 +694,8 @@ routes. Do not expose the private connector origin in browser CORS.
 - [ ] Max Mode starts with Browse stock selected.
 - [ ] Max Mode shows This vehicle as unavailable before context exists.
 - [ ] The Companion dock shows no scoped tools or quick-action toolbar.
+- [ ] The mobile rail shows Stock and a disabled Vehicle command, with no Cart
+      or Product controls.
 - [ ] Search stock returns a rich inventory presentation.
 - [ ] Filters and images reflect current approved action facts.
 - [ ] Selecting a result can attach it and open contextual tools.
@@ -688,6 +706,8 @@ routes. Do not expose the private connector origin in browser CORS.
 - [ ] Live details returns the authoritative current stock record.
 - [ ] Browse stock remains available without dropping context.
 - [ ] Current-page capture includes the intended visible vehicle text only.
+- [ ] The mobile Vehicle rail command opens This vehicle tools and Sources
+      appears only after retrieved evidence exists.
 
 ### Actions
 

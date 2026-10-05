@@ -308,6 +308,30 @@ mobile Max Mode only. The Companion dock keeps the same conversation and
 attachments but does not render this tool surface, preserving its limited
 vertical space for messages and the composer.
 
+### Mobile tool rail
+
+The optional `host.toolRail` is a JSON-safe command surface for mobile Max
+Mode. It does not call customer APIs directly. It can open one configured tool
+scope, open retrieved sources, or send a reviewed prompt through chat.
+
+```js
+host: {
+  toolRail: {
+    items: [
+      { id: "browse", label: "Browse", icon: "search", action: "open-tools", scope: "default" },
+      { id: "context", label: "Context", icon: "details", action: "open-tools", scope: "contextual" },
+      { id: "sources", label: "Sources", icon: "documents", action: "open-documents" }
+    ]
+  }
+}
+```
+
+At most six entries are accepted. Allowed actions, icons and tones are bounded;
+arbitrary callbacks and CSS are not. Contextual commands disable when context
+is unavailable, and Sources hides until evidence exists. Omitting the contract
+derives neutral tool/sources entries. The generic rail has no commerce tools;
+storefront controls belong to a dedicated experience configuration.
+
 ## 9. Current-Page Attachments
 
 Page capture is opt-in:

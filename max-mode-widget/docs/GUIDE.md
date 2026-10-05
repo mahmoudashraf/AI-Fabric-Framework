@@ -323,6 +323,32 @@ is intentionally conversation-only so its transcript keeps the available
 vertical space. Hosts that omit `toolGroups` continue to use
 `host.starterPrompts` or runtime shell prompts in Max Mode unchanged.
 
+### `host.toolRail`
+
+`toolRail` configures the mobile Max Mode command rail without putting customer
+or product-domain logic in widget core. It supports `open-tools`,
+`open-documents`, and `prompt`. An `open-tools` item may select `default` or
+`contextual`; a prompt may declare `requiresContext`; source commands render
+only when retrieved documents exist.
+
+```js
+host: {
+  toolRail: {
+    initiallyCollapsed: false,
+    items: [
+      { id: "browse", label: "Browse", icon: "search", tone: "primary", action: "open-tools", scope: "default" },
+      { id: "context", label: "Context", icon: "details", tone: "teal", action: "open-tools", scope: "contextual" },
+      { id: "sources", label: "Sources", icon: "documents", tone: "violet", action: "open-documents" }
+    ]
+  }
+}
+```
+
+The contract is JSON-compatible, capped at six items, and accepts bounded icon
+and tone enums rather than CSS or callbacks. Omitting it derives a neutral rail
+from configured tool groups and available sources. `items: []` disables the
+rail. Generic Max Mode does not inject Product or Cart rail buttons.
+
 ### `theme`
 
 | Property | Type | Default | Description |

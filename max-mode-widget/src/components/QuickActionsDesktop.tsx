@@ -1,198 +1,62 @@
-import type { Dispatch, SetStateAction } from "react";
-
-import { AnimatePresence, motion } from "framer-motion";
-import { Package } from "lucide-react";
+import { motion } from "framer-motion";
 
 import { ToolGroupTabs } from "@/components/ToolGroupTabs";
 import type { MaxModeToolScope } from "@/config";
+import type { QuickAction } from "@/constants";
 import type { MaxModeResolvedToolGroup } from "@/hooks/useMaxModeController";
-import type { BrowseProductCategory, QuickAction, SearchCategory } from "@/constants";
 
 export function QuickActionsDesktop({
   quickActions,
-  isSearchCategoryOpen,
-  setIsSearchCategoryOpen,
-  isBrowseProductsOpen,
-  setIsBrowseProductsOpen,
-  searchCategories,
-  browseProductCategories,
   toolGroups,
   activeToolScope,
   activeContextLabel,
   onSelectToolScope,
-  onSelectSearchCategory,
   onQuickAction,
 }: {
   quickActions: QuickAction[];
-  isSearchCategoryOpen: boolean;
-  setIsSearchCategoryOpen: Dispatch<SetStateAction<boolean>>;
-  isBrowseProductsOpen: boolean;
-  setIsBrowseProductsOpen: Dispatch<SetStateAction<boolean>>;
-  searchCategories: SearchCategory[];
-  browseProductCategories: BrowseProductCategory[];
   toolGroups: MaxModeResolvedToolGroup[];
   activeToolScope: MaxModeToolScope;
   activeContextLabel?: string;
   onSelectToolScope: (scope: MaxModeToolScope) => void;
-  onSelectSearchCategory: (categoryLabel: string) => void;
   onQuickAction: (query: string, position?: QuickAction["position"], mode?: QuickAction["mode"]) => void;
 }) {
+  if (toolGroups.length === 0 && quickActions.length === 0) return null;
+
   return (
-    <>
-      <div className="hidden md:block absolute top-0 left-0 right-0 z-10 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-800 dark:bg-gray-950">
-        {toolGroups.length > 0 && (
-          <div className="mb-2 pr-48">
-            <ToolGroupTabs
-              groups={toolGroups}
-              activeScope={activeToolScope}
-              contextLabel={activeContextLabel}
-              onSelect={onSelectToolScope}
-              compact
-              idPrefix="max-mode-desktop-tools"
-            />
-          </div>
-        )}
-        <div
-          id={`max-mode-desktop-tools-${activeToolScope}`}
-          role={toolGroups.length > 0 ? "tabpanel" : undefined}
-          className="flex gap-2 overflow-x-auto scrollbar-hide"
-        >
-          {quickActions.slice(0, 8).map((action, idx) => (
-            <div key={`${activeToolScope}-${action.label}`}>
-              {action.label === "Search Products" ? (
-                <motion.button
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => setIsSearchCategoryOpen(!isSearchCategoryOpen)}
-                  data-max-mode-quick-action={action.label}
-                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${action.bg} border ${action.border} hover:-translate-y-0.5 transition-all min-w-[80px] ${isSearchCategoryOpen ? "ring-2 ring-blue-500" : ""}`}
-                >
-                  <action.icon className={`h-4 w-4 ${action.color}`} />
-                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">{action.label}</span>
-                </motion.button>
-              ) : action.label === "Browse Products" ? (
-                <motion.button
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => setIsBrowseProductsOpen(!isBrowseProductsOpen)}
-                  data-max-mode-quick-action={action.label}
-                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${action.bg} border ${action.border} hover:-translate-y-0.5 transition-all min-w-[80px] ${isBrowseProductsOpen ? "ring-2 ring-blue-500" : ""}`}
-                >
-                  <action.icon className={`h-4 w-4 ${action.color}`} />
-                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">{action.label}</span>
-                </motion.button>
-              ) : (
-                <motion.button
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => onQuickAction(action.query, action.position, action.mode)}
-                  data-max-mode-quick-action={action.label}
-                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${action.bg} border ${action.border} hover:-translate-y-0.5 transition-all min-w-[80px]`}
-                >
-                  <action.icon className={`h-4 w-4 ${action.color}`} />
-                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">{action.label}</span>
-                </motion.button>
-              )}
-            </div>
-          ))}
+    <div className="absolute left-0 right-0 top-0 z-10 hidden border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-800 dark:bg-gray-950 md:block">
+      {toolGroups.length > 0 && (
+        <div className="mb-2 pr-48">
+          <ToolGroupTabs
+            groups={toolGroups}
+            activeScope={activeToolScope}
+            contextLabel={activeContextLabel}
+            onSelect={onSelectToolScope}
+            compact
+            idPrefix="max-mode-desktop-tools"
+          />
         </div>
+      )}
+      <div
+        id={`max-mode-desktop-tools-${activeToolScope}`}
+        role={toolGroups.length > 0 ? "tabpanel" : undefined}
+        className="flex gap-2 overflow-x-auto scrollbar-hide"
+      >
+        {quickActions.slice(0, 8).map((action, index) => (
+          <motion.button
+            key={`${activeToolScope}-${action.label}`}
+            type="button"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            onClick={() => onQuickAction(action.query, action.position, action.mode)}
+            data-max-mode-quick-action={action.label}
+            className={`flex min-h-11 min-w-[80px] items-center gap-2 rounded-lg border px-3 py-2 transition-all hover:-translate-y-0.5 ${action.bg} ${action.border}`}
+          >
+            <action.icon className={`h-4 w-4 ${action.color}`} />
+            <span className="whitespace-nowrap text-xs font-semibold text-foreground">{action.label}</span>
+          </motion.button>
+        ))}
       </div>
-
-      <AnimatePresence>
-        {isSearchCategoryOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="hidden md:block fixed inset-0 z-40"
-              onClick={() => setIsSearchCategoryOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="hidden md:block fixed top-[80px] left-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-blue-200 dark:border-blue-700 p-4 z-50 min-w-[320px]"
-            >
-              <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-3 px-1">Select Category to Search</div>
-              <div className="flex flex-wrap gap-2">
-                {searchCategories.map((cat, catIdx) => (
-                  <motion.button
-                    key={catIdx}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: catIdx * 0.03 }}
-                    onClick={() => onSelectSearchCategory(cat.label)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-full ${cat.bg} border-2 ${cat.border} hover:scale-105 transition-all text-left shadow-sm`}
-                  >
-                    <span className="text-base">{cat.emoji}</span>
-                    <span className={`text-sm font-semibold ${cat.color}`}>{cat.label}</span>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isBrowseProductsOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="hidden md:block fixed inset-0 z-40"
-              onClick={() => setIsBrowseProductsOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="hidden md:block fixed top-[80px] left-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-blue-200 dark:border-blue-700 p-6 z-50 max-w-[600px]"
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <div className="text-sm font-bold text-blue-600 dark:text-blue-400">Browse Products</div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {browseProductCategories.map((category, idx) => {
-                  const Icon = category.icon;
-                  return (
-                    <motion.div
-                      key={category.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      onClick={() => {
-                        onQuickAction(category.query, "search", "navigator");
-                        setIsBrowseProductsOpen(false);
-                      }}
-                      className="cursor-pointer group"
-                    >
-                      <div className="overflow-hidden rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all hover:shadow-lg">
-                        <div
-                          className={`h-20 bg-gradient-to-br ${category.color} flex items-center justify-center relative overflow-hidden`}
-                        >
-                          <Icon className="h-10 w-10 text-white/90 group-hover:scale-110 transition-transform" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all" />
-                        </div>
-                        <div className="p-3 bg-white dark:bg-gray-800">
-                          <h3 className="font-semibold text-sm mb-0.5">{category.label}</h3>
-                          <p className="text-xs text-muted-foreground">{category.description}</p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </>
+    </div>
   );
 }

@@ -10,15 +10,8 @@ export function MaxModeQuickActions({ controller }: { controller: MaxModeControl
     activeToolScope,
     activeContextLabel,
     selectToolScope,
-    searchCategories,
-    browseProductCategories,
-    isSearchCategoryOpen,
-    setIsSearchCategoryOpen,
-    isBrowseProductsOpen,
-    setIsBrowseProductsOpen,
     isQuickActionsOpen,
     setIsQuickActionsOpen,
-    handleSelectSearchCategory,
     handleQuickAction,
   } = controller;
 
@@ -26,17 +19,10 @@ export function MaxModeQuickActions({ controller }: { controller: MaxModeControl
     <>
       <QuickActionsDesktop
         quickActions={quickActions}
-        isSearchCategoryOpen={isSearchCategoryOpen}
-        setIsSearchCategoryOpen={setIsSearchCategoryOpen}
-        isBrowseProductsOpen={isBrowseProductsOpen}
-        setIsBrowseProductsOpen={setIsBrowseProductsOpen}
-        searchCategories={searchCategories}
-        browseProductCategories={browseProductCategories}
         toolGroups={toolGroups}
         activeToolScope={activeToolScope}
         activeContextLabel={activeContextLabel}
         onSelectToolScope={selectToolScope}
-        onSelectSearchCategory={handleSelectSearchCategory}
         onQuickAction={handleQuickAction}
       />
 
@@ -44,17 +30,10 @@ export function MaxModeQuickActions({ controller }: { controller: MaxModeControl
         isOpen={isQuickActionsOpen}
         setIsOpen={setIsQuickActionsOpen}
         quickActions={quickActions}
-        isSearchCategoryOpen={isSearchCategoryOpen}
-        setIsSearchCategoryOpen={setIsSearchCategoryOpen}
-        isBrowseProductsOpen={isBrowseProductsOpen}
-        setIsBrowseProductsOpen={setIsBrowseProductsOpen}
-        searchCategories={searchCategories}
-        browseProductCategories={browseProductCategories}
         toolGroups={toolGroups}
         activeToolScope={activeToolScope}
         activeContextLabel={activeContextLabel}
         onSelectToolScope={selectToolScope}
-        onSelectSearchCategory={handleSelectSearchCategory}
         onQuickAction={handleQuickAction}
       />
     </>
