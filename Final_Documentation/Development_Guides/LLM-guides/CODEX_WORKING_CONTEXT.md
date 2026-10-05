@@ -4007,3 +4007,35 @@ Critical fixes that made the gate pass:
   `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc` and
   `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`;
   both have zero operator entries and direct Coolify access is closed again.
+
+## 2026-10-05 Responsive Action Result And Dealership Receipt Closure
+
+- Generic `ActionResultRenderer` now unwraps common nested action-result
+  envelopes and renders bounded nested records/arrays responsively. Mobile uses
+  one-column rows, long values wrap, arrays/fields/depth are bounded, and
+  recognized secret/credential field names are omitted.
+- Generic widget code remains domain-neutral. The dealership experience pack
+  owns the new exact mappings and custom element for
+  `loomai.dealership-request-receipt.v1`, enabled only for configured test-drive
+  or callback capabilities. Its projection includes only receipt code, action
+  type, status, created time, public vehicle label, safe message, and success.
+- Local gates passed widget typecheck/build/presentation smoke, dealership pack
+  build, Astro diagnostics, 29-page site build, content/static smoke, and the
+  full Playwright browser suite. The browser contract independently covers the
+  custom receipt and an unknown nested action through the generic fallback at
+  390 pixels.
+- Commit `5cc7dece3edb40ee2fbd35b15f4a50ac5a59aa68` is live through public-site
+  deployment `frvf6mdba2d4iagfzz0txi4p`; canonical and sslip health both report
+  `UP` on that exact source.
+- A real hosted anonymous write canary rendered receipt `NFM-9644A184` through
+  the custom receipt element with no generic fallback or mobile overflow. The
+  protected staff workflow then set that exact synthetic request to
+  `CANCELLED`.
+- The broad hosted gate exposed a separate pre-existing path issue: two
+  inventory actions succeeded, but the vehicle-detail request returned
+  `CLARIFICATION_REQUIRED` and the gate timed out awaiting the detail renderer.
+  No write occurred in that failed run. Keep this as a target-resolution/gate
+  follow-up; it is not caused by the action-result presentation change.
+- Production access was limited to `8000/tcp`. Firewalls `10915120` and
+  `10918233` exactly match their pre-run hashes, have zero operator entries,
+  and authorized local Coolify access again times out with HTTP `000`.

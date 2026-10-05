@@ -654,3 +654,8 @@ Current P0 cleanup items:
   v25 proof indexes six approved files and passes six-of-six generated-answer
   checks. This does not erase separately observed inventory action/filter
   regressions and does not create any Auto Trader rights or readiness claim.
+- 2026-10-05 action-result presentation rule: stable customer-facing action
+  schemas should use exact, pack-owned, allowlisted renderers. Unknown actions
+  must remain usable through a domain-neutral, bounded, responsive generic
+  fallback; raw nested JSON and recognized credential fields are not acceptable
+  default customer presentation. Presentation never changes action authority.

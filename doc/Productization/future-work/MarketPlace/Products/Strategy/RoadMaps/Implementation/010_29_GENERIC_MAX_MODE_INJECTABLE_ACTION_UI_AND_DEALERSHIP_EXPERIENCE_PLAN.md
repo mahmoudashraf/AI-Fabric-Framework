@@ -1296,5 +1296,24 @@ or Platform-managed `UI_EXTENSION` packaging.
 - Local verification passed widget typecheck, ESM/CJS/declaration/IIFE builds,
   action-presentation smoke, dealership pack typecheck/build, Astro
   diagnostics, the 29-page production build, content/static gates, and the
-  complete Playwright browser suite. Hosted rollout evidence is recorded after
-  the exact implementation commit is deployed.
+  complete Playwright browser suite.
+- Implementation commit `5cc7dece3edb40ee2fbd35b15f4a50ac5a59aa68` is
+  live through production public-site deployment
+  `frvf6mdba2d4iagfzz0txi4p`. Canonical and sslip health report `UP` on that
+  exact commit.
+- A focused hosted mobile canary completed the real anonymous clarification and
+  confirmation flow. Receipt `NFM-9644A184` rendered through
+  `loomai.dealership-request-receipt.v1` at 390 pixels without the generic
+  fallback or viewport overflow, then the protected staff workflow changed
+  that exact synthetic request to `CANCELLED`.
+- The wider hosted gate separately reached two successful inventory actions but
+  its existing vehicle-detail step returned `CLARIFICATION_REQUIRED` and timed
+  out waiting for the detail presentation. It performed no write. This is an
+  independent current target-resolution/gate issue, not a receipt-rendering
+  regression, and remains visible for follow-up.
+- Temporary production access used only `8000/tcp`. Firewalls `10915120` and
+  `10918233` were restored exactly to hashes
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc` and
+  `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`;
+  both contain zero operator entries and an authorized Coolify probe again
+  times out with HTTP `000` after rule propagation.
