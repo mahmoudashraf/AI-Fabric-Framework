@@ -4088,3 +4088,43 @@ Critical fixes that made the gate pass:
   composition; real Auto Trader credentials, advertiser rights,
   interoperability, certification, production approval, and customer storage
   onboarding remain open external gates.
+
+## 2026-10-05 LoomAI Platform Public Product Portfolio
+
+- The public product model now presents LoomAI Platform as the managed product
+  layer above the open-source AI Fabric Framework and AI Fabric Chat UI
+  foundations. Platform owns Marketplace composition, managed profile binding,
+  immutable deployment releases, deployment-local delivery, and verification;
+  customer identity, source data, business authorization, and final side
+  effects remain outside the Platform boundary.
+- The home page now gives Platform the primary full-width product treatment and
+  visually connects it to the two open-source foundations. A new reusable,
+  code-native animated architecture visual shows Templates, Data, Actions, and
+  Knowledge feeding the deployment builder, the Validate/Publish/Apply/Verify
+  lifecycle, and a self-contained customer deployment. Reduced-motion support
+  is preserved.
+- `/products/loomai-platform` is a dedicated managed-product page with the
+  composition workflow, ownership boundary, operator path, release identity,
+  Console entry point, and Platform live-demo evidence. The dealership demo is
+  now related to Platform rather than being classified as a direct Framework
+  or Chat UI experiment. The general `/products` page exposes the three-layer
+  responsibility model and a separate Platform live-demo section.
+- Local verification passed Astro diagnostics, widget and dealership experience
+  builds, a 30-page static build, the typed graph for 3 products/7 experiments/
+  5 research records, 28-route static smoke, JavaScript budget, and the complete
+  Playwright browser suite with the new Platform hierarchy and lifecycle
+  assertions.
+- Public-site commit `e814832140e9f208c5e0e4300ff85f20dfcddd6f` is live through
+  production Coolify deployment `p10cp1d9ezcfo1x7fatf5dby`. Canonical and
+  sslip `/health` report `UP` on that exact commit; `/`, `/products`,
+  `/products/loomai-platform`, and `/demos/dealership-ai` return HTTP 200 on
+  both hosts.
+- Hosted Playwright proof at `1440x1000` and `390x844` confirmed the home
+  Platform card, dedicated Platform H1, lifecycle order, active architecture
+  animation, dealership live-demo link, and zero horizontal overflow.
+- Production access was restricted to the deployment window. Firewalls
+  `10915120` and `10918233` were restored byte-for-byte at the rules level to
+  pre-run hashes `257546b9fcd6608fbe8895c1de889e271658b9d8785e68c067a6b33462655d6a`
+  and `691ad127106665b8e67bd77cbff25c98c1fa1de42adcc0feaddf20ada54977c5`.
+  The operator CIDR is absent from both, and direct local Coolify access again
+  times out with HTTP `000` after firewall propagation.
