@@ -688,6 +688,7 @@ try {
   const routes = [
     '/',
     '/products',
+    '/products/loomai-platform',
     '/products/ai-fabric-framework',
     '/products/ai-fabric-chat-ui',
     '/experiments',
@@ -766,6 +767,22 @@ try {
           .join('\n')}`,
       )
     }
+  }
+
+  await page.goto(`${origin}/`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', { name: 'LoomAI Platform' }).waitFor()
+  if ((await page.locator('.platform-system').count()) !== 1) {
+    throw new Error('Homepage does not expose the animated LoomAI Platform system visual')
+  }
+  await page.getByRole('link', { name: 'Dealership live demo' }).waitFor()
+
+  await page.goto(`${origin}/products/loomai-platform`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', { level: 1, name: 'LoomAI Platform' }).waitFor()
+  await page.getByRole('heading', { name: 'See a customer application use its own LoomAI deployment.' }).waitFor()
+  await page.getByRole('heading', { name: 'Dealership AI Experience' }).waitFor()
+  const platformLifecycle = await page.locator('.platform-system__lifecycle li').allTextContents()
+  if (JSON.stringify(platformLifecycle) !== JSON.stringify(['Validate', 'Publish', 'Apply', 'Verify'])) {
+    throw new Error(`Platform visual exposes the wrong lifecycle: ${JSON.stringify(platformLifecycle)}`)
   }
 
   await page.goto(`${origin}/experiments`, { waitUntil: 'networkidle' })
@@ -1834,6 +1851,7 @@ try {
 
   const visualRoutes = [
     { name: 'products', path: '/products' },
+    { name: 'loomai-platform', path: '/products/loomai-platform' },
     { name: 'chat-ui', path: '/products/ai-fabric-chat-ui' },
     { name: 'experiments', path: '/experiments' },
     { name: 'experiment-detail', path: '/experiments/live-data-sync' },

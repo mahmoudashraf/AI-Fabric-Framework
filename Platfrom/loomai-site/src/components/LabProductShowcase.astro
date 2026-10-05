@@ -1,4 +1,7 @@
 ---
+import { ArrowRight, FlaskConical } from '@lucide/astro'
+import PlatformSystemVisual from './PlatformSystemVisual.astro'
+
 type Props = {
   heading?: string
   headingId?: string
@@ -12,6 +15,39 @@ const {
 
 <div class="lab-products">
   <h2 id={headingId}>{heading}</h2>
+
+  <article class="lab-platform-card">
+    <div class="lab-platform-card__copy">
+      <p class="lab-product-card__eyebrow">Managed product layer</p>
+      <span class="lab-platform-card__status">Managed preview</span>
+      <h3>LoomAI Platform</h3>
+      <p>
+        Compose templates, plugins and provider profiles into verified,
+        self-contained AI deployments built on AI Fabric Framework and Chat UI.
+      </p>
+      <ul aria-label="Platform capabilities">
+        <li>Marketplace composition</li>
+        <li>Deployment lifecycle</li>
+        <li>Release verification</li>
+      </ul>
+      <div class="lab-platform-card__actions">
+        <a class="loom-button loom-button--primary" href="/products/loomai-platform">
+          Explore Platform
+        </a>
+        <a class="lab-platform-card__demo" href="/demos/dealership-ai">
+          <FlaskConical size={17} stroke-width={1.7} aria-hidden="true" />
+          Dealership live demo
+          <ArrowRight size={16} aria-hidden="true" />
+        </a>
+      </div>
+    </div>
+
+    <PlatformSystemVisual compact />
+  </article>
+
+  <div class="lab-product-rail" aria-label="LoomAI Platform is built on the two open-source product foundations">
+    <span>Built on two open-source foundations</span>
+  </div>
 
   <div class="lab-product-grid">
     <article class="lab-product-card">
@@ -78,9 +114,6 @@ const {
     </article>
   </div>
 
-  <div class="lab-product-rail" aria-label="The two products are built to work together">
-    <span>Built to work together</span>
-  </div>
 </div>
 
 <style>
@@ -93,6 +126,104 @@ const {
     display: grid;
     gap: 1.6rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lab-platform-card {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--loom-border-strong);
+    border-radius: 0.5rem;
+    display: grid;
+    gap: clamp(2rem, 4vw, 4rem);
+    grid-template-columns: minmax(18rem, 0.82fr) minmax(34rem, 1.3fr);
+    min-height: 23rem;
+    overflow: hidden;
+    padding: 2.3rem;
+    position: relative;
+  }
+
+  .lab-platform-card::before {
+    background: var(--loom-gradient-brand);
+    content: "";
+    height: 4px;
+    inset: 0 0 auto;
+    position: absolute;
+  }
+
+  .lab-platform-card__copy {
+    min-width: 0;
+  }
+
+  .lab-platform-card .lab-product-card__eyebrow {
+    inset: auto;
+    margin-bottom: 0.8rem;
+    position: static;
+  }
+
+  .lab-platform-card__status {
+    align-items: center;
+    color: var(--loom-success);
+    display: inline-flex;
+    font-size: 0.68rem;
+    font-weight: 750;
+    gap: 0.35rem;
+    margin-bottom: 0.65rem;
+    text-transform: uppercase;
+  }
+
+  .lab-platform-card__status::before {
+    background: #13ad72;
+    border-radius: 50%;
+    content: "";
+    height: 0.45rem;
+    width: 0.45rem;
+  }
+
+  .lab-platform-card h3 {
+    font-size: 3rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .lab-platform-card__copy > p:not(.lab-product-card__eyebrow) {
+    font-size: 1rem;
+    line-height: 1.55;
+    margin-bottom: 0.9rem;
+    max-width: 38rem;
+  }
+
+  .lab-platform-card ul {
+    color: var(--loom-blue-600);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    gap: 0.3rem 0;
+    list-style: none;
+    margin: 0 0 1.3rem;
+    padding: 0;
+  }
+
+  .lab-platform-card li + li::before {
+    color: var(--loom-navy-500);
+    content: "·";
+    margin-inline: 0.45rem;
+  }
+
+  .lab-platform-card__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.2rem;
+  }
+
+  .lab-platform-card__demo {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    font-size: 0.78rem;
+    font-weight: 700;
+    gap: 0.4rem;
+    min-height: 2.7rem;
+    text-decoration: none;
   }
 
   .lab-product-card {
@@ -204,7 +335,7 @@ const {
   }
 
   .lab-product-rail {
-    height: 3.4rem;
+    height: 4.1rem;
     margin-inline: auto;
     position: relative;
     width: 61%;
@@ -212,12 +343,22 @@ const {
 
   .lab-product-rail::before {
     border: 1px solid var(--loom-indigo-500);
-    border-top: 0;
-    border-radius: 0 0 0.7rem 0.7rem;
+    border-bottom: 0;
+    border-radius: 0.7rem 0.7rem 0 0;
     content: "";
-    height: 1rem;
-    inset: 0 0 auto;
+    height: 1.45rem;
+    inset: auto 0 0;
     position: absolute;
+  }
+
+  .lab-product-rail::after {
+    background: var(--loom-indigo-500);
+    content: "";
+    height: 1.25rem;
+    left: 50%;
+    position: absolute;
+    top: 0;
+    width: 1px;
   }
 
   .lab-product-rail span {
@@ -227,15 +368,22 @@ const {
     color: var(--loom-blue-600);
     font-size: 0.78rem;
     left: 50%;
-    min-width: 12.5rem;
+    min-width: 15.5rem;
     padding: 0.25rem 1rem;
     position: absolute;
     text-align: center;
-    top: 0.25rem;
+    top: 0.72rem;
     transform: translateX(-50%);
+    z-index: 1;
   }
 
   @media (max-width: 75rem) {
+    .lab-platform-card {
+      gap: 2rem;
+      grid-template-columns: minmax(17rem, 0.78fr) minmax(30rem, 1.22fr);
+      padding: 2rem;
+    }
+
     .lab-product-card {
       grid-template-columns: 6rem minmax(0, 1fr) 9rem;
     }
@@ -262,6 +410,10 @@ const {
   }
 
   @media (max-width: 63.99rem) {
+    .lab-platform-card {
+      grid-template-columns: 1fr;
+    }
+
     .lab-product-grid {
       grid-template-columns: 1fr;
     }
@@ -282,6 +434,20 @@ const {
   }
 
   @media (max-width: 47.99rem) {
+    .lab-platform-card {
+      min-height: 0;
+      padding: 1.55rem 1.15rem 1.25rem;
+    }
+
+    .lab-platform-card h3 {
+      font-size: 2rem;
+    }
+
+    .lab-platform-card__actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
     .lab-product-card,
     .lab-product-card--chat {
       display: flex;

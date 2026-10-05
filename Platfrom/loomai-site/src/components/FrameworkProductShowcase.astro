@@ -50,15 +50,17 @@ const { product } = Astro.props
         <a class="loom-button loom-button--primary" href="/experiments">
           Explore live demos
         </a>
-        <a
-          class="loom-button loom-button--secondary"
-          href={product.links.source.href}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <GitFork size={18} aria-hidden="true" />
-          View on GitHub
-        </a>
+        {product.links.source && (
+          <a
+            class="loom-button loom-button--secondary"
+            href={product.links.source.href}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GitFork size={18} aria-hidden="true" />
+            View on GitHub
+          </a>
+        )}
       </div>
 
       <ul class="framework-hero__facts" aria-label="Framework facts">

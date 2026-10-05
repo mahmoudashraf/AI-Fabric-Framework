@@ -15,6 +15,7 @@ import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
 import CallToAction from '../../components/CallToAction.astro'
 import ExperimentCard from '../../components/ExperimentCard.astro'
 import FrameworkProductShowcase from '../../components/FrameworkProductShowcase.astro'
+import PlatformProductShowcase from '../../components/PlatformProductShowcase.astro'
 import ResearchCard from '../../components/ResearchCard.astro'
 import SectionHeading from '../../components/SectionHeading.astro'
 import {
@@ -40,17 +41,49 @@ const { product } = Astro.props
 const relatedExperiments = getRelatedExperiments(product.slug).slice(0, 3)
 const relatedResearch = getRelatedResearch(product.slug).slice(0, 3)
 const isChatUi = product.slug === 'ai-fabric-chat-ui'
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareSourceCode',
-  name: product.name,
-  description: product.description,
-  codeRepository: product.links.source.href,
-  license: 'https://www.apache.org/licenses/LICENSE-2.0',
-  version: product.version,
-  programmingLanguage: isChatUi ? ['TypeScript', 'JavaScript'] : 'Java',
-  runtimePlatform: isChatUi ? 'Web browser' : 'Spring Boot',
-}
+const isPlatform = product.slug === 'loomai-platform'
+const jsonLd = isPlatform
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: product.name,
+      description: product.description,
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: 'https://console.loomai.pro',
+      version: product.version,
+    }
+  : {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareSourceCode',
+      name: product.name,
+      description: product.description,
+      ...(product.links.source ? { codeRepository: product.links.source.href } : {}),
+      license: 'https://www.apache.org/licenses/LICENSE-2.0',
+      version: product.version,
+      programmingLanguage: isChatUi ? ['TypeScript', 'JavaScript'] : 'Java',
+      runtimePlatform: isChatUi ? 'Web browser' : 'Spring Boot',
+    }
+
+const cta = isPlatform
+  ? {
+      eyebrow: 'Managed deployment product',
+      title: 'Start from a real customer deployment boundary.',
+      body: 'Open the Console to inspect the managed product, or explore the dealership demo to see a customer application using its assigned deployment.',
+      primaryLabel: 'Open LoomAI Console',
+      primaryHref: product.links.primary.href,
+      secondaryLabel: 'Explore Platform live demo',
+      secondaryHref: '/demos/dealership-ai',
+    }
+  : {
+      eyebrow: 'Contribute',
+      title: `Help shape ${product.name}.`,
+      body: 'Inspect the implementation, open a focused issue or bring a reproducible application boundary that the current contracts do not handle well.',
+      primaryLabel: 'Open the source repository',
+      primaryHref: product.links.source?.href ?? '/connect',
+      secondaryLabel: 'Explore live experiments',
+      secondaryHref: '/experiments',
+    }
 ---
 
 <BaseLayout
@@ -85,15 +118,17 @@ const jsonLd = {
               >
                 Explore live demo
               </a>
-              <a
-                class="loom-button loom-button--secondary"
-                href={product.links.source.href}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <GitFork size={18} aria-hidden="true" />
-                View on GitHub
-              </a>
+              {product.links.source && (
+                <a
+                  class="loom-button loom-button--secondary"
+                  href={product.links.source.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <GitFork size={18} aria-hidden="true" />
+                  View on GitHub
+                </a>
+              )}
             </div>
             <ul class="chat-product-hero__facts" aria-label="Product facts">
               <li>Web Component</li>
@@ -180,7 +215,8 @@ const jsonLd = {
     </>
   )}
 
-  {!isChatUi && <FrameworkProductShowcase product={product} />}
+  {isPlatform && <PlatformProductShowcase product={product} />}
+  {!isChatUi && !isPlatform && <FrameworkProductShowcase product={product} />}
 
   <section class="section section--white">
     <div class="loom-container split-copy">
@@ -197,12 +233,14 @@ const jsonLd = {
     </div>
   </section>
 
-  {isChatUi && (
+  {(isChatUi || isPlatform) && (
     <section class="section section--soft">
       <div class="loom-container">
         <SectionHeading
           eyebrow="Capability pillars"
-          title="Five responsibilities, each visible at the integration boundary."
+          title={isPlatform
+            ? 'Five managed capabilities from composition to verified operation.'
+            : 'Five responsibilities, each visible at the integration boundary.'}
         />
         <div class="capability-grid">
           {product.capabilities.map((capability, index) => (
@@ -240,10 +278,15 @@ const jsonLd = {
     </div>
   </section>
 
-  {isChatUi && (
+  {(isChatUi || isPlatform) && (
     <section class="section section--soft">
       <div class="loom-container">
-        <SectionHeading eyebrow="Architecture" title="A narrow path through explicit contracts." />
+        <SectionHeading
+          eyebrow="Architecture"
+          title={isPlatform
+            ? 'One deterministic path from Marketplace composition to customer endpoints.'
+            : 'A narrow path through explicit contracts.'}
+        />
         <ArchitectureFlow steps={product.flow} />
       </div>
     </section>
@@ -252,17 +295,18 @@ const jsonLd = {
   <section class="section section--white">
     <div class="loom-container quick-start">
       <div>
-        <p class="loom-eyebrow">Quick start</p>
-        <h2>Begin with one application-owned path.</h2>
+        <p class="loom-eyebrow">{isPlatform ? 'Operator path' : 'Quick start'}</p>
+        <h2>{isPlatform ? 'Build one verified deployment composition.' : 'Begin with one application-owned path.'}</h2>
         <p>
-          Start from the public documentation, wire one bounded scenario and keep
-          authorization and source data in the host.
+          {isPlatform
+            ? 'Start with a reviewed template, add only the capabilities the customer needs and keep data access and business authority at their declared boundaries.'
+            : 'Start from the public documentation, wire one bounded scenario and keep authorization and source data in the host.'}
         </p>
         <a
           class="text-link"
           href={product.links.documentation.href}
-          target="_blank"
-          rel="noreferrer"
+          target={product.links.documentation.external ? '_blank' : undefined}
+          rel={product.links.documentation.external ? 'noreferrer' : undefined}
         >
           <BookOpen size={17} aria-hidden="true" />
           {product.links.documentation.label}
@@ -276,8 +320,13 @@ const jsonLd = {
     <section class="section section--soft">
       <div class="loom-container">
         <SectionHeading
-          eyebrow="Live proof"
-          title={`See ${product.shortName} in bounded applications.`}
+          eyebrow={isPlatform ? 'Platform live demos' : 'Live proof'}
+          title={isPlatform
+            ? 'See a customer application use its own LoomAI deployment.'
+            : `See ${product.shortName} in bounded applications.`}
+          body={isPlatform
+            ? 'The dealership demonstration uses a real Platform-created deployment, deployment-local chat and indexing endpoints, reviewed plugins and the reusable Chat UI experience pack.'
+            : undefined}
         />
         <div class="experiment-grid">
           {relatedExperiments.map((item) => <ExperimentCard experiment={item} />)}
@@ -297,7 +346,7 @@ const jsonLd = {
       </div>
       <div class="release-panel">
         <span>Current release</span>
-        <strong>v{product.version}</strong>
+        <strong>{isPlatform ? `Platform V${product.version}` : `v${product.version}`}</strong>
         <p>{product.statusLabel} · {product.licence}</p>
         {product.links.releaseNotes && (
           <a
@@ -329,13 +378,13 @@ const jsonLd = {
   )}
 
   <CallToAction
-    eyebrow="Contribute"
-    title={`Help shape ${product.name}.`}
-    body="Inspect the implementation, open a focused issue or bring a reproducible application boundary that the current contracts do not handle well."
-    primaryLabel="Open the source repository"
-    primaryHref={product.links.source.href}
-    secondaryLabel="Explore live experiments"
-    secondaryHref="/experiments"
+    eyebrow={cta.eyebrow}
+    title={cta.title}
+    body={cta.body}
+    primaryLabel={cta.primaryLabel}
+    primaryHref={cta.primaryHref}
+    secondaryLabel={cta.secondaryLabel}
+    secondaryHref={cta.secondaryHref}
   />
 </BaseLayout>
 

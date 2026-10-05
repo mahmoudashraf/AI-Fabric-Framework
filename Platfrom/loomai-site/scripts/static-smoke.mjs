@@ -12,6 +12,7 @@ const dist = path.join(root, 'dist')
 const indexedRoutes = [
   '',
   'products',
+  'products/loomai-platform',
   'products/ai-fabric-framework',
   'products/ai-fabric-chat-ui',
   'experiments',

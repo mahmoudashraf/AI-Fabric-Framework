@@ -9,7 +9,7 @@ import type {
 export const site = {
   name: 'Loom AI Labs',
   description:
-    'Open-source products, live experiments and applied research for dependable AI-enabled applications.',
+    'Open-source foundations, managed deployment infrastructure, live demonstrations and applied research for dependable AI-enabled applications.',
   canonicalOrigin: 'https://loomai.pro',
   maintainer: 'Mahmoud Ashraf Algammal',
   email: 'hello@loomai.pro',
@@ -23,6 +23,91 @@ export const navigation: NavigationItem[] = [
 ]
 
 export const products: Product[] = [
+  {
+    id: 'product:loomai-platform',
+    slug: 'loomai-platform',
+    name: 'LoomAI Platform',
+    shortName: 'Platform',
+    layerLabel: 'Managed product layer',
+    statusLabel: 'Managed preview',
+    version: '11',
+    licence: 'Managed service',
+    summary:
+      'A managed control plane for composing templates, plugins and provider profiles into verified, self-contained AI deployments.',
+    description:
+      'LoomAI Platform productizes AI Fabric runtime capabilities and AI Fabric Chat UI experiences. Teams assemble reusable Marketplace primitives, bind approved infrastructure, publish immutable versions and operate deployment-local endpoints without building an AI control plane themselves.',
+    problem:
+      'A framework and UI provide powerful building blocks, but production teams still need a repeatable way to package capabilities, bind providers and storage, create isolated deployments, release changes and prove that the resulting runtime is healthy.',
+    value:
+      'LoomAI Platform turns those building blocks into governed deployment products. Each customer composition is explicit, versioned and verified, while runtime traffic and data processing remain at the assigned deployment boundary.',
+    capabilities: [
+      {
+        name: 'Marketplace composition',
+        description: 'Combine reviewed templates with Data, Action and experience packages.',
+      },
+      {
+        name: 'Managed profiles and bindings',
+        description: 'Bind inference, embedding, vector, storage and connector configuration without placing secrets in product definitions.',
+      },
+      {
+        name: 'Deployment lifecycle',
+        description: 'Create, validate, publish and apply immutable deployment versions through one deterministic control plane.',
+      },
+      {
+        name: 'Deployment-local delivery',
+        description: 'Provision self-contained runtime, connector and customer-facing endpoints for each assigned deployment.',
+      },
+      {
+        name: 'Verification and operations',
+        description: 'Run compatibility, readiness and release checks with observable evidence before declaring a deployment live.',
+      },
+    ],
+    owns: [
+      'Marketplace packages, templates and compatibility contracts',
+      'Deployment drafts, immutable versions, releases and apply workflows',
+      'Managed profile bindings, target orchestration and secret references',
+      'Provisioning status, verification evidence and operational control surfaces',
+    ],
+    hostOwns: [
+      'Customer identity, business authorization and source-system access rights',
+      'Approved source data, storage ownership and retention policy',
+      'Domain actions, final side effects and system-of-record correctness',
+      'Customer-facing promises, content approval and production acceptance',
+    ],
+    flow: [
+      'Choose template and plugins',
+      'Bind approved profiles',
+      'Publish and apply release',
+      'Use deployment-local endpoints',
+    ],
+    quickStart: {
+      language: 'text',
+      code: `1. Choose a deployment template
+2. Install reviewed Data and Action plugins
+3. Bind inference, storage and connector profiles
+4. Publish and apply an immutable release
+5. Integrate the deployment-local endpoints`,
+    },
+    compatibility: [
+      'AI Fabric 0.8.11 runtime capabilities',
+      'AI Fabric Chat UI and reviewed experience packs',
+      'Marketplace templates, Data and Action plugins',
+      'Deployment-local runtime and connector endpoints',
+    ],
+    links: {
+      primary: {
+        label: 'Open LoomAI Console',
+        href: 'https://console.loomai.pro',
+        external: true,
+      },
+      documentation: {
+        label: 'Discuss a deployment',
+        href: '/connect',
+      },
+    },
+    featured: true,
+    sortOrder: 1,
+  },
   {
     id: 'product:ai-fabric-framework',
     slug: 'ai-fabric-framework',
@@ -116,7 +201,7 @@ export const products: Product[] = [
       },
     },
     featured: true,
-    sortOrder: 1,
+    sortOrder: 2,
   },
   {
     id: 'product:ai-fabric-chat-ui',
@@ -209,7 +294,7 @@ export const products: Product[] = [
       },
     },
     featured: true,
-    sortOrder: 2,
+    sortOrder: 3,
   },
 ]
 
@@ -568,7 +653,7 @@ export const experiments: Experiment[] = [
     status: 'live',
     featured: false,
     summary:
-      'A customer-application preview for live vehicle discovery, grounded comparison and governed dealership enquiries through an assigned LoomAI deployment.',
+      'A Platform live demo for vehicle discovery, grounded comparison and governed dealership enquiries through an assigned LoomAI deployment.',
     scenario:
       'A buyer searches fictional dealership stock, compares exact vehicle facts and opens the always-available LoomAI Companion for grounded assistance.',
     hypothesis:
@@ -577,10 +662,11 @@ export const experiments: Experiment[] = [
     categoryLabel: 'Adaptive experience',
     capabilityTags: ['Live inventory', 'Grounded chat', 'Max Mode', 'Governed actions'],
     domainTags: ['Automotive retail', 'Customer-facing UI'],
-    relatedProductSlugs: ['ai-fabric-framework', 'ai-fabric-chat-ui'],
+    relatedProductSlugs: ['loomai-platform'],
     applicationControlBoundary:
       'The dealership backend owns stock, exact filters, authorization and lead persistence. Its assigned LoomAI deployment owns retrieval, conversation and action orchestration. The browser receives only public inventory data and runtime-issued anonymous chat access.',
     observableProof: [
+      'A Platform template and reviewed Data and Action packages compose the deployment while the customer application remains independently owned.',
       'The native customer surface consumes a dealership-owned structured inventory API and does not embed backend or runtime service credentials.',
       'The Companion dock and Max Mode use the public anonymous runtime contract against an assigned, deployment-local LoomAI runtime.',
       'Strict live checks prove exact inventory actions, grounded comparison, action-plus-RAG fallback for an exact no-match, and honest knowledge boundaries.',
@@ -603,7 +689,7 @@ export const experiments: Experiment[] = [
       'The live demo is evidence of bounded product behavior, not a latency, throughput, conversion or model-quality benchmark.',
     ],
     frameworkVersion: '0.8.11',
-    lastVerified: '2026-10-01',
+    lastVerified: '2026-10-05',
     screenshot: {
       src: '/assets/experiments/dealership-ai-experience.png',
       alt: 'Dealership AI Experience showing fictional vehicle inventory, comparison controls and the LoomAI Companion dock',
@@ -915,6 +1001,18 @@ export const research: ResearchArtifact[] = [
 ]
 
 export const relations: ContentRelation[] = [
+  {
+    from: 'product:loomai-platform',
+    to: 'product:ai-fabric-framework',
+    type: 'uses',
+    label: 'Productizes runtime capabilities',
+  },
+  {
+    from: 'product:loomai-platform',
+    to: 'product:ai-fabric-chat-ui',
+    type: 'uses',
+    label: 'Delivers reusable customer experiences',
+  },
   {
     from: 'product:ai-fabric-chat-ui',
     to: 'product:ai-fabric-framework',

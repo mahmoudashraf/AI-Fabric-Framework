@@ -22,8 +22,11 @@ assertUnique('experiment slug', experiments.map((item) => item.slug))
 assertUnique('research slug', research.map((item) => item.slug))
 
 for (const product of products) {
-  if (!product.links.source.href.startsWith('https://github.com/Loom-AI-Labs/')) {
+  if (product.links.source && !product.links.source.href.startsWith('https://github.com/Loom-AI-Labs/')) {
     errors.push(`${product.id} must link to its public Loom AI Labs source`)
+  }
+  if (product.licence === 'Apache 2.0' && !product.links.source) {
+    errors.push(`${product.id} is open source and must expose its source repository`)
   }
   if (product.capabilities.length !== 5) {
     errors.push(`${product.id} must expose exactly five capability pillars`)

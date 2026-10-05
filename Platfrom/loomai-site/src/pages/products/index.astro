@@ -7,18 +7,22 @@ import PageHero from '../../components/PageHero.astro'
 import SectionHeading from '../../components/SectionHeading.astro'
 import { experiments } from '../../data/content'
 import BaseLayout from '../../layouts/BaseLayout.astro'
+
+const platformDemos = experiments.filter((item) =>
+  item.relatedProductSlugs.includes('loomai-platform'),
+)
 ---
 
 <BaseLayout
   title="Products"
-  description="AI Fabric Framework and AI Fabric Chat UI: two open-source layers for dependable AI-enabled applications."
+  description="LoomAI Platform and its AI Fabric Framework and Chat UI foundations for dependable AI-enabled applications."
   canonicalPath="/products"
 >
   <PageHero
-    eyebrow="Open-source portfolio"
+    eyebrow="AI enablement portfolio"
     title="Products"
-    body="Build grounded, governed AI behavior in the backend and present it through a reusable application experience."
-    note="Two products · Equal portfolio status · Distinct ownership boundaries"
+    body="Build grounded, governed AI behavior, present it through a reusable application experience and operate it as a verified customer deployment."
+    note="One managed platform · Two open-source foundations · Explicit ownership boundaries"
   />
 
   <section class="product-showcase" aria-labelledby="product-portfolio">
@@ -37,31 +41,43 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
       <div class="product-comparison">
         <div class="product-comparison__heading">
           <span>Responsibility</span>
+          <strong>LoomAI Platform</strong>
           <strong>AI Fabric Framework</strong>
           <strong>AI Fabric Chat UI</strong>
         </div>
         <div>
-          <span>Grounding and retrieval contracts</span>
+          <span>Capability composition</span>
+          <strong>Templates, plugins and profiles</strong>
+          <span>Supplies runtime contracts</span>
+          <span>Supplies experience contracts</span>
+        </div>
+        <div>
+          <span>Grounding and retrieval behavior</span>
+          <span>Packages and deploys</span>
           <strong>Owns</strong>
           <span>Renders evidence</span>
         </div>
         <div>
           <span>Action lifecycle contracts</span>
+          <span>Packages and verifies</span>
           <strong>Owns</strong>
           <span>Renders proposal and confirmation</span>
         </div>
         <div>
           <span>Conversation presentation</span>
+          <span>Distributes reviewed experiences</span>
           <span>Returns backend state</span>
           <strong>Owns</strong>
         </div>
         <div>
-          <span>Identity and authorization</span>
-          <span>Host application</span>
-          <span>Host application</span>
+          <span>Release and deployment lifecycle</span>
+          <strong>Owns</strong>
+          <span>Provides versioned artifacts</span>
+          <span>Provides versioned artifacts</span>
         </div>
         <div>
-          <span>Business execution</span>
+          <span>Customer identity and business authority</span>
+          <span>Customer application</span>
           <span>Host application</span>
           <span>Host application</span>
         </div>
@@ -76,10 +92,25 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
         title="From application context to user-visible evidence."
       />
       <ArchitectureFlow
-        steps={['Host application', 'AI Fabric Framework', 'Backend response contracts', 'AI Fabric Chat UI']}
+        steps={['AI Fabric Framework + Chat UI', 'LoomAI Platform composition', 'Verified customer deployment', 'Customer application']}
       />
     </div>
   </section>
+
+  {platformDemos.length > 0 && (
+    <section class="section platform-demo-band">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Platform live demos"
+          title="See a customer product use its assigned LoomAI deployment."
+          body="These demos exercise Platform-created deployments, deployment-local APIs, reviewed Marketplace packages and reusable customer experience surfaces."
+        />
+        <div class="experiment-grid platform-demo-grid">
+          {platformDemos.map((item) => <ExperimentCard experiment={item} />)}
+        </div>
+      </div>
+    </section>
+  )}
 
   <section class="section section--soft">
     <div class="loom-container">
@@ -97,13 +128,13 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
   </section>
 
   <CallToAction
-    eyebrow="Open source"
-    title="Build with the source in view."
-    body="Both products are developed publicly under Apache 2.0, with implementation examples and release history available on GitHub."
-    primaryLabel="Visit Loom AI Labs on GitHub"
-    primaryHref="https://github.com/Loom-AI-Labs"
-    secondaryLabel="Read the research"
-    secondaryHref="/research"
+    eyebrow="Choose the right layer"
+    title="Use the foundations directly or operate them through LoomAI Platform."
+    body="The Framework and Chat UI remain inspectable open-source products. Platform adds managed composition, deployment lifecycle and verification around them."
+    primaryLabel="Explore LoomAI Platform"
+    primaryHref="/products/loomai-platform"
+    secondaryLabel="Visit Loom AI Labs on GitHub"
+    secondaryHref="https://github.com/Loom-AI-Labs"
   />
 </BaseLayout>
 
@@ -143,7 +174,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
     border-bottom: 1px solid var(--loom-border-default);
     display: grid;
     gap: 1.5rem;
-    grid-template-columns: 1.2fr 1fr 1fr;
+    grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
     min-height: 4.5rem;
     padding-inline: 1.5rem;
   }
@@ -166,6 +197,19 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
     font-size: 0.9rem;
   }
 
+  .platform-demo-band {
+    background: #f8fbff;
+    border-block: 1px solid var(--loom-border-subtle);
+  }
+
+  .platform-demo-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .platform-demo-grid :global(.experiment-card) {
+    grid-column: span 2;
+  }
+
   @media (max-width: 47.99rem) {
     .product-comparison {
       background: transparent;
@@ -184,6 +228,38 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
 
     .product-comparison__heading {
       display: none !important;
+    }
+
+    .product-comparison > div:not(.product-comparison__heading) > :nth-child(2)::before,
+    .product-comparison > div:not(.product-comparison__heading) > :nth-child(3)::before,
+    .product-comparison > div:not(.product-comparison__heading) > :nth-child(4)::before {
+      color: var(--loom-blue-600);
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 750;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.2rem;
+      text-transform: uppercase;
+    }
+
+    .product-comparison > div:not(.product-comparison__heading) > :nth-child(2)::before {
+      content: "LoomAI Platform";
+    }
+
+    .product-comparison > div:not(.product-comparison__heading) > :nth-child(3)::before {
+      content: "AI Fabric Framework";
+    }
+
+    .product-comparison > div:not(.product-comparison__heading) > :nth-child(4)::before {
+      content: "AI Fabric Chat UI";
+    }
+
+    .platform-demo-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-demo-grid :global(.experiment-card) {
+      grid-column: auto;
     }
   }
 </style>

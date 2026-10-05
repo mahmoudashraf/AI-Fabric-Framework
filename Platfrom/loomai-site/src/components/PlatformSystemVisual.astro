@@ -1,0 +1,523 @@
+---
+import {
+  Cable,
+  CircleCheckBig,
+  Database,
+  FileStack,
+  LayoutTemplate,
+  Plug,
+  Rocket,
+  ServerCog,
+  ShieldCheck,
+  Workflow,
+} from '@lucide/astro'
+
+type Props = {
+  compact?: boolean
+}
+
+const { compact = false } = Astro.props
+---
+
+<div
+  class:list={['platform-system', compact && 'platform-system--compact']}
+  role="img"
+  aria-label="LoomAI Platform composes Marketplace templates, plugins and profiles into a verified deployment-local runtime, connector and customer experience built on AI Fabric Framework and AI Fabric Chat UI"
+>
+  <div class="platform-system__bar">
+    <span class="platform-system__identity">
+      <span class="platform-system__status" aria-hidden="true"></span>
+      LoomAI control plane
+    </span>
+    <span class="platform-system__release">
+      <CircleCheckBig size={14} stroke-width={1.9} aria-hidden="true" />
+      Verified release
+    </span>
+  </div>
+
+  <div class="platform-system__canvas">
+    <section class="platform-system__zone platform-system__zone--marketplace">
+      <p>Marketplace primitives</p>
+      <div class="platform-system__primitive-grid">
+        <span>
+          <LayoutTemplate size={19} stroke-width={1.65} aria-hidden="true" />
+          <strong>Templates</strong>
+        </span>
+        <span>
+          <Database size={19} stroke-width={1.65} aria-hidden="true" />
+          <strong>Data</strong>
+        </span>
+        <span>
+          <Plug size={19} stroke-width={1.65} aria-hidden="true" />
+          <strong>Actions</strong>
+        </span>
+        <span>
+          <FileStack size={19} stroke-width={1.65} aria-hidden="true" />
+          <strong>Knowledge</strong>
+        </span>
+      </div>
+    </section>
+
+    <div class="platform-system__connector" aria-hidden="true">
+      <span></span>
+    </div>
+
+    <section class="platform-system__zone platform-system__zone--control">
+      <p>Platform composition</p>
+      <div class="platform-system__core">
+        <Workflow size={26} stroke-width={1.6} aria-hidden="true" />
+        <span>
+          <strong>Deployment builder</strong>
+          <small>Package + bind + govern</small>
+        </span>
+      </div>
+      <ol class="platform-system__lifecycle" aria-label="Deployment release lifecycle">
+        <li>Validate</li>
+        <li>Publish</li>
+        <li>Apply</li>
+        <li>Verify</li>
+      </ol>
+    </section>
+
+    <div class="platform-system__connector" aria-hidden="true">
+      <span></span>
+    </div>
+
+    <section class="platform-system__zone platform-system__zone--deployment">
+      <p>Deployment-local</p>
+      <div class="platform-system__deployment-title">
+        <ServerCog size={23} stroke-width={1.6} aria-hidden="true" />
+        <span>
+          <strong>Customer deployment</strong>
+          <small>Isolated runtime boundary</small>
+        </span>
+      </div>
+      <ul>
+        <li><span>Runtime</span><i>UP</i></li>
+        <li><span>Connector</span><i>UP</i></li>
+        <li><span>Endpoints</span><i>LIVE</i></li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="platform-system__foundations">
+    <span class="platform-system__foundation-label">Built on</span>
+    <div>
+      <ShieldCheck size={20} stroke-width={1.65} aria-hidden="true" />
+      <span><strong>AI Fabric Framework</strong><small>Runtime capabilities</small></span>
+    </div>
+    <div>
+      <Cable size={20} stroke-width={1.65} aria-hidden="true" />
+      <span><strong>AI Fabric Chat UI</strong><small>Customer experience</small></span>
+    </div>
+    <Rocket class="platform-system__launch" size={20} stroke-width={1.65} aria-hidden="true" />
+  </div>
+</div>
+
+<style>
+  .platform-system {
+    background: #f8fbff;
+    border: 1px solid #b8c9e8;
+    border-radius: 0.5rem;
+    box-shadow: 0 18px 42px rgb(7 24 63 / 10%);
+    color: var(--loom-navy-950);
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .platform-system__bar {
+    align-items: center;
+    background: #fff;
+    border-bottom: 1px solid var(--loom-border-default);
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    min-height: 2.8rem;
+    padding: 0.65rem 0.9rem;
+  }
+
+  .platform-system__identity,
+  .platform-system__release {
+    align-items: center;
+    display: inline-flex;
+    font-size: 0.67rem;
+    font-weight: 730;
+    gap: 0.45rem;
+    line-height: 1.2;
+  }
+
+  .platform-system__identity {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .platform-system__release {
+    color: var(--loom-success);
+  }
+
+  .platform-system__status {
+    animation: platform-status 2.4s ease-out infinite;
+    background: #13ad72;
+    border: 2px solid #d8f6e9;
+    border-radius: 50%;
+    height: 0.62rem;
+    width: 0.62rem;
+  }
+
+  .platform-system__canvas {
+    align-items: stretch;
+    display: grid;
+    gap: 0;
+    grid-template-columns: minmax(0, 0.95fr) 1.8rem minmax(0, 1.12fr) 1.8rem minmax(0, 0.98fr);
+    padding: 1rem;
+  }
+
+  .platform-system__zone {
+    min-width: 0;
+  }
+
+  .platform-system__zone > p {
+    color: var(--loom-navy-600);
+    font-size: 0.61rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    margin: 0 0 0.55rem;
+    text-transform: uppercase;
+  }
+
+  .platform-system__primitive-grid {
+    display: grid;
+    gap: 0.4rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .platform-system__primitive-grid > span {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #cfdaec;
+    border-radius: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    justify-content: center;
+    min-height: 4.1rem;
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+  }
+
+  .platform-system__primitive-grid svg {
+    color: var(--loom-blue-600);
+  }
+
+  .platform-system__primitive-grid strong {
+    font-size: 0.65rem;
+    line-height: 1.15;
+  }
+
+  .platform-system__connector {
+    align-self: center;
+    height: 2px;
+    margin-inline: 0.28rem;
+    position: relative;
+  }
+
+  .platform-system__connector::before,
+  .platform-system__connector::after {
+    content: "";
+    position: absolute;
+  }
+
+  .platform-system__connector::before {
+    background: #7fa6ee;
+    height: 1px;
+    inset: 0 0 auto;
+  }
+
+  .platform-system__connector::after {
+    border-block: 4px solid transparent;
+    border-left: 6px solid var(--loom-blue-vivid);
+    right: -1px;
+    top: -4px;
+  }
+
+  .platform-system__connector span {
+    animation: platform-signal 2.8s linear infinite;
+    background: var(--loom-cyan-500);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgb(4 199 238 / 18%);
+    height: 0.48rem;
+    left: 0;
+    position: absolute;
+    top: -0.22rem;
+    width: 0.48rem;
+    z-index: 2;
+  }
+
+  .platform-system__connector:nth-of-type(2) span {
+    animation-delay: 0.85s;
+  }
+
+  .platform-system__zone--control {
+    background: #fff;
+    border: 1px solid #68a1ff;
+    border-radius: 0.45rem;
+    box-shadow: 0 10px 25px rgb(20 108 255 / 10%);
+    padding: 0.7rem;
+    position: relative;
+  }
+
+  .platform-system__zone--control::before {
+    background: var(--loom-gradient-brand);
+    content: "";
+    height: 3px;
+    inset: 0 0 auto;
+    position: absolute;
+  }
+
+  .platform-system__core {
+    align-items: center;
+    display: flex;
+    gap: 0.55rem;
+  }
+
+  .platform-system__core > svg {
+    color: var(--loom-indigo-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-system__core span,
+  .platform-system__deployment-title span,
+  .platform-system__foundations > div span {
+    min-width: 0;
+  }
+
+  .platform-system__core strong,
+  .platform-system__core small,
+  .platform-system__deployment-title strong,
+  .platform-system__deployment-title small,
+  .platform-system__foundations strong,
+  .platform-system__foundations small {
+    display: block;
+  }
+
+  .platform-system__core strong,
+  .platform-system__deployment-title strong {
+    font-size: 0.78rem;
+    line-height: 1.2;
+  }
+
+  .platform-system__core small,
+  .platform-system__deployment-title small {
+    color: var(--loom-text-muted);
+    font-size: 0.59rem;
+    line-height: 1.35;
+    margin-top: 0.1rem;
+  }
+
+  .platform-system__lifecycle {
+    display: grid;
+    gap: 0.25rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    list-style: none;
+    margin: 0.72rem 0 0;
+    padding: 0;
+  }
+
+  .platform-system__lifecycle li {
+    background: var(--loom-surface-tint);
+    border-radius: 0.25rem;
+    color: var(--loom-blue-600);
+    font-size: 0.5rem;
+    font-weight: 740;
+    line-height: 1.2;
+    overflow: hidden;
+    padding: 0.38rem 0.12rem;
+    text-align: center;
+    text-overflow: ellipsis;
+  }
+
+  .platform-system__zone--deployment {
+    background: var(--loom-navy-950);
+    border-radius: 0.45rem;
+    color: #fff;
+    padding: 0.7rem;
+  }
+
+  .platform-system__zone--deployment > p {
+    color: #a7c6ff;
+  }
+
+  .platform-system__deployment-title {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .platform-system__deployment-title > svg {
+    color: var(--loom-cyan-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-system__deployment-title small {
+    color: #bac9e8;
+  }
+
+  .platform-system__zone--deployment ul {
+    display: grid;
+    gap: 0.28rem;
+    list-style: none;
+    margin: 0.65rem 0 0;
+    padding: 0;
+  }
+
+  .platform-system__zone--deployment li {
+    align-items: center;
+    background: rgb(255 255 255 / 8%);
+    border: 1px solid rgb(255 255 255 / 13%);
+    border-radius: 0.25rem;
+    display: flex;
+    font-size: 0.58rem;
+    justify-content: space-between;
+    line-height: 1.2;
+    min-height: 1.7rem;
+    padding-inline: 0.45rem;
+  }
+
+  .platform-system__zone--deployment i {
+    color: #76e3b6;
+    font-size: 0.5rem;
+    font-style: normal;
+    font-weight: 780;
+  }
+
+  .platform-system__foundations {
+    align-items: center;
+    background: #fff;
+    border-top: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: auto repeat(2, minmax(0, 1fr)) auto;
+    padding: 0.72rem 1rem;
+  }
+
+  .platform-system__foundation-label {
+    color: var(--loom-navy-600);
+    font-size: 0.58rem;
+    font-weight: 760;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .platform-system__foundations > div {
+    align-items: center;
+    border-left: 1px solid var(--loom-border-default);
+    display: flex;
+    gap: 0.45rem;
+    min-width: 0;
+    padding-left: 0.7rem;
+  }
+
+  .platform-system__foundations > div svg {
+    color: var(--loom-indigo-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-system__foundations strong {
+    font-size: 0.66rem;
+    line-height: 1.2;
+  }
+
+  .platform-system__foundations small {
+    color: var(--loom-text-muted);
+    font-size: 0.54rem;
+    line-height: 1.25;
+    margin-top: 0.08rem;
+  }
+
+  .platform-system__launch {
+    color: var(--loom-blue-vivid);
+  }
+
+  .platform-system--compact {
+    box-shadow: 0 12px 30px rgb(7 24 63 / 8%);
+  }
+
+  .platform-system--compact .platform-system__canvas {
+    padding: 0.75rem;
+  }
+
+  @keyframes platform-signal {
+    0% { opacity: 0; transform: translateX(0); }
+    12% { opacity: 1; }
+    82% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(1.15rem); }
+  }
+
+  @keyframes platform-status {
+    0%, 45% { box-shadow: 0 0 0 0 rgb(19 173 114 / 30%); }
+    80%, 100% { box-shadow: 0 0 0 7px rgb(19 173 114 / 0%); }
+  }
+
+  @media (max-width: 43rem) {
+    .platform-system__canvas {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-system__connector {
+      height: 1.7rem;
+      justify-self: center;
+      margin: 0;
+      width: 2px;
+    }
+
+    .platform-system__connector::before {
+      height: 100%;
+      inset: 0 auto 0 0;
+      width: 1px;
+    }
+
+    .platform-system__connector::after {
+      border-inline: 4px solid transparent;
+      border-left-color: transparent;
+      border-top: 6px solid var(--loom-blue-vivid);
+      bottom: -1px;
+      right: -3px;
+      top: auto;
+    }
+
+    .platform-system__connector span {
+      animation-name: platform-signal-mobile;
+      left: -0.22rem;
+      top: 0;
+    }
+
+    .platform-system__foundations {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .platform-system__foundation-label,
+    .platform-system__launch {
+      display: none;
+    }
+
+    .platform-system__foundations > div {
+      border-left: 0;
+      padding-left: 0;
+    }
+  }
+
+  @keyframes platform-signal-mobile {
+    0% { opacity: 0; transform: translateY(0); }
+    12% { opacity: 1; }
+    82% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(1.2rem); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-system__status,
+    .platform-system__connector span {
+      animation: none;
+    }
+  }
+</style>

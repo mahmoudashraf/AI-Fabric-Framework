@@ -1,0 +1,413 @@
+---
+import {
+  Activity,
+  ArrowRight,
+  Boxes,
+  Database,
+  ExternalLink,
+  LayoutTemplate,
+  Plug,
+  Rocket,
+  ShieldCheck,
+  SlidersHorizontal,
+} from '@lucide/astro'
+import type { Product } from '../data/types'
+import PlatformSystemVisual from './PlatformSystemVisual.astro'
+
+type Props = {
+  product: Product
+}
+
+const { product } = Astro.props
+---
+
+<section class="platform-hero" aria-labelledby="platform-product-title">
+  <div class="loom-container platform-hero__grid">
+    <div class="platform-hero__copy">
+      <div class="platform-hero__meta">
+        <span>Products</span>
+        <span>/</span>
+        <span>Managed product layer</span>
+        <strong>{product.statusLabel}</strong>
+      </div>
+
+      <h1 id="platform-product-title">LoomAI Platform</h1>
+      <p class="platform-hero__lead">
+        Compose reusable AI capabilities, publish a verified release and deliver
+        each customer a self-contained deployment with its own runtime endpoints.
+      </p>
+
+      <div class="platform-hero__actions">
+        <a
+          class="loom-button loom-button--primary"
+          href={product.links.primary.href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open LoomAI Console
+          <ExternalLink size={16} aria-hidden="true" />
+        </a>
+        <a class="loom-button loom-button--secondary" href="/demos/dealership-ai">
+          Explore Platform live demo
+          <ArrowRight size={16} aria-hidden="true" />
+        </a>
+      </div>
+
+      <ul class="platform-hero__facts" aria-label="Platform product facts">
+        <li>Templates</li>
+        <li>Plugins</li>
+        <li>Managed profiles</li>
+        <li>Immutable releases</li>
+        <li>Deployment-local endpoints</li>
+      </ul>
+    </div>
+
+    <PlatformSystemVisual />
+  </div>
+</section>
+
+<section class="platform-primitives" aria-labelledby="platform-primitives-title">
+  <div class="loom-container">
+    <div class="platform-primitives__heading">
+      <p class="loom-eyebrow">How a user works with Platform</p>
+      <h2 id="platform-primitives-title">From reusable primitives to a live deployment.</h2>
+      <p>
+        The control plane keeps composition and release mechanics explicit. The
+        resulting customer traffic goes to deployment-local services, not through
+        one shared chat gateway.
+      </p>
+    </div>
+
+    <ol class="platform-primitives__flow">
+      <li>
+        <span><LayoutTemplate size={27} stroke-width={1.55} aria-hidden="true" /></span>
+        <strong>Choose a template</strong>
+        <small>Start from a reviewed deployment shape.</small>
+      </li>
+      <li>
+        <span><Plug size={27} stroke-width={1.55} aria-hidden="true" /></span>
+        <strong>Add plugins</strong>
+        <small>Install Data, Action and experience capabilities.</small>
+      </li>
+      <li>
+        <span><SlidersHorizontal size={27} stroke-width={1.55} aria-hidden="true" /></span>
+        <strong>Bind profiles</strong>
+        <small>Select approved models, storage and targets.</small>
+      </li>
+      <li>
+        <span><ShieldCheck size={27} stroke-width={1.55} aria-hidden="true" /></span>
+        <strong>Publish & verify</strong>
+        <small>Apply an immutable version through release gates.</small>
+      </li>
+      <li>
+        <span><Rocket size={27} stroke-width={1.55} aria-hidden="true" /></span>
+        <strong>Integrate endpoints</strong>
+        <small>Connect customer apps to their assigned deployment.</small>
+      </li>
+    </ol>
+
+    <div class="platform-primitives__boundary">
+      <div>
+        <Boxes size={25} stroke-width={1.55} aria-hidden="true" />
+        <span><strong>Platform control plane</strong><small>Compose · release · operate</small></span>
+      </div>
+      <ArrowRight size={23} aria-hidden="true" />
+      <div>
+        <Database size={25} stroke-width={1.55} aria-hidden="true" />
+        <span><strong>Customer-owned services</strong><small>Data · identity · business effects</small></span>
+      </div>
+      <ArrowRight size={23} aria-hidden="true" />
+      <div>
+        <Activity size={25} stroke-width={1.55} aria-hidden="true" />
+        <span><strong>Deployment-local runtime</strong><small>Chat · sync · actions · evidence</small></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .platform-hero {
+    border-bottom: 1px solid var(--loom-border-subtle);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .platform-hero::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 25%, #000 100%);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .platform-hero__grid {
+    align-items: center;
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 5rem);
+    grid-template-columns: minmax(20rem, 0.86fr) minmax(38rem, 1.35fr);
+    min-height: 38rem;
+    padding-block: 4rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .platform-hero__copy {
+    min-width: 0;
+  }
+
+  .platform-hero__meta {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.7rem;
+    font-weight: 690;
+    gap: 0.4rem 0.75rem;
+    margin-bottom: 1.25rem;
+    text-transform: uppercase;
+  }
+
+  .platform-hero__meta strong {
+    border: 1px solid var(--loom-border-accent);
+    border-radius: 999px;
+    color: var(--loom-indigo-500);
+    font-size: 0.62rem;
+    padding: 0.25rem 0.65rem;
+  }
+
+  .platform-hero h1 {
+    font-size: 5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .platform-hero__lead {
+    font-size: 1.18rem;
+    line-height: 1.55;
+    margin-bottom: 1.8rem;
+    max-width: 39rem;
+  }
+
+  .platform-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .platform-hero__facts {
+    color: var(--loom-blue-600);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.7rem;
+    gap: 0.35rem 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .platform-hero__facts li + li::before {
+    color: var(--loom-navy-500);
+    content: "·";
+    margin-inline: 0.5rem;
+  }
+
+  .platform-primitives {
+    background: #fff;
+    padding-block: clamp(3.5rem, 7vw, 6rem);
+  }
+
+  .platform-primitives__heading {
+    margin-bottom: 2.5rem;
+    max-width: 54rem;
+  }
+
+  .platform-primitives__heading h2 {
+    font-size: 3rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .platform-primitives__heading > p:last-child {
+    font-size: 1.02rem;
+    margin: 0;
+    max-width: 46rem;
+  }
+
+  .platform-primitives__flow {
+    display: grid;
+    gap: 0;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .platform-primitives__flow li {
+    border-block: 1px solid var(--loom-border-default);
+    border-right: 1px solid var(--loom-border-default);
+    min-height: 12rem;
+    padding: 1.4rem;
+    position: relative;
+  }
+
+  .platform-primitives__flow li:first-child {
+    border-left: 1px solid var(--loom-border-default);
+    border-radius: 0.5rem 0 0 0.5rem;
+  }
+
+  .platform-primitives__flow li:last-child {
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+
+  .platform-primitives__flow li:not(:last-child)::after {
+    background: #fff;
+    color: var(--loom-blue-vivid);
+    content: "→";
+    font-weight: 760;
+    position: absolute;
+    right: -0.55rem;
+    top: 2.1rem;
+    z-index: 1;
+  }
+
+  .platform-primitives__flow li > span {
+    align-items: center;
+    background: var(--loom-surface-tint);
+    border-radius: 0.4rem;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    height: 2.8rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+    width: 2.8rem;
+  }
+
+  .platform-primitives__flow strong,
+  .platform-primitives__flow small {
+    display: block;
+  }
+
+  .platform-primitives__flow strong {
+    font-size: 0.96rem;
+    line-height: 1.3;
+    margin-bottom: 0.35rem;
+  }
+
+  .platform-primitives__flow small {
+    color: var(--loom-text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .platform-primitives__boundary {
+    align-items: center;
+    border: 1px solid var(--loom-border-accent);
+    border-radius: 0.5rem;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    margin-top: 1.5rem;
+    padding: 1rem 1.4rem;
+  }
+
+  .platform-primitives__boundary > div {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .platform-primitives__boundary > div > svg {
+    color: var(--loom-indigo-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-primitives__boundary strong,
+  .platform-primitives__boundary small {
+    display: block;
+  }
+
+  .platform-primitives__boundary strong {
+    font-size: 0.82rem;
+    line-height: 1.25;
+  }
+
+  .platform-primitives__boundary small {
+    color: var(--loom-text-muted);
+    font-size: 0.65rem;
+    line-height: 1.35;
+  }
+
+  .platform-primitives__boundary > svg {
+    color: var(--loom-blue-vivid);
+  }
+
+  @media (max-width: 68rem) {
+    .platform-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-hero h1 {
+      font-size: 4rem;
+    }
+
+    .platform-primitives__heading h2 {
+      font-size: 2.5rem;
+    }
+
+    .platform-primitives__flow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .platform-primitives__flow li,
+    .platform-primitives__flow li:first-child,
+    .platform-primitives__flow li:last-child {
+      border: 1px solid var(--loom-border-default);
+      border-radius: 0;
+    }
+
+    .platform-primitives__flow li:not(:last-child)::after {
+      display: none;
+    }
+
+    .platform-primitives__boundary {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-primitives__boundary > svg {
+      transform: rotate(90deg);
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .platform-hero__grid {
+      gap: 2rem;
+      min-height: 0;
+      padding-block: 2.75rem;
+    }
+
+    .platform-hero h1 {
+      font-size: 3rem;
+    }
+
+    .platform-primitives__heading h2 {
+      font-size: 2rem;
+    }
+
+    .platform-hero__actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .platform-primitives__flow {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-primitives__flow li {
+      min-height: 0;
+    }
+  }
+</style>

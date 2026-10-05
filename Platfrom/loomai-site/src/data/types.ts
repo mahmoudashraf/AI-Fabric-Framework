@@ -41,7 +41,7 @@ export type Product = {
   compatibility: string[]
   links: {
     primary: LinkTarget
-    source: LinkTarget
+    source?: LinkTarget
     documentation: LinkTarget
     releaseNotes?: LinkTarget
   }

@@ -2,10 +2,12 @@
 
 Static-first public portfolio for `loomai.pro`.
 
-The site presents two open-source products with equal weight:
+The site presents one managed product layer and two open-source foundations:
 
-- AI Fabric Framework
-- AI Fabric Chat UI
+- LoomAI Platform: Marketplace composition, managed profiles, immutable
+  releases, verification and deployment-local delivery.
+- AI Fabric Framework: reusable runtime and orchestration capabilities.
+- AI Fabric Chat UI: reusable customer-facing conversation experiences.
 
 Live experiments are runnable engineering proof. Applied research records the
 questions, implementation evidence, observations, and limitations behind that
