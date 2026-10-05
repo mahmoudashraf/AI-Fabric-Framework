@@ -3950,3 +3950,28 @@ Critical fixes that made the gate pass:
   credentials, advertiser rights, sandbox interoperability, certification,
   production approval, and customer storage onboarding remain open external
   gates.
+
+## 2026-10-05 Companion Dock Conversation-Focus Closure
+
+- The generic docked Companion no longer renders persistent host tool-group
+  tabs or quick actions. It keeps conversation, attachments, composer,
+  confirmations, and response-level AI suggestions; full host tools remain in
+  desktop and mobile Max Mode.
+- The boundary is generic. No dealership vocabulary or condition was added to
+  `max-mode-widget`, and the dealership experience pack continues to inject
+  its tools through the existing `default` and `contextual` scopes.
+- Browser smoke now asserts zero Companion tool scopes/actions while retaining
+  its Max Mode scope and tool assertions. Local widget builds, Astro checks,
+  the 29-page site build, static/content checks, and the full Playwright suite
+  passed.
+- Production public-site deployment `w126zzp4d63q92rdgwrapchw` runs commit
+  `b8ec2e52fdf518c9cdf9b0dd4647cd8afeb7427d`; both canonical and sslip health
+  routes report `UP` on that exact source.
+- Hosted Playwright checks passed at `1440x1000` and `390x844`: the expanded
+  Companion had no persistent tools, while Max Mode exposed both scopes and
+  all four Browse stock tools.
+- Production firewall `10918233` was restored byte-for-byte at the rules level
+  to SHA-256
+  `41f32d4672e78ee97a91f229c2d14a7067e38e6afaab3dd419e5fdff0c11242b`;
+  the operator CIDR is absent and local access to Coolify port `8000` again
+  times out.

@@ -1190,3 +1190,33 @@ or Platform-managed `UI_EXTENSION` packaging.
 - This closes the current dealership UI/action quality defect while preserving
   the package boundary: no vehicle, dealership, or Auto Trader matching was
   added to `max-mode-widget`.
+
+### 17.13 Companion conversation-space boundary (2026-10-05)
+
+- The generic docked Companion no longer renders the persistent host-injected
+  tool-group tabs or quick-action toolbar. Its limited vertical space is
+  reserved for conversation, attachments, the composer, confirmations, and
+  response-level AI suggestions.
+- Desktop and mobile Max Mode remain the complete host-tool surface. They still
+  render the generic `default` and `contextual` scopes and the dealership pack
+  still injects Browse stock and This vehicle labels, icons, and queries.
+- This is a generic presentation decision in `max-mode-widget`; it contains no
+  dealership or vehicle condition. Conversation state, current-page context,
+  action rendering, and Max Mode behavior are shared and unchanged.
+- The browser contract now explicitly fails if persistent host tools reappear
+  in the Companion. Existing assertions continue to prove both Max Mode scopes
+  and their expected host-provided tools.
+- Local verification passed widget typecheck, ESM/CJS/IIFE builds, action
+  presentation smoke, Astro diagnostics, the 29-page production build, content
+  and static checks, and the complete Playwright browser suite.
+- Commit `b8ec2e52fdf518c9cdf9b0dd4647cd8afeb7427d` is live through production
+  public-site Coolify deployment `w126zzp4d63q92rdgwrapchw`.
+  `https://loomai.pro/health` and the production sslip health route report `UP`
+  on that exact commit.
+- A hosted desktop and mobile Playwright proof found zero tool scopes and zero
+  persistent quick actions in the expanded Companion. Opening Max Mode in both
+  viewports still exposed two scopes and Search stock, Electric cars, Family
+  options, and Compare cars.
+- No runtime, AI Fabric, Marketplace plugin, deployment template, prompt, or
+  action contract changed. Temporary production Coolify access was closed and
+  firewall `10918233` was restored to its exact pre-run rules.
