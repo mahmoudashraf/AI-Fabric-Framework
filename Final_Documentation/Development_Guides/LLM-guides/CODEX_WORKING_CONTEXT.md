@@ -4039,3 +4039,52 @@ Critical fixes that made the gate pass:
 - Production access was limited to `8000/tcp`. Firewalls `10915120` and
   `10918233` exactly match their pre-run hashes, have zero operator entries,
   and authorized local Coolify access again times out with HTTP `000`.
+
+## 2026-10-05 Dealership Vehicle-Detail Trusted-Target Closure
+
+- Supersede the AI Fabric/runtime identity in the earlier v28 notes with AI
+  Fabric `0.8.11`, framework commit `c9205bea`, tag
+  `ai-fabric-framework-v0.8.11`, and private LoomAI source
+  `33d600d16bed47df84d9f1f626cb5d28fd413ef9`.
+- Framework CI passed its release guards, full reactor, restored integration
+  suites, external-consumer tests, real-app suite, container contracts, and
+  boot/data-sync/P1 smokes. Maven Central publication passed, and a private
+  runtime build from a fresh isolated Maven cache consumed only the published
+  `0.8.11` artifacts successfully.
+- Root cause of the broad gate's `CLARIFICATION_REQUIRED` detail response was
+  generic resolution ordering. A model-originated, type-valid value for a
+  hidden parameter caused `resolveFrom` to be skipped; provenance validation
+  then correctly rejected the untrusted hidden value even though the selected
+  action-result attachment carried a trusted lookup candidate.
+- The generic fix makes configured trusted resolution authoritative for hidden,
+  internal, system, secret, and `askUser: false` parameters. A trusted result
+  replaces a model candidate; a missing trusted result removes it and fails
+  closed. Previously trusted pending values survive confirmation continuation.
+  No dealership, vehicle, action-name, label, prompt, or answer-text matching
+  was introduced.
+- Current runtime source artifact is `dsa-15aec1d5`, source commit
+  `33d600d16bed47df84d9f1f626cb5d28fd413ef9`, image digest
+  `sha256:0352ce4a92d13d8e14b2e082a82415694209199bae5eff1bbd9df32cc9f45146`,
+  and AI Fabric capability version `0.8.11`.
+- Deployment `dep-f023c863` now runs version `ver-ea759582`, release
+  `rel-2d292866`, verification `vrf-4a2dc2df`, target
+  `dtp-coolify-staging-behavior`, and runtime resource
+  `dprh-91dcfcd6`. Release is `APPLIED_VERIFIED`, provisioning is `ACTIVE`,
+  verification is `PASSED`, and aggregate health, liveness, readiness, and
+  connector health are `UP`.
+- The exact broad production browser gate passed all 18 queries. The formerly
+  failing selected-result detail step rendered `loomai.vehicle-detail.v1`;
+  inventory and comparison renderers also passed. The gate intentionally
+  completed test-drive and callback writes, verified protected staff readback
+  exactly once, and changed both synthetic receipts to `CANCELLED` during
+  cleanup.
+- A separate strict quality run passed all `12/12` scenarios in conversation
+  `chat-18dbbd7b-6a60-4e06-b5dc-c04eb25d6b40`. It passed all six document
+  scenarios, used `executor` / `search`, preserved one conversation and full
+  retrieval scope, sent no confirmation phrase, completed no write, and had no
+  browser/runtime transport failure.
+- The earlier failed broad run remains honest historical evidence and executed
+  no write. Its caveat is now closed for the current synthetic dealership
+  composition; real Auto Trader credentials, advertiser rights,
+  interoperability, certification, production approval, and customer storage
+  onboarding remain open external gates.

@@ -7,8 +7,8 @@ deferred
 **Revised:** 2026-10-05
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
 dealership-owned component package
-**Related live baseline:** Dealership deployment `dep-f023c863`, version `v28` /
-`ver-ba6d6caf`, release `rel-f142cd17`, AI Fabric `0.8.10`
+**Related live baseline:** Dealership deployment `dep-f023c863`, version
+`ver-ea759582`, release `rel-2d292866`, AI Fabric `0.8.11`
 
 ## 1. Purpose
 
@@ -1317,3 +1317,39 @@ or Platform-managed `UI_EXTENSION` packaging.
   `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`;
   both contain zero operator entries and an authorized Coolify probe again
   times out with HTTP `000` after rule propagation.
+
+### 17.16 Vehicle-detail trusted-target closure (2026-10-05)
+
+- The independent caveat recorded in 17.15 was reproduced on AI Fabric
+  `0.8.10`. The selected inventory attachment carried its bounded lookup
+  candidate, but a model-proposed, type-valid value for the hidden action
+  target caused the configured trusted resolver to be skipped. Provenance
+  validation then correctly rejected that untrusted hidden value and returned
+  `CLARIFICATION_REQUIRED`. The failed gate executed no write.
+- AI Fabric `0.8.11` fixes the generic resolution boundary. Any hidden,
+  internal, system, secret, or `askUser: false` parameter with `resolveFrom`
+  is resolved from the configured trusted source. The trusted result replaces
+  a model candidate; a missing trusted result removes the candidate and fails
+  closed. Trusted pending values remain valid for confirmation continuation.
+- The framework change has no knowledge of vehicles, dealerships, renderer
+  IDs, action names, attachment labels, or answer text. It applies to any host
+  using trusted hidden action targets.
+- Framework commit `c9205bea`, tag `ai-fabric-framework-v0.8.11`, full CI,
+  Maven Central publication, and isolated-cache consumption passed. LoomAI
+  source `33d600d16bed47df84d9f1f626cb5d28fd413ef9` produced runtime artifact
+  `dsa-15aec1d5` and digest
+  `sha256:0352ce4a92d13d8e14b2e082a82415694209199bae5eff1bbd9df32cc9f45146`.
+- Deployment `dep-f023c863` now runs version `ver-ea759582`, release
+  `rel-2d292866`, verification `vrf-4a2dc2df`, with runtime and connector
+  health `UP`.
+- The exact broad browser gate passed all 18 queries and selected
+  `loomai.vehicle-detail.v1` for the formerly failing inventory selection. Its
+  intentional test-drive and callback writes were verified once through the
+  protected staff surface and cancelled during cleanup.
+- The independent strict live matrix passed `12/12` in one anonymous
+  `executor` / `search` conversation, passed document knowledge `6/6`, sent no
+  confirmation phrase, completed no domain write, and observed no browser or
+  runtime transport failure.
+- No widget, experience-pack, renderer, or dealership-host workaround was
+  added. The existing generic selection and presentation contracts now work
+  against the corrected framework trust boundary.

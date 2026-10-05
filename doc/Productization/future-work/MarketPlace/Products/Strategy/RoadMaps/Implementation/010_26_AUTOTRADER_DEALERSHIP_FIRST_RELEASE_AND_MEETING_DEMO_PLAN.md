@@ -2,7 +2,8 @@
 
 - **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
   generic Max Mode first-delivery closure passed on 2026-10-02, and the same
-  deployment `dep-f023c863` is now provider-backed v28 on AI Fabric `0.8.10`.
+  deployment `dep-f023c863` is now provider-backed version `ver-ea759582` on
+  AI Fabric `0.8.11`.
   Ordered synthetic provider media flows through Data Sync, action results,
   RAG documents, and reviewed host renderers. Six approved dealership
   policy/operations documents remain indexed and live. The current synthetic
@@ -13,7 +14,7 @@
 - **Date:** 2026-09-25
 - **Last architecture review:** 2026-10-05
 - **Last implementation checkpoint:** 2026-10-05
-- **Current LoomAI baseline:** AI Fabric `0.8.10`, Platform `Platform-V11`, V04 deployment lifecycle
+- **Current LoomAI baseline:** AI Fabric `0.8.11`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
 - **Auto Trader write posture:** analysis only; provider writes remain outside
@@ -240,6 +241,59 @@ This closes the three known fictional-dealership inventory/action quality
 findings. It does not close real Auto Trader credentials, advertiser rights,
 sandbox validation, certification, production approval, or customer storage
 onboarding.
+
+### Trusted vehicle-detail target closure: 2026-10-05
+
+The later broad production browser gate reproduced one separate failure on the
+`0.8.10` runtime: inventory search succeeded, but selecting an inventory result
+and requesting its detail returned `CLARIFICATION_REQUIRED`. That failed run
+did not confirm or execute a write.
+
+The defect was in generic trusted action-parameter resolution, not in the
+dealership renderer or provider connector. The attachment supplied a bounded
+action-result target with a trusted lookup candidate. The Marketplace action
+schema correctly configured its internal, non-user-askable target with
+`resolveFrom`. However, intent extraction could also propose a syntactically
+valid string for that parameter. The framework treated that string as already
+resolved, skipped the configured trusted resolver, and then correctly rejected
+the model-originated hidden value during provenance validation.
+
+AI Fabric `0.8.11` changes that ordering generically. A hidden, internal,
+system, secret, or `askUser: false` parameter with `resolveFrom` must be
+resolved from its configured trusted source even when a model supplied a
+type-valid value. A trusted resolved value replaces the model candidate; if no
+trusted source exists, the untrusted value is removed and the request still
+fails closed. Previously trusted pending values remain usable across the
+governed confirmation continuation. The implementation contains no action-name,
+vehicle, dealership, label, or answer-text matching.
+
+Framework commit `c9205bea` is tagged
+`ai-fabric-framework-v0.8.11`; framework CI, the full 31-module reactor, Maven
+Central publication, and a fresh isolated-cache consumer build passed. The
+private runtime/platform source is
+`33d600d16bed47df84d9f1f626cb5d28fd413ef9`, source artifact
+`dsa-15aec1d5`, and immutable runtime digest
+`sha256:0352ce4a92d13d8e14b2e082a82415694209199bae5eff1bbd9df32cc9f45146`.
+
+Deployment `dep-f023c863` now uses version `ver-ea759582`, release
+`rel-2d292866`, verification `vrf-4a2dc2df`, and active runtime resource
+`dprh-91dcfcd6`. Runtime aggregate health, liveness, readiness, and connector
+health are all `UP`.
+
+The exact broad live gate then passed all 18 queries. It rendered
+`loomai.vehicle-detail.v1` for the formerly failing selection, retained the
+inventory and comparison presentations, completed the two intentional
+governed-write journeys, verified their protected staff readback exactly once,
+and cancelled both synthetic receipts during cleanup. A separate strict live
+quality run passed all `12/12` scenarios in one anonymous `executor` / `search`
+conversation (`chat-18dbbd7b-6a60-4e06-b5dc-c04eb25d6b40`), including all six
+document-knowledge scenarios, with no confirmation phrase and no completed
+domain write.
+
+This closes the vehicle-detail clarification caveat for the current synthetic
+dealership composition. It does not alter the still-open real Auto Trader
+credential, advertiser-rights, interoperability, certification, approval, or
+customer-storage gates.
 
 ## 1. Executive Decision
 
