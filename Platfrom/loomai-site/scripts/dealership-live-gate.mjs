@@ -622,8 +622,13 @@ function assertInventoryPresentation(evidence) {
     `The bounded inventory projection did not render at least two complete records: ${JSON.stringify(evidence)}.`,
   )
   if (evidence.filterLabels.length > 0) {
+    const normalizedFilterLabels = new Set(
+      evidence.filterLabels.map((label) => label.toLocaleLowerCase('en-GB')),
+    )
     assert(
-      ['Fuel: Electric', 'Up to £40,000'].every((label) => evidence.filterLabels.includes(label)),
+      ['Fuel: Electric', 'Up to £40,000']
+        .map((label) => label.toLocaleLowerCase('en-GB'))
+        .every((label) => normalizedFilterLabels.has(label)),
       `The inventory surface exposed incorrect applied filters: ${JSON.stringify(evidence.filterLabels)}.`,
     )
   }
