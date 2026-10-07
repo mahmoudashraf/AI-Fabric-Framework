@@ -10,7 +10,7 @@
   data-rights, advertiser, package, certification, and production gate remains
   open. LoomAI is not yet entitled to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
-- **Last contract review:** 2026-10-05
+- **Last contract review:** 2026-10-07
 - **Current LoomAI baseline:** AI Fabric `0.8.10`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
@@ -36,6 +36,10 @@
   allowlist. Media upload/update remains a separate, ungranted capability.
 - **Compatibility posture:** current-only greenfield contract; no legacy mode or
   parallel integration contract
+- **2026-10-07 first-pilot decision:** the real pilot is read-mostly with one
+  separately granted provider write: customer-confirmed `POST /deals`. Auto
+  Trader is the Deal system of record; the fictional dealership lead inbox is
+  demo-only and is not installed alongside this route in the real pilot
 - **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
   source `86abb0320c5af2397231cf40077194ba0435efd2`, completed
   `2026-09-28T11:46:36Z`; current dealership deployment `dep-f023c863`, runtime
@@ -56,6 +60,7 @@ Related plans:
 - [010.25 Auto Trader Connect LoomAI Capability Productization Analysis](010_25_AUTOTRADER_CONNECT_LOOMAI_CAPABILITY_PRODUCTIZATION_ANALYSIS.md)
 - [010.26 Auto Trader Dealership First Release And Meeting Demo Plan](010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
+- [010.30 Auto Trader Post-Meeting Use Case, Data And Non-Competition Brief](010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md)
 - [Marketplace Plugin Manifest Reference](../../../../../../../../Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md)
 - [Generic REST API Connector Guide](../../../../../../../../Final_Documentation/Development_Guides/GENERIC_REST_API_CONNECTOR_GUIDE.md)
 
@@ -913,7 +918,8 @@ systems have different authority.
 | Action class | Owner and destination | Examples |
 | --- | --- | --- |
 | Granted provider reads | Auto Trader ACTION package through the deployment connector | current stock detail, search, equipment, taxonomy, approved vehicle facts |
-| Dealership-owned commands | Dealership ACTION package through the same connector process but a distinct protected backend route | callback, test-drive, local CRM/lead request |
+| Confirmed Auto Trader Deal intake | Separately grant-scoped Auto Trader ACTION contribution through the deployment connector | fixed `POST /deals` with typed consumer fields, trusted advertiser/stock and returned `dealId` |
+| Demo-only dealership commands | Dealership ACTION package through a distinct protected backend route; absent from the real pilot | fictional callback/test-drive inbox used only to prove generic confirmation mechanics |
 | Model composition | Runtime orchestration over typed read facts | comparison or recommendation when no provider comparison endpoint exists |
 
 Route ownership is selected by the immutable template and capability grants,
@@ -938,7 +944,10 @@ No new plugin type is required. The product composition is:
   mapping, lifecycle/deletion, attribution, data rights, and rate policy;
 - a dedicated Auto Trader `ACTION` plugin for only the provider capabilities
   granted to the integration;
-- a separate dealership `ACTION` plugin for dealer-owned confirmed writes;
+- a separately grant-scoped Deal-intake contribution containing only confirmed
+  `POST /deals` creation;
+- a separate dealership `ACTION` plugin only in the fictional demo, never in the
+  real pilot composition;
 - optional dealership-owned knowledge `DATA` plugins; and
 - one `TEMPLATE` that pins the exact behavior, packages, inference/vector
   profiles, chat surfaces, install fields, and verification packs.
@@ -955,10 +964,13 @@ in a script, custom container, or central bridge.
 
 The template install form requires provider environment, credential secret
 references, notification secret reference, one advertiser/account binding,
-dealership backend URL/key for dealer-owned actions, allowed website origins,
+allowed website origins,
 inference/vector profiles, full-baseline schedule, and lifecycle/retention
 policy. A clean install must compile these values into one immutable deployment
 version without manual JSON or environment repair.
+
+The fictional demo template separately requires the dealership backend URL/key
+for its demo-owned actions. Those fields are not part of the real pilot template.
 
 The simulator uses separate neutral verification package fixtures. Those
 fixtures prove generic mechanics and the target composition while access is
@@ -1256,8 +1268,9 @@ and data rights exist, publish exact packages:
 | --- | --- | --- |
 | `mkp-data-autotrader-dealership-stock-v1` | `DATA` | Advertiser-scoped baseline, targeted current-record reconciliation, shared mapping, normalized vehicle entity, indexing/freshness/delete policy |
 | `mkp-action-autotrader-dealership-discovery-v1` | `ACTION` | Advertiser preflight, live stock search/detail, and only the granted evidence reads routed directly through the provider connection profile |
+| `mkp-action-autotrader-deal-intake-v1` | `ACTION` | Separately granted, typed and customer-confirmed `POST /deals`; injects trusted advertiser/stock and returns the Auto Trader `dealId` |
 | `mkp-data-dealership-knowledge-v1` | `DATA` | Dealer-owned warranty, delivery, support, and location knowledge with distinct attribution |
-| `mkp-action-dealership-lead-v1` | `ACTION` | Confirmed callback/test-drive command to the dealership-owned backend |
+| `mkp-action-dealership-lead-v1` | `ACTION` | `DEMO_ONLY`: fictional callback/test-drive command used to verify confirmation mechanics; excluded from the real pilot template |
 | `mkp-template-autotrader-dealership-concierge-v1` | `TEMPLATE` | Exact behavior, plugins, provider/vector profiles, bindings, endpoints, UI modules, and verification packs |
 
 The package names do not become official until published versions and hosted
@@ -1418,7 +1431,7 @@ remaining phases must not be collapsed into a paper pass.
    contracts.
 2. Complete Auto Trader partner onboarding and obtain the exact sandbox
    identity, grants, authorized advertiser, schemas, event contract, data
-   rights, and validation checklist.
+   rights, `Deal Updates` grant, Deal-create contract, and validation checklist.
 3. Compare every granted sandbox field, route, authentication rule,
    notification rule, status transition, rate policy, and error with the
    provenance matrix. Revise package data and verification fixtures where the
@@ -1575,6 +1588,14 @@ Auto Trader compatibility or changing the independent customer application.
 - Bind sandbox connection and exact test advertiser.
 - Pass authentication, advertiser, baseline, indexing, search/detail, webhook,
   failure, and isolation canaries.
+- Add only the documented Deal-create route under the separately granted
+  `Deal Updates` capability. Revalidate trusted stock immediately before the
+  write; accept only typed first name, last name, and email; require an exact
+  preview and explicit confirmation; and return the provider `dealId`.
+- Prove cancel/no-write, missing grant, cross-advertiser target, stale target,
+  duplicate confirmation, timeout ambiguity, restart, and PII-safe logging.
+- Do not use a blind write retry. Freeze the provider-approved duplicate and
+  ambiguous-outcome procedure before the canary can pass.
 - Collect Auto Trader call-log/demonstration evidence.
 
 Exit: exact package/template versions marked
@@ -1684,13 +1705,21 @@ documentation, not access to or acceptance by Auto Trader.
 - unsupported fields are not invented;
 - follow-up targets remain inside the conversation and deployment;
 - post-action generation uses normalized facts;
-- provider-supported reads route only through the provider ACTION package,
-  dealership-owned writes route only through the dealership ACTION package, and
-  unsupported capabilities fail explicitly without blind cross-system fallback;
+- provider-supported reads route only through the provider discovery ACTION
+  contribution, confirmed Deal creation routes only through the separately
+  granted provider Deal-intake contribution, and unsupported capabilities fail
+  explicitly without blind cross-system fallback;
 - generation failure returns a bounded deterministic summary, not raw JSON;
-- dealership-owned lead action requires confirmation and returns one receipt;
-  and
-- no Auto Trader write exists in the first release.
+- the Deal action accepts only typed buyer-owned first name, last name, and
+  email, while advertiser, stock, route, host, method, and credential remain
+  trusted server-owned values;
+- confirmation shows the exact vehicle, customer fields, destination, and
+  privacy wording;
+- cancel executes no provider call;
+- confirm returns exactly one Auto Trader `dealId` and creates no local lead;
+- an ambiguous timeout never triggers a blind retry; and
+- no Auto Trader write other than the confirmed Deal creation exists in the
+  first release.
 
 ### 10.5 Lifecycle and operations
 
@@ -1761,7 +1790,10 @@ This claim contains no Auto Trader name or implication.
 - exact credential/grant/advertiser metadata is recorded safely;
 - sandbox data limitations are reflected in assertions;
 - Auto Trader-required demonstration/call-log checks pass or are explicitly
-  recorded as pending; and
+  recorded as pending;
+- `Deal Updates` is granted and the exact Deal-create confirmation, receipt,
+  duplicate, ambiguous-timeout, denial, restart, and PII-redaction canaries
+  pass; and
 - evidence names the immutable plugin/template/deployment versions.
 
 ### 11.4 `AUTOTRADER_PRODUCTION_READY`
@@ -1769,6 +1801,8 @@ This claim contains no Auto Trader name or implication.
 - written production grant and data-use rights exist;
 - production credential and advertiser bindings pass preflight;
 - production baseline, retrieval, and approved webhook canaries pass;
+- production Deal-create canary returns one `dealId` under the approved customer
+  journey without creating a parallel lead record;
 - all applicable provider go-live checks pass;
 - two-deployment isolation, lifecycle, recovery, and offboarding pass;
 - Platform full release-readiness is green; and
@@ -1792,7 +1826,8 @@ This claim contains no Auto Trader name or implication.
 - No public claim that the neutral simulator is Auto Trader, an Auto Trader
   sandbox, or evidence of provider compatibility/certification.
 - No simulator dependency in production customer deployments.
-- No production Auto Trader writes in the first release.
+- No production Auto Trader write other than customer-confirmed `POST /deals`
+  under the exact granted first-pilot contract.
 - No multi-dealership search in one deployment.
 - No silent fallback from failed Auto Trader access to demonstration data.
 - No claim based only on a good chat transcript.
@@ -1816,13 +1851,16 @@ LoomAI may claim production Auto Trader integration readiness only when:
    event repair, and indexing-work reconciliation pass;
 9. the independent dealership website can attach a trusted `stockId` without
    receiving provider credentials or becoming the provider-data source;
-10. provider reads and dealership writes route to their declared owners without
-    blind fallback, and grounded conversation plus confirmed dealership action
-    pass;
+10. provider reads and the separately granted provider Deal-create action route
+    to their declared contributions without blind fallback; grounded
+    conversation, explicit confirmation, one `dealId`, and no parallel lead
+    record pass;
 11. data rights, attribution, retention, and offboarding are enforced;
-12. Auto Trader capability-specific go-live checks pass;
-13. LoomAI staging and production release gates pass; and
-14. the exact evidence-backed claim is published without implying ungranted
+12. Deal duplicate/ambiguous-timeout handling is approved and proven without a
+    blind retry;
+13. Auto Trader capability-specific go-live checks pass;
+14. LoomAI staging and production release gates pass; and
+15. the exact evidence-backed claim is published without implying ungranted
     capabilities.
 
 Until then, the correct status is:

@@ -401,7 +401,7 @@ The deterministic table does not name a winner. An AI explanation may recommend
 a vehicle only after the buyer provides priorities and the answer cites the
 facts used.
 
-### 6.4 Existing lead flow and optional receipt presentation
+### 6.4 Existing fictional-demo lead flow and optional receipt presentation
 
 The first delivery reuses the generic clarification and confirmation components
 already used by `dealership_request_test_drive` and
@@ -421,6 +421,14 @@ delivery if the current generic receipt is materially unclear. A custom
 evidence demonstrates a gap. Name, email, phone, preferred date, message, and
 explicit contact consent remain buyer-owned values. Trusted vehicle IDs remain
 server-resolved.
+
+For the real first Auto Trader pilot, the same generic clarification,
+confirmation, and receipt components are configured for a different domain
+action: confirmed Auto Trader Deal creation. That customer pack collects only
+first name, last name, and email; keeps advertiser ID and stock ID trusted and
+hidden; previews the exact vehicle, destination and privacy wording; and renders
+the returned Auto Trader `dealId`. It does not install the fictional dealership
+lead action or expose an Auto Trader-specific branch in the generic widget.
 
 ## 7. Max Mode Experience Composition
 
@@ -712,6 +720,11 @@ The first release does not wait for these items:
 - reject/cancel produces no lead;
 - confirm creates exactly one lead and renders a stable receipt; and
 - staff inbox shows the same persisted request.
+
+Those two lead assertions apply only to the fictional demo composition. The real
+first-pilot customer pack instead proves that confirmation returns exactly one
+Auto Trader `dealId`, creates no local lead/staff-inbox record, and leaves the
+generic widget unaware of provider-specific execution details.
 
 ### 13.3 Hosted evidence
 

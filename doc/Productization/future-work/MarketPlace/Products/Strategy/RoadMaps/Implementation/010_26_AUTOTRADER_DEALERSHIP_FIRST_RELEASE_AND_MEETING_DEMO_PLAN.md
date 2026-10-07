@@ -12,14 +12,15 @@
   Released customer Auto Trader Marketplace packaging and every real Auto
   Trader access/rights/certification gate remain open.
 - **Date:** 2026-09-25
-- **Last architecture review:** 2026-10-05
+- **Last architecture review:** 2026-10-07
 - **Last implementation checkpoint:** 2026-10-05
 - **Current LoomAI baseline:** AI Fabric `0.8.11`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
-- **Auto Trader write posture:** analysis only; provider writes remain outside
-  the first release and current demo, and none is directly executable by an
-  anonymous buyer
+- **Auto Trader write posture:** the real first pilot is read-mostly and includes
+  exactly one provider write: customer-confirmed `POST /deals` under a separately
+  granted `Deal Updates` capability. The current fictional demo still writes
+  only to its dealership-owned test inbox and does not prove this provider path
 - **Provider integration refinement:** Auto Trader stock and supported read
   actions belong to the deployment-local connector through dedicated DATA and
   ACTION packages; the dealership website/backend remains independent and owns
@@ -39,6 +40,7 @@ Related plans and evidence:
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 - [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md)
+- [010.30 Auto Trader Post-Meeting Use Case, Data And Non-Competition Brief](010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md)
 - [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
 - [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
 - [2026-10-03 synthetic public-contract hosted evidence](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json)
@@ -311,8 +313,8 @@ for one dealership. That deployment will:
    Auto Trader read actions;
 8. compare selected vehicles using typed facts;
 9. maintain the selected vehicle across conversation turns; and
-10. execute real dealership-owned callback or test-drive requests only after
-    confirmation.
+10. after explicit customer confirmation, create one externally originated Auto
+    Trader Deal for the trusted selected stock and return its `dealId`.
 
 The release is composed from existing Platform primitives:
 
@@ -438,7 +440,8 @@ The deployment must reject or quarantine:
 - a webhook whose advertiser ID does not match the deployment;
 - a stock or vehicle target that cannot be resolved inside the deployment;
 - a query when source readiness is unknown and a current answer is required;
-- a write or lead request without the required identity, consent, or target; and
+- a Deal request without required customer fields, explicit confirmation,
+  trusted advertiser/stock scope, or the exact capability grant; and
 - any result that cannot preserve its source, target, and checked-at evidence.
 
 ## 4. First-Release Feature Set
@@ -459,7 +462,7 @@ The deployment must reject or quarantine:
 | Vehicle comparison | Helps buyers understand tradeoffs | Typed comparison contract plus grounded generation | Same fields compared; absent fields remain absent |
 | Multi-turn target continuity | Supports follow-ups such as "what about this one?" | Trusted conversation working target | Target survives follow-up but cannot cross conversation/deployment |
 | Dealer policy answers | Connects a vehicle choice with dealership-specific warranty/support information | Hybrid vehicle facts plus dealership knowledge retrieval | Sources remain distinguishable and applicability is explicit |
-| Callback or test-drive request | Converts useful assistance into a real dealership workflow | Dealership-owned confirmed ACTION and application database | Confirmation, persisted request, receipt, and staff visibility |
+| Auto Trader Deal intake | Converts useful assistance inside Auto Trader's approved system-of-record boundary | Grant-scoped `ACTION` plugin executing fixed `POST /deals` through the deployment connector | Typed preview, explicit confirmation, trusted advertiser/stock, one provider `dealId`, zero duplicate Deals |
 | Responsive dealership UI | Demonstrates a believable customer integration | Customer website, fixed composer, Max Mode, vehicle cards, compare and action surfaces | Desktop/mobile Playwright and live browser proof |
 | Operations and readiness | Lets staff trust sync and AI state | Runtime-backed status plus dealership staff workspace | Source/index counts, freshness, failures, build and provider posture visible |
 
@@ -469,7 +472,7 @@ The deployment must reject or quarantine:
 - Vehicle Check and report references with fair-usage enforcement.
 - Richer MOT, vehicle history, charge-time, and equipment evidence.
 - Auto Trader deep links and attribution required by the production agreement.
-- Dealer CRM delivery in addition to the first deployment-local lead inbox.
+- Any approved post-Deal handoff into dealer CRM or appointment workflows.
 
 P1 capability absence must not block the P0 product. The UI and assistant should
 state that an unavailable field or service is unavailable rather than fabricate
@@ -480,8 +483,9 @@ an answer.
 - Multiple dealerships or advertiser IDs in one deployment.
 - Cross-dealer search, comparison, analytics, or shared vector spaces.
 - Deal Sync, consumer message sync, finance applications, or part exchange.
-- Price, stock, availability, media, description, reservation, or deal writes to
-  Auto Trader.
+- Price, stock, availability, media, description, reservation, Deal lifecycle,
+  or message writes to Auto Trader. The only exception is the exact confirmed
+  `POST /deals` creation contract.
 - Agentic Specialist Team as a dependency.
 - Smart Brain as a dependency.
 - Autonomous external writes.
@@ -490,17 +494,17 @@ an answer.
 
 These capabilities remain later independently granted and verified plugin packs.
 
-### 4.4 Deferred Auto Trader write posture
+### 4.4 Single Auto Trader write posture
 
-The official Auto Trader write capabilities are analysed in Section 8.5 so the
-meeting can discuss a credible expansion path. That analysis does not change
-the P0 scope. It authorizes no source change, Marketplace package, simulator
-operation, deployment configuration, chat tool, or production claim.
+The first real pilot includes only the documented `POST /deals` creation route.
+It requires a separately granted `Deal Updates` capability, trusted deployment-
+owned advertiser and stock scope, typed buyer fields, explicit confirmation,
+provider-aware duplicate protection, and a returned Auto Trader `dealId`.
 
-The current demo continues to expose only dealership-owned callback and
-test-drive commands. Provider mutations remain a later dealer-operations
-product that requires separate capability grants, partner sandbox evidence,
-staff authorization, action review, and capability-specific go-live approval.
+The current demo continues to expose dealership-owned callback and test-drive
+commands because it has no Auto Trader sandbox or grant. That demo path is
+historical evidence for generic confirmation mechanics, not the production pilot
+handoff. Every other provider mutation remains deferred and independently gated.
 
 ## 5. Data Synchronization And Indexing Contract
 
@@ -668,8 +672,9 @@ The IDs below are proposed first-release IDs, not currently published plugins.
 | `mkp-template-autotrader-dealership-concierge-v1` | `TEMPLATE` | Select `CONVERSATIONAL`, required plugins, inference/vector profiles, shell surfaces, generic connector capabilities, and verification packs. |
 | `mkp-data-autotrader-dealership-stock-v1` | `DATA` | Exact advertiser-scoped baseline, targeted current-record reconciliation, shared vehicle mapping, Data Sync/indexing policy, freshness and deletion behavior. |
 | `mkp-action-autotrader-dealership-discovery-v1` | `ACTION` | Advertiser preflight, live stock search/detail, taxonomy/equipment, and approved evidence reads routed through the provider connection profile. |
+| `mkp-action-autotrader-deal-intake-v1` | `ACTION` | Separately granted, typed and customer-confirmed `POST /deals`; injects trusted advertiser/stock and returns the Auto Trader `dealId`. |
 | `mkp-data-dealership-knowledge-v1` | `DATA` | Dealership-owned warranty, delivery, location, and support knowledge. |
-| `mkp-action-dealership-lead-v1` | `ACTION` | Application-owned callback/test-drive request with confirmation and receipt. |
+| `mkp-action-dealership-lead-v1` | `ACTION` | `DEMO_ONLY`: application-owned callback/test-drive request used to prove confirmation mechanics; excluded from the real first-pilot template. |
 | Existing approved provider profile | `INFERENCE_PROFILE` | Real generation and embeddings with explicit model and dimensions. |
 
 No `SPECIALIST` package is required for the first release. Adding specialists
@@ -944,33 +949,44 @@ sources:
 
 If either source is absent, the answer should state the limitation.
 
-### 8.4 Confirmed lead action
+### 8.4 Confirmed Auto Trader Deal creation
 
-The first real write is dealership-owned, not an Auto Trader mutation:
+The first real-pilot write is one externally originated Auto Trader Deal:
 
-- request a callback;
-- request a test drive; or
-- ask the dealership team about the selected vehicle.
+```http
+POST /deals?advertiserId=<trusted-advertiser-id>
+Authorization: Bearer <server-owned-token>
+Content-Type: application/json
 
-The action requires:
+{
+  "consumer": {
+    "firstName": "<confirmed-first-name>",
+    "lastName": "<confirmed-last-name>",
+    "email": "<confirmed-email>"
+  },
+  "stockId": "<trusted-selected-stock-id>",
+  "advertiserId": "<trusted-advertiser-id>"
+}
+```
 
-- a trusted selected stock target;
-- buyer-provided contact details;
-- explicit confirmation of the displayed details;
-- PII minimization and retention policy;
-- an idempotency key;
-- durable application persistence;
-- a normalized action receipt; and
-- visibility in an authenticated dealership staff inbox.
+The buyer can provide and confirm the three consumer fields. The deployment,
+not the model or browser, supplies the API route, advertiser, trusted stock
+target, credentials, and capability grant. Immediately before execution it
+revalidates that the stock belongs to the bound advertiser and remains eligible.
 
-The live demo must persist and display the request. A button that only returns a
-success message is not acceptable.
+The normalized receipt contains the returned Auto Trader `dealId` and a bounded
+safe message. LoomAI retains only that external identifier and the minimum audit
+evidence required by the approved retention policy; it creates no parallel lead
+record or dealership staff inbox.
 
-### 8.5 Deferred Auto Trader write-action analysis
+The existing fictional demo's callback/test-drive persistence remains useful
+confirmation evidence, but it is not the first-pilot business destination.
 
-**Status:** `ANALYSIS_ONLY`. Reviewed against Auto Trader's public capability
-introductions on 2026-10-03. Nothing in this section is implemented or approved
-for the current meeting deployment.
+### 8.5 Auto Trader write-action boundary
+
+**Status:** `PILOT_CONTRACT_DEFINED_EXTERNAL_GRANT_BLOCKED`. Reviewed against the
+current public API on 2026-10-07. `POST /deals` is in the first-pilot contract;
+it is not implemented, sandbox-verified, or approved for the current demo.
 
 #### 8.5.1 API and actor classification
 
@@ -985,14 +1001,15 @@ integration for an advertiser that is enabled for the specific capability.
 | Availability Updates | `PATCH` through the Stock API for reservation status, lifecycle, and advert unpublishing | Dealer inventory/reservation workflow or authorized staff; current stock state must be re-read | Cannot execute. A buyer's wish to reserve is an intent or dealership request until an authorized reservation/deal flow accepts it |
 | Price Updates | `PATCH` through the Stock API for supplied/forecourt price, fee override, and VAT status | Authorized pricing staff or an approved dealer system; exact stock ID, current price, and bounded change | Cannot execute or approve a price change |
 | Media Updates | `POST` to the Images API followed by `PATCH` to the Stock API; video/spin updates also use the Stock API | Authorized media/listing operator; owned media, advertiser ID, stock ID, complete ordered image list, and content-protection policy | Cannot execute. A buyer may view approved media only |
-| Deal Updates | `PATCH` through the Deals API to complete/cancel a deal, reserve through a deal, or remove finance/part-exchange components | Existing Auto Trader deal, trusted deal ID and advertiser ID, authorized dealer workflow, and the required consumer agreement. Auto Trader separately requires the consumer to confirm completion in their account | Cannot directly execute. An anonymous chat has neither a trusted deal identity nor authority to act as the advertiser |
+| Deal Updates | `POST /deals` creates an externally originated Deal; later `PATCH` operations can manage an existing Deal | Creation uses the deployment's trusted advertiser and stock plus confirmed consumer first name, last name, and email. The authorized integration remains the API caller | The buyer may initiate, provide their own fields, preview, and explicitly confirm creation. The browser/model never authenticates to Auto Trader or controls provider scope |
 | Message Updates | `PATCH`/`POST` through the Messages API to mark deal messages read or send/reply | Authorized dealership user or workflow acting as the advertiser, tied to an existing trusted deal/messages component | Cannot send a provider message or masquerade as dealership staff. Public chat remains a separate conversation |
 | Part-Exchange Updates | `POST`/`PATCH` through the Part Exchange API to add details or update condition, finance, and offer | Existing Deal Builder deal plus trusted component/advertiser IDs. Consumer supplies or agrees to their vehicle details; dealer staff owns appraisal, condition, and offer decisions | Cannot directly execute. It may collect a dealership-owned enquiry only under an approved PII/consent flow |
 
-The key product conclusion is therefore simple: **none of these Auto Trader
-write APIs is an anonymous buyer action**. Some deal operations incorporate a
-consumer's decision or data, but the API caller is still the authorized partner
-integration acting inside the advertiser/deal boundary.
+The key product conclusion is therefore: **an anonymous buyer may authorize the
+bounded Deal-creation journey, but never becomes the Auto Trader API actor**.
+The fixed server-side integration remains the authenticated caller inside the
+advertiser and capability boundary. All other listed writes remain unavailable
+to the anonymous pilot user.
 
 #### 8.5.2 Three distinct authorization layers
 
@@ -1024,9 +1041,10 @@ consent into one idea of "logged in":
    owned authenticated workflow, while the actual provider call remains
    server-to-server.
 
-For the current anonymous chat product, a buyer can express intent, review
-their own contact details, and confirm a dealership-owned lead request. That is
-not permission to mutate Auto Trader.
+For the first pilot, a buyer can express intent, review their own contact
+details and selected vehicle, and confirm the exact Auto Trader Deal creation.
+That confirmation authorizes only the typed `POST /deals` request; it grants no
+general provider mutation authority.
 
 #### 8.5.3 LoomAI Marketplace mapping
 
@@ -1046,7 +1064,9 @@ installable or independently attested so that one grant never implies another:
 - Message Updates; and
 - Part-Exchange Updates.
 
-Stock, availability, price, and media contributions use the provider profile
+The first release installs a narrowly scoped Deal-intake contribution containing
+only `POST /deals`; it does not imply the rest of Deal Updates. Stock,
+availability, price, and media contributions use the provider profile
 and the deployment's advertiser binding. Deal, message, and part-exchange
 contributions additionally depend on restricted Deal Sync/read contracts and
 trusted deal/component identities. Dealership callback, test-drive, CRM, and
@@ -1060,9 +1080,10 @@ trusted prior reads, and application authorization.
 
 #### 8.5.4 Governed execution shape
 
-A future provider write should follow this sequence:
+A provider write follows this sequence:
 
-1. Resolve an authenticated staff actor or an approved deal/customer handoff.
+1. Resolve the explicitly confirmed customer Deal-creation handoff or an
+   authenticated staff actor for a separately approved future operation.
 2. Resolve the exact advertiser, stock/deal/component target, and capability
    from trusted deployment state and fresh provider reads.
 3. Validate a typed minimal patch; never forward free-form model JSON.
@@ -1071,11 +1092,11 @@ A future provider write should follow this sequence:
    for consequential writes. An LLM-drafted message must be reviewed before it
    is sent. A deterministic staff click to mark a message read may use a
    narrower policy, but is still authenticated and audited.
-6. Execute once with an idempotency/deduplication strategy appropriate to the
-   exact provider contract and retain a normalized receipt.
-7. Re-read or reconcile through Stock Sync/Deal Sync before reporting final
-   state. Do not treat a model answer or an outbound HTTP success alone as
-   authoritative completion.
+6. Execute once with a duplicate-prevention strategy approved for the exact
+   provider contract and retain a normalized receipt.
+7. For successful creation, record the returned `dealId`. For an ambiguous
+   outcome, follow Auto Trader's approved reconciliation/support procedure and
+   never retry blindly. Later write types require their own current-state read.
 
 Smart Brain or Specialist behavior may recommend a change or create an
 `ACTION_PROPOSAL`; neither receives blanket permission to perform Auto Trader
@@ -1085,7 +1106,7 @@ business risk warrants it.
 
 #### 8.5.5 Provider failure and release rules
 
-The future action connector must preserve Auto Trader's integration rules:
+The action connector must preserve Auto Trader's integration rules:
 
 - `400`: surface invalid input and do not schedule blind retries;
 - `401`: stop provider activity, refresh the server token, then resume only
@@ -1102,9 +1123,10 @@ Each capability requires its own sandbox proof and Auto Trader go-live checks.
 A successful Stock Sync or read-only integration does not approve any write
 capability.
 
-#### 8.5.6 Current demo decision
+#### 8.5.6 Current demo and first-pilot decision
 
-No Auto Trader write action is added now. In particular:
+No Auto Trader write action is added to the current fictional demo because no
+sandbox grant exists. In particular:
 
 - no buyer-facing stock, price, availability, media, deal, message, or
   part-exchange tool is added to Max Mode;
@@ -1113,9 +1135,12 @@ No Auto Trader write action is added now. In particular:
 - `Request test drive` and callback continue to persist only in the independent
   dealership backend;
 - no provider-write plugin, secret, role, route, prompt, confirmation, or
-  deployment version is created from this analysis; and
-- a later implementation starts only after the exact partner grant, sandbox
-  contract, actor model, and first capability to productize are approved.
+  deployment version is created for the current fictional demo;
+- the real first-pilot implementation starts only after `Deal Updates`, the
+  sandbox create contract, data-use terms, actor model, and duplicate/ambiguous-
+  outcome policy are approved; and
+- that implementation replaces the demo inbox handoff with confirmed Auto
+  Trader Deal creation rather than operating both destinations in parallel.
 
 ## 9. Meeting Demo Application
 
@@ -1541,7 +1566,9 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Put provider stock selectors, current-record route, notification record-key
   extraction, advertiser checks, and lifecycle policy in the Auto Trader DATA
   package rather than generic Java.
-- Keep provider reads and dealership-owned writes in separate ACTION packages.
+- Keep provider discovery reads and the confirmed Auto Trader Deal-intake route
+  in separately grantable ACTION contributions. Keep current demo-only
+  dealership writes in a separate package that is absent from the real pilot.
 - Add source/freshness/attribution metadata.
 - Add verification-pack references.
 - Publish exact versions only after source tests pass.
@@ -1640,6 +1667,12 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Prove targeted current-record add/update/sold/delete plus missed-event baseline
   repair; do not index notification payloads directly.
 - Execute the applicable Auto Trader go-live checks.
+- Obtain the separate `Deal Updates` grant and confirm the exact sandbox
+  `POST /deals` request, response, consent, error, retry, timeout, and duplicate-
+  handling contract.
+- Install only the Deal-create route, prove trusted advertiser/stock injection,
+  typed consumer fields, explicit confirmation, one returned `dealId`, and no
+  parallel lead record.
 - Obtain separate production credentials, advertiser membership, rights, and
   approval before replacing the sandbox bindings or making a production claim.
 - Preserve the demo source as a separate non-production composition, never as a
@@ -1729,6 +1762,23 @@ These changes must contain no hard-coded Auto Trader domain behavior.
   webhook target, event body, or any credential; secrets are absent from the
   browser and sanitized receipts.
 
+The preceding lead-inbox assertions describe the existing fictional demo. The
+real pilot additionally requires:
+
+- only the exact Deal-create action is exposed from the granted provider write
+  package;
+- first name, last name, and email are buyer-owned typed inputs;
+- advertiser ID, stock ID, route, method, host, and credentials are trusted
+  server-owned inputs and cannot be overridden by the model or browser;
+- confirmation previews the exact customer values, vehicle, destination, and
+  privacy wording;
+- cancel performs no provider call;
+- confirm produces one Auto Trader `dealId` and no local lead record;
+- a missing/stale/cross-advertiser stock target or missing grant fails closed;
+- an ambiguous timeout never causes a blind retry; and
+- repeated confirmation cannot create a duplicate Deal under the procedure
+  approved by Auto Trader.
+
 ### 14.5 UI
 
 - `/demos/dealership-ai` renders as a native full-screen application route, not
@@ -1803,13 +1853,18 @@ The first production dealership release additionally requires:
 3. exact production advertiser membership proof;
 4. successful advertiser-scoped baseline and reconciliation;
 5. verified hash-authenticated stock notifications where granted;
-6. applicable Auto Trader go-live checks;
-7. source licence, cache, embedding, retention, and attribution approval;
-8. real two-deployment isolation proof;
-9. customer privacy, support, offboarding, and deletion runbooks;
-10. cost and rate limits;
-11. Platform staging and production release gates; and
-12. owner approval of the exact immutable template and plugin versions.
+6. the `Deal Updates` grant, approved externally originated Deal journey, and
+   verified `POST /deals` sandbox and production canaries;
+7. provider-approved duplicate and ambiguous-timeout handling with zero blind
+   write retries;
+8. applicable Auto Trader go-live checks;
+9. source licence, cache, embedding, retention, attribution, consumer privacy,
+   and Deal-receipt retention approval;
+10. real two-deployment isolation proof;
+11. customer privacy, support, offboarding, and deletion runbooks;
+12. cost and rate limits;
+13. Platform staging and production release gates; and
+14. owner approval of the exact immutable template and plugin versions.
 
 Sandbox verification is required evidence for the provider integration, but it
 does not satisfy any production credential, advertiser, licensing, or go-live
@@ -1836,14 +1891,15 @@ item in this gate.
    support, a public-document-informed fixture, and the protected staff scenario
    adapter; then prove the final provider/dealership split with the neutral
    simulator while leaving the website/backend catalogue unchanged.
-9. Implement the Auto Trader DATA/ACTION plugins against the granted sandbox.
+9. Implement the Auto Trader DATA/discovery ACTION packages and separately
+   grant-scoped Deal-intake ACTION contribution against the granted sandbox.
 10. Replace only the source/action packages in a new immutable deployment
     version.
 11. Pass Auto Trader and LoomAI production gates before making a production
     claim.
-12. Only through a separate approved initiative, add one Auto Trader write
-    capability at a time using Section 8.5 and pass that capability's sandbox,
-    authorization, Human Review, reconciliation, and go-live gates.
+12. Keep every provider write other than the confirmed `POST /deals` creation
+    route in a separate later initiative with its own sandbox, authorization,
+    Human Review, reconciliation, and go-live gates.
 
 ## 18. Decisions To Preserve
 
@@ -1873,15 +1929,17 @@ item in this gate.
   by deployment-local provider sync in the integrated product.
 - The website/backend does not need to consume Auto Trader or the provider
   simulator. A validated `stockId` is the shared cross-system reference.
-- Provider reads and dealership writes use separate action packages and never
-  silently fall back across owners.
+- Provider reads and provider Deal creation use separate grant-scoped action
+  contributions and never silently fall back across owners. The fictional
+  dealership-write package is demo-only and absent from the real pilot.
 - The dealership app contains no AI Fabric runtime or local AI implementation.
 - The meeting app demonstrates real LoomAI behavior without faking Auto Trader
   access.
 - The meeting-only provider-change control is authenticated operator tooling;
   it never exposes raw simulator controls or makes the dealership catalogue
   depend on the simulator.
-- The first external write is dealership-owned and confirmed.
+- The first real-pilot external write is customer-confirmed Auto Trader Deal
+  creation; Auto Trader remains the Deal system of record.
 - Later Auto Trader capabilities are separate granted and verified plugin packs.
 
 ## 19. Official Auto Trader References
@@ -1918,10 +1976,11 @@ deployment, not a generic Auto Trader chatbot.
 
 It continuously synchronizes and indexes only that dealership's approved stock,
 combines semantic discovery with exact and live facts, grounds dealership-policy
-answers separately, and turns a selected vehicle into a confirmed real customer
-request. Marketplace plugins define every Auto Trader relationship, while the
-deployment remains self-contained and the Platform remains the deterministic
-control plane.
+answers separately, and turns a trusted selected vehicle plus explicitly
+confirmed customer details into one externally originated Auto Trader Deal.
+Auto Trader remains the Deal system of record. Marketplace plugins define every
+Auto Trader relationship, while the deployment remains self-contained and the
+Platform remains the deterministic control plane.
 
 The meeting demo should make that complete product shape tangible before asking
 Auto Trader for the exact production capabilities needed to activate it. The

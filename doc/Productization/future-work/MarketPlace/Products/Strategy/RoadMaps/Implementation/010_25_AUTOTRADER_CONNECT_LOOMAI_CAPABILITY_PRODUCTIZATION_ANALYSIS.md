@@ -18,6 +18,7 @@ Related LoomAI plans:
 - [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
+- [010.30 Auto Trader Post-Meeting Use Case, Data And Non-Competition Brief](010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md)
 - [Marketplace Plugin Manifest Reference](../../../../../../../../Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md)
 - [Generic REST API Connector Guide](../../../../../../../../Final_Documentation/Development_Guides/GENERIC_REST_API_CONNECTOR_GUIDE.md)
 
@@ -36,11 +37,13 @@ capabilities. LoomAI can turn approved subsets of those capabilities into:
 These are reusable automotive solution templates built from the existing LoomAI
 platform primitives. They are not new Platform deployment behavior types.
 
-The recommended first product is a **read-first Automotive Buyer Concierge** for
+The recommended first product is a **read-mostly Automotive Buyer Concierge** for
 one approved dealer. It should search and validate live stock, compare vehicles,
 explain equipment and electric-vehicle characteristics, retrieve approved MOT or
-vehicle-check evidence, and hand a selected vehicle to a dealer-owned lead or
-booking action. It must not rely on a periodically embedded copy of stock as the
+vehicle-check evidence, then create one externally originated Auto Trader Deal
+for a trusted selected vehicle after the buyer previews and explicitly confirms
+their first name, last name, and email. Auto Trader remains the Deal system of
+record. It must not rely on a periodically embedded copy of stock as the
 authority for price or availability.
 
 The key architectural decision is:
@@ -1012,19 +1015,20 @@ One UK dealership or dealer group
 + vehicle detail and supported taxonomy/equipment/EV/MOT evidence
 + dealer-owned warranty/support document retrieval
 + structured vehicle list/detail/comparison UI
-+ governed dealer CRM callback or test-drive handoff
-+ no Auto Trader writes
++ governed, customer-confirmed Auto Trader `POST /deals` handoff
++ returned Auto Trader `dealId` and no parallel LoomAI/dealership lead record
++ no other Auto Trader writes
 + full tenant/deployment/advertiser isolation and go-live verification
 ```
 
 This already solves the visible market problem: the assistant can discover what
 the dealer actually has, answer from current evidence, maintain the selected
-vehicle across turns, explain uncertainty, and hand a qualified request to the
-right dealer workflow.
+vehicle across turns, explain uncertainty, and hand a qualified request into
+Auto Trader's approved Deal boundary.
 
-Valuations, market intelligence, Deal Sync, agentic staff workflows, Smart Brain
-analysis, and reviewed writes should then be added as independently granted and
-verified capability packs.
+Valuations, market intelligence, Deal Sync, post-create Deal lifecycle, message
+updates, agentic staff workflows, Smart Brain analysis, and all other writes
+should then be added as independently granted and verified capability packs.
 
 ## 21. Definition Of Done
 
@@ -1043,18 +1047,22 @@ This initiative is complete only when:
 7. Two-tenant, two-deployment, and two-advertiser isolation tests pass.
 8. Token, webhook, rate-limit, restart, replay, reconciliation, and stale-data
    tests pass.
-9. All applicable Auto Trader capability go-live checks pass.
-10. Platform staging and production release gates pass for the exact immutable
+9. `Deal Updates` and the externally originated `POST /deals` journey are
+   approved; confirmation, trusted target, one `dealId`, zero local leads,
+   duplicate prevention, ambiguous-timeout handling, and PII-safe logs pass.
+10. All applicable Auto Trader capability go-live checks pass.
+11. Platform staging and production release gates pass for the exact immutable
     composition.
-11. Customer integration, operator, privacy, support, and offboarding guides are
+12. Customer integration, operator, privacy, support, and offboarding guides are
     published.
-12. Only the capabilities proven by evidence are marketed.
+13. Only the capabilities proven by evidence are marketed.
 
 ## 22. Official Research Sources
 
 Primary sources used for this analysis:
 
 - [Auto Trader Connect Developer API directory](https://developers.autotrader.co.uk/api#introduction)
+- [Auto Trader create-a-deal contract](https://developers.autotrader.co.uk/api#create-a-deal)
 - [Integration Fundamentals](https://help.autotrader.co.uk/hc/en-gb/articles/21791620456221-Integration-Fundamentals)
 - [Integration Fundamentals Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22645899163933-Go-Live-checks-for-Integration-Fundamentals)
 - [Vehicle Check Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22676578750237-Go-Live-checks-for-Vehicle-Check)

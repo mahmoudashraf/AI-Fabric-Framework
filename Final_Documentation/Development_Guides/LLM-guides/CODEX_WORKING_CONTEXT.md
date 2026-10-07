@@ -4128,3 +4128,103 @@ Critical fixes that made the gate pass:
   and `691ad127106665b8e67bd77cbff25c98c1fa1de42adcc0feaddf20ada54977c5`.
   The operator CIDR is absent from both, and direct local Coolify access again
   times out with HTTP `000` after firewall propagation.
+
+## 2026-10-05 Public Platform Real Deployment Composition
+
+- The Platform product page now follows its generic primitives-to-deployment
+  workflow with a concrete, live composition named `Northfield Dealership AI
+  Demo` (`dep-f023c863`). It shows the actual Platform customer, tenant,
+  experience, template, packages, bound providers, deployment-local endpoints,
+  release identity, indexed-record counts, governed-action count, and release
+  verification evidence.
+- The displayed package identities are the current Platform records:
+  `Internal Auto Trader Contract Verification Source` DATA `1.1.0`,
+  `Dealership Knowledge - Mounted Demo Folder` DATA `1.0.0`, and
+  `Internal Auto Trader Contract Verification Actions` ACTION `1.3.2`.
+  The published deployment is `v30` on AI Fabric `0.8.11`, with OpenAI
+  `gpt-5.4-mini`, `text-embedding-3-small` at 512 dimensions, and local-managed
+  Lucene.
+- The section explicitly distinguishes proof from simulation: the LoomAI
+  deployment and Platform records are live, while the dealership, vehicles,
+  and provider contract are fictional demonstration data. It makes no Auto
+  Trader production-integration or endorsement claim.
+- Local `npm run verify` passed Astro diagnostics, widget/dealership package
+  builds, the 30-page static build, content and route checks, JavaScript budget,
+  and the full Playwright browser suite. The browser contract now asserts the
+  real deployment identity, package names, release version, and simulation
+  boundary.
+- Public-site source `a3bb8dbd34c28a639996447a38410cb1fc3adb73` is live through
+  production Coolify deployment `wyndo12iqvbdr9lbrln2g1hx`. Canonical
+  `/health` reports `UP` on that exact commit and
+  `/products/loomai-platform` returns HTTP 200.
+- Hosted Playwright proof at `1440x1000` and `390x844` found every required
+  identity, zero page/section horizontal overflow, and a clean responsive
+  composition. Production firewalls `10915120` and `10918233` were restored to
+  exact pre-run rule hashes
+  `257546b9fcd6608fbe8895c1de889e271658b9d8785e68c067a6b33462655d6a` and
+  `691ad127106665b8e67bd77cbff25c98c1fa1de42adcc0feaddf20ada54977c5`.
+  Operator `38.126.94.35/32` is absent from both, and local Coolify access again
+  returns HTTP `000` by timeout.
+
+## 2026-10-06 Autotrader Partnership Meeting Deck
+
+- A six-slide meeting deck for 6 October 2026 is available as editable
+  PowerPoint and PDF under `Final_Documentation/Presentations/`, with a companion
+  speaker guide and a reproducible PptxGenJS source file.
+- The narrative covers the LoomAI Platform boundary, the dealership buyer
+  journey, and the transformation from chat into a persistent AI-enabled workspace.
+  The opening visual positions LoomAI as one governed enablement layer supporting
+  conversational AI, event-triggered Smart Brain plans, coordinated multi-agent
+  teams, and sequential or parallel declarative execution. The remaining slides cover
+  baseline/event-driven stock reconciliation, deployment-local
+  indexing and live revalidation, partnership value, a bounded pilot, success
+  gates, and the exact access/data-rights decisions requested from Autotrader.
+- The deck uses the current live Northfield dealership demo screenshot and live
+  Platform composition evidence. It explicitly states that provider inventory
+  is synthetic and does not claim production Autotrader access, endorsement, or
+  certification.
+- Visual QA rendered all six slides independently at 1920px width. PPTX ZIP
+  validation passed with 6 slides and 6 note pages; the PDF reports 6 pages;
+  source syntax and repository whitespace checks passed.
+
+## 2026-10-07 Autotrader Post-Meeting Position
+
+- The 6 October meeting did not grant sandbox or production access. Autotrader
+  requested a specific use case, exact simulator request/auth/response details,
+  a field-level explanation of data use, a non-conflicting lead boundary, and
+  assurance that an AI model would not receive API authority. It also asked for
+  the participating retailer; LoomAI currently has no authorized retailer and
+  Northfield remains fictional.
+- The canonical response is
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md`.
+  It narrows the first pilot to read-mostly guided discovery and comparison for
+  one authorized advertiser plus exactly one provider write: customer-confirmed
+  `POST /deals` under a separately granted `Deal Updates` capability. It excludes
+  LoomAI lead management and makes Autotrader the Deal system of record.
+- Current simulator evidence is stated exactly: synthetic form-token auth,
+  `/stock` baseline reads, signed stock notifications, targeted current-record
+  fetch and approved media references. Operator `/internal/control/**` routes
+  are explicitly excluded from the provider contract. No `/search`, `/deals`,
+  real Autotrader credential, retailer or production data was used.
+- Autotrader's public API describes Search as the consumer-facing capability
+  and Stock Sync as stock-read plus notification capability. LoomAI must ask
+  Autotrader to choose Search, Stock Sync or both. Do not rewrite the simulator
+  or publish a named package until that grant is explicit.
+- Governed actions prevent model-owned host, credential, advertiser and HTTP
+  execution authority. They do not grant permission to send licensed fields to
+  an LLM or embedding provider. Transient inference, persistence, embedding,
+  retention, deletion, branding and audit each remain explicit data-rights
+  decisions.
+- The recommended first commercial position is an optional Autotrader
+  advertiser AI experience powered by LoomAI. Autotrader remains the data,
+  product, advertiser-package and lead/deal authority; LoomAI supplies the
+  isolated governed AI experience and deployment lifecycle.
+- The first-pilot Deal contract accepts buyer-confirmed first name, last name and
+  email. Trusted stock ID, advertiser ID, endpoint, method and credentials remain
+  server-owned. The connector revalidates stock before submission and returns
+  the provider `dealId`; no parallel dealership/LoomAI lead record is created.
+- The current fictional callback/test-drive inbox remains historical demo-only
+  evidence and does not prove the provider path. Pilot readiness remains blocked
+  on a named retailer, sandbox identity, `Deal Updates`, data-use/consent terms,
+  and Autotrader-approved duplicate/ambiguous-timeout handling. The public create
+  contract documents no idempotency key, so no blind write retry is permitted.

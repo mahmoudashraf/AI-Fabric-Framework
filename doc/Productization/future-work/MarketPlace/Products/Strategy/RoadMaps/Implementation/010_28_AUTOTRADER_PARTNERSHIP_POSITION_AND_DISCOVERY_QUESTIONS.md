@@ -1,8 +1,10 @@
 # 010.28 Auto Trader Partnership Position And Discovery Questions
 
-- **Status:** Meeting-ready partnership brief; no Auto Trader integration or
-  production-readiness claim
+- **Status:** Pre-meeting partnership brief retained as historical preparation;
+  the 2026-10-06 meeting outcomes and revised bounded proposition are recorded
+  in 010.30. No Auto Trader integration or production-readiness claim.
 - **Date:** 2026-09-26
+- **Meeting outcome recorded:** 2026-10-07
 - **Audience:** LoomAI leadership, Auto Trader partnership/product teams,
   Auto Trader Connect integration team, and an initial dealership design partner
 - **Purpose:** Establish a credible partnership position, obtain the decisions
@@ -17,6 +19,7 @@ Related plans:
 - [010.26 Auto Trader Dealership First Release And Meeting Demo Plan](010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
+- [010.30 Auto Trader Post-Meeting Use Case, Data And Non-Competition Brief](010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md)
 
 Official research references:
 
@@ -133,8 +136,8 @@ Each participating dealership receives an isolated LoomAI deployment that can:
    or handoff;
 8. show what is confirmed, possible, unknown, or unavailable;
 9. let the customer preview and approve the context to share; and
-10. hand the approved context into a test-drive, callback, Deal Builder, or
-    dealership workflow supported by the exact grant.
+10. after explicit confirmation, create one externally originated Auto Trader
+    Deal for the selected stock through the exact granted contract.
 
 ### 4.2 The customer promise
 
@@ -492,10 +495,12 @@ These are the questions that should be answered before a technical deep dive.
 - read-first vehicle discovery and comparison;
 - dealer-owned policy retrieval;
 - live selected-vehicle validation where granted;
-- one customer-confirmed callback or test-drive handoff;
+- the separately granted `Deal Updates` capability for one customer-confirmed
+  `POST /deals` handoff;
 - real model, embedding, vector, and deployment services;
-- visible source, freshness, and unsupported-field behavior; and
-- no Auto Trader write unless explicitly included in the pilot grant.
+- visible source, freshness, and unsupported-field behavior;
+- an Auto Trader `dealId` receipt with bounded audit evidence; and
+- no provider write other than the exact confirmed Deal creation.
 
 ### 10.2 Pilot customer journey
 
@@ -505,16 +510,23 @@ These are the questions that should be answered before a technical deep dive.
 4. The buyer compares selected vehicles using consistent fields.
 5. Important facts are labelled by source and verification state.
 6. Current price and availability are checked before handoff when supported.
-7. The buyer previews the shortlist and context to be shared.
-8. After explicit approval, the selected dealership workflow receives the
-   structured handoff.
-9. The customer receives a durable receipt or clear next-step confirmation.
-10. The dealer sees enough context to continue without repeating discovery.
+7. The deployment revalidates the trusted stock and advertiser immediately
+   before submission.
+8. The buyer enters first name, last name, and email, then previews the exact
+   vehicle, destination, privacy wording, and values to be submitted.
+9. After explicit approval, the deployment-local connector executes the fixed
+   Auto Trader `POST /deals` operation using server-owned credentials and scope.
+10. The customer receives the returned Auto Trader `dealId`; LoomAI creates no
+    parallel lead record or dealership staff inbox.
 
 ### 10.3 Pilot exclusions
 
 - cross-dealer search;
 - autonomous pricing or advert changes;
+- a LoomAI or dealership-owned parallel lead inbox;
+- callback, test-drive, CRM, or message writes outside the approved Deal
+  creation contract;
+- Deal reservation, completion, cancellation, component, or message updates;
 - reservation or finance application execution;
 - financial advice;
 - unapproved vehicle-history or provenance claims;
@@ -529,9 +541,9 @@ These are the questions that should be answered before a technical deep dive.
 | --- | --- |
 | Useful-result rate | Proves that customer needs produce relevant dealer stock |
 | Shortlist and comparison completion | Measures decision support rather than chat activity |
-| Qualified handoff rate | Measures movement into a real dealership workflow |
-| Deal Builder or appointment start rate | Measures alignment with an existing conversion journey |
-| Handoff completeness | Measures whether the salesperson receives useful context |
+| Confirmed Auto Trader Deal creation rate | Measures movement into Auto Trader's approved conversion boundary |
+| Duplicate Deal rate | Must remain zero, including ambiguous timeout and retry cases |
+| Deal receipt completeness | Proves every accepted submission returns and records the provider `dealId` |
 | Repeated-qualification reduction | Measures continuity between digital and human stages |
 | Fact-support rate | Measures how many claims have approved evidence |
 | Stale or wrong-stock incident rate | Protects customer trust and retailer operations |
@@ -557,7 +569,7 @@ customer browser
      -> deployment-local Generic REST Connector
         -> granted Auto Trader Connect capabilities
      -> dealership-owned policy source
-     -> confirmed dealership action endpoint
+     -> confirmed Auto Trader Deal action through the fixed provider route
 
 Auto Trader stock event, when granted
   -> deployment-specific authenticated webhook
@@ -578,7 +590,7 @@ Marketplace composition:
 | Auto Trader dealership-stock `DATA` plugin | Advertiser-scoped sync, normalization, permitted indexing, freshness, and deletion |
 | Auto Trader dealership-discovery `ACTION` plugin | Live preflight, search/detail, and only granted evidence reads |
 | Dealership-knowledge `DATA` plugin | Dealer-owned warranty, delivery, service, location, and support knowledge |
-| Dealership-lead `ACTION` plugin | Confirmed callback/test-drive command and receipt |
+| Auto Trader deal-intake `ACTION` plugin | Typed, confirmed `POST /deals` using trusted advertiser and stock bindings; returns the provider `dealId` |
 | Approved `INFERENCE_PROFILE` | Explicit generation and embedding providers and dimensions |
 
 The proposed Auto Trader HTTP DATA sync and inbound webhook mechanics are not
@@ -648,9 +660,12 @@ At the end of the meeting, request the following package:
 11. written guidance covering persistence, caching, embeddings, LLM inference,
     retention, deletion, attribution, and consumer display;
 12. the supported Dealer Website or independent-site embedding route;
-13. the preferred Deal Builder, enquiry, CRM, or appointment handoff contract;
-14. introduction to one candidate design-partner dealership; and
-15. agreement on a follow-up architecture and data-rights workshop.
+13. the `Deal Updates` grant and confirmation that `POST /deals` is the approved
+    externally originated expression-of-interest handoff;
+14. required privacy/consent wording plus retry, duplicate-detection, ambiguous-
+    timeout, retention, and receipt handling for Deal creation;
+15. introduction to one candidate design-partner dealership; and
+16. agreement on a follow-up architecture and data-rights workshop.
 
 Credentials must never be placed in meeting notes, email threads, plugin
 manifests, source control, or exported deployment packages.
