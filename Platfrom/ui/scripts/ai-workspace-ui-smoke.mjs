@@ -14,6 +14,7 @@ const installations = new Map([
   ['customer-alpha', [installation('awi_pub_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'customer-alpha', 'alpha-consumer', 'Alpha Workspace')]],
   ['customer-beta', [installation('awi_pub_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'customer-beta', 'beta-consumer', 'Beta Workspace')]],
 ])
+const createdPayloads = []
 
 function customer(id, name, consumerId) {
   return {
@@ -43,7 +44,7 @@ function installation(installationId, customerId, consumerId, displayName) {
       dealer: { id: customerId, assistantLabel: `${displayName} AI`, sourceMode: 'DEALERSHIP_INVENTORY' },
       page: { rootSelector: 'main', contextLabel: 'Current page' },
       capabilities: { comparison: true, testDrive: true, callback: true },
-      presentation: { imageHostAllowlist: [], detailBasePath: '/vehicles/' },
+      presentation: { imageHostAllowlist: [], detailBasePath: '/vehicles/', detailSlugs: { 'stock-1': 'vehicle-one' } },
       theme: { primaryColor: '#123b35' },
     },
     deploymentId: `dep-${customerId}`,
@@ -127,6 +128,7 @@ try {
     }
     if (collection && request.method() === 'POST') {
       const payload = request.postDataJSON()
+      createdPayloads.push(payload)
       const created = installation('awi_pub_cccccccccccccccccccccccccccccccc', collection[1], payload.consumerId, payload.displayName)
       installations.get(collection[1])?.push(created)
       await json(route, created, 201)
@@ -174,9 +176,13 @@ try {
   await page.getByLabel('Workspace name').fill('Beta Second Workspace')
   await page.getByLabel('Allowed website origins').fill('https://beta.example')
   await page.getByLabel('Dealership ID').fill('beta-dealer')
+  await page.getByLabel('Detail page mappings').fill('stock-42=vehicle-forty-two')
   await page.getByRole('button', { name: 'Save draft' }).click()
   await page.getByText('Beta Second Workspace', { exact: true }).first().waitFor()
   await page.getByText('Use this exact script on an approved origin.', { exact: true }).waitFor()
+  if (createdPayloads[0]?.configuration?.presentation?.detailSlugs?.['stock-42'] !== 'vehicle-forty-two') {
+    throw new Error('The AI Workspace form did not project detail-page mappings into installation configuration.')
+  }
 
   console.log('AI Workspace Platform UI smoke passed.')
 } finally {

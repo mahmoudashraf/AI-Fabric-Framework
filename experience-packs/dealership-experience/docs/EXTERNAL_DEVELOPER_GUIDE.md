@@ -85,7 +85,10 @@ is:
   },
   "presentation": {
     "detailBasePath": "/vehicles/",
-    "imageHostAllowlist": ["images.dealer.example"]
+    "imageHostAllowlist": ["images.dealer.example"],
+    "detailSlugs": {
+      "provider-stock-42": "vehicle-forty-two"
+    }
   },
   "theme": {
     "primaryColor": "#155eef",
@@ -94,6 +97,11 @@ is:
   }
 }
 ```
+
+`detailSlugs` is the host-owned mapping from a provider's stable stock ID to a
+website page slug. Use it when provider records intentionally do not contain
+website routing fields. The experience pack keeps `View details` disabled for
+an unmapped record instead of guessing a route.
 
 The configuration is public. It must not contain credentials, arbitrary script
 URLs, request headers, private customer data, private runtime routes, or hidden

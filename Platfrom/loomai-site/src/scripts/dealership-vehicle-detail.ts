@@ -20,15 +20,21 @@ if (root) {
 
 async function startVehicleDetail(app: HTMLElement) {
   const slug = app.dataset.vehicleSlug?.trim()
+  const dealershipId = app.dataset.dealershipId?.trim()
   if (!slug) {
     showDetailError(app, 'Vehicle unavailable', 'The vehicle route does not identify a current record.')
+    return
+  }
+  if (!dealershipId) {
+    showDetailError(app, 'Vehicle unavailable', 'The vehicle route does not identify a dealership scope.')
     return
   }
 
   try {
     const apiBaseUrl = await resolveDealershipApiBaseUrl(app)
+    const query = new URLSearchParams({ dealershipId })
     const response = await fetchDealershipJson<VehicleDetailResponse>(
-      `${apiBaseUrl}/api/public/vehicles/${encodeURIComponent(slug)}`,
+      `${apiBaseUrl}/api/public/vehicles/${encodeURIComponent(slug)}?${query}`,
     )
     if (!response.success || !response.vehicle) {
       throw new Error('The dealership returned an invalid vehicle record.')

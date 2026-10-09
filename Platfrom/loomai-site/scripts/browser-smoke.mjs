@@ -412,6 +412,10 @@ const mockServer = createServer(async (request, response) => {
   }
 
   if (url.pathname.startsWith('/api/public/vehicles/') && request.method === 'GET') {
+    if (url.searchParams.get('dealershipId') !== 'dealer-demo-001') {
+      writeMockJson(response, 400, { success: false, message: 'A valid dealership scope is required.' })
+      return
+    }
     const slug = decodeURIComponent(url.pathname.slice('/api/public/vehicles/'.length))
     const vehicle = mockVehicles.find((item) => item.slug === slug)
     if (!vehicle) {

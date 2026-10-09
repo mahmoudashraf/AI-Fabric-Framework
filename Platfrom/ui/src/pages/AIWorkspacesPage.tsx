@@ -67,6 +67,7 @@ type FormState = {
   callback: boolean
   imageHosts: string
   detailBasePath: string
+  detailSlugs: string
   shopDomain: string
 }
 
@@ -87,6 +88,7 @@ const defaultForm: FormState = {
   callback: true,
   imageHosts: '',
   detailBasePath: '/vehicles/',
+  detailSlugs: '',
   shopDomain: '',
 }
 
@@ -124,6 +126,7 @@ export function AIWorkspacesPage() {
     () => (catalog?.connectionProfiles ?? []).filter((profile) => profile.mode === form.connectionMode),
     [catalog?.connectionProfiles, form.connectionMode],
   )
+  const detailSlugMappings = useMemo(() => parseMappings(form.detailSlugs), [form.detailSlugs])
 
   useEffect(() => {
     if (!customerId && customers.length > 0) setCustomerId(customers[0].id)
@@ -216,6 +219,7 @@ export function AIWorkspacesPage() {
       callback: capabilities.callback === true,
       imageHosts: Array.isArray(presentation.imageHostAllowlist) ? presentation.imageHostAllowlist.join('\n') : '',
       detailBasePath: presentation.detailBasePath ?? '/vehicles/',
+      detailSlugs: formatMappings(presentation.detailSlugs),
       shopDomain: String(installation.connectionConfiguration.shopDomain ?? ''),
     })
     setEditing(installation)
@@ -261,6 +265,7 @@ export function AIWorkspacesPage() {
         presentation: {
           detailBasePath: form.detailBasePath.trim(),
           imageHostAllowlist: lines(form.imageHosts),
+          detailSlugs: detailSlugMappings.values,
         },
         theme: {
           primaryColor: form.primaryColor,
@@ -435,11 +440,21 @@ export function AIWorkspacesPage() {
               <TextField fullWidth label="Vehicle detail path" value={form.detailBasePath} onChange={(e) => setForm({ ...form, detailBasePath: e.target.value })} />
               <TextField fullWidth multiline minRows={2} label="Approved image hosts" helperText="One hostname per line" value={form.imageHosts} onChange={(e) => setForm({ ...form, imageHosts: e.target.value })} />
             </Stack>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Detail page mappings"
+              helperText={detailSlugMappings.error || 'One source record ID=page slug per line. The source record stays provider-owned; the host owns its page route.'}
+              error={Boolean(detailSlugMappings.error)}
+              value={form.detailSlugs}
+              onChange={(e) => setForm({ ...form, detailSlugs: e.target.value })}
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId || !form.profileCode}>Save draft</Button>
+          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId || !form.profileCode || Boolean(detailSlugMappings.error)}>Save draft</Button>
         </DialogActions>
       </Dialog>
     </Stack>
@@ -492,6 +507,33 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
 
 function lines(value: string) {
   return [...new Set(value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean))]
+}
+
+function parseMappings(value: string): { values: Record<string, string>; error: string | null } {
+  const values: Record<string, string> = {}
+  const entries = value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+  for (const [index, entry] of entries.entries()) {
+    const separator = entry.indexOf('=')
+    const key = separator > 0 ? entry.slice(0, separator).trim() : ''
+    const mappedValue = separator > 0 ? entry.slice(separator + 1).trim() : ''
+    if (!key || !mappedValue) {
+      return { values: {}, error: `Line ${index + 1} must use source-record-id=page-slug.` }
+    }
+    if (key in values) {
+      return { values: {}, error: `Line ${index + 1} repeats source record ID ${key}.` }
+    }
+    values[key] = mappedValue
+  }
+  return { values, error: null }
+}
+
+function formatMappings(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  return Object.entries(value as Record<string, unknown>)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && Boolean(entry[1].trim()))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, mappedValue]) => `${key}=${mappedValue}`)
+    .join('\n')
 }
 
 function connectionLabel(mode: string) {

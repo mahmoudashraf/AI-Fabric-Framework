@@ -400,11 +400,16 @@ async function clickHostToolAndWait(browserPage, label, query) {
 }
 
 async function verifyDetailNavigationAndPageAttachment(browserPage, inventoryPresentation, expectedVehicleLabel) {
+  const detailButton = inventoryPresentation.getByRole('button', { name: 'View details' }).first()
+  assert(
+    await detailButton.isEnabled(),
+    `The live installation did not map ${expectedVehicleLabel} to a host-owned detail page.`,
+  )
   const detailNavigation = browserPage.waitForURL(
     /\/demos\/dealership-ai\/vehicles\/[^/?#]+$/,
     { waitUntil: 'domcontentloaded' },
   )
-  await inventoryPresentation.getByRole('button', { name: 'View details' }).first().click()
+  await detailButton.click()
   await detailNavigation
   await browserPage.waitForFunction(
     () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
