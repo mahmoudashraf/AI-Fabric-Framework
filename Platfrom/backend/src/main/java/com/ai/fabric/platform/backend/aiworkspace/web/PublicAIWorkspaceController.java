@@ -46,7 +46,6 @@ public class PublicAIWorkspaceController {
         HttpHeaders headers = new HttpHeaders();
         headers.setETag(result.etag());
         headers.setVary(java.util.List.of(HttpHeaders.ORIGIN));
-        headers.setAccessControlAllowOrigin(result.origin());
         headers.setCacheControl(CacheControl.maxAge(Duration.ofSeconds(result.manifest().cacheTtlSeconds())).cachePublic()
             .mustRevalidate().getHeaderValue());
         headers.set("X-Content-Type-Options", "nosniff");

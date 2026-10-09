@@ -18,8 +18,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -64,6 +66,8 @@ class PublicAIWorkspaceControllerTest {
         mvc.perform(get(manifestPath()).header(HttpHeaders.ORIGIN, ORIGIN))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN))
+            .andExpect(mvcResult -> assertEquals(
+                List.of(ORIGIN), mvcResult.getResponse().getHeaders(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)))
             .andExpect(header().string(HttpHeaders.VARY, HttpHeaders.ORIGIN))
             .andExpect(header().string(HttpHeaders.ETAG, result.etag()))
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=60, must-revalidate, public"))
