@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,8 +17,14 @@ const buildCommit = (
 ).trim()
 const buildTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || 'unknown').trim()
 const dealershipDemoApiBaseUrl = normalizeHttpUrl(process.env.DEALERSHIP_DEMO_API_BASE_URL)
-const dealershipDemoRuntimeBaseUrl = normalizeHttpUrl(process.env.DEALERSHIP_DEMO_RUNTIME_BASE_URL)
+const aiWorkspacePlatformBaseUrl = normalizeHttpUrl(process.env.AI_WORKSPACE_PLATFORM_BASE_URL)
+const aiWorkspaceInstallationId = normalizeInstallationId(process.env.AI_WORKSPACE_INSTALLATION_ID)
+const aiWorkspaceConnectOrigins = normalizeHttpOrigins(process.env.AI_WORKSPACE_CONNECT_ORIGINS)
 const publicImageOrigins = normalizeHttpsOrigins(process.env.PUBLIC_IMAGE_ORIGINS)
+const aiWorkspaceReady = Boolean(aiWorkspacePlatformBaseUrl && aiWorkspaceInstallationId)
+const aiWorkspaceInstallUrl = aiWorkspaceReady
+  ? `${aiWorkspacePlatformBaseUrl}/api/public/ai-workspace/install.js`
+  : '/ai-workspace-unavailable.js'
 
 function normalizeHttpUrl(value) {
   const candidate = value?.trim()
@@ -45,9 +51,23 @@ function normalizeHttpsOrigins(value) {
   return [...origins]
 }
 
+function normalizeHttpOrigins(value) {
+  const origins = new Set()
+  for (const candidate of (value || '').split(',')) {
+    const normalized = normalizeHttpUrl(candidate)
+    if (normalized) origins.add(new URL(normalized).origin)
+  }
+  return [...origins]
+}
+
+function normalizeInstallationId(value) {
+  const candidate = value?.trim() || ''
+  return /^awi_pub_[a-f0-9]{32}$/.test(candidate) ? candidate : ''
+}
+
 function configuredConnectSources() {
   const sources = new Set(["'self'"])
-  for (const candidate of [dealershipDemoApiBaseUrl, dealershipDemoRuntimeBaseUrl]) {
+  for (const candidate of [dealershipDemoApiBaseUrl, aiWorkspacePlatformBaseUrl, ...aiWorkspaceConnectOrigins]) {
     if (!candidate) continue
     try {
       sources.add(new URL(candidate).origin)
@@ -55,6 +75,12 @@ function configuredConnectSources() {
       // Invalid values are excluded and surfaced as an unavailable integration.
     }
   }
+  return [...sources].join(' ')
+}
+
+function configuredScriptSources() {
+  const sources = new Set(["'self'", "'unsafe-inline'"])
+  if (aiWorkspacePlatformBaseUrl) sources.add(new URL(aiWorkspacePlatformBaseUrl).origin)
   return [...sources].join(' ')
 }
 
@@ -88,7 +114,7 @@ function securityHeaders(isStaticAsset = false) {
   const headers = {
     'Content-Security-Policy': [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src ${configuredScriptSources()}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src ${configuredImageSources()}`,
       "font-src 'self' data:",
@@ -168,15 +194,6 @@ function cacheControl(targetPath) {
   if (targetPath.endsWith('.html') || targetPath.endsWith('.xml') || targetPath.endsWith('.txt')) {
     return 'public, max-age=0, must-revalidate'
   }
-  if (/vendor[\\/](?:max-mode-widget|dealership-experience)-manifest\.json$/.test(targetPath)) {
-    return 'no-store'
-  }
-  if (/vendor[\\/](?:max-mode-widget|dealership-experience)\.iife\.js$/.test(targetPath)) {
-    return 'public, max-age=0, must-revalidate'
-  }
-  if (/(?:max-mode-widget|dealership-experience)\.[a-f0-9]{16}\.iife\.js$/.test(targetPath)) {
-    return 'public, max-age=31536000, immutable'
-  }
   if (targetPath.includes(`${path.sep}_astro${path.sep}`)) {
     return 'public, max-age=31536000, immutable'
   }
@@ -193,18 +210,23 @@ function contentType(targetPath, extension) {
 
 function serveFile(request, response, targetPath, statusCode = 200) {
   const extension = path.extname(targetPath).toLowerCase()
-  const publicBrowserDistribution = /vendor[\\/](?:max-mode-widget|dealership-experience)(?:-manifest|\.[a-f0-9]{16})?\.(?:json|iife\.js)$/.test(targetPath)
   response.writeHead(statusCode, {
     'Cache-Control': cacheControl(targetPath),
     'Content-Type': contentType(targetPath, extension),
     ...securityHeaders(extension !== '.html'),
-    ...(publicBrowserDistribution ? {
-      'Access-Control-Allow-Origin': '*',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-    } : {}),
   })
   if (request.method === 'HEAD') {
     response.end()
+    return
+  }
+  if (extension === '.html') {
+    const html = readFileSync(targetPath, 'utf8')
+      .replaceAll('__LOOMAI_AI_WORKSPACE_INSTALL_URL__', aiWorkspaceInstallUrl)
+      .replaceAll(
+        '__LOOMAI_AI_WORKSPACE_INSTALLATION_ID__',
+        aiWorkspaceInstallationId || 'awi_pub_00000000000000000000000000000000',
+      )
+    response.end(html)
     return
   }
   createReadStream(targetPath).pipe(response)
@@ -226,8 +248,20 @@ const server = createServer((request, response) => {
       service: 'loomai-public-site',
       commit: buildCommit,
       buildTime,
+      aiWorkspaceConfigured: aiWorkspaceReady,
       checkedAt: new Date().toISOString(),
     }, headOnly)
+    return
+  }
+
+
+  if (requestUrl.pathname === '/ai-workspace-unavailable.js') {
+    response.writeHead(200, {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/javascript; charset=utf-8',
+      ...securityHeaders(false),
+    })
+    response.end(headOnly ? undefined : `window.dispatchEvent(new CustomEvent('loomai:workspace-error',{detail:{code:'INSTALLATION_NOT_CONFIGURED',message:'This site has not been assigned an AI Workspace installation.'}}));`)
     return
   }
 

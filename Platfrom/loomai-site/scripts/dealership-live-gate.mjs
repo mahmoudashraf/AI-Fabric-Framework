@@ -345,10 +345,20 @@ try {
 
 async function verifyAnonymousRenewal(browserPage) {
   return browserPage.evaluate(async () => {
-    const siteConfig = await fetch('/runtime-config/dealership-demo.json', { cache: 'no-store' }).then((response) => response.json())
-    const descriptor = await fetch(`${siteConfig.apiBaseUrl}/api/public/runtime-descriptor`, { cache: 'no-store' }).then((response) => response.json())
-    const bootstrapUrl = new URL(descriptor.runtimeRoutes.bootstrapUrl, descriptor.chatBaseUrl).toString()
-    const renewUrl = new URL(descriptor.runtimeRoutes.renewUrl, descriptor.chatBaseUrl).toString()
+    const installer = document.querySelector('script[data-loomai-ai-workspace]')
+    if (!installer?.src || !installer.dataset.installationId) throw new Error('AI Workspace installation script is missing.')
+    const platformOrigin = new URL(installer.src).origin
+    const manifestResponse = await fetch(
+      `${platformOrigin}/api/public/ai-workspace/installations/${installer.dataset.installationId}/manifest`,
+      { cache: 'no-cache', credentials: 'omit', headers: { Accept: 'application/json' } },
+    )
+    if (!manifestResponse.ok) throw new Error(`AI Workspace manifest returned HTTP ${manifestResponse.status}.`)
+    const manifest = await manifestResponse.json()
+    if (manifest.connection?.mode !== 'public-runtime-anonymous') {
+      throw new Error('Dealership live gate requires a public anonymous runtime installation.')
+    }
+    const bootstrapUrl = new URL(manifest.connection.anonymousBootstrap.url, manifest.connection.runtimeBaseUrl).toString()
+    const renewUrl = new URL(manifest.connection.anonymousBootstrap.renewUrl, manifest.connection.runtimeBaseUrl).toString()
     const initial = await fetch(bootstrapUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then((response) => response.json())
     const renewed = await fetch(renewUrl, {
       method: 'POST',

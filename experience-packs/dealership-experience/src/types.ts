@@ -1,6 +1,6 @@
 export type DealershipRuntimeState = 'checking' | 'ready' | 'unavailable'
 
-export type DealershipPageKind = 'inventory' | 'vehicle-detail'
+export type DealershipPageKind = 'inventory' | 'vehicle-detail' | 'auto'
 
 export type DealershipToolIcon =
   | 'calendar'
@@ -46,13 +46,8 @@ interface DealershipToolRailItemBase {
 }
 
 export type DealershipToolRailItem = DealershipToolRailItemBase & (
-  | {
-      action: 'open-tools'
-      scope?: 'default' | 'contextual'
-    }
-  | {
-      action: 'open-documents'
-    }
+  | { action: 'open-tools'; scope?: 'default' | 'contextual' }
+  | { action: 'open-documents' }
   | {
       action: 'prompt'
       query: string
@@ -90,25 +85,6 @@ export interface DealershipPresentationConfig {
   detailSlugs?: Record<string, string>
 }
 
-export interface DealershipRuntimeDescriptor {
-  success: boolean
-  ready: boolean
-  integrationMode: 'public-runtime-anonymous'
-  chatBaseUrl: string
-  runtimeRoutes: {
-    bootstrapUrl: string
-    renewUrl: string
-    queryUrl: string
-    suggestionsUrl: string
-    authContextUrl: string
-    shellConfigUrl: string
-    conversationsUrl: string
-    conversationItemUrlTemplate: string
-  }
-  inventoryVectorSpace: string
-  retrievalVectorSpaces: string[]
-}
-
 export interface DealershipVehicleContext {
   id: string
   stockId: string
@@ -138,11 +114,6 @@ export interface DealershipExperienceCopy {
 }
 
 export interface DealershipExperienceConfig {
-  backendBaseUrl: string
-  runtimeDescriptorPath?: string
-  widget: {
-    manifestUrl: string
-  }
   dealer: {
     id: string
     assistantLabel: string
@@ -157,6 +128,10 @@ export interface DealershipExperienceConfig {
     maxPages?: number
     maxTotalChars?: number
   }
+  knowledge?: {
+    inventoryVectorSpace?: string
+    retrievalVectorSpaces?: string[]
+  }
   capabilities?: DealershipCapabilities
   copy?: DealershipExperienceCopy
   toolGroups?: DealershipToolGroups
@@ -169,16 +144,13 @@ export interface DealershipExperienceConfig {
     fontFamily?: string
     darkMode?: boolean | 'auto'
   }
-  onRuntimeState?: (
-    state: DealershipRuntimeState,
-    title: string,
-    detail: string,
-  ) => void
+  onRuntimeState?: (state: DealershipRuntimeState, title: string, detail: string) => void
   onEvent?: (event: { type?: string; data?: unknown; timestamp?: string }) => void
 }
 
 export interface DealershipExperienceController {
-  readonly descriptor: DealershipRuntimeDescriptor
+  readonly installationId: string
+  readonly connectionMode: string
   attachVehicle(vehicle: DealershipVehicleContext): void
   sendMessage(message: string, requestContext?: Record<string, unknown>): void
   destroy(): void
@@ -201,20 +173,42 @@ export interface MaxModeActionPresentationConfig {
 }
 
 export interface MaxModeBrowserApi {
-  init(config: Record<string, unknown>): void
+  init(config: Record<string, unknown> & { apiConfig: Record<string, unknown> }): void
   open(): void
   close(): void
-  attachItem(item: {
-    type: string
-    data: Record<string, unknown>
-    contextLabel?: string
-  }): void
+  attachItem(item: { type: string; data: Record<string, unknown>; contextLabel?: string }): void
   sendMessage(message: string, options?: Record<string, unknown>): void
   destroy(): void
+}
+
+export interface AIWorkspacePackMountContext {
+  installationId: string
+  manifestRevision: string
+  assignmentRevision: string
+  connectionMode: 'public-runtime-anonymous' | 'public-runtime-authenticated' | 'backend-mediated-private-runtime'
+  configuration: Record<string, unknown>
+  widgetConfig: Record<string, unknown> & { apiConfig: Record<string, unknown> }
+  maxMode: MaxModeBrowserApi
+  refreshAssignment(): Promise<void>
+}
+
+export interface AIWorkspaceBrowserApi {
+  registerExperiencePack(registration: {
+    code: string
+    version: string
+    mount(context: AIWorkspacePackMountContext): Promise<unknown> | unknown
+  }): void
 }
 
 declare global {
   interface Window {
     MaxMode?: MaxModeBrowserApi
+    LoomAIWorkspace?: AIWorkspaceBrowserApi
+    LoomAIDealershipExperience?: {
+      mountInstallation(context: AIWorkspacePackMountContext): Promise<DealershipExperienceController>
+      attachVehicle(vehicle: DealershipVehicleContext): boolean
+      sendMessage(message: string, requestContext?: Record<string, unknown>): boolean
+      destroy(): void
+    }
   }
 }

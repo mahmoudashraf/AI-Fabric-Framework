@@ -121,6 +121,7 @@ public class PlatformSecurityConfiguration {
                 "/api/platform/auth/session",
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
+                "/api/public/ai-workspace/**",
                 "/api/vectorization/runner/**",
                 "/api/merchant/partner-access/*/workspace",
                 "/api/merchant/partner-access/*/approve",

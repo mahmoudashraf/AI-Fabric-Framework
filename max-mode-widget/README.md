@@ -1,17 +1,37 @@
 # @loom-ai-labs/max-mode-widget
 
-Embeddable LoomAI companion and Max Mode interface for customer applications.
-Build and serve the reviewed bundle from the integrating application's own
-versioned assets; do not load an unpinned third-party CDN copy.
+Embeddable LoomAI Workspace and Max Mode interface for customer applications.
+For Platform-managed installations, LoomAI serves the reviewed loader and
+immutable versioned assets directly from the Platform backend. Explicit
+programmatic initialization remains supported for applications that own their
+asset release and connection bootstrap.
 
 For customer and partner onboarding, start with the
+[one-script AI Workspace installation guide](docs/AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md).
+For explicit integrations, use the
 [External Developer Guide](docs/EXTERNAL_DEVELOPER_GUIDE.md). For the detailed
 API reference, see [docs/GUIDE.md](docs/GUIDE.md). Auth-mode architecture lives
 in [docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
 
 ## Quick Start
 
-### Option 1: Script Tag (backend-mediated private runtime, recommended)
+### Option 1: Platform-managed one-script installation (recommended)
+
+```html
+<script
+  async
+  src="https://api.loomai.pro/api/public/ai-workspace/install.js"
+  data-installation-id="awi_pub_replace_with_platform_value">
+</script>
+```
+
+The Platform installation selects the reviewed experience pack and one of the
+three supported connection modes. No runtime credential or private assignment
+material is embedded in the page.
+
+### Option 2: Explicit script initialization (advanced)
+
+#### Backend-mediated private runtime
 
 ```html
 <script src="/vendor/max-mode-widget.iife.js"></script>
@@ -29,7 +49,7 @@ in [docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](docs/WIDGET_AUTH_MO
 
 That's it. A floating chat button appears in the bottom-right corner.
 
-### Option 1B: Script Tag (public runtime anonymous, opt-in)
+#### Public runtime anonymous
 
 ```html
 <script src="/vendor/max-mode-widget.iife.js"></script>
@@ -55,7 +75,7 @@ That's it. A floating chat button appears in the bottom-right corner.
 </script>
 ```
 
-### Option 2: npm (React apps with approved registry access)
+### Option 3: npm (React apps with approved registry access)
 
 ```bash
 npm install @loom-ai-labs/max-mode-widget
@@ -97,7 +117,7 @@ function App() {
 }
 ```
 
-### Option 3: Shopify
+### Option 4: Shopify
 
 Add `max-mode-widget.iife.js` to your theme assets, then add the Liquid snippet to `theme.liquid`:
 

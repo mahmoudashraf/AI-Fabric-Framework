@@ -22,9 +22,10 @@
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && npm run build:iife",
+    "build": "vite build && npm run build:iife && npm run build:installer",
     "build:esm": "vite build",
     "build:iife": "vite build --config vite.config.iife.ts",
+    "build:installer": "vite build --config vite.config.installer.ts",
     "typecheck": "tsc --noEmit",
     "smoke:action-presentation": "node scripts/action-presentation-smoke.mjs",
     "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation"

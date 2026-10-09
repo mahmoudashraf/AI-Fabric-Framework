@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import React from "react";
+import { getWidgetStorageKey } from "./config";
 
 export interface SharedAttachment {
   type: string;
@@ -72,7 +73,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
 
   const loadFromStorage = (): MaxModeState | null => {
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const stored = sessionStorage.getItem(getWidgetStorageKey(STORAGE_KEY));
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
@@ -81,7 +82,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
 
   const loadPendingFromStorage = (): SharedAttachment[] => {
     try {
-      const stored = sessionStorage.getItem(PENDING_ATTACHMENTS_KEY);
+      const stored = sessionStorage.getItem(getWidgetStorageKey(PENDING_ATTACHMENTS_KEY));
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -90,7 +91,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
 
   const persistState = useCallback(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(maxModeState));
+      sessionStorage.setItem(getWidgetStorageKey(STORAGE_KEY), JSON.stringify(maxModeState));
     } catch {}
   }, [maxModeState]);
 
@@ -100,8 +101,8 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
 
   const clearPersistedState = useCallback(() => {
     try {
-      sessionStorage.removeItem(STORAGE_KEY);
-      sessionStorage.removeItem(PENDING_ATTACHMENTS_KEY);
+      sessionStorage.removeItem(getWidgetStorageKey(STORAGE_KEY));
+      sessionStorage.removeItem(getWidgetStorageKey(PENDING_ATTACHMENTS_KEY));
       setMaxModeStateInternal(defaultState);
       setPendingAttachments([]);
     } catch {}
@@ -110,7 +111,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
   const setMaxModeState = useCallback((state: MaxModeState) => {
     setMaxModeStateInternal(state);
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      sessionStorage.setItem(getWidgetStorageKey(STORAGE_KEY), JSON.stringify(state));
     } catch {}
   }, []);
 
@@ -118,7 +119,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
     setMaxModeStateInternal((prev) => {
       const newState = { ...prev, ...updates };
       try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+        sessionStorage.setItem(getWidgetStorageKey(STORAGE_KEY), JSON.stringify(newState));
       } catch {}
       return newState;
     });
@@ -136,7 +137,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
       const newAttachments = [...prev, attachment];
       try {
         sessionStorage.setItem(
-          PENDING_ATTACHMENTS_KEY,
+          getWidgetStorageKey(PENDING_ATTACHMENTS_KEY),
           JSON.stringify(newAttachments),
         );
       } catch {}
@@ -147,7 +148,7 @@ export function MaxModeProvider({ children }: { children: ReactNode }) {
   const clearPendingAttachments = useCallback(() => {
     setPendingAttachments([]);
     try {
-      sessionStorage.removeItem(PENDING_ATTACHMENTS_KEY);
+      sessionStorage.removeItem(getWidgetStorageKey(PENDING_ATTACHMENTS_KEY));
     } catch {}
   }, []);
 

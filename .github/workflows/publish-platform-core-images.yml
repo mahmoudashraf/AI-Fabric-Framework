@@ -8,6 +8,8 @@ on:
       - ".github/workflows/publish-platform-core-images.yml"
       - "Platfrom/backend/**"
       - "Platfrom/ui/**"
+      - "max-mode-widget/**"
+      - "experience-packs/dealership-experience/**"
       - "ai-fabric-product/**"
       - "scripts/**"
   workflow_dispatch:

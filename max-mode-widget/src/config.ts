@@ -345,6 +345,11 @@ export interface MaxModeWidgetConfig {
   /** API endpoints and auth */
   apiConfig: MaxModeApiConfig;
   /**
+   * Optional stable namespace for tab-scoped conversation, attachment, and
+   * runtime-session state. Platform installations set this automatically.
+   */
+  storageNamespace?: string;
+  /**
    * Integration/auth posture.
    *
    * Secure modes derive identity from host/runtime auth context and do not send
@@ -365,6 +370,8 @@ export interface MaxModeWidgetConfig {
   host?: MaxModeHostConfig;
   /** Callback for widget events (cart changes, messages, etc.) */
   onEvent?: (event: MaxModeEvent) => void;
+  /** Revalidate installation/assignment state before clearing into a new conversation. */
+  beforeNewConversation?: () => Promise<void> | void;
   /** Callback when widget is closed */
   onClose?: () => void;
 }
@@ -405,6 +412,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     probeShellConfigOnOpen: true,
   },
   integrationMode: "backend-mediated-private-runtime",
+  storageNamespace: undefined,
   features: {
     cart: true,
     debug: false,
@@ -448,6 +456,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     customerAccountAuth: undefined,
   },
   onEvent: undefined,
+  beforeNewConversation: undefined,
   onClose: undefined,
 };
 
@@ -491,6 +500,11 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
 
 export function getWidgetConfig(): MaxModeWidgetConfig {
   return _config;
+}
+
+export function getWidgetStorageKey(baseKey: string): string {
+  const namespace = _config.storageNamespace?.trim();
+  return namespace ? `${baseKey}:${namespace}` : baseKey;
 }
 
 export interface MaxModeResolvedIdentity {

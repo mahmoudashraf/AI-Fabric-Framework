@@ -85,14 +85,6 @@ public class DealershipDemoProperties {
     public static class Runtime {
         private boolean enabled;
         private String baseUrl;
-        private String publicBootstrapPath = "/api/public/chat/session";
-        private String publicRenewalPath = "/api/public/chat/session/renew";
-        private String queryPath = "/api/chat/me/query";
-        private String suggestionsPath = "/api/chat/me/suggestions";
-        private String authContextPath = "/api/chat/me/auth-context";
-        private String shellConfigPath = "/api/chat/me/shell-config";
-        private String conversationsPath = "/api/chat/me/conversations";
-        private String conversationItemPathTemplate = "/api/chat/me/conversations/{conversationId}";
         private String inventoryVectorSpace = "dealer-vehicle";
         private List<String> retrievalVectorSpaces = new ArrayList<>(List.of("dealer-vehicle", "document"));
         private String integrationSourceId;
@@ -104,22 +96,6 @@ public class DealershipDemoProperties {
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
         public String getBaseUrl() { return baseUrl; }
         public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
-        public String getPublicBootstrapPath() { return publicBootstrapPath; }
-        public void setPublicBootstrapPath(String publicBootstrapPath) { this.publicBootstrapPath = publicBootstrapPath; }
-        public String getPublicRenewalPath() { return publicRenewalPath; }
-        public void setPublicRenewalPath(String publicRenewalPath) { this.publicRenewalPath = publicRenewalPath; }
-        public String getQueryPath() { return queryPath; }
-        public void setQueryPath(String queryPath) { this.queryPath = queryPath; }
-        public String getSuggestionsPath() { return suggestionsPath; }
-        public void setSuggestionsPath(String suggestionsPath) { this.suggestionsPath = suggestionsPath; }
-        public String getAuthContextPath() { return authContextPath; }
-        public void setAuthContextPath(String authContextPath) { this.authContextPath = authContextPath; }
-        public String getShellConfigPath() { return shellConfigPath; }
-        public void setShellConfigPath(String shellConfigPath) { this.shellConfigPath = shellConfigPath; }
-        public String getConversationsPath() { return conversationsPath; }
-        public void setConversationsPath(String conversationsPath) { this.conversationsPath = conversationsPath; }
-        public String getConversationItemPathTemplate() { return conversationItemPathTemplate; }
-        public void setConversationItemPathTemplate(String conversationItemPathTemplate) { this.conversationItemPathTemplate = conversationItemPathTemplate; }
         public String getInventoryVectorSpace() { return inventoryVectorSpace; }
         public void setInventoryVectorSpace(String inventoryVectorSpace) { this.inventoryVectorSpace = inventoryVectorSpace; }
         public List<String> getRetrievalVectorSpaces() { return retrievalVectorSpaces; }

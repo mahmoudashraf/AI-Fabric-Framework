@@ -1,5 +1,6 @@
 import {
   getWidgetConfig,
+  getWidgetStorageKey,
 } from "@/config";
 
 type PublicRuntimeTokenState = {
@@ -131,7 +132,7 @@ function runtimeCacheKey(baseUrl: string): string {
 
 function loadPersistedPublicRuntimeSessionBinding(): PublicRuntimeSessionBinding | undefined {
   try {
-    const raw = sessionStorage.getItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY);
+    const raw = sessionStorage.getItem(getWidgetStorageKey(PUBLIC_RUNTIME_SESSION_BINDING_KEY));
     if (!raw) {
       return undefined;
     }
@@ -152,13 +153,13 @@ function loadPersistedPublicRuntimeSessionBinding(): PublicRuntimeSessionBinding
 
 function persistPublicRuntimeSessionBinding(binding: PublicRuntimeSessionBinding): void {
   try {
-    sessionStorage.setItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY, JSON.stringify(binding));
+    sessionStorage.setItem(getWidgetStorageKey(PUBLIC_RUNTIME_SESSION_BINDING_KEY), JSON.stringify(binding));
   } catch {}
 }
 
 function loadPersistedPublicRuntimeSessionCredential(): PublicRuntimeSessionCredential | undefined {
   try {
-    const raw = sessionStorage.getItem(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY);
+    const raw = sessionStorage.getItem(getWidgetStorageKey(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY));
     if (!raw) {
       return undefined;
     }
@@ -186,7 +187,7 @@ function persistPublicRuntimeSessionCredential(credential: PublicRuntimeTokenSta
     return;
   }
   try {
-    sessionStorage.setItem(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY, JSON.stringify({
+    sessionStorage.setItem(getWidgetStorageKey(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY), JSON.stringify({
       runtimeKey,
       sessionId,
       token,
@@ -197,13 +198,13 @@ function persistPublicRuntimeSessionCredential(credential: PublicRuntimeTokenSta
 
 function clearPersistedPublicRuntimeSessionCredential(): void {
   try {
-    sessionStorage.removeItem(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY);
+    sessionStorage.removeItem(getWidgetStorageKey(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY));
   } catch {}
 }
 
 function clearPersistedPublicRuntimeSessionBinding(): void {
   try {
-    sessionStorage.removeItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY);
+    sessionStorage.removeItem(getWidgetStorageKey(PUBLIC_RUNTIME_SESSION_BINDING_KEY));
   } catch {}
 }
 

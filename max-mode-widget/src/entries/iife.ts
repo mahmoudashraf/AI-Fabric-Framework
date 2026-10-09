@@ -17,6 +17,7 @@
  */
 
 import type { MaxModeWidgetConfig } from "@/config";
+import { getWidgetStorageKey } from "@/config";
 import type { SharedAttachment } from "@/context";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
 import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget } from "@/mount";
@@ -151,9 +152,10 @@ function createPromptId() {
 
 function enqueuePrompt(prompt: MaxModeQueuedPrompt) {
   try {
-    const existing = JSON.parse(sessionStorage.getItem(PENDING_PROMPTS_KEY) || "[]");
+    const key = getWidgetStorageKey(PENDING_PROMPTS_KEY);
+    const existing = JSON.parse(sessionStorage.getItem(key) || "[]");
     existing.push(prompt);
-    sessionStorage.setItem(PENDING_PROMPTS_KEY, JSON.stringify(existing));
+    sessionStorage.setItem(key, JSON.stringify(existing));
   } catch {}
 }
 
@@ -161,7 +163,8 @@ export default MaxModeInstance;
 
 function queueAttachment(item: SharedAttachment) {
   try {
-    const existing = JSON.parse(sessionStorage.getItem(PENDING_ATTACHMENTS_KEY) || "[]");
+    const key = getWidgetStorageKey(PENDING_ATTACHMENTS_KEY);
+    const existing = JSON.parse(sessionStorage.getItem(key) || "[]");
     const alreadyQueued = Array.isArray(existing) && existing.some((entry) =>
       entry?.type === item.type &&
       ((entry?.data?.id && entry.data.id === item.data.id) ||
@@ -171,13 +174,13 @@ function queueAttachment(item: SharedAttachment) {
       return;
     }
     const next = Array.isArray(existing) ? [...existing, item] : [item];
-    sessionStorage.setItem(PENDING_ATTACHMENTS_KEY, JSON.stringify(next));
+    sessionStorage.setItem(key, JSON.stringify(next));
   } catch {}
 }
 
 function readQueuedAttachments(): SharedAttachment[] | undefined {
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(PENDING_ATTACHMENTS_KEY) || "[]");
+    const parsed = JSON.parse(sessionStorage.getItem(getWidgetStorageKey(PENDING_ATTACHMENTS_KEY)) || "[]");
     if (!Array.isArray(parsed)) {
       return undefined;
     }

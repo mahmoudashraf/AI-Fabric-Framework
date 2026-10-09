@@ -1,6 +1,24 @@
 # Railway-friendly Platform backend image.
 #
 # Build context: repo root
+FROM node:22-bookworm-slim AS ai-workspace-assets
+
+WORKDIR /workspace/max-mode-widget
+COPY max-mode-widget/package.json max-mode-widget/package-lock.json ./
+RUN npm ci
+COPY max-mode-widget ./
+RUN npm run typecheck && npm run build
+
+WORKDIR /workspace/experience-packs/dealership-experience
+COPY experience-packs/dealership-experience/package.json experience-packs/dealership-experience/package-lock.json ./
+RUN npm ci
+COPY experience-packs/dealership-experience ./
+RUN npm run typecheck && npm run build
+
+WORKDIR /workspace
+COPY Platfrom/backend/scripts/build-ai-workspace-assets.mjs Platfrom/backend/scripts/build-ai-workspace-assets.mjs
+RUN node Platfrom/backend/scripts/build-ai-workspace-assets.mjs --output /workspace/ai-workspace-assets
+
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 WORKDIR /workspace
@@ -34,6 +52,7 @@ RUN useradd -m -d /home/platform -r -u 10010 -g root platform && \
     chown -R 10010:0 /app /home/platform
 
 COPY --from=build /workspace/Platfrom/backend/target/ai-enablement-platform-backend-*.jar /app/platform-backend.jar
+COPY --from=ai-workspace-assets /workspace/ai-workspace-assets /app/ai-workspace-assets
 COPY Platfrom/backend /app/Platfrom/backend
 COPY Platfrom/ui /app/Platfrom/ui
 COPY ai-fabric-product /app/ai-fabric-product
@@ -48,5 +67,6 @@ ENV HOME="/home/platform"
 ENV MAVEN_CONFIG="/home/platform/.m2"
 ENV NPM_CONFIG_CACHE="/home/platform/.npm"
 ENV JAVA_OPTS=""
+ENV PLATFORM_AI_WORKSPACE_ASSET_ROOT="/app/ai-workspace-assets"
 
 ENTRYPOINT ["/bin/sh", "-lc", "exec java $JAVA_OPTS -Dserver.port=${PORT:-8088} -jar /app/platform-backend.jar"]

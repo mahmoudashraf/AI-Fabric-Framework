@@ -129,19 +129,7 @@ async function startDealershipDemo(app: HTMLElement) {
     apiBaseUrl = await resolveDealershipApiBaseUrl(app)
     await Promise.all([
       loadInventory(),
-      initializeDealershipAssistant(apiBaseUrl, {
-        pageKind: 'inventory',
-        rootSelector: '#main-content',
-        maxChars: 1800,
-        contextLabel: 'Current fictional dealership inventory',
-        welcomeMessage: 'I can search and compare Northfield demo inventory using indexed vehicle evidence and current dealership facts.',
-        placeholder: 'Ask about a vehicle, feature, budget or comparison...',
-        emptyMessage: 'Ask about current vehicles, compare options, or start a confirmed callback or test-drive request.',
-        starterSuggestions: [
-          'Compare electric cars',
-          'What is under £30,000?',
-          'Which car has the best luggage space?',
-        ],
+      initializeDealershipAssistant({
         onRuntimeState: (state, title, detail) => setRuntimeState(app, state, title, detail),
       }).then(() => {
         assistantReady = true

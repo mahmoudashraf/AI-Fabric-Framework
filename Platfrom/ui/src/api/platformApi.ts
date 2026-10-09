@@ -4158,6 +4158,87 @@ export type PlatformCustomerSummary = {
   consumers: PlatformConsumerSummary[]
 }
 
+export type AIWorkspaceReadinessCheck = {
+  code: string
+  status: 'PASSED' | 'BLOCKED' | string
+  message: string
+}
+
+export type AIWorkspaceInstallationSummary = {
+  id: string
+  installationId: string
+  customerId: string
+  consumerId: string | null
+  displayName: string
+  status: 'DRAFT' | 'ACTIVE' | 'DISABLED' | string
+  experiencePackCode: string
+  experiencePackVersion: string
+  connectionMode: 'public-runtime-anonymous' | 'public-runtime-authenticated' | 'backend-mediated-private-runtime' | string
+  connectionProfileCode: string
+  connectionProfileVersion: string
+  connectionConfiguration: Record<string, unknown>
+  allowedOrigins: string[]
+  configuration: Record<string, any>
+  deploymentId: string | null
+  releaseId: string | null
+  assignmentRevision: string | null
+  ready: boolean
+  readinessChecks: AIWorkspaceReadinessCheck[]
+  rowVersion: number
+  createdAt: string
+  updatedAt: string
+  activatedAt: string | null
+  disabledAt: string | null
+}
+
+export type AIWorkspaceReadinessSummary = {
+  ready: boolean
+  installationId: string
+  connectionMode: string
+  consumerId: string | null
+  deploymentId: string | null
+  releaseId: string | null
+  runtimeBaseUrl: string | null
+  assignmentRevision: string | null
+  checks: AIWorkspaceReadinessCheck[]
+}
+
+export type AIWorkspaceCatalogSummary = {
+  assetsReady: boolean
+  assetStatus: string
+  experiencePacks: Array<{
+    code: string
+    version: string
+    name: string
+    configurationSchemaVersion: string
+    enabled: boolean
+  }>
+  connectionProfiles: Array<{
+    code: string
+    version: string
+    name: string
+    mode: string
+    handler: string
+    configurationSchemaVersion: string
+    enabled: boolean
+    availabilityMessage: string
+  }>
+}
+
+export type SaveAIWorkspaceInstallationRequest = {
+  consumerId: string
+  displayName: string
+  experiencePackCode: string
+  experiencePackVersion: string
+  connectionMode: string
+  connectionProfileCode: string
+  connectionProfileVersion: string
+  connectionConfiguration: Record<string, unknown>
+  allowedOrigins: string[]
+  configuration: Record<string, unknown>
+  rowVersion?: number
+}
+
 export type PlatformLoginRequest = {
   email: string
   password: string
@@ -5992,6 +6073,61 @@ export function fetchPlatformUsers() {
 
 export function fetchPlatformCustomers() {
   return request<PlatformCustomerSummary[]>('/api/platform/customers')
+}
+
+export function fetchAIWorkspaceCatalog() {
+  return request<AIWorkspaceCatalogSummary>('/api/platform/ai-workspaces/catalog')
+}
+
+export function fetchAIWorkspaceInstallations(customerId: string) {
+  return request<AIWorkspaceInstallationSummary[]>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations`,
+  )
+}
+
+export function createAIWorkspaceInstallation(customerId: string, payload: SaveAIWorkspaceInstallationRequest) {
+  return request<AIWorkspaceInstallationSummary>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function updateAIWorkspaceInstallation(
+  customerId: string,
+  installationId: string,
+  payload: SaveAIWorkspaceInstallationRequest,
+) {
+  return request<AIWorkspaceInstallationSummary>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}`,
+    { method: 'PUT', body: JSON.stringify(payload) },
+  )
+}
+
+export function activateAIWorkspaceInstallation(customerId: string, installationId: string) {
+  return request<AIWorkspaceInstallationSummary>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/activate`,
+    { method: 'POST' },
+  )
+}
+
+export function disableAIWorkspaceInstallation(customerId: string, installationId: string) {
+  return request<AIWorkspaceInstallationSummary>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/disable`,
+    { method: 'POST' },
+  )
+}
+
+export function deleteAIWorkspaceInstallation(customerId: string, installationId: string) {
+  return request<void>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export function fetchAIWorkspaceReadiness(customerId: string, installationId: string) {
+  return request<AIWorkspaceReadinessSummary>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/readiness`,
+  )
 }
 
 export function fetchThinkerSessions(params?: { shopDomain?: string; deploymentId?: string; status?: string }) {

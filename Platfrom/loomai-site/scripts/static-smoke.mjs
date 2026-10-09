@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -74,50 +73,21 @@ for (const required of [
   'assets/loom-woven-hero.png',
   'assets/demos/dealership/vehicle-01.webp',
   'assets/demos/dealership/vehicle-05.webp',
-  'vendor/max-mode-widget-manifest.json',
-  'vendor/dealership-experience-manifest.json',
 ]) {
   if (!existsSync(path.join(dist, required))) {
     errors.push(`Missing required static output: ${required}`)
   }
 }
 
-verifyBrowserBundleManifest({
-  manifestName: 'max-mode-widget-manifest.json',
-  schemaVersion: 'loomai-widget-bundle-v1',
-  filePattern: /^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/,
-  label: 'Widget',
-})
-verifyBrowserBundleManifest({
-  manifestName: 'dealership-experience-manifest.json',
-  schemaVersion: 'loomai-dealership-experience-bundle-v1',
-  filePattern: /^dealership-experience\.[a-f0-9]{16}\.iife\.js$/,
-  label: 'Dealership experience',
-})
-
-function verifyBrowserBundleManifest({ manifestName, schemaVersion, filePattern, label }) {
-  const manifestPath = path.join(dist, 'vendor', manifestName)
-  if (!existsSync(manifestPath)) return
-  try {
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    if (manifest.schemaVersion !== schemaVersion) {
-      errors.push(`${label} bundle manifest has an unsupported schema version`)
-    }
-    if (!filePattern.test(manifest.file || '')) {
-      errors.push(`${label} bundle manifest has an invalid file name`)
-    } else {
-      const bundlePath = path.join(dist, 'vendor', manifest.file)
-      if (!existsSync(bundlePath)) {
-        errors.push(`Missing content-hashed ${label.toLowerCase()} bundle: vendor/${manifest.file}`)
-      } else {
-        const actualSha256 = createHash('sha256').update(readFileSync(bundlePath)).digest('hex')
-        if (manifest.sha256 !== actualSha256) {
-          errors.push(`${label} bundle manifest SHA-256 does not match the emitted bundle`)
-        }
-      }
-    }
-  } catch (error) {
-    errors.push(`${label} bundle manifest is not valid JSON: ${error instanceof Error ? error.message : error}`)
+for (const route of ['demos/dealership-ai', 'demos/dealership-ai/vehicles/aster-e1-motion']) {
+  const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
+  if (!html.includes('__LOOMAI_AI_WORKSPACE_INSTALL_URL__')
+      || !html.includes('__LOOMAI_AI_WORKSPACE_INSTALLATION_ID__')
+      || !html.includes('data-loomai-ai-workspace="true"')) {
+    errors.push(`Dealership route /${route} does not use the Platform-hosted AI Workspace installer`)
+  }
+  if (html.includes('/vendor/max-mode-widget') || html.includes('/vendor/dealership-experience')) {
+    errors.push(`Dealership route /${route} still references a site-hosted workspace bundle`)
   }
 }
 

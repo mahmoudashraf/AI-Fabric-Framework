@@ -135,6 +135,43 @@ class ShopifyStorefrontControllerTest {
     }
 
     @Test
+    void workspaceBootstrapProjectsOnlyBridgeRoutesAndEphemeralBrowserState() throws Exception {
+        when(storefrontBootstrapService.bootstrap("alpha.myshopify.com", null)).thenReturn(storefrontBootstrap());
+
+        String body = mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/workspace/bootstrap")
+                .contentType("application/json")
+                .content("""
+                    {
+                      "schemaVersion":"loomai-workspace-private-adapter-request-v1",
+                      "installationId":"awi_pub_0123456789abcdef0123456789abcdef",
+                      "assignmentRevision":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.schemaVersion").value("loomai-workspace-private-adapter-v1"))
+            .andExpect(jsonPath("$.chatBaseUrl").value("https://bridge.example.com"))
+            .andExpect(jsonPath("$.routes.queryUrl").value("/api/storefront/shops/alpha.myshopify.com/chat/query"))
+            .andExpect(jsonPath("$.probeAuthContextOnOpen").value(false))
+            .andExpect(jsonPath("$.probeShellConfigOnOpen").value(false))
+            .andExpect(jsonPath("$.features.conversations").value(false))
+            .andReturn().getResponse().getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(body)
+            .doesNotContain("dep-1")
+            .doesNotContain("consumer-alpha")
+            .doesNotContain("runtime")
+            .doesNotContain("assertion");
+    }
+
+    @Test
+    void workspaceBootstrapRejectsInvalidInstallationContract() throws Exception {
+        mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/workspace/bootstrap")
+                .contentType("application/json")
+                .content("{}"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void storefrontCorsPreflightAllowsThemeOrigin() throws Exception {
         mockMvc.perform(options("/api/storefront/shops/alpha.myshopify.com/chat/query")
                 .header("Origin", "https://shopping-companion-test.myshopify.com")
@@ -316,5 +353,58 @@ class ShopifyStorefrontControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("COMPLETED"))
             .andExpect(jsonPath("$.resultingQuantity").value(2));
+    }
+
+    private ShopifyStorefrontBootstrapResponse storefrontBootstrap() {
+        return new ShopifyStorefrontBootstrapResponse(
+            true,
+            "alpha.myshopify.com",
+            "consumer-alpha",
+            "dep-1",
+            "ENABLED",
+            "READY",
+            "FREE",
+            "ACTIVE",
+            50,
+            true,
+            false,
+            "Need help?",
+            "Ask me about products and policies.",
+            "SHOPIFY_COMPANION",
+            true,
+            true,
+            false,
+            "violet",
+            "navigator",
+            "navigator",
+            List.of("navigator"),
+            java.util.Map.of(),
+            List.of("ai-search"),
+            List.of("Catalog product grounding", "Policy grounding"),
+            List.of("Judge.me", "Okendo"),
+            "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+            "SIGNED_PRIVATE_RUNTIME",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events",
+            "https://bridge.example.com/api/customer-auth/start?shop=alpha.myshopify.com",
+            "https://bridge.example.com/api/customer-auth/session?shop=alpha.myshopify.com",
+            false,
+            false,
+            "Order lookup is available only on Elite stores with verified support access.",
+            new ShopifyStorefrontGovernedActionCapability(
+                false,
+                false,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                "Activate Elite to unlock governed shopper actions with explicit confirmation and audit trail."
+            ),
+            "Route storefront traffic through the Shopify Bridge backend.",
+            "Storefront bootstrap resolved."
+        );
     }
 }

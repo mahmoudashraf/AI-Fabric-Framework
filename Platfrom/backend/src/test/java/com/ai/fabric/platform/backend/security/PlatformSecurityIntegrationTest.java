@@ -45,18 +45,18 @@ class PlatformSecurityIntegrationTest {
     private PlatformSecretService platformSecretService;
 
     @Test
-    void healthProbesRemainPublicWithoutPlatformCredentials() throws Exception {
+    void healthProbesRemainPublicAndMissingWorkspaceAssetsDoNotBreakLiveness() throws Exception {
         mockMvc.perform(get("/actuator/health"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status", is("UP")));
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status", is("DOWN")));
 
         mockMvc.perform(get("/actuator/health/liveness"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status", is("UP")));
 
         mockMvc.perform(get("/actuator/health/readiness"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status", is("UP")));
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status", is("DOWN")));
     }
 
     @Test

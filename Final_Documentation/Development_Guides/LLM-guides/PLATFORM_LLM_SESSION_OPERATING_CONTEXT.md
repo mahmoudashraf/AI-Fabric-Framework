@@ -41,15 +41,15 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.5` through:
+The current private product source target is AI Fabric `0.8.11` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.5`
-- Git tag `ai-fabric-framework-v0.8.5`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.11`
+- Git tag `ai-fabric-framework-v0.8.11`
 
 The immutable tag, GitHub release, framework CI, Maven Central publication,
-and empty-cache external-consumer proof match release commit `142f1e7b`.
+and empty-cache external-consumer proof match release commit `c9205bea`.
 Private runtime image source
-`9db6bc92bd06814c2b27b221dae2ac2e64dbe85a` resolves one framework version
+`33d600d16bed47df84d9f1f626cb5d28fd413ef9` resolves one framework version
 only and is the current deployment source artifact.
 
 Source target and hosted-fleet truth remain separate. Never infer a future live
@@ -179,6 +179,42 @@ Platform responsibilities:
 - rollout management
 - product-facing templates and guided defaults
 - admin and operator usability
+
+### Platform-hosted AI Workspace installation
+
+The current browser integration contract is a Platform-owned **AI Workspace
+installation**, not a customer-authored runtime descriptor. A customer page
+loads the stable Platform script
+`/api/public/ai-workspace/install.js` with one opaque public installation ID.
+The Platform resolves that installation through its bound consumer to the
+consumer's explicitly assigned, verified deployment and returns a safe,
+origin-scoped manifest plus immutable workspace/experience assets.
+
+Keep these boundaries intact:
+
+- The Platform is the control plane and asset source. It is not the per-message
+  chat, retrieval, action, document, or provider proxy.
+- `public-runtime-anonymous` bootstraps at and then talks directly to the
+  assigned deployment.
+- `public-runtime-authenticated` obtains a short-lived deployment token from a
+  reviewed host-identity broker, then talks directly to the deployment.
+- `backend-mediated-private-runtime` talks to a reviewed trusted adapter such
+  as the Shopify Bridge; runtime assignment credentials and private assertions
+  never reach the browser.
+- The generic installer and widget know only typed connection handlers and
+  pack registration. Dealership, Shopify, vehicle, product, and provider logic
+  belongs in experience packs or trusted adapters.
+- Rebinding a consumer affects new sessions. Never silently move an active
+  conversation to another deployment or replay its history there.
+- Do not restore the retired dealership `/api/public/runtime-descriptor` or
+  `data-bootstrap-url` path. Explicit programmatic widget initialization
+  remains supported for integrations that do not use Platform installation.
+- Do not enable the authenticated profile until a real reviewed broker is
+  configured and its identity, scope, origin, expiry, revocation, and runtime
+  validation are proved end to end.
+
+The canonical design, implementation status, and release evidence are tracked
+in `010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md`.
 
 Do not collapse these layers mentally.
 The framework is not the product.
@@ -566,10 +602,10 @@ runtime, and Platform contract at a time.
 - Verification and product claims must target the current immutable release;
   a pass on an older release does not count as current evidence.
 
-As of 2026-10-05, the only supported AI Fabric baseline is `0.8.10`. The
-matching LoomAI Platform/runtime rollout and bounded dealership v28 evidence
+As of 2026-10-05, the only supported AI Fabric baseline is `0.8.11`. The
+matching LoomAI Platform/runtime rollout and bounded dealership detail evidence
 are recorded in `CODEX_WORKING_CONTEXT.md` and the private session handoff. The
-dealership-specific `28/28` provider canary and repeated `12/12` browser suites
+dealership-specific provider canary and repeated browser suites
 do not constitute a global Platform release gate. Do not describe that global
 gate as green until the separately recorded owner-deferred Shopify blocker is
 resolved and a fresh full run passes.

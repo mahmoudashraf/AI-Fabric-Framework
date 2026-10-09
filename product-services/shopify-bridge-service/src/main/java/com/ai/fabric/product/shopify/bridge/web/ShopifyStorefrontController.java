@@ -7,6 +7,8 @@ import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefro
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyAIWorkspaceAdapterRequest;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyAIWorkspaceAdapterResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
@@ -24,6 +26,14 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.net.URI;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @RestController
 @RequestMapping("/api/storefront/shops")
@@ -60,6 +70,43 @@ public class ShopifyStorefrontController {
             usageService.recordEvent(shopDomain, "STOREFRONT_BOOTSTRAP");
         }
         return response;
+    }
+
+    @PostMapping("/{shopDomain}/workspace/bootstrap")
+    public ShopifyAIWorkspaceAdapterResponse workspaceBootstrap(
+        @PathVariable String shopDomain,
+        @RequestBody(required = false) ShopifyAIWorkspaceAdapterRequest request
+    ) {
+        validateWorkspaceAdapterRequest(request);
+        ShopifyStorefrontBootstrapResponse storefront = storefrontBootstrapService.bootstrap(shopDomain, null);
+        if (!storefront.available()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE,
+                storefront.message() == null ? "The Shopify storefront adapter is not ready." : storefront.message());
+        }
+        URI query = safeBridgeUri(storefront.bridgeQueryUrl());
+        URI suggestions = safeBridgeUri(storefront.bridgeSuggestionsUrl());
+        if (!query.getScheme().equals(suggestions.getScheme())
+            || !query.getAuthority().equals(suggestions.getAuthority())) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify storefront routes do not share one bridge origin.");
+        }
+        String bootstrapPath = "/api/storefront/shops/" + shopDomain + "/bootstrap";
+        return new ShopifyAIWorkspaceAdapterResponse(
+            "loomai-workspace-private-adapter-v1",
+            query.getScheme() + "://" + query.getAuthority(),
+            Map.of(
+                "queryUrl", query.getRawPath(),
+                "suggestionsUrl", suggestions.getRawPath(),
+                "authContextUrl", bootstrapPath,
+                "shellConfigUrl", bootstrapPath,
+                "conversationsUrl", query.getRawPath(),
+                "conversationItemUrlTemplate", query.getRawPath()
+            ),
+            Map.of(SHOPPER_SESSION_HEADER, "workspace-" + UUID.randomUUID()),
+            "omit",
+            false,
+            false,
+            Map.of("conversations", false)
+        );
     }
 
     @PostMapping("/{shopDomain}/chat/query")
@@ -118,5 +165,29 @@ public class ShopifyStorefrontController {
                                                                   @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
                                                                   String shopperSessionId) {
         return governedActionService.complete(shopDomain, request, shopperSessionId);
+    }
+
+    private void validateWorkspaceAdapterRequest(ShopifyAIWorkspaceAdapterRequest request) {
+        if (request == null
+            || !"loomai-workspace-private-adapter-request-v1".equals(request.schemaVersion())
+            || request.installationId() == null
+            || !request.installationId().matches("awi_pub_[a-f0-9]{32}")
+            || request.assignmentRevision() == null
+            || !request.assignmentRevision().matches("sha256:[a-f0-9]{64}")) {
+            throw new ResponseStatusException(BAD_REQUEST, "The AI Workspace adapter request is invalid.");
+        }
+    }
+
+    private URI safeBridgeUri(String value) {
+        try {
+            URI uri = URI.create(value == null ? "" : value);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                || uri.getRawPath() == null || !uri.getRawPath().startsWith("/api/storefront/")) {
+                throw new IllegalArgumentException();
+            }
+            return uri;
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify storefront routes are invalid.");
+        }
     }
 }

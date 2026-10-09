@@ -28,6 +28,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,db,aiWorkspaceAssets
       show-details: never
   endpoints:
     web:
@@ -89,6 +92,13 @@ platform:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
     artifact-url-ttl: ${PLATFORM_ARTIFACT_URL_TTL:3650d}
+  ai-workspace:
+    asset-root: ${PLATFORM_AI_WORKSPACE_ASSET_ROOT:/app/ai-workspace-assets}
+    allow-loopback-http: ${PLATFORM_AI_WORKSPACE_ALLOW_LOOPBACK_HTTP:false}
+    manifest-requests-per-minute: ${PLATFORM_AI_WORKSPACE_MANIFEST_REQUESTS_PER_MINUTE:120}
+    manifest-cache-ttl: ${PLATFORM_AI_WORKSPACE_MANIFEST_CACHE_TTL:60s}
+    authenticated-broker-url: ${PLATFORM_AI_WORKSPACE_AUTHENTICATED_BROKER_URL:}
+    shopify-bridge-base-url: ${PLATFORM_AI_WORKSPACE_SHOPIFY_BRIDGE_BASE_URL:https://shopify-bridge.loomai.pro}
   core-services:
     enabled: ${PLATFORM_CORE_SERVICES_ENABLED:true}
     target-profile-id: ${PLATFORM_CORE_SERVICES_TARGET_PROFILE_ID:dtp-coolify-production}

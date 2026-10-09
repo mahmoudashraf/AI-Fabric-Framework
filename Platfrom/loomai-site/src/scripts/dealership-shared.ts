@@ -55,15 +55,6 @@ export type VehicleDetailResponse = {
 }
 
 type AssistantOptions = {
-  pageKind: 'inventory' | 'vehicle-detail'
-  rootSelector: string
-  maxChars: number
-  contextLabel: string
-  subjectLabel?: string
-  welcomeMessage: string
-  placeholder: string
-  emptyMessage: string
-  starterSuggestions: string[]
   onRuntimeState: (
     state: 'checking' | 'ready' | 'unavailable',
     title: string,
@@ -72,34 +63,20 @@ type AssistantOptions = {
 }
 
 type DealershipExperienceBrowserApi = {
-  mount: (config: Record<string, unknown>) => Promise<unknown>
   attachVehicle: (vehicle: Vehicle) => boolean
   sendMessage: (message: string, requestContext?: Record<string, unknown>) => boolean
+}
+
+type AIWorkspaceBrowserApi = {
+  getController: () => unknown
+  refresh: () => Promise<void>
 }
 
 declare global {
   interface Window {
     LoomAIDealershipExperience?: DealershipExperienceBrowserApi
+    LoomAIWorkspace?: AIWorkspaceBrowserApi
   }
-}
-
-const DEMO_IMAGE_FALLBACKS: Record<string, string> = {
-  'DEMO-1001': '/assets/demos/dealership/vehicle-01.webp',
-  'DEMO-1002': '/assets/demos/dealership/vehicle-02.webp',
-  'DEMO-1003': '/assets/demos/dealership/vehicle-03.webp',
-  'DEMO-1004': '/assets/demos/dealership/vehicle-04.webp',
-  'DEMO-1005': '/assets/demos/dealership/vehicle-05.webp',
-  'DEMO-1006': '/assets/demos/dealership/vehicle-04.webp',
-  'DEMO-1099': '/assets/demos/dealership/vehicle-03.webp',
-}
-
-const DEMO_DETAIL_SLUGS: Record<string, string> = {
-  'DEMO-1001': 'aster-e1-motion',
-  'DEMO-1002': 'northstar-s4-touring',
-  'DEMO-1003': 'morrow-c2-city',
-  'DEMO-1004': 'caldera-x6-adventure',
-  'DEMO-1005': 'arden-v3-executive',
-  'DEMO-1006': 'aster-e2-sport',
 }
 
 export async function resolveDealershipApiBaseUrl(app: HTMLElement) {
@@ -121,53 +98,59 @@ export async function resolveDealershipApiBaseUrl(app: HTMLElement) {
 }
 
 export async function initializeDealershipAssistant(
-  apiBaseUrl: string,
   options: AssistantOptions,
 ) {
-  await loadDealershipExperienceBundle()
-  if (!window.LoomAIDealershipExperience) {
-    throw new Error('The LoomAI dealership experience did not load.')
+  options.onRuntimeState('checking', 'Connecting workspace', 'Resolving the current assigned LoomAI deployment')
+  if (window.LoomAIWorkspace?.getController()) {
+    options.onRuntimeState('ready', 'Workspace ready', 'Connected directly to the assigned LoomAI deployment')
+    return
   }
-  await window.LoomAIDealershipExperience.mount({
-    backendBaseUrl: apiBaseUrl,
-    widget: {
-      manifestUrl: '/vendor/max-mode-widget-manifest.json',
-    },
-    dealer: {
-      id: 'dealer-demo-001',
-      assistantLabel: 'Northfield AI',
-      sourceMode: 'DEMONSTRATION_INVENTORY',
-    },
-    page: {
-      kind: options.pageKind,
-      rootSelector: options.rootSelector,
-      maxChars: options.maxChars,
-      maxPages: 3,
-      maxTotalChars: 10000,
-      contextLabel: options.contextLabel,
-      subjectLabel: options.subjectLabel,
-    },
-    capabilities: {
-      comparison: true,
-      testDrive: true,
-      callback: true,
-    },
-    copy: {
-      welcomeMessage: options.welcomeMessage,
-      placeholder: options.placeholder,
-      emptyMessage: options.emptyMessage,
-      starterSuggestions: options.starterSuggestions,
-    },
-    presentation: {
-      detailBasePath: '/demos/dealership-ai/vehicles/',
-      imageHostAllowlist: [
-        'external-vehicle-provider-simulator.46.224.145.148.sslip.io',
-        'm.atcdn.co.uk',
-      ],
-      imageFallbacks: DEMO_IMAGE_FALLBACKS,
-      detailSlugs: DEMO_DETAIL_SLUGS,
-    },
-    onRuntimeState: options.onRuntimeState,
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const timeout = window.setTimeout(() => finish(
+      new Error('The Platform-hosted AI Workspace did not become ready in time.'),
+    ), 20_000)
+
+    const onRuntimeState = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        state?: 'checking' | 'ready' | 'unavailable'
+        title?: string
+        detail?: string
+      }>).detail || {}
+      if (!detail.state) return
+      options.onRuntimeState(
+        detail.state,
+        detail.title || 'AI Workspace',
+        detail.detail || 'The workspace state changed.',
+      )
+      if (detail.state === 'ready') finish()
+      if (detail.state === 'unavailable') finish(new Error(detail.detail || 'The AI Workspace is unavailable.'))
+    }
+    const onReady = () => {
+      options.onRuntimeState('ready', 'Workspace ready', 'Connected directly to the assigned LoomAI deployment')
+      finish()
+    }
+    const onError = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail
+      finish(new Error(detail?.message || 'The Platform-hosted AI Workspace could not be installed.'))
+    }
+    function finish(error?: Error) {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeout)
+      window.removeEventListener('loomai:workspace-runtime-state', onRuntimeState)
+      window.removeEventListener('loomai:workspace-ready', onReady)
+      window.removeEventListener('loomai:workspace-error', onError)
+      if (error) reject(error)
+      else resolve()
+    }
+
+    window.addEventListener('loomai:workspace-runtime-state', onRuntimeState)
+    window.addEventListener('loomai:workspace-ready', onReady)
+    window.addEventListener('loomai:workspace-error', onError)
+
+    if (window.LoomAIWorkspace?.getController()) onReady()
   })
 }
 
@@ -227,65 +210,4 @@ function normalizeBaseUrl(value: string) {
   const parsed = new URL(value)
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('The integration URL is invalid.')
   return parsed.toString().replace(/\/$/, '')
-}
-
-async function loadDealershipExperienceBundle() {
-  if (window.LoomAIDealershipExperience) return
-  const existing = document.querySelector<HTMLScriptElement>('script[data-dealership-experience-bundle]')
-  if (existing) {
-    await waitForScript(existing, () => Boolean(window.LoomAIDealershipExperience))
-    return
-  }
-  const manifestResponse = await fetch('/vendor/dealership-experience-manifest.json', {
-    cache: 'no-store',
-    headers: { Accept: 'application/json' },
-  })
-  if (!manifestResponse.ok) {
-    throw new Error('The LoomAI dealership experience manifest could not be loaded.')
-  }
-  const manifest = await manifestResponse.json() as {
-    schemaVersion?: string
-    file?: string
-    sha256?: string
-  }
-  if (
-    manifest.schemaVersion !== 'loomai-dealership-experience-bundle-v1'
-    || !/^dealership-experience\.[a-f0-9]{16}\.iife\.js$/.test(manifest.file || '')
-    || !/^[a-f0-9]{64}$/.test(manifest.sha256 || '')
-    || !manifest.file?.includes(manifest.sha256!.slice(0, 16))
-  ) {
-    throw new Error('The LoomAI dealership experience manifest is invalid.')
-  }
-  const bundleFile = manifest.file as string
-  const bundleSha256 = manifest.sha256 as string
-  const script = document.createElement('script')
-  script.src = `/vendor/${bundleFile}`
-  script.async = true
-  script.crossOrigin = 'anonymous'
-  script.integrity = `sha256-${hexToBase64(bundleSha256)}`
-  script.dataset.dealershipExperienceBundle = 'true'
-  script.dataset.dealershipExperienceBundleSha256 = bundleSha256
-  document.head.append(script)
-  await waitForScript(script, () => Boolean(window.LoomAIDealershipExperience))
-}
-
-function waitForScript(script: HTMLScriptElement, ready: () => boolean) {
-  return new Promise<void>((resolve, reject) => {
-    if (ready()) {
-      resolve()
-      return
-    }
-    script.addEventListener('load', () => {
-      if (ready()) resolve()
-      else reject(new Error('The LoomAI dealership experience loaded without its browser API.'))
-    }, { once: true })
-    script.addEventListener('error', () => reject(new Error('The LoomAI dealership experience could not be loaded.')), { once: true })
-  })
-}
-
-function hexToBase64(value: string) {
-  const bytes = value.match(/.{2}/g)?.map((pair) => Number.parseInt(pair, 16)) || []
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
 }

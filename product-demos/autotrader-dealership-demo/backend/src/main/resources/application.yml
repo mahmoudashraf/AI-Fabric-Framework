@@ -73,13 +73,6 @@ dealership:
   runtime:
     enabled: ${LOOMAI_RUNTIME_ENABLED:false}
     base-url: ${LOOMAI_RUNTIME_BASE_URL:}
-    public-bootstrap-path: ${LOOMAI_RUNTIME_PUBLIC_BOOTSTRAP_PATH:/api/public/chat/session}
-    query-path: ${LOOMAI_RUNTIME_QUERY_PATH:/api/chat/me/query}
-    suggestions-path: ${LOOMAI_RUNTIME_SUGGESTIONS_PATH:/api/chat/me/suggestions}
-    auth-context-path: ${LOOMAI_RUNTIME_AUTH_CONTEXT_PATH:/api/chat/me/auth-context}
-    shell-config-path: ${LOOMAI_RUNTIME_SHELL_CONFIG_PATH:/api/chat/me/shell-config}
-    conversations-path: ${LOOMAI_RUNTIME_CONVERSATIONS_PATH:/api/chat/me/conversations}
-    conversation-item-path-template: ${LOOMAI_RUNTIME_CONVERSATION_ITEM_PATH_TEMPLATE:/api/chat/me/conversations/{conversationId}}
     inventory-vector-space: ${LOOMAI_RUNTIME_INVENTORY_VECTOR_SPACE:dealer-vehicle}
     retrieval-vector-spaces: ${LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES:dealer-vehicle,document}
     integration-source-id: ${LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID:}

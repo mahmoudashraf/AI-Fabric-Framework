@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.tenant.service;
 
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceBindingGuard;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -53,6 +54,7 @@ public class PlatformCustomerConsumerService {
     private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final PlatformCustomerAccessService platformCustomerAccessService;
     private final PlatformAuditService platformAuditService;
+    private final AIWorkspaceBindingGuard aiWorkspaceBindingGuard;
 
     public PlatformCustomerConsumerService(PlatformConsumerRepository consumerRepository,
                                            PlatformConsumerBindingHistoryRepository bindingHistoryRepository,
@@ -60,7 +62,8 @@ public class PlatformCustomerConsumerService {
                                            DeploymentRepository deploymentRepository,
                                            DeploymentReleaseRepository deploymentReleaseRepository,
                                            PlatformCustomerAccessService platformCustomerAccessService,
-                                           PlatformAuditService platformAuditService) {
+                                           PlatformAuditService platformAuditService,
+                                           AIWorkspaceBindingGuard aiWorkspaceBindingGuard) {
         this.consumerRepository = consumerRepository;
         this.bindingHistoryRepository = bindingHistoryRepository;
         this.customerRepository = customerRepository;
@@ -68,6 +71,7 @@ public class PlatformCustomerConsumerService {
         this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.platformCustomerAccessService = platformCustomerAccessService;
         this.platformAuditService = platformAuditService;
+        this.aiWorkspaceBindingGuard = aiWorkspaceBindingGuard;
     }
 
     @Transactional(readOnly = true)
@@ -134,9 +138,11 @@ public class PlatformCustomerConsumerService {
                                                   String consumerId,
                                                   UpdatePlatformConsumerRequest request) {
         PlatformConsumerEntity consumer = requireManagedConsumer(customerId, consumerId);
+        String nextStatus = normalizeStatus(request.status());
+        aiWorkspaceBindingGuard.validateConsumerStatusChange(consumer, nextStatus);
         consumer.setDisplayName(normalizeRequiredDisplayName(request.displayName()));
         consumer.setDescription(normalizeDescription(request.description()));
-        consumer.setStatus(normalizeStatus(request.status()));
+        consumer.setStatus(nextStatus);
         consumer.setUpdatedAt(Instant.now());
         consumerRepository.save(consumer);
 
@@ -192,6 +198,7 @@ public class PlatformCustomerConsumerService {
         if (StringUtils.hasText(consumer.getBoundDeploymentId())) {
             throw new ResponseStatusException(CONFLICT, "Unbind the consumer before deleting it.");
         }
+        aiWorkspaceBindingGuard.validateConsumerDeletion(consumer);
         consumerRepository.delete(consumer);
         platformAuditService.record(
             "CUSTOMER_CONSUMER_DELETED",
@@ -362,6 +369,8 @@ public class PlatformCustomerConsumerService {
         if (sameBinding(consumer, nextDeploymentId, nextReleaseId, nextTargetProfileId)) {
             return summarizeConsumer(consumer);
         }
+
+        aiWorkspaceBindingGuard.validateRebind(consumer, nextDeploymentId, nextReleaseId);
 
         String previousDeploymentId = consumer.getBoundDeploymentId();
         Instant now = Instant.now();

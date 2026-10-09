@@ -38,23 +38,10 @@ async function startVehicleDetail(app: HTMLElement) {
     bindVehicleActions(app, response.vehicle)
 
     try {
-      const label = `${response.vehicle.registrationYear} ${response.vehicle.make} ${response.vehicle.model}`
-      await initializeDealershipAssistant(apiBaseUrl, {
-        pageKind: 'vehicle-detail',
-        rootSelector: '#vehicle-detail-content',
-        maxChars: 4000,
-        contextLabel: `Viewing ${label}`,
-        subjectLabel: label,
-        welcomeMessage: `I can answer questions about this ${label} using its current indexed dealership evidence and live facts.`,
-        placeholder: 'Ask about this vehicle...',
-        emptyMessage: 'Attach this page for its visible details, or ask a grounded question about this vehicle.',
-        starterSuggestions: [
-          'Which features stand out?',
-          'How does its mileage compare?',
-          'Request a test drive',
-        ],
+      await initializeDealershipAssistant({
         onRuntimeState: (state, title, detail) => setRuntimeState(app, state, title, detail),
       })
+      await window.LoomAIWorkspace?.refresh()
       setActionButtons(app, true)
     } catch (error) {
       setRuntimeState(

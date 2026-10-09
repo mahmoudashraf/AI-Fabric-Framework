@@ -77,20 +77,9 @@ LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID=autotrader-stock-events
 
 The runtime credentials stay backend-only. They authorize only the exact
 private scopes needed for source status, source reconciliation, and webhook
-event evidence. The browser receives only the safe runtime descriptor.
-
-Optional route overrides remain available for deployments that publish
-different public chat paths:
-
-```text
-LOOMAI_RUNTIME_PUBLIC_BOOTSTRAP_PATH=/api/public/chat/session
-LOOMAI_RUNTIME_QUERY_PATH=/api/chat/me/query
-LOOMAI_RUNTIME_SUGGESTIONS_PATH=/api/chat/me/suggestions
-LOOMAI_RUNTIME_AUTH_CONTEXT_PATH=/api/chat/me/auth-context
-LOOMAI_RUNTIME_SHELL_CONFIG_PATH=/api/chat/me/shell-config
-LOOMAI_RUNTIME_CONVERSATIONS_PATH=/api/chat/me/conversations
-LOOMAI_RUNTIME_CONVERSATION_ITEM_PATH_TEMPLATE=/api/chat/me/conversations/{conversationId}
-```
+event evidence. Browser workspace installation, assigned-runtime discovery,
+and public conversation routes are owned by the LoomAI Platform installation;
+this dealership service does not disclose or route them.
 
 The protected meeting-demo simulator controls additionally require:
 
@@ -110,7 +99,9 @@ The public-site container receives only:
 
 ```text
 DEALERSHIP_DEMO_API_BASE_URL=https://<dealership-backend>
-DEALERSHIP_DEMO_RUNTIME_BASE_URL=https://<assigned-runtime>
+AI_WORKSPACE_PLATFORM_BASE_URL=https://api.loomai.pro
+AI_WORKSPACE_INSTALLATION_ID=awi_pub_<opaque-installation-id>
+AI_WORKSPACE_CONNECT_ORIGINS=https://api.loomai.pro,https://<assigned-runtime>
 ```
 
 ## Deployment contracts
@@ -176,7 +167,6 @@ GET /api/public/status
 GET /api/public/vehicles
 GET /api/public/vehicles/by-reference?dealershipId=<id>&reference=<buyer-facing-reference>
 GET /api/public/vehicles/resolve?dealershipId=<id>&reference=<buyer-facing-reference>
-GET /api/public/runtime-descriptor
 GET /api/public/security/csrf
 ```
 

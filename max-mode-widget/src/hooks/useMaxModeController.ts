@@ -27,6 +27,7 @@ import type { MaxModeMode, MaxModePosition, QuickAction } from "@/constants";
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, SEARCH_CATEGORIES } from "@/constants";
 import {
   emitEvent,
+  getWidgetStorageKey,
   getWidgetConfig,
   isCartCrudEnabled,
   type MaxModeHostAttachment,
@@ -86,7 +87,8 @@ const CONVERSATION_MODES: MaxModeMode[] = ["conversational", "navigator", "navig
 
 function loadPendingPrompts(): PendingPrompt[] {
   try {
-    const raw = sessionStorage.getItem(PENDING_PROMPTS_KEY);
+    const key = getWidgetStorageKey(PENDING_PROMPTS_KEY);
+    const raw = sessionStorage.getItem(key);
     if (!raw) {
       return [];
     }
@@ -99,11 +101,12 @@ function loadPendingPrompts(): PendingPrompt[] {
 
 function savePendingPrompts(prompts: PendingPrompt[]) {
   try {
+    const key = getWidgetStorageKey(PENDING_PROMPTS_KEY);
     if (!prompts.length) {
-      sessionStorage.removeItem(PENDING_PROMPTS_KEY);
+      sessionStorage.removeItem(key);
       return;
     }
-    sessionStorage.setItem(PENDING_PROMPTS_KEY, JSON.stringify(prompts));
+    sessionStorage.setItem(key, JSON.stringify(prompts));
   } catch {}
 }
 
@@ -117,7 +120,8 @@ function removePendingPrompt(promptId: string | undefined) {
 
 function consumePendingAttachments(attachedItems: Array<{ type: string; data: any }>) {
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(PENDING_ATTACHMENTS_KEY) || "[]");
+    const key = getWidgetStorageKey(PENDING_ATTACHMENTS_KEY);
+    const parsed = JSON.parse(sessionStorage.getItem(key) || "[]");
     if (!Array.isArray(parsed) || parsed.length === 0) {
       return;
     }
@@ -125,9 +129,9 @@ function consumePendingAttachments(attachedItems: Array<{ type: string; data: an
       sameAttachment(attached, queued),
     ));
     if (remaining.length === 0) {
-      sessionStorage.removeItem(PENDING_ATTACHMENTS_KEY);
+      sessionStorage.removeItem(key);
     } else if (remaining.length !== parsed.length) {
-      sessionStorage.setItem(PENDING_ATTACHMENTS_KEY, JSON.stringify(remaining));
+      sessionStorage.setItem(key, JSON.stringify(remaining));
     }
   } catch {}
 }
@@ -917,6 +921,7 @@ export function useMaxModeController({
     openConversation,
     handleDeleteConversation,
     startNewConversation,
+    resetConversation,
     openConversationsPanel,
   } = useConversationsController({
     enabled: conversationsEnabled,
@@ -930,11 +935,12 @@ export function useMaxModeController({
     setAttachedItems,
     setSuggestions,
     setContextDocuments,
+    beforeNewConversation: widgetConfig?.beforeNewConversation,
     toast,
   });
 
   useEffect(() => subscribePublicRuntimeSessionInvalidation((event) => {
-    startNewConversation();
+    resetConversation();
     setChatQuery("");
     setIsLoading(false);
     setConfirmationStatus({});
@@ -946,7 +952,7 @@ export function useMaxModeController({
     setSelectedDebugMessage(null);
     authContextProbeKeyRef.current = null;
     try {
-      sessionStorage.removeItem(PENDING_PROMPTS_KEY);
+      sessionStorage.removeItem(getWidgetStorageKey(PENDING_PROMPTS_KEY));
     } catch {}
     maxModeContext?.clearPersistedState();
     emitEvent("conversation:reset", {
@@ -959,7 +965,7 @@ export function useMaxModeController({
         ? "That conversation is not available to this session. A new conversation is ready; please send your request again."
         : "For your security, the previous conversation was cleared. Please send your request again.",
     });
-  }), [maxModeContext, setAttachedItems, startNewConversation, toast]);
+  }), [maxModeContext, resetConversation, setAttachedItems, toast]);
 
   const { handleChatQuery } = useChatFlow({
     chatQuery,

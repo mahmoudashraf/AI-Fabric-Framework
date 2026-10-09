@@ -172,29 +172,6 @@ class DealershipDemoHttpTest {
     }
 
     @Test
-    void publicRuntimeDescriptorContainsOnlyBrowserSafeRoutes() throws Exception {
-        String body = mvc.perform(get("/api/public/runtime-descriptor"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.integrationMode").value("public-runtime-anonymous"))
-            .andExpect(jsonPath("$.chatBaseUrl").value("https://runtime.example.test"))
-            .andExpect(jsonPath("$.runtimeRoutes.renewUrl")
-                .value("/api/public/chat/session/renew"))
-            .andExpect(jsonPath("$.runtimeRoutes.conversationsUrl")
-                .value("/api/chat/me/conversations"))
-            .andExpect(jsonPath("$.runtimeRoutes.conversationItemUrlTemplate")
-                .value("/api/chat/me/conversations/{conversationId}"))
-            .andExpect(jsonPath("$.inventoryVectorSpace").value("dealer-vehicle"))
-            .andExpect(jsonPath("$.retrievalVectorSpaces[0]").value("dealer-vehicle"))
-            .andExpect(jsonPath("$.retrievalVectorSpaces[1]").value("document"))
-            .andReturn().getResponse().getContentAsString();
-
-        assertThat(body)
-            .doesNotContain("runtime-secret-that-must-not-leak")
-            .doesNotContain("assertion-secret-that-must-not-leak")
-            .doesNotContain("X-AIFABRIC-RUNTIME-API-KEY");
-    }
-
-    @Test
     void publicStatusExposesSafeBuildIdentity() throws Exception {
         mvc.perform(get("/api/public/status"))
             .andExpect(status().isOk())

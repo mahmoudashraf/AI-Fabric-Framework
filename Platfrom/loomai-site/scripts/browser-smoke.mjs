@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
@@ -23,7 +24,33 @@ let chatQueryCount = 0
 let staleConversationAccessRequestCount = 0
 let exposeRecentConversationForNavigation = false
 let recentConversationListCount = 0
-let externalDealershipBundle = null
+const siteInstallationId = 'awi_pub_0123456789abcdef0123456789abcdef'
+const externalInstallationId = 'awi_pub_fedcba9876543210fedcba9876543210'
+const authenticatedInstallationId = 'awi_pub_11111111111111111111111111111111'
+const privateInstallationId = 'awi_pub_22222222222222222222222222222222'
+let authenticatedBrokerCount = 0
+let authenticatedQueryCount = 0
+let privateAdapterBootstrapCount = 0
+let privateAdapterQueryCount = 0
+const installerBytes = readFileSync(path.resolve(root, '../../max-mode-widget/dist/ai-workspace-installer.iife.js'))
+const widgetBytes = readFileSync(path.resolve(root, '../../max-mode-widget/dist/max-mode-widget.iife.js'))
+const dealershipPackBytes = readFileSync(path.resolve(root, '../../experience-packs/dealership-experience/dist/dealership-experience.iife.js'))
+
+function sri(bytes) {
+  return `sha384-${createHash('sha384').update(bytes).digest('base64')}`
+}
+
+const widgetAsset = {
+  version: '1.0.0',
+  url: `${mockOrigin}/api/public/ai-workspace/assets/workspace/1.0.0/max-mode-widget.test.iife.js`,
+  integrity: sri(widgetBytes),
+}
+const dealershipAsset = {
+  code: 'dealership',
+  version: '1.0.0',
+  url: `${mockOrigin}/api/public/ai-workspace/assets/dealership/1.0.0/dealership-experience.test.iife.js`,
+  integrity: sri(dealershipPackBytes),
+}
 
 const mockVehicles = [
   {
@@ -92,6 +119,24 @@ const expectedContextualTools = [
   'Callback',
 ]
 
+async function installStorageTestHelpers(context) {
+  await context.addInitScript(() => {
+    window.__loomaiTestStorage = {
+      key(baseKey) {
+        return Object.keys(sessionStorage).find(
+          (key) => key === baseKey || key.startsWith(`${baseKey}:`),
+        ) || baseKey
+      },
+      getItem(baseKey) {
+        return sessionStorage.getItem(this.key(baseKey))
+      },
+      removeItem(baseKey) {
+        sessionStorage.removeItem(this.key(baseKey))
+      },
+    }
+  })
+}
+
 function writeMockJson(response, status, body) {
   response.writeHead(status, {
     'Access-Control-Allow-Credentials': 'true',
@@ -112,6 +157,124 @@ function writeMockHtml(response, status, body) {
   response.end(body)
 }
 
+function writeMockJavaScript(response, body, cacheControl = 'public, max-age=31536000, immutable') {
+  response.writeHead(200, {
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': cacheControl,
+    'Content-Type': 'application/javascript; charset=utf-8',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'X-Content-Type-Options': 'nosniff',
+  })
+  response.end(body)
+}
+
+function workspaceManifest(installationId) {
+  const external = installationId === externalInstallationId
+  const authenticated = installationId === authenticatedInstallationId
+  const privateAdapter = installationId === privateInstallationId
+  const assistantLabel = authenticated
+    ? 'Authenticated Harbour AI'
+    : privateAdapter
+      ? 'Private Harbour AI'
+      : external
+        ? 'Harbour AI'
+        : 'Northfield AI'
+  const routes = {
+    queryUrl: '/api/chat/me/query',
+    suggestionsUrl: '/api/chat/me/suggestions',
+    authContextUrl: '/api/chat/me/auth-context',
+    shellConfigUrl: '/api/chat/me/shell-config',
+    conversationsUrl: '/api/chat/me/conversations',
+    conversationItemUrlTemplate: '/api/chat/me/conversations/{conversationId}',
+  }
+  const connection = authenticated
+    ? {
+        mode: 'public-runtime-authenticated',
+        profileCode: 'runtime-authenticated-broker',
+        profileVersion: '1.0.0',
+        handler: 'brokered-public-runtime',
+        runtimeBaseUrl: mockOrigin,
+        routes,
+        credentialBroker: {
+          url: `${mockOrigin}/broker/runtime-token`,
+          method: 'POST',
+          credentials: 'include',
+          responseSchemaVersion: 'loomai-workspace-runtime-token-v1',
+        },
+      }
+    : privateAdapter
+      ? {
+          mode: 'backend-mediated-private-runtime',
+          profileCode: 'shopify-storefront-bridge',
+          profileVersion: '1.0.0',
+          handler: 'private-backend-adapter',
+          adapter: {
+            bootstrapUrl: `${mockOrigin}/api/storefront/shops/harbour.myshopify.com/workspace/bootstrap`,
+            method: 'POST',
+            credentials: 'include',
+            responseSchemaVersion: 'loomai-workspace-private-adapter-v1',
+          },
+        }
+      : {
+          mode: 'public-runtime-anonymous',
+          profileCode: 'runtime-anonymous-direct',
+          profileVersion: '1.0.0',
+          handler: 'direct-public-runtime',
+          runtimeBaseUrl: mockOrigin,
+          routes,
+          anonymousBootstrap: {
+            url: '/api/public/chat/session',
+            renewUrl: '/api/public/chat/session/renew',
+            authorizationHeader: 'Authorization',
+            tokenScheme: 'Bearer',
+          },
+        }
+  return {
+    schemaVersion: 'loomai-ai-workspace-installation-v1',
+    installationId,
+    manifestRevision: `sha256:${(external ? 'b' : 'a').repeat(64)}`,
+    assignmentRevision: `sha256:${'c'.repeat(64)}`,
+    generatedAt: '2026-10-09T00:00:00Z',
+    cacheTtlSeconds: 60,
+    connection,
+    workspace: {
+      asset: widgetAsset,
+      experiencePack: dealershipAsset,
+      configuration: {
+        dealer: {
+          id: external ? 'dealer-harbour-smoke' : 'dealer-demo-001',
+          assistantLabel,
+          sourceMode: 'DEALERSHIP_INVENTORY',
+        },
+        page: {
+          kind: 'auto',
+          rootSelector: external ? '#dealer-content' : '#main-content',
+          contextLabel: external ? 'Harbour Motors inventory' : 'Current fictional dealership inventory',
+          maxChars: 1800,
+          maxPages: 3,
+          maxTotalChars: 10000,
+        },
+        knowledge: {
+          inventoryVectorSpace: 'dealer-vehicle',
+          retrievalVectorSpaces: ['dealer-vehicle', 'dealership-document'],
+        },
+        capabilities: {
+          comparison: !external,
+          testDrive: !external,
+          callback: !external,
+        },
+        presentation: {
+          detailBasePath: '/demos/dealership-ai/vehicles/',
+          imageHostAllowlist: ['external-vehicle-provider-simulator.46.224.145.148.sslip.io'],
+          imageFallbacks: Object.fromEntries(mockVehicles.map((vehicle) => [vehicle.stockId, vehicle.imagePath])),
+          detailSlugs: Object.fromEntries(mockVehicles.map((vehicle) => [vehicle.stockId, vehicle.slug])),
+        },
+        theme: { primaryColor: '#123b35', borderRadius: '0.5rem', darkMode: false },
+      },
+    },
+  }
+}
+
 async function readMockJson(request) {
   const chunks = []
   for await (const chunk of request) {
@@ -129,49 +292,94 @@ const mockServer = createServer(async (request, response) => {
   }
 
   if (url.pathname === '/external-dealership-host') {
-    if (!externalDealershipBundle) {
-      writeMockHtml(response, 503, '<!doctype html><title>Bundle unavailable</title>')
-      return
-    }
     writeMockHtml(response, 200, `<!doctype html>
       <html lang="en">
         <head><meta charset="utf-8"><title>Harbour Motors</title></head>
         <body>
           <main id="dealer-content"><h1>Harbour Motors inventory</h1><p>Independent dealership host.</p></main>
           <script
-            src="${origin}/vendor/${externalDealershipBundle.file}"
-            data-bootstrap-url="${mockOrigin}/external-dealership-config.json"
-            crossorigin="anonymous"
-            integrity="sha256-${externalDealershipBundle.integrity}"
+            async
+            src="${mockOrigin}/api/public/ai-workspace/install.js"
+            data-installation-id="${externalInstallationId}"
           ></script>
         </body>
       </html>`)
     return
   }
 
-  if (url.pathname === '/external-dealership-config.json') {
+  const connectionHost = {
+    '/external-authenticated-host': authenticatedInstallationId,
+    '/external-private-host': privateInstallationId,
+  }[url.pathname]
+  if (connectionHost) {
+    writeMockHtml(response, 200, `<!doctype html>
+      <html lang="en">
+        <head><meta charset="utf-8"><title>Harbour Motors</title></head>
+        <body>
+          <main id="dealer-content"><h1>Harbour Motors inventory</h1><p>Independent dealership host.</p></main>
+          <script async src="${mockOrigin}/api/public/ai-workspace/install.js" data-installation-id="${connectionHost}"></script>
+        </body>
+      </html>`)
+    return
+  }
+
+  if (url.pathname === '/api/public/ai-workspace/install.js') {
+    writeMockJavaScript(response, installerBytes, 'public, max-age=300, must-revalidate')
+    return
+  }
+
+  const manifestMatch = url.pathname.match(/^\/api\/public\/ai-workspace\/installations\/(awi_pub_[a-f0-9]{32})\/manifest$/)
+  if (manifestMatch) {
+    const installationId = manifestMatch[1]
+    if (![siteInstallationId, externalInstallationId, authenticatedInstallationId, privateInstallationId].includes(installationId)) {
+      writeMockJson(response, 404, { message: 'Installation unavailable' })
+      return
+    }
+    writeMockJson(response, 200, workspaceManifest(installationId))
+    return
+  }
+
+  if (url.pathname === new URL(widgetAsset.url).pathname) {
+    writeMockJavaScript(response, widgetBytes)
+    return
+  }
+
+  if (url.pathname === new URL(dealershipAsset.url).pathname) {
+    writeMockJavaScript(response, dealershipPackBytes)
+    return
+  }
+
+  if (url.pathname === '/broker/runtime-token' && request.method === 'POST') {
+    authenticatedBrokerCount += 1
+    const payload = await readMockJson(request)
     writeMockJson(response, 200, {
-      backendBaseUrl: mockOrigin,
-      widget: { manifestUrl: `${origin}/vendor/max-mode-widget-manifest.json` },
-      dealer: {
-        id: 'dealer-harbour-smoke',
-        assistantLabel: 'Harbour AI',
-        sourceMode: 'DEALERSHIP_INVENTORY',
+      schemaVersion: 'loomai-workspace-runtime-token-v1',
+      accessToken: 'authenticated-browser-smoke-runtime-token',
+      tokenType: 'Bearer',
+      expiresAt: '2099-01-01T00:00:00Z',
+      assignmentRevision: payload.assignmentRevision,
+    })
+    return
+  }
+
+  if (url.pathname === '/api/storefront/shops/harbour.myshopify.com/workspace/bootstrap' && request.method === 'POST') {
+    privateAdapterBootstrapCount += 1
+    writeMockJson(response, 200, {
+      schemaVersion: 'loomai-workspace-private-adapter-v1',
+      chatBaseUrl: mockOrigin,
+      routes: {
+        queryUrl: '/api/chat/me/query',
+        suggestionsUrl: '/api/chat/me/suggestions',
+        authContextUrl: '/api/chat/me/auth-context',
+        shellConfigUrl: '/api/chat/me/shell-config',
+        conversationsUrl: '/api/chat/me/conversations',
+        conversationItemUrlTemplate: '/api/chat/me/conversations/{conversationId}',
       },
-      page: {
-        kind: 'inventory',
-        rootSelector: '#dealer-content',
-        contextLabel: 'Harbour Motors inventory',
-      },
-      capabilities: {
-        comparison: false,
-        testDrive: false,
-        callback: false,
-      },
-      presentation: {
-        detailBasePath: '/vehicles/',
-        imageHostAllowlist: [],
-      },
+      defaultHeaders: { 'X-AI-Workspace-Session': 'private-browser-smoke-session' },
+      fetchCredentials: 'include',
+      features: { conversations: true },
+      probeShellConfigOnOpen: true,
+      probeAuthContextOnOpen: true,
     })
     return
   }
@@ -215,28 +423,6 @@ const mockServer = createServer(async (request, response) => {
       vehicle,
       source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
       dataNotice: 'Fictional demonstration inventory. Confirm current availability with the dealership.',
-    })
-    return
-  }
-
-  if (url.pathname === '/api/public/runtime-descriptor') {
-    writeMockJson(response, 200, {
-      success: true,
-      ready: true,
-      integrationMode: 'public-runtime-anonymous',
-      chatBaseUrl: mockOrigin,
-      runtimeRoutes: {
-        bootstrapUrl: '/api/public/chat/session',
-        renewUrl: '/api/public/chat/session/renew',
-        queryUrl: '/api/chat/me/query',
-        suggestionsUrl: '/api/chat/me/suggestions',
-        authContextUrl: '/api/chat/me/auth-context',
-        shellConfigUrl: '/api/chat/me/shell-config',
-        conversationsUrl: '/api/chat/me/conversations',
-        conversationItemUrlTemplate: '/api/chat/me/conversations/{conversationId}',
-      },
-      inventoryVectorSpace: 'dealer-vehicle',
-      retrievalVectorSpaces: ['dealer-vehicle', 'document'],
     })
     return
   }
@@ -304,6 +490,34 @@ const mockServer = createServer(async (request, response) => {
   if (url.pathname === '/api/chat/me/query' && request.method === 'POST') {
     chatQueryCount += 1
     const payload = await readMockJson(request)
+    if (payload.query === 'Verify authenticated workspace transport.') {
+      if (request.headers.authorization !== 'Bearer authenticated-browser-smoke-runtime-token') {
+        writeMockJson(response, 401, { success: false, answer: 'Missing authenticated runtime token.' })
+        return
+      }
+      authenticatedQueryCount += 1
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'INFORMATION_PROVIDED',
+        conversationId: 'conversation-authenticated-browser-smoke',
+        answer: 'Authenticated workspace transport verified.',
+      })
+      return
+    }
+    if (payload.query === 'Verify private adapter workspace transport.') {
+      if (request.headers['x-ai-workspace-session'] !== 'private-browser-smoke-session') {
+        writeMockJson(response, 401, { success: false, answer: 'Missing private adapter browser session.' })
+        return
+      }
+      privateAdapterQueryCount += 1
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'INFORMATION_PROVIDED',
+        conversationId: 'conversation-private-browser-smoke',
+        answer: 'Private adapter workspace transport verified.',
+      })
+      return
+    }
     if (payload.query === 'Verify stale conversation recovery without replay.') {
       staleConversationAccessRequestCount += 1
       writeMockJson(response, 200, {
@@ -552,7 +766,9 @@ const server = spawn(process.execPath, ['deploy/container/server.mjs'], {
     PORT: String(port),
     LOOMAI_SITE_DIST_DIR: path.join(root, 'dist'),
     DEALERSHIP_DEMO_API_BASE_URL: mockOrigin,
-    DEALERSHIP_DEMO_RUNTIME_BASE_URL: mockOrigin,
+    AI_WORKSPACE_PLATFORM_BASE_URL: mockOrigin,
+    AI_WORKSPACE_INSTALLATION_ID: siteInstallationId,
+    AI_WORKSPACE_CONNECT_ORIGINS: mockOrigin,
     PUBLIC_IMAGE_ORIGINS: simulatorMediaOrigin,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -594,56 +810,10 @@ try {
     )
   }
 
-  const widgetManifestResponse = await fetch(`${origin}/vendor/max-mode-widget-manifest.json`)
-  if (widgetManifestResponse.headers.get('cache-control') !== 'no-store') {
-    throw new Error(`Widget manifest is cacheable: ${widgetManifestResponse.headers.get('cache-control')}`)
-  }
-  const widgetManifest = await widgetManifestResponse.json()
-  if (widgetManifest.schemaVersion !== 'loomai-widget-bundle-v1' ||
-      !/^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(widgetManifest.file || '')) {
-    throw new Error('Widget manifest did not expose a valid content-hashed bundle')
-  }
-  const widgetBundleResponse = await fetch(`${origin}/vendor/${widgetManifest.file}`)
-  if (widgetBundleResponse.headers.get('cache-control') !== 'public, max-age=31536000, immutable') {
-    throw new Error(`Content-hashed widget is not immutable: ${widgetBundleResponse.headers.get('cache-control')}`)
-  }
-  const widgetBundleBytes = Buffer.from(await widgetBundleResponse.arrayBuffer())
-  const widgetBundleSha256 = createHash('sha256').update(widgetBundleBytes).digest('hex')
-  if (widgetBundleSha256 !== widgetManifest.sha256) {
-    throw new Error('Widget manifest did not match the served bundle SHA-256')
-  }
-  const legacyWidgetResponse = await fetch(`${origin}/vendor/max-mode-widget.iife.js`)
-  if (!legacyWidgetResponse.ok || legacyWidgetResponse.headers.get('cache-control') !== 'public, max-age=0, must-revalidate') {
-    throw new Error('Legacy widget compatibility URL is missing or remains long-lived')
-  }
-
-  const dealershipManifestResponse = await fetch(`${origin}/vendor/dealership-experience-manifest.json`)
-  if (dealershipManifestResponse.headers.get('cache-control') !== 'no-store') {
-    throw new Error(`Dealership experience manifest is cacheable: ${dealershipManifestResponse.headers.get('cache-control')}`)
-  }
-  if (dealershipManifestResponse.headers.get('access-control-allow-origin') !== '*' ||
-      dealershipManifestResponse.headers.get('cross-origin-resource-policy') !== 'cross-origin') {
-    throw new Error('Dealership experience manifest is not available to reviewed external hosts')
-  }
-  const dealershipManifest = await dealershipManifestResponse.json()
-  if (dealershipManifest.schemaVersion !== 'loomai-dealership-experience-bundle-v1' ||
-      !/^dealership-experience\.[a-f0-9]{16}\.iife\.js$/.test(dealershipManifest.file || '')) {
-    throw new Error('Dealership experience manifest did not expose a valid content-hashed bundle')
-  }
-  const dealershipBundleResponse = await fetch(`${origin}/vendor/${dealershipManifest.file}`)
-  if (dealershipBundleResponse.headers.get('cache-control') !== 'public, max-age=31536000, immutable' ||
-      dealershipBundleResponse.headers.get('access-control-allow-origin') !== '*' ||
-      dealershipBundleResponse.headers.get('cross-origin-resource-policy') !== 'cross-origin') {
-    throw new Error('Content-hashed dealership experience is not immutable and cross-origin installable')
-  }
-  const dealershipBundleBytes = Buffer.from(await dealershipBundleResponse.arrayBuffer())
-  const dealershipBundleSha256 = createHash('sha256').update(dealershipBundleBytes).digest('hex')
-  if (dealershipBundleSha256 !== dealershipManifest.sha256) {
-    throw new Error('Dealership experience manifest did not match the served bundle SHA-256')
-  }
-  externalDealershipBundle = {
-    file: dealershipManifest.file,
-    integrity: Buffer.from(dealershipBundleSha256, 'hex').toString('base64'),
+  const installerResponse = await fetch(`${mockOrigin}/api/public/ai-workspace/install.js`)
+  if (!installerResponse.ok ||
+      installerResponse.headers.get('cache-control') !== 'public, max-age=300, must-revalidate') {
+    throw new Error('Platform installer is unavailable or has the wrong cache policy')
   }
 
   const externalInstallContext = await browser.newContext({
@@ -659,7 +829,7 @@ try {
     throw new Error(`External dealership host returned ${externalHostResponse?.status()}`)
   }
   await externalInstallPage.waitForFunction(() => Boolean(
-    window.LoomAIDealershipExperience?.mount && window.MaxMode?.open,
+    window.LoomAIWorkspace?.getController() && window.MaxMode?.open,
   ))
   await externalInstallPage.evaluate(() => window.MaxMode.open())
   const externalMaxMode = externalInstallPage.locator('[data-max-mode-view]')
@@ -678,12 +848,77 @@ try {
   if (!(await externalMaxMode.locator('[data-max-mode-tool-scope="contextual"]').isDisabled())) {
     throw new Error('External inventory host unexpectedly enabled contextual tools without context')
   }
-  const externalPackScript = externalInstallPage.locator('script[data-bootstrap-url]')
-  if (new URL(await externalPackScript.getAttribute('src')).origin !== origin ||
-      await externalPackScript.getAttribute('integrity') !== `sha256-${externalDealershipBundle.integrity}`) {
-    throw new Error('External dealer did not install the reviewed content-hashed experience pack')
+  const externalInstaller = externalInstallPage.locator('script[data-installation-id]')
+  if (await externalInstaller.getAttribute('src') !== `${mockOrigin}/api/public/ai-workspace/install.js` ||
+      await externalInstaller.getAttribute('data-installation-id') !== externalInstallationId) {
+    throw new Error('External dealer did not use the one-script Platform installation contract')
+  }
+  const externalAssets = externalInstallPage.locator('script[data-loomai-workspace-asset]')
+  if ((await externalAssets.count()) !== 2) {
+    throw new Error(`External dealer loaded ${await externalAssets.count()} workspace assets instead of two`)
+  }
+  const externalAssetContracts = await externalAssets.evaluateAll((elements) => elements.map((element) => ({
+    src: element.getAttribute('src'),
+    integrity: element.getAttribute('integrity'),
+    crossorigin: element.getAttribute('crossorigin'),
+  })))
+  const expectedExternalAssets = [widgetAsset, dealershipAsset]
+  for (const expected of expectedExternalAssets) {
+    const loaded = externalAssetContracts.find((asset) => asset.src === expected.url)
+    if (!loaded || loaded.integrity !== expected.integrity || loaded.crossorigin !== 'anonymous') {
+      throw new Error(`External dealer loaded an invalid immutable asset contract: ${JSON.stringify({ expected, loaded })}`)
+    }
+  }
+  const duplicateInstallerState = await externalInstallPage.evaluate(async ({ src, installationId }) => {
+    const originalController = window.LoomAIWorkspace?.getController()
+    const duplicate = document.createElement('script')
+    duplicate.async = true
+    duplicate.src = src
+    duplicate.dataset.installationId = installationId
+    const loaded = new Promise((resolve, reject) => {
+      duplicate.addEventListener('load', resolve, { once: true })
+      duplicate.addEventListener('error', reject, { once: true })
+    })
+    document.head.appendChild(duplicate)
+    await loaded
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    return {
+      sameController: originalController === window.LoomAIWorkspace?.getController(),
+      assetCount: document.querySelectorAll('script[data-loomai-workspace-asset]').length,
+    }
+  }, { src: `${mockOrigin}/api/public/ai-workspace/install.js`, installationId: externalInstallationId })
+  if (!duplicateInstallerState.sameController || duplicateInstallerState.assetCount !== 2) {
+    throw new Error(`Duplicate installer execution was not idempotent: ${JSON.stringify(duplicateInstallerState)}`)
   }
   await externalInstallContext.close()
+
+  const authenticatedContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'reduce',
+  })
+  const authenticatedPage = await authenticatedContext.newPage()
+  await authenticatedPage.goto(`${mockOrigin}/external-authenticated-host`, { waitUntil: 'networkidle' })
+  await authenticatedPage.waitForFunction(() => Boolean(window.LoomAIWorkspace?.getController() && window.MaxMode?.sendMessage))
+  await authenticatedPage.evaluate(() => window.MaxMode.sendMessage('Verify authenticated workspace transport.'))
+  await authenticatedPage.getByText('Authenticated workspace transport verified.', { exact: true }).waitFor()
+  if (authenticatedBrokerCount !== 1 || authenticatedQueryCount !== 1) {
+    throw new Error(`Authenticated workspace did not use brokered direct-runtime transport: ${JSON.stringify({ authenticatedBrokerCount, authenticatedQueryCount })}`)
+  }
+  await authenticatedContext.close()
+
+  const privateContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'reduce',
+  })
+  const privatePage = await privateContext.newPage()
+  await privatePage.goto(`${mockOrigin}/external-private-host`, { waitUntil: 'networkidle' })
+  await privatePage.waitForFunction(() => Boolean(window.LoomAIWorkspace?.getController() && window.MaxMode?.sendMessage))
+  await privatePage.evaluate(() => window.MaxMode.sendMessage('Verify private adapter workspace transport.'))
+  await privatePage.getByText('Private adapter workspace transport verified.', { exact: true }).waitFor()
+  if (privateAdapterBootstrapCount !== 1 || privateAdapterQueryCount !== 1) {
+    throw new Error(`Private workspace did not use adapter-mediated transport: ${JSON.stringify({ privateAdapterBootstrapCount, privateAdapterQueryCount })}`)
+  }
+  await privateContext.close()
 
   const routes = [
     '/',
@@ -705,6 +940,7 @@ try {
     viewport: { width: 1440, height: 1000 },
     reducedMotion: 'reduce',
   })
+  await installStorageTestHelpers(context)
   const page = await context.newPage()
   const mediaNetworkEvents = []
   page.on('response', (response) => {
@@ -821,24 +1057,31 @@ try {
     const detail = await page.locator('[data-runtime-state-detail]').textContent()
     throw new Error(`Dealership assistant did not become ready: ${detail}`)
   }
-  const loadedDealershipScript = page.locator('script[data-dealership-experience-bundle]')
-  const loadedDealershipSource = await loadedDealershipScript.getAttribute('src')
-  const loadedDealershipSha256 = await loadedDealershipScript.getAttribute('data-dealership-experience-bundle-sha256')
-  const loadedDealershipIntegrity = await loadedDealershipScript.getAttribute('integrity')
-  if (loadedDealershipSource !== `/vendor/${dealershipManifest.file}` ||
-      loadedDealershipSha256 !== dealershipManifest.sha256 ||
-      loadedDealershipIntegrity !== `sha256-${Buffer.from(dealershipBundleSha256, 'hex').toString('base64')}`) {
-    throw new Error('Dealership demo did not load the packaged experience manifest version')
+  const loadedInstallerScript = page.locator('script[data-loomai-ai-workspace]')
+  if (await loadedInstallerScript.getAttribute('src') !== `${mockOrigin}/api/public/ai-workspace/install.js` ||
+      await loadedInstallerScript.getAttribute('data-installation-id') !== siteInstallationId) {
+    throw new Error('Dealership demo did not use its Platform AI Workspace installation')
   }
-  const packApiReady = await page.evaluate(() => Boolean(window.LoomAIDealershipExperience?.mount))
+  if ((await page.locator('script[src^="/vendor/"]').count()) !== 0) {
+    throw new Error('Dealership demo still loads site-local widget or experience assets')
+  }
+  const packApiReady = await page.evaluate(() => Boolean(window.LoomAIDealershipExperience?.mountInstallation))
   if (!packApiReady) {
     throw new Error('Dealership demo did not initialize through the packaged browser API')
   }
-  const loadedWidgetScript = page.locator('script[data-max-mode-bundle]')
-  const loadedWidgetSource = await loadedWidgetScript.getAttribute('src')
-  const loadedWidgetSha256 = await loadedWidgetScript.getAttribute('data-max-mode-bundle-sha256')
-  if (new URL(loadedWidgetSource, origin).pathname !== `/vendor/${widgetManifest.file}` || loadedWidgetSha256 !== widgetManifest.sha256) {
-    throw new Error('Dealership loaded a stable or mismatched widget bundle instead of the manifest version')
+  const loadedWorkspaceAssets = page.locator('script[data-loomai-workspace-asset]')
+  if ((await loadedWorkspaceAssets.count()) !== 2) {
+    throw new Error('Dealership demo did not load exactly the reviewed widget and experience assets')
+  }
+  const loadedWorkspaceAssetContracts = await loadedWorkspaceAssets.evaluateAll((elements) => elements.map((element) => ({
+    src: element.getAttribute('src'),
+    integrity: element.getAttribute('integrity'),
+  })))
+  for (const expected of [widgetAsset, dealershipAsset]) {
+    const loaded = loadedWorkspaceAssetContracts.find((asset) => asset.src === expected.url)
+    if (!loaded || loaded.integrity !== expected.integrity) {
+      throw new Error(`Dealership demo loaded a mismatched Platform asset: ${expected.url}`)
+    }
   }
   await page.evaluate(() => window.MaxMode.open())
   const listingMaxMode = page.locator('[data-max-mode-view]')
@@ -898,7 +1141,7 @@ try {
     throw new Error('Attaching the inventory page unexpectedly opened the Companion chat')
   }
   const navigationSessionBefore = await page.evaluate(() => {
-    const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+    const binding = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
     return binding.sessionId
   })
   const bootstrapsBeforeNavigation = anonymousBootstrapCount
@@ -914,11 +1157,11 @@ try {
     throw new Error('Dealership vehicle detail route did not render the live-backed vehicle title')
   }
   await page.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.attachedItems?.some((item) => item.type === 'current-page') === true
   })
   const navigationSessionAfter = await page.evaluate(() => {
-    const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+    const binding = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
     return binding.sessionId
   })
   if (navigationSessionAfter !== navigationSessionBefore) {
@@ -1122,7 +1365,7 @@ try {
     (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
   )
   const retainedVehicleAttachment = await page.evaluate(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.attachedItems?.some((item) => item.data?.id === 'veh-aster-e1') === true
   })
   if (JSON.stringify(browseToolsWithContext) !== JSON.stringify(expectedBrowseTools) || !retainedVehicleAttachment) {
@@ -1299,7 +1542,7 @@ try {
     await removeAttachment.click()
   }
   await page.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return !state.attachedItems?.some((item) => item.type !== 'ai-search')
   })
   if ((await browseScope.getAttribute('aria-selected')) !== 'true' ||
@@ -1392,7 +1635,7 @@ try {
   })
   await staleConversationResponse
   await page.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.conversationId === null && Array.isArray(state.chatMessages) && state.chatMessages.length === 0
   })
   await page.waitForTimeout(150)
@@ -1420,14 +1663,14 @@ try {
   }
   await page.getByText('I found current electric vehicles under GBP 40,000.', { exact: true }).first().waitFor()
   await page.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.conversationId === 'conversation-browser-smoke'
   })
 
   const requestsBeforeIdentityRotation = chatQueryCount
   anonymousSessionId = 'browser-smoke-session-rotated'
   await page.evaluate(() => {
-    sessionStorage.removeItem('maxmode_public_runtime_session_credential_v2')
+    window.__loomaiTestStorage.removeItem('maxmode_public_runtime_session_credential_v2')
   })
   await page.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
   await page.waitForFunction(
@@ -1443,8 +1686,8 @@ try {
   await page.evaluate(() => window.MaxMode.open({ position: 'search', mode: 'executor' }))
   try {
     await page.waitForFunction(() => {
-      const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
-      const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+      const binding = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+      const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
       return binding.sessionId === 'browser-smoke-session-rotated'
         && state.conversationId === null
         && Array.isArray(state.chatMessages)
@@ -1454,8 +1697,8 @@ try {
     }, undefined, { timeout: 5_000 })
   } catch {
     const storageState = await page.evaluate(() => ({
-      binding: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}'),
-      widget: JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}'),
+      binding: JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}'),
+      widget: JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}'),
     }))
     throw new Error(`Anonymous identity rotation did not reset all conversation-bound state: ${JSON.stringify(storageState)}`)
   }
@@ -1487,6 +1730,7 @@ try {
     viewport: { width: 1440, height: 1000 },
     reducedMotion: 'reduce',
   })
+  await installStorageTestHelpers(navigationContinuityContext)
   const navigationContinuityPage = await navigationContinuityContext.newPage()
   await navigationContinuityPage.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
   await navigationContinuityPage.waitForFunction(
@@ -1504,7 +1748,7 @@ try {
     })
   })
   await navigationContinuityPage.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.attachedItems?.some((item) => item.type === 'current-page') === true
       && state.attachedItems?.some((item) => item.data?.id === 'navigation-reference') === true
   })
@@ -1521,19 +1765,19 @@ try {
   })
   await navigationContinuityResponse
   await navigationContinuityPage.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.conversationId === 'conversation-browser-smoke'
       && state.chatMessages?.some((message) => message.content === 'I found current electric vehicles under GBP 40,000.') === true
   })
   const navigationContinuityBefore = await navigationContinuityPage.evaluate(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return {
       conversationId: state.conversationId,
       messages: state.chatMessages?.map(({ id, type, content }) => ({ id, type, content })),
       attachments: state.attachedItems?.map((item) => ({ type: item.type, id: item.data?.id, title: item.data?.title })),
       currentMode: state.currentMode,
       currentPosition: state.currentPosition,
-      sessionId: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
+      sessionId: JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
       detailUrl: document.querySelector('[data-card-details]')?.getAttribute('href'),
     }
   })
@@ -1549,7 +1793,7 @@ try {
   )
   try {
     await navigationContinuityPage.waitForFunction(() => {
-      const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+      const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
       return state.conversationId === 'conversation-browser-smoke'
         && state.chatMessages?.some((message) => message.content === 'I found current electric vehicles under GBP 40,000.') === true
         && state.attachedItems?.some((item) => item.type === 'current-page') === true
@@ -1557,8 +1801,8 @@ try {
     })
   } catch {
     const state = await navigationContinuityPage.evaluate(() => {
-      const widget = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
-      const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+      const widget = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
+      const binding = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
       return {
         conversationId: widget.conversationId,
         messages: widget.chatMessages?.map((message) => ({ type: message.type, content: message.content })),
@@ -1569,10 +1813,10 @@ try {
     throw new Error(`Full-page navigation did not preserve conversation state: ${JSON.stringify(state)}`)
   }
   const navigationContinuitySessionAfter = await navigationContinuityPage.evaluate(
-    () => JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
+    () => JSON.parse(window.__loomaiTestStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
   )
   const navigationContinuityAfter = await navigationContinuityPage.evaluate(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return {
       conversationId: state.conversationId,
       messages: state.chatMessages?.map(({ id, type, content }) => ({ id, type, content })),
@@ -1608,6 +1852,7 @@ try {
     viewport: { width: 1440, height: 1000 },
     reducedMotion: 'reduce',
   })
+  await installStorageTestHelpers(detailToolsContext)
   const detailToolsPage = await detailToolsContext.newPage()
   await detailToolsPage.goto(`${origin}/demos/dealership-ai/vehicles/aster-e1-motion`, { waitUntil: 'networkidle' })
   await detailToolsPage.waitForFunction(
@@ -1646,7 +1891,7 @@ try {
   const detailCompanion = detailToolsPage.locator('section[aria-label="Northfield AI"]')
   await detailCompanion.getByRole('button', { name: 'Attach current page' }).click()
   await detailToolsPage.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     return state.attachedItems?.some((item) => item.type === 'current-page') === true
   })
   if ((await detailCompanion.getByRole('button', { name: 'Minimize assistant' }).count()) !== 0) {
@@ -1667,7 +1912,7 @@ try {
   }
   await detailToolsPage.getByRole('button', { name: /Remove attached page:/ }).first().click()
   await detailToolsPage.waitForFunction(() => {
-    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const state = JSON.parse(window.__loomaiTestStorage.getItem('maxmode_widget_state') || '{}')
     const selected = document.querySelector('#max-mode-widget-shadow-host')?.shadowRoot
       ?.querySelector('[data-max-mode-tool-scope="default"]')
     return state.attachedItems?.length === 0 && selected?.getAttribute('aria-selected') === 'true'

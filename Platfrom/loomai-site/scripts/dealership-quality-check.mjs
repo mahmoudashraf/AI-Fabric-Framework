@@ -145,11 +145,27 @@ try {
     const configResponse = await fetch('/runtime-config/dealership-demo.json', { cache: 'no-store' })
     if (!configResponse.ok) throw new Error(`Runtime config returned HTTP ${configResponse.status}`)
     const config = await configResponse.json()
-    const descriptorResponse = await fetch(`${config.apiBaseUrl}/api/public/runtime-descriptor`, { cache: 'no-store' })
-    if (!descriptorResponse.ok) throw new Error(`Runtime descriptor returned HTTP ${descriptorResponse.status}`)
+    const installer = document.querySelector('script[data-loomai-ai-workspace]')
+    if (!installer?.src || !installer.dataset.installationId) throw new Error('AI Workspace installation script is missing.')
+    const platformOrigin = new URL(installer.src).origin
+    const manifestResponse = await fetch(
+      `${platformOrigin}/api/public/ai-workspace/installations/${installer.dataset.installationId}/manifest`,
+      { cache: 'no-cache', credentials: 'omit', headers: { Accept: 'application/json' } },
+    )
+    if (!manifestResponse.ok) throw new Error(`AI Workspace manifest returned HTTP ${manifestResponse.status}`)
+    const manifest = await manifestResponse.json()
+    const workspaceConfig = manifest.workspace?.configuration || {}
     return {
       config,
-      descriptor: await descriptorResponse.json(),
+      descriptor: {
+        ready: manifest.schemaVersion === 'loomai-ai-workspace-installation-v1',
+        integrationMode: manifest.connection?.mode,
+        chatBaseUrl: manifest.connection?.runtimeBaseUrl || null,
+        inventoryVectorSpace: workspaceConfig.knowledge?.inventoryVectorSpace || null,
+        retrievalVectorSpaces: workspaceConfig.knowledge?.retrievalVectorSpaces || [],
+        installationId: manifest.installationId,
+        assignmentRevision: manifest.assignmentRevision,
+      },
       vehicleCount: document.querySelectorAll('.vehicle-card').length,
     }
   })
@@ -705,10 +721,6 @@ function evidenceTerms(value) {
   )
     .map((term) => term.toLowerCase())
     .filter((term) => (term.length >= 4 || /\d/.test(term)) && !ignored.has(term))
-}
-
-function normalizeComparableText(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 function buildRecommendations(results, globalAssertions, policy) {

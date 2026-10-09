@@ -8,10 +8,9 @@
     "npm": ">=9.6.5"
   },
   "scripts": {
-    "dev": "npm run prepare:browser-assets && astro dev --host 127.0.0.1 --port 4321",
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
     "check": "astro check",
-    "prepare:browser-assets": "npm --prefix ../../max-mode-widget run build && npm --prefix ../../experience-packs/dealership-experience run build && node scripts/copy-browser-assets.mjs",
-    "clean:browser-assets": "node scripts/clean-browser-assets.mjs",
+    "prepare:workspace-test-assets": "npm --prefix ../../max-mode-widget run build && npm --prefix ../../experience-packs/dealership-experience run build",
     "build": "node scripts/build-site.mjs",
     "preview": "astro preview --host 127.0.0.1 --port 4321",
     "start": "node deploy/container/server.mjs",
@@ -20,7 +19,7 @@
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:dealership-live": "node scripts/dealership-live-gate.mjs",
     "quality:dealership-live": "node scripts/dealership-quality-check.mjs",
-    "verify": "npm run check && npm run build && npm run smoke && npm run smoke:browser"
+    "verify": "npm run check && npm run build && npm run prepare:workspace-test-assets && npm run smoke && npm run smoke:browser"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

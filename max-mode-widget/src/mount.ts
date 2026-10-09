@@ -18,6 +18,7 @@ let _root: ReactDOM.Root | null = null;
 let _shadowRoot: ShadowRoot | null = null;
 let _isOpen = false;
 let _currentConfig: MaxModeWidgetConfig | null = null;
+let _widgetStyleText = "";
 
 export function mountWidget(config: MaxModeWidgetConfig): void {
   // Prevent double mount
@@ -49,8 +50,14 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   // Move the injected widget styles into Shadow DOM
   const injectedStyle = document.getElementById("max-mode-widget-styles");
   if (injectedStyle) {
-    _shadowRoot.appendChild(injectedStyle.cloneNode(true));
+    _widgetStyleText = injectedStyle.textContent || _widgetStyleText;
     injectedStyle.remove();
+  }
+  if (_widgetStyleText) {
+    const widgetStyle = document.createElement("style");
+    widgetStyle.id = "max-mode-widget-shadow-styles";
+    widgetStyle.textContent = _widgetStyleText;
+    _shadowRoot.appendChild(widgetStyle);
   }
 
   // Create the React render container

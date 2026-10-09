@@ -1,11 +1,27 @@
 export * from './index'
 
-import { autoMountFromCurrentScript } from './index'
+import {
+  attachVehicle,
+  destroy,
+  mountInstallation,
+  registerExperiencePack,
+  sendMessage,
+} from './index'
 
-void autoMountFromCurrentScript().catch((error) => {
-  window.dispatchEvent(new CustomEvent('loomai:dealership-experience-error', {
+window.LoomAIDealershipExperience = {
+  mountInstallation,
+  attachVehicle,
+  sendMessage,
+  destroy,
+}
+
+try {
+  registerExperiencePack()
+} catch (error) {
+  window.dispatchEvent(new CustomEvent('loomai:workspace-error', {
     detail: {
-      message: error instanceof Error ? error.message : 'The dealership experience could not start.',
+      code: 'EXPERIENCE_PACK_REGISTRATION_FAILED',
+      message: error instanceof Error ? error.message : 'The dealership experience pack could not register.',
     },
   }))
-})
+}

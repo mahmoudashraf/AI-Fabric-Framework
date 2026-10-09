@@ -11,6 +11,12 @@ API and internal development reference, see [GUIDE.md](GUIDE.md). For the
 security rationale behind the supported authentication modes, see
 [WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
 
+For a Platform-managed deployment, the preferred integration is now the
+[AI Workspace one-script contract](AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md).
+It resolves the current consumer assignment and integrity-pinned assets without
+customer bootstrap code. The explicit initialization documented below remains
+the supported advanced path for reviewed integrations outside that contract.
+
 ## 1. Product Boundary
 
 The Max Mode chat application owns:
@@ -94,16 +100,9 @@ The expected manifest shape is:
 }
 ```
 
-For customers approved to use LoomAI-hosted browser assets, the current
-manifest endpoint is:
-
-```text
-https://loomai.pro/vendor/max-mode-widget-manifest.json
-```
-
-Treat it as release metadata: select and verify the returned content-addressed
-file during rollout rather than silently changing production code on every
-page load.
+Platform-managed installations receive the exact content-addressed file and
+SHA-384 SRI value through their origin-scoped installation manifest. Do not
+resolve widget assets from the public website or invent a mutable asset URL.
 
 ### 4.2 ESM or React distribution
 

@@ -18,6 +18,7 @@ export function useConversationsController({
   setAttachedItems,
   setSuggestions,
   setContextDocuments,
+  beforeNewConversation,
   toast,
 }: {
   enabled?: boolean;
@@ -31,6 +32,7 @@ export function useConversationsController({
   setAttachedItems: (updater: any) => void;
   setSuggestions: (suggestions: string[]) => void;
   setContextDocuments: (docs: any[]) => void;
+  beforeNewConversation?: () => Promise<void> | void;
   toast: (opts: any) => void;
 }) {
   const [isConversationsOpen, setIsConversationsOpen] = useState(false);
@@ -63,7 +65,7 @@ export function useConversationsController({
     }
   }, [enabled, toast]);
 
-  const startNewConversation = useCallback(() => {
+  const resetConversation = useCallback(() => {
     setChatMessages([]);
     setCurrentConversationId(null);
     setIsViewingOldConversation(false);
@@ -73,6 +75,22 @@ export function useConversationsController({
     setContextDocuments([]);
     setIsConversationsOpen(false);
   }, [setAttachedItems, setChatMessages, setContextDocuments, setCurrentConversationId, setSuggestions]);
+
+  const startNewConversation = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await beforeNewConversation?.();
+      resetConversation();
+    } catch (error) {
+      toast({
+        title: "Unable to start a new conversation",
+        description: error instanceof Error ? error.message : "Workspace assignment could not be refreshed.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [beforeNewConversation, resetConversation, setIsLoading, toast]);
 
   const openConversation = useCallback(
     async (conversationId: string) => {
@@ -133,7 +151,7 @@ export function useConversationsController({
         await deleteConversation(conversationId);
         setConversations((prev) => prev.filter((c) => c.id !== conversationId));
         if (currentConversationId === conversationId) {
-          startNewConversation();
+          void startNewConversation();
         }
         toast({
           title: "Deleted",
@@ -235,6 +253,7 @@ export function useConversationsController({
     openConversation,
     handleDeleteConversation,
     startNewConversation,
+    resetConversation,
     openConversationsPanel,
   } as const;
 }

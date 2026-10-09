@@ -28,6 +28,7 @@ import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
+import WidgetsRoundedIcon from '@mui/icons-material/WidgetsRounded'
 import {
   AppBar,
   Box,
@@ -61,6 +62,7 @@ const navItems = [
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
+  { label: 'AI Workspaces', path: '/ai-workspaces', icon: <WidgetsRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'Document Knowledge', path: '/document-knowledge', icon: <DescriptionRoundedIcon />, documentKnowledgeOnly: true },
   { label: 'External Integrations', path: '/integrations', icon: <CableRoundedIcon />, externalIntegrationOnly: true },

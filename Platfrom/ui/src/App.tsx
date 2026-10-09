@@ -3,6 +3,7 @@ import { usePlatformAuth } from './auth/PlatformAuthProvider'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
 import { ActionsPage } from './pages/ActionsPage'
+import { AIWorkspacesPage } from './pages/AIWorkspacesPage'
 import { BehaviorPage } from './pages/BehaviorPage'
 import { BehaviorOperationsPage } from './pages/BehaviorOperationsPage'
 import { HumanReviewPage } from './pages/HumanReviewPage'
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/ai-workspaces" element={<AIWorkspacesPage />} />
           <Route path="/behavior" element={<BehaviorPage />} />
           <Route path="/behavior-operations" element={<BehaviorOperationsPage />} />
           <Route path="/human-review" element={<HumanReviewPage />} />

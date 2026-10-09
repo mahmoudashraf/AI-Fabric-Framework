@@ -10,6 +10,7 @@ type Props = {
   canonicalPath?: string
   noIndex?: boolean
   skipLabel?: string
+  installAIWorkspace?: boolean
 }
 
 const {
@@ -18,7 +19,15 @@ const {
   canonicalPath = Astro.url.pathname,
   noIndex = false,
   skipLabel = 'Skip to inventory',
+  installAIWorkspace = false,
 } = Astro.props
+
+const aiWorkspaceInstallUrl = import.meta.env.DEV
+  ? (import.meta.env.PUBLIC_AI_WORKSPACE_INSTALL_URL || 'http://127.0.0.1:8080/api/public/ai-workspace/install.js')
+  : '__LOOMAI_AI_WORKSPACE_INSTALL_URL__'
+const aiWorkspaceInstallationId = import.meta.env.DEV
+  ? (import.meta.env.PUBLIC_AI_WORKSPACE_INSTALLATION_ID || 'awi_pub_00000000000000000000000000000000')
+  : '__LOOMAI_AI_WORKSPACE_INSTALLATION_ID__'
 
 const pageTitle = `${title} | ${site.name}`
 const canonicalUrl = new URL(canonicalPath, site.canonicalOrigin).toString()
@@ -49,6 +58,15 @@ const canonicalUrl = new URL(canonicalPath, site.canonicalOrigin).toString()
     <main id="main-content">
       <slot />
     </main>
+    {installAIWorkspace && (
+      <script
+        is:inline
+        async
+        src={aiWorkspaceInstallUrl}
+        data-installation-id={aiWorkspaceInstallationId}
+        data-loomai-ai-workspace="true"
+      ></script>
+    )}
   </body>
 </html>
 

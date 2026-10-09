@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "smoke:phase18": "node scripts/phase18-ui-smoke.mjs",
     "smoke:phase19": "node scripts/phase19-ui-auth-smoke.mjs",
-    "smoke:phase20": "node scripts/phase20-ui-lifecycle-smoke.mjs"
+    "smoke:phase20": "node scripts/phase20-ui-lifecycle-smoke.mjs",
+    "smoke:ai-workspace": "node scripts/ai-workspace-ui-smoke.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -1,87 +1,48 @@
 # LoomAI Dealership Experience Pack
 
-Provider-neutral automotive-retail configuration and action-result UI for the
-generic LoomAI Max Mode widget. The pack contains no Auto Trader credentials,
-provider client, dealership-specific inventory, or protected backend access.
+Provider-neutral automotive-retail presentation and interaction configuration
+for the generic LoomAI Workspace. The pack contains no provider client,
+provider credential, fixed dealership inventory, or protected backend access.
 
-Customer and partner implementations should start with the
-[External Developer Guide](docs/EXTERNAL_DEVELOPER_GUIDE.md).
+Start with the [external developer guide](docs/EXTERNAL_DEVELOPER_GUIDE.md).
 
-Each dealership supplies:
+## Installation
 
-- its public runtime descriptor URL;
-- dealer identity and branding;
-- the current page kind and visible context;
-- installed capabilities;
-- optional mobile Max Mode rail overrides;
-- approved image hosts and detail routes; and
-- optional safe host copy or tool overrides.
-
-Normal browser traffic goes directly to the dealership's assigned LoomAI
-deployment. Inventory and write operations still pass through deployment-local
-actions, policy, validation, and confirmation.
-
-## One-script bootstrap
-
-Host a public JSON configuration endpoint, then install the pack with:
+Create and activate a `dealership@1.0.0` AI Workspace installation in LoomAI
+Platform, then add the generated script to the dealership website:
 
 ```html
 <script
-  src="https://cdn.example.com/dealership-experience.iife.js"
-  data-bootstrap-url="https://dealer.example.com/loomai/experience.json"
-  crossorigin="anonymous"
+  async
+  src="https://api.loomai.pro/api/public/ai-workspace/install.js"
+  data-installation-id="awi_pub_0123456789abcdef0123456789abcdef"
 ></script>
 ```
 
-The bootstrap response must conform to `DealershipExperienceConfig`. It must
-not contain API keys, runtime assertions, connector credentials, or provider
-credentials.
+Platform resolves the installation's current verified deployment, exact
+origin, connection profile, immutable widget/pack assets, and public pack
+configuration. The dealership website does not publish a runtime descriptor or
+write workspace bootstrap JavaScript.
 
-## Explicit initialization
+Each installation configures public values such as dealer label, page-content
+rules, tool groups, capabilities, approved media hosts, detail links, and
+theme. Runtime, connector, provider, and signing credentials stay server-side.
 
-```html
-<script src="https://cdn.example.com/dealership-experience.iife.js"></script>
-<script>
-  LoomAIDealershipExperience.mount({
-    backendBaseUrl: "https://dealer.example.com",
-    widget: {
-      manifestUrl: "https://cdn.example.com/max-mode-widget-manifest.json"
-    },
-    dealer: {
-      id: "dealer-123",
-      assistantLabel: "Dealer AI",
-      sourceMode: "DEALERSHIP_INVENTORY"
-    },
-    page: {
-      kind: "inventory",
-      rootSelector: "#main-content",
-      contextLabel: "Current dealership inventory"
-    },
-    capabilities: {
-      comparison: true,
-      testDrive: true,
-      callback: true
-    },
-    presentation: {
-      detailBasePath: "/vehicles/",
-      imageHostAllowlist: ["images.example.com"]
-    }
-  });
-</script>
-```
+Normal public-mode conversation traffic goes directly to the dealership's
+assigned deployment. Inventory reads and writes still pass through
+deployment-local retrieval/actions, policy, validation, and confirmation.
 
-Use `attachVehicle`, `sendMessage`, and `destroy` on the exported browser API
-for host-page interactions. The generic widget remains unaware of vehicles,
-dealership actions, and provider payload fields.
+## Optional Host API
 
-By default the pack injects a mobile Max Mode rail with `Stock`, `Vehicle`, and
-`Sources`. These are ordinary generic widget commands: Stock opens the default
-tool scope, Vehicle opens the contextual scope when available, and Sources
-opens retrieved evidence. Override `toolRail` in the public pack configuration
-when a dealership needs a different reviewed command set.
+After `loomai:workspace-ready`, the pack exposes:
 
-When `testDrive` or `callback` is enabled, the pack also maps the corresponding
-confirmed write action to a responsive request-receipt presentation. It shows
-only the safe reference, lifecycle status, vehicle label, submitted time, and
-customer-facing message; contact details and connector internals are not part
-of the projection.
+- `LoomAIDealershipExperience.attachVehicle(vehicle)`
+- `LoomAIDealershipExperience.sendMessage(message, requestContext)`
+- `LoomAIDealershipExperience.destroy()`
+
+These methods improve a richer dealership host but are not required for the
+script-only baseline. Browser-derived IDs remain untrusted hints; the
+deployment or connector must resolve protected targets before execution.
+
+The generic widget remains unaware of vehicles, dealerships, provider payloads,
+and dealership action names.
