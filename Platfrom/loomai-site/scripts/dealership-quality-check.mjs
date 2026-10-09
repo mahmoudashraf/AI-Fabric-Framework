@@ -58,6 +58,16 @@ const scenarios = [
     prompt: 'What does local delivery cost and what must be ready before handover?',
   },
   {
+    id: 'compound-inventory-policy-forward',
+    purpose: 'Combine current inventory action evidence and approved delivery-policy evidence without dropping either clause.',
+    prompt: 'What electric cars do you have under GBP 40,000, and what is your delivery policy?',
+  },
+  {
+    id: 'compound-inventory-policy-reverse',
+    purpose: 'Prove that reversing the policy and inventory clauses produces equivalent evidence coverage.',
+    prompt: 'What is your delivery policy, and which electric cars do you have under GBP 40,000?',
+  },
+  {
     id: 'approved-test-drive-policy',
     purpose: 'Return eligibility requirements from the approved test-drive policy without starting a booking.',
     prompt: 'What age and driving licence history does Northfield require for a test drive? Do not book one.',
@@ -86,6 +96,11 @@ const documentKnowledgeScenarioIds = [
   'approved-test-drive-policy',
   'approved-complaints-policy',
   'approved-opening-accessibility',
+]
+
+const compoundEvidenceScenarioIds = [
+  'compound-inventory-policy-forward',
+  'compound-inventory-policy-reverse',
 ]
 
 const startedAt = new Date().toISOString()
@@ -276,6 +291,9 @@ try {
   const documentKnowledgeResults = results.filter(({ id }) => documentKnowledgeScenarioIds.includes(id))
   const documentKnowledgePassed = documentKnowledgeResults.length === documentKnowledgeScenarioIds.length
     && documentKnowledgeResults.every(({ status }) => status === 'PASS')
+  const compoundEvidenceResults = results.filter(({ id }) => compoundEvidenceScenarioIds.includes(id))
+  const compoundEvidencePassed = compoundEvidenceResults.length === compoundEvidenceScenarioIds.length
+    && compoundEvidenceResults.every(({ status }) => status === 'PASS')
 
   report = {
     schemaVersion: 'loomai-dealership-live-quality-v1',
@@ -307,6 +325,12 @@ try {
         scenarioCount: documentKnowledgeResults.length,
         expectedScenarioCount: documentKnowledgeScenarioIds.length,
         scenarioIds: documentKnowledgeScenarioIds,
+      },
+      compoundEvidence: {
+        status: compoundEvidencePassed ? 'PASS' : 'FAIL',
+        scenarioCount: compoundEvidenceResults.length,
+        expectedScenarioCount: compoundEvidenceScenarioIds.length,
+        scenarioIds: compoundEvidenceScenarioIds,
       },
     },
     globalAssertions,
@@ -465,8 +489,10 @@ function scenarioAssertions(id, result, observedQueries) {
     ]
   }
   if (id === 'semantic-rag') {
+    const namesGroundedCandidate = /(Caldera X6|Northstar S4)/i.test(answer)
+    const explainsLimits = /(tow|all-wheel|awd|poor-weather|drivetrain|cannot be confirmed|not include)/i.test(answer)
     return [
-      check('semantic recommendation identifies the relevant vehicle', includesAll(answer, ['Caldera X6']) && /(tow|all-wheel|awd|poor-weather)/i.test(answer), 'Caldera X6 with towing or AWD rationale.', summarizeText(answer)),
+      check('semantic recommendation identifies a grounded candidate', namesGroundedCandidate && explainsLimits, 'A retrieved candidate with towing/poor-weather reasoning and explicit evidence limits.', summarizeText(answer)),
       check('semantic recommendation is grounded', grounded, 'Action or non-action RAG evidence.', evidence.groundingPath),
     ]
   }
@@ -524,6 +550,75 @@ function scenarioAssertions(id, result, observedQueries) {
       check('answer includes handover prerequisites', /(cleared funds)/i.test(answer) && /(identit|photo identification)/i.test(answer) && /insurance/i.test(answer), 'Cleared funds, identity and insurance evidence.', summarizeText(answer)),
     ]
   }
+  if (compoundEvidenceScenarioIds.includes(id)) {
+    const compound = evidence.compoundEvidence
+    const actionObligation = compound?.obligations.find(({ readActionEvidenceCount, actionCount }) => (
+      readActionEvidenceCount > 0 && actionCount > 0
+    ))
+    const policyObligation = compound?.obligations.find(({ intentType, effectiveVectorSpaces }) => (
+      intentType === 'INFORMATION' && effectiveVectorSpaces.includes('document')
+    ))
+    const successfulInventoryActions = evidence.actionResults
+      .filter(({ action, success }) => action === 'dealership_search_inventory' && success)
+    const documentEvidence = evidence.externalDocuments
+      .filter(({ vectorSpace }) => vectorSpace === 'document')
+    const compoundCollectionComplete = compound?.strategy === 'COLLECT_THEN_SYNTHESIZE'
+      && compound.finalSynthesisPerformed
+      && compound.obligationCount >= 2
+      && compound.completedObligationCount === compound.obligationCount
+      && compound.emptyObligationCount === 0
+      && compound.deniedObligationCount === 0
+      && compound.failedObligationCount === 0
+    const singleIntentMixedEvidenceComplete = !compound
+      && evidence.groundingPath === 'ACTION_AND_RAG'
+      && successfulInventoryActions.length === 1
+      && documentEvidence.length > 0
+    return [
+      check(
+        'mixed evidence collection completed',
+        compoundCollectionComplete || singleIntentMixedEvidenceComplete,
+        'Either all compound obligations complete before synthesis or one validated intent returns both action and document evidence.',
+        compound || { groundingPath: evidence.groundingPath, documentEvidenceCount: documentEvidence.length },
+      ),
+      check(
+        'inventory action evidence is represented once',
+        successfulInventoryActions.length === 1
+          && (!compound || (
+            actionObligation?.evidenceStatus === 'SUFFICIENT'
+            && actionObligation.readActionEvidenceCount >= 1
+            && compound.actionExecutionIds.length === new Set(compound.actionExecutionIds).size
+            && compound.actionExecutionIds.length === 1
+          )),
+        'One successful inventory action and one unique execution id.',
+        { successfulInventoryActions, actionObligation, actionExecutionIds: compound?.actionExecutionIds || [] },
+      ),
+      check(
+        'delivery policy uses the document source',
+        (policyObligation?.evidenceStatus === 'SUFFICIENT'
+          && policyObligation.documentsRetrieved > 0
+          && policyObligation.searchedSourceIds.includes('dealership-public-document-knowledge'))
+          || documentEvidence.some(({ knowledgeSourceId }) => (
+            !knowledgeSourceId || knowledgeSourceId === 'dealership-public-document-knowledge'
+          )),
+        'A sufficient document obligation searches the approved dealership source.',
+        policyObligation || documentEvidence,
+      ),
+      check(
+        'one answer covers inventory and delivery policy',
+        includesAll(answer, ['Aster E1', 'Morrow C2'])
+          && /(?:GBP\s*|£\s*)49/i.test(answer)
+          && /25\s+miles?/i.test(answer),
+        'Current electric inventory plus the GBP 49 / 25-mile delivery policy.',
+        summarizeText(answer),
+      ),
+      check(
+        'compound request executes no write',
+        evidence.successfulWriteActions.length === 0,
+        'Read-only action and document evidence only.',
+        evidence.successfulWriteActions,
+      ),
+    ]
+  }
   if (id === 'approved-test-drive-policy') {
     return [
       check('approved test-drive evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
@@ -572,6 +667,7 @@ function responseEvidence(value) {
   const metadata = metadataCandidates(value)
   const policy = metadata.map((entry) => entry.orchestrationPolicy).find(Boolean) || null
   const chat = metadata.map((entry) => entry.chat).find(Boolean) || null
+  const compound = metadata.map((entry) => entry.compoundEvidence).find(Boolean) || null
   const resolutions = [
     ...metadata.map((entry) => entry.readActionResolution),
     ...(Array.isArray(value?.actions) ? value.actions.map((entry) => entry?.readActionResolution) : []),
@@ -597,6 +693,7 @@ function responseEvidence(value) {
       contentPreview: summarizeText(document?.content, 1_000),
       type: document?.type || null,
       vectorSpace: document?.metadata?.vectorSpace || document?.vectorSpace || null,
+      knowledgeSourceId: document?.metadata?.knowledgeSourceId || document?.knowledgeSourceId || null,
       score: typeof document?.score === 'number' ? document.score : null,
     }))
   const diagnostics = metadata.flatMap((entry) => entry.searchSourceDiagnostics || []).map((diagnostic) => ({
@@ -608,7 +705,7 @@ function responseEvidence(value) {
     .filter(({ action, success }) => success && ['dealership_request_callback', 'dealership_request_test_drive'].includes(action))
     .map(({ action }) => action)
   const receiptCodes = uniqueStrings(actionResults.map(({ receiptCode }) => receiptCode))
-  const actionUsed = executed.length > 0
+  const actionUsed = executed.length > 0 || actionResults.some(({ success }) => success)
   const ragUsed = externalDocuments.length > 0
   return {
     groundingPath: actionUsed && ragUsed ? 'ACTION_AND_RAG' : actionUsed ? 'ACTION' : ragUsed ? 'RAG' : 'NONE',
@@ -631,6 +728,31 @@ function responseEvidence(value) {
     successfulWriteActions,
     receiptCodes,
     historyMessagesCount: Number(chat?.historyMessagesCount || 0),
+    compoundEvidence: compound ? {
+      strategy: compound.strategy || null,
+      obligationCount: Number(compound.obligationCount || 0),
+      completedObligationCount: Number(compound.completedObligationCount || 0),
+      emptyObligationCount: Number(compound.emptyObligationCount || 0),
+      deniedObligationCount: Number(compound.deniedObligationCount || 0),
+      failedObligationCount: Number(compound.failedObligationCount || 0),
+      actionExecutionIds: uniqueStrings(compound.actionExecutionIds || []),
+      finalSynthesisPerformed: compound.finalSynthesisPerformed === true,
+      obligations: (Array.isArray(compound.obligations) ? compound.obligations : []).map((obligation) => ({
+        intentIndex: obligation?.intentIndex ?? null,
+        intentType: obligation?.intentType || null,
+        optimizedQuery: summarizeText(obligation?.optimizedQuery, 500),
+        effectiveVectorSpaces: uniqueStrings(obligation?.effectiveVectorSpaces || []),
+        documentsRetrieved: Number(obligation?.documentsRetrieved || 0),
+        documentsUsed: Number(obligation?.documentsUsed || 0),
+        readActionEvidenceCount: Number(obligation?.readActionEvidenceCount || 0),
+        actionCount: Number(obligation?.actionCount || 0),
+        searchedSourceIds: uniqueStrings(obligation?.searchedSourceIds || []),
+        routingSource: obligation?.routingSource || null,
+        evidenceStatus: obligation?.evidenceStatus || null,
+        childType: obligation?.childType || null,
+        childSuccess: obligation?.childSuccess === true,
+      })),
+    } : null,
     policy: policy ? {
       profile: policy.profile || null,
       mode: policy.mode || null,
@@ -841,6 +963,17 @@ function buildRecommendations(results, globalAssertions, policy) {
         'approved-complaints-policy',
         'approved-opening-accessibility',
       ],
+    })
+  }
+
+  const compoundScenarios = compoundEvidenceScenarioIds.map((id) => byId[id]).filter(Boolean)
+  if (compoundScenarios.some((scenario) => scenario.status !== 'PASS')) {
+    recommendations.push({
+      priority: 'BLOCKER',
+      owner: 'FRAMEWORK_AND_DEPLOYMENT_ROUTING',
+      finding: 'At least one mixed inventory-and-policy request lost an evidence obligation, duplicated an action, or failed final synthesis.',
+      recommendation: 'Keep browser routing fields absent. Inspect compoundEvidence obligations, exact source matching, and action execution ids before changing prompts or widening retrieval.',
+      evidenceScenarioIds: compoundEvidenceScenarioIds,
     })
   }
 

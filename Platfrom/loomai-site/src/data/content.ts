@@ -89,7 +89,7 @@ export const products: Product[] = [
 5. Integrate the deployment-local endpoints`,
     },
     compatibility: [
-      'AI Fabric 0.8.13 runtime capabilities',
+      'AI Fabric 0.8.14 runtime capabilities',
       'AI Fabric Chat UI and reviewed experience packs',
       'Marketplace templates, Data and Action plugins',
       'Deployment-local runtime and connector endpoints',
@@ -115,7 +115,7 @@ export const products: Product[] = [
     shortName: 'Framework',
     layerLabel: 'Application enablement',
     statusLabel: 'Early release',
-    version: '0.8.13',
+    version: '0.8.14',
     licence: 'Apache 2.0',
     summary:
       'A Spring-native foundation for grounding, retrieval, governed actions and application-owned AI orchestration.',
@@ -166,7 +166,7 @@ export const products: Product[] = [
   <dependency>
     <groupId>io.github.loom-ai-labs</groupId>
     <artifactId>ai-fabric-bom</artifactId>
-    <version>0.8.13</version>
+    <version>0.8.14</version>
     <type>pom</type>
     <scope>import</scope>
   </dependency>
@@ -195,8 +195,8 @@ export const products: Product[] = [
         external: true,
       },
       releaseNotes: {
-        label: '0.8.13 release',
-        href: 'https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.8.13',
+        label: '0.8.14 release',
+        href: 'https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.8.14',
         external: true,
       },
     },
@@ -681,14 +681,14 @@ export const experiments: Experiment[] = [
       'Select two vehicles and compare their application-owned facts.',
       'Open the Companion dock to inspect the assigned-runtime readiness state and expanded Max Mode surface.',
     ],
-    runtimeStack: ['Dealership-owned Spring Boot backend', 'LoomAI deployment', 'AI Fabric 0.8.13', 'Max Mode'],
+    runtimeStack: ['Dealership-owned Spring Boot backend', 'LoomAI deployment', 'AI Fabric 0.8.14', 'Max Mode'],
     usesSyntheticData: true,
     dataNotice: 'All dealership, vehicle and customer records in this preview are fictional. No Auto Trader data is used.',
     knownLimitations: [
       'The preview source adapter uses fictional inventory until approved partner credentials and data rights exist.',
       'The live demo is evidence of bounded product behavior, not a latency, throughput, conversion or model-quality benchmark.',
     ],
-    frameworkVersion: '0.8.13',
+    frameworkVersion: '0.8.14',
     lastVerified: '2026-10-05',
     screenshot: {
       src: '/assets/experiments/dealership-ai-experience.png',
