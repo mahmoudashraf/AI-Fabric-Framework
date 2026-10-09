@@ -125,6 +125,8 @@ class PublicAIWorkspaceControllerTest {
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=300, must-revalidate, public"))
             .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+            .andExpect(mvcResult -> assertEquals(
+                List.of("*"), mvcResult.getResponse().getHeaders(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)))
             .andExpect(header().string("Cross-Origin-Resource-Policy", "cross-origin"));
 
         mvc.perform(get(workspace.requestPath()).header(HttpHeaders.ORIGIN, ORIGIN))
@@ -132,6 +134,8 @@ class PublicAIWorkspaceControllerTest {
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=31536000, public, immutable"))
             .andExpect(header().string(HttpHeaders.ETAG, '"' + workspace.sha256() + '"'))
             .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+            .andExpect(mvcResult -> assertEquals(
+                List.of("*"), mvcResult.getResponse().getHeaders(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)))
             .andExpect(header().string("Cross-Origin-Resource-Policy", "cross-origin"));
 
         mvc.perform(options(workspace.requestPath())

@@ -72,7 +72,6 @@ public class PublicAIWorkspaceController {
             .cacheControl(cacheControl)
             .eTag('"' + asset.sha256() + '"')
             .header("X-Content-Type-Options", "nosniff")
-            .header(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*")
             .header("Cross-Origin-Resource-Policy", "cross-origin")
             .body(assets.read(asset));
     }
