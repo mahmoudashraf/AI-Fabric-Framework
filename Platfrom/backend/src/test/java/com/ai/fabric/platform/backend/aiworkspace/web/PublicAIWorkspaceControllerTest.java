@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,18 +117,25 @@ class PublicAIWorkspaceControllerTest {
         when(assets.findByRequestPath(workspace.requestPath())).thenReturn(Optional.of(workspace));
         when(assets.read(workspace)).thenReturn(bytes);
 
-        mvc.perform(get("/api/public/ai-workspace/install.js"))
+        mvc.perform(get("/api/public/ai-workspace/install.js").header(HttpHeaders.ORIGIN, ORIGIN))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=300, must-revalidate, public"))
             .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
             .andExpect(header().string("Cross-Origin-Resource-Policy", "cross-origin"));
 
-        mvc.perform(get(workspace.requestPath()))
+        mvc.perform(get(workspace.requestPath()).header(HttpHeaders.ORIGIN, ORIGIN))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=31536000, public, immutable"))
             .andExpect(header().string(HttpHeaders.ETAG, '"' + workspace.sha256() + '"'))
             .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
             .andExpect(header().string("Cross-Origin-Resource-Policy", "cross-origin"));
+
+        mvc.perform(options(workspace.requestPath())
+                .header(HttpHeaders.ORIGIN, ORIGIN)
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+            .andExpect(status().isNoContent())
+            .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+            .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "GET, HEAD, OPTIONS"));
     }
 
     private PublicAIWorkspaceManifestService.ManifestResult manifestResult() {

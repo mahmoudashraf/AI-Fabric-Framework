@@ -52,6 +52,12 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
         long startedAt = System.nanoTime();
         Matcher matcher = MANIFEST.matcher(requestUri);
         if (!matcher.matches()) {
+            projectPublicAssetCors(response);
+            if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                observability.recordPublicRequest(surface, "success", startedAt);
+                return;
+            }
             observeChain(request, response, filterChain, surface, startedAt, null);
             return;
         }
@@ -85,6 +91,13 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
             return;
         }
         observeChain(request, response, filterChain, surface, startedAt, originAllowed ? null : "origin_rejected");
+    }
+
+    private void projectPublicAssetCors(HttpServletResponse response) {
+        response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "GET, HEAD, OPTIONS");
+        response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, "Content-Type");
+        response.setHeader(HttpHeaders.ACCESS_CONTROL_MAX_AGE, "600");
     }
 
     private void observeChain(HttpServletRequest request,

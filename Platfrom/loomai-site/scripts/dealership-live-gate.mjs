@@ -36,10 +36,7 @@ page.on('pageerror', (error) => failures.push({ type: 'pageerror', message: erro
 page.on('request', (request) => {
   if (!['fetch', 'xhr'].includes(request.resourceType())) return
   const url = request.url()
-  if (url.includes('/api/internal/')
-      || url.includes('-connector.')
-      || url.includes('loomai-platform-backend.')
-      || url.startsWith('https://api.loomai.pro/')) {
+  if (isForbiddenBrowserRequest(url)) {
     forbiddenBrowserRequests.push(redactUrl(url))
   }
 })
@@ -884,6 +881,13 @@ function sameStrings(left, right) {
 function redactUrl(value) {
   const url = new URL(value)
   return `${url.origin}${url.pathname}`
+}
+
+function isForbiddenBrowserRequest(value) {
+  const url = new URL(value)
+  if (url.pathname.startsWith('/api/internal/') || url.hostname.includes('-connector.')) return true
+  const platformHost = url.hostname.includes('loomai-platform-backend.') || url.hostname === 'api.loomai.pro'
+  return platformHost && !url.pathname.startsWith('/api/public/ai-workspace/')
 }
 
 function escapeRegex(value) {
