@@ -6,6 +6,17 @@ Positioning: use LoomAI deployment infrastructure to add governed AI capabilitie
 
 ---
 
+## Current Website Installation Contract
+
+For a Platform-managed web experience, the customer adds one Platform-hosted
+AI Workspace script and an opaque installation ID copied from LoomAI Console.
+The origin-scoped installation resolves the customer's current verified
+deployment, reviewed experience pack, public configuration and connection
+profile. The customer frontend does not publish a runtime descriptor or embed
+a runtime URL, assignment credential, provider secret or private assertion.
+After initialization, public-mode conversation traffic goes directly to the
+assigned deployment rather than through a shared Platform chat gateway.
+
 ## Executive Summary
 
 LoomAI helps software companies add production-grade AI to an existing web application.
@@ -272,7 +283,9 @@ This lets support teams answer: what did the assistant do, why did it do it, and
 
 ### Deployment Communication Contract
 
-Each customer deployment has three communication surfaces:
+Each customer deployment has three communication surfaces. The endpoint paths
+below describe the deployment protocol selected by the Platform installation;
+they are not values a Platform-managed website must construct itself:
 
 1. **User-facing assistant runtime**
    The customer web app or embedded assistant sends chat and suggestion requests to the LoomAI runtime deployment.
@@ -283,7 +296,10 @@ Each customer deployment has three communication surfaces:
 3. **Governed capability execution**
    LoomAI calls approved MCP tools or customer APIs through the capability gateway. The customer application still enforces business rules and ownership.
 
-Exact public hostnames are assigned per staging or production deployment. The path contract below is the standard deployment contract. A Platform-managed deployment can also expose these through a deployment-specific Platform proxy during staging verification.
+Exact public hostnames are assigned per staging or production deployment. The
+path contract below is the standard deployment contract. Platform resolves and
+delivers the current verified assignment during Workspace installation but
+does not proxy routine customer conversation traffic.
 
 ```text
 Customer browser/app
@@ -311,12 +327,13 @@ LoomAI operator/release gate
 Chat with indexed retrieval:
 
 ```text
-1. Customer app loads assistant UI.
-2. Assistant calls LoomAI /api/public/chat/session and receives a scoped runtime token.
-3. User asks a question.
-4. Assistant calls LoomAI /api/chat/me/query with query, conversationId, mode, position, and safe page attachments.
-5. LoomAI retrieves approved tenant-scoped indexed knowledge.
-6. LoomAI generates a grounded answer and returns user-safe evidence metadata.
+1. Customer app loads the Platform-hosted AI Workspace installation script.
+2. The installation resolves the current verified assignment and loads the reviewed Workspace and experience-pack assets.
+3. The Workspace calls LoomAI `/api/public/chat/session` and receives a scoped runtime token.
+4. User asks a question.
+5. The Workspace calls LoomAI `/api/chat/me/query` with query, conversationId, mode, position, and safe page attachments.
+6. LoomAI retrieves approved tenant-scoped indexed knowledge.
+7. LoomAI generates a grounded answer and returns user-safe evidence metadata.
 ```
 
 Chat with customer-owned live retrieval:

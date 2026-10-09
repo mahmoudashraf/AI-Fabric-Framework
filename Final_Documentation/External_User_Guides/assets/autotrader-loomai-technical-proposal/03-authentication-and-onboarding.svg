@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" role="img" aria-labelledby="title desc">
+  <title id="title">Auto Trader onboarding and authentication boundaries</title>
+  <desc id="desc">The diagram separates commercial and capability onboarding from runtime authentication. Auto Trader approves a named integration, advertiser and capabilities. LoomAI stores secret references and deploys an immutable package. The deployment connector exchanges the key and secret for a short-lived bearer token. Browser sessions use a separate deployment-issued anonymous token and never see Auto Trader credentials.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#1769ff"/></marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#7047eb"/></marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #0b2550; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 20px; font-weight: 400; fill: #516887; }
+      .eyebrow { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1769ff; }
+      .lane-title { font-family: Arial, sans-serif; font-size: 19px; font-weight: 700; fill: #0b2550; }
+      .section { font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #0b2550; }
+      .box-title { font-family: Arial, sans-serif; font-size: 17px; font-weight: 700; fill: #0b2550; }
+      .body { font-family: Arial, sans-serif; font-size: 15px; font-weight: 400; fill: #516887; }
+      .small { font-family: Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #516887; }
+      .number { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #ffffff; }
+    </style>
+  </defs>
+  <rect width="1600" height="960" fill="#f7f9fd"/>
+  <path d="M0 138 H1600" stroke="#dce5f2"/>
+  <text x="62" y="55" class="eyebrow">AUTHENTICATION | THREE SEPARATE TRUST RELATIONSHIPS</text>
+  <text x="62" y="104" class="title">Approval, provider access and browser access are never conflated.</text>
+  <text x="62" y="132" class="subtitle">A browser token cannot call Auto Trader; the deployment binding cannot select a different advertiser.</text>
+
+  <!-- Lane headers -->
+  <rect x="55" y="174" width="310" height="60" rx="8" fill="#f1edff" stroke="#aa98ef"/>
+  <text x="79" y="211" class="lane-title">Auto Trader / retailer</text>
+  <rect x="430" y="174" width="310" height="60" rx="8" fill="#eaf2ff" stroke="#9dbff3"/>
+  <text x="454" y="211" class="lane-title">LoomAI Platform</text>
+  <rect x="805" y="174" width="310" height="60" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <text x="829" y="211" class="lane-title">Retailer deployment</text>
+  <rect x="1180" y="174" width="365" height="60" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <text x="1204" y="211" class="lane-title">Dealership browser / host</text>
+
+  <line x1="210" y1="234" x2="210" y2="905" stroke="#d9e2ef" stroke-width="2"/>
+  <line x1="585" y1="234" x2="585" y2="905" stroke="#d9e2ef" stroke-width="2"/>
+  <line x1="960" y1="234" x2="960" y2="905" stroke="#d9e2ef" stroke-width="2"/>
+  <line x1="1362" y1="234" x2="1362" y2="905" stroke="#d9e2ef" stroke-width="2"/>
+
+  <text x="62" y="282" class="section">A | Onboarding and release</text>
+
+  <circle cx="210" cy="322" r="15" fill="#7047eb"/><text x="206" y="327" class="number">1</text>
+  <rect x="72" y="347" width="276" height="100" rx="8" fill="#ffffff" stroke="#aa98ef"/>
+  <text x="92" y="377" class="box-title">Approve bounded integration</text>
+  <text x="92" y="404" class="body">Named retailer + advertiser ID</text>
+  <text x="92" y="428" class="body">Search/Stock and Deal grants</text>
+
+  <line x1="348" y1="397" x2="448" y2="397" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <circle cx="585" cy="322" r="15" fill="#1769ff"/><text x="581" y="327" class="number">2</text>
+  <rect x="448" y="347" width="274" height="100" rx="8" fill="#ffffff" stroke="#9dbff3"/>
+  <text x="468" y="377" class="box-title">Bind approved inputs</text>
+  <text x="468" y="404" class="body">Secret references, advertiser</text>
+  <text x="468" y="428" class="body">and immutable package version</text>
+
+  <line x1="722" y1="397" x2="823" y2="397" stroke="#1769ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <circle cx="960" cy="322" r="15" fill="#159a6a"/><text x="956" y="327" class="number">3</text>
+  <rect x="823" y="347" width="274" height="100" rx="8" fill="#ffffff" stroke="#79c6a9"/>
+  <text x="843" y="377" class="box-title">Deploy and verify</text>
+  <text x="843" y="404" class="body">Runtime, private connector,</text>
+  <text x="843" y="428" class="body">storage and release gates</text>
+
+  <rect x="1188" y="347" width="348" height="100" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <text x="1208" y="377" class="box-title">Install website integration</text>
+  <text x="1208" y="404" class="body">Deployment URL + origin allowlist</text>
+  <text x="1208" y="428" class="body">No provider credential in the page</text>
+
+  <line x1="1097" y1="397" x2="1188" y2="397" stroke="#1769ff" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="64" y="477" width="1472" height="58" rx="8" fill="#fff4ef" stroke="#e5a184"/>
+  <text x="87" y="512" class="box-title">Onboarding gate: sandbox access, production access, advertiser authorization and capabilities are supplied through Auto Trader's partner process, not self-issued by LoomAI.</text>
+
+  <text x="62" y="587" class="section">B | Deployment to Auto Trader authentication</text>
+  <rect x="80" y="616" width="264" height="78" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <text x="101" y="647" class="box-title">Auto Trader auth API</text>
+  <text x="101" y="672" class="body">Sandbox or production host</text>
+  <rect x="827" y="616" width="266" height="78" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <text x="848" y="647" class="box-title">Private connector</text>
+  <text x="848" y="672" class="body">In-memory token cache</text>
+
+  <path d="M827 640 C650 608 518 608 344 640" fill="none" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <text x="438" y="613" class="small">POST /authenticate | form key + secret</text>
+  <path d="M344 672 C518 704 650 704 827 672" fill="none" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <text x="477" y="725" class="small">access_token + expires_at | re-use until expiry</text>
+  <rect x="1118" y="616" width="418" height="111" rx="8" fill="#ffffff" stroke="#d5dfed"/>
+  <text x="1139" y="647" class="box-title">Provider-access invariants</text>
+  <text x="1139" y="673" class="body">Token never persisted or returned to model/browser.</text>
+  <text x="1139" y="697" class="body">Advertiser ID and API host are server-owned.</text>
+
+  <text x="62" y="786" class="section">C | Browser-to-deployment session</text>
+  <rect x="827" y="813" width="266" height="82" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <text x="848" y="844" class="box-title">Public runtime</text>
+  <text x="848" y="869" class="body">Issues scoped short-lived token</text>
+  <rect x="1228" y="813" width="268" height="82" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <text x="1249" y="844" class="box-title">Browser widget</text>
+  <text x="1249" y="869" class="body">Tab-scoped anonymous session</text>
+  <path d="M1228 835 C1178 812 1141 812 1093 835" fill="none" stroke="#1769ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1102" y="803" class="small">POST /api/public/chat/session</text>
+  <path d="M1093 872 C1141 899 1178 899 1228 872" fill="none" stroke="#1769ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1105" y="925" class="small">runtime bearer token</text>
+  <rect x="79" y="813" width="644" height="82" rx="8" fill="#ffffff" stroke="#d5dfed"/>
+  <text x="100" y="844" class="box-title">Separate credential domains</text>
+  <text x="100" y="868" class="body">The runtime token authorizes only the deployment's public chat contract;</text>
+  <text x="100" y="889" class="body">it cannot call the private connector or Auto Trader.</text>
+</svg>

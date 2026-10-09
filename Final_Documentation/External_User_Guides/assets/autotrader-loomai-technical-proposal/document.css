@@ -1,0 +1,182 @@
+@page {
+  size: A4;
+  margin: 18mm 17mm 20mm;
+}
+
+:root {
+  color: #17345e;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.48;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+}
+
+body {
+  color: #304966;
+}
+
+h1,
+h2,
+h3 {
+  color: #0b2550;
+  font-weight: 700;
+  letter-spacing: 0;
+  break-after: avoid-page;
+}
+
+h1 {
+  margin: 0 0 5mm;
+  padding-bottom: 3mm;
+  border-bottom: 1.2mm solid #1769ff;
+  font-size: 25pt;
+  line-height: 1.1;
+}
+
+h2 {
+  margin: 9mm 0 3mm;
+  font-size: 17pt;
+  line-height: 1.2;
+}
+
+h3 {
+  margin: 6mm 0 2mm;
+  color: #1769ff;
+  font-size: 12.5pt;
+}
+
+p {
+  margin: 0 0 3.2mm;
+}
+
+ul,
+ol {
+  margin: 2mm 0 4mm 7mm;
+  padding-left: 5mm;
+}
+
+li {
+  margin-bottom: 1.5mm;
+}
+
+strong {
+  color: #142f56;
+}
+
+a {
+  color: #1769ff;
+  text-decoration: none;
+}
+
+table {
+  width: 100%;
+  margin: 4mm 0 6mm;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8.6pt;
+}
+
+th,
+td {
+  padding: 2.2mm;
+  border: 0.3mm solid #c7d5e9;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+th {
+  background: #eaf2ff;
+  color: #0b2550;
+  text-align: left;
+}
+
+tr {
+  break-inside: avoid-page;
+}
+
+code {
+  color: #163b6d;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+pre {
+  margin: 4mm 0 6mm;
+  padding: 4mm;
+  border: 0.3mm solid #b9cbed;
+  border-left: 1.2mm solid #7047eb;
+  border-radius: 1.5mm;
+  background: #f7f9fd;
+  color: #17345e;
+  font: 8.6pt/1.45 Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  break-inside: avoid-page;
+}
+
+figure,
+p:has(> img) {
+  margin: 5mm 0 7mm;
+  text-align: center;
+  break-inside: avoid-page;
+}
+
+img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 178mm;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+img[alt="Loom AI Labs"] {
+  width: 57mm;
+  margin: 0 0 10mm;
+}
+
+p:has(> img[alt="Loom AI Labs"]),
+figure:has(img[alt="Loom AI Labs"]) {
+  margin: 0;
+  text-align: left;
+}
+
+figure:has(img[alt="Loom AI Labs"]) figcaption {
+  display: none;
+}
+
+figcaption {
+  margin-top: 2mm;
+  color: #607491;
+  font-size: 8.5pt;
+  font-style: italic;
+}
+
+hr {
+  margin: 8mm 0;
+  border: 0;
+  border-top: 0.3mm solid #c7d5e9;
+}
+
+/* The Markdown's five conceptual sections should flow as a report in print. */
+div[style*="page-break-after"] {
+  height: 0;
+  break-after: auto !important;
+  page-break-after: auto !important;
+}
+
+@media print {
+  h1,
+  h2,
+  h3,
+  figure,
+  pre,
+  table {
+    break-after: avoid-page;
+  }
+}

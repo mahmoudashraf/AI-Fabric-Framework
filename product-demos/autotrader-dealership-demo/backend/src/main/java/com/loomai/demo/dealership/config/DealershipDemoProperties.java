@@ -86,7 +86,6 @@ public class DealershipDemoProperties {
         private boolean enabled;
         private String baseUrl;
         private String inventoryVectorSpace = "dealer-vehicle";
-        private List<String> retrievalVectorSpaces = new ArrayList<>(List.of("dealer-vehicle", "document"));
         private String integrationSourceId;
         private String integrationWebhookSourceId;
         private Duration assertionTtl = Duration.ofMinutes(2);
@@ -98,12 +97,6 @@ public class DealershipDemoProperties {
         public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
         public String getInventoryVectorSpace() { return inventoryVectorSpace; }
         public void setInventoryVectorSpace(String inventoryVectorSpace) { this.inventoryVectorSpace = inventoryVectorSpace; }
-        public List<String> getRetrievalVectorSpaces() { return retrievalVectorSpaces; }
-        public void setRetrievalVectorSpaces(List<String> retrievalVectorSpaces) {
-            this.retrievalVectorSpaces = retrievalVectorSpaces == null
-                ? new ArrayList<>()
-                : new ArrayList<>(retrievalVectorSpaces);
-        }
         public String getIntegrationSourceId() { return integrationSourceId; }
         public void setIntegrationSourceId(String integrationSourceId) { this.integrationSourceId = integrationSourceId; }
         public String getIntegrationWebhookSourceId() { return integrationWebhookSourceId; }

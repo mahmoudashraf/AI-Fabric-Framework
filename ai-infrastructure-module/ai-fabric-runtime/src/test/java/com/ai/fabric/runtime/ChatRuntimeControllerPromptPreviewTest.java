@@ -7,6 +7,7 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
@@ -314,6 +315,71 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void privateBackendMayProvideTrustedRoutingDirectiveButItIsRemovedFromPublicContext() {
+        RAGOrchestrator orchestrator = successfulOrchestrator("Find policy and stock");
+        RuntimeRequestAuthResolver authResolver = mock(RuntimeRequestAuthResolver.class);
+        when(authResolver.resolveVerifiedForChat(any())).thenReturn(identity(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED));
+        ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Find policy and stock");
+        request.setContext(Map.of(
+            "preferredVectorSpaces", List.of("dealer-vehicle", "document"),
+            "entityType", "document",
+            "retrieval-vector-spaces", List.of("document"),
+            "pageType", "vehicle-detail"
+        ));
+
+        controller.queryOnce(request, new MockHttpServletRequest());
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Find policy and stock"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry(
+                OrchestrationContextMetadataKeys.RAG_PREFERRED_VECTOR_SPACES,
+                List.of("dealer-vehicle", "document")
+            )
+            .containsEntry(OrchestrationContextMetadataKeys.RAG_VECTOR_SPACE_HINT, "dealer-vehicle");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> requestContext = (Map<String, Object>) contextCaptor.getValue().getMetadata().get("requestContext");
+        assertThat(requestContext)
+            .containsEntry("pageType", "vehicle-detail")
+            .doesNotContainKeys("preferredVectorSpaces", "entityType", "retrieval-vector-spaces");
+    }
+
+    @Test
+    void publicRuntimeIdentityCannotPromoteRoutingFields() {
+        RAGOrchestrator orchestrator = successfulOrchestrator("Find policy and stock");
+        RuntimeRequestAuthResolver authResolver = mock(RuntimeRequestAuthResolver.class);
+        when(authResolver.resolveVerifiedForChat(any())).thenReturn(identity(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS));
+        ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Find policy and stock");
+        request.setContext(Map.of(
+            "preferredVectorSpaces", List.of("document"),
+            "vectorSpace", "document",
+            "entity-type", "document",
+            "pageType", "vehicle-detail"
+        ));
+
+        controller.queryOnce(request, new MockHttpServletRequest());
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Find policy and stock"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getMetadata())
+            .doesNotContainKeys(
+                OrchestrationContextMetadataKeys.RAG_PREFERRED_VECTOR_SPACES,
+                OrchestrationContextMetadataKeys.RAG_VECTOR_SPACE_HINT
+            );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> requestContext = (Map<String, Object>) contextCaptor.getValue().getMetadata().get("requestContext");
+        assertThat(requestContext)
+            .containsEntry("pageType", "vehicle-detail")
+            .doesNotContainKeys("preferredVectorSpaces", "vectorSpace", "entity-type");
+    }
+
+    @Test
     void queryOnceExtractsTransientDocumentUrlsWithoutPersistingThemInMetadata() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Analyze this document"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
@@ -443,7 +509,7 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
-    void queryMapsVectorSpaceHintsFromRequestContextIntoOrchestrationMetadata() {
+    void platformProxyCannotPromoteClientRoutingFieldsIntoOrchestrationMetadata() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Find the onboarding checklist"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
             .thenReturn(OrchestrationResult.builder()
@@ -469,8 +535,11 @@ class ChatRuntimeControllerPromptPreviewTest {
         ArgumentCaptor<OrchestrationContext> context = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Find the onboarding checklist"), context.capture());
         assertThat(context.getValue().getMetadata())
-            .containsEntry(OrchestrationContextMetadataKeys.RAG_VECTOR_SPACE_HINT, "primary-docs")
-            .containsEntry(OrchestrationContextMetadataKeys.RAG_PREFERRED_VECTOR_SPACES, List.of("primary-docs", "reference-docs"));
+            .doesNotContainKeys(
+                OrchestrationContextMetadataKeys.RAG_VECTOR_SPACE_HINT,
+                OrchestrationContextMetadataKeys.RAG_PREFERRED_VECTOR_SPACES
+            );
+        assertThat(context.getValue().getMetadata()).doesNotContainKey("requestContext");
     }
 
     @Test
@@ -921,6 +990,38 @@ class ChatRuntimeControllerPromptPreviewTest {
             .containsEntry("subjectType", RuntimeAuthSubjectType.END_USER.name())
             .containsEntry("authIssuer", "commerce-app")
             .containsEntry("requestedScopes", java.util.List.of("chat:query"));
+    }
+
+    private RAGOrchestrator successfulOrchestrator(String query) {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq(query), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("done")
+                .build()
+        );
+        return orchestrator;
+    }
+
+    private RuntimeResolvedIdentity identity(RuntimeAuthMode mode) {
+        boolean publicAnonymous = mode == RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS;
+        RuntimeAuthContext authContext = RuntimeAuthContext.builder()
+            .subjectId(publicAnonymous ? "anon-session" : "backend-user")
+            .subjectType(publicAnonymous ? RuntimeAuthSubjectType.ANONYMOUS_SESSION : RuntimeAuthSubjectType.END_USER)
+            .authMode(mode)
+            .callerType(publicAnonymous ? RuntimeAuthCallerType.PUBLIC_BROWSER : RuntimeAuthCallerType.TRUSTED_BACKEND)
+            .sessionId(publicAnonymous ? "anon-session" : "backend-session")
+            .deploymentId("dep-123")
+            .issuer(publicAnonymous ? "runtime-public" : "trusted-backend")
+            .audiences(List.of("dep-123"))
+            .grantedScopes(List.of("chat:query"))
+            .expiresAt(Instant.now().plusSeconds(300))
+            .build();
+        return RuntimeResolvedIdentity.builder()
+            .authContext(authContext)
+            .warnings(List.of())
+            .build();
     }
 
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator) {

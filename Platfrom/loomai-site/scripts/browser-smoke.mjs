@@ -41,14 +41,14 @@ function sri(bytes) {
 }
 
 const widgetAsset = {
-  version: '1.0.0',
-  url: `${mockOrigin}/api/public/ai-workspace/assets/workspace/1.0.0/max-mode-widget.test.iife.js`,
+  version: '1.1.0',
+  url: `${mockOrigin}/api/public/ai-workspace/assets/workspace/1.1.0/max-mode-widget.test.iife.js`,
   integrity: sri(widgetBytes),
 }
 const dealershipAsset = {
   code: 'dealership',
-  version: '1.0.0',
-  url: `${mockOrigin}/api/public/ai-workspace/assets/dealership/1.0.0/dealership-experience.test.iife.js`,
+  version: '1.1.0',
+  url: `${mockOrigin}/api/public/ai-workspace/assets/dealership/1.1.0/dealership-experience.test.iife.js`,
   integrity: sri(dealershipPackBytes),
 }
 
@@ -256,7 +256,6 @@ function workspaceManifest(installationId) {
         },
         knowledge: {
           inventoryVectorSpace: 'dealer-vehicle',
-          retrievalVectorSpaces: ['dealer-vehicle', 'dealership-document'],
         },
         capabilities: {
           comparison: !external,
@@ -1034,7 +1033,7 @@ try {
   ]) {
     await page.getByText(packageName, { exact: true }).waitFor()
   }
-  await page.getByText('v30 · AI Fabric 0.8.11', { exact: true }).waitFor()
+  await page.getByText('Latest · AI Fabric 0.8.12', { exact: true }).waitFor()
   await page.getByText('The dealership, vehicles and provider contract are fictional demonstration data, not an Auto Trader production integration or endorsement.', { exact: false }).waitFor()
 
   await page.goto(`${origin}/experiments`, { waitUntil: 'networkidle' })

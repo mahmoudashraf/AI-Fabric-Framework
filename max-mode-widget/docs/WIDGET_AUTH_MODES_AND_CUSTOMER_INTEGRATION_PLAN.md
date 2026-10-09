@@ -1,6 +1,15 @@
 # Max Mode Widget Auth Modes and Customer Integration Plan
 
-Status: detailed planning document with implementation update (2026-09-30)
+Status: auth architecture and historical implementation record; browser
+installation guidance superseded by the Platform AI Workspace contract on
+2026-10-09
+
+For a current customer integration, begin with
+[`AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md`](AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md).
+The Platform installation selects one of the three auth modes defined here,
+resolves the current verified deployment and supplies reviewed routes and
+assets. Customer page code should not recreate those decisions. Keep this
+document as the rationale and low-level mode contract.
 
 This document defines how `max-mode-widget` should evolve into the main customer-facing chat UI for storefront and website integrations.
 

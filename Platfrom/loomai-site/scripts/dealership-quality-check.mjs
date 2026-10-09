@@ -162,7 +162,10 @@ try {
         integrationMode: manifest.connection?.mode,
         chatBaseUrl: manifest.connection?.runtimeBaseUrl || null,
         inventoryVectorSpace: workspaceConfig.knowledge?.inventoryVectorSpace || null,
-        retrievalVectorSpaces: workspaceConfig.knowledge?.retrievalVectorSpaces || [],
+        hasBrowserRetrievalRouting: Object.prototype.hasOwnProperty.call(
+          workspaceConfig.knowledge || {},
+          'retrievalVectorSpaces',
+        ),
         installationId: manifest.installationId,
         assignmentRevision: manifest.assignmentRevision,
       },
@@ -173,12 +176,8 @@ try {
   operationalAssert(liveContract.config?.ready === true, 'The public runtime config is not ready.')
   operationalAssert(descriptor?.ready === true, 'The deployment runtime descriptor is not ready.')
   operationalAssert(descriptor?.inventoryVectorSpace === 'dealer-vehicle', 'The runtime descriptor has no dealership inventory vector space.')
-  operationalAssert(
-    Array.isArray(descriptor?.retrievalVectorSpaces)
-      && descriptor.retrievalVectorSpaces.includes('dealer-vehicle')
-      && descriptor.retrievalVectorSpaces.includes('document'),
-    'The runtime descriptor does not expose inventory and document retrieval spaces.',
-  )
+  operationalAssert(descriptor?.hasBrowserRetrievalRouting === false,
+    'The public installation manifest must not expose browser-owned retrieval routing.')
   operationalAssert(liveContract.vehicleCount > 0, 'The public route rendered no inventory cards.')
 
   const results = []
@@ -238,15 +237,11 @@ try {
     check(
       'deployment request context is preserved',
       results.every(({ request }) => request.context?.dealershipId === 'dealer-demo-001'
-        && !request.context?.vectorSpace
-        && descriptor.retrievalVectorSpaces.every(
-          (space) => request.context?.preferredVectorSpaces?.includes(space),
-        )),
-      'Every request carries the dealership scope and complete deployment-owned retrieval-space list without pinning one space.',
+        && !containsReservedRoutingContext(request.context)),
+      'Every request carries descriptive dealership scope without browser-owned retrieval routing.',
       results.map(({ request }) => ({
         dealershipId: request.context?.dealershipId || null,
-        vectorSpace: request.context?.vectorSpace || null,
-        preferredVectorSpaces: request.context?.preferredVectorSpaces || [],
+        reservedRoutingFields: reservedRoutingFields(request.context),
       })),
     ),
     check(
@@ -292,7 +287,7 @@ try {
       backendUrl: liveContract.config.apiBaseUrl,
       runtimeUrl: descriptor.chatBaseUrl,
       inventoryVectorSpace: descriptor.inventoryVectorSpace,
-      retrievalVectorSpaces: descriptor.retrievalVectorSpaces,
+      serverRetrievalAllowlist: observedPolicy?.retrievalVectorSpaces || [],
       uiMode: 'executor',
       uiPosition: 'search',
     },
@@ -392,13 +387,10 @@ async function runScenario(page, scenario, expectedConversationId) {
     check('request mode is executor', requestBody.mode === 'executor', 'executor', requestBody.mode || null),
     check('request position is search', requestBody.position === 'search', 'search', requestBody.position || null),
     check(
-      'request context exposes all deployment retrieval spaces',
+      'request context carries no retrieval-routing authority',
       requestBody.context?.dealershipId === 'dealer-demo-001'
-        && !requestBody.context?.vectorSpace
-        && descriptor.retrievalVectorSpaces.every(
-          (space) => requestBody.context?.preferredVectorSpaces?.includes(space),
-        ),
-      'dealer-demo-001 with every descriptor retrieval space and no single-space pin.',
+        && !containsReservedRoutingContext(requestBody.context),
+      'dealer-demo-001 descriptive scope with routing fields absent.',
       requestBody.context || null,
     ),
   ]
@@ -916,6 +908,21 @@ function buildRecommendations(results, globalAssertions, policy) {
 function metadataCandidates(value) {
   return [value?.metadata, value?.ragResponse?.metadata]
     .filter((candidate) => candidate && typeof candidate === 'object')
+}
+
+function reservedRoutingFields(context) {
+  if (!context || typeof context !== 'object' || Array.isArray(context)) return []
+  const reserved = new Set([
+    'preferredvectorspaces',
+    'retrievalvectorspaces',
+    'vectorspace',
+    'entitytype',
+  ])
+  return Object.keys(context).filter((key) => reserved.has(key.toLowerCase().replace(/[-_]/g, '')))
+}
+
+function containsReservedRoutingContext(context) {
+  return reservedRoutingFields(context).length > 0
 }
 
 function isReadActionEvidence(document) {

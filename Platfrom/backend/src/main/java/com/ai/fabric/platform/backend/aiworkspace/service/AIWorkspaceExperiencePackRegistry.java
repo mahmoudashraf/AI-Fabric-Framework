@@ -14,7 +14,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class AIWorkspaceExperiencePackRegistry {
 
     public static final String DEALERSHIP_CODE = "dealership";
-    public static final String DEALERSHIP_VERSION = "1.0.0";
+    public static final String DEALERSHIP_VERSION = "1.1.0";
 
     private final AIWorkspaceAssetCatalogService assets;
     private final AIWorkspaceConfigurationValidator validator;

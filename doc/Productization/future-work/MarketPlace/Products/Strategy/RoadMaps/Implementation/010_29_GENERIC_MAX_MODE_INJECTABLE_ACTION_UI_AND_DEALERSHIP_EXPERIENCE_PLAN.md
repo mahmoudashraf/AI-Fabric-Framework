@@ -1,10 +1,11 @@
 # 010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan
 
-**Status:** First delivery and reusable dealership-pack extraction implemented,
-deployed, and live-verified; Marketplace-managed UI-extension lifecycle remains
+**Status:** First delivery, reusable dealership-pack extraction and
+Platform-managed AI Workspace installation lifecycle implemented, deployed and
+live-verified; a fully generic experience-pack configuration editor remains
 deferred
 **Created:** 2026-10-01
-**Revised:** 2026-10-05
+**Revised:** 2026-10-09
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
 dealership-owned component package
 **Related live baseline:** Dealership deployment `dep-f023c863`, version
@@ -35,7 +36,8 @@ The first delivery includes:
 - deterministic inventory, vehicle-detail, and vehicle-comparison components;
 - a standalone provider-neutral dealership experience package distributed as
   ESM and an integrity-addressed browser IIFE;
-- one-script public bootstrap and explicit-init installation contracts;
+- Platform-hosted one-script installation plus the advanced explicit-init
+  contract;
 - safe result selection and follow-up commands that continue through the
   assigned deployment;
 - reuse of the existing generic clarification, confirmation, and receipt flow;
@@ -518,8 +520,8 @@ control for a capability absent from the deployment shell/action contract.
 ### 10.1 Current reusable package configuration
 
 The reviewed dealership components are built as
-`@loom-ai-labs/dealership-experience-pack` and supplied to the generic widget
-through its existing host configuration. The package declares:
+`@loom-ai-labs/dealership-experience-pack` and selected by a customer-scoped
+Platform AI Workspace installation. The package declares:
 
 - exact existing action-to-renderer mappings;
 - supported presentation schema versions;
@@ -528,17 +530,20 @@ through its existing host configuration. The package declares:
 - approved same-site navigation targets; and
 - the existing theme, labels, mode, position, and deployment routes.
 
-The package exposes a content-hashed IIFE manifest and stable current URL. The
-manifest is `no-store`; hashed artifacts are immutable and use SRI. Distribution
-responses explicitly permit reviewed cross-origin installation. A host may
-initialize the package directly or provide one public, secret-free bootstrap
-JSON URL on the script element. The package then loads the generic Max Mode
-bundle from its reviewed manifest and obtains the deployment-local public
-runtime descriptor from the dealership host.
+Platform serves a stable `install.js` entry and an origin-scoped installation
+manifest. The manifest selects exact content-hashed Workspace and pack assets,
+with immutable caching and SRI, plus the reviewed connection profile and
+current verified consumer assignment. A customer website supplies only the
+opaque installation ID. It does not publish bootstrap JSON, a runtime URL or a
+dealership-backend runtime descriptor. Explicit initialization remains an
+advanced non-Platform integration contract and must not be combined with the
+Platform installer.
 
-The current delivery does not add a new Marketplace package type or Platform
-editor. Those lifecycle controls remain deferred, but reusable package
-distribution itself is now implemented and verified.
+The current delivery includes customer-scoped create/edit/activate/disable
+lifecycle controls in Platform **AI Workspaces**, reviewed pack/profile
+catalogues, readiness checks and copyable installation markup. A generic
+Marketplace pack type and schema-driven editor for arbitrary packs remain
+deferred; the current form productizes the dealership pack explicitly.
 
 The host build and live canary must validate that:
 
@@ -551,8 +556,8 @@ The host build and live canary must validate that:
 
 ### 10.2 Deferred Platform productization
 
-After the host-bundled canary is green and a second customer/domain demonstrates
-reuse, the reusable deployment template may declare:
+After a second customer/domain demonstrates reuse, the generic Marketplace
+pack model may declare:
 
 - required action plugin IDs and versions;
 - action-to-renderer mappings;
@@ -802,7 +807,7 @@ deployment-owned security boundary.
 | D2 filters and freshness | Consume safe normalized fields; make a narrowly scoped backend/connector projection change only if a required field is absent |
 | D3 confirmed-write canary | Required using the existing clarification/confirmation UI, with deterministic cleanup or test-record handling |
 | D4 structured vehicle/comparison UI | Primary dealership deliverable in this plan |
-| D5 Marketplace packaging | Keep first components host-bundled; defer reusable Platform packaging until a second use case proves the abstraction |
+| D5 Marketplace packaging | Platform installation and reviewed dealership-pack selection are implemented; defer only a generic Marketplace pack type/schema editor until a second use case proves the abstraction |
 | D6 sync/reconciliation | Preserve the current verified deployment; outside this UI implementation |
 | D7 prompt/model baseline | Freeze during the UI canary so presentation changes are measured independently |
 | D8 latency/cost budgets | Measure UI and end-to-end timings, but defer optimization |
@@ -1076,6 +1081,11 @@ or Platform-managed `UI_EXTENSION` packaging.
 
 ### 17.9 Standalone dealership experience pack (2026-10-04)
 
+This subsection records the 2026-10-04 delivery state. Its host runtime
+descriptor and `data-bootstrap-url` mechanics were superseded on 2026-10-09 by
+the Platform-hosted AI Workspace installation contract described in Section
+10 and `010.31`; they are not current integration instructions.
+
 - Extracted the reusable automotive-retail layer from `Platfrom/loomai-site`
   into `experience-packs/dealership-experience`. The package owns the two-scope
   dealership tool defaults, inventory/detail/comparison presentation schemas,
@@ -1140,32 +1150,37 @@ or Platform-managed `UI_EXTENSION` packaging.
 
 ### 17.10 External developer documentation (2026-10-04)
 
-- Added `max-mode-widget/docs/EXTERNAL_DEVELOPER_GUIDE.md` as the external
-  integration entry point for the generic chat application. It covers the
+- Added `max-mode-widget/docs/EXTERNAL_DEVELOPER_GUIDE.md` as the advanced
+  explicit-integration reference for the generic Workspace. Platform-managed
+  sites start with `AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md`. Together
+  they cover the
   three supported auth postures, reviewed bundle pinning, routes, host-owned
   tool scopes, page attachments, bounded action presentations, lifecycle API,
   CORS/CSP, security, acceptance, and troubleshooting.
 - Added
   `experience-packs/dealership-experience/docs/EXTERNAL_DEVELOPER_GUIDE.md` for
-  the pack-specific contract. It covers one-script and explicit mounting,
-  secret-free bootstrap configuration, runtime descriptor discovery, page and
-  vehicle context, capability gating, default action names, rich result
-  schemas, confirmed writes, media policy, acceptance, and upgrades.
+  the pack-specific contract. It covers Platform one-script installation,
+  origin-scoped public configuration, page and vehicle context, capability
+  gating, default action names, rich result schemas, confirmed writes, media
+  policy, acceptance, and upgrades.
 - Both READMEs link to their external guide and both package manifests include
   `docs` in the reviewed package payload. The guides state explicitly that the
   browser layers do not own provider integration, indexing, authorization, or
   application side effects.
 
-### 17.11 Dealership document-knowledge consumption (2026-10-04)
+### 17.11 Dealership document-knowledge consumption (corrected 2026-10-09)
 
-- The dealership experience pack now consumes the deployment descriptor's
-  complete `retrievalVectorSpaces` list instead of pinning every chat turn to
-  the inventory vector space. The current descriptor exposes
-  `dealer-vehicle` and `document`.
-- This remains generic UI behavior: the pack forwards deployment-declared
-  retrieval scopes, while the deployment owns source routing, metadata
-  filters, prompts and authority. The generic widget contains no warranty,
-  policy, document-storage or dealership indexing logic.
+- The dealership experience pack no longer sends vector-space lists or other
+  retrieval-routing directives with chat requests. The earlier browser
+  forwarding contract was retired by the generic compound retrieval and exact
+  knowledge-source routing correction in plan `010.32`.
+- The deployment owns its typed knowledge sources, server allowlist, metadata
+  filters, prompts, and final routing authority. AI Fabric selects and
+  validates the effective source per information intent. The generic widget
+  contains no warranty, policy, document-storage, dealership indexing, or
+  vector-space routing logic.
+- The pack retains `knowledge.inventoryVectorSpace` only to label a visible
+  vehicle attachment; this attachment metadata cannot broaden retrieval.
 - The Northfield host uses current inventory actions for live commercial facts
   and approved document evidence for warranty, reservation, test-drive,
   handover, complaints, opening-hours and accessibility answers. Combined

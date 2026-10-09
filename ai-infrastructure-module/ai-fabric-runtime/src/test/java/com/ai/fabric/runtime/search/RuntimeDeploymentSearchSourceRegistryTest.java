@@ -67,7 +67,7 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 .authContext(AIAccessSubjectContext.builder().authMode("PUBLIC_RUNTIME_AUTHENTICATED").build())
                 .build()))
             .extracting(source -> source.source().getId())
-            .containsExactly("deployment-private-vector", "shared-catalog");
+            .containsExactly("shared-catalog");
     }
 
     @Test
@@ -269,7 +269,7 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 .authContext(AIAccessSubjectContext.builder().authMode("PUBLIC_RUNTIME_ANONYMOUS").build())
                 .build()))
             .extracting(source -> source.source().getId())
-            .containsExactly("deployment-private-vector", "shared-catalog");
+            .containsExactly("shared-catalog");
     }
 
     @Test
@@ -386,13 +386,13 @@ class RuntimeDeploymentSearchSourceRegistryTest {
 
         assertThat(registry.resolveSearchSources(privateRequest))
             .extracting(source -> source.isEligible(privateRequest))
-            .containsExactly(true, true);
+            .containsExactly(true);
         assertThat(registry.resolveSearchSources(platformRequest))
             .extracting(source -> source.isEligible(platformRequest))
-            .containsExactly(true, true);
+            .containsExactly(true);
         assertThat(registry.resolveSearchSources(anonymousRequest))
             .extracting(source -> source.isEligible(anonymousRequest))
-            .containsExactly(true, false);
+            .containsExactly(false);
     }
 
     @Test
@@ -422,12 +422,7 @@ class RuntimeDeploymentSearchSourceRegistryTest {
             .entityType("product")
             .build();
 
-        assertThat(registry.resolveSearchSources(request))
-            .extracting(source -> source.source().getId())
-            .containsExactly("deployment-private-vector", "shared-catalog");
-        assertThat(registry.resolveSearchSources(request))
-            .extracting(source -> source.isEligible(request))
-            .containsExactly(true, false);
+        assertThat(registry.resolveSearchSources(request)).isEmpty();
 
         registry.recordSearchExecution(List.of(
             Map.of(
@@ -488,11 +483,173 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 .entityType("service-module")
                 .build()))
             .extracting(source -> source.source().getId())
-            .containsExactly(
-                "deployment-private-vector",
-                "produs-safe-service-category",
-                "produs-safe-service-module"
-            );
+            .containsExactly("produs-safe-service-module");
+    }
+
+    @Test
+    void typedRequestResolvesOnlySourcesWithTheSameCanonicalEntityType() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("dealer-stock")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .entityType("dealer-vehicle")
+                .enabled(true)
+                .build(),
+            ResolvedKnowledgeSource.builder()
+                .id("dealer-policies")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .entityType("document")
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        RAGRequest request = RAGRequest.builder().query("delivery policy").entityType("DOCUMENT").build();
+        assertThat(registry.resolveSearchSources(request))
+            .extracting(source -> source.source().getId())
+            .containsExactly("dealer-policies");
+    }
+
+    @Test
+    void missingTypedSourceReturnsStableResolutionDiagnosticWithoutBroadening() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("dealer-stock")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .entityType("dealer-vehicle")
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        RAGRequest request = RAGRequest.builder().query("delivery policy").entityType("document").build();
+        assertThat(registry.resolveSearchSources(request)).isEmpty();
+        assertThat(registry.resolutionDiagnostics(request))
+            .singleElement()
+            .satisfies(diagnostic -> assertThat(diagnostic)
+                .containsEntry("reason", "NO_MATCHING_KNOWLEDGE_SOURCE")
+                .containsEntry("requestedEntityType", "document"));
+
+        RAGRequest vehicleRequest = RAGRequest.builder()
+            .query("electric vehicle")
+            .entityType("dealer-vehicle")
+            .build();
+        assertThat(registry.resolveSearchSources(vehicleRequest)).hasSize(1);
+        registry.recordSearchExecution(List.of(Map.of(
+            "sourceId", "dealer-stock",
+            "sourceType", "deployment-private-vector",
+            "adapterType", "deployment-private-vector",
+            "status", "SUCCEEDED",
+            "resultsCount", 0,
+            "vectorSpaceMismatchCount", 2
+        )), false);
+
+        Map<String, Object> diagnostics = registry.adminDiagnostics();
+        assertThat(diagnostics)
+            .containsEntry("requestedEntityTypeCounts", Map.of("dealer-vehicle", 1L, "document", 1L))
+            .containsEntry("noMatchingSourceCounts", Map.of("document", 1L))
+            .containsEntry("matchedSourceCounts", Map.of("dealer-vehicle", Map.of("dealer-stock", 1L)));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sourceHealth = (List<Map<String, Object>>) diagnostics.get("sources");
+        assertThat(sourceHealth).singleElement().satisfies(entry -> assertThat(entry)
+            .containsEntry("emptyResultCount", 1L)
+            .containsEntry("vectorSpaceMismatchCount", 2L));
+    }
+
+    @Test
+    void disabledSourceDoesNotCountAsAnExecutableTypeMatch() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("retired-policies")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .entityType("document")
+                .enabled(false)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        RAGRequest request = RAGRequest.builder().query("delivery policy").entityType("document").build();
+        assertThat(registry.resolveSearchSources(request)).isEmpty();
+        assertThat(registry.resolutionDiagnostics(request))
+            .singleElement()
+            .satisfies(diagnostic -> assertThat(diagnostic)
+                .containsEntry("reason", "NO_MATCHING_KNOWLEDGE_SOURCE")
+                .containsEntry("requestedEntityType", "document"));
+        assertThat(registry.adminDiagnostics())
+            .containsEntry("noMatchingSourceCounts", Map.of("document", 1L))
+            .containsEntry("matchedSourceCounts", Map.of());
+    }
+
+    @Test
+    void registryRejectsEnabledUntypedKnowledgeSourceAtStartup() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("untyped-source")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+
+        assertThatThrownBy(registry::validateAndLoad)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("requires a canonical entityType");
+    }
+
+    @Test
+    void registryRejectsEnabledNonCanonicalKnowledgeSourceTypeAtStartup() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("invalid-source")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .entityType("Delivery Policy")
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+
+        assertThatThrownBy(registry::validateAndLoad)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("non-canonical entityType");
     }
 
     @Test
@@ -605,6 +762,97 @@ class RuntimeDeploymentSearchSourceRegistryTest {
     }
 
     @Test
+    void scopedRequestRejectsSourceEntityTypeMismatchBeforeProviderExecution() {
+        ResolvedKnowledgeSource source = ResolvedKnowledgeSource.builder()
+            .id("dealer-stock")
+            .type("deployment-private-vector")
+            .adapterType("deployment-private-vector")
+            .entityType("dealer-vehicle")
+            .enabled(true)
+            .build();
+        AISearchRequest request = AISearchRequest.builder()
+            .query("delivery policy")
+            .entityType("document")
+            .limit(5)
+            .build();
+
+        assertThatThrownBy(() -> SearchSourceResultSupport.scopedRequest(request, source, 1))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("KNOWLEDGE_SOURCE_ENTITY_TYPE_MISMATCH");
+    }
+
+    @Test
+    void resultDecorationPreservesActualVectorSpaceAndDropsMismatches() {
+        ResolvedKnowledgeSource source = ResolvedKnowledgeSource.builder()
+            .id("dealer-policies")
+            .type("deployment-private-vector")
+            .adapterType("deployment-private-vector")
+            .entityType("document")
+            .enabled(true)
+            .build();
+        AISearchResponse response = AISearchResponse.builder()
+            .results(List.of(
+                Map.of(
+                    "id", "policy-1",
+                    "score", 0.9,
+                    "metadata", Map.of("vectorSpace", "document")
+                ),
+                Map.of(
+                    "id", "vehicle-1",
+                    "score", 0.89,
+                    "metadata", Map.of("vectorSpace", "dealer-vehicle")
+                )
+            ))
+            .build();
+
+        AISearchResponse filtered = SearchSourceResultSupport.filterAndDecorate(response, source, Map.of());
+
+        assertThat(filtered.getResults()).singleElement().satisfies(result -> {
+            assertThat(result).containsEntry("id", "policy-1");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) result.get("metadata");
+            assertThat(metadata)
+                .containsEntry("vectorSpace", "document")
+                .containsEntry("queriedVectorSpace", "document")
+                .containsEntry("knowledgeSourceId", "dealer-policies");
+        });
+        assertThat(filtered.getDiagnostics())
+            .containsEntry("queriedVectorSpace", "document")
+            .containsEntry("rawResultsCount", 2)
+            .containsEntry("filteredResultsCount", 1)
+            .containsEntry("vectorSpaceMismatchCount", 1);
+        assertThat(filtered.getMaxScore()).isEqualTo(0.9);
+    }
+
+    @Test
+    void resultDecorationDoesNotRetainRawMaxScoreWhenEveryHitIsRejected() {
+        ResolvedKnowledgeSource source = ResolvedKnowledgeSource.builder()
+            .id("dealer-policies")
+            .type("deployment-private-vector")
+            .adapterType("deployment-private-vector")
+            .entityType("document")
+            .enabled(true)
+            .build();
+        AISearchResponse response = AISearchResponse.builder()
+            .results(List.of(Map.of(
+                "id", "vehicle-1",
+                "score", 0.97,
+                "metadata", Map.of("vectorSpace", "dealer-vehicle")
+            )))
+            .maxScore(0.97)
+            .build();
+
+        AISearchResponse filtered = SearchSourceResultSupport.filterAndDecorate(response, source, Map.of());
+
+        assertThat(filtered.getResults()).isEmpty();
+        assertThat(filtered.getMaxScore()).isNull();
+        assertThat(filtered.getDiagnostics())
+            .containsEntry("rawResultsCount", 1)
+            .containsEntry("filteredResultsCount", 0)
+            .containsEntry("vectorSpaceMismatchCount", 1);
+    }
+
+    @Test
     void defaultPrivateSourceStillExcludesHandleScopedMarketplaceDocuments() {
         ResolvedKnowledgeSource source = ResolvedKnowledgeSource.builder()
             .id("deployment-private-vector")
@@ -645,6 +893,7 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 .id("shared-catalog")
                 .type("shared-vector")
                 .adapterType("shared-index")
+                .entityType("document")
                 .enabled(true)
                 .build()
         ));

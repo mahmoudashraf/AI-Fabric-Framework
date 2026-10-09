@@ -1072,6 +1072,9 @@ public class RailwayProvisioningPlanService {
         JsonNode sources = knowledgeSourceConfig == null ? null : knowledgeSourceConfig.path("sources");
         if (sources != null && sources.isArray()) {
             for (JsonNode source : sources) {
+                if (source.path("enabled").isBoolean() && !source.path("enabled").asBoolean()) {
+                    continue;
+                }
                 addVectorSpace(vectorSpaces, text(source, "entityType"));
             }
         }

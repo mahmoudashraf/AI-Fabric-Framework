@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.web;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -96,6 +98,12 @@ public class ChatRuntimeController {
     private static final int MAX_SUGGESTION_METADATA_ENTRIES = 12;
     private static final int MAX_VECTOR_SPACE_HINTS = 12;
     private static final int MAX_VECTOR_SPACE_HINT_CHARS = 96;
+    private static final Set<String> RESERVED_ROUTING_CONTEXT_KEYS = Set.of(
+        "preferredvectorspaces",
+        "retrievalvectorspaces",
+        "vectorspace",
+        "entitytype"
+    );
     private static final int MAX_TRANSIENT_FILE_URL_INPUTS = 8;
     private static final long MAX_TRANSIENT_FILE_URL_DECLARED_SIZE_BYTES = 50L * 1024L * 1024L;
     private static final Duration MAX_TRANSIENT_FILE_URL_TTL = Duration.ofHours(24);
@@ -832,8 +840,10 @@ public class ChatRuntimeController {
         Integer responseGenerationMaxTokensConcise = deploymentResponseGenerationMaxTokensConcise();
         Integer responseGenerationMaxTokensStandard = deploymentResponseGenerationMaxTokensStandard();
         Integer responseGenerationMaxTokensDeep = deploymentResponseGenerationMaxTokensDeep();
+        List<String> vectorSpaceHints = isTrustedRoutingDirectiveSource(identity)
+            ? extractVectorSpaceHints(request.getContext())
+            : List.of();
         Map<String, Object> requestContext = sanitizeRequestContext(request.getContext());
-        List<String> vectorSpaceHints = extractVectorSpaceHints(requestContext);
         if (!promptPreview.isEmpty()
             || !requestContext.isEmpty()
             || !vectorSpaceHints.isEmpty()
@@ -930,6 +940,14 @@ public class ChatRuntimeController {
             if (entry == null || !StringUtils.hasText(entry.getKey()) || count >= MAX_SUGGESTION_METADATA_ENTRIES) {
                 continue;
             }
+            String normalizedKey = entry.getKey()
+                .trim()
+                .toLowerCase(java.util.Locale.ROOT)
+                .replace("-", "")
+                .replace("_", "");
+            if (RESERVED_ROUTING_CONTEXT_KEYS.contains(normalizedKey)) {
+                continue;
+            }
             Object value = sanitizeContextValue(entry.getKey(), entry.getValue());
             if (value != null) {
                 sanitized.put(entry.getKey().trim(), value);
@@ -951,6 +969,13 @@ public class ChatRuntimeController {
         collectVectorSpaceHints(hints, requestContext.get("vector_space"));
         collectVectorSpaceHints(hints, requestContext.get("entity_type"));
         return hints.isEmpty() ? List.of() : List.copyOf(hints);
+    }
+
+    private boolean isTrustedRoutingDirectiveSource(RuntimeResolvedIdentity identity) {
+        RuntimeAuthMode authMode = identity != null && identity.getAuthContext() != null
+            ? identity.getAuthContext().getAuthMode()
+            : null;
+        return authMode == RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED;
     }
 
     private void collectVectorSpaceHints(List<String> hints, Object raw) {

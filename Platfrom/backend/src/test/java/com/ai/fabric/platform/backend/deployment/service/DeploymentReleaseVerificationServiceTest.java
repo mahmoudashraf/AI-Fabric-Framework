@@ -53,7 +53,7 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
-    private static final String AI_FABRIC_VERSION = "0.8.11";
+    private static final String AI_FABRIC_VERSION = "0.8.12";
     private static final String ENTITY_CONFIG_CONTRACT_VERSION =
         "AI_ENTITY_CONFIG_V0_4";
     private static final String ENTITY_CONFIG_HASH = "entity-hash-123";
@@ -262,7 +262,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("28 passed, 0 failed, 2 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("29 passed, 0 failed, 2 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -273,7 +273,7 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(30);
+            assertThat(statuses).hasSize(31);
             assertThat(statuses.values()).contains("SKIPPED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
@@ -281,6 +281,7 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("runtime_config_matches_expected", "PASSED")
                 .containsEntry("runtime_prompt_config_matches_expected", "PASSED")
                 .containsEntry("runtime_knowledge_sources_match_expected", "PASSED")
+                .containsEntry("runtime_knowledge_source_routing_ready", "PASSED")
                 .containsEntry("runtime_shell_config_matches_expected", "PASSED")
                 .containsEntry("runtime_auth_configuration_matches_expected", "PASSED")
                 .containsEntry("runtime_actions_match_expected", "PASSED")
@@ -326,7 +327,7 @@ class DeploymentReleaseVerificationServiceTest {
                     """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.11",
+                          "aiFabricFrameworkVersion": "0.8.12",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -798,7 +799,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ? """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.11",
+                          "aiFabricFrameworkVersion": "0.8.12",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-old",
@@ -869,7 +870,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ) : """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.11",
+                          "aiFabricFrameworkVersion": "0.8.12",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -2834,7 +2835,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.11",
+                      "aiFabricFrameworkVersion": "0.8.12",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",
@@ -2948,7 +2949,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.11",
+                      "aiFabricFrameworkVersion": "0.8.12",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",

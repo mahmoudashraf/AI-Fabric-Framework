@@ -20,13 +20,18 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 @Service
 public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegistry {
@@ -38,6 +43,7 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue(),
         KnowledgeSourceAdapterType.SHARED_INDEX.wireValue()
     );
+    private static final Pattern CANONICAL_ENTITY_TYPE = Pattern.compile("[a-z0-9][a-z0-9._-]*");
 
     private final RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService;
     private final AISearchService searchService;
@@ -46,6 +52,10 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
 
     private volatile List<ResolvedKnowledgeSource> configuredSources = List.of();
     private final ConcurrentMap<String, SearchSourceHealthState> sourceHealth = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AtomicLong> requestedEntityTypeCounts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AtomicLong> noMatchingSourceCounts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ConcurrentMap<String, AtomicLong>> matchedSourceCounts = new ConcurrentHashMap<>();
+    private final AtomicLong unresolvedEntityTypeCount = new AtomicLong();
     private final AtomicLong recordedSearchExecutions = new AtomicLong();
     private final AtomicLong degradedSearchExecutions = new AtomicLong();
     private volatile Instant lastRecordedSearchAt;
@@ -72,7 +82,25 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         List<ResolvedKnowledgeSource> sources = knowledgeSourceConfigService.currentSources();
         Map<String, Object> vectorDiagnostics = vectorDatabaseService.adminDiagnostics();
         boolean sharedStorageSupported = Boolean.TRUE.equals(vectorDiagnostics.get("sharedStorage"));
+        Set<String> sourceIds = new HashSet<>();
         for (ResolvedKnowledgeSource source : sources) {
+            String normalizedSourceId = source.getId() != null
+                ? source.getId().trim().toLowerCase(Locale.ROOT)
+                : "";
+            if (!StringUtils.hasText(normalizedSourceId) || !sourceIds.add(normalizedSourceId)) {
+                throw new IllegalStateException("Deployment knowledge source ids must be present and unique.");
+            }
+            if (source.isEnabled() && !StringUtils.hasText(source.getEntityType())) {
+                throw new IllegalStateException(
+                    "Enabled deployment knowledge source '" + source.getId() + "' requires a canonical entityType."
+                );
+            }
+            if (source.isEnabled() && !CANONICAL_ENTITY_TYPE.matcher(source.getEntityType()).matches()) {
+                throw new IllegalStateException(
+                    "Enabled deployment knowledge source '" + source.getId()
+                        + "' has non-canonical entityType '" + source.getEntityType() + "'."
+                );
+            }
             if (!SUPPORTED_ADAPTER_TYPES.contains(source.getAdapterType())) {
                 throw new IllegalStateException(
                     "Unsupported deployment knowledge source adapter '" + source.getAdapterType()
@@ -111,35 +139,70 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
     public List<SearchSource> resolveSearchSources(RAGRequest request) {
         Map<String, Object> trustedBoundaryFilters = trustedBoundaryFilters(request);
         boolean deploymentKnowledgeRequest = !trustedBoundaryFilters.isEmpty();
-        List<SearchSource> resolved = new ArrayList<>();
-        ResolvedKnowledgeSource configuredDefaultPrivateSource = configuredSources.stream()
-            .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
-            .filter(source -> !StringUtils.hasText(source.getHandleRef()))
-            .findFirst()
-            .orElse(defaultPrivateSource(request));
-        resolved.add(new DeploymentPrivateVectorSearchSource(
-            withTrustedBoundary(configuredDefaultPrivateSource, trustedBoundaryFilters),
-            searchService,
-            vectorDatabaseService,
-            documentActiveVersionFilter
-        ));
-        configuredSources.stream()
-            .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
-            .filter(source -> StringUtils.hasText(source.getHandleRef()))
-            .map(source -> new DeploymentPrivateVectorSearchSource(
-                withTrustedBoundary(source, trustedBoundaryFilters),
+        String requestedEntityType = normalizedEntityType(request != null ? request.getEntityType() : null);
+
+        if (!StringUtils.hasText(requestedEntityType)) {
+            unresolvedEntityTypeCount.incrementAndGet();
+            return List.of();
+        }
+        increment(requestedEntityTypeCounts, requestedEntityType);
+
+        if (configuredSources.isEmpty()) {
+            ResolvedKnowledgeSource defaultSource = withTrustedBoundary(
+                defaultPrivateSource(request),
+                trustedBoundaryFilters
+            );
+            incrementMatchedSource(requestedEntityType, defaultSource.getId());
+            return List.of(new DeploymentPrivateVectorSearchSource(
+                defaultSource,
                 searchService,
                 vectorDatabaseService,
                 documentActiveVersionFilter
-            ))
+            ));
+        }
+
+        List<SearchSource> resolved = new ArrayList<>();
+        configuredSources.stream()
+            .filter(ResolvedKnowledgeSource::isEnabled)
+            .filter(source -> entityTypeMatches(source, requestedEntityType))
+            .filter(source -> !deploymentKnowledgeRequest
+                || KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
+            .map(source -> toSearchSource(source, trustedBoundaryFilters))
+            .filter(Objects::nonNull)
             .forEach(resolved::add);
-        if (!deploymentKnowledgeRequest) {
-            configuredSources.stream()
-                .filter(source -> KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType()))
-                .map(source -> new SharedIndexSearchSource(source, searchService, vectorDatabaseService))
-                .forEach(resolved::add);
+        if (resolved.isEmpty()) {
+            increment(noMatchingSourceCounts, requestedEntityType);
+        } else {
+            resolved.forEach(source -> incrementMatchedSource(requestedEntityType, source.sourceId()));
         }
         return List.copyOf(resolved);
+    }
+
+    @Override
+    public List<Map<String, Object>> resolutionDiagnostics(RAGRequest request) {
+        String requestedEntityType = normalizedEntityType(request != null ? request.getEntityType() : null);
+        String reason = StringUtils.hasText(requestedEntityType)
+            ? "NO_MATCHING_KNOWLEDGE_SOURCE"
+            : "UNRESOLVED_KNOWLEDGE_SOURCE_TYPE";
+        Map<String, Object> diagnostic = new LinkedHashMap<>();
+        diagnostic.put("sourceId", "knowledge-source-registry");
+        diagnostic.put("sourceType", "routing");
+        diagnostic.put("adapterType", "registry");
+        diagnostic.put("eligible", false);
+        diagnostic.put("status", "SKIPPED");
+        diagnostic.put("reason", reason);
+        if (StringUtils.hasText(requestedEntityType)) {
+            diagnostic.put("requestedEntityType", requestedEntityType);
+        }
+        diagnostic.put("configuredEntityTypes", configuredSources.stream()
+            .filter(ResolvedKnowledgeSource::isEnabled)
+            .map(ResolvedKnowledgeSource::getEntityType)
+            .map(this::normalizedEntityType)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .sorted()
+            .toList());
+        return List.of(Collections.unmodifiableMap(diagnostic));
     }
 
     @Override
@@ -160,6 +223,9 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             }
             String sourceId = textValue(diagnostic.get("sourceId"));
             if (!StringUtils.hasText(sourceId)) {
+                continue;
+            }
+            if ("knowledge-source-registry".equals(sourceId)) {
                 continue;
             }
             SearchSourceHealthState state = sourceHealth.computeIfAbsent(
@@ -191,6 +257,10 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         diagnostics.put("degradedSearchExecutions", degradedSearchExecutions.get());
         diagnostics.put("degradedSourcesCount", degradedSources);
         diagnostics.put("disabledSourcesCount", disabledSources);
+        diagnostics.put("requestedEntityTypeCounts", snapshotCounters(requestedEntityTypeCounts));
+        diagnostics.put("matchedSourceCounts", snapshotMatchedSourceCounters());
+        diagnostics.put("noMatchingSourceCounts", snapshotCounters(noMatchingSourceCounts));
+        diagnostics.put("unresolvedEntityTypeCount", unresolvedEntityTypeCount.get());
         diagnostics.put("lastRecordedSearchAt", lastRecordedSearchAt != null ? lastRecordedSearchAt.toString() : null);
         diagnostics.put("sources", sourceEntries);
         return Collections.unmodifiableMap(new LinkedHashMap<>(diagnostics));
@@ -202,7 +272,9 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
 
     private void initializeHealthState(List<ResolvedKnowledgeSource> sources) {
         sourceHealth.clear();
-        sourceHealth.put("deployment-private-vector", SearchSourceHealthState.fromResolved(defaultPrivateSource(null), true));
+        if (sources == null || sources.isEmpty()) {
+            sourceHealth.put("deployment-private-vector", SearchSourceHealthState.fromResolved(defaultPrivateSource(null), true));
+        }
         for (ResolvedKnowledgeSource source : sources) {
             if (source == null || !StringUtils.hasText(source.getId())) {
                 continue;
@@ -222,6 +294,68 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             .filters(Map.of())
             .enabled(true)
             .build();
+    }
+
+    private boolean entityTypeMatches(ResolvedKnowledgeSource source, String requestedEntityType) {
+        if (source == null || !StringUtils.hasText(requestedEntityType)) {
+            return false;
+        }
+        String sourceEntityType = normalizedEntityType(source.getEntityType());
+        return StringUtils.hasText(sourceEntityType) && sourceEntityType.equals(requestedEntityType);
+    }
+
+    private SearchSource toSearchSource(ResolvedKnowledgeSource source,
+                                        Map<String, Object> trustedBoundaryFilters) {
+        if (source == null) {
+            return null;
+        }
+        if (KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType())) {
+            return new DeploymentPrivateVectorSearchSource(
+                withTrustedBoundary(source, trustedBoundaryFilters),
+                searchService,
+                vectorDatabaseService,
+                documentActiveVersionFilter
+            );
+        }
+        if (KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType())) {
+            return new SharedIndexSearchSource(source, searchService, vectorDatabaseService);
+        }
+        return null;
+    }
+
+    private String normalizedEntityType(String value) {
+        return StringUtils.hasText(value)
+            ? value.trim().toLowerCase(java.util.Locale.ROOT)
+            : null;
+    }
+
+    private void increment(ConcurrentMap<String, AtomicLong> counters, String key) {
+        if (StringUtils.hasText(key)) {
+            counters.computeIfAbsent(key, ignored -> new AtomicLong()).incrementAndGet();
+        }
+    }
+
+    private void incrementMatchedSource(String requestedEntityType, String sourceId) {
+        if (!StringUtils.hasText(requestedEntityType) || !StringUtils.hasText(sourceId)) {
+            return;
+        }
+        ConcurrentMap<String, AtomicLong> bySource = matchedSourceCounts.computeIfAbsent(
+            requestedEntityType,
+            ignored -> new ConcurrentHashMap<>()
+        );
+        increment(bySource, sourceId);
+    }
+
+    private Map<String, Long> snapshotCounters(ConcurrentMap<String, AtomicLong> counters) {
+        Map<String, Long> snapshot = new TreeMap<>();
+        counters.forEach((key, value) -> snapshot.put(key, value.get()));
+        return Collections.unmodifiableMap(snapshot);
+    }
+
+    private Map<String, Map<String, Long>> snapshotMatchedSourceCounters() {
+        Map<String, Map<String, Long>> snapshot = new TreeMap<>();
+        matchedSourceCounts.forEach((entityType, counters) -> snapshot.put(entityType, snapshotCounters(counters)));
+        return Collections.unmodifiableMap(snapshot);
     }
 
     private Map<String, Object> trustedBoundaryFilters(RAGRequest request) {
@@ -335,6 +469,8 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         private long successCount;
         private long failureCount;
         private long skippedCount;
+        private long emptyResultCount;
+        private long vectorSpaceMismatchCount;
 
         private SearchSourceHealthState(String sourceId,
                                         String sourceType,
@@ -372,12 +508,19 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             if ("SUCCEEDED".equals(this.lastStatus)) {
                 successCount++;
                 lastSuccessAt = recordedAt;
+                if (resultsCount != null && resultsCount == 0L) {
+                    emptyResultCount++;
+                }
             } else if ("FAILED".equals(this.lastStatus)) {
                 failureCount++;
                 lastFailureAt = recordedAt;
             } else if ("SKIPPED".equals(this.lastStatus)) {
                 skippedCount++;
                 lastSkippedAt = recordedAt;
+            }
+            Long mismatches = longValue(diagnostic.get("vectorSpaceMismatchCount"));
+            if (mismatches != null && mismatches > 0) {
+                vectorSpaceMismatchCount += mismatches;
             }
         }
 
@@ -404,6 +547,8 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             diagnostics.put("successCount", successCount);
             diagnostics.put("failureCount", failureCount);
             diagnostics.put("skippedCount", skippedCount);
+            diagnostics.put("emptyResultCount", emptyResultCount);
+            diagnostics.put("vectorSpaceMismatchCount", vectorSpaceMismatchCount);
             return Collections.unmodifiableMap(new LinkedHashMap<>(diagnostics));
         }
 

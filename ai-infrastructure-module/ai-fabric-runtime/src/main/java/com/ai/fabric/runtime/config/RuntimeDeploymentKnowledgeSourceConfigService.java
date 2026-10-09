@@ -16,7 +16,9 @@ import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
@@ -111,6 +113,23 @@ public class RuntimeDeploymentKnowledgeSourceConfigService {
         return sourceAdapterTypes;
     }
 
+    public List<String> currentSourceEntityTypes() {
+        return sources.stream()
+            .map(ResolvedKnowledgeSource::getEntityType)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .sorted()
+            .toList();
+    }
+
+    public Map<String, String> currentSourceEntityTypesById() {
+        Map<String, String> result = new LinkedHashMap<>();
+        sources.stream()
+            .filter(source -> StringUtils.hasText(source.getId()) && StringUtils.hasText(source.getEntityType()))
+            .forEach(source -> result.put(source.getId(), source.getEntityType()));
+        return Map.copyOf(result);
+    }
+
     public List<ResolvedKnowledgeSource> currentSources() {
         return sources;
     }
@@ -165,7 +184,7 @@ public class RuntimeDeploymentKnowledgeSourceConfigService {
             String requestedAdapterType = node.path("adapterType").asText("").trim();
             String adapterType = resolveAdapterTypeValue(requestedAdapterType, sourceType);
             String attributionLabel = node.path("attributionLabel").asText("").trim();
-            String entityType = node.path("entityType").asText("").trim();
+            String entityType = node.path("entityType").asText("").trim().toLowerCase(Locale.ROOT);
             Map<String, Object> filters = RuntimeDeploymentResolvedConfigSupport.convertToMap(
                 objectMapper,
                 node.path("filters")

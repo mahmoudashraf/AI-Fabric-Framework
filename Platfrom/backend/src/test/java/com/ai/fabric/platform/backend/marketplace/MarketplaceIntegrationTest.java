@@ -574,6 +574,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')].requiresConfirmation", is(List.of(true))))
             .andExpect(jsonPath("$.entityConfig['ai-entities']['product'].marketplaceInstallId", is(dataInstall)))
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].datasetRef", is(List.of("commerce-catalog-sql"))))
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].entityType", is(List.of("product"))))
             .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')].marketplaceInstallId", is(List.of(dataInstall))))
             .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')].ingestionMode", is(List.of("EXTERNAL_SYNC_SQL"))))
             .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')].syncConnector.connectionRef", is(List.of("platform-marketplace-demo-sql"))))

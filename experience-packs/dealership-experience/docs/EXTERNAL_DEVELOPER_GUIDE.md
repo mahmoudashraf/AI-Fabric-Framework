@@ -1,6 +1,6 @@
 # LoomAI Dealership Experience Pack External Developer Guide
 
-**Pack:** `dealership@1.0.0`
+**Pack:** `dealership@1.1.0`
 **Manifest contract:** `loomai-ai-workspace-installation-v1`
 
 The Dealership Experience Pack turns the generic LoomAI Workspace into a
@@ -28,15 +28,23 @@ Before activation, LoomAI Platform must have:
 
 1. an active consumer owned by the dealership customer;
 2. an explicit binding to an applied, verified conversational release;
-3. the `dealership@1.0.0` packaged asset and valid digest catalog;
+3. the `dealership@1.1.0` packaged asset and valid digest catalog;
 4. an approved connection profile;
 5. exact website origins;
-6. `dealer-vehicle` plus any approved dealership-document vector spaces;
+6. deployment-owned, typed knowledge sources for inventory and approved
+   dealership documents, with their entity types in the server retrieval
+   allowlist;
 7. installed inventory/detail actions and any advertised optional actions; and
 8. runtime CORS/token readiness for direct public modes, or a ready reviewed
    broker/adapter for authenticated/private modes.
 
 ## 3. One-Script Website Integration
+
+In Platform Console **AI Workspaces**, create a customer-scoped installation,
+select the dealership's active consumer, choose the reviewed connection
+profile, add the exact dealership website origins, and complete the dealership
+experience fields. Activation remains blocked until assignment, release,
+assets, origin, pack and connection-profile readiness checks pass.
 
 Copy the exact snippet from Platform **AI Workspaces**:
 
@@ -75,8 +83,7 @@ is:
     "maxTotalChars": 10000
   },
   "knowledge": {
-    "inventoryVectorSpace": "dealer-vehicle",
-    "retrievalVectorSpaces": ["dealer-vehicle", "dealership-document"]
+    "inventoryVectorSpace": "dealer-vehicle"
   },
   "capabilities": {
     "comparison": true,
@@ -97,6 +104,12 @@ is:
   }
 }
 ```
+
+`knowledge.inventoryVectorSpace` labels a visible vehicle page attachment. It
+does not choose chat retrieval sources. Knowledge-source definitions,
+allowlists, and effective per-intent routing are compiled and enforced by the
+assigned deployment. Public configuration must not contain vector-space lists,
+source IDs, provider handles, or other retrieval-routing directives.
 
 `detailSlugs` is the host-owned mapping from a provider's stable stock ID to a
 website page slug. Use it when provider records intentionally do not contain

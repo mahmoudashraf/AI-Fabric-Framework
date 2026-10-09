@@ -697,6 +697,76 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsEnabledKnowledgeSourceWithoutCanonicalEntityType() {
+        DeploymentDraftEntity draft = marketplaceDatasetDraft();
+        draft.setKnowledgeSourceConfigJson("""
+            {
+              "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+              "sources": [{
+                "id": "dealer-policies",
+                "sourceType": "deployment-private-vector",
+                "adapterType": "deployment-private-vector",
+                "enabled": true
+              }]
+            }
+            """);
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("KNOWLEDGE_SOURCE_ENTITY_TYPE_REQUIRED");
+    }
+
+    @Test
+    void validateRejectsKnowledgeSourceWithoutStableId() {
+        DeploymentDraftEntity draft = marketplaceDatasetDraft();
+        draft.setKnowledgeSourceConfigJson("""
+            {
+              "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+              "sources": [{
+                "sourceType": "deployment-private-vector",
+                "adapterType": "deployment-private-vector",
+                "entityType": "document",
+                "enabled": true
+              }]
+            }
+            """);
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("KNOWLEDGE_SOURCE_ID_REQUIRED");
+    }
+
+    @Test
+    void validateRejectsNonCanonicalKnowledgeSourceEntityType() {
+        DeploymentDraftEntity draft = marketplaceDatasetDraft();
+        draft.setKnowledgeSourceConfigJson("""
+            {
+              "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+              "sources": [{
+                "id": "dealer-policies",
+                "sourceType": "deployment-private-vector",
+                "adapterType": "deployment-private-vector",
+                "entityType": "Dealer Policy",
+                "enabled": true
+              }]
+            }
+            """);
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("KNOWLEDGE_SOURCE_ENTITY_TYPE_INVALID");
+    }
+
+    @Test
     void validateAcceptsPartialExplicitOverrideOverInlineActionRoute() {
         DraftValidationResponse response = service.validate(draft(
             """

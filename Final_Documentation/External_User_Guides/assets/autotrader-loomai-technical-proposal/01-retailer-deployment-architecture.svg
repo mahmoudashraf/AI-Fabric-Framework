@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">LoomAI retailer-isolated deployment architecture</title>
+  <desc id="desc">A dealership website talks directly to one retailer deployment. The deployment contains a public AI runtime, private generic connector, durable state, and a first-class indexed knowledge layer holding approved dealer stock evidence and retailer documents. The Auto Trader APIs connect only to the connector. The LoomAI Platform is a control plane and is not in the customer data path.</desc>
+  <defs>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#1769ff"/>
+    </marker>
+    <marker id="arrowNavy" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#0b2550"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#7047eb"/>
+    </marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #0b2550; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 20px; font-weight: 400; fill: #516887; }
+      .eyebrow { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1769ff; letter-spacing: 0; }
+      .group { font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #0b2550; }
+      .box-title { font-family: Arial, sans-serif; font-size: 20px; font-weight: 700; fill: #0b2550; }
+      .body { font-family: Arial, sans-serif; font-size: 16px; font-weight: 400; fill: #516887; }
+      .small { font-family: Arial, sans-serif; font-size: 14px; font-weight: 600; fill: #516887; }
+      .tag { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #1769ff; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="#f7f9fd"/>
+  <path d="M0 138 H1600" stroke="#dce5f2"/>
+  <text x="70" y="58" class="eyebrow">PROPOSED PILOT ARCHITECTURE | ONE RETAILER, ONE DEPLOYMENT</text>
+  <text x="70" y="106" class="title">The deployment is the retailer's isolated AI execution boundary.</text>
+  <text x="70" y="132" class="subtitle">Each deployment owns ingestion, indexing, retrieval and actions; the Platform controls lifecycle, not routine data traffic.</text>
+
+  <!-- Dealership channel -->
+  <rect x="55" y="190" width="300" height="258" rx="8" fill="#ffffff" stroke="#9db9e8" stroke-width="2"/>
+  <text x="82" y="226" class="eyebrow">RETAILER CHANNEL</text>
+  <text x="82" y="265" class="group">Dealership website</text>
+  <rect x="82" y="292" width="246" height="62" rx="8" fill="#eef5ff" stroke="#a8c4f0"/>
+  <text x="102" y="319" class="box-title">Embedded AI workspace</text>
+  <text x="102" y="340" class="body">Docked chat + Max Mode</text>
+  <rect x="82" y="371" width="246" height="51" rx="8" fill="#f7f9fd" stroke="#d6e0ef"/>
+  <text x="102" y="402" class="body">Anonymous browser session</text>
+
+  <!-- Main deployment -->
+  <rect x="414" y="173" width="750" height="609" rx="8" fill="#ffffff" stroke="#1769ff" stroke-width="3"/>
+  <rect x="414" y="173" width="750" height="72" rx="8" fill="#eaf2ff"/>
+  <path d="M414 237 H1164" stroke="#b9cff4"/>
+  <circle cx="447" cy="209" r="9" fill="#1769ff"/>
+  <text x="470" y="216" class="group">Retailer deployment</text>
+  <text x="948" y="216" class="tag">FIXED ADVERTISER SCOPE</text>
+
+  <rect x="450" y="278" width="314" height="173" rx="8" fill="#f7fbff" stroke="#62a0ff" stroke-width="2"/>
+  <text x="474" y="309" class="eyebrow">PUBLIC ENTRY</text>
+  <text x="474" y="342" class="box-title">AI runtime</text>
+  <text x="474" y="370" class="body">Session, policy and orchestration</text>
+  <text x="474" y="395" class="body">Retrieval and governed actions</text>
+  <text x="474" y="420" class="body">Evidence-backed response projection</text>
+
+  <rect x="811" y="278" width="314" height="173" rx="8" fill="#f7f4ff" stroke="#9177ef" stroke-width="2"/>
+  <text x="835" y="309" class="eyebrow" fill="#7047eb">PRIVATE SERVICE</text>
+  <text x="835" y="342" class="box-title">Generic REST Connector</text>
+  <text x="835" y="370" class="body">Fixed routes and field mappings</text>
+  <text x="835" y="395" class="body">Token cache, scope and grants</text>
+  <text x="835" y="420" class="body">Rate, retry and response bounds</text>
+
+  <line x1="764" y1="365" x2="811" y2="365" stroke="#0b2550" stroke-width="3" marker-end="url(#arrowNavy)"/>
+  <text x="771" y="347" class="small">private</text>
+
+  <rect x="450" y="493" width="314" height="122" rx="8" fill="#f4fbf8" stroke="#79c6a9" stroke-width="2"/>
+  <text x="474" y="525" class="box-title">Deployment database</text>
+  <text x="474" y="552" class="body">Conversation/action state</text>
+  <text x="474" y="577" class="body">Connector cursors + audit evidence</text>
+
+  <rect x="811" y="493" width="314" height="122" rx="8" fill="#f7f4ff" stroke="#7047eb" stroke-width="3"/>
+  <text x="835" y="525" class="box-title">Indexed knowledge layer</text>
+  <text x="835" y="552" class="body">Dealer stock evidence + vectors</text>
+  <text x="835" y="577" class="body">Retailer documents + provenance</text>
+
+  <line x1="968" y1="451" x2="968" y2="493" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <text x="981" y="477" class="small">index</text>
+  <path d="M811 554 H785 V430 H764" fill="none" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <text x="704" y="475" class="small">retrieve</text>
+
+  <rect x="450" y="651" width="675" height="91" rx="8" fill="#fff8f4" stroke="#eda789" stroke-width="2"/>
+  <text x="474" y="683" class="box-title">Immutable deployment composition</text>
+  <text x="474" y="710" class="body">Template | DATA plugin | ACTION plugin | auth/inference/storage profiles | secret references</text>
+
+  <!-- Auto Trader boundary -->
+  <rect x="1215" y="190" width="330" height="425" rx="8" fill="#ffffff" stroke="#7047eb" stroke-width="2"/>
+  <text x="1243" y="226" class="eyebrow" fill="#7047eb">AUTO TRADER BOUNDARY</text>
+  <text x="1243" y="265" class="group">Approved API products</text>
+  <rect x="1243" y="293" width="274" height="67" rx="8" fill="#f7f4ff" stroke="#b8a8f5"/>
+  <text x="1264" y="320" class="box-title">Authentication</text>
+  <text x="1264" y="342" class="body">Key/secret -&gt; bearer token</text>
+  <rect x="1243" y="376" width="274" height="67" rx="8" fill="#f7f4ff" stroke="#b8a8f5"/>
+  <text x="1264" y="403" class="box-title">Search / Stock</text>
+  <text x="1264" y="425" class="body">Granted first-pilot reads</text>
+  <rect x="1243" y="459" width="274" height="67" rx="8" fill="#f7f4ff" stroke="#b8a8f5"/>
+  <text x="1264" y="486" class="box-title">Notifications</text>
+  <text x="1264" y="508" class="body">First-pilot freshness signal</text>
+  <rect x="1243" y="542" width="274" height="51" rx="8" fill="#f4fbf8" stroke="#79c6a9"/>
+  <text x="1264" y="574" class="box-title">Deal creation</text>
+
+  <!-- Data-plane arrows -->
+  <line x1="355" y1="329" x2="450" y2="329" stroke="#1769ff" stroke-width="4" marker-end="url(#arrowBlue)"/>
+  <text x="366" y="309" class="small">HTTPS</text>
+  <line x1="1125" y1="365" x2="1243" y2="365" stroke="#7047eb" stroke-width="4" marker-end="url(#arrowPurple)"/>
+  <line x1="1243" y1="399" x2="1125" y2="399" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <text x="1146" y="343" class="small">server-to-server</text>
+
+  <!-- Platform control plane -->
+  <rect x="55" y="504" width="300" height="278" rx="8" fill="#f0f5ff" stroke="#92afe3" stroke-width="2"/>
+  <text x="82" y="540" class="eyebrow">LOOMAI CONTROL PLANE</text>
+  <text x="82" y="578" class="group">Platform</text>
+  <text x="82" y="611" class="body">Compose and validate</text>
+  <text x="82" y="638" class="body">Provision and release</text>
+  <text x="82" y="665" class="body">Verify and observe</text>
+  <text x="82" y="692" class="body">Rollback and retire</text>
+  <rect x="82" y="718" width="246" height="42" rx="8" fill="#ffffff" stroke="#b9cff4"/>
+  <text x="103" y="745" class="small">No routine stock/chat proxying</text>
+
+  <path d="M355 643 C380 643 388 696 414 696" fill="none" stroke="#1769ff" stroke-width="3" stroke-dasharray="10 8" marker-end="url(#arrowBlue)"/>
+  <text x="358" y="676" class="small">lifecycle only</text>
+
+  <!-- Legend -->
+  <line x1="1120" y1="833" x2="1184" y2="833" stroke="#1769ff" stroke-width="4" marker-end="url(#arrowBlue)"/>
+  <text x="1195" y="839" class="small">runtime data plane</text>
+  <line x1="1360" y1="833" x2="1424" y2="833" stroke="#1769ff" stroke-width="3" stroke-dasharray="10 8" marker-end="url(#arrowBlue)"/>
+  <text x="1435" y="839" class="small">control plane</text>
+  <text x="70" y="844" class="small">Isolation invariant: secret access, advertiser scope, records, conversations and audit evidence remain isolated per retailer deployment.</text>
+</svg>

@@ -1156,6 +1156,9 @@ public class DeploymentMarketplaceDraftCompilerService {
                     );
                 }
             }
+            if (!StringUtils.hasText(text(compiled, "entityType")) && resolvedDataset != null) {
+                compiled.put("entityType", resolvedDataset.entityType());
+            }
             if (!StringUtils.hasText(handleRef) && "shared-index".equalsIgnoreCase(compiled.path("adapterType").asText(""))) {
                 handleRef = sourceId;
             }
@@ -1166,11 +1169,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                     : objectMapper.createObjectNode();
                 filters.put(KNOWLEDGE_SOURCE_HANDLE_REF_FIELD, handleRef);
                 compiled.set("filters", filters);
-                String entityType = text(compiled, "entityType");
-                if (!StringUtils.hasText(entityType) && resolvedDataset != null) {
-                    entityType = resolvedDataset.entityType();
-                }
-                ensureSharedIndexBoundaryMetadataProjection(entityRoot, entityType);
+                ensureSharedIndexBoundaryMetadataProjection(entityRoot, text(compiled, "entityType"));
             }
             if (sourceEntry.path("enabled").isBoolean()) {
                 compiled.put("enabled", sourceEntry.path("enabled").asBoolean());

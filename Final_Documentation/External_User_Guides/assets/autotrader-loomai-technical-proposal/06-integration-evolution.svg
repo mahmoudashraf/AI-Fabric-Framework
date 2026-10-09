@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">LoomAI and Auto Trader integration evolution</title>
+  <desc id="desc">A staged roadmap begins with a synthetic contract simulator, moves to a one-retailer Search-first pilot with confirmed Deal creation, then may add approved synchronized stock projection, and later reusable advertiser-package distribution. Every later capability requires an explicit grant and data-use decision.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#1769ff"/></marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #0b2550; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 20px; font-weight: 400; fill: #516887; }
+      .eyebrow { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1769ff; }
+      .phase { font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #0b2550; }
+      .box-title { font-family: Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #0b2550; }
+      .body { font-family: Arial, sans-serif; font-size: 15px; font-weight: 400; fill: #516887; }
+      .small { font-family: Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #516887; }
+      .tag { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; }
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f9fd"/>
+  <path d="M0 138 H1600" stroke="#dce5f2"/>
+  <text x="62" y="55" class="eyebrow">INTEGRATION OPPORTUNITY | STAGED, GRANT-BOUND EVOLUTION</text>
+  <text x="62" y="104" class="title">Prove one useful boundary before expanding the product surface.</text>
+  <text x="62" y="132" class="subtitle">No later phase is implied by approval of an earlier phase.</text>
+
+  <line x1="145" y1="302" x2="1450" y2="302" stroke="#a9c3e8" stroke-width="5" marker-end="url(#arrow)"/>
+  <circle cx="220" cy="302" r="18" fill="#516887"/>
+  <circle cx="595" cy="302" r="18" fill="#1769ff"/>
+  <circle cx="970" cy="302" r="18" fill="#7047eb"/>
+  <circle cx="1345" cy="302" r="18" fill="#159a6a"/>
+
+  <rect x="60" y="184" width="320" height="86" rx="8" fill="#eef1f6" stroke="#aab7c8"/>
+  <text x="84" y="217" class="phase">0 | Current evidence</text>
+  <text x="84" y="245" class="tag" fill="#516887">IMPLEMENTED | SYNTHETIC ONLY</text>
+  <rect x="60" y="346" width="320" height="324" rx="8" fill="#ffffff" stroke="#aab7c8"/>
+  <text x="84" y="381" class="box-title">Contract simulator</text>
+  <text x="84" y="412" class="body">Form token exchange</text>
+  <text x="84" y="438" class="body">Paginated synthetic stock</text>
+  <text x="84" y="464" class="body">Signed change events</text>
+  <text x="84" y="490" class="body">Targeted current-record fetch</text>
+  <text x="84" y="516" class="body">Field projection + removals</text>
+  <text x="84" y="553" class="small">Proves LoomAI mechanics.</text>
+  <text x="84" y="578" class="small">Does not prove entitlement,</text>
+  <text x="84" y="601" class="small">sandbox parity or endorsement.</text>
+  <rect x="84" y="626" width="270" height="26" rx="8" fill="#eef1f6"/>
+  <text x="99" y="644" class="tag" fill="#516887">NO AUTO TRADER DATA</text>
+
+  <rect x="435" y="184" width="320" height="86" rx="8" fill="#eaf2ff" stroke="#9dbff3"/>
+  <text x="459" y="217" class="phase">1 | First pilot</text>
+  <text x="459" y="245" class="tag" fill="#1769ff">RECOMMENDED NEXT</text>
+  <rect x="435" y="346" width="320" height="324" rx="8" fill="#ffffff" stroke="#9dbff3"/>
+  <text x="459" y="381" class="box-title">One named retailer</text>
+  <text x="459" y="412" class="body">Search-first guided discovery</text>
+  <text x="459" y="438" class="body">Typed filters and comparison</text>
+  <text x="459" y="464" class="body">Transient approved facts</text>
+  <text x="459" y="490" class="body">Retailer policy documents</text>
+  <text x="459" y="516" class="body">Confirmed POST /deals</text>
+  <text x="459" y="553" class="small">No stock vector copy by default.</text>
+  <text x="459" y="578" class="small">No parallel lead inbox.</text>
+  <text x="459" y="601" class="small">Auto Trader remains authority.</text>
+  <rect x="459" y="626" width="270" height="26" rx="8" fill="#eaf2ff"/>
+  <text x="474" y="644" class="tag" fill="#1769ff">SEARCH + DEAL UPDATES</text>
+
+  <rect x="810" y="184" width="320" height="86" rx="8" fill="#f1edff" stroke="#aa98ef"/>
+  <text x="834" y="217" class="phase">2 | Data extension</text>
+  <text x="834" y="245" class="tag" fill="#7047eb">SEPARATE APPROVAL</text>
+  <rect x="810" y="346" width="320" height="324" rx="8" fill="#ffffff" stroke="#aa98ef"/>
+  <text x="834" y="381" class="box-title">Synchronized projection</text>
+  <text x="834" y="412" class="body">Stock Sync baseline</text>
+  <text x="834" y="438" class="body">Signed notifications</text>
+  <text x="834" y="464" class="body">Targeted re-fetch</text>
+  <text x="834" y="490" class="body">Approved persistence/embedding</text>
+  <text x="834" y="516" class="body">Deletion + freshness evidence</text>
+  <text x="834" y="553" class="small">Requires explicit field, model,</text>
+  <text x="834" y="578" class="small">region, retention and derived-</text>
+  <text x="834" y="601" class="small">display decisions.</text>
+  <rect x="834" y="626" width="270" height="26" rx="8" fill="#f1edff"/>
+  <text x="849" y="644" class="tag" fill="#7047eb">STOCK SYNC + NOTIFICATIONS</text>
+
+  <rect x="1185" y="184" width="320" height="86" rx="8" fill="#eaf8f2" stroke="#79c6a9"/>
+  <text x="1209" y="217" class="phase">3 | Product channel</text>
+  <text x="1209" y="245" class="tag" fill="#159a6a">FUTURE COMMERCIAL DESIGN</text>
+  <rect x="1185" y="346" width="320" height="324" rx="8" fill="#ffffff" stroke="#79c6a9"/>
+  <text x="1209" y="381" class="box-title">Advertiser AI experience</text>
+  <text x="1209" y="412" class="body">Reviewed deployment template</text>
+  <text x="1209" y="438" class="body">One deployment per retailer</text>
+  <text x="1209" y="464" class="body">Auto Trader-approved package</text>
+  <text x="1209" y="490" class="body">Co-sell or white-label route</text>
+  <text x="1209" y="516" class="body">Portfolio-level quality evidence</text>
+  <text x="1209" y="553" class="small">Additional API products remain</text>
+  <text x="1209" y="578" class="small">separate modules and grants,</text>
+  <text x="1209" y="601" class="small">never implied permissions.</text>
+  <rect x="1209" y="626" width="270" height="26" rx="8" fill="#eaf8f2"/>
+  <text x="1224" y="644" class="tag" fill="#159a6a">PARTNERSHIP DISTRIBUTION</text>
+
+  <rect x="60" y="716" width="1445" height="109" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <text x="84" y="750" class="box-title">Decision rule at every transition</text>
+  <text x="84" y="780" class="body">Confirm the exact capability, advertiser authorization, permitted fields, model-processing terms, persistence/embedding rights, consumer notice, operational evidence and rollback path.</text>
+  <text x="84" y="805" class="body">A technical ability in LoomAI is not treated as Auto Trader permission.</text>
+  <text x="62" y="871" class="small">Longer-term ideas such as Deal lifecycle, messages, reservation, finance or part exchange are out of the first pilot and would require separate product, policy and capability review.</text>
+</svg>

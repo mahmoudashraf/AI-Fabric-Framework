@@ -231,7 +231,7 @@ export function AIWorkspacesPage() {
       consumerId: form.consumerId,
       displayName: form.displayName.trim(),
       experiencePackCode: 'dealership',
-      experiencePackVersion: catalog?.experiencePacks.find((pack) => pack.code === 'dealership')?.version ?? '1.0.0',
+      experiencePackVersion: catalog?.experiencePacks.find((pack) => pack.code === 'dealership')?.version ?? '1.1.0',
       connectionMode: form.connectionMode,
       connectionProfileCode: form.profileCode,
       connectionProfileVersion: profile?.version ?? '1.0.0',
@@ -255,7 +255,6 @@ export function AIWorkspacesPage() {
         },
         knowledge: {
           inventoryVectorSpace: 'dealer-vehicle',
-          retrievalVectorSpaces: ['dealer-vehicle', 'dealership-document'],
         },
         capabilities: {
           comparison: form.comparison,

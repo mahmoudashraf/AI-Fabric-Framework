@@ -22,7 +22,7 @@ export {
 } from './action-presentations'
 
 export const code = 'dealership'
-export const version = '1.0.0'
+export const version = '1.1.0'
 
 let activeController: DealershipExperienceController | undefined
 const queuedVehicles: DealershipVehicleContext[] = []
@@ -51,8 +51,6 @@ export async function mountInstallation(
     })
     const toolRail = config.toolRail || createDealershipToolRail()
     const copy = resolveCopy(config, page.kind, page.subjectLabel)
-    const retrievalVectorSpaces = normalizedVectorSpaces(config)
-
     maxMode.init({
       ...context.widgetConfig,
       features: {
@@ -79,7 +77,6 @@ export async function mountInstallation(
         requestContext: {
           ...config.requestContext,
           dealershipId: config.dealer.id,
-          preferredVectorSpaces: retrievalVectorSpaces,
           sourceMode: config.dealer.sourceMode || 'DEALERSHIP_INVENTORY',
           workspaceInstallationId: context.installationId,
           assignmentRevision: context.assignmentRevision,
@@ -261,11 +258,6 @@ function resolveCopy(config: DealershipExperienceConfig, kind: 'inventory' | 've
   }
 }
 
-function normalizedVectorSpaces(config: DealershipExperienceConfig) {
-  const values = config.knowledge?.retrievalVectorSpaces || ['dealer-vehicle', 'dealership-document']
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
-}
-
 function validateConfig(input: DealershipExperienceConfig) {
   if (!input || typeof input !== 'object') throw new Error('Dealership experience configuration is required.')
   if (!input.dealer?.id?.trim()) throw new Error('A dealership identifier is required.')
@@ -277,7 +269,6 @@ function validateConfig(input: DealershipExperienceConfig) {
   if (!input.page?.contextLabel?.trim()) throw new Error('A visible page context label is required.')
   if (input.toolGroups) assertToolGroups(input.toolGroups)
   if (input.toolRail) assertToolRail(input.toolRail)
-  if (normalizedVectorSpaces(input).length === 0) throw new Error('At least one retrieval vector space is required.')
   return input
 }
 

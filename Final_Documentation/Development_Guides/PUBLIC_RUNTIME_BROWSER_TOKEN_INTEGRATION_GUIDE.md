@@ -1,6 +1,13 @@
 # Public Runtime Browser Token Integration Guide
 
-Status: current branch guide (reviewed 2026-09-30)
+Status: current runtime-protocol guide (reviewed 2026-10-09)
+
+For Platform-managed customer websites, this protocol is configured through an
+AI Workspace installation and invoked by the installed Workspace. Start with
+[`AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md`](../../max-mode-widget/docs/AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md);
+do not make customer sites construct runtime URLs or bootstrap routes. The
+details below remain authoritative for runtime operators, connection-profile
+authors and advanced explicit integrations.
 
 This guide explains the opt-in public-runtime posture:
 

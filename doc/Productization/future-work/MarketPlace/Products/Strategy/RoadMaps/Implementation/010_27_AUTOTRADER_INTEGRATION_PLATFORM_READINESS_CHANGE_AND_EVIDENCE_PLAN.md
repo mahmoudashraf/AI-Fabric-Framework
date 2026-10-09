@@ -10,7 +10,7 @@
   data-rights, advertiser, package, certification, and production gate remains
   open. LoomAI is not yet entitled to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
-- **Last contract review:** 2026-10-07
+- **Last contract review:** 2026-10-09
 - **Current LoomAI baseline:** AI Fabric `0.8.10`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
@@ -61,6 +61,7 @@ Related plans:
 - [010.26 Auto Trader Dealership First Release And Meeting Demo Plan](010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [010.30 Auto Trader Post-Meeting Use Case, Data And Non-Competition Brief](010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md)
+- [010.31 Platform-Hosted AI Workspace Installation And Assigned Runtime Discovery Plan](010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md)
 - [Marketplace Plugin Manifest Reference](../../../../../../../../Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md)
 - [Generic REST API Connector Guide](../../../../../../../../Final_Documentation/Development_Guides/GENERIC_REST_API_CONNECTOR_GUIDE.md)
 
@@ -1309,19 +1310,23 @@ implemented. It:
 - identifies the source mode visibly; and
 - never reports `Auto Trader connected` while running the demonstration source.
 
-This work can proceed in parallel with partner onboarding after the opt-in
-customer-backend Data Sync URL and safe-readiness contracts are stable. The
-demo backend receives those privileged URLs and matching scopes; the browser
-does not. The browser receives only the non-secret public runtime descriptor
-needed for bootstrap and secure chat routes.
+This work can proceed in parallel with partner onboarding after the
+deployment-local connector, source and readiness contracts are stable. Private
+runtime/connector credentials remain server-side. The browser receives only an
+opaque Platform AI Workspace installation ID; its origin-scoped manifest
+selects the current verified assignment, reviewed assets and public connection
+profile before traffic goes directly to the assigned runtime.
 
 The 2026-09-29 source-only checkpoint proved the native customer and staff UI,
 dealership-owned inventory/lead backend, protected connector contracts, private
-Data Sync client, build identity, and browser-safe runtime descriptor. The
-subsequent 2026-09-30 hosted closure proved same-session anonymous renewal,
-indexing, retrieval, live confirmation/action execution, restart durability,
-and protected staff readback. The composition now passes
-`DEALERSHIP_DEMO_READY`; this remains separate from every Auto Trader gate.
+Data Sync client and build identity. That checkpoint's browser runtime
+descriptor has since been retired. The current Platform-hosted one-script
+installation resolves the assigned deployment without dealership-backend
+widget data. The subsequent hosted closures prove same-session anonymous
+renewal, indexing, retrieval, live confirmation/action execution, restart
+durability, protected staff readback and the replacement installation path.
+The composition passes `DEALERSHIP_DEMO_READY`; this remains separate from
+every Auto Trader gate.
 
 ### 6.11 Workstream K: hosted external-provider simulator
 

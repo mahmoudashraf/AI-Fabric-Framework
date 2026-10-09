@@ -1088,6 +1088,9 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedKnowledgeSourceIds = textSet(knowledgeSourceConfig.path("sources"), "id");
         Set<String> expectedKnowledgeSourceTypes = knowledgeSourceTypes(knowledgeSourceConfig.path("sources"));
         Set<String> expectedKnowledgeSourceAdapterTypes = textSet(knowledgeSourceConfig.path("sources"), "adapterType");
+        Map<String, String> expectedKnowledgeSourceEntityTypesById = activeKnowledgeSourceEntityTypesById(
+            knowledgeSourceConfig.path("sources")
+        );
         Set<String> expectedMarketplaceDatasetIds = textSet(marketplaceDatasetConfig.path("datasets"), "datasetId");
         Set<String> expectedMarketplaceDatasetHandleRefs = textSet(marketplaceDatasetConfig.path("datasets"), "handleRef");
         Set<String> expectedMarketplaceDatasetHashes = textSet(marketplaceDatasetConfig.path("datasets"), "datasetHash");
@@ -1165,6 +1168,7 @@ public class DeploymentReleaseVerificationService {
             expectedKnowledgeSourceIds,
             expectedKnowledgeSourceTypes,
             expectedKnowledgeSourceAdapterTypes,
+            expectedKnowledgeSourceEntityTypesById,
             blankToFallback(marketplaceDatasetConfig.path("contractVersion").asText(""), "MARKETPLACE_DATASET_CONFIG_V1"),
             expectedMarketplaceDatasetIds,
             expectedMarketplaceDatasetHandleRefs,
@@ -1382,6 +1386,14 @@ public class DeploymentReleaseVerificationService {
         knowledgeSourceDetails.set("expectedKnowledgeSourceTypes", toArrayNode(expectations.expectedKnowledgeSourceTypes()));
         knowledgeSourceDetails.set("knowledgeSourceAdapterTypes", toArrayNode(textSet(probe.body().path("knowledgeSourceAdapterTypes"))));
         knowledgeSourceDetails.set("expectedKnowledgeSourceAdapterTypes", toArrayNode(expectations.expectedKnowledgeSourceAdapterTypes()));
+        knowledgeSourceDetails.set(
+            "knowledgeSourceEntityTypesById",
+            probe.body().path("knowledgeSourceEntityTypesById").deepCopy()
+        );
+        knowledgeSourceDetails.set(
+            "expectedKnowledgeSourceEntityTypesById",
+            objectMapper.valueToTree(expectations.expectedKnowledgeSourceEntityTypesById())
+        );
         boolean knowledgeSourcesPassed = runtimeKnowledgeSourcesMatchExpected(probe, expectations);
         addCheck(
             checks,
@@ -1391,6 +1403,22 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime loaded the expected deployment knowledge source configuration."
                 : "Runtime knowledge source state does not match the published deployment knowledge source configuration.",
             knowledgeSourceDetails
+        );
+
+        boolean knowledgeSourceRoutingReady = runtimeKnowledgeSourceRoutingReady(probe, expectations);
+        ObjectNode knowledgeSourceRoutingDetails = knowledgeSourceDetails.deepCopy();
+        knowledgeSourceRoutingDetails.set(
+            "searchSourceDiagnostics",
+            probe.body().path("searchSourceDiagnostics").deepCopy()
+        );
+        addCheck(
+            checks,
+            "runtime_knowledge_source_routing_ready",
+            knowledgeSourceRoutingReady ? "PASSED" : "FAILED",
+            knowledgeSourceRoutingReady
+                ? "Every enabled knowledge source is typed and ready for exact routing."
+                : "One or more enabled knowledge sources is untyped, missing, disabled, or degraded in runtime routing diagnostics.",
+            knowledgeSourceRoutingDetails
         );
 
         ObjectNode shellDetails = details.deepCopy();
@@ -2671,7 +2699,39 @@ public class DeploymentReleaseVerificationService {
             && probe.body().path("knowledgeSourcesCount").asInt(-1) == expectations.expectedKnowledgeSourceIds().size()
             && textSet(probe.body().path("knowledgeSourceIds")).equals(expectations.expectedKnowledgeSourceIds())
             && textSet(probe.body().path("knowledgeSourceTypes")).equals(expectations.expectedKnowledgeSourceTypes())
-            && textSet(probe.body().path("knowledgeSourceAdapterTypes")).equals(expectations.expectedKnowledgeSourceAdapterTypes());
+            && textSet(probe.body().path("knowledgeSourceAdapterTypes")).equals(expectations.expectedKnowledgeSourceAdapterTypes())
+            && textMap(probe.body().path("knowledgeSourceEntityTypesById"))
+                .entrySet()
+                .containsAll(expectations.expectedKnowledgeSourceEntityTypesById().entrySet());
+    }
+
+    private boolean runtimeKnowledgeSourceRoutingReady(JsonProbeResult probe,
+                                                       VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        Map<String, String> expected = expectations.expectedKnowledgeSourceEntityTypesById();
+        if (expected.isEmpty()) {
+            return true;
+        }
+        JsonNode sources = probe.body().path("searchSourceDiagnostics").path("sources");
+        if (!sources.isArray()) {
+            return false;
+        }
+        Map<String, JsonNode> diagnosticsById = new LinkedHashMap<>();
+        for (JsonNode source : sources) {
+            String sourceId = source.path("sourceId").asText("").trim();
+            if (hasText(sourceId)) {
+                diagnosticsById.put(sourceId, source);
+            }
+        }
+        return expected.entrySet().stream().allMatch(entry -> {
+            JsonNode diagnostic = diagnosticsById.get(entry.getKey());
+            return diagnostic != null
+                && diagnostic.path("enabled").asBoolean(false)
+                && entry.getValue().equals(diagnostic.path("entityType").asText(""))
+                && "READY".equalsIgnoreCase(diagnostic.path("healthStatus").asText(""));
+        });
     }
 
     private void validateMarketplaceDatasetSync(ArrayNode checks,
@@ -3164,6 +3224,38 @@ public class DeploymentReleaseVerificationService {
         return values;
     }
 
+    private Map<String, String> activeKnowledgeSourceEntityTypesById(JsonNode sources) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (sources == null || !sources.isArray()) {
+            return values;
+        }
+        for (JsonNode source : sources) {
+            if (source.path("enabled").isBoolean() && !source.path("enabled").asBoolean()) {
+                continue;
+            }
+            String sourceId = source.path("id").asText("").trim();
+            String entityType = source.path("entityType").asText("").trim();
+            if (hasText(sourceId) && hasText(entityType)) {
+                values.put(sourceId, entityType);
+            }
+        }
+        return Map.copyOf(values);
+    }
+
+    private Map<String, String> textMap(JsonNode node) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (node == null || !node.isObject()) {
+            return values;
+        }
+        node.fields().forEachRemaining(entry -> {
+            String value = entry.getValue().asText("").trim();
+            if (hasText(entry.getKey()) && hasText(value)) {
+                values.put(entry.getKey().trim(), value);
+            }
+        });
+        return values;
+    }
+
     private Set<String> fieldNames(JsonNode node) {
         Set<String> values = new LinkedHashSet<>();
         if (node == null || !node.isObject()) {
@@ -3393,6 +3485,7 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedKnowledgeSourceIds,
         Set<String> expectedKnowledgeSourceTypes,
         Set<String> expectedKnowledgeSourceAdapterTypes,
+        Map<String, String> expectedKnowledgeSourceEntityTypesById,
         String expectedMarketplaceDatasetContractVersion,
         Set<String> expectedMarketplaceDatasetIds,
         Set<String> expectedMarketplaceDatasetHandleRefs,

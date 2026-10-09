@@ -5,10 +5,12 @@ import ai.fabric.dto.AISearchResponse;
 import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -25,6 +27,8 @@ final class SearchSourceResultSupport {
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_ADAPTER_TYPE = "knowledgeSourceAdapterType";
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_ATTRIBUTION_LABEL = "knowledgeSourceAttributionLabel";
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF = "knowledgeSourceHandleRef";
+    static final String METADATA_KEY_VECTOR_SPACE = "vectorSpace";
+    static final String METADATA_KEY_QUERIED_VECTOR_SPACE = "queriedVectorSpace";
 
     private SearchSourceResultSupport() {
     }
@@ -44,9 +48,21 @@ final class SearchSourceResultSupport {
         if (source.getHandleRef() != null && !source.getHandleRef().isBlank()) {
             mergedMetadata.putIfAbsent(METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF, source.getHandleRef());
         }
+        String requestedEntityType = normalizeEntityType(baseRequest.getEntityType());
+        String sourceEntityType = normalizeEntityType(source.getEntityType());
+        if (StringUtils.hasText(requestedEntityType)
+            && (!StringUtils.hasText(sourceEntityType) || !requestedEntityType.equals(sourceEntityType))) {
+            throw new IllegalArgumentException(
+                "KNOWLEDGE_SOURCE_ENTITY_TYPE_MISMATCH: requested=" + requestedEntityType
+                    + ", source=" + (sourceEntityType != null ? sourceEntityType : "untyped")
+            );
+        }
+        String effectiveEntityType = StringUtils.hasText(requestedEntityType)
+            ? requestedEntityType
+            : sourceEntityType;
         return AISearchRequest.builder()
             .query(baseRequest.getQuery())
-            .entityType(source.getEntityType() != null ? source.getEntityType() : baseRequest.getEntityType())
+            .entityType(effectiveEntityType)
             .limit(effectiveLimit)
             .threshold(baseRequest.getThreshold())
             .filters(baseRequest.getFilters())
@@ -68,6 +84,8 @@ final class SearchSourceResultSupport {
                                               Predicate<Map<String, Object>> resultFilter) {
         Map<String, Object> effectiveRequiredMetadata = requiredMetadataWithSourceHandle(source, requiredMetadata);
         List<Map<String, Object>> filteredResults = new ArrayList<>();
+        int rawResultsCount = response.getResults() != null ? response.getResults().size() : 0;
+        int vectorSpaceMismatchCount = 0;
         if (response.getResults() != null) {
             for (Map<String, Object> result : response.getResults()) {
                 Map<String, Object> metadata = normalizeMetadata(result.get("metadata"));
@@ -82,8 +100,20 @@ final class SearchSourceResultSupport {
                     && metadata.containsKey(METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF)) {
                     continue;
                 }
+                String queriedVectorSpace = normalizeEntityType(source.getEntityType());
+                String actualVectorSpace = normalizeEntityType(metadata.get(METADATA_KEY_VECTOR_SPACE));
+                if (StringUtils.hasText(actualVectorSpace)
+                    && StringUtils.hasText(queriedVectorSpace)
+                    && !actualVectorSpace.equals(queriedVectorSpace)) {
+                    vectorSpaceMismatchCount++;
+                    continue;
+                }
                 Map<String, Object> decorated = new LinkedHashMap<>(result);
                 Map<String, Object> decoratedMetadata = new LinkedHashMap<>(metadata);
+                if (StringUtils.hasText(queriedVectorSpace)) {
+                    decoratedMetadata.putIfAbsent(METADATA_KEY_VECTOR_SPACE, queriedVectorSpace);
+                    decoratedMetadata.put(METADATA_KEY_QUERIED_VECTOR_SPACE, queriedVectorSpace);
+                }
                 decoratedMetadata.put(METADATA_KEY_KNOWLEDGE_SOURCE_ID, source.getId());
                 decoratedMetadata.put(METADATA_KEY_KNOWLEDGE_SOURCE_TYPE, source.getType());
                 decoratedMetadata.put(METADATA_KEY_KNOWLEDGE_SOURCE_ADAPTER_TYPE, source.getAdapterType());
@@ -102,7 +132,19 @@ final class SearchSourceResultSupport {
             .map(Number.class::cast)
             .map(Number::doubleValue)
             .max(Double::compareTo)
-            .orElse(response.getMaxScore());
+            .orElse(null);
+
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        if (response.getDiagnostics() != null) {
+            diagnostics.putAll(response.getDiagnostics());
+        }
+        String queriedVectorSpace = normalizeEntityType(source.getEntityType());
+        if (StringUtils.hasText(queriedVectorSpace)) {
+            diagnostics.put("queriedVectorSpace", queriedVectorSpace);
+        }
+        diagnostics.put("rawResultsCount", rawResultsCount);
+        diagnostics.put("filteredResultsCount", filteredResults.size());
+        diagnostics.put("vectorSpaceMismatchCount", vectorSpaceMismatchCount);
 
         return AISearchResponse.builder()
             .results(List.copyOf(filteredResults))
@@ -112,6 +154,7 @@ final class SearchSourceResultSupport {
             .requestId(response.getRequestId())
             .query(response.getQuery())
             .model(response.getModel())
+            .diagnostics(Map.copyOf(diagnostics))
             .build();
     }
 
@@ -158,5 +201,12 @@ final class SearchSourceResultSupport {
             }
         }
         return true;
+    }
+
+    private static String normalizeEntityType(Object value) {
+        if (!(value instanceof String text) || !StringUtils.hasText(text)) {
+            return null;
+        }
+        return text.trim().toLowerCase(Locale.ROOT);
     }
 }

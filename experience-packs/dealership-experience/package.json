@@ -1,6 +1,6 @@
 {
   "name": "@loom-ai-labs/dealership-experience-pack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Provider-neutral dealership experience configuration and action presentations for the LoomAI chat widget",
   "type": "module",
   "main": "./dist/dealership-experience.esm.js",

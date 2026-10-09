@@ -151,13 +151,8 @@ public class AIWorkspaceConfigurationValidator {
     private void validateKnowledge(JsonNode knowledge) {
         if (knowledge.isMissingNode() || knowledge.isNull()) return;
         requireObjectNode(knowledge, "knowledge");
-        rejectUnknown(knowledge, Set.of("inventoryVectorSpace", "retrievalVectorSpaces"), "knowledge");
+        rejectUnknown(knowledge, Set.of("inventoryVectorSpace"), "knowledge");
         optionalIdentifier(knowledge, "inventoryVectorSpace", "knowledge.inventoryVectorSpace");
-        if (knowledge.has("retrievalVectorSpaces")) {
-            JsonNode values = boundedArray(knowledge.path("retrievalVectorSpaces"), "knowledge.retrievalVectorSpaces", 12);
-            if (values.isEmpty()) throw badRequest("knowledge.retrievalVectorSpaces cannot be empty.");
-            values.forEach(value -> validateIdentifierValue(value, "knowledge.retrievalVectorSpaces"));
-        }
     }
 
     private void validateCapabilities(JsonNode capabilities, String label) {

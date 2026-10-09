@@ -227,6 +227,8 @@ public class RuntimeAdminOverviewController {
         body.put("knowledgeSourceIds", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceIds() : List.of());
         body.put("knowledgeSourceTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceTypes() : List.of());
         body.put("knowledgeSourceAdapterTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceAdapterTypes() : List.of());
+        body.put("knowledgeSourceEntityTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceEntityTypes() : List.of());
+        body.put("knowledgeSourceEntityTypesById", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceEntityTypesById() : Map.of());
         body.put("shellModulesCount", shellConfigService != null ? shellConfigService.currentModuleCount() : 0);
         body.put("shellModuleIds", shellConfigService != null ? shellConfigService.currentModuleIds() : List.of());
         body.put("shellCardsCount", shellConfigService != null ? shellConfigService.currentCardCount() : 0);

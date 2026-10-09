@@ -51,10 +51,23 @@ class AIWorkspaceConfigurationValidatorTest {
             {
               "dealer":{"id":"dealer-1","assistantLabel":"Northfield AI"},
               "page":{"kind":"auto","rootSelector":"main","contextLabel":"Current page","maxChars":1800,"maxPages":3,"maxTotalChars":10000},
-              "knowledge":{"retrievalVectorSpaces":["dealer-vehicle","dealership-document"]},
+              "knowledge":{"inventoryVectorSpace":"dealer-vehicle"},
               "presentation":{"imageHostAllowlist":["m.atcdn.co.uk"]}
             }
         """));
+    }
+
+    @Test
+    void rejectsBrowserOwnedRetrievalRoutingConfiguration() throws Exception {
+        assertThatThrownBy(() -> validator.validateDealershipConfiguration(objectMapper.readTree("""
+            {
+              "dealer":{"id":"dealer-1","assistantLabel":"Northfield AI"},
+              "page":{"kind":"auto","rootSelector":"main","contextLabel":"Current page"},
+              "knowledge":{"retrievalVectorSpaces":["dealer-vehicle","document"]}
+            }
+            """)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Unknown knowledge field: retrievalVectorSpaces");
     }
 
     @Test

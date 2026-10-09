@@ -59,7 +59,7 @@ class AIWorkspaceInstallationServiceTest {
         when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
 
         var created = service().create("customer-1", new CreateAIWorkspaceInstallationRequest(
-            "northfield-web", " Northfield website ", "dealership", "1.0.0",
+            "northfield-web", " Northfield website ", "dealership", "1.1.0",
             "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
             objectMapper.createObjectNode(), List.of("https://Dealer.Example", "https://dealer.example"),
             dealershipConfiguration()
@@ -84,7 +84,7 @@ class AIWorkspaceInstallationServiceTest {
             .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service().create("customer-1", new CreateAIWorkspaceInstallationRequest(
-            "other-consumer", "Workspace", "dealership", "1.0.0",
+            "other-consumer", "Workspace", "dealership", "1.1.0",
             "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
             objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration()
         ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("Consumer not found");
@@ -96,7 +96,7 @@ class AIWorkspaceInstallationServiceTest {
             .thenReturn(Optional.of(active));
         assertThatThrownBy(() -> service().update("customer-1", active.getInstallationId(),
             new UpdateAIWorkspaceInstallationRequest(
-                "northfield-web", "Changed", "dealership", "1.0.0",
+                "northfield-web", "Changed", "dealership", "1.1.0",
                 "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
                 objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration(), 0L
             ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("Disable");

@@ -1,4 +1,4 @@
-# LoomAI Max Mode Chat Application External Developer Guide
+# LoomAI Workspace External Developer Guide
 
 **Applies to:** `@loom-ai-labs/max-mode-widget` 1.0.0
 
@@ -590,14 +590,15 @@ Set an exact `rootSelector`, add `excludeSelectors`, or supply a deterministic
 
 ## 18. Experience Packs
 
-An experience pack configures the generic chat application for a reusable
+An experience pack configures the generic AI Workspace for a reusable
 domain without changing widget core. It may provide:
 
 - host-owned tool groups;
 - action names and safe projections;
 - custom result renderers;
 - attachment helpers;
-- runtime descriptor discovery; and
+- Platform installation-manifest configuration and optional host-controller
+  methods; and
 - bounded theme and copy defaults.
 
 The first implementation is `@loom-ai-labs/dealership-experience-pack`. Its

@@ -26,18 +26,29 @@ const SHOPIFY_REQUEST_CONTEXT_FIELDS = new Set([
   "shopifyPageModeMappings",
 ]);
 
-const cleanRequestContext = (requestContext?: Record<string, any>) => {
+const RESERVED_RETRIEVAL_CONTEXT_FIELDS = new Set([
+  "preferredvectorspaces",
+  "retrievalvectorspaces",
+  "vectorspace",
+  "entitytype",
+]);
+
+const normalizedContextField = (value: string) => value.toLowerCase().replace(/[-_]/g, "");
+
+export const sanitizeRequestContext = (requestContext?: Record<string, any>) => {
   if (!requestContext || typeof requestContext !== "object") {
     return undefined;
   }
   const cleaned = Object.fromEntries(
-    Object.entries(requestContext).filter(([, value]) => value !== undefined),
+    Object.entries(requestContext).filter(([key, value]) => (
+      value !== undefined && !RESERVED_RETRIEVAL_CONTEXT_FIELDS.has(normalizedContextField(key))
+    )),
   );
   return Object.keys(cleaned).length ? cleaned : undefined;
 };
 
 export const hasShopifyRequestContext = (requestContext?: Record<string, any>): boolean => {
-  const cleaned = cleanRequestContext(requestContext);
+  const cleaned = sanitizeRequestContext(requestContext);
   if (!cleaned) {
     return false;
   }
@@ -48,7 +59,7 @@ export const withRequestContext = <T extends Record<string, any>>(
   payload: T,
   requestContext?: Record<string, any>,
 ): T & Record<string, any> => {
-  const cleaned = cleanRequestContext(requestContext);
+  const cleaned = sanitizeRequestContext(requestContext);
   if (!cleaned) {
     return payload;
   }

@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="930" viewBox="0 0 1600 930" role="img" aria-labelledby="title desc">
+  <title id="title">Proposed customer-confirmed Auto Trader Deal creation flow</title>
+  <desc id="desc">After vehicle selection, the LoomAI runtime revalidates the trusted stock target for the fixed advertiser, collects only first name, last name and email, displays the exact proposed Deal, and requires explicit confirmation. A separately granted connector route posts the Deal to Auto Trader and returns dealId. LoomAI stores only bounded audit evidence and the external identifier, not a parallel lead record.</desc>
+  <defs>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#1769ff"/></marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#7047eb"/></marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#159a6a"/></marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #0b2550; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 20px; font-weight: 400; fill: #516887; }
+      .eyebrow { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1769ff; }
+      .section { font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #0b2550; }
+      .box-title { font-family: Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #0b2550; }
+      .body { font-family: Arial, sans-serif; font-size: 15px; font-weight: 400; fill: #516887; }
+      .small { font-family: Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #516887; }
+      .number { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #ffffff; }
+    </style>
+  </defs>
+  <rect width="1600" height="930" fill="#f7f9fd"/>
+  <path d="M0 138 H1600" stroke="#dce5f2"/>
+  <text x="62" y="55" class="eyebrow">PROPOSED FIRST-PILOT WRITE | REQUIRES DEAL UPDATES GRANT</text>
+  <text x="62" y="104" class="title">One confirmed handoff into Auto Trader, not a parallel lead system.</text>
+  <text x="62" y="132" class="subtitle">The Deal action remains blocked until capability, consent, duplicate handling and go-live evidence are agreed.</text>
+
+  <rect x="52" y="180" width="1496" height="402" rx="8" fill="#ffffff" stroke="#c6d5e9" stroke-width="2"/>
+  <text x="80" y="217" class="section">Happy path</text>
+
+  <rect x="81" y="258" width="185" height="153" rx="8" fill="#eef5ff" stroke="#9dbff3"/>
+  <circle cx="104" cy="280" r="15" fill="#1769ff"/><text x="100" y="285" class="number">1</text>
+  <text x="127" y="287" class="box-title">Select vehicle</text>
+  <text x="104" y="321" class="body">Trusted stockId from</text>
+  <text x="104" y="345" class="body">current result/context</text>
+  <text x="104" y="380" class="small">Not free text</text>
+
+  <rect x="314" y="258" width="200" height="153" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="337" cy="280" r="15" fill="#7047eb"/><text x="333" y="285" class="number">2</text>
+  <text x="360" y="287" class="box-title">Revalidate</text>
+  <text x="337" y="321" class="body">Current stock belongs to</text>
+  <text x="337" y="345" class="body">fixed advertiser and is</text>
+  <text x="337" y="369" class="body">eligible for handoff</text>
+
+  <rect x="562" y="258" width="200" height="153" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <circle cx="585" cy="280" r="15" fill="#e76f51"/><text x="581" y="285" class="number">3</text>
+  <text x="608" y="287" class="box-title">Collect fields</text>
+  <text x="585" y="321" class="body">firstName</text>
+  <text x="585" y="345" class="body">lastName</text>
+  <text x="585" y="369" class="body">email</text>
+
+  <rect x="810" y="258" width="220" height="153" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <circle cx="833" cy="280" r="15" fill="#e76f51"/><text x="829" y="285" class="number">4</text>
+  <text x="856" y="287" class="box-title">Explicit confirmation</text>
+  <text x="833" y="321" class="body">Show customer, vehicle,</text>
+  <text x="833" y="345" class="body">destination and notice</text>
+  <text x="833" y="380" class="small">No silent execution</text>
+
+  <rect x="1078" y="258" width="200" height="153" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="1101" cy="280" r="15" fill="#7047eb"/><text x="1097" y="285" class="number">5</text>
+  <text x="1124" y="287" class="box-title">POST /deals</text>
+  <text x="1101" y="321" class="body">Connector injects token</text>
+  <text x="1101" y="345" class="body">and advertiserId</text>
+  <text x="1101" y="369" class="body">using fixed route</text>
+
+  <rect x="1326" y="258" width="188" height="153" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <circle cx="1349" cy="280" r="15" fill="#159a6a"/><text x="1345" y="285" class="number">6</text>
+  <text x="1372" y="287" class="box-title">Receipt</text>
+  <text x="1349" y="321" class="body">Auto Trader dealId</text>
+  <text x="1349" y="345" class="body">safe next step</text>
+  <text x="1349" y="380" class="small">System of record: AT</text>
+
+  <line x1="266" y1="335" x2="314" y2="335" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <line x1="514" y1="335" x2="562" y2="335" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <line x1="762" y1="335" x2="810" y2="335" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <line x1="1030" y1="335" x2="1078" y2="335" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <line x1="1278" y1="335" x2="1326" y2="335" stroke="#159a6a" stroke-width="3" marker-end="url(#arrowGreen)"/>
+
+  <rect x="82" y="455" width="684" height="87" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <text x="103" y="486" class="box-title">LoomAI retains</text>
+  <text x="103" y="512" class="body">Bounded execution/audit evidence + returned external dealId, subject to agreed retention.</text>
+  <rect x="814" y="455" width="700" height="87" rx="8" fill="#fff4ef" stroke="#e5a184"/>
+  <text x="835" y="486" class="box-title">LoomAI does not create</text>
+  <text x="835" y="512" class="body">A parallel lead inbox, CRM record, Deal lifecycle, message, reservation, finance or part-exchange workflow.</text>
+
+  <!-- Ambiguous outcome -->
+  <rect x="52" y="620" width="1496" height="238" rx="8" fill="#ffffff" stroke="#e5a184" stroke-width="2"/>
+  <text x="80" y="657" class="section">Ambiguous timeout rule</text>
+  <rect x="82" y="694" width="340" height="112" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <text x="103" y="725" class="box-title">POST outcome is unknown</text>
+  <text x="103" y="751" class="body">Connection times out after submission.</text>
+  <text x="103" y="777" class="body">Public contract shows no idempotency key.</text>
+  <line x1="422" y1="750" x2="537" y2="750" stroke="#e76f51" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <rect x="537" y="694" width="345" height="112" rx="8" fill="#fff4ef" stroke="#e5a184"/>
+  <text x="558" y="725" class="box-title">Stop automatic retry</text>
+  <text x="558" y="751" class="body">Record a bounded uncertain outcome.</text>
+  <text x="558" y="777" class="body">Do not risk a duplicate Deal.</text>
+  <line x1="882" y1="750" x2="997" y2="750" stroke="#e76f51" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <rect x="997" y="694" width="517" height="112" rx="8" fill="#eef5ff" stroke="#9dbff3"/>
+  <text x="1018" y="725" class="box-title">Use Auto Trader-approved reconciliation</text>
+  <text x="1018" y="751" class="body">Exact lookup/manual procedure must be agreed before pilot launch.</text>
+  <text x="1018" y="777" class="body">Only a proven absent outcome may permit a new submission.</text>
+
+  <text x="62" y="899" class="small">The model may collect and structure customer input, but deterministic code validates the payload and the customer owns the final confirmation decision.</text>
+</svg>

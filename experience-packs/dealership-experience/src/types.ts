@@ -130,7 +130,6 @@ export interface DealershipExperienceConfig {
   }
   knowledge?: {
     inventoryVectorSpace?: string
-    retrievalVectorSpaces?: string[]
   }
   capabilities?: DealershipCapabilities
   copy?: DealershipExperienceCopy

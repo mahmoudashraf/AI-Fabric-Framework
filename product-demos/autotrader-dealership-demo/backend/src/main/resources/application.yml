@@ -74,7 +74,6 @@ dealership:
     enabled: ${LOOMAI_RUNTIME_ENABLED:false}
     base-url: ${LOOMAI_RUNTIME_BASE_URL:}
     inventory-vector-space: ${LOOMAI_RUNTIME_INVENTORY_VECTOR_SPACE:dealer-vehicle}
-    retrieval-vector-spaces: ${LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES:dealer-vehicle,document}
     integration-source-id: ${LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID:}
     integration-webhook-source-id: ${LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID:}
     assertion-ttl: ${LOOMAI_RUNTIME_ASSERTION_TTL:PT2M}

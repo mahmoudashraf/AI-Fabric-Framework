@@ -1,5 +1,12 @@
 # Max Mode Widget - Developer & User Guide
 
+> **Current installation contract:** Platform-managed customer sites should use
+> the [LoomAI Workspace one-script installation guide](AI_WORKSPACE_ONE_SCRIPT_INSTALLATION_GUIDE.md).
+> The configuration examples below are the advanced explicit-initialization API
+> reference. They must not be combined with a Platform installation, and their
+> shopping features are optional host extensions rather than generic Workspace
+> defaults.
+
 > Embeddable AI shopping assistant widget. Drop it into any website with a single `<script>` tag, or import it as an npm package in React apps. Works on plain HTML sites, Shopify stores, WordPress, Wix, and any platform that supports JavaScript.
 
 Auth-mode planning and storefront integration guidance now lives in [WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).

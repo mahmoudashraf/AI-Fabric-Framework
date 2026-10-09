@@ -42,6 +42,7 @@ public class DeploymentDraftValidationService {
     );
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");
+    private static final Pattern CANONICAL_ENTITY_TYPE = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}");
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
     private static final Set<String> SUPPORTED_SHELL_MODULE_IDS = Set.of(
         "search",
@@ -457,13 +458,35 @@ public class DeploymentDraftValidationService {
             }
             String id = source.path("id").asText("").trim();
             if (id.isEmpty()) {
-                issues.add(warning("knowledgeSources", "KNOWLEDGE_SOURCE_ID_RECOMMENDED", basePath + ".id", "Knowledge source id should be provided."));
+                issues.add(error(
+                    "knowledgeSources",
+                    "KNOWLEDGE_SOURCE_ID_REQUIRED",
+                    basePath + ".id",
+                    "Every knowledge source requires a stable id."
+                ));
             } else if (!ids.add(id.toLowerCase(Locale.ROOT))) {
                 issues.add(error("knowledgeSources", "DUPLICATE_KNOWLEDGE_SOURCE_ID", basePath + ".id", "Duplicate knowledge source id: " + id));
             }
             JsonNode enabled = source.path("enabled");
             if (!enabled.isMissingNode() && !enabled.isBoolean()) {
                 issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_ENABLED_BOOLEAN", basePath + ".enabled", "enabled must be a boolean when provided."));
+            }
+            boolean active = !enabled.isBoolean() || enabled.asBoolean();
+            String entityType = source.path("entityType").asText("").trim();
+            if (active && entityType.isEmpty()) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "KNOWLEDGE_SOURCE_ENTITY_TYPE_REQUIRED",
+                    basePath + ".entityType",
+                    "Every enabled knowledge source requires a canonical entityType."
+                ));
+            } else if (!entityType.isEmpty() && !CANONICAL_ENTITY_TYPE.matcher(entityType).matches()) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "KNOWLEDGE_SOURCE_ENTITY_TYPE_INVALID",
+                    basePath + ".entityType",
+                    "Knowledge source entityType must use lowercase letters, digits, dots, underscores, or hyphens."
+                ));
             }
             String sourceType = firstNonBlank(
                 source.path("sourceType").asText("").trim(),

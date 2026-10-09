@@ -7,6 +7,29 @@ LoomAI Platform can install the generic AI Workspace, its reviewed experience
 pack, and its current assigned deployment connection from one public script.
 The host page contains an opaque installation ID only.
 
+## Configure In LoomAI Platform
+
+An authorized operator prepares the installation before a website developer
+adds the script:
+
+1. Open Platform Console **AI Workspaces** and select the customer.
+2. Choose **New workspace** and select the active consumer whose current
+   verified deployment should serve the experience.
+3. Select the reviewed connection mode and profile. Use direct anonymous
+   runtime only for intentionally public, bounded capabilities; authenticated
+   and private modes require their reviewed broker or adapter.
+4. Add every exact HTTPS website origin that may install the Workspace. Do not
+   use wildcard origins.
+5. Complete the selected experience-pack configuration, then save the draft.
+6. Resolve every blocking readiness check and activate the installation.
+7. Select the active installation and copy the exact installation script shown
+   by Platform.
+
+An active installation is immutable through the edit form. To change its
+public configuration, disable it, edit the same installation, re-run readiness
+checks, and activate it again. Keep the same installation ID unless a separate
+installation boundary is intentionally required.
+
 ## Install
 
 Add the script supplied by the Platform **AI Workspaces** page:

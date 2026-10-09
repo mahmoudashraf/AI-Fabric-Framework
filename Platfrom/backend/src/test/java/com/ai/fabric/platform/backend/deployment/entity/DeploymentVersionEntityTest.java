@@ -10,7 +10,7 @@ class DeploymentVersionEntityTest {
     void newVersionsDefaultToCurrentFrameworkAndEntityContract() {
         DeploymentVersionEntity version = new DeploymentVersionEntity();
 
-        assertThat(version.getAiFabricFrameworkVersion()).isEqualTo("0.8.11");
+        assertThat(version.getAiFabricFrameworkVersion()).isEqualTo("0.8.12");
         assertThat(version.getEntityConfigContractVersion()).isEqualTo("AI_ENTITY_CONFIG_V0_4");
     }
 }

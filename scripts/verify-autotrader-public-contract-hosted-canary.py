@@ -580,11 +580,6 @@ class HostedCanary:
                 "query": "Find the indexed Northstar Trail E Hosted Contract Canary and return its current provider facts.",
                 "mode": "thinker",
                 "position": "search",
-                "context": {
-                    "vectorSpace": ENTITY_TYPE,
-                    "entityType": ENTITY_TYPE,
-                    "preferredVectorSpaces": [ENTITY_TYPE],
-                },
             },
             timeout=90,
         )

@@ -12,7 +12,7 @@
   Released customer Auto Trader Marketplace packaging and every real Auto
   Trader access/rights/certification gate remain open.
 - **Date:** 2026-09-25
-- **Last architecture review:** 2026-10-07
+- **Last architecture review:** 2026-10-09
 - **Last implementation checkpoint:** 2026-10-05
 - **Current LoomAI baseline:** AI Fabric `0.8.11`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
@@ -25,9 +25,11 @@
   actions belong to the deployment-local connector through dedicated DATA and
   ACTION packages; the dealership website/backend remains independent and owns
   only its own presentation and dealer-side commands
-- **Demo posture:** ordinary customer application using its assigned LoomAI
-  deployment directly for public chat; no AI Fabric dependency, no central
-  chat proxy, and no false claim of Auto Trader connectivity
+- **Demo posture:** ordinary customer application using one Platform-hosted AI
+  Workspace installer script. The installation resolves the consumer's current
+  assigned LoomAI deployment and then sends public conversation traffic there
+  directly; there is no AI Fabric dependency, central chat proxy, dealership
+  runtime descriptor, or false claim of Auto Trader connectivity
 - **Demo UI residency:** native full-screen application route in
   `Platfrom/loomai-site`; the dealership backend remains a separately deployed
   ordinary application under `product-demos/autotrader-dealership-demo/backend`
@@ -41,6 +43,7 @@ Related plans and evidence:
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 - [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md)
 - [010.30 Auto Trader Post-Meeting Use Case, Data And Non-Competition Brief](010_30_AUTOTRADER_POST_MEETING_USE_CASE_DATA_AND_NON_COMPETITION_BRIEF.md)
+- [010.31 Platform-Hosted AI Workspace Installation And Assigned Runtime Discovery Plan](010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md)
 - [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
 - [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
 - [2026-10-03 synthetic public-contract hosted evidence](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json)
@@ -778,31 +781,35 @@ intent/action pipeline.
 
 ### 7.2 Deployment URL communication contract
 
-Each dealership application is configured with its own assigned deployment,
-never a central Platform data-plane proxy. For the meeting deployment, the
-public-site demo configuration pins the exact public deployment base URL. In a
-reusable customer setup, the dealership backend may resolve assignment using
-its backend-only scoped assignment credential and project only the non-secret
-public runtime descriptor to the frontend. The assignment key is never sent to
-the browser.
+Each dealership application has its own consumer assignment and isolated
+deployment, never a central Platform data-plane proxy. The website embeds only
+the Platform-hosted `install.js` URL and an opaque public installation ID. The
+origin-scoped installation manifest resolves the consumer's current verified
+assignment, immutable Workspace/experience-pack assets, public routes and
+reviewed connection profile. The dealership backend does not discover or
+publish browser chat routes, and no assignment credential is sent to the
+browser.
 
 Required browser-direct and server-to-server flows are:
 
-1. **Anonymous browser bootstrap:** Max Mode sends an empty request to
+1. **Installation resolution:** the browser obtains the origin-scoped manifest
+   from Platform. Platform returns configuration and immutable asset metadata;
+   it does not proxy conversation traffic.
+2. **Anonymous browser bootstrap:** the installed Workspace sends an empty request to
    `POST /api/public/chat/session` with the browser `Origin`. The runtime creates
    the anonymous session and returns a short-lived, scoped, no-store bearer
    token. Client-provided identity/session fields are prohibited.
-2. **Direct chat and session:** Max Mode uses that token with deployment-local
+3. **Direct chat and session:** the Workspace uses that token with deployment-local
    `/api/chat/me/query`, suggestions, conversation, auth-context, and shell-
    configuration routes. A token expiry/`401` causes one fresh bootstrap and
    retry; no service credential is involved.
-3. **Demo inventory synchronization:** dealership backend sends normalized
+4. **Demo inventory synchronization:** dealership backend sends normalized
    inventory upserts/deletes to the deployment-local Data Sync push API and
    reconciles indexing work to a terminal state.
-4. **Auto Trader synchronization:** once approved, the deployment-local DATA
+5. **Auto Trader synchronization:** once approved, the deployment-local DATA
    plugin and Generic REST Connector communicate with Auto Trader directly;
    this replaces the demo source flow rather than adding AI code to the website.
-5. **Dealership action execution:** after LoomAI obtains the required
+6. **Dealership action execution:** after LoomAI obtains the required
    confirmation, the deployment-local ACTION plugin calls a protected dealership
    backend command URL. The backend validates the trusted stock target and
    idempotency key, persists the request, and returns a typed receipt.
@@ -1246,16 +1253,16 @@ The demo consists of:
    - responsive mobile/desktop behavior;
    - explicit unavailable states when the backend or assigned deployment cannot
      be reached; and
-   - public build-time configuration containing only a dealership backend URL
-     and an exact deployment URL or safe runtime-descriptor URL.
+   - public build-time configuration containing only the dealership backend
+     URL, Platform installer URL and opaque AI Workspace installation ID.
 
 2. **Dealership application backend**
    - Spring Boot;
    - ordinary application code with no AI Fabric dependency;
    - inventory presentation API;
    - lead/test-drive persistence and staff inbox;
-   - optional backend-only assignment discovery and a safe public runtime-
-     descriptor projection for the frontend;
+   - no browser assignment discovery, runtime descriptor, or widget
+     configuration responsibility;
    - deployment-local Data Sync push/reconciliation HTTP client;
    - protected remote authorization endpoint used by the assigned deployment;
    - protected dealership action endpoints called by the deployment connector;
@@ -1489,7 +1496,7 @@ equivalents:
 | Dealership backend, browser-facing | Inventory API | Dealership-scoped list/detail/filter values used by the normal website UI |
 | Browser -> LoomAI deployment | Anonymous chat bootstrap | Empty request, exact allowed origin, runtime-issued short-lived scoped token, no caller identity |
 | Browser -> LoomAI deployment | Direct Max Mode chat | Secure `/api/chat/me/*` routes for query, suggestions, conversations, shell config, evidence, actions, and confirmation |
-| Dealership backend, browser-facing | Public runtime descriptor | Exact deployment chat/bootstrap URLs and non-secret shell options only; no assignment or service credential |
+| Browser -> LoomAI Platform | AI Workspace installation | `install.js` plus opaque installation ID; origin-scoped manifest resolves reviewed assets, configuration and current verified assignment without exposing control-plane credentials |
 | `loomai-site` plus dealership backend | Compare UI/API | Stable selected stock IDs and typed fields, with AI explanation obtained from the deployment |
 | Dealership backend, deployment-facing (current fictional demo only) | Inventory sync worker | Normalized upsert/delete batches sent to the deployment-local Data Sync URL with work reconciliation; provider-backed compositions replace this with connector pull/reconciliation |
 | Dealership backend, called by deployment | Authorization decision | Fail-closed decision for anonymous public dealership reads; no browser access |
@@ -1591,13 +1598,14 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Before external release, replace stale package/repository/CDN branding with a
   LoomAI-owned versioned artifact or pin and bundle the exact reviewed source
   commit; do not load an unpinned personal GitHub Pages asset.
-- Configure direct `public-runtime-anonymous` bootstrap and `/api/chat/me/*`
-  routes from a non-secret public runtime descriptor.
-- Configure only runtime environment values `DEALERSHIP_DEMO_API_BASE_URL` and
-  `DEALERSHIP_DEMO_RUNTIME_BASE_URL` on the public-site container. Serve the
-  safe API URL through `/runtime-config/dealership-demo.json`, obtain exact chat
-  routes from the backend runtime descriptor, and reject secrets during
-  source/build scans.
+- Configure the Platform-managed `public-runtime-anonymous` installation; the
+  installer supplies reviewed deployment routes and the Workspace performs
+  deployment-local bootstrap and `/api/chat/me/*` calls.
+- Configure only `DEALERSHIP_DEMO_API_BASE_URL`,
+  `AI_WORKSPACE_PLATFORM_BASE_URL`, `AI_WORKSPACE_INSTALLATION_ID`, and the
+  required CSP connect origins on the public-site container. The site-owned
+  `/runtime-config/dealership-demo.json` exposes only the ordinary dealership
+  API URL; it does not expose Workspace or runtime configuration.
 - Configure exact-origin backend and runtime CORS for the production public-site
   origin and approved preview origin.
 - Use the implemented proactive same-session token renewal and preserve the
@@ -2199,17 +2207,18 @@ become production package facts.
 
 The native LoomAI public-site route remains the meeting-demo dealership
 website, but it is no longer the owner of reusable assistant behavior. The
-inventory/detail/comparison UI, dealership tool defaults, safe action mappings,
-runtime descriptor binding, and widget setup now live in the provider-neutral
-`experience-packs/dealership-experience` package.
+dealership tool defaults, safe action mappings, contextual attachments and rich
+result presentation now live in the provider-neutral
+`experience-packs/dealership-experience` package. Platform owns installation,
+assignment resolution, reviewed asset versions and public configuration.
 
-Each future dealership website supplies branding, dealership ID, current page
-context, enabled capabilities, approved media/detail routes, and its assigned
-deployment discovery URL. The package may be installed as ESM or an
-integrity-addressed script with public bootstrap JSON. The website still owns
-its ordinary catalogue and leads; the deployment still owns AI traffic,
-provider DATA/ACTION integrations, policy, confirmation, and indexed evidence.
-No Auto Trader client or provider credential enters the browser package.
+Each future dealership website adds the exact script copied from Platform
+**AI Workspaces**. The Platform installation supplies branding, dealership ID,
+page-context policy, enabled capabilities, approved media/detail routes and the
+current assigned deployment. The website still owns its ordinary catalogue and
+leads; the deployment still owns AI traffic, provider DATA/ACTION integrations,
+policy, confirmation, and indexed evidence. No Auto Trader client or provider
+credential enters the browser package.
 
 This extraction advances D4 and the customer-facing portion of D5 without
 inventing a Marketplace plugin type. Platform-managed package approval,

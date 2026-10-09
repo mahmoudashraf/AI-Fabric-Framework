@@ -8,7 +8,7 @@ Start with the [external developer guide](docs/EXTERNAL_DEVELOPER_GUIDE.md).
 
 ## Installation
 
-Create and activate a `dealership@1.0.0` AI Workspace installation in LoomAI
+Create and activate a `dealership@1.1.0` AI Workspace installation in LoomAI
 Platform, then add the generated script to the dealership website:
 
 ```html

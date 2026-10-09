@@ -55,8 +55,8 @@ class PublicAIWorkspaceManifestServiceTest {
         AIWorkspaceAssignmentService.Assignment assignment = new AIWorkspaceAssignmentService.Assignment(
             consumer, deployment, release, version, objectMapper.readTree(version.getSecurityConfigJson()),
             "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64));
-        AIWorkspaceAssetDescriptor workspace = asset("workspace", "max-mode-widget", "/api/public/ai-workspace/assets/workspace/1.0.0/widget.js");
-        AIWorkspaceAssetDescriptor pack = asset("experience-pack", "dealership", "/api/public/ai-workspace/assets/dealership/1.0.0/pack.js");
+        AIWorkspaceAssetDescriptor workspace = asset("workspace", "max-mode-widget", "/api/public/ai-workspace/assets/workspace/1.1.0/widget.js");
+        AIWorkspaceAssetDescriptor pack = asset("experience-pack", "dealership", "/api/public/ai-workspace/assets/dealership/1.1.0/pack.js");
 
         when(repository.findByInstallationId(installation.getInstallationId())).thenReturn(Optional.of(installation));
         when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
@@ -67,9 +67,9 @@ class PublicAIWorkspaceManifestServiceTest {
             deployment.getId(), release.getId(), assignment.runtimeBaseUrl(), assignment.assignmentRevision(), java.util.List.of()));
         when(assignments.resolveCurrent(consumer)).thenReturn(assignment);
         when(assets.workspace()).thenReturn(workspace);
-        when(packs.resolve("dealership", "1.0.0"))
+        when(packs.resolve("dealership", "1.1.0"))
             .thenReturn(new AIWorkspaceExperiencePackRegistry.ExperiencePack(
-                "dealership", "1.0.0", "Dealership", "loomai-dealership-experience-config-v1", true, pack));
+                "dealership", "1.1.0", "Dealership", "loomai-dealership-experience-config-v1", true, pack));
 
         var result = service().resolve(installation.getInstallationId(), "https://dealer.example");
         String json = objectMapper.writeValueAsString(result.manifest());
@@ -172,9 +172,9 @@ class PublicAIWorkspaceManifestServiceTest {
             consumer, deployment, release, version, objectMapper.readTree(version.getSecurityConfigJson()),
             "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64));
         AIWorkspaceAssetDescriptor workspace = asset(
-            "workspace", "max-mode-widget", "/api/public/ai-workspace/assets/workspace/1.0.0/widget.js");
+            "workspace", "max-mode-widget", "/api/public/ai-workspace/assets/workspace/1.1.0/widget.js");
         AIWorkspaceAssetDescriptor pack = asset(
-            "experience-pack", "dealership", "/api/public/ai-workspace/assets/dealership/1.0.0/pack.js");
+            "experience-pack", "dealership", "/api/public/ai-workspace/assets/dealership/1.1.0/pack.js");
 
         when(repository.findByInstallationId(installation.getInstallationId())).thenReturn(Optional.of(installation));
         when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
@@ -186,9 +186,9 @@ class PublicAIWorkspaceManifestServiceTest {
             assignment.assignmentRevision(), java.util.List.of()));
         when(assignments.resolveCurrent(consumer)).thenReturn(assignment);
         when(assets.workspace()).thenReturn(workspace);
-        when(packs.resolve("dealership", "1.0.0"))
+        when(packs.resolve("dealership", "1.1.0"))
             .thenReturn(new AIWorkspaceExperiencePackRegistry.ExperiencePack(
-                "dealership", "1.0.0", "Dealership", "loomai-dealership-experience-config-v1", true, pack));
+                "dealership", "1.1.0", "Dealership", "loomai-dealership-experience-config-v1", true, pack));
     }
 
     private AIWorkspaceInstallationEntity installation() {
@@ -200,7 +200,7 @@ class PublicAIWorkspaceManifestServiceTest {
         installation.setDisplayName("Northfield");
         installation.setStatus(AIWorkspaceInstallationStatus.ACTIVE);
         installation.setExperiencePackCode("dealership");
-        installation.setExperiencePackVersion("1.0.0");
+        installation.setExperiencePackVersion("1.1.0");
         installation.setConnectionMode(AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS);
         installation.setConnectionProfileCode(AIWorkspaceConnectionProfileRegistry.ANONYMOUS);
         installation.setConnectionProfileVersion("1.0.0");

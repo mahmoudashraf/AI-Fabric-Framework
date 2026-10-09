@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">First-class indexing and retrieval flow for an Auto Trader pilot deployment</title>
+  <desc id="desc">The first lane shows baseline stock ingestion, signed change signals, targeted re-fetch, approved projection and embedding, and deployment-local index upsert or removal. The second lane shows customer requests using indexed evidence first and governed live Search only when current facts are needed.</desc>
+  <defs>
+    <marker id="blueArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#1769ff"/></marker>
+    <marker id="purpleArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#7047eb"/></marker>
+    <marker id="greenArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#159a6a"/></marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #0b2550; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 20px; font-weight: 400; fill: #516887; }
+      .eyebrow { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1769ff; }
+      .lane { font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #0b2550; }
+      .box-title { font-family: Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #0b2550; }
+      .body { font-family: Arial, sans-serif; font-size: 15px; font-weight: 400; fill: #516887; }
+      .small { font-family: Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #516887; }
+      .step { font-family: Arial, sans-serif; font-size: 14px; font-weight: 700; fill: #ffffff; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="#f7f9fd"/>
+  <path d="M0 138 H1600" stroke="#dce5f2"/>
+  <text x="64" y="56" class="eyebrow">DATA FLOW | INDEXING PRECEDES AI CONSUMPTION</text>
+  <text x="64" y="105" class="title">Indexing is a first-class capability in every pilot deployment.</text>
+  <text x="64" y="132" class="subtitle">Approved dealer data is projected, embedded, reconciled and isolated before AI retrieval uses it.</text>
+
+  <!-- First-class indexing lane -->
+  <rect x="55" y="176" width="1490" height="340" rx="8" fill="#ffffff" stroke="#7047eb" stroke-width="3"/>
+  <rect x="55" y="176" width="1490" height="54" rx="8" fill="#f1edff"/>
+  <text x="82" y="211" class="lane">A | Build and continuously reconcile the dealer-scoped index</text>
+
+  <rect x="85" y="266" width="220" height="120" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="107" cy="285" r="14" fill="#7047eb"/><text x="103" y="290" class="step">1</text>
+  <text x="127" y="291" class="box-title">Baseline stock read</text>
+  <text x="107" y="322" class="body">Paginated approved Stock</text>
+  <text x="107" y="346" class="body">for fixed advertiser</text>
+  <text x="107" y="370" class="small">Initial + recovery</text>
+
+  <rect x="355" y="266" width="220" height="120" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="377" cy="285" r="14" fill="#7047eb"/><text x="373" y="290" class="step">2</text>
+  <text x="397" y="291" class="box-title">Signed change signal</text>
+  <text x="377" y="322" class="body">Verify raw-body HMAC</text>
+  <text x="377" y="346" class="body">Extract trusted stockId</text>
+  <text x="377" y="370" class="small">Signal only</text>
+
+  <rect x="625" y="266" width="220" height="120" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="647" cy="285" r="14" fill="#7047eb"/><text x="643" y="290" class="step">3</text>
+  <text x="667" y="291" class="box-title">Targeted current read</text>
+  <text x="647" y="322" class="body">Re-fetch one stockId</text>
+  <text x="647" y="346" class="body">from provider state</text>
+  <text x="647" y="370" class="small">Never trust event payload</text>
+
+  <rect x="895" y="266" width="245" height="120" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <circle cx="917" cy="285" r="14" fill="#e76f51"/><text x="913" y="290" class="step">4</text>
+  <text x="937" y="291" class="box-title">Project + embed</text>
+  <text x="917" y="322" class="body">Approved fields only</text>
+  <text x="917" y="346" class="body">Provenance + freshness</text>
+  <text x="917" y="370" class="small">Bounded evidence contract</text>
+
+  <rect x="1190" y="266" width="318" height="120" rx="8" fill="#f4fbf8" stroke="#159a6a" stroke-width="2"/>
+  <circle cx="1212" cy="285" r="14" fill="#159a6a"/><text x="1208" y="290" class="step">5</text>
+  <text x="1232" y="291" class="box-title">Deployment knowledge index</text>
+  <text x="1212" y="322" class="body">Upsert approved current record</text>
+  <text x="1212" y="346" class="body">or remove unavailable stock</text>
+  <text x="1212" y="370" class="small">Dealer-isolated derived evidence</text>
+
+  <line x1="305" y1="326" x2="355" y2="326" stroke="#7047eb" stroke-width="3" marker-end="url(#purpleArrow)"/>
+  <line x1="575" y1="326" x2="625" y2="326" stroke="#7047eb" stroke-width="3" marker-end="url(#purpleArrow)"/>
+  <line x1="845" y1="326" x2="895" y2="326" stroke="#7047eb" stroke-width="3" marker-end="url(#purpleArrow)"/>
+  <line x1="1140" y1="326" x2="1190" y2="326" stroke="#159a6a" stroke-width="3" marker-end="url(#greenArrow)"/>
+
+  <rect x="85" y="414" width="330" height="67" rx="8" fill="#fff4ef" stroke="#e5a184"/>
+  <text x="106" y="441" class="box-title">Webhook body is never indexed</text>
+  <text x="106" y="465" class="body">Always read current provider state.</text>
+  <text x="448" y="441" class="small">Periodic complete reconciliation repairs missed or out-of-order events and verifies deletion.</text>
+  <text x="448" y="465" class="small">Targeted notifications reduce freshness lag between baselines.</text>
+
+  <!-- AI consumption lane -->
+  <rect x="55" y="550" width="1490" height="272" rx="8" fill="#ffffff" stroke="#1769ff" stroke-width="2"/>
+  <rect x="55" y="550" width="1490" height="54" rx="8" fill="#eaf2ff"/>
+  <text x="82" y="585" class="lane">B | AI requests consume indexed evidence first; governed Search adds current facts</text>
+
+  <rect x="85" y="640" width="220" height="115" rx="8" fill="#f7fbff" stroke="#9dbff3"/>
+  <text x="106" y="672" class="box-title">Customer need</text>
+  <text x="106" y="701" class="body">Natural-language discovery</text>
+  <text x="106" y="725" class="body">on retailer website</text>
+
+  <rect x="355" y="640" width="220" height="115" rx="8" fill="#f7fbff" stroke="#9dbff3"/>
+  <text x="376" y="672" class="box-title">Indexed retrieval</text>
+  <text x="376" y="701" class="body">Semantic stock + policy</text>
+  <text x="376" y="725" class="body">evidence with provenance</text>
+
+  <rect x="625" y="640" width="220" height="115" rx="8" fill="#f7fbff" stroke="#9dbff3"/>
+  <text x="646" y="672" class="box-title">Typed reasoning</text>
+  <text x="646" y="701" class="body">Compare and explain from</text>
+  <text x="646" y="725" class="body">approved retrieved facts</text>
+
+  <rect x="895" y="640" width="245" height="115" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <text x="916" y="672" class="box-title">Live Search if needed</text>
+  <text x="916" y="701" class="body">Connector injects token</text>
+  <text x="916" y="725" class="body">and fixed advertiser ID</text>
+
+  <rect x="1190" y="640" width="318" height="115" rx="8" fill="#f4fbf8" stroke="#79c6a9"/>
+  <text x="1211" y="672" class="box-title">Grounded customer answer</text>
+  <text x="1211" y="701" class="body">Shortlist, compare and explain</text>
+  <text x="1211" y="725" class="body">using indexed + current facts</text>
+
+  <line x1="305" y1="697" x2="355" y2="697" stroke="#1769ff" stroke-width="3" marker-end="url(#blueArrow)"/>
+  <line x1="575" y1="697" x2="625" y2="697" stroke="#1769ff" stroke-width="3" marker-end="url(#blueArrow)"/>
+  <line x1="845" y1="697" x2="895" y2="697" stroke="#7047eb" stroke-width="3" marker-end="url(#purpleArrow)"/>
+  <line x1="1140" y1="697" x2="1190" y2="697" stroke="#159a6a" stroke-width="3" marker-end="url(#greenArrow)"/>
+
+  <text x="85" y="793" class="small">The model retrieves and reasons over approved evidence; deterministic connector code owns provider authentication, scope and API execution.</text>
+  <text x="64" y="866" class="small">Pilot approval gate: Auto Trader must approve Stock Sync, Search, fields, persistence, embedding, retention, deletion, model provider, region and display terms.</text>
+</svg>

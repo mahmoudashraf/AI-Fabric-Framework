@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Loom AI Labs | Auto Trader Technical Integration Proposal</title>
+  <style>
+    @page { size: A4 landscape; margin: 0; }
+    :root {
+      --navy: #0b2550;
+      --blue: #1769ff;
+      --purple: #7047eb;
+      --green: #159a6a;
+      --coral: #e96d4f;
+      --text: #405979;
+      --muted: #657895;
+      --line: #cbd8ec;
+      --paper: #f7f9fd;
+      --white: #ffffff;
+      --blue-pale: #eaf2ff;
+      --purple-pale: #f1edff;
+      --green-pale: #edf9f4;
+      --coral-pale: #fff4ef;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #dfe6f1; color: var(--navy); font-family: Arial, Helvetica, sans-serif; }
+    body { counter-reset: page; }
+    .page {
+      counter-increment: page;
+      width: 297mm;
+      height: 210mm;
+      margin: 8mm auto;
+      padding: 11mm 13mm 9mm;
+      background: var(--paper);
+      position: relative;
+      overflow: hidden;
+      break-after: page;
+      box-shadow: 0 8px 28px rgba(11, 37, 80, 0.16);
+    }
+    .page:last-child { break-after: auto; }
+    .topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4mm; }
+    .brand { display: flex; align-items: center; min-height: 8mm; }
+    .brand img { display: block; width: 39mm; height: auto; }
+    .status { color: var(--blue); font-size: 7.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }
+    h1 { margin: 0; font-size: 24pt; line-height: 1.08; letter-spacing: 0; color: var(--navy); }
+    h2 { margin: 0 0 2mm; font-size: 12pt; line-height: 1.15; color: var(--navy); }
+    h3 { margin: 0 0 1.5mm; font-size: 9.5pt; color: var(--blue); text-transform: uppercase; letter-spacing: 0; }
+    p { margin: 0; font-size: 8.8pt; line-height: 1.38; color: var(--text); }
+    ul, ol { margin: 1.5mm 0 0 5mm; padding: 0; }
+    li { margin: 0 0 1.2mm; font-size: 8.4pt; line-height: 1.28; color: var(--text); }
+    code { font-family: Menlo, Consolas, monospace; }
+    pre {
+      margin: 0;
+      padding: 2.5mm 3mm;
+      border: 0.35mm solid #b9cbed;
+      border-radius: 2mm;
+      background: #fbfdff;
+      color: #17345e;
+      font: 6.9pt/1.35 Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+    }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 0.3mm solid var(--line); padding: 1.8mm 2mm; vertical-align: top; }
+    th { background: var(--blue-pale); color: var(--navy); font-size: 7.7pt; text-align: left; }
+    td { background: var(--white); color: var(--text); font-size: 7.5pt; line-height: 1.25; }
+    .lede { margin-top: 2mm; max-width: 250mm; font-size: 10pt; line-height: 1.35; }
+    .callout { margin-top: 4mm; padding: 3mm 4mm; border-left: 1.4mm solid var(--blue); background: var(--blue-pale); }
+    .callout p { font-size: 9.6pt; color: var(--navy); font-weight: 700; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+    .grid-2-wide { display: grid; grid-template-columns: 1.18fr 0.82fr; gap: 5mm; }
+    .panel { border: 0.35mm solid var(--line); border-radius: 2mm; background: var(--white); padding: 3.2mm; }
+    .panel.blue { border-color: #9cbcf4; background: #f8fbff; }
+    .panel.purple { border-color: #b7a4f4; background: #fbf9ff; }
+    .panel.green { border-color: #91d1ba; background: #f8fdfa; }
+    .panel.coral { border-color: #efae96; background: #fffaf7; }
+    .api-table { margin-top: 4mm; }
+    .api-table col:nth-child(1) { width: 16%; }
+    .api-table col:nth-child(2) { width: 25%; }
+    .api-table col:nth-child(3) { width: 16%; }
+    .api-table col:nth-child(4) { width: 43%; }
+    .page-one .api-table { margin-top: 3mm; }
+    .page-one .api-table th, .page-one .api-table td { padding: 1.35mm 1.7mm; }
+    .workspace-grid { margin-top: 3mm; display: grid; grid-template-columns: 0.68fr 1.32fr; gap: 4mm; align-items: stretch; }
+    .workspace-copy { padding: 3mm 3.5mm; border: 0.35mm solid #9cbcf4; border-radius: 2mm; background: #f8fbff; }
+    .workspace-copy h2 { font-size: 12.5pt; margin-bottom: 1.5mm; }
+    .workspace-copy li { margin-bottom: 1.3mm; font-size: 7.8pt; }
+    .workspace-figure { margin: 0; padding: 2mm; border: 0.35mm solid var(--line); border-radius: 2mm; background: var(--white); }
+    .workspace-shot { display: block; width: 100%; height: 72mm; object-fit: contain; object-position: center; }
+    .workspace-figure figcaption { margin-top: 1mm; color: var(--muted); font-size: 6.5pt; line-height: 1.25; }
+    .compact { margin-top: 4mm; }
+    .label { display: inline-block; padding: 0.8mm 2mm; border-radius: 1.2mm; background: var(--purple-pale); color: var(--purple); font-size: 7.3pt; font-weight: 800; }
+    .diagram { display: block; width: 100%; height: auto; object-fit: contain; }
+    .diagram-page { margin-top: 1.5mm; height: 154mm; }
+    .diagram-data { margin-top: 1.5mm; height: 137mm; }
+    .diagram-auth { width: 158mm; height: 94mm; }
+    .diagram-deal { width: 100%; height: 102mm; }
+    .strip { margin-top: 2.5mm; display: grid; grid-template-columns: repeat(4, 1fr); border: 0.35mm solid var(--line); border-radius: 2mm; overflow: hidden; }
+    .strip div { padding: 2.3mm; background: var(--white); border-right: 0.3mm solid var(--line); }
+    .strip div:last-child { border-right: 0; }
+    .strip strong { display: block; color: var(--navy); font-size: 7.5pt; margin-bottom: 0.7mm; }
+    .strip span { display: block; color: var(--muted); font-size: 6.8pt; line-height: 1.2; }
+    .footer { position: absolute; left: 13mm; right: 13mm; bottom: 4.5mm; display: flex; justify-content: space-between; color: var(--muted); font-size: 6.8pt; font-weight: 700; }
+    .footer .page-no::after { content: counter(page) " / 5"; }
+    .page-four .main { margin-top: 3mm; display: grid; grid-template-columns: 160mm 1fr; gap: 5mm; }
+    .page-four .right { display: grid; gap: 3mm; }
+    .page-four .governance { margin-top: 3mm; display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+    .page-five .bottom { margin-top: 3mm; display: grid; grid-template-columns: 1fr 1.15fr; gap: 5mm; }
+    .decision-list { columns: 2; column-gap: 5mm; margin-top: 1mm; }
+    .decision-list li { break-inside: avoid; }
+    @media print {
+      html, body { background: var(--paper); }
+      .page { margin: 0; box-shadow: none; }
+    }
+    @media screen {
+      .page { display: block; }
+      body:has(.page:target) .page { display: none; }
+      body:has(.page:target) .page:target { display: block; outline: 1.5mm solid var(--blue); }
+    }
+  </style>
+</head>
+<body>
+  <section class="page page-one" id="page-1">
+    <div class="topline"><div class="brand"><img src="assets/autotrader-loomai-technical-proposal/loom-ai-labs-wordmark.png" alt="Loom AI Labs"></div><div class="status">Technical integration proposal | 8 October 2026</div></div>
+    <h1>Dealer-scoped indexed intelligence for dealership websites.</h1>
+    <p class="lede">Loom AI Labs proposes one isolated deployment for one authorized retailer: synchronized Auto Trader stock becomes governed AI evidence, customers receive a richer vehicle workspace, and confirmed intent returns to Auto Trader's Deal flow.</p>
+    <div class="callout"><p>Auto Trader remains the inventory, advertiser-product and Deal authority. The browser and model never receive provider credentials or direct API authority.</p></div>
+    <div class="workspace-grid">
+      <div class="workspace-copy">
+        <h2>From assistant to intelligent workspace</h2>
+        <ul>
+          <li>Natural-language discovery and comparison over an indexed, retailer-scoped stock projection.</li>
+          <li>Contextual tools, attached vehicle context and retailer policy evidence in one working surface.</li>
+          <li>Governed live facts when freshness or verification is needed.</li>
+          <li>Explicitly confirmed customer handoff into Auto Trader rather than a competing lead system.</li>
+        </ul>
+        <p><strong>Pilot status:</strong> proposed for technical validation; no Auto Trader access, approval, certification or participating retailer is currently claimed.</p>
+      </div>
+      <figure class="workspace-figure">
+        <img class="workspace-shot" src="assets/autotrader-loomai-technical-proposal/07-dealership-intelligent-workspace.png" alt="LoomAI Max Mode dealership workspace with contextual tools, attached vehicle evidence and governed actions">
+        <figcaption>Current LoomAI demonstration using fictional inventory. Max Mode turns the website assistant into a contextual workspace; it is not limited to a chatbot response stream.</figcaption>
+      </figure>
+    </div>
+    <table class="api-table">
+      <colgroup><col><col><col><col></colgroup>
+      <thead><tr><th>Use</th><th>Endpoint or mechanism</th><th>Capability</th><th>Proposed treatment</th></tr></thead>
+      <tbody>
+        <tr><td>Authenticate</td><td><code>POST /authenticate</code></td><td>Integration auth</td><td>Connector-only key/secret exchange; cache bearer token until expiry.</td></tr>
+        <tr><td>Indexed dealer stock</td><td>Paginated <code>GET /stock</code>, notifications and targeted stock read</td><td><strong>Stock Sync</strong></td><td>Required pilot ingestion and freshness path; maintain an isolated projection and remove unavailable stock.</td></tr>
+        <tr><td>Governed live lookup</td><td><code>GET /search?advertiserId=...</code></td><td><strong>Search</strong></td><td>Query-time companion for approved current dealer-scoped facts and verification.</td></tr>
+        <tr><td>Customer handoff</td><td><code>POST /deals?advertiserId=...</code></td><td><strong>Deal Updates</strong></td><td>Explicitly confirmed identity fields and trusted stock target; return Auto Trader <code>dealId</code>.</td></tr>
+      </tbody>
+    </table>
+    <div class="footer"><span>Loom AI Labs | Auto Trader technical integration proposal</span><span class="page-no"></span></div>
+  </section>
+
+  <section class="page" id="page-2">
+    <div class="topline"><div class="brand"><img src="assets/autotrader-loomai-technical-proposal/loom-ai-labs-wordmark.png" alt="Loom AI Labs"></div><div class="status">Architecture | one retailer, one deployment</div></div>
+    <img class="diagram diagram-page" src="assets/autotrader-loomai-technical-proposal/01-retailer-deployment-architecture.svg" alt="Retailer-isolated LoomAI deployment architecture">
+    <div class="strip">
+      <div><strong>Fixed scope</strong><span>One non-overridable advertiser binding per pilot deployment.</span></div>
+      <div><strong>Private execution</strong><span>Browser and model never receive provider credentials or connector access.</span></div>
+      <div><strong>Deployment-local data</strong><span>Conversation, index and audit state are isolated by retailer.</span></div>
+      <div><strong>Control plane only</strong><span>The Platform releases and verifies; it does not proxy routine traffic.</span></div>
+    </div>
+    <div class="footer"><span>Deployment contents and connectivity</span><span class="page-no"></span></div>
+  </section>
+
+  <section class="page" id="page-3">
+    <div class="topline"><div class="brand"><img src="assets/autotrader-loomai-technical-proposal/loom-ai-labs-wordmark.png" alt="Loom AI Labs"></div><div class="status">Data movement | first-class indexing and governed Search</div></div>
+    <img class="diagram diagram-data" src="assets/autotrader-loomai-technical-proposal/02-data-movement-and-freshness.svg" alt="Auto Trader to LoomAI first-class indexing and retrieval flow">
+    <div class="grid-2 compact">
+      <div class="panel blue">
+        <h3>Current synthetic simulator sequence</h3>
+        <p><code>POST /authenticate</code> -> paginated <code>GET /stock</code> -> signed notification <code>PUT</code> -> targeted <code>GET /stock?...&amp;stockId=...</code>.</p>
+        <p style="margin-top:1.5mm">This proves connector mechanics only. It is not an Auto Trader sandbox, entitlement or exact production emulator.</p>
+      </div>
+      <div class="panel green">
+        <h3>Proposed projection</h3>
+        <p>Stock/search identity, freshness/lifecycle, publication status, make/model/derivative/year, fuel/body/transmission, mileage, displayed price, selected features and approved image reference.</p>
+        <p style="margin-top:1.5mm"><strong>Excluded:</strong> VIN, registration, free advert copy, reservation state, customer, Deal, message, finance, part-exchange and valuation data.</p>
+      </div>
+    </div>
+    <div class="footer"><span>Indexing is a required pilot capability, activated only after field, purpose, retention and deletion approval</span><span class="page-no"></span></div>
+  </section>
+
+  <section class="page page-four" id="page-4">
+    <div class="topline"><div class="brand"><img src="assets/autotrader-loomai-technical-proposal/loom-ai-labs-wordmark.png" alt="Loom AI Labs"></div><div class="status">Authentication and governed query execution</div></div>
+    <h1>Three trust domains; no provider authority in the browser or model.</h1>
+    <div class="main">
+      <img class="diagram diagram-auth" src="assets/autotrader-loomai-technical-proposal/03-authentication-and-onboarding.svg" alt="Authentication and onboarding flow">
+      <div class="right">
+        <div>
+          <h3>Provider authentication</h3>
+          <pre>POST /authenticate
+Content-Type: application/x-www-form-urlencoded
+
+key=&lt;protected&gt;&amp;secret=&lt;protected&gt;
+
+{"access_token":"&lt;token&gt;",
+ "expires_at":"&lt;ISO timestamp&gt;"}</pre>
+        </div>
+        <div>
+          <h3>Dealer-scoped Search</h3>
+          <pre>GET /search?advertiserId=&lt;trusted-id&gt;&amp;fuelType=Electric
+Authorization: Bearer &lt;connector-token&gt;
+
+Projected evidence:
+{"stockId":"&lt;trusted-id&gt;",
+ "vehicle":{"make":"Example","model":"SUV"},
+ "displayedPriceGBP":31950,
+ "sourceUpdatedAt":"&lt;provider timestamp&gt;"}</pre>
+        </div>
+      </div>
+    </div>
+    <div class="governance">
+      <div class="panel purple">
+        <h3>Model may</h3>
+        <p>Interpret natural language, propose schema-constrained filters, select an installed read capability and explain only supplied facts.</p>
+      </div>
+      <div class="panel coral">
+        <h3>Deterministic code owns</h3>
+        <p>Session/origin checks, host, route, advertiser, grants, credentials, request/response bounds, retries, confirmation and final projection.</p>
+      </div>
+    </div>
+    <div class="footer"><span>The projected JSON is a proposed LoomAI response shape, not the full Auto Trader payload</span><span class="page-no"></span></div>
+  </section>
+
+  <section class="page page-five" id="page-5">
+    <div class="topline"><div class="brand"><img src="assets/autotrader-loomai-technical-proposal/loom-ai-labs-wordmark.png" alt="Loom AI Labs"></div><div class="status">Confirmed Deal handoff and pilot decisions</div></div>
+    <img class="diagram diagram-deal" src="assets/autotrader-loomai-technical-proposal/05-confirmed-deal-creation-flow.svg" alt="Confirmed Auto Trader Deal creation flow">
+    <div class="bottom">
+      <div>
+        <h3>Exact proposed write</h3>
+        <pre>POST /deals?advertiserId=&lt;trusted-id&gt;
+Authorization: Bearer &lt;connector-token&gt;
+Content-Type: application/json
+
+{
+  "consumer": {
+    "firstName": "&lt;confirmed&gt;",
+    "lastName": "&lt;confirmed&gt;",
+    "email": "&lt;confirmed&gt;"
+  },
+  "stockId": "&lt;trusted-stock-id&gt;",
+  "advertiserId": "&lt;trusted-id&gt;"
+}
+
+Response: {"dealId":"&lt;auto-trader-deal-id&gt;"}</pre>
+      </div>
+      <div class="panel blue">
+        <h3>Decisions required before implementation against Auto Trader</h3>
+        <ol class="decision-list">
+          <li>Confirm dealer-scoped <strong>Stock Sync</strong> and <strong>Search</strong>, plus the test-advertiser or named-retailer onboarding route.</li>
+          <li>Approve fields, model/provider, region, no-training/retention and image/display rules.</li>
+          <li>Approve Stock Sync persistence/embedding for the pilot and define deletion/freshness obligations.</li>
+          <li>Grant Deal Updates for this external Deal source and approve privacy/consent wording.</li>
+          <li>Define duplicate and ambiguous-timeout reconciliation. LoomAI will not blindly retry.</li>
+          <li>Define sandbox tests, rate limits, support ownership and production promotion evidence.</li>
+        </ol>
+        <p style="margin-top:2mm"><strong>Result:</strong> LoomAI retains bounded execution evidence and the returned <code>dealId</code>; Auto Trader remains the Deal system of record.</p>
+      </div>
+    </div>
+    <div class="footer"><span>Technical intent: useful AI reasoning without transferring API authority to the model</span><span class="page-no"></span></div>
+  </section>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Governed AI query and grounding flow</title>
+  <desc id="desc">A customer's natural language request enters the deployment runtime. The runtime authenticates the session, extracts a typed request, validates policy, and calls an allowlisted connector action. The connector owns Auto Trader authentication and advertiser scope. Approved stock facts and separate retailer policy evidence are supplied to generation, producing an attributed answer. The model cannot issue arbitrary HTTP requests.</desc>
+  <defs>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#1769ff"/></marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#7047eb"/></marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#159a6a"/></marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 42px; font-weight: 700; fill: #0b2550; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 20px; font-weight: 400; fill: #516887; }
+      .eyebrow { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1769ff; }
+      .group { font-family: Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #0b2550; }
+      .box-title { font-family: Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #0b2550; }
+      .body { font-family: Arial, sans-serif; font-size: 15px; font-weight: 400; fill: #516887; }
+      .small { font-family: Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #516887; }
+      .number { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #ffffff; }
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f9fd"/>
+  <path d="M0 138 H1600" stroke="#dce5f2"/>
+  <text x="62" y="55" class="eyebrow">QUERY EXECUTION | AI REASONS, POLICY OWNS AUTHORITY</text>
+  <text x="62" y="104" class="title">The model proposes meaning; deterministic code controls execution.</text>
+  <text x="62" y="132" class="subtitle">Every external call is fixed by an installed action contract and one deployment-owned advertiser binding.</text>
+
+  <!-- Main pipeline -->
+  <rect x="52" y="194" width="1496" height="416" rx="8" fill="#ffffff" stroke="#c6d5e9" stroke-width="2"/>
+  <text x="80" y="230" class="group">Interactive request path</text>
+
+  <rect x="82" y="278" width="190" height="147" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <circle cx="105" cy="300" r="15" fill="#e76f51"/><text x="101" y="305" class="number">1</text>
+  <text x="128" y="307" class="box-title">Customer request</text>
+  <text x="105" y="340" class="body">&quot;Electric family car</text>
+  <text x="105" y="364" class="body">under GBP 35k&quot;</text>
+  <text x="105" y="394" class="small">Browser session token</text>
+
+  <rect x="322" y="278" width="205" height="147" rx="8" fill="#eef5ff" stroke="#9dbff3"/>
+  <circle cx="345" cy="300" r="15" fill="#1769ff"/><text x="341" y="305" class="number">2</text>
+  <text x="368" y="307" class="box-title">Runtime gate</text>
+  <text x="345" y="340" class="body">Session + origin</text>
+  <text x="345" y="364" class="body">deployment policy</text>
+  <text x="345" y="388" class="body">request bounds</text>
+
+  <rect x="577" y="278" width="215" height="147" rx="8" fill="#eef5ff" stroke="#9dbff3"/>
+  <circle cx="600" cy="300" r="15" fill="#1769ff"/><text x="596" y="305" class="number">3</text>
+  <text x="623" y="307" class="box-title">Typed intent</text>
+  <text x="600" y="340" class="body">fuel = Electric</text>
+  <text x="600" y="364" class="body">body = approved value</text>
+  <text x="600" y="388" class="body">maxPrice = 35000</text>
+
+  <rect x="842" y="278" width="215" height="147" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="865" cy="300" r="15" fill="#7047eb"/><text x="861" y="305" class="number">4</text>
+  <text x="888" y="307" class="box-title">Action policy</text>
+  <text x="865" y="340" class="body">Allowlisted action</text>
+  <text x="865" y="364" class="body">typed parameter schema</text>
+  <text x="865" y="388" class="body">read grant + limits</text>
+
+  <rect x="1107" y="278" width="205" height="147" rx="8" fill="#f7f4ff" stroke="#aa98ef"/>
+  <circle cx="1130" cy="300" r="15" fill="#7047eb"/><text x="1126" y="305" class="number">5</text>
+  <text x="1153" y="307" class="box-title">Connector</text>
+  <text x="1130" y="340" class="body">Fixed host + route</text>
+  <text x="1130" y="364" class="body">token + advertiser</text>
+  <text x="1130" y="388" class="body">response projection</text>
+
+  <rect x="1362" y="278" width="152" height="147" rx="8" fill="#f1edff" stroke="#aa98ef"/>
+  <circle cx="1385" cy="300" r="15" fill="#7047eb"/><text x="1381" y="305" class="number">6</text>
+  <text x="1408" y="307" class="box-title">API</text>
+  <text x="1385" y="340" class="body">Search or</text>
+  <text x="1385" y="364" class="body">approved Stock</text>
+  <text x="1385" y="388" class="body">capability</text>
+
+  <line x1="272" y1="352" x2="322" y2="352" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <line x1="527" y1="352" x2="577" y2="352" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <line x1="792" y1="352" x2="842" y2="352" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <line x1="1057" y1="352" x2="1107" y2="352" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <line x1="1312" y1="352" x2="1362" y2="352" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+
+  <path d="M1438 425 C1438 500 1220 507 1210 425" fill="none" stroke="#7047eb" stroke-width="3" marker-end="url(#arrowPurple)"/>
+  <text x="1250" y="507" class="small">approved facts only</text>
+  <!-- Grounding and answer -->
+  <rect x="52" y="648" width="1496" height="192" rx="8" fill="#ffffff" stroke="#79c6a9" stroke-width="2"/>
+  <text x="80" y="684" class="group">Grounded response assembly</text>
+  <rect x="82" y="714" width="310" height="91" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <text x="103" y="744" class="box-title">Approved stock facts</text>
+  <text x="103" y="769" class="body">Current shortlist + source freshness</text>
+  <rect x="447" y="714" width="310" height="91" rx="8" fill="#eefaf5" stroke="#79c6a9"/>
+  <text x="468" y="744" class="box-title">Retailer-owned documents</text>
+  <text x="468" y="769" class="body">Warranty, showroom and process policy</text>
+  <rect x="812" y="714" width="300" height="91" rx="8" fill="#eef5ff" stroke="#9dbff3"/>
+  <text x="833" y="744" class="box-title">Bounded generation</text>
+  <text x="833" y="769" class="body">Answer only from supplied evidence</text>
+  <rect x="1167" y="714" width="347" height="91" rx="8" fill="#fff8f4" stroke="#e5a184"/>
+  <text x="1188" y="744" class="box-title">Customer response</text>
+  <text x="1188" y="769" class="body">Shortlist, explanation, attribution, next step</text>
+  <line x1="392" y1="760" x2="447" y2="760" stroke="#159a6a" stroke-width="3" marker-end="url(#arrowGreen)"/>
+  <line x1="757" y1="760" x2="812" y2="760" stroke="#159a6a" stroke-width="3" marker-end="url(#arrowGreen)"/>
+  <line x1="1112" y1="760" x2="1167" y2="760" stroke="#1769ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <path d="M1208 425 C1208 590 410 590 410 648" fill="none" stroke="#159a6a" stroke-width="3" marker-end="url(#arrowGreen)"/>
+  <text x="635" y="548" class="small">normalized action evidence returns to the runtime</text>
+
+  <rect x="82" y="459" width="672" height="65" rx="8" fill="#fff4ef" stroke="#e5a184"/>
+  <text x="103" y="486" class="box-title">The model cannot choose:</text>
+  <text x="103" y="510" class="body">host | method | path | token | advertiser | grant | arbitrary request/response fields</text>
+
+  <text x="62" y="878" class="small">If evidence is absent, stale or unauthorized, the runtime asks for clarification or returns a bounded unavailable response; it does not invent stock facts.</text>
+</svg>

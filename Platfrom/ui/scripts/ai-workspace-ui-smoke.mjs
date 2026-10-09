@@ -34,7 +34,7 @@ function installation(installationId, customerId, consumerId, displayName) {
     displayName,
     status: 'DRAFT',
     experiencePackCode: 'dealership',
-    experiencePackVersion: '1.0.0',
+    experiencePackVersion: '1.1.0',
     connectionMode: 'public-runtime-anonymous',
     connectionProfileCode: 'runtime-anonymous-direct',
     connectionProfileVersion: '1.0.0',

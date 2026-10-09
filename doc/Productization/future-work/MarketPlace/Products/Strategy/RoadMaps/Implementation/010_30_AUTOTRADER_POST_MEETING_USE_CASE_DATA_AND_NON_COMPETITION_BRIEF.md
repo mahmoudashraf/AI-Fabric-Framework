@@ -15,6 +15,8 @@
 
 Related plans:
 
+- [External Auto Trader and LoomAI technical integration proposal](../../../../../../../../Final_Documentation/External_User_Guides/AUTOTRADER_LOOMAI_TECHNICAL_INTEGRATION_PROPOSAL.md)
+- [Five-page Auto Trader and LoomAI technical integration brief](../../../../../../../../Final_Documentation/External_User_Guides/AUTOTRADER_LOOMAI_FIVE_PAGE_TECHNICAL_INTEGRATION_BRIEF.md)
 - [010.25 Auto Trader Connect LoomAI Capability Productization Analysis](010_25_AUTOTRADER_CONNECT_LOOMAI_CAPABILITY_PRODUCTIZATION_ANALYSIS.md)
 - [010.26 Auto Trader Dealership First Release And Meeting Demo Plan](010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)

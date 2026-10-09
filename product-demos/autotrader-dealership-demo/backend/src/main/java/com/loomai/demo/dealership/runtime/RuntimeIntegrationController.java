@@ -62,7 +62,6 @@ public class RuntimeIntegrationController {
         Map<String, Object> integration = new LinkedHashMap<>();
         integration.put("runtimeConfigured", properties.getRuntime().isEnabled());
         integration.put("inventoryVectorSpace", properties.getRuntime().getInventoryVectorSpace());
-        integration.put("retrievalVectorSpaces", properties.getRuntime().getRetrievalVectorSpaces());
         integration.put("sourceId", properties.getRuntime().getIntegrationSourceId());
         try {
             JsonNode source = connectorOperations.sourceStatus();
