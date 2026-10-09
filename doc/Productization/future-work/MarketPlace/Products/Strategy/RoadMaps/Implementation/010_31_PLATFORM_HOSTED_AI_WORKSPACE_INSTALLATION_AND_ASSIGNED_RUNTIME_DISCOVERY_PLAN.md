@@ -1,7 +1,8 @@
 # 010.31 Platform-Hosted AI Workspace Installation And Assigned Runtime Discovery Plan
 
-- **Status:** Implemented and locally release-gated; hosted rollout evidence in
-  progress
+- **Status:** Implemented, deployed, and live release-gated. Anonymous direct
+  and private Bridge modes are live-proven. Authenticated broker activation is
+  intentionally fail-closed until a real host identity broker is registered.
 - **Created:** 2026-10-09
 - **Scope:** Generic Platform-hosted AI Workspace installation, browser-safe
   connection discovery, all supported runtime auth/transport modes, and
@@ -45,6 +46,64 @@
 - A real authenticated host-identity broker is not currently registered. The
   generic broker contract and browser transport are implemented and tested,
   while activation remains fail-closed until a reviewed broker exists.
+
+### Hosted release evidence - 2026-10-09
+
+- The implementation landed in `cddee1e22055923136edf10fc732bee94fe19141`.
+  Cross-origin public delivery corrections landed in `024bd6d`, `73ac2f3`, and
+  `944f650`. Provider-record-to-page routing and scoped dealership detail reads
+  landed in final release identity
+  `bbe647d2706884cb100618048e4358bf9cd08370`.
+- Platform image workflow `37881681357` completed successfully. Staging
+  backend deployment `dq8gvgxlt4a17uq4bhxgb7xg` finished from `bbe647d...`.
+  Production backend deployment `zmpt30drvhqsxmgjm2i8cr5p` finished with the
+  immutable backend image pinned to the same `bbe647d...` identity. Production
+  Platform UI and public site also run `bbe647d...`.
+- The temporary production control-plane window was closed after verification.
+  Firewall `10915120` rules hash is
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`;
+  firewall `10918233` rules hash is
+  `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`.
+  Operator `38.126.94.35/32` has zero matches, direct local Coolify access
+  returns HTTP `000`, and public Platform readiness remains HTTP `200`.
+- Northfield customer `cus-28e3b6f9`, consumer
+  `northfield-dealership-demo`, deployment `dep-f023c863`, version
+  `ver-ea759582`, and release `rel-2d292866` are bound. Installation
+  `awi_pub_456ec9f67744f4d7e231a939e835ac05` is `ACTIVE`; all ten readiness
+  checks pass. Assignment revision is
+  `sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b`.
+- The production site loads the Platform installer and manifest, then sends
+  normal browser traffic directly to `dep-f023c863`. Browser evidence found no
+  Platform chat proxy or retired runtime-descriptor request. Exact allowed
+  origin succeeds, a foreign origin returns `403`, and an unchanged manifest
+  returns `304`. Northfield remains a staging customer/runtime by design, so
+  its production-site-safe manifest is served by the staging control plane;
+  `api.loomai.pro` independently serves the same released installer/assets and
+  is not falsely populated with a duplicate production customer assignment.
+- Live workspace asset SHA-256 is
+  `ae5a935872994f31569b2f373a96724d883f9a2dbe71505462603adf5a0fd732`;
+  dealership pack SHA-256 is
+  `befb528aa9347d01ab0bf9c6fc0d2dbce94adf18e290959937cf89a407e52429`.
+  Their content-addressed filenames and manifest SHA-384 integrity values match
+  the downloaded bytes. Production installer SHA-256 is
+  `0988e864e82eb826d0a659baa549b8a7e50575b99583dd969db8f95cfa999b53`.
+- The production-site dealership live gate passed one-session bootstrap,
+  renewal, inventory, detail, comparison, grounded follow-up, page attachment,
+  confirmed test-drive/callback receipts, inbox exact-once readback and cleanup,
+  desktop/mobile presentation, and forbidden-proxy checks. Its strict quality
+  gate passed all `12/12` scenarios in conversation
+  `chat-e7aba388-df78-4b5a-9d62-7f278847f6bc` without an unintended write.
+- The existing production Shopify Bridge is healthy. Its private adapter
+  bootstrap returned `loomai-workspace-private-adapter-v1` with only
+  browser-safe Bridge routes and ephemeral session state. A live query through
+  deployment `dep-8c3e7259` returned five grounded sources/documents, and a
+  separate safe canary executed read-only action `shopify_search_catalog`.
+  No assignment credential, private assertion, or internal runtime contract
+  was exposed to the browser.
+- The authenticated broker handler is implemented and deterministically
+  tested, but no real customer host-identity broker is registered. The profile
+  remains disabled and cannot be advertised as live-proven until that external
+  identity integration exists and passes section 19.5.
 
 Related plans:
 
@@ -1232,12 +1291,12 @@ implementation uncovers a genuine missing framework contract.
 
 ### Phase E: Northfield cutover
 
-- [ ] Create/bind the Northfield consumer.
-- [ ] Publish a workspace-ready verified deployment release.
-- [ ] Create and activate the Northfield installation.
+- [x] Create/bind the Northfield consumer.
+- [x] Publish a workspace-ready verified deployment release.
+- [x] Create and activate the Northfield installation.
 - [x] Replace manual site initialization with the Platform script.
 - [x] Delete obsolete dealership runtime-descriptor code/config.
-- [ ] Run focused and live staging evidence gates.
+- [x] Run focused and live staging/production-site evidence gates.
 
 ### Phase F: Authenticated and private compatibility
 
@@ -1250,16 +1309,16 @@ implementation uncovers a genuine missing framework contract.
   projection against a test store.
 - [x] Verify generic new-session rebind behavior, browser storage isolation,
   and credential non-disclosure in all three modes.
-- [ ] Record that the existing Shopify production integration remains healthy.
+- [x] Record that the existing Shopify production integration remains healthy.
 
 ### Phase G: Production release
 
-- [ ] Build immutable Platform backend/UI images from one source commit.
-- [ ] Verify packaged asset versions/digests from the live Platform.
-- [ ] Deploy staging, pass gates, then deploy production.
-- [ ] Verify `https://api.loomai.pro/api/public/ai-workspace/install.js` and a
+- [x] Build immutable Platform backend/UI images from one source commit.
+- [x] Verify packaged asset versions/digests from the live Platform.
+- [x] Deploy staging, pass gates, then deploy production.
+- [x] Verify `https://api.loomai.pro/api/public/ai-workspace/install.js` and a
   production-safe installation manifest.
-- [ ] Update operating context, strategy, external guide, and release evidence.
+- [x] Update operating context, strategy, external guide, and release evidence.
 
 ## 21. Definition Of Done
 

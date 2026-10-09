@@ -216,6 +216,31 @@ Keep these boundaries intact:
 The canonical design, implementation status, and release evidence are tracked
 in `010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md`.
 
+Hosted status as of 2026-10-09:
+
+- Current Platform/backend/UI/public-site release identity is
+  `bbe647d2706884cb100618048e4358bf9cd08370`. Both staging and production
+  Platform backends are ready; the production backend image is explicitly
+  pinned to that immutable tag.
+- Northfield installation `awi_pub_456ec9f67744f4d7e231a939e835ac05`
+  is active and resolves consumer `northfield-dealership-demo` to verified
+  deployment `dep-f023c863`. All ten installation readiness checks pass.
+- The canonical production-site dealership live gate and strict `12/12`
+  quality corpus pass. Browser traffic goes directly to the assigned runtime;
+  exact-origin denial, manifest ETag handling, immutable asset integrity,
+  page attachments, grounded reads, and confirmed write receipts are proved.
+- The existing production Shopify Bridge remains healthy as
+  `backend-mediated-private-runtime`. Live adapter bootstrap exposes no private
+  runtime material; grounded retrieval and read-only `shopify_search_catalog`
+  execution pass through deployment `dep-8c3e7259`.
+- `public-runtime-authenticated` is code-complete and deterministically tested,
+  but remains disabled because no real reviewed host-identity broker has been
+  registered. Do not describe that mode as live-proven or bypass the broker
+  requirement.
+- The temporary production Coolify access window used for this release is
+  closed; the operator CIDR is absent from both Hetzner firewalls and direct
+  local access returns HTTP `000` while public readiness remains healthy.
+
 Do not collapse these layers mentally.
 The framework is not the product.
 The product should not leak raw framework complexity without reason.
