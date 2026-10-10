@@ -244,7 +244,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
-            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.14")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.15")
             .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
@@ -912,6 +912,7 @@ class RailwayProvisioningPlanServiceTest {
               "embeddingProvider": "openai",
               "orchestrationModeOverrides": {
                 "executor": {
+                  "vectorSpaceSelectionRequired": true,
                   "readActionResolution": {
                     "planningMode": "ITERATIVE",
                     "maxIterations": 2,
@@ -926,6 +927,10 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
 
         assertThat(runtimeEnv)
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_VECTOR_SPACE_SELECTION_REQUIRED",
+                "true"
+            )
             .containsEntry(
                 "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_PLANNING_MODE",
                 "ITERATIVE"
@@ -2233,7 +2238,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
-        version.setAiFabricFrameworkVersion("0.8.14");
+        version.setAiFabricFrameworkVersion("0.8.15");
         version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
@@ -2260,7 +2265,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
             {
-              "aiFabricFrameworkVersion": "0.8.14",
+              "aiFabricFrameworkVersion": "0.8.15",
               "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
               "entityConfigHash": "entity-hash-123"
             }

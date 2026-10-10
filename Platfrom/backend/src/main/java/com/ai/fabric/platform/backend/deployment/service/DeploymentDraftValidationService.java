@@ -1850,15 +1850,27 @@ public class DeploymentDraftValidationService {
             return;
         }
         executor.fieldNames().forEachRemaining(field -> {
-            if (!"readActionResolution".equals(field)) {
+            if (!Set.of("vectorSpaceSelectionRequired", "readActionResolution").contains(field)) {
                 issues.add(error(
                     "providers",
                     "EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED",
                     "$.orchestrationModeOverrides.executor." + field,
-                    "Only readActionResolution may be overridden for executor mode."
+                    "Only vectorSpaceSelectionRequired and readActionResolution may be overridden for executor mode."
                 ));
             }
         });
+
+        JsonNode vectorSpaceSelectionRequired = executor.path("vectorSpaceSelectionRequired");
+        if (!vectorSpaceSelectionRequired.isMissingNode()
+            && !vectorSpaceSelectionRequired.isNull()
+            && !vectorSpaceSelectionRequired.isBoolean()) {
+            issues.add(error(
+                "providers",
+                "VECTOR_SPACE_SELECTION_REQUIRED_BOOLEAN_REQUIRED",
+                "$.orchestrationModeOverrides.executor.vectorSpaceSelectionRequired",
+                "vectorSpaceSelectionRequired must be a boolean."
+            ));
+        }
 
         JsonNode readAction = executor.path("readActionResolution");
         if (readAction.isMissingNode() || readAction.isNull()) {

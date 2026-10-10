@@ -1033,11 +1033,21 @@ public class RailwayProvisioningPlanService {
 
     private void addRuntimeOrchestrationModeOverrides(List<RailwayEnvVarSummary> runtimeEnv,
                                                        JsonNode providerConfig) {
-        JsonNode readAction = providerConfig == null
+        JsonNode executor = providerConfig == null
             ? null
             : providerConfig.path("orchestrationModeOverrides")
-                .path("executor")
-                .path("readActionResolution");
+                .path("executor");
+        if (executor == null || !executor.isObject()) {
+            return;
+        }
+        JsonNode vectorSpaceSelectionRequired = executor.path("vectorSpaceSelectionRequired");
+        if (vectorSpaceSelectionRequired.isBoolean()) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_VECTOR_SPACE_SELECTION_REQUIRED",
+                Boolean.toString(vectorSpaceSelectionRequired.asBoolean())
+            ));
+        }
+        JsonNode readAction = executor.path("readActionResolution");
         if (readAction == null || !readAction.isObject()) {
             return;
         }

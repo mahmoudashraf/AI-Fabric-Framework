@@ -2427,6 +2427,7 @@ class DeploymentDraftValidationServiceTest {
                   "connectorProfile": "connector-hosted",
                   "orchestrationModeOverrides": {
                     "executor": {
+                      "vectorSpaceSelectionRequired": true,
                       "readActionResolution": {
                         "planningMode": "ITERATIVE",
                         "maxIterations": 2,
@@ -2448,6 +2449,7 @@ class DeploymentDraftValidationServiceTest {
                 "ORCHESTRATION_MODE_OVERRIDE_UNSUPPORTED",
                 "EXECUTOR_MODE_OVERRIDE_OBJECT_REQUIRED",
                 "EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED",
+                "VECTOR_SPACE_SELECTION_REQUIRED_BOOLEAN_REQUIRED",
                 "READ_ACTION_RESOLUTION_OVERRIDE_OBJECT_REQUIRED",
                 "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
                 "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
@@ -2471,6 +2473,7 @@ class DeploymentDraftValidationServiceTest {
                   "connectorProfile": "connector-hosted",
                   "orchestrationModeOverrides": {
                     "executor": {
+                      "vectorSpaceSelectionRequired": "yes",
                       "readActionResolution": {
                         "planningMode": "FOREVER",
                         "maxIterations": 20,
@@ -2491,6 +2494,7 @@ class DeploymentDraftValidationServiceTest {
             .extracting("code")
             .contains(
                 "ORCHESTRATION_MODE_OVERRIDE_UNSUPPORTED",
+                "VECTOR_SPACE_SELECTION_REQUIRED_BOOLEAN_REQUIRED",
                 "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
                 "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
                 "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",

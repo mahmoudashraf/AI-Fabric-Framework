@@ -253,6 +253,7 @@ ai:
         read-action-resolution:
           allowed-read-actions: ${LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS:}
       executor:
+        vector-space-selection-required: ${AI_ORCHESTRATION_MODES_EXECUTOR_VECTOR_SPACE_SELECTION_REQUIRED:false}
         rag:
           retrieval-vector-spaces-allowlist: ${LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES_ALLOWLIST:}
         read-action-resolution:
