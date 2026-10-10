@@ -906,6 +906,15 @@ public class DeploymentMarketplaceDraftCompilerService {
             rename(compiledProjection, "maxLimit", "max-limit");
             rename(compiledProjection, "requireSuccessfulSync", "require-successful-sync");
             rename(compiledProjection, "maxStalenessSeconds", "max-staleness-seconds");
+            JsonNode filters = compiledProjection.path("filters");
+            if (filters.isArray()) {
+                for (JsonNode filterEntry : filters) {
+                    if (filterEntry instanceof ObjectNode filter) {
+                        rename(filter, "tokenDelimiter", "token-delimiter");
+                        rename(filter, "absentValues", "absent-values");
+                    }
+                }
+            }
             route.set("source-projection", compiledProjection);
         }
         JsonNode responseEntry = route.path("response");

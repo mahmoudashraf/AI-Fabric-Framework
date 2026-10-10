@@ -121,6 +121,42 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsNumericSourceProjectionAbsentValues() {
+        DeploymentDraftEntity draft = sourceProjectionDraft("neutral-source", false);
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+        draft.setRoutingConfigJson(draft.getRoutingConfigJson().replace(
+            "\"filters\": []",
+            "\"filters\": [{\"param\":\"maximum\",\"fields\":[\"title\"],\"operator\":\"NUMBER_LESS_THAN_OR_EQUAL\",\"absent-values\":[\"0\"]}]"
+        ));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain(
+                "ROUTE_SOURCE_PROJECTION_ABSENT_VALUES_INVALID",
+                "ROUTE_SOURCE_PROJECTION_ABSENT_VALUE_INVALID",
+                "ROUTE_SOURCE_PROJECTION_NUMERIC_ABSENT_VALUE_INVALID"
+            );
+    }
+
+    @Test
+    void validateRejectsNonNumericSourceProjectionAbsentValue() {
+        DeploymentDraftEntity draft = sourceProjectionDraft("neutral-source", false);
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));
+        draft.setRoutingConfigJson(draft.getRoutingConfigJson().replace(
+            "\"filters\": []",
+            "\"filters\": [{\"param\":\"maximum\",\"fields\":[\"title\"],\"operator\":\"NUMBER_LESS_THAN_OR_EQUAL\",\"absent-values\":[\"not-a-number\"]}]"
+        ));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ROUTE_SOURCE_PROJECTION_NUMERIC_ABSENT_VALUE_INVALID");
+    }
+
+    @Test
     void validateRejectsSourceProjectionRouteThatReferencesUnknownOrDisabledSource() {
         DeploymentDraftEntity unknownSourceDraft = sourceProjectionDraft("missing-source", false);
         unknownSourceDraft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, false));

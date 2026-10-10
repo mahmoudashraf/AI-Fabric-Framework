@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1581,6 +1582,28 @@ public class DeploymentDraftValidationService {
             String delimiter = filter.path("token-delimiter").asText(",");
             if (delimiter.isEmpty() || delimiter.length() > 10) {
                 issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_TOKEN_DELIMITER_INVALID", path + ".token-delimiter", "Token filter delimiter must contain 1 to 10 characters."));
+            }
+        }
+        JsonNode absentValues = filter.path("absent-values");
+        if (!absentValues.isMissingNode()) {
+            if (!absentValues.isArray() || absentValues.size() > 20) {
+                issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_ABSENT_VALUES_INVALID", path + ".absent-values", "Source-projection absent-values must be an array with at most 20 entries."));
+                return;
+            }
+            for (int index = 0; index < absentValues.size(); index++) {
+                JsonNode absentValue = absentValues.get(index);
+                String value = absentValue != null && absentValue.isTextual() ? absentValue.asText().trim() : "";
+                if (value.isEmpty() || value.length() > 100) {
+                    issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_ABSENT_VALUE_INVALID", path + ".absent-values[" + index + "]", "Source-projection absent values must be non-blank strings of 100 characters or fewer."));
+                    continue;
+                }
+                if ("NUMBER_LESS_THAN_OR_EQUAL".equals(operator)) {
+                    try {
+                        new BigDecimal(value);
+                    } catch (NumberFormatException exception) {
+                        issues.add(error("routing", "ROUTE_SOURCE_PROJECTION_NUMERIC_ABSENT_VALUE_INVALID", path + ".absent-values[" + index + "]", "Numeric source-projection absent values must be numeric."));
+                    }
+                }
             }
         }
     }

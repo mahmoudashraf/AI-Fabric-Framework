@@ -657,6 +657,31 @@ public class MarketplaceManifestService {
                 if (!supportedOperators.contains(operator)) {
                     throw invalid(plugin, version, prefix + "filter operator is unsupported: " + operator);
                 }
+                if ("ANY_TOKEN_EQUALS_IGNORE_CASE".equals(operator) && filter.has("tokenDelimiter")) {
+                    String delimiter = filter.path("tokenDelimiter").asText("");
+                    if (delimiter.isEmpty() || delimiter.length() > 10) {
+                        throw invalid(plugin, version, prefix + "filter tokenDelimiter must contain 1 to 10 characters.");
+                    }
+                }
+                JsonNode absentValues = filter.path("absentValues");
+                if (!absentValues.isMissingNode()) {
+                    if (!absentValues.isArray() || absentValues.size() > 20) {
+                        throw invalid(plugin, version, prefix + "filter absentValues must be an array with at most 20 entries.");
+                    }
+                    for (JsonNode absentValue : absentValues) {
+                        String value = absentValue.isTextual() ? absentValue.asText().trim() : "";
+                        if (value.isEmpty() || value.length() > 100) {
+                            throw invalid(plugin, version, prefix + "filter absentValues entries must be non-blank strings of 100 characters or fewer.");
+                        }
+                        if ("NUMBER_LESS_THAN_OR_EQUAL".equals(operator)) {
+                            try {
+                                new BigDecimal(value);
+                            } catch (NumberFormatException exception) {
+                                throw invalid(plugin, version, prefix + "numeric filter absentValues entries must be numeric.");
+                            }
+                        }
+                    }
+                }
             }
         }
 

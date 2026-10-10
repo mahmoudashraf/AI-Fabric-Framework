@@ -463,7 +463,10 @@ class MarketplaceManifestServiceTest {
                 "route": {
                   "sourceProjection": {
                     "sourceRef": "inventory-source",
-                    "filters": [{"param": "query", "fields": ["name"], "operator": "EQUALS_IGNORE_CASE"}],
+                    "filters": [
+                      {"param": "query", "fields": ["name"], "operator": "EQUALS_IGNORE_CASE"},
+                      {"param": "maxPrice", "fields": ["price"], "operator": "NUMBER_LESS_THAN_OR_EQUAL", "absentValues": ["0"]}
+                    ],
                     "outputFields": ["recordId", "name"],
                     "defaultLimit": 10,
                     "maxLimit": 25,
@@ -480,6 +483,41 @@ class MarketplaceManifestServiceTest {
             service.parseAndValidate(actionPlugin(), version(manifest));
 
         assertThat(parsed.contributions().actionIds()).containsExactly("inventory_search");
+    }
+
+    @Test
+    void sourceProjectionActionManifestRejectsNonNumericAbsentValueForNumericFilter() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true, "requiresExternalHttpExecution": false},
+              "contributions": {"actions": [{
+                "actionId": "inventory_search",
+                "adapterType": "connector-http",
+                "readOnly": true,
+                "route": {
+                  "sourceProjection": {
+                    "sourceRef": "inventory-source",
+                    "filters": [{
+                      "param": "maxPrice",
+                      "fields": ["price"],
+                      "operator": "NUMBER_LESS_THAN_OR_EQUAL",
+                      "absentValues": ["not-a-number"]
+                    }],
+                    "outputFields": ["recordId", "price"]
+                  },
+                  "response": {"result": {"results": "{{body.results}}"}}
+                }
+              }]}
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("numeric filter absentValues entries must be numeric");
     }
 
     @Test

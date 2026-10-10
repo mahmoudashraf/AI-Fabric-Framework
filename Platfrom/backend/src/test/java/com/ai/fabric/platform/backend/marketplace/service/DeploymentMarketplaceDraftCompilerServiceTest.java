@@ -79,7 +79,10 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
               "route": {
                 "sourceProjection": {
                   "sourceRef": "inventory-source",
-                  "filters": [{"param": "query", "fields": ["name"], "operator": "EQUALS_IGNORE_CASE"}],
+                  "filters": [
+                    {"param": "query", "fields": ["name"], "operator": "ANY_TOKEN_EQUALS_IGNORE_CASE", "tokenDelimiter": ","},
+                    {"param": "maximum", "fields": ["price"], "operator": "NUMBER_LESS_THAN_OR_EQUAL", "absentValues": ["0"]}
+                  ],
                   "outputFields": ["recordId", "name"],
                   "limitParam": "limit",
                   "defaultLimit": 10,
@@ -114,6 +117,8 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(route.path("source-projection").path("source-ref").asText()).isEqualTo("inventory-source");
         assertThat(route.path("source-projection").path("output-fields")).hasSize(2);
         assertThat(route.path("source-projection").path("require-successful-sync").asBoolean()).isTrue();
+        assertThat(route.path("source-projection").path("filters").path(0).path("token-delimiter").asText()).isEqualTo(",");
+        assertThat(route.path("source-projection").path("filters").path(1).path("absent-values").path(0).asText()).isEqualTo("0");
         assertThat(route.path("response").path("pinned-targets-from-collection")
             .path("collection-json-pointer").asText()).isEqualTo("/results");
         assertThat(route.path("authz").path("resource-id").asText()).isEqualTo("inventory-search");

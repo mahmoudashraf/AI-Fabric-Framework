@@ -56,7 +56,7 @@ class ExternalVehicleProviderVerificationManifestTest {
                     .isEqualTo("/media/images/0/href");
             }
             if ("mkp-action-autotrader-contract-verification".equals(pluginId)) {
-                assertThat(manifest.path("version").asText()).isEqualTo("1.3.2");
+                assertThat(manifest.path("version").asText()).isEqualTo("1.3.3");
                 JsonNode actions = manifest.path("contributions").path("actions");
                 assertThat(actions.path(0).path("llmFacts").path("lists").path(0)
                     .path("includeFields")).anyMatch(field -> "imageUrl".equals(field.asText()));
@@ -66,6 +66,12 @@ class ExternalVehicleProviderVerificationManifestTest {
                     .isEqualTo("autotrader-dealership-stock-source");
                 assertThat(actions.path(0).path("route").path("sourceProjection").path("filters"))
                     .hasSize(5);
+                assertThat(actions.path(0).path("params").path(3).path("min").asInt()).isEqualTo(1);
+                assertThat(actions.path(0).path("params").path(4).path("min").asInt()).isEqualTo(1);
+                assertThat(actions.path(0).path("route").path("sourceProjection").path("filters").path(3)
+                    .path("absentValues").path(0).asText()).isEqualTo("0");
+                assertThat(actions.path(0).path("route").path("sourceProjection").path("filters").path(4)
+                    .path("absentValues").path(0).asText()).isEqualTo("0");
                 assertThat(actions.path(0).path("route").path("response")
                     .path("pinnedTargetsFromCollection").path("idJsonPointer").asText())
                     .isEqualTo("/stockId");
@@ -83,10 +89,10 @@ class ExternalVehicleProviderVerificationManifestTest {
                 assertThat(trustedVehicleParam.path("evidenceFallbackPolicy").asText()).isEqualTo("CLARIFY");
             }
             if ("mkp-template-autotrader-dealership-verification".equals(pluginId)) {
-                assertThat(manifest.path("version").asText()).isEqualTo("1.3.2");
+                assertThat(manifest.path("version").asText()).isEqualTo("1.3.3");
                 assertThat(manifest.path("contributions").path("template").path("requiredPluginRefs"))
                     .anyMatch(ref -> ref.asText().equals("mkp-data-autotrader-contract-verification@1.1.0"))
-                    .anyMatch(ref -> ref.asText().equals("mkp-action-autotrader-contract-verification@1.3.2"));
+                    .anyMatch(ref -> ref.asText().equals("mkp-action-autotrader-contract-verification@1.3.3"));
             }
         }
     }

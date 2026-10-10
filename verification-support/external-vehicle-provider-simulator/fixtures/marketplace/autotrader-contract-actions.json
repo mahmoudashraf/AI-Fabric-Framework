@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-action-autotrader-contract-verification",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "pluginType": "ACTION",
   "displayName": "Internal Auto Trader Contract Verification Actions",
   "description": "Internal-only read actions for synthetic dealership stock exposed through the documented Auto Trader Stock API shape. It is not an Auto Trader service or endorsement.",
@@ -40,8 +40,8 @@
           {"name": "make", "description": "Exact make filter when the buyer specified one.", "type": "STRING", "required": false},
           {"name": "fuelType", "description": "Exact buyer-stated fuel type.", "type": "STRING", "required": false},
           {"name": "bodyType", "description": "Exact buyer-stated body type.", "type": "STRING", "required": false},
-          {"name": "maxPriceGbp", "description": "Maximum whole-pound budget stated by the buyer.", "type": "INTEGER", "required": false},
-          {"name": "maxMileage", "description": "Maximum odometer mileage stated by the buyer.", "type": "INTEGER", "required": false},
+          {"name": "maxPriceGbp", "description": "Maximum whole-pound budget stated by the buyer. Omit this parameter when no budget was provided; never use zero as a missing-value sentinel.", "type": "INTEGER", "required": false, "min": 1},
+          {"name": "maxMileage", "description": "Maximum odometer mileage stated by the buyer. Omit this parameter when no mileage limit was provided; never use zero as a missing-value sentinel.", "type": "INTEGER", "required": false, "min": 1},
           {"name": "limit", "description": "Maximum number of vehicles to return.", "type": "INTEGER", "required": false, "min": 1, "max": 24}
         ],
         "route": {
@@ -51,8 +51,8 @@
               {"param": "make", "fields": ["make"], "operator": "EQUALS_IGNORE_CASE"},
               {"param": "fuelType", "fields": ["fuelType"], "operator": "EQUALS_IGNORE_CASE"},
               {"param": "bodyType", "fields": ["bodyType"], "operator": "EQUALS_IGNORE_CASE"},
-              {"param": "maxPriceGbp", "fields": ["priceGbp"], "operator": "NUMBER_LESS_THAN_OR_EQUAL"},
-              {"param": "maxMileage", "fields": ["mileage"], "operator": "NUMBER_LESS_THAN_OR_EQUAL"}
+              {"param": "maxPriceGbp", "fields": ["priceGbp"], "operator": "NUMBER_LESS_THAN_OR_EQUAL", "absentValues": ["0"]},
+              {"param": "maxMileage", "fields": ["mileage"], "operator": "NUMBER_LESS_THAN_OR_EQUAL", "absentValues": ["0"]}
             ],
             "outputFields": ["stockId", "make", "model", "derivative", "year", "priceGbp", "mileage", "fuelType", "transmission", "bodyType", "availability", "advertStatus", "features", "imageId", "imageUrl"],
             "limitParam": "limit",
