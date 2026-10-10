@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-action-autotrader-contract-verification",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "pluginType": "ACTION",
   "displayName": "Internal Auto Trader Contract Verification Actions",
   "description": "Internal-only read actions for synthetic dealership stock exposed through the documented Auto Trader Stock API shape. It is not an Auto Trader service or endorsement.",
@@ -37,8 +37,8 @@
           ]
         },
         "params": [
-          {"name": "make", "description": "Exact make filter when the buyer specified one.", "type": "STRING", "required": false},
-          {"name": "fuelType", "description": "Exact buyer-stated fuel type.", "type": "STRING", "required": false},
+          {"name": "make", "description": "Exact vehicle manufacturer brand only, such as Aster, Northstar or Arden. Never place a fuel or powertrain term such as Electric, Petrol, Diesel, Hybrid or Plug-in Hybrid in this parameter; use fuelType for those terms.", "type": "STRING", "required": false},
+          {"name": "fuelType", "description": "Exact buyer-stated fuel type, such as Electric, Petrol, Diesel, Hybrid or Plug-in hybrid.", "type": "STRING", "required": false, "allowedValues": ["Electric", "Petrol", "Diesel", "Hybrid", "Plug-in hybrid"]},
           {"name": "bodyType", "description": "Exact buyer-stated body type.", "type": "STRING", "required": false},
           {"name": "maxPriceGbp", "description": "Maximum whole-pound budget stated by the buyer. Omit this parameter when no budget was provided; never use zero as a missing-value sentinel.", "type": "INTEGER", "required": false, "min": 1},
           {"name": "maxMileage", "description": "Maximum odometer mileage stated by the buyer. Omit this parameter when no mileage limit was provided; never use zero as a missing-value sentinel.", "type": "INTEGER", "required": false, "min": 1},

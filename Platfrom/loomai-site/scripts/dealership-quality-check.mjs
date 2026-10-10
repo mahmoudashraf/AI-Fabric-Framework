@@ -94,9 +94,10 @@ const requestedScenarioIds = uniqueStrings(
     .split(',')
     .map((value) => value.trim()),
 )
+const scenarioById = new Map(scenarioCatalog.map((scenario) => [scenario.id, scenario]))
 const scenarios = requestedScenarioIds.length === 0
   ? scenarioCatalog
-  : scenarioCatalog.filter(({ id }) => requestedScenarioIds.includes(id))
+  : requestedScenarioIds.map((id) => scenarioById.get(id)).filter(Boolean)
 
 if (requestedScenarioIds.length > 0 && scenarios.length !== requestedScenarioIds.length) {
   const available = new Set(scenarioCatalog.map(({ id }) => id))

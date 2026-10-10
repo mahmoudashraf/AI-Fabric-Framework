@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-template-autotrader-dealership-verification",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "pluginType": "TEMPLATE",
   "displayName": "Auto Trader Dealership Assistant Verification",
   "description": "Internal meeting-demo template for one deployment, one advertiser account and deployment-local indexed stock through the AT Connect contract simulator.",
@@ -25,7 +25,7 @@
       "security": {"authzMode": "ALLOW_VERIFIED"},
       "requiredPluginRefs": [
         "mkp-data-autotrader-contract-verification@1.1.0",
-        "mkp-action-autotrader-contract-verification@1.3.3"
+        "mkp-action-autotrader-contract-verification@1.3.4"
       ],
       "shell": {
         "greeting": {

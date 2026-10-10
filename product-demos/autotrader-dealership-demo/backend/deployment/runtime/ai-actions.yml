@@ -32,13 +32,19 @@ actions:
             - imageUrl
     params:
       - name: make
-        description: Exact make filter when the buyer specified one.
+        description: Exact vehicle manufacturer brand only, such as Aster, Northstar or Arden. Never place a fuel or powertrain term such as Electric, Petrol, Diesel, Hybrid or Plug-in Hybrid in this parameter; use fuelType for those terms.
         type: STRING
         required: false
       - name: fuelType
         description: Exact buyer-stated fuel type filter, such as Electric, Diesel, Hybrid or Plug-in Hybrid.
         type: STRING
         required: false
+        allowedValues:
+          - Electric
+          - Petrol
+          - Diesel
+          - Hybrid
+          - Plug-in hybrid
       - name: bodyType
         description: Exact buyer-stated body type filter, such as SUV, Estate or Hatchback.
         type: STRING
