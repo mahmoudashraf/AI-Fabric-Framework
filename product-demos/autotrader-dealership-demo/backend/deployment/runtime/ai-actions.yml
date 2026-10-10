@@ -44,13 +44,15 @@ actions:
         type: STRING
         required: false
       - name: maxPriceGbp
-        description: Maximum budget from phrases such as under or up to GBP N, represented as a whole number of GBP pounds.
+        description: Maximum budget from phrases such as under or up to GBP N, represented as a positive whole number of GBP pounds. Omit this parameter when the buyer did not state a budget; never use zero as a missing-value marker.
         type: INTEGER
         required: false
+        min: 1
       - name: maxMileage
-        description: Maximum odometer mileage.
+        description: Maximum odometer mileage stated by the buyer, represented as a positive whole number. Omit this parameter when the buyer did not state a mileage limit; never use zero as a missing-value marker.
         type: INTEGER
         required: false
+        min: 1
       - name: limit
         description: Maximum number of vehicles to return.
         type: INTEGER

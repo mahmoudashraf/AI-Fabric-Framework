@@ -62,6 +62,29 @@ class SourceProjectionQueryServiceTest {
     }
 
     @Test
+    void treatsConfiguredNumericSentinelAsAnAbsentOptionalFilter() {
+        SourceProjectionQueryService service = new SourceProjectionQueryService(readyRepository());
+        RestRoutingConfig.SourceProjectionQuery config = config();
+        config.getFilters().stream()
+            .filter(filter -> "maxMileage".equals(filter.getParam()))
+            .findFirst()
+            .orElseThrow()
+            .setAbsentValues(List.of("0"));
+
+        Map<String, Object> result = service.query(config, Map.of(
+            "fuelType", "Electric",
+            "maxMileage", 0.0
+        ));
+
+        assertThat(result.get("totalResults")).isEqualTo(1L);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> appliedFilters = (Map<String, Object>) result.get("appliedFilters");
+        assertThat(appliedFilters)
+            .containsEntry("fuelType", "Electric")
+            .doesNotContainKey("maxMileage");
+    }
+
+    @Test
     void failsClosedBeforeTheSourceHasACompletedSync() {
         SourceProjectionQueryService service = new SourceProjectionQueryService(
             new InMemoryIntegrationStateRepository()

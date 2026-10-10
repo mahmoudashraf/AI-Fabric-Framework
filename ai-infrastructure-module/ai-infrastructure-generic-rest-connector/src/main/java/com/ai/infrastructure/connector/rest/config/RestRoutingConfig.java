@@ -244,6 +244,7 @@ public class RestRoutingConfig {
         private List<String> fields = new ArrayList<>();
         private SourceProjectionFilterOperator operator = SourceProjectionFilterOperator.EQUALS_IGNORE_CASE;
         private String tokenDelimiter = ",";
+        private List<String> absentValues = new ArrayList<>();
     }
 
     public enum SourceProjectionFilterOperator {

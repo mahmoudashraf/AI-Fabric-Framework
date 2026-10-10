@@ -1,0 +1,2514 @@
+{
+  "schemaVersion": "loomai-dealership-live-quality-v1",
+  "status": "NEEDS_IMPROVEMENT",
+  "diagnosticOnly": false,
+  "target": {
+    "publicRoute": "https://loomai.pro/demos/dealership-ai",
+    "integrationMode": "public-runtime-anonymous",
+    "backendUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+    "runtimeUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
+    "inventoryVectorSpace": "dealer-vehicle",
+    "serverRetrievalAllowlist": [
+      "dealer-vehicle",
+      "document"
+    ],
+    "uiMode": "executor",
+    "uiPosition": "search"
+  },
+  "run": {
+    "startedAt": "2026-10-10T09:42:33.553Z",
+    "completedAt": "2026-10-10T09:43:01.212Z",
+    "viewport": "390x844",
+    "scenarioCount": 14,
+    "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+    "oneConversation": true,
+    "writeConfirmed": false
+  },
+  "observedPolicy": {
+    "profile": "PRODUCTION_CHAT",
+    "mode": "executor",
+    "position": "search",
+    "actionsEnabled": true,
+    "retrievalEnabled": true,
+    "readActionResolutionPlanningMode": "ITERATIVE",
+    "readActionResolutionMaxIterations": 2,
+    "readActionResolutionMaxTotalActions": 2,
+    "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "allowedReadActions": [
+      "dealership_compare_vehicles",
+      "dealership_get_vehicle",
+      "dealership_search_inventory"
+    ],
+    "retrievalVectorSpaces": [
+      "dealer-vehicle",
+      "document"
+    ]
+  },
+  "capabilityGates": {
+    "documentKnowledge": {
+      "status": "FAIL",
+      "scenarioCount": 6,
+      "expectedScenarioCount": 6,
+      "scenarioIds": [
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility"
+      ]
+    },
+    "compoundEvidence": {
+      "status": "FAIL",
+      "scenarioCount": 2,
+      "expectedScenarioCount": 2,
+      "scenarioIds": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ]
+    }
+  },
+  "globalAssertions": [
+    {
+      "name": "all turns use the requested UI mode",
+      "passed": true,
+      "expected": "Every live browser request uses executor mode.",
+      "observed": [
+        "executor"
+      ]
+    },
+    {
+      "name": "all turns use the requested UI position",
+      "passed": true,
+      "expected": "Every live browser request uses search position.",
+      "observed": [
+        "search"
+      ]
+    },
+    {
+      "name": "deployment request context is preserved",
+      "passed": true,
+      "expected": "Every request carries descriptive dealership scope without browser-owned retrieval routing.",
+      "observed": [
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        },
+        {
+          "dealershipId": "dealer-demo-001",
+          "reservedRoutingFields": []
+        }
+      ]
+    },
+    {
+      "name": "one iterative conversation is used",
+      "passed": true,
+      "expected": "All 14 turns use one runtime conversation.",
+      "observed": [
+        "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+      ]
+    },
+    {
+      "name": "no write confirmation was sent",
+      "passed": true,
+      "expected": "The quality run never sends the confirmation phrase.",
+      "observed": false
+    },
+    {
+      "name": "no domain write completed",
+      "passed": true,
+      "expected": "No dealership lead or other write action succeeds.",
+      "observed": []
+    },
+    {
+      "name": "browser and runtime transport remained healthy",
+      "passed": true,
+      "expected": "No page errors, failed requests, or 4xx/5xx chat responses.",
+      "observed": []
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "structured-current-stock-action",
+      "purpose": "Use the authoritative stock action for exact filters and current commercial facts.",
+      "prompt": "Show me current electric vehicles under GBP 40,000.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 1985,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": null,
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-ed4aa95a-1073-4ed9-82f8-ebe1755c52fd",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "The runtime creates one conversation for the matrix.",
+          "observed": {
+            "requestConversationId": null,
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "inventory search action executed",
+          "passed": false,
+          "expected": "dealership_search_inventory",
+          "observed": []
+        },
+        {
+          "name": "three electric matches returned",
+          "passed": false,
+          "expected": 3,
+          "observed": null
+        },
+        {
+          "name": "all matching models are named",
+          "passed": false,
+          "expected": "Aster E1, Morrow C2, and Aster E2",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "answer respects the explicit buyer criteria",
+          "passed": true,
+          "expected": "Do not claim buyer criteria are absent after applying electric and budget filters.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    },
+    {
+      "id": "contextual-follow-up",
+      "purpose": "Resolve a follow-up from the same conversation without making the user repeat the candidates.",
+      "prompt": "Of those, which has the lowest mileage, and what body type is it?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 429,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-98af57fe-7da1-49b3-b58e-e51322ddf701",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "follow-up resolves the prior result set",
+          "passed": false,
+          "expected": "Morrow C2, 1,980 miles, and Hatchback",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "follow-up does not invent a price",
+          "passed": true,
+          "expected": "Omit price or preserve GBP 22,750 from current provider evidence.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "follow-up is grounded",
+          "passed": false,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "NONE"
+        }
+      ]
+    },
+    {
+      "id": "vehicle-comparison",
+      "purpose": "Compare named current-stock vehicles using action or indexed evidence.",
+      "prompt": "Compare the Aster E1 and Morrow C2 for motorway family use using current stock facts.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 429,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-84f034b4-e384-40cd-8143-e20e4d81c1c3",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "both requested vehicles are compared",
+          "passed": false,
+          "expected": "Aster E1 and Morrow C2",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "comparison is grounded",
+          "passed": false,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "NONE"
+        },
+        {
+          "name": "comparison uses a suitable evidence path",
+          "passed": false,
+          "expected": "Comparison action, inventory action, or indexed evidence.",
+          "observed": {
+            "executedActions": [],
+            "groundingPath": "NONE"
+          }
+        }
+      ]
+    },
+    {
+      "id": "semantic-rag",
+      "purpose": "Use semantic evidence for a need that is not an exact inventory filter.",
+      "prompt": "Which current vehicle is best suited to towing and poor-weather driving? Use current evidence and explain why.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 428,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-99101bd7-0eb3-490b-afc3-f90f29406735",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "semantic recommendation identifies a grounded candidate",
+          "passed": false,
+          "expected": "A retrieved candidate with towing/poor-weather reasoning and explicit evidence limits.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "semantic recommendation is grounded",
+          "passed": false,
+          "expected": "Action or non-action RAG evidence.",
+          "observed": "NONE"
+        }
+      ]
+    },
+    {
+      "id": "empty-action-rag-fallback",
+      "purpose": "Fall back to indexed evidence when an authoritative action finds no exact match.",
+      "prompt": "Do you have a diesel SUV under GBP 10,000? If not, use indexed current-stock evidence to suggest the closest alternative without claiming it matches.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 430,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-99f53b7b-1949-45fb-9e71-dbfb30c1f39e",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "authoritative inventory action ran first",
+          "passed": false,
+          "expected": "dealership_search_inventory",
+          "observed": []
+        },
+        {
+          "name": "the exact search returned no sufficient match",
+          "passed": false,
+          "expected": "itemsCount=0 or explicit INSUFFICIENT evidence when the unusable payload is not projected.",
+          "observed": null
+        },
+        {
+          "name": "empty action is insufficient grounding",
+          "passed": false,
+          "expected": "INSUFFICIENT with groundingUsable=false.",
+          "observed": null
+        },
+        {
+          "name": "indexed evidence supplemented the empty action",
+          "passed": false,
+          "expected": "At least one non-action retrieval document.",
+          "observed": []
+        },
+        {
+          "name": "answer distinguishes no match from a grounded alternative",
+          "passed": false,
+          "expected": "State that there is no exact match, name an indexed alternative, and identify its relaxed constraints.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "filtered no-match is not presented as empty inventory",
+          "passed": true,
+          "expected": "Say the requested filters had no match, not that the dealership has no vehicles.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    },
+    {
+      "id": "approved-warranty-policy",
+      "purpose": "Ground a public dealership-policy answer in the approved document source.",
+      "prompt": "What warranty does Northfield provide on qualifying used vehicles?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 501,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-1c2cfb03-4a53-4707-a609-48cbbf28a407",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "approved warranty evidence was retrieved",
+          "passed": false,
+          "expected": "Non-action document evidence.",
+          "observed": []
+        },
+        {
+          "name": "answer preserves the exact warranty duration",
+          "passed": false,
+          "expected": "90 days or 3,000 miles.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "answer does not invent a vehicle-specific warranty",
+          "passed": true,
+          "expected": "General policy only unless current vehicle evidence was requested.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    },
+    {
+      "id": "approved-reservation-policy",
+      "purpose": "Return exact reservation terms from approved dealership documents without creating a reservation.",
+      "prompt": "How much is a Northfield vehicle reservation and how long does it last?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 493,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-605c5d2c-dc17-48df-8c7e-8b06ab521ed3",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "approved reservation evidence was retrieved",
+          "passed": false,
+          "expected": "Non-action document evidence.",
+          "observed": []
+        },
+        {
+          "name": "answer preserves exact reservation terms",
+          "passed": false,
+          "expected": "GBP 99 and 48 hours.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "answer does not execute a reservation",
+          "passed": true,
+          "expected": "Policy answer only; no successful write action.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-delivery-operations",
+      "purpose": "Combine a customer operations answer with its approved source evidence.",
+      "prompt": "What does local delivery cost and what must be ready before handover?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 489,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-16d62879-2656-429f-9006-80f2168898e1",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "approved handover evidence was retrieved",
+          "passed": false,
+          "expected": "Non-action document evidence.",
+          "observed": []
+        },
+        {
+          "name": "answer preserves exact local delivery terms",
+          "passed": false,
+          "expected": "Within 25 miles for GBP 49.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "answer includes handover prerequisites",
+          "passed": false,
+          "expected": "Cleared funds, identity and insurance evidence.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    },
+    {
+      "id": "compound-inventory-policy-forward",
+      "purpose": "Combine current inventory action evidence and approved delivery-policy evidence without dropping either clause.",
+      "prompt": "What electric cars do you have under GBP 40,000, and what is your delivery policy?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 486,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-433f6cc7-aae8-4e71-b59e-88a34839c7b4",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "mixed evidence collection completed",
+          "passed": false,
+          "expected": "Either all compound obligations complete before synthesis or one validated intent returns both action and document evidence.",
+          "observed": {
+            "groundingPath": "NONE",
+            "documentEvidenceCount": 0
+          }
+        },
+        {
+          "name": "inventory action evidence is represented once",
+          "passed": false,
+          "expected": "One successful inventory action and one unique execution id.",
+          "observed": {
+            "successfulInventoryActions": [],
+            "actionExecutionIds": []
+          }
+        },
+        {
+          "name": "delivery policy uses the document source",
+          "passed": false,
+          "expected": "A sufficient document obligation searches the approved dealership source.",
+          "observed": []
+        },
+        {
+          "name": "one answer covers inventory and delivery policy",
+          "passed": false,
+          "expected": "Current electric inventory plus the GBP 49 / 25-mile delivery policy.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "compound request executes no write",
+          "passed": true,
+          "expected": "Read-only action and document evidence only.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "compound-inventory-policy-reverse",
+      "purpose": "Prove that reversing the policy and inventory clauses produces equivalent evidence coverage.",
+      "prompt": "What is your delivery policy, and which electric cars do you have under GBP 40,000?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 497,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-8f625934-688b-462b-93bb-297ba2128ecf",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "mixed evidence collection completed",
+          "passed": false,
+          "expected": "Either all compound obligations complete before synthesis or one validated intent returns both action and document evidence.",
+          "observed": {
+            "groundingPath": "NONE",
+            "documentEvidenceCount": 0
+          }
+        },
+        {
+          "name": "inventory action evidence is represented once",
+          "passed": false,
+          "expected": "One successful inventory action and one unique execution id.",
+          "observed": {
+            "successfulInventoryActions": [],
+            "actionExecutionIds": []
+          }
+        },
+        {
+          "name": "delivery policy uses the document source",
+          "passed": false,
+          "expected": "A sufficient document obligation searches the approved dealership source.",
+          "observed": []
+        },
+        {
+          "name": "one answer covers inventory and delivery policy",
+          "passed": false,
+          "expected": "Current electric inventory plus the GBP 49 / 25-mile delivery policy.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "compound request executes no write",
+          "passed": true,
+          "expected": "Read-only action and document evidence only.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-test-drive-policy",
+      "purpose": "Return eligibility requirements from the approved test-drive policy without starting a booking.",
+      "prompt": "What age and driving licence history does Northfield require for a test drive? Do not book one.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 428,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-a21cc759-01e9-4700-89fe-9e9b250166bb",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "approved test-drive evidence was retrieved",
+          "passed": false,
+          "expected": "Non-action document evidence.",
+          "observed": []
+        },
+        {
+          "name": "answer preserves exact test-drive eligibility",
+          "passed": false,
+          "expected": "Minimum age 21 and a licence held for at least 12 months.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "answer does not start a booking",
+          "passed": true,
+          "expected": "Policy answer only; no successful test-drive write.",
+          "observed": []
+        }
+      ]
+    },
+    {
+      "id": "approved-complaints-policy",
+      "purpose": "Return the exact acknowledgement and response targets from the approved complaints policy.",
+      "prompt": "How quickly will Northfield acknowledge my complaint and provide a substantive response?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 423,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-1740fdea-2b8c-4e4a-847e-9aaff31e9d57",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "approved complaints evidence was retrieved",
+          "passed": false,
+          "expected": "Non-action document evidence.",
+          "observed": []
+        },
+        {
+          "name": "answer preserves exact complaint targets",
+          "passed": false,
+          "expected": "Acknowledgement within two working days and a substantive response within 10 working days.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    },
+    {
+      "id": "approved-opening-accessibility",
+      "purpose": "Ground opening hours and accessibility facilities in the approved showroom document.",
+      "prompt": "What are Northfield Riverside weekday opening hours, and is the showroom step-free?",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 511,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-3f004696-6887-46cb-bef6-345f59becd91",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "approved showroom evidence was retrieved",
+          "passed": false,
+          "expected": "Non-action document evidence.",
+          "observed": []
+        },
+        {
+          "name": "answer preserves weekday opening hours",
+          "passed": false,
+          "expected": "09:00 to 18:00 on weekdays.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "answer identifies step-free access",
+          "passed": false,
+          "expected": "Step-free entrance/access.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    },
+    {
+      "id": "governed-write-intent",
+      "purpose": "Explain the write-action requirements without executing or confirming a lead.",
+      "prompt": "I want to book a test drive for the Aster E1. Tell me what details and confirmation you need, but do not submit anything.",
+      "status": "NEEDS_IMPROVEMENT",
+      "durationMs": 488,
+      "request": {
+        "mode": "executor",
+        "position": "search",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "context": {
+          "dealershipId": "dealer-demo-001",
+          "sourceMode": "DEALERSHIP_INVENTORY",
+          "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+          "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+        }
+      },
+      "response": {
+        "success": false,
+        "type": "ERROR",
+        "errorCode": null,
+        "message": null,
+        "providerRequestId": "rag-5e2a52e0-8d30-43cd-bb3d-c3040a7c2fe6",
+        "conversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+        "answer": "The configured AI provider could not complete intent analysis."
+      },
+      "evidence": {
+        "groundingPath": "NONE",
+        "actionUsed": false,
+        "ragAttempted": false,
+        "ragUsed": false,
+        "sourceCount": 0,
+        "documentCount": 0,
+        "externalDocuments": [],
+        "searchSourceDiagnostics": [],
+        "executedActions": [],
+        "actionEvidence": [],
+        "actionResults": [],
+        "readActionIterations": [],
+        "successfulWriteActions": [],
+        "receiptCodes": [],
+        "historyMessagesCount": 0,
+        "requiresTargetResolution": null,
+        "vectorSpaceRouting": [],
+        "workingSetTargetSeeding": null,
+        "targetResolution": null,
+        "compoundEvidence": null,
+        "policy": {
+          "profile": "PRODUCTION_CHAT",
+          "mode": "executor",
+          "position": "search",
+          "actionsEnabled": true,
+          "retrievalEnabled": true,
+          "readActionResolutionPlanningMode": "ITERATIVE",
+          "readActionResolutionMaxIterations": 2,
+          "readActionResolutionMaxTotalActions": 2,
+          "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+          "allowedReadActions": [
+            "dealership_compare_vehicles",
+            "dealership_get_vehicle",
+            "dealership_search_inventory"
+          ],
+          "retrievalVectorSpaces": [
+            "dealer-vehicle",
+            "document"
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "name": "live query succeeded",
+          "passed": true,
+          "expected": "The query returns HTTP 2xx.",
+          "observed": 200
+        },
+        {
+          "name": "runtime returned a handled outcome",
+          "passed": false,
+          "expected": "A successful result or an expected clarification/confirmation state.",
+          "observed": {
+            "success": false,
+            "type": "ERROR"
+          }
+        },
+        {
+          "name": "answer is present",
+          "passed": true,
+          "expected": "A generated answer is returned.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "request mode is executor",
+          "passed": true,
+          "expected": "executor",
+          "observed": "executor"
+        },
+        {
+          "name": "request position is search",
+          "passed": true,
+          "expected": "search",
+          "observed": "search"
+        },
+        {
+          "name": "request context carries no retrieval-routing authority",
+          "passed": true,
+          "expected": "dealer-demo-001 descriptive scope with routing fields absent.",
+          "observed": {
+            "dealershipId": "dealer-demo-001",
+            "sourceMode": "DEALERSHIP_INVENTORY",
+            "workspaceInstallationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+            "assignmentRevision": "sha256:cf185c16e4cad7ca0a595b22856538813f1460b19a78d3a0cc13f8c3ca27d48b"
+          }
+        },
+        {
+          "name": "request carries the active conversation",
+          "passed": true,
+          "expected": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+          "observed": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+        },
+        {
+          "name": "single-conversation continuity",
+          "passed": true,
+          "expected": "Request and response preserve chat-d80f701a-75b8-442b-9c80-40b1921d5b62.",
+          "observed": {
+            "requestConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62",
+            "responseConversationId": "chat-d80f701a-75b8-442b-9c80-40b1921d5b62"
+          }
+        },
+        {
+          "name": "conversation history is available",
+          "passed": false,
+          "expected": "A later turn receives prior conversation history.",
+          "observed": 0
+        },
+        {
+          "name": "no write action completed",
+          "passed": true,
+          "expected": "No successful test-drive or callback write.",
+          "observed": []
+        },
+        {
+          "name": "no confirmation turn was sent",
+          "passed": true,
+          "expected": "No \"Yes, confirm\" request.",
+          "observed": false
+        },
+        {
+          "name": "no receipt was issued",
+          "passed": true,
+          "expected": "No dealership lead receipt.",
+          "observed": []
+        },
+        {
+          "name": "assistant respects the no-submit instruction",
+          "passed": true,
+          "expected": "Explain needed details/confirmation without claiming submission.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "internal target ids stay hidden",
+          "passed": true,
+          "expected": "Do not ask a buyer for vehicleId.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        },
+        {
+          "name": "customer-facing requirements are complete",
+          "passed": false,
+          "expected": "Explain name, email, phone, and final confirmation.",
+          "observed": "The configured AI provider could not complete intent analysis."
+        }
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "KEEP",
+      "owner": "UI_INTEGRATION",
+      "finding": "The browser integration consistently used executor mode, search position, and deployment-owned context.",
+      "recommendation": "Keep the current UI contract. Do not select thinker/executor dynamically in browser code.",
+      "evidenceScenarioIds": [
+        "structured-current-stock-action",
+        "contextual-follow-up",
+        "vehicle-comparison",
+        "semantic-rag",
+        "empty-action-rag-fallback",
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility",
+        "governed-write-intent"
+      ]
+    },
+    {
+      "priority": "HIGH",
+      "owner": "DEPLOYMENT_CONFIGURATION",
+      "finding": "Conversation continuity or contextual follow-up resolution failed.",
+      "recommendation": "Verify conversation recording/window configuration and preserve conversationId across browser turns before changing action/RAG planning.",
+      "evidenceScenarioIds": [
+        "contextual-follow-up"
+      ]
+    },
+    {
+      "priority": "HIGH",
+      "owner": "DEPLOYMENT_ACTION_CONTRACT",
+      "finding": "The no-match prompt did not produce a verifiable zero-result authoritative inventory action.",
+      "recommendation": "Make the search action return an explicit stable item count and no-match state before tuning planner modes.",
+      "evidenceScenarioIds": [
+        "empty-action-rag-fallback"
+      ]
+    },
+    {
+      "priority": "HIGH",
+      "owner": "DEPLOYMENT_DATA_AND_RETRIEVAL",
+      "finding": "The semantic suitability query did not receive adequate indexed vehicle evidence.",
+      "recommendation": "Verify dealer-vehicle indexing, descriptive fields, tenant/deployment scope, and retrieval allowlist. Preserve live actions for exact availability and price.",
+      "evidenceScenarioIds": [
+        "semantic-rag"
+      ]
+    },
+    {
+      "priority": "HIGH",
+      "owner": "DEPLOYMENT_KNOWLEDGE_BOUNDARY",
+      "finding": "At least one dealership policy or operations answer did not preserve the approved document terms.",
+      "recommendation": "Verify the document source registration, active version, document vector-space allowlist and public-approved metadata filter before changing prompts.",
+      "evidenceScenarioIds": [
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility"
+      ]
+    },
+    {
+      "priority": "BLOCKER",
+      "owner": "FRAMEWORK_AND_DEPLOYMENT_ROUTING",
+      "finding": "At least one mixed inventory-and-policy request lost an evidence obligation, duplicated an action, or failed final synthesis.",
+      "recommendation": "Keep browser routing fields absent. Inspect compoundEvidence obligations, exact source matching, and action execution ids before changing prompts or widening retrieval.",
+      "evidenceScenarioIds": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ]
+    },
+    {
+      "priority": "FOLLOW_UP",
+      "owner": "DEPLOYMENT_PROMPT_AND_UX",
+      "finding": "Trusted vehicle resolution kept vehicleId hidden and no write ran, but the deterministic clarification exposed only the next missing buyer field rather than a complete requirements overview.",
+      "recommendation": "Keep the safe action contract. After the grounding blocker is fixed, decide whether the product should collect fields one turn at a time or add a framework-supported grouped clarification contract; do not re-expose internal target identifiers.",
+      "evidenceScenarioIds": [
+        "governed-write-intent"
+      ]
+    },
+    {
+      "priority": "HIGH",
+      "owner": "DEPLOYMENT_ORCHESTRATION_DIAGNOSTICS",
+      "finding": "The named comparison returned ERROR without grounded evidence (provider request rag-84f034b4-e384-40cd-8143-e20e4d81c1c3).",
+      "recommendation": "Reproduce the comparison in an isolated conversation and inspect its structured error before changing prompts, actions, or framework code.",
+      "evidenceScenarioIds": [
+        "vehicle-comparison"
+      ]
+    },
+    {
+      "priority": "NONE_FROM_THIS_RUN",
+      "owner": "FRAMEWORK",
+      "finding": "This run produced no evidence that requires a framework code change.",
+      "recommendation": "Prefer deployment policy, action-contract, indexing, and knowledge-boundary changes first. Raise a framework issue only with provider request IDs from a failed explicit capability.",
+      "evidenceScenarioIds": [
+        "structured-current-stock-action",
+        "contextual-follow-up",
+        "vehicle-comparison",
+        "semantic-rag",
+        "empty-action-rag-fallback",
+        "approved-warranty-policy",
+        "approved-reservation-policy",
+        "approved-delivery-operations",
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse",
+        "approved-test-drive-policy",
+        "approved-complaints-policy",
+        "approved-opening-accessibility",
+        "governed-write-intent"
+      ]
+    }
+  ],
+  "mutations": {
+    "deploymentChanged": false,
+    "frameworkChanged": false,
+    "liveConfigurationChanged": false,
+    "domainWriteConfirmed": false
+  }
+}

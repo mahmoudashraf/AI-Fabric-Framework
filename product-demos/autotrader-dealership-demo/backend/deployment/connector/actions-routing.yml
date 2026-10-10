@@ -54,9 +54,11 @@ actions:
         - param: maxPriceGbp
           fields: [priceGbp]
           operator: NUMBER_LESS_THAN_OR_EQUAL
+          absent-values: ["0"]
         - param: maxMileage
           fields: [mileage]
           operator: NUMBER_LESS_THAN_OR_EQUAL
+          absent-values: ["0"]
       output-fields:
         - stockId
         - make

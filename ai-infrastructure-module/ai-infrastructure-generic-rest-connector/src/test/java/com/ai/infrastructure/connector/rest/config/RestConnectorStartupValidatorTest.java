@@ -29,6 +29,33 @@ class RestConnectorStartupValidatorTest {
     }
 
     @Test
+    void acceptsNumericAbsentValuesOnSourceProjectionFilters() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = sourceProjectionActionRoute();
+        RestRoutingConfig.SourceProjectionFilter filter = route.getSourceProjection().getFilters().getFirst();
+        filter.setOperator(RestRoutingConfig.SourceProjectionFilterOperator.NUMBER_LESS_THAN_OR_EQUAL);
+        filter.setAbsentValues(List.of("0", "0.0"));
+        config.setActions(Map.of("search_records", route));
+
+        assertThatCode(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsNonNumericAbsentValuesOnNumericSourceProjectionFilters() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = sourceProjectionActionRoute();
+        RestRoutingConfig.SourceProjectionFilter filter = route.getSourceProjection().getFilters().getFirst();
+        filter.setOperator(RestRoutingConfig.SourceProjectionFilterOperator.NUMBER_LESS_THAN_OR_EQUAL);
+        filter.setAbsentValues(List.of("not-a-number"));
+        config.setActions(Map.of("search_records", route));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("numeric source projection absent-values must be numeric");
+    }
+
+    @Test
     void rejectsSourceProjectionActionMixedWithHttpRouteTarget() {
         RestRoutingConfig config = config();
         RestRoutingConfig.ActionRoute route = sourceProjectionActionRoute();

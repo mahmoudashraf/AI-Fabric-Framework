@@ -130,18 +130,20 @@ public class SourceProjectionQueryService {
         }
         if (filter.getOperator() == RestRoutingConfig.SourceProjectionFilterOperator.NUMBER_LESS_THAN_OR_EQUAL) {
             try {
-                return List.of(new BigDecimal(text).stripTrailingZeros().toPlainString());
+                String normalized = normalizeNumber(text);
+                return isConfiguredAbsentValue(filter, normalized) ? List.of() : List.of(normalized);
             } catch (NumberFormatException exception) {
                 throw new ProjectionQueryException("INVALID_REQUEST", "Numeric source projection filter is invalid.");
             }
         }
         if (filter.getOperator() != RestRoutingConfig.SourceProjectionFilterOperator.ANY_TOKEN_EQUALS_IGNORE_CASE) {
-            return List.of(text);
+            return isConfiguredAbsentValue(filter, text) ? List.of() : List.of(text);
         }
         String delimiter = StringUtils.hasText(filter.getTokenDelimiter()) ? filter.getTokenDelimiter() : ",";
         List<String> values = Pattern.compile(Pattern.quote(delimiter)).splitAsStream(text)
             .map(String::trim)
             .filter(StringUtils::hasText)
+            .filter(value -> !isConfiguredAbsentValue(filter, value))
             .distinct()
             .limit(MAX_FILTER_VALUES + 1L)
             .toList();
@@ -149,6 +151,23 @@ public class SourceProjectionQueryService {
             throw new ProjectionQueryException("INVALID_REQUEST", "Source projection filter contains too many values.");
         }
         return values;
+    }
+
+    private boolean isConfiguredAbsentValue(RestRoutingConfig.SourceProjectionFilter filter, String normalizedValue) {
+        if (filter.getAbsentValues() == null || filter.getAbsentValues().isEmpty()) {
+            return false;
+        }
+        return filter.getAbsentValues().stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .map(value -> filter.getOperator() == RestRoutingConfig.SourceProjectionFilterOperator.NUMBER_LESS_THAN_OR_EQUAL
+                ? normalizeNumber(value)
+                : value)
+            .anyMatch(value -> value.equalsIgnoreCase(normalizedValue));
+    }
+
+    private String normalizeNumber(String value) {
+        return new BigDecimal(value).stripTrailingZeros().toPlainString();
     }
 
     private int resolveLimit(RestRoutingConfig.SourceProjectionQuery config, Object rawLimit) {

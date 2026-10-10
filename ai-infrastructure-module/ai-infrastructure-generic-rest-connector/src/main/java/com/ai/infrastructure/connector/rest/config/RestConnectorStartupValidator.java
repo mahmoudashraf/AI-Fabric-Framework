@@ -403,6 +403,24 @@ public class RestConnectorStartupValidator {
                     "Action route '" + actionId + "' token filter delimiter must contain 1 to 10 characters."
                 );
             }
+            List<String> absentValues = filter.getAbsentValues() != null ? filter.getAbsentValues() : List.of();
+            if (absentValues.size() > 20
+                || absentValues.stream().anyMatch(value -> !StringUtils.hasText(value) || value.trim().length() > 100)) {
+                throw new IllegalStateException(
+                    "Action route '" + actionId + "' source projection absent-values must contain at most 20 non-blank values of 100 characters or fewer."
+                );
+            }
+            if (filter.getOperator() == RestRoutingConfig.SourceProjectionFilterOperator.NUMBER_LESS_THAN_OR_EQUAL) {
+                for (String absentValue : absentValues) {
+                    try {
+                        new java.math.BigDecimal(absentValue.trim());
+                    } catch (NumberFormatException exception) {
+                        throw new IllegalStateException(
+                            "Action route '" + actionId + "' numeric source projection absent-values must be numeric."
+                        );
+                    }
+                }
+            }
         }
         if (route.getRequest() != null
             && ((route.getRequest().getQuery() != null && !route.getRequest().getQuery().isEmpty())

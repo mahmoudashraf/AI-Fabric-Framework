@@ -486,8 +486,10 @@ function scenarioAssertions(id, result, observedQueries) {
   if (id === 'contextual-follow-up') {
     const statesPrice = /(?:GBP\s*|£\s*)\d/i.test(answer)
     const statesAuthoritativePrice = /(?:GBP\s*|£\s*)22[, ]?750(?:\.00)?/i.test(answer)
+    const identifiesMorrowC2 = /Morrow\s+C2/i.test(answer)
+      || (/\bMorrow\b/i.test(answer) && /\bC2\b/i.test(answer))
     return [
-      check('follow-up resolves the prior result set', includesAll(answer, ['Morrow C2', '1,980', 'Hatchback']) || includesAll(answer, ['Morrow C2', '1980', 'Hatchback']), 'Morrow C2, 1,980 miles, and Hatchback', summarizeText(answer)),
+      check('follow-up resolves the prior result set', identifiesMorrowC2 && /(1,980|1980)/i.test(answer) && /Hatchback/i.test(answer), 'Morrow C2, 1,980 miles, and Hatchback', summarizeText(answer)),
       check('follow-up does not invent a price', !statesPrice || statesAuthoritativePrice, 'Omit price or preserve GBP 22,750 from current provider evidence.', summarizeText(answer)),
       check('follow-up is grounded', grounded, 'Action or non-action RAG evidence.', evidence.groundingPath),
     ]
@@ -520,7 +522,7 @@ function scenarioAssertions(id, result, observedQueries) {
       || isExplicitlyInsufficient(emptySearchEvidence)
     const groundedAlternativeNamed = answerMentionsRetrievedDocument(answer, evidence.externalDocuments)
     const labelsRelaxedConstraints = /(alternative|closest)/i.test(answer)
-      && /(not diesel|does not .*diesel|fuel type.*relax|relax(?:es|ed|ing)?\b[^.]{0,100}\b(?:fuel type|price|budget)\b|above GBP 10[, ]?000|price.*relax|does not .*budget)/i.test(answer)
+      && /(not diesel|do(?:es)? not .*diesel|fuel type.*(?:relax|differ)|(?:relax(?:es|ed|ing)?|differ(?:s|ed|ent)?)\b[^.]{0,100}\b(?:fuel type|price|budget|constraint)|above GBP 10[, ]?000|price.*(?:relax|differ)|do(?:es)? not .*budget)/i.test(answer)
     return [
       check('authoritative inventory action ran first', evidence.executedActions.includes('dealership_search_inventory'), 'dealership_search_inventory', evidence.executedActions),
       check(
@@ -555,14 +557,14 @@ function scenarioAssertions(id, result, observedQueries) {
   if (id === 'approved-reservation-policy') {
     return [
       check('approved reservation evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
-      check('answer preserves exact reservation terms', includesAll(answer, ['GBP 99', '48']), 'GBP 99 and 48 hours.', summarizeText(answer)),
+      check('answer preserves exact reservation terms', includesGbpAmount(answer, '99') && /\b48\b/.test(answer), 'GBP 99 (or £99) and 48 hours.', summarizeText(answer)),
       check('answer does not execute a reservation', evidence.successfulWriteActions.length === 0, 'Policy answer only; no successful write action.', evidence.successfulWriteActions),
     ]
   }
   if (id === 'approved-delivery-operations') {
     return [
       check('approved handover evidence was retrieved', evidence.ragUsed, 'Non-action document evidence.', evidence.externalDocuments),
-      check('answer preserves exact local delivery terms', includesAll(answer, ['25 miles', 'GBP 49']), 'Within 25 miles for GBP 49.', summarizeText(answer)),
+      check('answer preserves exact local delivery terms', /25\s+miles?/i.test(answer) && includesGbpAmount(answer, '49'), 'Within 25 miles for GBP 49 (or £49).', summarizeText(answer)),
       check('answer includes handover prerequisites', /(cleared funds)/i.test(answer) && /(identit|photo identification)/i.test(answer) && /insurance/i.test(answer), 'Cleared funds, identity and insurance evidence.', summarizeText(answer)),
     ]
   }
@@ -1171,6 +1173,11 @@ function uniqueStrings(values) {
 function includesAll(value, expected) {
   const normalized = String(value || '').toLowerCase()
   return expected.every((item) => normalized.includes(item.toLowerCase()))
+}
+
+function includesGbpAmount(value, amount) {
+  const escapedAmount = String(amount).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?:GBP\\s*|£\\s*)${escapedAmount}(?:\\.00)?\\b`, 'i').test(String(value || ''))
 }
 
 function summarizeText(value, limit = 800) {
