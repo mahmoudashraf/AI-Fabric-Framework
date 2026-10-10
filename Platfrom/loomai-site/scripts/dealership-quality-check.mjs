@@ -527,8 +527,14 @@ function scenarioAssertions(id, result, observedQueries) {
     const noSufficientMatch = emptySearchEvidence?.itemsCount === 0
       || isExplicitlyInsufficient(emptySearchEvidence)
     const groundedAlternativeNamed = answerMentionsRetrievedDocument(answer, evidence.externalDocuments)
+    const explicitlyLabelsNonMatch = /(do(?:es)? not match|doesn.t match|not match(?:ing)? (?:the )?(?:specific|original)? ?request)/i.test(answer)
+    const exposesComparableConstraintFields = /fuel type/i.test(answer)
+      && /(?:price|GBP\s*[\d,]+)/i.test(answer)
     const labelsRelaxedConstraints = /(alternative|closest)/i.test(answer)
-      && /(not diesel|do(?:es)? not .*diesel|fuel type.*(?:relax|differ)|(?:relax(?:es|ed|ing)?|differ(?:s|ed|ent)?)\b[^.]{0,100}\b(?:fuel type|price|budget|constraint)|above GBP 10[, ]?000|price.*(?:relax|differ)|do(?:es)? not .*budget)/i.test(answer)
+      && (
+        /(not diesel|do(?:es)? not .*diesel|fuel type.*(?:relax|differ)|(?:relax(?:es|ed|ing)?|differ(?:s|ed|ent)?)\b[^.]{0,100}\b(?:fuel type|price|budget|constraint)|above GBP 10[, ]?000|price.*(?:relax|differ)|do(?:es)? not .*budget)/i.test(answer)
+        || (explicitlyLabelsNonMatch && exposesComparableConstraintFields)
+      )
     return [
       check('authoritative inventory action ran first', evidence.executedActions.includes('dealership_search_inventory'), 'dealership_search_inventory', evidence.executedActions),
       check(

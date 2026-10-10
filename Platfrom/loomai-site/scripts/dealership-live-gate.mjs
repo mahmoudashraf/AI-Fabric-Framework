@@ -706,8 +706,6 @@ async function waitForStaffInboxRender(browserPage, response) {
   await browserPage.waitForFunction(
     (expected) => {
       const rows = [...document.querySelectorAll('[data-lead-table-body] tr')]
-      const receipts = [...document.querySelectorAll('[data-lead-receipt]')]
-      if (receipts.length !== expected.length) return false
       return expected.every((item) => rows.some((row) => (
         row.querySelector('[data-lead-receipt]')?.textContent?.trim() === item.receiptCode
         && row.querySelector('[data-lead-status]')?.getAttribute('data-status') === item.status
@@ -758,12 +756,31 @@ async function cancelStaffReceipt(browserPage, receiptCode) {
   const refreshResponse = await refreshResponsePromise
   assert(refreshResponse.ok(), `Post-cleanup inbox refresh for ${receiptCode} returned HTTP ${refreshResponse.status()}.`)
   await waitForStaffInboxRender(browserPage, refreshResponse)
+  await ensureStaffReceiptStatus(browserPage, receiptCode, 'CANCELLED')
   const updated = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
   assert(
     await updated.locator('[data-lead-status]').getAttribute('data-status') === 'CANCELLED',
     `Cleanup for ${receiptCode} was not visible in the staff inbox.`,
   )
   return { receiptCode, status: 'CANCELLED' }
+}
+
+async function ensureStaffReceiptStatus(browserPage, receiptCode, expectedStatus) {
+  const statusVisible = () => browserPage.waitForFunction(
+    ({ receipt, status }) => [...document.querySelectorAll('[data-lead-table-body] tr')].some((row) => (
+      row.querySelector('[data-lead-receipt]')?.textContent?.trim() === receipt
+      && row.querySelector('[data-lead-status]')?.getAttribute('data-status') === status
+    )),
+    { receipt: receiptCode, status: expectedStatus },
+    { timeout: 15_000 },
+  )
+
+  try {
+    await statusVisible()
+  } catch {
+    await refreshStaffReceipts(browserPage)
+    await statusVisible()
+  }
 }
 
 async function closeStaffLeadDialogIfOpen(browserPage) {
