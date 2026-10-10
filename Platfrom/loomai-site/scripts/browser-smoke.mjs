@@ -1033,7 +1033,7 @@ try {
   ]) {
     await page.getByText(packageName, { exact: true }).waitFor()
   }
-  await page.getByText('Latest · AI Fabric 0.8.15', { exact: true }).waitFor()
+  await page.getByText('Latest · AI Fabric 0.8.16', { exact: true }).waitFor()
   await page.getByText('The dealership, vehicles and provider contract are fictional demonstration data, not an Auto Trader production integration or endorsement.', { exact: false }).waitFor()
 
   await page.goto(`${origin}/experiments`, { waitUntil: 'networkidle' })
