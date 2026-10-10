@@ -13,6 +13,7 @@ const compiled = ts.transpileModule(source, {
 }).outputText
 const contract = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
 const {
+  extractActionResultCandidates,
   presentationReferenceAttachmentId,
   resolveActionPresentation,
 } = contract
@@ -109,5 +110,40 @@ assert.equal(resolveActionPresentation({
   messageId: 'message-3',
   actionData: { _items: [] },
 }), null)
+
+assert.deepEqual(
+  extractActionResultCandidates({
+    actions: [
+      {
+        action: 'inventory_search',
+        actionExecutionId: 'execution-1',
+        actionResult: { success: true, data: { total: 2 } },
+      },
+      {
+        actionName: 'inventory_compare',
+        actionResult: { success: true, data: { compared: true } },
+      },
+      {
+        action: 'missing_public_data',
+        actionResult: { success: true },
+      },
+    ],
+  }),
+  [
+    {
+      actionName: 'inventory_search',
+      actionData: { total: 2 },
+      actionExecutionId: 'execution-1',
+    },
+    {
+      actionName: 'inventory_compare',
+      actionData: { compared: true },
+      actionExecutionId: undefined,
+    },
+  ],
+)
+
+assert.equal(extractActionResultCandidates({ actions: [] }).length, 0)
+assert.equal(extractActionResultCandidates({ actions: [{ action: 'one', actionResult: { data: {} } }] }, 0).length, 0)
 
 console.log('Action presentation contract smoke passed.')

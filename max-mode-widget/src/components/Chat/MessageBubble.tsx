@@ -33,7 +33,11 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/ui/button";
 
 import { getActionIcon, parseActionMessage } from "@/actionMessage";
-import { extractActionName, type MaxModePresentationResultReference } from "@/actionPresentation";
+import {
+  extractActionName,
+  extractActionResultCandidates,
+  type MaxModePresentationResultReference,
+} from "@/actionPresentation";
 import type { ChatMessage, CustomerAccountConnectAction, Document } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 import { ActionResultRenderer } from "../ActionResultRenderer";
@@ -107,7 +111,9 @@ export function MessageBubble({
   const [clarificationEditingField, setClarificationEditingField] = useState<string | null>(null);
   const [clarificationSubmitted, setClarificationSubmitted] = useState(false);
   const Icon = message.type === "ai" ? aiStyles?.icon : undefined;
-  const primaryActionName = extractActionName(message.result?.sanitizedPayload?.data);
+  const sanitizedResultData = message.result?.sanitizedPayload?.data;
+  const primaryActionName = extractActionName(sanitizedResultData);
+  const additionalActionResults = extractActionResultCandidates(sanitizedResultData);
 
   return (
     <>
@@ -432,6 +438,27 @@ export function MessageBubble({
               onDetachPresentationResult={onDetachPresentationResult}
               isPresentationResultAttached={isPresentationResultAttached}
             />
+          )}
+
+          {additionalActionResults.length > 0 && (
+            <div className="mt-3 space-y-3" data-max-mode-multi-action-results>
+              {additionalActionResults.map((candidate, index) => (
+                <ActionResultRenderer
+                  key={candidate.actionExecutionId || `${candidate.actionName || "action"}-${index}`}
+                  data={candidate.actionData}
+                  messageId={`${message.id}-action-${index}`}
+                  expandedCount={expandedCount}
+                  onExpand={(count) => onExpandActionResults(message.id, count)}
+                  isAttached={isItemAttached}
+                  onAttach={(item) => onAttachActionResultItem(item)}
+                  actionName={candidate.actionName}
+                  onPresentationAsk={onPresentationAsk}
+                  onAttachPresentationResult={onAttachPresentationResult}
+                  onDetachPresentationResult={onDetachPresentationResult}
+                  isPresentationResultAttached={isPresentationResultAttached}
+                />
+              ))}
+            </div>
           )}
 
           {/* Fallback for ACTION_EXECUTED without actionResult.data (e.g. order creation) */}

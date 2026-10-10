@@ -103,6 +103,12 @@ export interface ResolvedActionPresentation {
   context: Readonly<Record<string, string | number | boolean>>;
 }
 
+export interface MaxModeActionResultCandidate {
+  actionName?: string;
+  actionData: unknown;
+  actionExecutionId?: string;
+}
+
 const MAX_COLLECTION_ITEMS = 24;
 const MAX_ARRAY_VALUES = 64;
 const MAX_STRING_LENGTH = 4_000;
@@ -158,6 +164,46 @@ export function extractActionName(value: unknown): string | undefined {
     value.actionName,
     isRecord(value.actionResult) ? value.actionResult.action : undefined,
   );
+}
+
+/**
+ * Returns the bounded public action results carried by a synthesized or
+ * multi-action response. Single-action responses keep using the established
+ * flattened result path, so callers can render this list without duplicates.
+ */
+export function extractActionResultCandidates(
+  value: unknown,
+  maxItems = 8,
+): readonly MaxModeActionResultCandidate[] {
+  if (!isRecord(value) || !Array.isArray(value.actions)) {
+    return [];
+  }
+  const limit = Number.isFinite(maxItems)
+    ? Math.max(0, Math.min(Math.trunc(maxItems), 16))
+    : 8;
+  if (limit === 0) {
+    return [];
+  }
+
+  const candidates: MaxModeActionResultCandidate[] = [];
+  for (const valueAction of value.actions) {
+    if (candidates.length >= limit) {
+      break;
+    }
+    if (!isRecord(valueAction)) {
+      continue;
+    }
+    const actionResult = isRecord(valueAction.actionResult) ? valueAction.actionResult : undefined;
+    if (!actionResult || actionResult.data === undefined || actionResult.data === null) {
+      continue;
+    }
+    candidates.push(Object.freeze({
+      actionName: extractActionName(valueAction),
+      actionData: actionResult.data,
+      actionExecutionId: firstString(valueAction.actionExecutionId),
+    }));
+  }
+  return Object.freeze(candidates);
 }
 
 export function isActionRendererAvailable(renderer: MaxModeActionRendererRegistration): boolean {

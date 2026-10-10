@@ -1,0 +1,1569 @@
+{
+  "schemaVersion": "loomai-dealership-compound-repetition-v1",
+  "status": "PASS",
+  "target": {
+    "origin": "https://loomai.pro",
+    "route": "/demos/dealership-ai"
+  },
+  "run": {
+    "startedAt": "2026-10-10T16:25:55.337Z",
+    "completedAt": "2026-10-10T16:30:22.866Z",
+    "repetitions": 5,
+    "totalRuns": 10,
+    "totalQueries": 20
+  },
+  "coverage": [
+    {
+      "scenarioId": "compound-inventory-policy-forward",
+      "freshPasses": 5,
+      "continuingPasses": 5
+    },
+    {
+      "scenarioId": "compound-inventory-policy-reverse",
+      "freshPasses": 5,
+      "continuingPasses": 5
+    }
+  ],
+  "runs": [
+    {
+      "runId": "forward-first-1",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-116c108c-985b-4636-9952-8cb5504d49b4",
+          "conversationId": "chat-6cf6805c-af70-48be-b91b-8b9ccd2030bb",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-e24ac9de-ca34-431a-a08c-6faae35e20b9"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with max price 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-b7e609c9-40f6-4bf3-9f39-21340da3b205",
+          "conversationId": "chat-6cf6805c-af70-48be-b91b-8b9ccd2030bb",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n- Delivery beyond **75 miles** is not offered.\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   ",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-1c2cba6c-f12b-46cd-a04e-98200bca7a70"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "forward-first-2",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-4df8fef1-5786-45ea-bc08-b9a11c388c7f",
+          "conversationId": "chat-87fe4786-a979-4c13-9543-d18060de2cf4",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-e557d907-d9d0-42ad-85bf-b9177114c127"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with max price <= 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-125194cf-4977-4ab5-8dcb-0bb1c24e4786",
+          "conversationId": "chat-87fe4786-a979-4c13-9543-d18060de2cf4",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n- Delivery beyond **75 miles** is not offered.\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   ",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-9696cc29-9025-40d5-9186-c739bc55d865"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is your delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "forward-first-3",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-6d8713e7-669a-4aaf-afbd-c80ef78ec35c",
+          "conversationId": "chat-367d3b97-8306-4285-8c7b-ca663fcf82f2",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-d375f6cf-336b-4556-8181-30b489f9be94"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with max price <= 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-be0c0b3e-4856-44ec-a789-e0ca32a81fd6",
+          "conversationId": "chat-367d3b97-8306-4285-8c7b-ca663fcf82f2",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   - **Model**: Motion Long Range\n   - **Year**: 2",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-0bc0512f-fabf-483f-8f79-12c411b0b83a"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "forward-first-4",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-fc1b7adc-aaa8-48e8-903c-c3f3ed8a05a0",
+          "conversationId": "chat-4c56a496-69c0-4eb6-bab8-ac5afcedc3f5",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-c9bce259-eda3-4f54-9f3e-148669019f60"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with max price 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-ce0e1a30-f067-4794-a93d-dd6d9967d8f9",
+          "conversationId": "chat-4c56a496-69c0-4eb6-bab8-ac5afcedc3f5",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n- Delivery beyond **75 miles** is not offered.\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   ",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-93afba67-01f0-4d1e-89c5-622940424cd5"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is your delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "forward-first-5",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-429d5d45-7575-4581-8bd7-0943e0b119ba",
+          "conversationId": "chat-394a6c19-315b-4014-8888-bf8d88c9d96d",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-5f7463da-f1e5-4035-93f1-7c26e4d1b18c"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with max price 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-826b5316-da5f-441a-86c9-7feead0ab647",
+          "conversationId": "chat-394a6c19-315b-4014-8888-bf8d88c9d96d",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n- Delivery beyond **75 miles** is not offered.\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   ",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-5dbbfe34-e7b9-4468-a7ea-2d51e7a75040"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-1",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-303f8d5a-8c62-4b2f-a5b5-4b439b2fbf6c",
+          "conversationId": "chat-d29569fb-bda4-410c-912d-2a6a47eee593",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   - **Model**: Motion Long Range\n   - **Year**: 2",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-fe171893-f128-4d12-a884-c68c98a21160"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-f6f59929-122a-410a-9483-de82f38d5d71",
+          "conversationId": "chat-d29569fb-bda4-410c-912d-2a6a47eee593",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **Derivative**: City Electric\n   - **Year**: 2025\n   - **Price**:",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-2dacb0aa-a728-43ec-af69-ad8d99ce7578"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-2",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-1a3a1358-f4ba-4beb-873d-2246464d45ea",
+          "conversationId": "chat-927a82c6-8589-4551-83ae-9e67a8ef5ace",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n- Delivery beyond **75 miles** is not offered.\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   ",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-32836ffc-b3fd-4f02-a7e2-7dc0d565c4e7"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-7dae1e4e-a826-4674-92e5-4b65b2c05ef2",
+          "conversationId": "chat-927a82c6-8589-4551-83ae-9e67a8ef5ace",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-bffc79d7-1370-4dbd-8e7a-506b23900841"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars where price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-3",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-af3d2d7f-1f62-43ff-902e-21da0934c577",
+          "conversationId": "chat-228fcdab-e629-4afc-bc15-ed569950a545",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n\n- **Delivery Distance**: Standard local delivery is available within 25 miles of Northfield Riverside for GBP 49. Delivery beyond 75 miles is not offered.\n- **Delivery Charge**: GBP 49 for local delivery (within 25 miles). Delivery from 26 to 75 miles is quoted individually.\n- **Eligibility**: A delivery slot is confirmed only after cleared funds, identity verification, insurance evidence, and a completed remote condition review.\n- **Handover Requirements**:\n  - Photo identi",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-7081a018-741d-4a86-b8f9-47f0cff1e96a"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy including vehicle delivery distance, charge, eligibility and handover requirements?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-5ed1b5f5-2857-4222-a351-fae9846ab984",
+          "conversationId": "chat-228fcdab-e629-4afc-bc15-ed569950a545",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-bd7a0a06-23e0-460a-8266-79f230820f84"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-4",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-7614034e-15c6-4478-b55a-90c96757b519",
+          "conversationId": "chat-dce9bcbd-3bfb-4873-87aa-9680886721cc",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n- Delivery beyond **75 miles** is not offered.\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   ",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-0dcff1e5-95b1-4f39-8eec-7095c3d58e3f"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-a2b88395-66e4-412e-a269-227b60411f44",
+          "conversationId": "chat-dce9bcbd-3bfb-4873-87aa-9680886721cc",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-bbfb8484-cf7c-4725-ac00-21ed3ae182c5"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-5",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-2b6e8d25-7fa4-49cf-82a8-5bbae0834449",
+          "conversationId": "chat-972b505c-1a67-406c-b513-decbf22f00f9",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Delivery Policy\n- Standard local delivery is available within **25 miles** of Northfield Riverside for **GBP 49**.\n- Delivery from **26 to 75 miles** is quoted individually.\n- A delivery slot is confirmed only after:\n  - Cleared funds\n  - Identity verification\n  - Insurance evidence\n  - A completed remote condition review\n\n### Electric Cars Under GBP 40,000\nHere are the electric cars currently available under **GBP 40,000**:\n\n1. **Aster E1**\n   - **Model**: Motion Long Range\n   - **Year**: 2",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-41155689-53c4-492d-bcf7-c43bf5f72f22"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-f0acc7ad-c964-4131-81a6-e7295cca1ea0",
+          "conversationId": "chat-972b505c-1a67-406c-b513-decbf22f00f9",
+          "responseType": "INFORMATION_PROVIDED",
+          "fallbackReason": null,
+          "intentsCount": 2,
+          "compoundAggregation": null,
+          "pipelineTerminatedEarly": false,
+          "answerPreview": "### Electric Cars Under GBP 40,000\n\nHere are the electric cars currently available under GBP 40,000:\n\n1. **Aster E1**\n   - **Derivative**: Motion Long Range\n   - **Year**: 2025\n   - **Price**: GBP 31,950\n   - **Mileage**: 4,850\n   - **Fuel Type**: Electric\n   - **Transmission**: Automatic\n   - **Body Type**: SUV\n   - **Availability**: FORECOURT\n   - ![Aster E1](https://external-vehicle-provider-simulator.46.224.145.148.sslip.io/media/w720h540/simulator-vehicle-01.webp)\n\n2. **Morrow C2**\n   - **D",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-05a19d06-8b82-4fcc-ada1-9ba35227b987"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    }
+  ]
+}
