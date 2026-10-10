@@ -84,11 +84,31 @@ class PlatformSecretServiceTest {
         when(repository.findById("SHOPIFY_APP_API_KEY")).thenReturn(Optional.empty());
         when(repository.findById("SHOPIFY_APP_API_SECRET")).thenReturn(Optional.empty());
         when(repository.findById("SHOPIFY_WEBHOOK_SHARED_SECRET")).thenReturn(Optional.empty());
+        when(repository.findById("SHOPIFY_BRIDGE_SHARED_SECRET")).thenReturn(Optional.empty());
         PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
 
         assertThat(service.listSecrets())
             .extracting(PlatformSecretSummary::name)
-            .contains("SHOPIFY_APP_API_KEY", "SHOPIFY_APP_API_SECRET", "SHOPIFY_WEBHOOK_SHARED_SECRET");
+            .contains(
+                "SHOPIFY_APP_API_KEY",
+                "SHOPIFY_APP_API_SECRET",
+                "SHOPIFY_WEBHOOK_SHARED_SECRET",
+                "SHOPIFY_BRIDGE_SHARED_SECRET"
+            );
+    }
+
+    @Test
+    void updateSecretSupportsShopifyBridgeSharedSecretUsedByDeploymentProvisioning() {
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findById("SHOPIFY_BRIDGE_SHARED_SECRET")).thenReturn(Optional.empty());
+        when(repository.save(any(PlatformSecretEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+
+        PlatformSecretSummary summary = service.updateSecret("SHOPIFY_BRIDGE_SHARED_SECRET", "bridge-secret");
+
+        assertThat(summary.name()).isEqualTo("SHOPIFY_BRIDGE_SHARED_SECRET");
+        assertThat(summary.source()).isEqualTo("DATABASE");
+        assertThat(summary.present()).isTrue();
     }
 
     @Test

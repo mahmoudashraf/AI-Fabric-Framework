@@ -436,6 +436,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_BRIDGE_SHARED_SECRET",
+            new SecretDefinition(
+                "Shopify Bridge Shared Secret",
+                "Shared credential used by deployment connectors when they call the managed Shopify Bridge Service.",
+                false
+            )
+        );
+        secrets.put(
             "SHOPIFY_ADMIN_ACCESS_TOKEN",
             new SecretDefinition(
                 "Shopify Test Store Admin API Token",
