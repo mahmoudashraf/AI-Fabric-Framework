@@ -332,6 +332,7 @@ try {
   throw error
 } finally {
   if (staffPage) {
+    await closeStaffLeadDialogIfOpen(staffPage)
     for (const receiptCode of receiptsToClean) {
       await cancelStaffReceipt(staffPage, receiptCode).catch(() => undefined)
     }
@@ -734,6 +735,7 @@ async function verifyStaffReceipt(browserPage, receiptCode, expectedVehicle) {
 }
 
 async function cancelStaffReceipt(browserPage, receiptCode) {
+  await closeStaffLeadDialogIfOpen(browserPage)
   await refreshStaffReceipts(browserPage)
   const row = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
   assert(await row.count() === 1, `Cleanup could not find exactly one ${receiptCode} row.`)
@@ -762,6 +764,13 @@ async function cancelStaffReceipt(browserPage, receiptCode) {
     `Cleanup for ${receiptCode} was not visible in the staff inbox.`,
   )
   return { receiptCode, status: 'CANCELLED' }
+}
+
+async function closeStaffLeadDialogIfOpen(browserPage) {
+  const dialog = browserPage.locator('[data-lead-dialog]')
+  if (!(await dialog.isVisible().catch(() => false))) return
+  await dialog.locator('[data-close-lead]').click()
+  await dialog.waitFor({ state: 'hidden' })
 }
 
 function responseEvidence(value) {

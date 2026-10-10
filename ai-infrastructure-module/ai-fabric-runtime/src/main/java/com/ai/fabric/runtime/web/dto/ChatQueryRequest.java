@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime.web.dto;
 
+import ai.fabric.intent.actiondraft.ActionDraftSubmission;
 import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -22,6 +23,7 @@ public class ChatQueryRequest {
     private String mode;
     private Map<String, Object> context;
     private List<OrchestrationAttachment> attachments;
+    private ActionDraftSubmission actionDraftSubmission;
     private Map<String, String> promptPreview;
 
     @JsonIgnore

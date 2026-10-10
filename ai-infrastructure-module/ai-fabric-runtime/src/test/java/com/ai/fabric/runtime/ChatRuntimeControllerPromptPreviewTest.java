@@ -19,11 +19,13 @@ import ai.fabric.dto.AIGenerationInputPart;
 import ai.fabric.dto.RAGResponse;
 import ai.fabric.intent.action.ActionResult;
 import ai.fabric.intent.action.AIActionRegistry;
+import ai.fabric.intent.actiondraft.ActionDraftSubmission;
 import ai.fabric.intent.orchestration.OrchestrationContext;
 import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
 import ai.fabric.intent.orchestration.OrchestrationResult;
 import ai.fabric.intent.orchestration.OrchestrationResultType;
 import ai.fabric.intent.orchestration.RAGOrchestrator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -51,6 +53,33 @@ class ChatRuntimeControllerPromptPreviewTest {
 
     private static final List<String> BASE_QUERY_SCOPES = List.of("chat:query");
     private static final List<String> QUERY_WITH_PROMPT_PREVIEW_SCOPES = List.of("chat:query", "chat:prompt-preview");
+
+    @Test
+    void structuredActionDraftSubmissionIsAnExplicitRequestField()
+        throws Exception {
+        ChatQueryRequest request = new ObjectMapper().readValue("""
+            {
+              "query": "Continue with the details I entered.",
+              "actionDraftSubmission": {
+                "action": "request_callback",
+                "parameters": {
+                  "name": "Exact Customer",
+                  "phone": "+44 7700 900123"
+                }
+              }
+            }
+            """, ChatQueryRequest.class);
+
+        assertThat(request.getActionDraftSubmission())
+            .isEqualTo(new ActionDraftSubmission(
+                "request_callback",
+                Map.of(
+                    "name", "Exact Customer",
+                    "phone", "+44 7700 900123"
+                )
+            ));
+        assertThat(request.getUnexpectedFields()).isEmpty();
+    }
 
     @Test
     void previewRequestRequiresPromptPreviewScope() {
@@ -936,6 +965,13 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Anonymous question");
+        request.setActionDraftSubmission(new ActionDraftSubmission(
+            "request_callback",
+            Map.of(
+                "name", "Exact Anonymous Customer",
+                "phone", "+44 7700 900123"
+            )
+        ));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
@@ -959,11 +995,17 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getUserId()).isNull();
         assertThat(contextCaptor.getValue().isAuthenticated()).isFalse();
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo(issuedSessionId);
+        assertThat(contextCaptor.getValue().getActionDraftSubmission())
+            .isEqualTo(request.getActionDraftSubmission());
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.ANONYMOUS_SESSION.name())
             .containsEntry("authIssuer", "runtime-public-test")
             .containsEntry("requestedScopes", java.util.List.of("chat:query"));
+        assertThat(contextCaptor.getValue().getMetadata().toString())
+            .doesNotContain("Exact Anonymous Customer", "+44 7700 900123");
+        assertThat(contextCaptor.getValue().toString())
+            .doesNotContain("Exact Anonymous Customer", "+44 7700 900123");
     }
 
     @Test

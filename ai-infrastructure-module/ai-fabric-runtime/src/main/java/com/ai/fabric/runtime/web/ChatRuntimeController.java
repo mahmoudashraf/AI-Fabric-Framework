@@ -810,7 +810,8 @@ public class ChatRuntimeController {
             : "anon-" + UUID.randomUUID();
 
         OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
-            .conversationId(conversationId);
+            .conversationId(conversationId)
+            .actionDraftSubmission(request.getActionDraftSubmission());
 
         if (StringUtils.hasText(request.getPosition())) {
             builder.position(request.getPosition());

@@ -28,8 +28,9 @@
     "build:installer": "vite build --config vite.config.installer.ts",
     "typecheck": "tsc --noEmit",
     "smoke:action-presentation": "node scripts/action-presentation-smoke.mjs",
+    "smoke:action-draft-submission": "node scripts/action-draft-submission-smoke.mjs",
     "smoke:request-context": "node scripts/request-context-smoke.mjs",
-    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:request-context"
+    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

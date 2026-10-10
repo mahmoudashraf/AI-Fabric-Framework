@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
+import { withActionDraftSubmission } from "@/actionDraftSubmission";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { toRuntimeAttachments } from "@/attachments";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
@@ -48,12 +49,18 @@ export function useClarificationFlow({
       setIsLoading(true);
 
       try {
-        const { data } = await postChatQuery({
-          query,
-          conversationId: currentConversationId || undefined,
-          attachments: toRuntimeAttachments(attachedItems),
-          mode: currentMode,
-        });
+        const { data } = await postChatQuery(
+          withActionDraftSubmission(
+            {
+              query,
+              conversationId: currentConversationId || undefined,
+              attachments: toRuntimeAttachments(attachedItems),
+              mode: currentMode,
+            },
+            action,
+            parameters,
+          ),
+        );
 
         if (data.conversationId && !currentConversationId) {
           setCurrentConversationId(data.conversationId);
