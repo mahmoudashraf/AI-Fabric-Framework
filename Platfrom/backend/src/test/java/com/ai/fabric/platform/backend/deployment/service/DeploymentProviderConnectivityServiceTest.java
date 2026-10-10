@@ -403,6 +403,63 @@ class DeploymentProviderConnectivityServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void probeUsesAnthropicMessagesApiForCanonicalProviderRoot() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("ANTHROPIC_API_KEY")).thenReturn("anthropic-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "ok"
+                }
+              ]
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().equals("https://api.anthropic.com/v1/messages")
+                && "anthropic-key".equals(request.headers().firstValue("x-api-key").orElse(null))
+                && "2023-06-01".equals(request.headers().firstValue("anthropic-version").orElse(null))
+                && requestBody(request).contains("\"model\":\"claude-haiku-4-5-20251001\"")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-anthropic-ready", "Anthropic"),
+            draft("""
+                {
+                  "llmProvider": "anthropic",
+                  "orchestrationLlmProvider": "anthropic",
+                  "anthropicBaseUrl": "https://api.anthropic.com",
+                  "anthropicModel": "claude-haiku-4-5-20251001"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("READY");
+                assertThat(item.endpoint()).isEqualTo("https://api.anthropic.com/v1/messages");
+                assertThat(item.message()).contains("accepted an authenticated probe");
+            });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void probeMarksLlmEndpointFailedWhenAuthenticatedChatProbeReturnsUnauthorized() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-llm-key");

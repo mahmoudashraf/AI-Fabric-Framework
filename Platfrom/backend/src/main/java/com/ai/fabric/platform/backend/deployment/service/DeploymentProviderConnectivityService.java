@@ -1333,7 +1333,10 @@ public class DeploymentProviderConnectivityService {
         if (normalized.endsWith("/messages")) {
             return normalized;
         }
-        return normalized + "/messages";
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/messages";
+        }
+        return normalized + "/v1/messages";
     }
 
     private String buildCohereChatProbeEndpoint(String baseUrl) {
