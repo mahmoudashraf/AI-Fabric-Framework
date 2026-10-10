@@ -15,7 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ThemeProvider theme={platformTheme}>
         <CssBaseline />
         <PlatformAuthProvider>
-          <BrowserRouter>
+          <BrowserRouter useTransitions={false}>
             <App />
           </BrowserRouter>
         </PlatformAuthProvider>

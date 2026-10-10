@@ -206,7 +206,7 @@ public class DeploymentProviderConnectivityService {
                 ManagedDeploymentProfileCatalog.generationApiVersion(providerConfig)
             )
         );
-        addIfPresent(probes, probeInferenceEmbeddingEndpoint(deploymentId, providerConfig));
+        addIfPresent(probes, probeInferenceEmbeddingEndpoint(deploymentId, providerConfig, entityConfig));
 
         ManagedVectorSummary managedVectorSummary = summarizeManagedVectorProvisioning(providerConfig, entityConfig);
         String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
@@ -745,7 +745,8 @@ public class DeploymentProviderConnectivityService {
     }
 
     private DeploymentProviderConnectivityProbeSummary probeInferenceEmbeddingEndpoint(String deploymentId,
-                                                                                       JsonNode providerConfig) {
+                                                                                       JsonNode providerConfig,
+                                                                                       JsonNode entityConfig) {
         String provider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String endpointProfile = ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig);
         String serviceMode = ManagedDeploymentProfileCatalog.embeddingServiceMode(providerConfig);
@@ -815,13 +816,20 @@ public class DeploymentProviderConnectivityService {
             }
             apiKey = resolution.value();
         }
-        return probeEmbeddingEndpointWithAuth(normalizedProvider, endpoint, providerConfig, apiKey);
+        return probeEmbeddingEndpointWithAuth(
+            normalizedProvider,
+            endpoint,
+            providerConfig,
+            apiKey,
+            resolveVectorDimensions(entityConfig, providerConfig)
+        );
     }
 
     private DeploymentProviderConnectivityProbeSummary probeEmbeddingEndpointWithAuth(String provider,
                                                                                       String endpoint,
                                                                                       JsonNode providerConfig,
-                                                                                      String apiKey) {
+                                                                                      String apiKey,
+                                                                                      int vectorDimensions) {
         return switch (provider) {
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> sendJsonPostProbe(
                 "embedding_inference_endpoint",
@@ -910,9 +918,13 @@ public class DeploymentProviderConnectivityService {
                                 "text": "%s"
                               }
                             ]
-                          }
+                          },
+                          "outputDimensionality": %d
                         }
-                        """.formatted(EMBEDDING_SMOKE_TEXT)),
+                        """.formatted(
+                        EMBEDDING_SMOKE_TEXT,
+                        vectorDimensions
+                    )),
                     request -> { },
                     this::isGeminiEmbeddingResponse
                 );
@@ -925,6 +937,17 @@ public class DeploymentProviderConnectivityService {
                 "Embedding provider '" + provider + "' does not expose a platform probe in this slice."
             );
         };
+    }
+
+    private int resolveVectorDimensions(JsonNode entityConfig, JsonNode providerConfig) {
+        int configured = entityConfig.path("ai-config").path("vector-dimensions").asInt(0);
+        if (configured > 0) {
+            return configured;
+        }
+        return ManagedDeploymentProfileCatalog.defaultVectorDimensions(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
+        );
     }
 
     private DeploymentProviderConnectivityProbeSummary sendJsonPostProbe(String key,

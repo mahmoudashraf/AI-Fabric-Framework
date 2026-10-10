@@ -539,6 +539,70 @@ class DeploymentProviderConnectivityServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void probeGeminiEmbeddingEndpointUsesCurrentModelAndDeploymentVectorDimensions() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("GEMINI_API_KEY")).thenReturn("gemini-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "embedding": {
+                "values": [0.11, 0.22]
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().equals(
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=gemini-key"
+                )
+                && requestBody(request).contains("\"outputDimensionality\":512")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-gemini-ready", "Gemini Embeddings"),
+            draft(
+                """
+                    {
+                      "llmProvider": "anthropic",
+                      "embeddingProvider": "gemini",
+                      "geminiBaseUrl": "https://generativelanguage.googleapis.com/v1beta"
+                    }
+                    """,
+                """
+                    {
+                      "ai-config": {
+                        "vector-dimensions": 512
+                      },
+                      "ai-entities": {}
+                    }
+                    """
+            )
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("READY");
+                assertThat(item.endpoint()).isEqualTo(
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent"
+                );
+            });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void probeMarksEmbeddingEndpointFailedWhenAuthenticatedProbeReturnsUnauthorized() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-key");

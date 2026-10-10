@@ -781,7 +781,7 @@ public class RailwayProvisioningPlanService {
         addAnthropicEnv(runtimeEnv, deployment, providerConfig, llmProvider);
         addAzureEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider);
         addCohereEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider);
-        addGeminiEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider);
+        addGeminiEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider, vectorDimensions);
         addPurposeSpecificLlmEnv(runtimeEnv, providerConfig);
         addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
         addVectorBackendEnv(runtimeEnv, deployment, providerConfig, vectorStrategy, vectorDimensions);
@@ -1305,7 +1305,8 @@ public class RailwayProvisioningPlanService {
                               DeploymentEntity deployment,
                               JsonNode providerConfig,
                               String llmProvider,
-                              String embeddingProvider) {
+                              String embeddingProvider,
+                              int vectorDimensions) {
         if (!ManagedDeploymentProfileCatalog.usesGemini(providerConfig)) {
             return;
         }
@@ -1335,6 +1336,10 @@ public class RailwayProvisioningPlanService {
                 "AI_PROVIDERS_GEMINI_EMBEDDING_MODEL",
                 ManagedDeploymentProfileCatalog.geminiEmbeddingModel(providerConfig)
             );
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_GEMINI_EMBEDDING_DIMENSIONS",
+                Integer.toString(vectorDimensions)
+            ));
         }
     }
 

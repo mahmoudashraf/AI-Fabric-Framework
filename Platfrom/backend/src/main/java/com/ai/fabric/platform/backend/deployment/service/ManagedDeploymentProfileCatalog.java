@@ -415,7 +415,7 @@ public final class ManagedDeploymentProfileCatalog {
         return switch (normalize(embeddingProvider)) {
             case EMBEDDING_PROVIDER_AZURE -> "";
             case EMBEDDING_PROVIDER_COHERE -> "embed-english-v3.0";
-            case EMBEDDING_PROVIDER_GEMINI -> "text-embedding-004";
+            case EMBEDDING_PROVIDER_GEMINI -> "gemini-embedding-2";
             case EMBEDDING_PROVIDER_ONNX -> "all-MiniLM-L6-v2";
             case EMBEDDING_PROVIDER_OPENAI -> "text-embedding-3-small";
             default -> "text-embedding-3-small";

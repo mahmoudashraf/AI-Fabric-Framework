@@ -36,23 +36,23 @@ try {
   await maybeLogin(page)
 
   await page.getByRole('heading', { name: 'Create deployment' }).waitFor()
-  await page.getByText('Dev / OpenAI / Lucene').first().click()
+  await page.getByText('Deployment-verified', { exact: true }).first().click()
   await page.getByLabel('Deployment name').fill(deploymentName)
   await page.getByLabel('Environment').fill('dev')
-  await page.getByRole('button', { name: '3. Create deployment' }).click()
+  await page.getByRole('button', { name: /Create deployment$/ }).click()
 
   const deploymentCard = page.locator('[data-testid^="deployment-card-"]').filter({ hasText: deploymentName })
   await deploymentCard.first().waitFor()
 
   const cardText = await deploymentCard.first().innerText()
   assertIncludes(cardText, 'DRAFT', 'new deployment draft status')
-  assertIncludes(cardText, 'Manage releases', 'manage releases button')
-  assertIncludes(cardText, 'View diagnostics', 'diagnostics button')
+  assertIncludes(cardText, 'Releases', 'releases button')
+  assertIncludes(cardText, 'Diagnostics', 'diagnostics button')
 
-  await deploymentCard.getByRole('button', { name: 'Manage releases' }).click()
+  await deploymentCard.getByRole('button', { name: 'Releases', exact: true }).click()
   await page.waitForURL(/\/revisions\?deploymentId=/)
-  const revisionsText = await page.locator('body').innerText()
-  assertIncludes(revisionsText, 'Draft, publish, apply', 'revisions page heading')
+  await page.waitForLoadState('networkidle')
+  await page.getByRole('heading', { name: 'Draft, publish, apply' }).waitFor()
 
   await page.goto(`${baseUrl}/deployments`, { waitUntil: 'networkidle' })
   const deploymentCardAgain = page.locator('[data-testid^="deployment-card-"]').filter({ hasText: deploymentName })

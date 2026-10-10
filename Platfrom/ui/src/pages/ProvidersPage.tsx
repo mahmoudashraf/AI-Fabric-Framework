@@ -220,7 +220,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   geminiValidateOnStartup: false,
   geminiBaseUrl: '',
   geminiModel: 'gemini-1.5-flash',
-  geminiEmbeddingModel: 'text-embedding-004',
+  geminiEmbeddingModel: 'gemini-embedding-2',
   geminiMaxTokens: '',
   geminiTemperature: '',
   geminiTimeout: '',
@@ -2594,7 +2594,7 @@ export function ProvidersPage() {
                                 label="Gemini embedding model"
                                 value={formState.geminiEmbeddingModel}
                                 onChange={(event) => handleFieldChange('geminiEmbeddingModel', event.target.value)}
-                                helperText="Optional override. Defaults to text-embedding-004."
+                                helperText="Optional override. Defaults to gemini-embedding-2."
                               />
                             </Grid>
                             <Grid item xs={12} md={3}>

@@ -244,7 +244,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
-            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.17")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.18")
             .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
@@ -1637,6 +1637,8 @@ class RailwayProvisioningPlanServiceTest {
 
         assertThat(runtimeEnv)
             .containsEntry("AI_VECTOR_DB_TYPE", "milvus")
+            .containsEntry("AI_PROVIDERS_GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
+            .containsEntry("AI_PROVIDERS_GEMINI_EMBEDDING_DIMENSIONS", "512")
             .containsEntry("AI_PROVIDERS_MILVUS_HOST", "cluster-1.gcp-us-west1.zillizcloud.com")
             .containsEntry("AI_PROVIDERS_MILVUS_PORT", "443")
             .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MANAGED_MILVUS_USERNAME_DEP_DEP_123}")
@@ -2238,7 +2240,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
-        version.setAiFabricFrameworkVersion("0.8.17");
+        version.setAiFabricFrameworkVersion("0.8.18");
         version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
@@ -2265,7 +2267,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
             {
-              "aiFabricFrameworkVersion": "0.8.17",
+              "aiFabricFrameworkVersion": "0.8.18",
               "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
               "entityConfigHash": "entity-hash-123"
             }

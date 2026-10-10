@@ -231,6 +231,7 @@ public class VectorizationIndexedOutputHashService {
                     "model",
                     ManagedDeploymentProfileCatalog.geminiEmbeddingModel(providerConfig)
                 );
+                projection.put("dimensions", vectorDimensions);
                 putIfText(
                     projection,
                     "baseUrl",
