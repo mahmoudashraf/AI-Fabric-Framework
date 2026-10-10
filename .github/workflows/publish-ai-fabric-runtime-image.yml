@@ -9,6 +9,9 @@ on:
       - "ai-infrastructure-module/ai-fabric-runtime/**"
       - "ai-infrastructure-module/ai-infrastructure-generic-rest-connector/**"
       - "ai-infrastructure-module/pom.xml"
+      - "ai-fabric-product/ai-fabric-vectorization-core/**"
+      - "ai-fabric-product/ai-fabric-vectorization-runner/**"
+      - "ai-fabric-product/pom.xml"
   workflow_dispatch:
 
 permissions:

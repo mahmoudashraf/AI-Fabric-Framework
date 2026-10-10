@@ -8,6 +8,9 @@ case "${PLATFORM_COOLIFY_SERVICE_ROLE:-runtime}" in
   connector)
     exec /app/connector-entrypoint.sh "$@"
     ;;
+  vectorization-runner)
+    exec /app/vectorization-runner-entrypoint.sh "$@"
+    ;;
   *)
     echo "Unsupported PLATFORM_COOLIFY_SERVICE_ROLE: ${PLATFORM_COOLIFY_SERVICE_ROLE}" >&2
     exit 64

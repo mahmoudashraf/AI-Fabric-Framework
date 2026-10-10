@@ -476,7 +476,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
         CoolifyApplicationSummary vectorizationRunnerApplication = null;
         DeploymentProviderResourceHandleEntity provisionalVectorizationRunnerHandle = null;
-        if (source.gitSource() && vectorizationRunnerPlan != null) {
+        if (vectorizationRunnerPlan != null) {
             String runnerAppName = resolveApplicationName(
                 deployment,
                 resourceDefaults,
@@ -2088,13 +2088,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 );
             }
             RailwayServicePlanSummary connector = plan.services() == null ? null : plan.services().restConnector();
+            RailwayServicePlanSummary vectorizationRunner = plan.services() == null ? null : plan.services().vectorizationRunner();
             return new CoolifyProvisioningSource(
                 sourceStrategy,
                 resolveSourceArtifact(release, resourceDefaults),
                 plan,
                 runtime,
                 connector,
-                null,
+                vectorizationRunner,
                 null,
                 null,
                 null,
