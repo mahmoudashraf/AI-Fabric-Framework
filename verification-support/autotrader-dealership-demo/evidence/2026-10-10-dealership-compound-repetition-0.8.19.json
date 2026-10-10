@@ -1,0 +1,1318 @@
+{
+  "schemaVersion": "loomai-dealership-compound-repetition-v1",
+  "status": "FAIL",
+  "target": {
+    "origin": "https://loomai.pro",
+    "route": "/demos/dealership-ai"
+  },
+  "run": {
+    "startedAt": "2026-10-10T13:54:54.212Z",
+    "completedAt": "2026-10-10T13:59:12.653Z",
+    "repetitions": 5,
+    "totalRuns": 10,
+    "totalQueries": 20
+  },
+  "coverage": [
+    {
+      "scenarioId": "compound-inventory-policy-forward",
+      "freshPasses": 3,
+      "continuingPasses": 5
+    },
+    {
+      "scenarioId": "compound-inventory-policy-reverse",
+      "freshPasses": 5,
+      "continuingPasses": 4
+    }
+  ],
+  "runs": [
+    {
+      "runId": "forward-first-1",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-35e6f290-106e-408c-81b9-52d2ef25946f",
+          "conversationId": "chat-4b8a2dab-f18e-4c14-95ae-bd6c8724a718",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-b83c36a0-3d2f-4fb9-ab1e-457610c2538e"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with price <= 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-317f39fd-e474-4974-afff-2ee3e2bfbd56",
+          "conversationId": "chat-4b8a2dab-f18e-4c14-95ae-bd6c8724a718",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-e93728de-5620-45a6-a777-59af49debfeb"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "forward-first-2",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "FAIL",
+      "reportStatus": "NEEDS_IMPROVEMENT",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "NEEDS_IMPROVEMENT",
+          "providerRequestId": "rag-113a49ca-c43b-4625-85b1-50ceea1699fc",
+          "conversationId": "chat-6ea9e92b-5ae0-4d0b-b665-a7e436b63317",
+          "groundingPath": "NONE",
+          "executedActions": [],
+          "documentSourceIds": [],
+          "compoundEvidence": null,
+          "failedAssertions": [
+            "mixed evidence collection completed",
+            "inventory action evidence is represented once",
+            "delivery policy uses the document source",
+            "one answer covers inventory and delivery policy"
+          ]
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-8cee5215-4eee-4b23-8fcc-4cf83777db5a",
+          "conversationId": "chat-6ea9e92b-5ae0-4d0b-b665-a7e436b63317",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-466e19ae-e19e-463a-84bc-e76ed6387d05"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details including vehicle delivery distance, charge, eligibility and handover requirements",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": [
+        "[dealership-quality] Opening https://loomai.pro/demos/dealership-ai",
+        "[dealership-quality] [1/2] compound-inventory-policy-forward",
+        "[dealership-quality] [2/2] compound-inventory-policy-reverse"
+      ]
+    },
+    {
+      "runId": "forward-first-3",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-c4a79f9f-43cd-4e36-adc0-b27926c2d78b",
+          "conversationId": "chat-7dc76c47-66d0-42dc-82fc-5c26760ee1e5",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-13b66541-47d3-47e0-922f-b60c9a580bea"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with a maximum price of 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-211fe9c2-c685-4297-bbfe-fcece0ae4a3d",
+          "conversationId": "chat-7dc76c47-66d0-42dc-82fc-5c26760ee1e5",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-705930ff-d35a-419b-bdcf-b273f963e51a"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "forward-first-4",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "FAIL",
+      "reportStatus": "NEEDS_IMPROVEMENT",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-b4788dbe-1275-47a8-9339-d0e939e9acec",
+          "conversationId": "chat-e6a3dd62-ba75-4883-a348-3ec62f3a56f9",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-e41dbe07-cfdb-433b-81b6-e44f7d4607ee"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with a maximum price of 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "NEEDS_IMPROVEMENT",
+          "providerRequestId": "rag-263832ec-2d05-425d-8027-bc36ab65c4b3",
+          "conversationId": "chat-e6a3dd62-ba75-4883-a348-3ec62f3a56f9",
+          "groundingPath": "NONE",
+          "executedActions": [],
+          "documentSourceIds": [],
+          "compoundEvidence": null,
+          "failedAssertions": [
+            "runtime returned a handled outcome",
+            "mixed evidence collection completed",
+            "inventory action evidence is represented once",
+            "delivery policy uses the document source",
+            "one answer covers inventory and delivery policy"
+          ]
+        }
+      ],
+      "stderrTail": [
+        "[dealership-quality] Opening https://loomai.pro/demos/dealership-ai",
+        "[dealership-quality] [1/2] compound-inventory-policy-forward",
+        "[dealership-quality] [2/2] compound-inventory-policy-reverse"
+      ]
+    },
+    {
+      "runId": "forward-first-5",
+      "order": [
+        "compound-inventory-policy-forward",
+        "compound-inventory-policy-reverse"
+      ],
+      "status": "FAIL",
+      "reportStatus": "NEEDS_IMPROVEMENT",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "FRESH",
+          "status": "NEEDS_IMPROVEMENT",
+          "providerRequestId": "rag-62af7be1-5ee1-4d55-b25a-87f3b39c6a7d",
+          "conversationId": "chat-7618b6bb-8e8d-460a-bb75-f793e2454217",
+          "groundingPath": "NONE",
+          "executedActions": [],
+          "documentSourceIds": [],
+          "compoundEvidence": null,
+          "failedAssertions": [
+            "mixed evidence collection completed",
+            "inventory action evidence is represented once",
+            "delivery policy uses the document source",
+            "one answer covers inventory and delivery policy"
+          ]
+        },
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-109996f3-9492-42a4-aeda-fa677c8b0ae8",
+          "conversationId": "chat-7618b6bb-8e8d-460a-bb75-f793e2454217",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-9e32aa25-655e-4051-b143-e90e01c74127"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "delivery policy details including distance, charge, eligibility, and handover requirements",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": [
+        "[dealership-quality] Opening https://loomai.pro/demos/dealership-ai",
+        "[dealership-quality] [1/2] compound-inventory-policy-forward",
+        "[dealership-quality] [2/2] compound-inventory-policy-reverse"
+      ]
+    },
+    {
+      "runId": "reverse-first-1",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-642ee9c1-e921-4215-a62a-1f7e3ab34a1c",
+          "conversationId": "chat-a32ee1db-32da-4f13-a33f-debd0c7d4574",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-f79ed8d0-e544-4633-8db9-63eac0b854e1"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy including vehicle delivery distance, charge, eligibility and handover requirements?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-97926d1f-90a6-43d5-8366-b7dc9de95c3e",
+          "conversationId": "chat-a32ee1db-32da-4f13-a33f-debd0c7d4574",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-10bfcc60-355c-4887-bff2-2a153324127a"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-2",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-610295c3-6a39-42da-b469-b27a9eba74cf",
+          "conversationId": "chat-46766905-01d9-4d72-bbf4-0c7b3202ba7c",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-864128b8-dd1e-4ee9-8d65-3518822afb55"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy including vehicle delivery distance, charge, eligibility and handover requirements?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-a2a8dfa9-dd0b-4042-9e53-a0b4d71e0e6a",
+          "conversationId": "chat-46766905-01d9-4d72-bbf4-0c7b3202ba7c",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-48ac4893-d78d-4e62-99ed-4955ebf2c953"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-3",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-3fec4e76-e57d-42e7-96fb-36a61c9d6f91",
+          "conversationId": "chat-7dda01bb-b0d6-43a6-ba33-a200c063341f",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-67c41978-ec74-4d26-af3b-340b004c3166"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy including vehicle delivery distance, charge, eligibility and handover requirements?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-cf1c97ea-8230-4585-9035-c4a27b76e584",
+          "conversationId": "chat-7dda01bb-b0d6-43a6-ba33-a200c063341f",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-a8518191-ba32-4454-a2f8-d2b2b167ef0a"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-4",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-4701bd43-aaaa-4877-8b36-c7fbd95697b4",
+          "conversationId": "chat-e59f08f7-f160-4567-88eb-ab938ddbcf04",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-e3840646-3a14-4737-8e64-ba5000f5b4a4"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy including vehicle delivery distance, charge, eligibility and handover requirements?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-ef0c4795-47db-4d8d-9041-6b7584fba919",
+          "conversationId": "chat-e59f08f7-f160-4567-88eb-ab938ddbcf04",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "read-action-9c8348fd-62de-4ece-ab78-1ecb9a10fd1f"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    },
+    {
+      "runId": "reverse-first-5",
+      "order": [
+        "compound-inventory-policy-reverse",
+        "compound-inventory-policy-forward"
+      ],
+      "status": "PASS",
+      "reportStatus": "PASS",
+      "scenarios": [
+        {
+          "id": "compound-inventory-policy-reverse",
+          "conversationScope": "FRESH",
+          "status": "PASS",
+          "providerRequestId": "rag-a4977cea-8309-40fd-8e6e-3a9e3bfbab3a",
+          "conversationId": "chat-418ef4e4-f75b-466b-a98f-2dc012503500",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-9f6aafbb-b9ad-4939-a48e-4030f8cfe538"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "What is the delivery policy including vehicle delivery distance, charge, eligibility and handover requirements?",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "ACTION",
+                "optimizedQuery": "Search for electric cars under GBP 40,000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        },
+        {
+          "id": "compound-inventory-policy-forward",
+          "conversationScope": "CONTINUING",
+          "status": "PASS",
+          "providerRequestId": "rag-cf4c06ef-ac1d-4cc6-bbe9-01ad25893c37",
+          "conversationId": "chat-418ef4e4-f75b-466b-a98f-2dc012503500",
+          "groundingPath": "ACTION_AND_RAG",
+          "executedActions": [
+            "dealership_search_inventory"
+          ],
+          "documentSourceIds": [
+            "dealership-public-document-knowledge"
+          ],
+          "compoundEvidence": {
+            "strategy": "COLLECT_THEN_SYNTHESIZE",
+            "obligationCount": 2,
+            "completedObligationCount": 2,
+            "emptyObligationCount": 0,
+            "deniedObligationCount": 0,
+            "failedObligationCount": 0,
+            "actionExecutionIds": [
+              "action-090d7737-7894-4eaa-9b51-bffed595ceb7"
+            ],
+            "finalSynthesisPerformed": true,
+            "obligations": [
+              {
+                "intentIndex": 0,
+                "intentType": "ACTION",
+                "optimizedQuery": "Electric cars with price < 40000",
+                "effectiveVectorSpaces": [
+                  "dealer-vehicle"
+                ],
+                "documentsRetrieved": 0,
+                "documentsUsed": 0,
+                "readActionEvidenceCount": 1,
+                "actionCount": 1,
+                "searchedSourceIds": [],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "ACTION_EXECUTED",
+                "childSuccess": true
+              },
+              {
+                "intentIndex": 1,
+                "intentType": "INFORMATION",
+                "optimizedQuery": "Delivery policy details",
+                "effectiveVectorSpaces": [
+                  "document"
+                ],
+                "documentsRetrieved": 6,
+                "documentsUsed": 3,
+                "readActionEvidenceCount": 0,
+                "actionCount": 0,
+                "searchedSourceIds": [
+                  "dealership-public-document-knowledge"
+                ],
+                "routingSource": "LLM",
+                "evidenceStatus": "SUFFICIENT",
+                "childType": "INFORMATION_PROVIDED",
+                "childSuccess": true
+              }
+            ]
+          },
+          "failedAssertions": []
+        }
+      ],
+      "stderrTail": []
+    }
+  ]
+}

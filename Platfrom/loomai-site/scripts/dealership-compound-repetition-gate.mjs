@@ -38,6 +38,12 @@ try {
         status: scenario.status,
         providerRequestId: scenario.response?.providerRequestId || null,
         conversationId: scenario.response?.conversationId || null,
+        responseType: scenario.response?.type || null,
+        fallbackReason: scenario.response?.fallbackReason || null,
+        intentsCount: scenario.response?.intentsCount ?? null,
+        compoundAggregation: scenario.response?.compoundAggregation || null,
+        pipelineTerminatedEarly: scenario.response?.pipelineTerminatedEarly === true,
+        answerPreview: String(scenario.response?.answer || '').slice(0, 500),
         groundingPath: scenario.evidence?.groundingPath || null,
         executedActions: scenario.evidence?.executedActions || [],
         documentSourceIds: uniqueStrings(

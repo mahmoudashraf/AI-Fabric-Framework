@@ -465,6 +465,11 @@ async function runScenario(page, scenario, expectedConversationId) {
       providerRequestId: responseBody.providerRequestId || null,
       conversationId: responseBody.conversationId || null,
       answer: summarizeText(responseBody.answer, 2_000),
+      intentsCount: numberOrNull(responseBody.metadata?.intentsCount),
+      compoundAggregation: summarizeCompoundAggregation(
+        responseBody.metadata?.compoundAggregation,
+      ),
+      pipelineTerminatedEarly: responseBody.metadata?.timing?.pipelineTerminatedEarly === true,
     },
     evidence,
     assertions,
@@ -1184,6 +1189,26 @@ function includesGbpAmount(value, amount) {
 function summarizeText(value, limit = 800) {
   if (typeof value !== 'string') return null
   return value.length <= limit ? value : `${value.slice(0, limit)}...`
+}
+
+function summarizeCompoundAggregation(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return {
+    successCount: numberOrNull(value.successCount),
+    pendingCount: numberOrNull(value.pendingCount),
+    failureCount: numberOrNull(value.failureCount),
+    topLevelType: stringOrNull(value.topLevelType),
+    ruleApplied: stringOrNull(value.ruleApplied),
+  }
+}
+
+function numberOrNull(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function stringOrNull(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 function check(name, passed, expected, observed) {

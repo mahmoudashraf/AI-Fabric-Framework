@@ -1,14 +1,15 @@
 # 010.32 Compound Information Retrieval And Knowledge-Source Routing Correction Plan
 
-- **Status:** Implementation, immutable framework publication, and Central-only
-  private-runtime verification are complete. Hosted replacement, live corpus,
-  and final release gates are in progress.
+- **Status:** AI Fabric `0.8.20`, Maven Central publication, and the isolated
+  Central-only private-runtime build are complete. Staging replacement, live
+  corpus, production rollout, and final release gates are in progress.
 - **Created:** 2026-10-09
 - **Scope:** Generic multi-intent evidence collection, per-intent vector-space
   resolution, exact deployment knowledge-source routing, and Northfield
   dealership adoption
-- **Source baseline:** AI Fabric `0.8.11`
-- **Target immutable release:** AI Fabric `0.8.12`
+- **Original diagnostic baseline:** AI Fabric `0.8.11`
+- **Current hosted baseline:** AI Fabric `0.8.19`
+- **Target immutable release:** AI Fabric `0.8.20`
 - **First live adopter:** Northfield dealership deployment `dep-f023c863`
 - **Compatibility decision:** Greenfield correction. Support only the latest
   Platform, runtime, framework, installation manifest, and experience-pack
@@ -916,8 +917,16 @@ This plan is complete only when all of the following are true:
 | Remove workspace/pack routing authority | Complete locally | Widget sanitization, dealership pack `1.1.0`, Platform UI/validator, and migration `V154` remove browser-owned retrieval spaces while preserving semantic page/target context |
 | Validate Platform persistence and UI | Complete locally | Platform backend full suite: 914 tests green; PostgreSQL 16 clean-schema migration through `V154` green; Platform UI, widget, experience pack, public-site static and browser gates green |
 | Publish immutable framework release | Complete | Source commit `7b4b0b14c9639abec7c149af707d3e17be06e965`, tag `ai-fabric-framework-v0.8.12`, GitHub release, and Maven Central workflow `37975306956` are complete. The BOM, core, RAG, and execution artifacts return HTTP `200` from Maven Central. An isolated-cache private-runtime `clean verify` passed all 235 tests, and its boot JAR contains 20 AI Fabric libraries exclusively at `0.8.12`, including `ai-fabric-execution-0.8.12.jar`. |
-| Run hosted replacement and release gates | Pending | Follows immutable release publication and private source commit |
+| Correct target-bound read fallback nondeterminism | Complete | AI Fabric `0.8.20` generically converts only eligible target-bound READ actions without trusted hidden attachment targets into information retrieval. Writes, read-write actions, user-visible parameters, owned-resource resolvers, and genuine target-resolution requests remain fail-closed. Focused tests, 739 core tests, 94 integration tests with 6 expected skips, all 26 real-app modules, both external consumers, release guards, and exact-source GitHub Framework Build `38062143556` are green. |
+| Publish AI Fabric `0.8.20` | Complete | Public source commit `6f196d0bade3a5b01252823c78bfe2ae2acc5b23`, tag `ai-fabric-framework-v0.8.20`, and the matching GitHub release are published. Maven Central workflow `38063364642` completed successfully; the BOM, core JAR, and execution JAR each return HTTP `200`. |
+| Upgrade private Platform source to `0.8.20` | Complete locally, commit pending | The private runtime, Platform compiler/defaults, runtime capability manifest, tests, and public-site release identity are updated. Runtime/connector/relay, 920 Platform backend tests, all five `ai-fabric-product` modules, and the complete Node 22 public-site/widget/dealership-pack verification are green. A clean four-module reactor using a new temporary Maven repository succeeded in 3 minutes 20 seconds. The runtime boot JAR contains 20 AI Fabric libraries, all and only at `0.8.20`; the temporary repository was removed. |
+| Run hosted replacement and release gates | Pending | No `0.8.20` hosted deployment has been triggered. Northfield remains verified on version `ver-e1fbbad0` (`v46`), release `rel-6fe9c7ae`, source artifact `dsa-1c7b4bdb`, and AI Fabric `0.8.19`. The next hosted step is to push the private commit, await its exact runtime image workflow, deploy the staging Platform backend, register/promote that image, publish the unchanged Northfield draft as a no-reindex version, and apply it through `dtp-coolify-staging-behavior`. |
 
-Production and staging behavior has not yet been changed by this implementation
-milestone. The immutable `0.8.12` artifact and Central-only private build are
-verified; the hosted rollout is now authorized to proceed.
+At this checkpoint, production and staging behavior has not yet been changed by
+the `0.8.20` follow-up. Framework publication and Central-only consumption are
+fully verified. Staging firewall `10915120` was restored before pausing: its
+canonical rules hash is
+`71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`, and
+the current operator IP has zero rule matches. Open a new bounded access window
+only when hosted rollout resumes. Do not start a second Maven Central release
+or recreate the framework tag.
