@@ -679,6 +679,43 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void meQueryDoesNotExposeRawActionsWhenSanitizedPayloadOmitsThem() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        Map<String, Object> rawAction = Map.of(
+            "action", "search_records",
+            "actionExecutionId", "read-action-42",
+            "actionResult", Map.of(
+                "success", true,
+                "message", "Three records found.",
+                "internalCredential", "must-not-leak"
+            )
+        );
+        when(orchestrator.orchestrate(eq("Find current records"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Three records are available.")
+                .data(Map.of(
+                    "answer", "Three records are available.",
+                    "actions", List.of(rawAction)
+                ))
+                .sanitizedPayload(Map.of("safeSummary", "Three records are available."))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Find current records");
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getAnswer()).isEqualTo("Three records are available.");
+        assertThat(response.getActions()).isEmpty();
+    }
+
+    @Test
     void meQueryExposesRawResultDocumentsWhenSanitizedPayloadOmitsSources() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         List<Map<String, Object>> documents = List.of(Map.of(

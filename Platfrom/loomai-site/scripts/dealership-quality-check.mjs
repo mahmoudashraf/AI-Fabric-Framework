@@ -16,7 +16,7 @@ const outputPath = resolve(
 )
 const viewport = { width: 390, height: 844 }
 
-const scenarios = [
+const scenarioCatalog = [
   {
     id: 'structured-current-stock-action',
     purpose: 'Use the authoritative stock action for exact filters and current commercial facts.',
@@ -88,6 +88,21 @@ const scenarios = [
     prompt: 'I want to book a test drive for the Aster E1. Tell me what details and confirmation you need, but do not submit anything.',
   },
 ]
+
+const requestedScenarioIds = uniqueStrings(
+  String(process.env.DEALERSHIP_QUALITY_SCENARIOS || '')
+    .split(',')
+    .map((value) => value.trim()),
+)
+const scenarios = requestedScenarioIds.length === 0
+  ? scenarioCatalog
+  : scenarioCatalog.filter(({ id }) => requestedScenarioIds.includes(id))
+
+if (requestedScenarioIds.length > 0 && scenarios.length !== requestedScenarioIds.length) {
+  const available = new Set(scenarioCatalog.map(({ id }) => id))
+  const unknown = requestedScenarioIds.filter((id) => !available.has(id))
+  throw new Error(`Unknown dealership quality scenario id(s): ${unknown.join(', ')}`)
+}
 
 const documentKnowledgeScenarioIds = [
   'approved-warranty-policy',
@@ -348,6 +363,7 @@ try {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
   if (strict && report.status !== 'PASS') process.exitCode = 1
 } catch (error) {
+  if (error instanceof Error && error.stack) process.stderr.write(`${error.stack}\n`)
   report = {
     schemaVersion: 'loomai-dealership-live-quality-v1',
     status: 'OPERATIONAL_FAILURE',
@@ -668,6 +684,12 @@ function responseEvidence(value) {
   const policy = metadata.map((entry) => entry.orchestrationPolicy).find(Boolean) || null
   const chat = metadata.map((entry) => entry.chat).find(Boolean) || null
   const compound = metadata.map((entry) => entry.compoundEvidence).find(Boolean) || null
+  const vectorSpaceRouting = metadata.map((entry) => entry.vectorSpaceRouting).find(Boolean) || null
+  const workingSetTargetSeeding = metadata.map((entry) => entry.workingSetTargetSeeding).find(Boolean) || null
+  const targetResolution = metadata.map((entry) => entry.targetResolution).find(Boolean) || null
+  const requiresTargetResolution = metadata
+    .map((entry) => entry.intentMetadata?.requiresTargetResolution ?? entry.requiresTargetResolution)
+    .find((value) => typeof value === 'boolean')
   const resolutions = [
     ...metadata.map((entry) => entry.readActionResolution),
     ...(Array.isArray(value?.actions) ? value.actions.map((entry) => entry?.readActionResolution) : []),
@@ -728,6 +750,30 @@ function responseEvidence(value) {
     successfulWriteActions,
     receiptCodes,
     historyMessagesCount: Number(chat?.historyMessagesCount || 0),
+    requiresTargetResolution: requiresTargetResolution ?? null,
+    vectorSpaceRouting: Array.isArray(vectorSpaceRouting)
+      ? vectorSpaceRouting.map((event) => ({
+          intentIndex: event?.intentIndex ?? null,
+          source: event?.source || event?.routingSource || event?.strategy || null,
+          priorVectorSpace: event?.priorVectorSpace || null,
+          resolvedVectorSpace: event?.resolvedVectorSpace || event?.vectorSpace || null,
+          candidateVectorSpaces: uniqueStrings(event?.candidateVectorSpaces || event?.candidateSpaces || []),
+          rationale: summarizeText(event?.rationale, 500),
+        }))
+      : [],
+    workingSetTargetSeeding: workingSetTargetSeeding && typeof workingSetTargetSeeding === 'object'
+      ? {
+          seeded: workingSetTargetSeeding.seeded === true,
+          count: Number(workingSetTargetSeeding.count || 0),
+          source: workingSetTargetSeeding.source || null,
+        }
+      : null,
+    targetResolution: targetResolution && typeof targetResolution === 'object'
+      ? {
+          count: Number(targetResolution.count || 0),
+          source: targetResolution.source || null,
+        }
+      : null,
     compoundEvidence: compound ? {
       strategy: compound.strategy || null,
       obligationCount: Number(compound.obligationCount || 0),
@@ -1013,7 +1059,7 @@ function buildRecommendations(results, globalAssertions, policy) {
     })
   }
 
-  if (byId['vehicle-comparison']?.status !== 'PASS') {
+  if (byId['vehicle-comparison'] && byId['vehicle-comparison'].status !== 'PASS') {
     const comparisonFailure = byId['vehicle-comparison'].evidence.actionResults
       .find(({ action, success }) => action === 'dealership_compare_vehicles' && !success)
     recommendations.push({

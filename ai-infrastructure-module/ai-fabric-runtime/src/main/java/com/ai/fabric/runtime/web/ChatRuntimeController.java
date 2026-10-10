@@ -210,8 +210,9 @@ public class ChatRuntimeController {
             ? Map.of()
             : result.getSanitizedPayload();
         Map<String, Object> rawData = firstMap(result == null ? null : result.getData());
+        Map<String, Object> sanitizedData = firstMap(sanitizedPayload.get("data"));
         Map<String, Object> data = enrichCanonicalData(
-            firstMap(sanitizedPayload.get("data"), rawData),
+            firstMap(sanitizedData, rawData),
             rawData,
             result
         );
@@ -236,7 +237,7 @@ public class ChatRuntimeController {
         String resultType = result != null && result.getType() != null
             ? result.getType().name()
             : (result != null && result.isSuccess() ? "INFORMATION_PROVIDED" : "ERROR");
-        List<Object> actions = firstList(sanitizedPayload.get("actions"), data.get("actions"));
+        List<Object> actions = firstList(sanitizedPayload.get("actions"), sanitizedData.get("actions"));
         actions = enrichCanonicalActions(actions, firstList(rawData.get("actions")), rawData, result);
         if (actions.isEmpty() && containsActionLikeEvidence(data)) {
             actions = List.of(data);
