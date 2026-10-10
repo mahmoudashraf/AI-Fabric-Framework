@@ -11,7 +11,7 @@ WORKDIR /workspace
 COPY ai-infrastructure-module ai-infrastructure-module
 
 RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B --no-transfer-progress -f ai-infrastructure-module/pom.xml \
+    mvn -B -U --no-transfer-progress -f ai-infrastructure-module/pom.xml \
     -pl ai-fabric-runtime,ai-infrastructure-generic-rest-connector -am -DskipTests package
 
 FROM eclipse-temurin:21-jre

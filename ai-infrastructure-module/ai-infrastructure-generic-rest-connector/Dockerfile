@@ -5,7 +5,7 @@ WORKDIR /workspace
 
 COPY ai-infrastructure-module ai-infrastructure-module
 
-RUN mvn -f ai-infrastructure-module/pom.xml -pl ai-infrastructure-generic-rest-connector -am -DskipTests package
+RUN mvn -U -f ai-infrastructure-module/pom.xml -pl ai-infrastructure-generic-rest-connector -am -DskipTests package
 
 FROM eclipse-temurin:21-jre
 
