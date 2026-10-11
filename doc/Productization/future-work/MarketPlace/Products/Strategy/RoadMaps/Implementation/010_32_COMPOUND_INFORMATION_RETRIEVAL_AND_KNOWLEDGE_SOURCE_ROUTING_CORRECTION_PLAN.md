@@ -1,15 +1,17 @@
 # 010.32 Compound Information Retrieval And Knowledge-Source Routing Correction Plan
 
-- **Status:** AI Fabric `0.8.20`, Maven Central publication, and the isolated
-  Central-only private-runtime build are complete. Staging replacement, live
-  corpus, production rollout, and final release gates are in progress.
+- **Status:** Implemented and live on AI Fabric `0.8.21`. Framework publication,
+  Central-only consumption, staging replacement, production rollout, compound
+  retrieval canaries, and all blocking canonical release stages are complete.
+  The wider cross-product gate retains two separately documented external or
+  accepted product-quality exceptions; neither is caused by compound routing.
 - **Created:** 2026-10-09
 - **Scope:** Generic multi-intent evidence collection, per-intent vector-space
   resolution, exact deployment knowledge-source routing, and Northfield
   dealership adoption
 - **Original diagnostic baseline:** AI Fabric `0.8.11`
-- **Current hosted baseline:** AI Fabric `0.8.19`
-- **Target immutable release:** AI Fabric `0.8.20`
+- **Current hosted baseline:** AI Fabric `0.8.21`
+- **Target immutable release:** AI Fabric `0.8.21`
 - **First live adopter:** Northfield dealership deployment `dep-f023c863`
 - **Compatibility decision:** Greenfield correction. Support only the latest
   Platform, runtime, framework, installation manifest, and experience-pack
@@ -893,40 +895,74 @@ This plan is complete only when all of the following are true:
   necessary and re-owned or deleted completely.
 - [x] Focused local framework, runtime, Platform, workspace, and pack gates are
   green.
-- [ ] Northfield is replaced with the one latest deployment release and its
+- [x] Northfield is replaced with the one latest deployment release and its
   assignment is verified.
-- [ ] Every live corpus scenario passes repeatedly in both clause orders.
-- [ ] The complete Platform release gate is green.
-- [ ] Shopify, ProdUS, and Northfield regression canaries remain green.
-- [ ] This document contains final immutable release and hosted evidence.
+- [x] Every live corpus scenario passes repeatedly in both clause orders.
+- [ ] The complete cross-product Platform release gate is green. The current
+  failure is the accepted Shopify safe-redirect wording case described in
+  section 23; the plan-scoped canonical release gate is green.
+- [x] Shopify private execution, ProdUS retrieval, and Northfield regression
+  canaries remain green for their plan-relevant paths.
+- [x] This document contains final immutable release and hosted evidence.
 
-## 22. Current Progress
+## 22. Final Implementation Evidence
 
 | Work item | Status | Evidence |
 | --- | --- | --- |
-| Reproduce policy-only behavior | Complete | Correct policy response observed |
-| Reproduce mixed inventory-first behavior | Complete | Multiple live request IDs in section 3 |
-| Test reversed clause order | Complete | Combined successful response observed |
-| Confirm indexing health | Complete | Both domains independently retrievable |
-| Identify request-hint override | Complete | Debug routing events and pack source inspected |
-| Identify compound child promotion | Complete | AI Fabric source inspected |
-| Identify cross-source runtime fanout | Complete | Private runtime source inspected and live source IDs confirmed |
-| Define target ownership and flow | Complete | Sections 5 through 8 |
-| Implement AI Fabric correction | Complete | `0.8.12` source collects compound read evidence, synthesizes once, retains soft-failure sibling evidence, fails closed on hard boundaries, validates routing provenance, and rejects vector-space mismatches. The complete 36-module reactor and exact-release GitHub Framework Build `37974016810` are green. |
-| Implement private runtime correction | Complete locally | Runtime maps typed requests only to enabled exact-type sources, reports bounded no-match/mismatch diagnostics, validates source IDs/types at startup, and exposes source-routing readiness; focused runtime tests are green |
-| Remove workspace/pack routing authority | Complete locally | Widget sanitization, dealership pack `1.1.0`, Platform UI/validator, and migration `V154` remove browser-owned retrieval spaces while preserving semantic page/target context |
-| Validate Platform persistence and UI | Complete locally | Platform backend full suite: 914 tests green; PostgreSQL 16 clean-schema migration through `V154` green; Platform UI, widget, experience pack, public-site static and browser gates green |
-| Publish immutable framework release | Complete | Source commit `7b4b0b14c9639abec7c149af707d3e17be06e965`, tag `ai-fabric-framework-v0.8.12`, GitHub release, and Maven Central workflow `37975306956` are complete. The BOM, core, RAG, and execution artifacts return HTTP `200` from Maven Central. An isolated-cache private-runtime `clean verify` passed all 235 tests, and its boot JAR contains 20 AI Fabric libraries exclusively at `0.8.12`, including `ai-fabric-execution-0.8.12.jar`. |
-| Correct target-bound read fallback nondeterminism | Complete | AI Fabric `0.8.20` generically converts only eligible target-bound READ actions without trusted hidden attachment targets into information retrieval. Writes, read-write actions, user-visible parameters, owned-resource resolvers, and genuine target-resolution requests remain fail-closed. Focused tests, 739 core tests, 94 integration tests with 6 expected skips, all 26 real-app modules, both external consumers, release guards, and exact-source GitHub Framework Build `38062143556` are green. |
-| Publish AI Fabric `0.8.20` | Complete | Public source commit `6f196d0bade3a5b01252823c78bfe2ae2acc5b23`, tag `ai-fabric-framework-v0.8.20`, and the matching GitHub release are published. Maven Central workflow `38063364642` completed successfully; the BOM, core JAR, and execution JAR each return HTTP `200`. |
-| Upgrade private Platform source to `0.8.20` | Complete locally, commit pending | The private runtime, Platform compiler/defaults, runtime capability manifest, tests, and public-site release identity are updated. Runtime/connector/relay, 920 Platform backend tests, all five `ai-fabric-product` modules, and the complete Node 22 public-site/widget/dealership-pack verification are green. A clean four-module reactor using a new temporary Maven repository succeeded in 3 minutes 20 seconds. The runtime boot JAR contains 20 AI Fabric libraries, all and only at `0.8.20`; the temporary repository was removed. |
-| Run hosted replacement and release gates | Pending | No `0.8.20` hosted deployment has been triggered. Northfield remains verified on version `ver-e1fbbad0` (`v46`), release `rel-6fe9c7ae`, source artifact `dsa-1c7b4bdb`, and AI Fabric `0.8.19`. The next hosted step is to push the private commit, await its exact runtime image workflow, deploy the staging Platform backend, register/promote that image, publish the unchanged Northfield draft as a no-reindex version, and apply it through `dtp-coolify-staging-behavior`. |
+| Reproduce and isolate the defect | Complete | Policy-only, inventory-first mixed, and reversed-clause live requests established phrase-order sensitivity and cross-source fanout. |
+| AI Fabric compound correction | Complete | Compound read obligations retain per-intent queries and validated spaces, collect read-action and RAG evidence, synthesize once, preserve truthful provenance, and keep writes and hard boundaries fail-closed. |
+| Runtime source correction | Complete | Typed retrieval resolves only healthy exact-entity-type sources; mismatches are rejected instead of rewritten. |
+| Browser authority removal | Complete | AI Workspace and the dealership pack no longer inject vector-space routing authority; semantic page, target, and attachment context remains supported. |
+| Current immutable framework | Complete | AI Fabric `0.8.21`, source `5f744ddb26215e8e9561229065e26961bcfe45da`, tag `ai-fabric-framework-v0.8.21`, GitHub Framework Build `38084637096`, and Maven Central workflow `38085551393` are green. BOM, core, and execution artifacts were verified from Central. |
+| Current private runtime artifact | Complete | Artifact `dsa-d024ea50`, source `47d4aeec7d9128e772e43e5868cd9eec3424e737`, digest `sha256:28e795d9f37ebd48e718b948bc53e319dcb3513efaa4bb37e54d4ba7aee32451`, capability hash `cb0161ff3938dae4d216fb941b0a54981e0fc0e4e026968a5e284c0cbf4ba75c`, AI Fabric `0.8.21`, production-promoted. Runtime, connector, and vectorization-runner roles use the same immutable image. |
+| Northfield hosted replacement | Complete | Deployment `dep-f023c863`, version `ver-9af8ab37` (`v48`), release `rel-3a6b5ecf`, `APPLIED_VERIFIED`. Strict 18-scenario smoke, 10-run compound repetition, and 14/14 quality evidence passed. |
+| Staging release evidence | Complete with external exception | Canonical repair suite `vsr-d38191ce` passed. The wider staging suite `vsr-2b03c9ff` reached only the unrelated Partner Supabase DNS failure. |
+| ProdUS regression | Complete | Deployment `dep-f6abfa06`, version `ver-f62d3b3a` (`v15`), release `rel-e70c235f`, verification `vrf-69458878`: 29 passed, 0 failed, 2 skipped. Reindex `vrn-988ec103` completed 198/198; request `rag-b9771482-573c-4b60-bc6f-b5744da815c5` returned the exact `service-module:api-security-review` source and document. |
+| Shopify private regression | Complete for release scope | Deployment `dep-8c3e7259`, version `ver-e62515e6` (`v27`), release `rel-ee39bcdb`, verification `vrf-74a20ffb`: 29 passed, 0 failed, 2 skipped. Private request `rag-5a44579f-7570-46f7-84fc-546cfc872935` returned one action and ten sources. |
+| Production Platform | Complete | Backend app `sbdv2pkkqrbsy9m59034hb5j` runs exact source `3858259550f41978d0b0b49cf0868015c87b5bc4`, Coolify deployment `pc0abnjc7q16gjgln9h2xw9w`, status `running:healthy`, canonical liveness `UP`. |
+| Production canonical release gate | Complete | Final run `vsr-d949f8cb` passed every blocking stage: shared inference, rollout inventory, marketplace hosted verification, and ecommerce hosted verification. Optional Qdrant remained nonblocking. |
 
-At this checkpoint, production and staging behavior has not yet been changed by
-the `0.8.20` follow-up. Framework publication and Central-only consumption are
-fully verified. Staging firewall `10915120` was restored before pausing: its
-canonical rules hash is
-`71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`, and
-the current operator IP has zero rule matches. Open a new bounded access window
-only when hosted rollout resumes. Do not start a second Maven Central release
-or recreate the framework tag.
+## 23. Release Exceptions And Operational Hardening
+
+### 23.1 Managed vectorization runner credential lifecycle
+
+The first production canonical attempt exposed an operational defect rather
+than a retrieval defect. Canonical marketplace runner
+`sbik3c302l5hg9nqr3d36z3q` had a healthy Coolify container but could not create
+a new six-hour runner session because its inherited seven-day registration
+token had expired. Bootstrap run `vrn-b9a2155e` remained queued until the token
+was governedly rotated, installed as a shown-once Coolify secret, and the
+runner redeployed. It then completed successfully.
+
+Private source `3858259550f41978d0b0b49cf0868015c87b5bc4` corrects the generic
+lifecycle:
+
+- customer-managed/manual registration tokens retain the seven-day default;
+- platform-managed runner credentials use a distinct 365-day default;
+- governed provisioning rotates a managed credential inside a 30-day renewal
+  window before reconciling the provider environment;
+- focused provisioning, runner, vectorization, and Railway-plan tests pass;
+- exact backend/UI image workflow `38102864421` passed and that exact backend
+  image is live.
+
+### 23.2 Wider full-platform gate
+
+The plan-scoped canonical release gate is green. The latest wider
+`full-platform-release-readiness` run remains `vsr-137e5c0d` and is red because
+the Shopify answer-quality audit passed 10/11: a safe out-of-scope response was
+generic and omitted the literal word `store`. The user explicitly deferred
+that unrelated Shopify answer-quality work for this release. Earlier stages,
+including Platform admin, managed vector, Coolify, Marketplace install,
+Shopify Companion, and Shopify MCP, passed.
+
+Standalone Partner run `vsr-18ba5db5` also records an external identity-fixture
+blocker: the stored JWT is expired and the configured Supabase project hostname
+currently returns public DNS `NXDOMAIN`. Do not weaken JWT validation or invent
+a replacement identity to make the gate green. Restore the real Partner
+identity project or configure a reviewed replacement, issue a fresh JWT, then
+rerun the standalone Partner suite and full cross-product gate.
+
+These exceptions do not invalidate the compound retrieval correction,
+Northfield canary, ProdUS retrieval, Shopify private execution, or the green
+canonical deployment gate. They do prevent claiming that every unrelated
+Platform product gate is globally green.

@@ -4228,3 +4228,36 @@ Critical fixes that made the gate pass:
   on a named retailer, sandbox identity, `Deal Updates`, data-use/consent terms,
   and Autotrader-approved duplicate/ambiguous-timeout handling. The public create
   contract documents no idempotency key, so no blind write retry is permitted.
+
+## 2026-10-11 Compound Retrieval And AI Fabric 0.8.21 Closure
+
+- Canonical plan: `010_32_COMPOUND_INFORMATION_RETRIEVAL_AND_KNOWLEDGE_SOURCE_ROUTING_CORRECTION_PLAN.md`.
+  Compound read obligations, per-intent routing, exact runtime source matching,
+  truthful provenance, and browser routing-authority removal are implemented.
+- AI Fabric current-only release is `0.8.21` at public source
+  `5f744ddb26215e8e9561229065e26961bcfe45da`; Framework Build `38084637096`
+  and Maven Central workflow `38085551393` passed.
+- Current private runtime artifact is `dsa-d024ea50` from source
+  `47d4aeec7d9128e772e43e5868cd9eec3424e737`, digest
+  `sha256:28e795d9f37ebd48e718b948bc53e319dcb3513efaa4bb37e54d4ba7aee32451`.
+- Northfield `dep-f023c863` is `APPLIED_VERIFIED` on `ver-9af8ab37` / `v48` /
+  `rel-3a6b5ecf`; strict 18-scenario, 10-run compound repetition, and 14/14
+  quality gates passed.
+- ProdUS `dep-f6abfa06` is verified on `ver-f62d3b3a` / `v15` /
+  `rel-e70c235f`; 198/198 records reindexed and exact service-module retrieval
+  passed. Shopify `dep-8c3e7259` is verified on `ver-e62515e6` / `v27` /
+  `rel-ee39bcdb`; private action and source evidence passed.
+- Production Platform backend app `sbdv2pkkqrbsy9m59034hb5j` runs exact source
+  `3858259550f41978d0b0b49cf0868015c87b5bc4`, status `running:healthy`.
+  This source also separates managed runner credential lifetime from manual
+  tokens: 365-day managed credentials, 30-day provisioning renewal window,
+  seven-day manual/customer-managed default.
+- Final canonical release suite `vsr-d949f8cb` passed every blocking stage.
+  Optional Qdrant is nonblocking. The wider full-platform suite remains red at
+  an explicitly deferred Shopify safe-redirect wording assertion; Partner auth
+  is independently blocked by an expired JWT and Supabase DNS `NXDOMAIN`.
+- Temporary production access is closed. Production/shared firewall sorted
+  rule hashes are `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`
+  and `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`;
+  the operator CIDR is absent from both, and the host UFW SSH allowance was
+  removed.
