@@ -509,8 +509,12 @@ public class DeploymentConfigCompiler {
         try {
             JsonNode draftEntity = objectMapper.readTree(draft.getEntityConfigJson());
             JsonNode activeEntity = objectMapper.readTree(activeVersion.getEntityConfigJson());
-            JsonNode draftProvider = objectMapper.readTree(draft.getProviderConfigJson());
-            JsonNode activeProvider = objectMapper.readTree(activeVersion.getProviderConfigJson());
+            JsonNode draftProvider = providerConfigForReindexComparison(
+                objectMapper.readTree(draft.getProviderConfigJson())
+            );
+            JsonNode activeProvider = providerConfigForReindexComparison(
+                objectMapper.readTree(activeVersion.getProviderConfigJson())
+            );
             EntityConfigContractValidation draftValidation = entityConfigContractService.requireValid(
                 draftEntity,
                 EntityConfigValidationContext.standard()
@@ -525,6 +529,15 @@ public class DeploymentConfigCompiler {
         } catch (Exception ex) {
             return true;
         }
+    }
+
+    private JsonNode providerConfigForReindexComparison(JsonNode providerConfig) {
+        JsonNode comparable = providerConfig == null ? objectMapper.createObjectNode() : providerConfig.deepCopy();
+        if (comparable instanceof ObjectNode objectNode) {
+            // Runtime orchestration policy does not change stored vectors or their indexed representation.
+            objectNode.remove("orchestrationModeOverrides");
+        }
+        return comparable;
     }
 
     public String frameworkVersion() {

@@ -499,6 +499,54 @@ class DeploymentConfigCompilerTest {
     }
 
     @Test
+    void semanticRecoveryPolicyChangeDoesNotRequireReindex() {
+        DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
+        draft.setEntityConfigJson(validDocumentEntityConfig(false));
+        DeploymentVersionEntity activeVersion = activeVersionFor(draft);
+        draft.setProviderConfigJson(
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "orchestrationModeOverrides": {
+                    "executor": {
+                      "semanticRecovery": {
+                        "unknownAction": "LLM_REPAIR_THEN_FAIL",
+                        "actionDomainMismatch": "DENY_AND_LLM_REPLAN"
+                      }
+                    }
+                  }
+                }
+                """
+        );
+
+        assertThat(compiler.requiresReindex(draft, activeVersion)).isFalse();
+    }
+
+    @Test
+    void embeddingProviderChangeStillRequiresReindex() {
+        DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
+        draft.setEntityConfigJson(validDocumentEntityConfig(false));
+        DeploymentVersionEntity activeVersion = activeVersionFor(draft);
+        draft.setProviderConfigJson(
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "gemini",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """
+        );
+
+        assertThat(compiler.requiresReindex(draft, activeVersion)).isTrue();
+    }
+
+    @Test
     void runtimeCompatibilityAcceptsMatchingV04ArtifactAndManifest() {
         compiler.requireRuntimeArtifactCompatible(compiledVersion());
     }
@@ -564,6 +612,13 @@ class DeploymentConfigCompilerTest {
         version.setCompositionProvenanceJson(compiled.compositionProvenanceJson());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setManifestJson(compiled.manifestJson());
+        return version;
+    }
+
+    private DeploymentVersionEntity activeVersionFor(DeploymentDraftEntity draft) {
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setEntityConfigJson(draft.getEntityConfigJson());
+        version.setProviderConfigJson(draft.getProviderConfigJson());
         return version;
     }
 
