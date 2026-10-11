@@ -40,7 +40,7 @@
           "missingTarget": "LLM_REPAIR_THEN_CLARIFY",
           "missingVectorSpace": "LLM_REPAIR_THEN_CLARIFY",
           "invalidVectorSpace": "LLM_REPAIR_THEN_FAIL",
-          "unknownAction": "LLM_REPAIR_THEN_FAIL",
+          "unknownAction": "LLM_REPLAN_TO_INFORMATION",
           "actionDomainMismatch": "DENY_AND_LLM_REPLAN",
           "advancedNoEvidence": "RETURN_NO_EVIDENCE"
         }
