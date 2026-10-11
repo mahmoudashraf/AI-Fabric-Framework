@@ -25,6 +25,18 @@ const unsafeContext = {
   vector_space: 'document',
   entityType: 'dealer-vehicle',
   entity_type: 'document',
+  action: 'delete_account',
+  allowedActions: ['delete_account'],
+  targetId: 'server-owned-target',
+  mode: 'executor',
+  provider: 'untrusted-provider',
+  tenantId: 'other-tenant',
+  deploymentId: 'other-deployment',
+  userId: 'other-user',
+  authContext: { admin: true },
+  roles: ['admin'],
+  permissions: ['*'],
+  capabilities: ['*'],
 }
 
 assert.deepEqual(sanitizeRequestContext(unsafeContext), {

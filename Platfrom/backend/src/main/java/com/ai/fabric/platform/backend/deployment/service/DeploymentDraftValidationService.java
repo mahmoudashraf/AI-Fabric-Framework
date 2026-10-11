@@ -41,6 +41,15 @@ public class DeploymentDraftValidationService {
     private static final Set<String> SUPPORTED_READ_ACTION_RAG_COOPERATION_MODES = Set.of(
         "NONE", "RAG_IF_ACTIONS_INSUFFICIENT", "PARALLEL_ACTIONS_AND_RAG"
     );
+    private static final Map<String, Set<String>> SUPPORTED_SEMANTIC_RECOVERY_VALUES = Map.of(
+        "extractionFailure", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPAIR_THEN_CLARIFY"),
+        "missingTarget", Set.of("LLM_REPAIR_THEN_CLARIFY"),
+        "missingVectorSpace", Set.of("LLM_REPAIR_THEN_CLARIFY", "BOUNDED_ALLOWED_FAN_OUT"),
+        "invalidVectorSpace", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPAIR_THEN_CLARIFY"),
+        "unknownAction", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPLAN_TO_INFORMATION"),
+        "actionDomainMismatch", Set.of("DENY_AND_FAIL", "DENY_AND_LLM_REPLAN", "DENY_AND_ALLOWED_RAG"),
+        "advancedNoEvidence", Set.of("RETURN_NO_EVIDENCE", "BOUNDED_ALLOWED_SPACE_RECOVERY")
+    );
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");
     private static final Pattern CANONICAL_ENTITY_TYPE = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}");
@@ -1873,12 +1882,12 @@ public class DeploymentDraftValidationService {
             return;
         }
         executor.fieldNames().forEachRemaining(field -> {
-            if (!Set.of("vectorSpaceSelectionRequired", "readActionResolution").contains(field)) {
+            if (!Set.of("vectorSpaceSelectionRequired", "readActionResolution", "semanticRecovery").contains(field)) {
                 issues.add(error(
                     "providers",
                     "EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED",
                     "$.orchestrationModeOverrides.executor." + field,
-                    "Only vectorSpaceSelectionRequired and readActionResolution may be overridden for executor mode."
+                    "Only vectorSpaceSelectionRequired, readActionResolution and semanticRecovery may be overridden for executor mode."
                 ));
             }
         });
@@ -1896,9 +1905,18 @@ public class DeploymentDraftValidationService {
         }
 
         JsonNode readAction = executor.path("readActionResolution");
-        if (readAction.isMissingNode() || readAction.isNull()) {
-            return;
+        if (!readAction.isMissingNode() && !readAction.isNull()) {
+            validateReadActionResolutionOverride(readAction, issues);
         }
+
+        JsonNode semanticRecovery = executor.path("semanticRecovery");
+        if (!semanticRecovery.isMissingNode() && !semanticRecovery.isNull()) {
+            validateSemanticRecoveryOverride(semanticRecovery, issues);
+        }
+    }
+
+    private void validateReadActionResolutionOverride(JsonNode readAction,
+                                                      List<DraftValidationIssue> issues) {
         String basePath = "$.orchestrationModeOverrides.executor.readActionResolution";
         if (!readAction.isObject()) {
             issues.add(error(
@@ -1946,6 +1964,40 @@ public class DeploymentDraftValidationService {
                 "maxIterations must be an integer between 1 and 5."
             ));
         }
+    }
+
+    private void validateSemanticRecoveryOverride(JsonNode semanticRecovery,
+                                                   List<DraftValidationIssue> issues) {
+        String basePath = "$.orchestrationModeOverrides.executor.semanticRecovery";
+        if (!semanticRecovery.isObject()) {
+            issues.add(error(
+                "providers",
+                "SEMANTIC_RECOVERY_OVERRIDE_OBJECT_REQUIRED",
+                basePath,
+                "semanticRecovery must be an object."
+            ));
+            return;
+        }
+        semanticRecovery.fieldNames().forEachRemaining(field -> {
+            Set<String> supported = SUPPORTED_SEMANTIC_RECOVERY_VALUES.get(field);
+            if (supported == null) {
+                issues.add(error(
+                    "providers",
+                    "SEMANTIC_RECOVERY_OVERRIDE_FIELD_UNSUPPORTED",
+                    basePath + "." + field,
+                    "Unsupported semantic recovery decision point."
+                ));
+                return;
+            }
+            validateOptionalEnum(
+                semanticRecovery,
+                field,
+                supported,
+                "SEMANTIC_RECOVERY_POLICY_INVALID",
+                basePath,
+                issues
+            );
+        });
     }
 
     private void validateOptionalEnum(JsonNode node,

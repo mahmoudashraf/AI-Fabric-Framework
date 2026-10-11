@@ -564,6 +564,12 @@ payload = {
     "mode": "THINKER_DEEP",
     "userQuestion": f"Verification {run_tag}: shopper asks why a product recommendation is not grounded in current store data.",
     "userSafeAnswer": "I need to verify current store evidence before making a claim.",
+    "semanticDecision": {
+        "outcome": "RESOLVED",
+        "issueCategory": "GENERAL_DIAGNOSIS",
+        "riskClass": "READ_ONLY",
+        "reasonCode": "EVIDENCE_SUFFICIENT"
+    },
     "evidence": [{
         "kind": "READ_ACTION_RESULT",
         "sourceKind": "VERIFICATION_PACK",

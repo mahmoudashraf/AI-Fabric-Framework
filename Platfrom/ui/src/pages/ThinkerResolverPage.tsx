@@ -49,7 +49,10 @@ import {
   updateThinkerDeploymentControl,
   type DeploymentSummary,
   type ResolverIntentProposalSummary,
+  type ThinkerIssueCategory,
+  type ThinkerIssueOutcome,
   type ThinkerIssueSessionSummary,
+  type ThinkerSemanticDecisionInput,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
@@ -95,6 +98,53 @@ function defaultDeployment(deployments: DeploymentSummary[]): DeploymentSummary 
   return deployments.find((deployment) => deployment.templateId?.includes('shopify')) ?? deployments[0] ?? null
 }
 
+const THINKER_OUTCOMES: ThinkerIssueOutcome[] = [
+  'RESOLVED',
+  'INSUFFICIENT_EVIDENCE',
+  'WRITE_REQUIRED_ESCALATED',
+  'BLOCKED',
+]
+
+const THINKER_CATEGORIES: ThinkerIssueCategory[] = [
+  'GENERAL_DIAGNOSIS',
+  'POLICY_LOOKUP',
+  'AVAILABILITY_DIAGNOSIS',
+  'PRODUCT_COMPARISON',
+  'WRITE_REQUIRED_SUPPORT',
+  'SECURITY_REVIEW',
+]
+
+function operatorSemanticDecision(
+  outcome: ThinkerIssueOutcome,
+  requestedCategory: ThinkerIssueCategory,
+): ThinkerSemanticDecisionInput {
+  if (outcome === 'WRITE_REQUIRED_ESCALATED') {
+    return {
+      outcome,
+      issueCategory: 'WRITE_REQUIRED_SUPPORT',
+      riskClass: 'LOW_WRITE_REQUESTED',
+      reasonCode: 'GOVERNED_WRITE_REQUIRED',
+    }
+  }
+  if (outcome === 'BLOCKED') {
+    return {
+      outcome,
+      issueCategory: 'SECURITY_REVIEW',
+      riskClass: 'BLOCKED',
+      reasonCode: 'SECURITY_POLICY_DENIED',
+    }
+  }
+  const issueCategory = ['WRITE_REQUIRED_SUPPORT', 'SECURITY_REVIEW'].includes(requestedCategory)
+    ? 'GENERAL_DIAGNOSIS'
+    : requestedCategory
+  return {
+    outcome,
+    issueCategory,
+    riskClass: 'READ_ONLY',
+    reasonCode: outcome === 'RESOLVED' ? 'EVIDENCE_SUFFICIENT' : 'EVIDENCE_MISSING',
+  }
+}
+
 export function ThinkerResolverPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -104,6 +154,8 @@ export function ThinkerResolverPage() {
   const [sessionQuestion, setSessionQuestion] = useState('')
   const [sessionAnswer, setSessionAnswer] = useState('')
   const [sessionEvidence, setSessionEvidence] = useState('')
+  const [sessionOutcome, setSessionOutcome] = useState<ThinkerIssueOutcome>('RESOLVED')
+  const [sessionCategory, setSessionCategory] = useState<ThinkerIssueCategory>('GENERAL_DIAGNOSIS')
   const [proposalText, setProposalText] = useState('')
   const [confirmationText, setConfirmationText] = useState('')
 
@@ -179,26 +231,32 @@ export function ThinkerResolverPage() {
     onSuccess: invalidateThinker,
   })
   const createSessionMutation = useMutation({
-    mutationFn: () => createThinkerSession({
-      deploymentId: selectedDeploymentId,
-      shopDomain: shopDomainFilter.trim() || undefined,
-      userQuestion: sessionQuestion.trim(),
-      userSafeAnswer: sessionAnswer.trim() || undefined,
-      evidence: [{
-        kind: 'OPERATOR_DIAGNOSTIC',
-        sourceKind: 'OPERATOR_CONSOLE',
-        sourceIdentifier: 'thinker-resolver-page',
-        freshness: 'FRESH',
-        confidence: 0.85,
-        summary: sessionEvidence.trim(),
-        safeSummary: sessionEvidence.trim(),
-      }],
-    }),
+    mutationFn: () => {
+      const evidenceSummary = sessionEvidence.trim()
+      return createThinkerSession({
+        deploymentId: selectedDeploymentId,
+        shopDomain: shopDomainFilter.trim() || undefined,
+        userQuestion: sessionQuestion.trim(),
+        userSafeAnswer: sessionAnswer.trim() || undefined,
+        semanticDecision: operatorSemanticDecision(sessionOutcome, sessionCategory),
+        evidence: evidenceSummary ? [{
+          kind: 'OPERATOR_DIAGNOSTIC',
+          sourceKind: 'OPERATOR_CONSOLE',
+          sourceIdentifier: 'thinker-resolver-page',
+          freshness: 'FRESH',
+          confidence: 0.85,
+          summary: evidenceSummary,
+          safeSummary: evidenceSummary,
+        }] : [],
+      })
+    },
     onSuccess: async (session) => {
       setSelectedSessionId(session.id)
       setSessionQuestion('')
       setSessionAnswer('')
       setSessionEvidence('')
+      setSessionOutcome('RESOLVED')
+      setSessionCategory('GENERAL_DIAGNOSIS')
       await invalidateThinker()
     },
   })
@@ -424,12 +482,54 @@ export function ThinkerResolverPage() {
             <Divider sx={{ my: 2 }} />
             <Stack spacing={1.25}>
               <Typography variant="subtitle2">Capture diagnostic session</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="thinker-session-outcome">Structured outcome</InputLabel>
+                  <Select
+                    labelId="thinker-session-outcome"
+                    label="Structured outcome"
+                    value={sessionOutcome}
+                    disabled={!canManage || createSessionMutation.isPending}
+                    onChange={(event) => {
+                      const outcome = event.target.value as ThinkerIssueOutcome
+                      setSessionOutcome(outcome)
+                      if (outcome === 'WRITE_REQUIRED_ESCALATED') setSessionCategory('WRITE_REQUIRED_SUPPORT')
+                      if (outcome === 'BLOCKED') setSessionCategory('SECURITY_REVIEW')
+                      if ((outcome === 'RESOLVED' || outcome === 'INSUFFICIENT_EVIDENCE')
+                        && ['WRITE_REQUIRED_SUPPORT', 'SECURITY_REVIEW'].includes(sessionCategory)) {
+                        setSessionCategory('GENERAL_DIAGNOSIS')
+                      }
+                    }}
+                  >
+                    {THINKER_OUTCOMES.map((outcome) => <MenuItem key={outcome} value={outcome}>{outcome}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="thinker-session-category">Issue category</InputLabel>
+                  <Select
+                    labelId="thinker-session-category"
+                    label="Issue category"
+                    value={operatorSemanticDecision(sessionOutcome, sessionCategory).issueCategory}
+                    disabled={!canManage || createSessionMutation.isPending || ['WRITE_REQUIRED_ESCALATED', 'BLOCKED'].includes(sessionOutcome)}
+                    onChange={(event) => setSessionCategory(event.target.value as ThinkerIssueCategory)}
+                  >
+                    {THINKER_CATEGORIES
+                      .filter((category) => !['WRITE_REQUIRED_SUPPORT', 'SECURITY_REVIEW'].includes(category))
+                      .map((category) => <MenuItem key={category} value={category}>{category}</MenuItem>)}
+                    {sessionOutcome === 'WRITE_REQUIRED_ESCALATED' ? <MenuItem value="WRITE_REQUIRED_SUPPORT">WRITE_REQUIRED_SUPPORT</MenuItem> : null}
+                    {sessionOutcome === 'BLOCKED' ? <MenuItem value="SECURITY_REVIEW">SECURITY_REVIEW</MenuItem> : null}
+                  </Select>
+                </FormControl>
+              </Stack>
+              <Alert severity="info">
+                Risk: {operatorSemanticDecision(sessionOutcome, sessionCategory).riskClass}; reason: {operatorSemanticDecision(sessionOutcome, sessionCategory).reasonCode}. These typed fields, not the question wording, control the captured decision.
+              </Alert>
               <TextField size="small" label="Question" value={sessionQuestion} onChange={(event) => setSessionQuestion(event.target.value)} multiline minRows={2} disabled={!canManage || createSessionMutation.isPending} />
               <TextField size="small" label="Safe answer" value={sessionAnswer} onChange={(event) => setSessionAnswer(event.target.value)} multiline minRows={2} disabled={!canManage || createSessionMutation.isPending} />
               <TextField size="small" label="Evidence summary" value={sessionEvidence} onChange={(event) => setSessionEvidence(event.target.value)} multiline minRows={3} disabled={!canManage || createSessionMutation.isPending} />
               <Button
                 variant="contained"
-                disabled={!canManage || !selectedDeploymentId || sessionQuestion.trim().length < 5 || sessionEvidence.trim().length < 5 || createSessionMutation.isPending}
+                disabled={!canManage || !selectedDeploymentId || sessionQuestion.trim().length < 5 || (sessionOutcome === 'RESOLVED' && sessionEvidence.trim().length < 5) || createSessionMutation.isPending}
                 onClick={() => createSessionMutation.mutate()}
               >
                 Capture session

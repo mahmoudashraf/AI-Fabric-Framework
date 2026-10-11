@@ -26,11 +26,37 @@ const SHOPIFY_REQUEST_CONTEXT_FIELDS = new Set([
   "shopifyPageModeMappings",
 ]);
 
-const RESERVED_RETRIEVAL_CONTEXT_FIELDS = new Set([
+const RESERVED_RUNTIME_DECISION_CONTEXT_FIELDS = new Set([
   "preferredvectorspaces",
   "retrievalvectorspaces",
   "vectorspace",
   "entitytype",
+  "preferredsources",
+  "retrievalsources",
+  "knowledgesources",
+  "action",
+  "actionname",
+  "allowedactions",
+  "target",
+  "targetid",
+  "targetids",
+  "mode",
+  "position",
+  "provider",
+  "model",
+  "specialist",
+  "tenant",
+  "tenantid",
+  "deployment",
+  "deploymentid",
+  "userid",
+  "subjectid",
+  "authcontext",
+  "authority",
+  "authorities",
+  "roles",
+  "permissions",
+  "capabilities",
 ]);
 
 const normalizedContextField = (value: string) => value.toLowerCase().replace(/[-_]/g, "");
@@ -41,7 +67,7 @@ export const sanitizeRequestContext = (requestContext?: Record<string, any>) => 
   }
   const cleaned = Object.fromEntries(
     Object.entries(requestContext).filter(([key, value]) => (
-      value !== undefined && !RESERVED_RETRIEVAL_CONTEXT_FIELDS.has(normalizedContextField(key))
+      value !== undefined && !RESERVED_RUNTIME_DECISION_CONTEXT_FIELDS.has(normalizedContextField(key))
     )),
   );
   return Object.keys(cleaned).length ? cleaned : undefined;

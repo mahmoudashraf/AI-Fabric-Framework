@@ -970,7 +970,6 @@ export function useMaxModeController({
   const { handleChatQuery } = useChatFlow({
     chatQuery,
     setChatQuery,
-    chatMessagesLength: chatMessages.length,
     setChatMessages,
     attachedItems,
     searchCategory,
@@ -1281,8 +1280,6 @@ export function useMaxModeController({
     attachedItems,
     setAttachedItems,
     setCollectingItem,
-    setCurrentPosition,
-    setCurrentMode,
     chatInputRef,
     toast,
   });

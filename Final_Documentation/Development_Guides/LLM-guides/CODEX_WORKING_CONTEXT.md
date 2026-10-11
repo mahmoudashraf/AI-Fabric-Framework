@@ -4261,3 +4261,49 @@ Critical fixes that made the gate pass:
   and `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`;
   the operator CIDR is absent from both, and the host UFW SSH allowance was
   removed.
+
+## 2026-10-11 LLM-Driven Semantic Decision Audit
+
+- Created canonical plan
+  `010_33_LLM_DRIVEN_SEMANTIC_DECISIONS_AND_EXPLICIT_RECOVERY_POLICY_PLAN.md`.
+  The implementation and Central publication are complete; hosted replacement
+  remains.
+- Non-negotiable rule: production code may not infer natural-language meaning
+  through keywords, substrings, regexes, token overlap, punctuation, query
+  length, or phrase order. LLM imperfection is handled through better
+  structured contracts, bounded model repair, measured quality, or visible
+  clarification/failure.
+- Semantic fallback is denied unless a named server-owned allow-policy permits
+  it. Any permitted recovery must expose original and effective decisions and
+  cannot broaden authority.
+- AI Fabric `0.8.22` removes `BoundedFanOutRouter` query mention matching,
+  `WorkingSetTargetSeedingStep` English reference regexes,
+  `CompoundReadEvidenceSupport` lexical evidence selection,
+  `AdvancedRagSupport` query-shape heuristics, and governance keyword
+  moderation fallback. Relationship-query was audited but is explicitly
+  deferred and unchanged.
+- Generic UI thinking steps and the deliberate `Action: ...` presentation
+  protocol are allowed because they do not mutate backend semantics or
+  authority. Deterministic local LLM examples are smoke/test-only and cannot
+  start under production posture.
+- Public source `d325b6aef8eb5cc7b4c0edb3279d39f5db6004a4`, exact-source Framework
+  Build `38136695523`, annotated tag, and GitHub release
+  `ai-fabric-framework-v0.8.22` are published. Maven Central workflow
+  `38137843070` passed; BOM, core, and execution return HTTP `200`, and
+  empty-cache minimal/agentic consumers passed.
+- Private adoption pins `0.8.22`, validates/compiles typed semantic recovery,
+  strips untrusted AI Workspace semantic/authority fields, and changes Thinker
+  from question-text classification to explicit typed runtime/operator
+  decisions plus mandatory security overrides.
+- Local gates are green: Platform backend `924/924`, AI Workspace complete
+  package and semantic-boundary smoke, Platform UI build, public-site
+  Astro/static/Playwright verification, and public/private semantic source
+  guards. Product modules, connector `65`, runtime `237`, relay `35`, and relay
+  packaged smoke pass. A clean private source compile using only the temporary
+  Central cache passed; the runtime boot JAR contained 20 AI Fabric libraries,
+  exclusively `0.8.22`. The temporary repository was removed.
+- Private source commit/push, immutable image publication, deployment
+  replacement, and live gates remain.
+- Updated public framework assistant rules plus framework, Platform-product,
+  and Platform session philosophy. `010.32` remains functionally closed and
+  links this follow-up compliance correction.

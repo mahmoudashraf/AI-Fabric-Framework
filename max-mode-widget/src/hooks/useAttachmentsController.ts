@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import type { RefObject } from "react";
 
-import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { Document } from "@/types";
 
 type ToastFn = (opts: any) => void;
@@ -10,32 +9,15 @@ export function useAttachmentsController({
   attachedItems,
   setAttachedItems,
   setCollectingItem,
-  setCurrentPosition,
-  setCurrentMode,
   chatInputRef,
   toast,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   setAttachedItems: (updater: any) => void;
   setCollectingItem: (value: { title: string; type: string } | null) => void;
-  setCurrentPosition: (pos: MaxModePosition) => void;
-  setCurrentMode: (mode: MaxModeMode) => void;
   chatInputRef: RefObject<HTMLTextAreaElement>;
   toast: ToastFn;
 }) {
-  const applyAttachmentFocus = useCallback(
-    (itemType: string) => {
-      if (itemType === "order") {
-        setCurrentPosition("cart");
-        setCurrentMode("executor");
-        return;
-      }
-      setCurrentPosition("catalog");
-      setCurrentMode("navigator");
-    },
-    [setCurrentMode, setCurrentPosition],
-  );
-
   const isItemAttached = useCallback(
     (itemId: string) => {
       return attachedItems.some((item) => (item.data.id && item.data.id === itemId) || (item.data.sku && item.data.sku === itemId));
@@ -111,7 +93,6 @@ export function useAttachmentsController({
       }
 
       setAttachedItems((prev: Array<{ type: string; data: any }>) => [...prev, { type: itemType, data: normalizedItem }]);
-      applyAttachmentFocus(itemType);
 
       toast({
         title: "💬 Added to Chat",
@@ -122,7 +103,7 @@ export function useAttachmentsController({
         chatInputRef.current?.focus();
       }, 100);
     },
-    [applyAttachmentFocus, attachedItems, chatInputRef, setAttachedItems, toast],
+    [attachedItems, chatInputRef, setAttachedItems, toast],
   );
 
   const handleAttachDocument = useCallback(
@@ -140,7 +121,6 @@ export function useAttachmentsController({
       setTimeout(() => setCollectingItem(null), 1500);
 
       setAttachedItems((prev: Array<{ type: string; data: any }>) => [...prev, { type: "document", data: doc }]);
-      applyAttachmentFocus("document");
 
       toast({
         title: "💬 Added to Chat",
@@ -151,7 +131,7 @@ export function useAttachmentsController({
         chatInputRef.current?.focus();
       }, 100);
     },
-    [applyAttachmentFocus, attachedItems, chatInputRef, setAttachedItems, setCollectingItem, toast],
+    [attachedItems, chatInputRef, setAttachedItems, setCollectingItem, toast],
   );
 
   const removeNonAiAttachmentByIndex = useCallback(

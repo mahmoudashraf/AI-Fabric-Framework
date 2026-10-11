@@ -104,6 +104,7 @@ jobs:
       - name: Validate hosted verification shell scripts
         if: ${{ inputs.shell_syntax_checks }}
         run: |
+          bash .github/scripts/validate-platform-semantic-decision-source-guard.sh
           bash -n scripts/verify-ecommerce-deployment.sh
           bash -n scripts/verify-platform-admin-regression.sh
           bash -n scripts/resolve-verification-rollouts.sh

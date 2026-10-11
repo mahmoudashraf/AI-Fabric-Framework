@@ -277,6 +277,40 @@ Critical control-plane flows must stay deterministic:
 
 Important decisions in these flows should be made by explicit code and explicit state, not hidden AI behavior.
 
+### Natural-language semantic decisions
+
+For deployment-local AI behavior, production code must not infer the meaning
+of a user query or model prompt with keywords, substrings, regular expressions,
+token overlap, punctuation, query length, or phrase order. This applies in the
+framework, private runtime, connectors, Platform adapters, generic AI
+Workspace, and experience packs.
+
+Intent, action, parameter, target, vector-space, knowledge-source, retrieval-
+mode, and evidence decisions must come from validated
+structured LLM output, trusted structured input, or a declared provider
+contract. Deterministic code validates structure, authorization, allowlists,
+provenance, and bounds; it must not guess a semantic replacement.
+
+Presentation-only matching is allowed for labels, icons, renderers, and
+illustrative progress when it cannot change the submitted request, backend
+semantic decision, authority, diagnostics, or audit truth.
+
+LLM output may be imperfect. Improve its prompt, schema, available catalog,
+examples, and model, and measure the result over varied wording. A bounded LLM
+repair is permitted when configured. Otherwise clarify or fail visibly rather
+than adding text matching.
+
+Any recovery that changes model-selected behavior is denied unless a named,
+server-owned allow-policy permits it. Allowed recovery must expose the original
+and effective decisions and may never broaden authority. A mechanism is not
+"diagnostic" if it mutates intent, routing, evidence, authority, or the
+semantic result. UI must not present illustrative state as proof of backend
+execution.
+
+Canonical remediation and audit inventory:
+
+- `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_33_LLM_DRIVEN_SEMANTIC_DECISIONS_AND_EXPLICIT_RECOVERY_POLICY_PLAN.md`
+
 ### Verification is part of the product
 
 A deployment is not operationally complete because it exists.

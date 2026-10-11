@@ -204,6 +204,23 @@ LLMs are appropriate for:
 - retrieval and answer generation
 - prompt-driven product capabilities
 
+For those semantic capabilities, natural-language meaning must come from
+validated structured model output, trusted structured application input, or a
+declared retrieval/classification provider. Neither Platform code nor browser
+code may infer intent, actions, targets, sources, or evidence from
+keywords, substrings, regular expressions, punctuation, or token overlap.
+
+Presentation-only matching remains valid for labels, icons, renderers, and
+illustrative progress when it cannot modify a request, backend semantic
+decision, authority, diagnostics, or audit truth.
+
+The Platform may compile capability ceilings, allowlists, budgets, and a named
+semantic recovery policy into deployment configuration. Recovery is denied by
+default. When explicitly allowed, it must be bounded and expose the original
+model decision, validation failure, selected policy, and effective decision.
+Weak model output is improved through schemas, prompts, catalogs, model choice,
+and measured evaluation; it is not hidden behind phrase-specific code.
+
 LLMs are not the authority for:
 
 - rollout state

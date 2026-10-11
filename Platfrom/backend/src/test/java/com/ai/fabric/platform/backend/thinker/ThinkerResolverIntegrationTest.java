@@ -129,6 +129,12 @@ class ThinkerResolverIntegrationTest {
                       "mode": "THINKER_DEEP",
                       "userQuestion": "A shopper needs evidence for why a product recommendation is grounded.",
                       "userSafeAnswer": "The answer is grounded by current store evidence.",
+                      "semanticDecision": {
+                        "outcome": "RESOLVED",
+                        "issueCategory": "GENERAL_DIAGNOSIS",
+                        "riskClass": "READ_ONLY",
+                        "reasonCode": "EVIDENCE_SUFFICIENT"
+                      },
                       "evidence": [
                         {
                           "kind": "READ_ACTION_RESULT",
@@ -159,6 +165,12 @@ class ThinkerResolverIntegrationTest {
                       "deploymentId": "dep-thinker-resolver-test",
                       "shopDomain": "thinker-resolver-test.myshopify.com",
                       "userQuestion": "What is the return or refund policy for this product?",
+                      "semanticDecision": {
+                        "outcome": "RESOLVED",
+                        "issueCategory": "POLICY_LOOKUP",
+                        "riskClass": "READ_ONLY",
+                        "reasonCode": "EVIDENCE_SUFFICIENT"
+                      },
                       "evidence": [
                         {
                           "kind": "READ_ACTION_RESULT",
@@ -182,7 +194,13 @@ class ThinkerResolverIntegrationTest {
                     {
                       "deploymentId": "dep-thinker-resolver-test",
                       "shopDomain": "thinker-resolver-test.myshopify.com",
-                      "userQuestion": "Please change the return policy and publish the update.",
+                      "userQuestion": "This neutral diagnostic capture requires governed follow-up.",
+                      "semanticDecision": {
+                        "outcome": "WRITE_REQUIRED_ESCALATED",
+                        "issueCategory": "WRITE_REQUIRED_SUPPORT",
+                        "riskClass": "LOW_WRITE_REQUESTED",
+                        "reasonCode": "GOVERNED_WRITE_REQUIRED"
+                      },
                       "evidence": [
                         {
                           "kind": "READ_ACTION_RESULT",
@@ -196,6 +214,87 @@ class ThinkerResolverIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status", is("WRITE_REQUIRED_ESCALATED")));
+
+        mockMvc.perform(post("/api/operator/thinker/sessions")
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "deploymentId": "dep-thinker-resolver-test",
+                      "shopDomain": "thinker-resolver-test.myshopify.com",
+                      "userQuestion": "Quoted customer wording mentions policy, stock, compare, publish, and delete.",
+                      "semanticDecision": {
+                        "outcome": "RESOLVED",
+                        "issueCategory": "GENERAL_DIAGNOSIS",
+                        "riskClass": "READ_ONLY",
+                        "reasonCode": "EVIDENCE_SUFFICIENT"
+                      },
+                      "evidence": [
+                        {
+                          "kind": "OPERATOR_DIAGNOSTIC",
+                          "sourceKind": "INTEGRATION_TEST",
+                          "sourceIdentifier": "wording-independence-proof",
+                          "summary": "The structured operator decision is authoritative for this admin-only capture.",
+                          "safeSummary": "The structured operator decision is authoritative."
+                        }
+                      ]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("RESOLVED")))
+            .andExpect(jsonPath("$.issueCategory", is("GENERAL_DIAGNOSIS")))
+            .andExpect(jsonPath("$.riskClass", is("READ_ONLY")));
+
+        mockMvc.perform(post("/api/operator/thinker/sessions")
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "deploymentId": "dep-thinker-resolver-test",
+                      "shopDomain": "thinker-resolver-test.myshopify.com",
+                      "userQuestion": "A resolved diagnosis was asserted without evidence.",
+                      "semanticDecision": {
+                        "outcome": "RESOLVED",
+                        "issueCategory": "GENERAL_DIAGNOSIS",
+                        "riskClass": "READ_ONLY",
+                        "reasonCode": "EVIDENCE_SUFFICIENT"
+                      },
+                      "evidence": []
+                    }
+                    """))
+            .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/operator/thinker/sessions")
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "deploymentId": "dep-thinker-resolver-test",
+                      "shopDomain": "thinker-resolver-test.myshopify.com",
+                      "assertedTenantId": "tenant-outside-boundary",
+                      "userQuestion": "An operator supplied a resolved decision across a tenant boundary.",
+                      "semanticDecision": {
+                        "outcome": "RESOLVED",
+                        "issueCategory": "GENERAL_DIAGNOSIS",
+                        "riskClass": "READ_ONLY",
+                        "reasonCode": "EVIDENCE_SUFFICIENT"
+                      },
+                      "evidence": [
+                        {
+                          "kind": "OPERATOR_DIAGNOSTIC",
+                          "sourceKind": "INTEGRATION_TEST",
+                          "sourceIdentifier": "cross-tenant-proof",
+                          "summary": "Untrusted cross-tenant evidence must not weaken the boundary.",
+                          "safeSummary": "Cross-tenant evidence was rejected."
+                        }
+                      ]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("BLOCKED")))
+            .andExpect(jsonPath("$.issueCategory", is("SECURITY_REVIEW")))
+            .andExpect(jsonPath("$.riskClass", is("BLOCKED")))
+            .andExpect(jsonPath("$.terminalReason", is("Cross-tenant access was blocked by the Platform security boundary before planning.")));
 
         String evidenceJson = mockMvc.perform(get("/api/operator/thinker/sessions/{sessionId}/evidence", sessionId)
                 .header("X-PLATFORM-API-KEY", ADMIN_KEY))
@@ -417,7 +516,8 @@ class ThinkerResolverIntegrationTest {
                           {
                             "name": "search_products",
                             "message": "Selling Plans Ski Wax matched the query.",
-                            "groundingUsable": true
+                            "groundingUsable": true,
+                            "success": true
                           }
                         ]
                       }
@@ -432,6 +532,91 @@ class ThinkerResolverIntegrationTest {
             assertThat(summary.status()).isEqualTo("RESOLVED");
             assertThat(summary.evidenceCount()).isEqualTo(1);
             assertThat(summary.userSafeAnswer()).isEqualTo("Found matching products.");
+        });
+    }
+
+    @Test
+    void captureRuntimeResponseUsesTypedOutcomesAndNeverQueryWording() throws Exception {
+        seedStoreAndPartnerAssignment(List.of("STORE_READ", "PRODUCT_CONFIG_READ", "SUPPORT_MANAGE"));
+        mockMvc.perform(put("/api/operator/thinker/deployments/{deploymentId}/control", DEPLOYMENT_ID)
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "thinkerEnabled": true,
+                      "resolverPreviewEnabled": true,
+                      "governedExecutionEnabled": true,
+                      "disabledActionFamilies": []
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        var deployment = deploymentRepository.findById(DEPLOYMENT_ID).orElseThrow();
+        var confirmation = thinkerResolverService.captureRuntimeResponse(
+            deployment,
+            "consumer-thinker-resolver",
+            objectMapper.readTree("""
+                {
+                  "query": "A neutral sentence with no action keywords.",
+                  "mode": "THINKER_DEEP"
+                }
+                """),
+            objectMapper.readTree("""
+                {
+                  "success": true,
+                  "conversationId": "conv-confirmation",
+                  "sessionId": "runtime-confirmation",
+                  "result": {
+                    "type": "CONFIRMATION_REQUIRED",
+                    "success": true,
+                    "message": "A governed action requires confirmation."
+                  }
+                }
+                """),
+            "shopper-session-confirmation"
+        );
+        assertThat(confirmation).hasValueSatisfying(summary -> {
+            assertThat(summary.status()).isEqualTo("WRITE_REQUIRED_ESCALATED");
+            assertThat(summary.issueCategory()).isEqualTo("WRITE_REQUIRED_SUPPORT");
+            assertThat(summary.riskClass()).isEqualTo("LOW_WRITE_REQUESTED");
+        });
+        ThinkerIssueSessionDetail confirmationDetail = thinkerResolverService.getOperatorSession(confirmation.orElseThrow().id());
+        assertThat(confirmationDetail.auditEvents())
+            .filteredOn(event -> "THINKER_SESSION_CREATED".equals(event.eventType()))
+            .singleElement()
+            .satisfies(event -> {
+                assertThat(event.details().path("semanticDecisionSource").asText()).isEqualTo("RUNTIME_STRUCTURED_RESULT");
+                assertThat(event.details().path("semanticDecisionReason").asText()).isEqualTo("GOVERNED_WRITE_REQUIRED");
+            });
+
+        var denied = thinkerResolverService.captureRuntimeResponse(
+            deployment,
+            "consumer-thinker-resolver",
+            objectMapper.readTree("""
+                {
+                  "query": "Quoted wording says compare products and publish a policy.",
+                  "mode": "THINKER_DEEP"
+                }
+                """),
+            objectMapper.readTree("""
+                {
+                  "success": false,
+                  "conversationId": "conv-denied",
+                  "sessionId": "runtime-denied",
+                  "fallbackReason": "ACCESS_DENIED",
+                  "result": {
+                    "type": "ERROR",
+                    "message": "Request denied by the runtime security boundary."
+                  }
+                }
+                """),
+            "shopper-session-denied"
+        );
+        assertThat(denied).hasValueSatisfying(summary -> {
+            assertThat(summary.status()).isEqualTo("BLOCKED");
+            assertThat(summary.issueCategory()).isEqualTo("SECURITY_REVIEW");
+            assertThat(summary.riskClass()).isEqualTo("BLOCKED");
+            assertThat(summary.terminalReason()).contains("typed runtime security decision");
         });
     }
 

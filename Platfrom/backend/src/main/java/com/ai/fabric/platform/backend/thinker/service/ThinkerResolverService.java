@@ -39,6 +39,11 @@ import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.Thinke
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerEvidenceItemSummary;
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerIssueSessionDetail;
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerIssueSessionSummary;
+import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerIssueCategory;
+import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerIssueOutcome;
+import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerRiskClass;
+import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerDecisionReason;
+import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerSemanticDecisionInput;
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerReadinessScenarioSummary;
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerReadinessSummary;
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerResolutionPlanSummary;
@@ -98,6 +103,14 @@ public class ThinkerResolverService {
         "WRITE_REQUIRED_ESCALATED",
         "BLOCKED",
         "FAILED"
+    );
+    private static final Set<String> RUNTIME_SECURITY_DENIAL_CODES = Set.of(
+        "ACCESS_DENIED",
+        "AUTHENTICATION_REQUIRED",
+        "AUTHORIZATION_DENIED",
+        "CROSS_TENANT_ACCESS_DENIED",
+        "SECURITY_POLICY_DENIED",
+        "TENANT_SCOPE_MISMATCH"
     );
 
     private final ThinkerDeploymentControlRepository controlRepository;
@@ -191,6 +204,7 @@ public class ThinkerResolverService {
         requireThinkerAllowed(deployment, shopDomain);
 
         List<CreateEvidenceItemRequest> evidence = evidenceFromRuntime(readActionResolution, response);
+        ThinkerSemanticDecisionInput semanticDecision = semanticDecisionFromRuntime(response, evidence);
         CreateThinkerIssueSessionRequest sessionRequest = new CreateThinkerIssueSessionRequest(
             deployment.getId(),
             shopDomain,
@@ -205,6 +219,7 @@ public class ThinkerResolverService {
             text(request, "query"),
             runtimeAnswer(response),
             evidence,
+            semanticDecision,
             deployment.getTenantId(),
             text(response, "conversationId"),
             text(response, "sessionId")
@@ -226,30 +241,27 @@ public class ThinkerResolverService {
         }
 
         Instant now = Instant.now();
-        List<CreateEvidenceItemRequest> evidenceRequests = request.evidence() == null ? List.of() : request.evidence();
+        List<CreateEvidenceItemRequest> submittedEvidenceRequests = request.evidence() == null ? List.of() : request.evidence();
+        List<CreateEvidenceItemRequest> evidenceRequests = crossTenant ? List.of() : submittedEvidenceRequests;
         String userQuestion = required(request.userQuestion(), "userQuestion");
-        boolean promptInjection = detectsPromptInjection(userQuestion);
-        boolean writeIntent = detectsWriteIntent(userQuestion);
-        String status = crossTenant
-            ? "BLOCKED"
-            : promptInjection
-                ? "BLOCKED"
-                : writeIntent
-                    ? "WRITE_REQUIRED_ESCALATED"
-                    : evidenceRequests.isEmpty()
-                        ? "INSUFFICIENT_EVIDENCE"
-                        : "RESOLVED";
-        String issueCategory = classifyIssue(userQuestion);
-        String riskClass = writeIntent ? "LOW_WRITE_REQUESTED" : "READ_ONLY";
-        String terminalReason = crossTenant
-            ? "Cross-tenant thinker attempt blocked before read-action planning."
-            : promptInjection
-                ? "Prompt-injection attempt rejected before action planning."
-                : writeIntent
-                    ? "The issue requires a governed write or human support handoff; Phase 1 Thinker did not execute a write."
-                    : evidenceRequests.isEmpty()
-                        ? "No grounding evidence was available for a confident answer."
-                        : "Read-only evidence was sufficient for a user-safe diagnosis.";
+        ThinkerSemanticDecisionInput submittedDecision = requireSemanticDecision(request.semanticDecision());
+        ThinkerSemanticDecisionInput effectiveDecision = crossTenant
+            ? new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.BLOCKED,
+                ThinkerIssueCategory.SECURITY_REVIEW,
+                ThinkerRiskClass.BLOCKED,
+                ThinkerDecisionReason.CROSS_TENANT_BOUNDARY_DENIED
+            )
+            : validateSemanticDecision(submittedDecision, evidenceRequests);
+        String decisionSource = crossTenant
+            ? "PLATFORM_SECURITY_POLICY"
+            : trimToNull(request.runtimeSessionId()) != null || trimToNull(request.runtimeConversationId()) != null
+                ? "RUNTIME_STRUCTURED_RESULT"
+                : "OPERATOR_STRUCTURED_INPUT";
+        String status = effectiveDecision.outcome().name();
+        String issueCategory = effectiveDecision.issueCategory().name();
+        String riskClass = effectiveDecision.riskClass().name();
+        String terminalReason = terminalReason(effectiveDecision.reasonCode());
 
         ThinkerIssueSessionEntity session = new ThinkerIssueSessionEntity();
         session.setId("tis-" + shortId());
@@ -267,7 +279,7 @@ public class ThinkerResolverService {
         session.setStatus(status);
         session.setIssueCategory(issueCategory);
         session.setRiskClass(riskClass);
-        session.setExpectedEvidenceJson(writeJson(expectedEvidence(issueCategory)));
+        session.setExpectedEvidenceJson(writeJson(expectedEvidence(effectiveDecision.issueCategory())));
         session.setSuggestedActionAllowlistJson(writeJson(SHOPIFY_PHASE_1_ALLOWLIST));
         session.setUserQuestion(userQuestion);
         session.setUserSafeAnswer(trimToNull(request.userSafeAnswer()));
@@ -283,7 +295,10 @@ public class ThinkerResolverService {
             "allowedReadActions", SHOPIFY_PHASE_1_ALLOWLIST,
             "writePathAvailable", false,
             "crossTenantBlocked", crossTenant,
-            "promptInjectionBlocked", promptInjection
+            "semanticDecisionSource", decisionSource,
+            "semanticDecisionReason", effectiveDecision.reasonCode().name(),
+            "submittedOutcome", submittedDecision.outcome().name(),
+            "effectiveOutcome", effectiveDecision.outcome().name()
         )));
         sessionRepository.save(session);
 
@@ -304,16 +319,27 @@ public class ThinkerResolverService {
         recordSessionAudit(session.getId(), "THINKER_SESSION_CREATED", Map.of(
             "status", status,
             "issueCategory", issueCategory,
-            "evidenceCount", evidenceItems.size()
+            "evidenceCount", evidenceItems.size(),
+            "semanticDecisionSource", decisionSource,
+            "semanticDecisionReason", effectiveDecision.reasonCode().name(),
+            "riskClass", riskClass
         ));
-        if (promptInjection) {
-            recordSessionAudit(session.getId(), "THINKER_PROPOSAL_REJECTED", Map.of("reason", "PROMPT_INJECTION"));
-        }
         if (crossTenant) {
-            recordSessionAudit(session.getId(), "THINKER_CROSS_TENANT_BLOCKED", Map.of("assertedTenantId", assertedTenantId));
+            recordSessionAudit(session.getId(), "THINKER_SECURITY_BLOCKED", Map.of(
+                "reason", ThinkerDecisionReason.CROSS_TENANT_BOUNDARY_DENIED.name(),
+                "assertedTenantId", assertedTenantId
+            ));
         }
-        if (writeIntent) {
-            recordSessionAudit(session.getId(), "THINKER_WRITE_REQUIRED_ESCALATED", Map.of("writeExecuted", false));
+        if (effectiveDecision.outcome() == ThinkerIssueOutcome.WRITE_REQUIRED_ESCALATED) {
+            recordSessionAudit(session.getId(), "THINKER_WRITE_REQUIRED_ESCALATED", Map.of(
+                "reason", effectiveDecision.reasonCode().name(),
+                "writeExecuted", false
+            ));
+        }
+        if (!crossTenant && effectiveDecision.outcome() == ThinkerIssueOutcome.BLOCKED) {
+            recordSessionAudit(session.getId(), "THINKER_SECURITY_BLOCKED", Map.of(
+                "reason", effectiveDecision.reasonCode().name()
+            ));
         }
         platformAuditService.record("THINKER_SESSION_CREATED", TARGET_TYPE_SESSION, session.getId(), mapOf(
             "deploymentId", session.getDeploymentId(),
@@ -715,6 +741,10 @@ public class ThinkerResolverService {
         boolean capturedExecutedActionEvidence = false;
         if (executedActions.isArray()) {
             for (JsonNode action : executedActions) {
+                if (!action.path("groundingUsable").asBoolean(false)
+                    || (action.path("success").isBoolean() && !action.path("success").asBoolean())) {
+                    continue;
+                }
                 String actionName = firstNonBlank(text(action, "name"), text(action, "actionName"), "read-action");
                 String summary = firstNonBlank(text(action, "evidence"), text(action, "message"), action.toString());
                 evidence.add(new CreateEvidenceItemRequest(
@@ -758,6 +788,10 @@ public class ThinkerResolverService {
         if (!"ACTION_EXECUTED".equalsIgnoreCase(text(result, "type"))) {
             return;
         }
+        if ((result.path("success").isBoolean() && !result.path("success").asBoolean())
+            || (response.path("success").isBoolean() && !response.path("success").asBoolean())) {
+            return;
+        }
         JsonNode actionData = result.path("data");
         if (!actionData.isObject()) {
             return;
@@ -768,6 +802,9 @@ public class ThinkerResolverService {
         }
         String actionName = firstNonBlank(text(actionData, "action"), text(metadata, "name"), "read-action");
         JsonNode actionResult = actionData.path("actionResult");
+        if (actionResult.path("success").isBoolean() && !actionResult.path("success").asBoolean()) {
+            return;
+        }
         JsonNode evidencePayload = firstObject(
             actionResult.path("data").path("data"),
             actionResult.path("data"),
@@ -785,6 +822,137 @@ public class ThinkerResolverService {
             truncate(summary, 900),
             "/result/data/actionResult"
         ));
+    }
+
+    private ThinkerSemanticDecisionInput semanticDecisionFromRuntime(JsonNode response,
+                                                                      List<CreateEvidenceItemRequest> evidence) {
+        JsonNode result = response.path("result");
+        String resultType = normalizeUpper(firstNonBlank(text(result, "type"), text(response, "type")));
+        String failureCode = normalizeUpper(firstNonBlank(
+            text(response, "fallbackReason"),
+            text(response, "errorCode"),
+            text(result, "fallbackReason"),
+            text(result, "errorCode"),
+            text(result.path("metadata"), "errorCode"),
+            text(result.path("sanitizedPayload"), "errorCode")
+        ));
+
+        if (failureCode != null && RUNTIME_SECURITY_DENIAL_CODES.contains(failureCode)) {
+            return new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.BLOCKED,
+                ThinkerIssueCategory.SECURITY_REVIEW,
+                ThinkerRiskClass.BLOCKED,
+                ThinkerDecisionReason.SECURITY_POLICY_DENIED
+            );
+        }
+        if ("ACTION_DENIED".equals(resultType)) {
+            return new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.BLOCKED,
+                ThinkerIssueCategory.SECURITY_REVIEW,
+                ThinkerRiskClass.BLOCKED,
+                ThinkerDecisionReason.ACTION_POLICY_DENIED
+            );
+        }
+        if ("CONFIRMATION_REQUIRED".equals(resultType)) {
+            return new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.WRITE_REQUIRED_ESCALATED,
+                ThinkerIssueCategory.WRITE_REQUIRED_SUPPORT,
+                ThinkerRiskClass.LOW_WRITE_REQUESTED,
+                ThinkerDecisionReason.GOVERNED_WRITE_REQUIRED
+            );
+        }
+        if ("CLARIFICATION_REQUIRED".equals(resultType)) {
+            return new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.INSUFFICIENT_EVIDENCE,
+                ThinkerIssueCategory.GENERAL_DIAGNOSIS,
+                ThinkerRiskClass.READ_ONLY,
+                ThinkerDecisionReason.MODEL_CLARIFICATION_REQUIRED
+            );
+        }
+        if ("ERROR".equals(resultType)
+            || (response.path("success").isBoolean() && !response.path("success").asBoolean())
+            || (result.path("success").isBoolean() && !result.path("success").asBoolean())) {
+            return new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.INSUFFICIENT_EVIDENCE,
+                ThinkerIssueCategory.GENERAL_DIAGNOSIS,
+                ThinkerRiskClass.READ_ONLY,
+                ThinkerDecisionReason.RUNTIME_FAILURE
+            );
+        }
+        if (evidence == null || evidence.isEmpty()) {
+            return new ThinkerSemanticDecisionInput(
+                ThinkerIssueOutcome.INSUFFICIENT_EVIDENCE,
+                ThinkerIssueCategory.GENERAL_DIAGNOSIS,
+                ThinkerRiskClass.READ_ONLY,
+                ThinkerDecisionReason.EVIDENCE_MISSING
+            );
+        }
+        return new ThinkerSemanticDecisionInput(
+            ThinkerIssueOutcome.RESOLVED,
+            ThinkerIssueCategory.GENERAL_DIAGNOSIS,
+            ThinkerRiskClass.READ_ONLY,
+            ThinkerDecisionReason.EVIDENCE_SUFFICIENT
+        );
+    }
+
+    private ThinkerSemanticDecisionInput requireSemanticDecision(ThinkerSemanticDecisionInput decision) {
+        if (decision == null
+            || decision.outcome() == null
+            || decision.issueCategory() == null
+            || decision.riskClass() == null
+            || decision.reasonCode() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "semanticDecision must contain outcome, issueCategory, riskClass, and reasonCode.");
+        }
+        return decision;
+    }
+
+    private ThinkerSemanticDecisionInput validateSemanticDecision(ThinkerSemanticDecisionInput decision,
+                                                                   List<CreateEvidenceItemRequest> evidence) {
+        boolean valid = switch (decision.outcome()) {
+            case RESOLVED -> decision.riskClass() == ThinkerRiskClass.READ_ONLY
+                && decision.reasonCode() == ThinkerDecisionReason.EVIDENCE_SUFFICIENT
+                && decision.issueCategory() != ThinkerIssueCategory.WRITE_REQUIRED_SUPPORT
+                && decision.issueCategory() != ThinkerIssueCategory.SECURITY_REVIEW
+                && evidence != null
+                && !evidence.isEmpty();
+            case INSUFFICIENT_EVIDENCE -> decision.riskClass() == ThinkerRiskClass.READ_ONLY
+                && Set.of(
+                    ThinkerDecisionReason.EVIDENCE_MISSING,
+                    ThinkerDecisionReason.MODEL_CLARIFICATION_REQUIRED,
+                    ThinkerDecisionReason.RUNTIME_FAILURE
+                ).contains(decision.reasonCode())
+                && decision.issueCategory() != ThinkerIssueCategory.WRITE_REQUIRED_SUPPORT
+                && decision.issueCategory() != ThinkerIssueCategory.SECURITY_REVIEW;
+            case WRITE_REQUIRED_ESCALATED -> decision.riskClass() == ThinkerRiskClass.LOW_WRITE_REQUESTED
+                && decision.issueCategory() == ThinkerIssueCategory.WRITE_REQUIRED_SUPPORT
+                && decision.reasonCode() == ThinkerDecisionReason.GOVERNED_WRITE_REQUIRED;
+            case BLOCKED -> decision.riskClass() == ThinkerRiskClass.BLOCKED
+                && decision.issueCategory() == ThinkerIssueCategory.SECURITY_REVIEW
+                && Set.of(
+                    ThinkerDecisionReason.SECURITY_POLICY_DENIED,
+                    ThinkerDecisionReason.ACTION_POLICY_DENIED
+                ).contains(decision.reasonCode());
+        };
+        if (!valid) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "semanticDecision fields are inconsistent with the declared outcome or available evidence."
+            );
+        }
+        return decision;
+    }
+
+    private String terminalReason(ThinkerDecisionReason reason) {
+        return switch (reason) {
+            case EVIDENCE_SUFFICIENT -> "Structured runtime or operator evidence was sufficient for a user-safe diagnosis.";
+            case EVIDENCE_MISSING -> "No grounding evidence was available for a confident answer.";
+            case GOVERNED_WRITE_REQUIRED -> "The structured result requires a governed write or human support handoff; Thinker did not execute a write.";
+            case SECURITY_POLICY_DENIED -> "A typed runtime security decision blocked the request before action planning.";
+            case ACTION_POLICY_DENIED -> "A typed action-policy decision denied the requested operation.";
+            case MODEL_CLARIFICATION_REQUIRED -> "The structured model result requires clarification before diagnosis can continue.";
+            case RUNTIME_FAILURE -> "The runtime returned a typed failure and no semantic success was inferred.";
+            case CROSS_TENANT_BOUNDARY_DENIED -> "Cross-tenant access was blocked by the Platform security boundary before planning.";
+        };
     }
 
     private boolean isReadOnlyActionMetadata(JsonNode metadata) {
@@ -1357,62 +1525,13 @@ public class ThinkerResolverService {
         return redacted;
     }
 
-    private boolean detectsPromptInjection(String value) {
-        String normalized = lower(value);
-        return normalized.contains("ignore previous instructions")
-            || normalized.contains("ignore all previous")
-            || normalized.contains("developer message")
-            || normalized.contains("system prompt")
-            || normalized.contains("bypass policy")
-            || normalized.contains("override the allowlist");
-    }
-
-    private boolean detectsWriteIntent(String value) {
-        String normalized = lower(value);
-        return normalized.contains("issue refund")
-            || normalized.contains("process refund")
-            || normalized.contains("create refund")
-            || normalized.contains("give refund")
-            || normalized.contains("refund order")
-            || normalized.contains("refund my order")
-            || normalized.contains("cancel and refund")
-            || normalized.contains("cancel order")
-            || normalized.contains("change address")
-            || normalized.contains("change policy")
-            || normalized.contains("change the return policy")
-            || normalized.contains("edit order")
-            || normalized.contains("create ticket")
-            || normalized.contains("open ticket")
-            || normalized.contains("update my account")
-            || normalized.contains("update policy")
-            || normalized.contains("apply discount")
-            || normalized.contains("publish")
-            || normalized.contains("delete ");
-    }
-
-    private String classifyIssue(String value) {
-        String normalized = lower(value);
-        if (detectsWriteIntent(value)) {
-            return "WRITE_REQUIRED_SUPPORT";
-        }
-        if (normalized.contains("policy") || normalized.contains("return")) {
-            return "POLICY_LOOKUP";
-        }
-        if (normalized.contains("stock") || normalized.contains("available")) {
-            return "AVAILABILITY_DIAGNOSIS";
-        }
-        if (normalized.contains("compare") || normalized.contains("which")) {
-            return "PRODUCT_COMPARISON";
-        }
-        return "GENERAL_DIAGNOSIS";
-    }
-
-    private List<String> expectedEvidence(String category) {
+    private List<String> expectedEvidence(ThinkerIssueCategory category) {
         return switch (category) {
-            case "POLICY_LOOKUP" -> List.of("policy", "page", "retrieval_snippet");
-            case "AVAILABILITY_DIAGNOSIS" -> List.of("product", "variant", "availability");
-            case "PRODUCT_COMPARISON" -> List.of("product", "variant", "collection");
-            case "WRITE_REQUIRED_SUPPORT" -> List.of("read_action_result", "support_profile");
+            case POLICY_LOOKUP -> List.of("policy", "page", "retrieval_snippet");
+            case AVAILABILITY_DIAGNOSIS -> List.of("product", "variant", "availability");
+            case PRODUCT_COMPARISON -> List.of("product", "variant", "collection");
+            case WRITE_REQUIRED_SUPPORT -> List.of("read_action_result", "support_profile");
+            case SECURITY_REVIEW -> List.of("security_decision", "policy_decision");
             default -> List.of("read_action_result", "retrieval_snippet");
         };
     }
@@ -1467,10 +1586,6 @@ public class ThinkerResolverService {
     private String normalizeShopDomain(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
-    }
-
-    private String lower(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 
     private String redactText(String value) {

@@ -1,7 +1,9 @@
 package com.ai.fabric.platform.backend.thinker.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.Instant;
 import java.util.List;
@@ -44,10 +46,52 @@ public final class ThinkerResolverModels {
         @NotBlank String userQuestion,
         String userSafeAnswer,
         List<CreateEvidenceItemRequest> evidence,
+        @Valid @NotNull ThinkerSemanticDecisionInput semanticDecision,
         String assertedTenantId,
         String runtimeConversationId,
         String runtimeSessionId
     ) {
+    }
+
+    public record ThinkerSemanticDecisionInput(
+        @NotNull ThinkerIssueOutcome outcome,
+        @NotNull ThinkerIssueCategory issueCategory,
+        @NotNull ThinkerRiskClass riskClass,
+        @NotNull ThinkerDecisionReason reasonCode
+    ) {
+    }
+
+    public enum ThinkerIssueOutcome {
+        RESOLVED,
+        INSUFFICIENT_EVIDENCE,
+        WRITE_REQUIRED_ESCALATED,
+        BLOCKED
+    }
+
+    public enum ThinkerIssueCategory {
+        GENERAL_DIAGNOSIS,
+        POLICY_LOOKUP,
+        AVAILABILITY_DIAGNOSIS,
+        PRODUCT_COMPARISON,
+        WRITE_REQUIRED_SUPPORT,
+        SECURITY_REVIEW
+    }
+
+    public enum ThinkerRiskClass {
+        READ_ONLY,
+        LOW_WRITE_REQUESTED,
+        BLOCKED
+    }
+
+    public enum ThinkerDecisionReason {
+        EVIDENCE_SUFFICIENT,
+        EVIDENCE_MISSING,
+        GOVERNED_WRITE_REQUIRED,
+        SECURITY_POLICY_DENIED,
+        ACTION_POLICY_DENIED,
+        MODEL_CLARIFICATION_REQUIRED,
+        RUNTIME_FAILURE,
+        CROSS_TENANT_BOUNDARY_DENIED
     }
 
     public record CreateEvidenceItemRequest(

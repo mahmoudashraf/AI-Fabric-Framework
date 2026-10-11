@@ -49,6 +49,13 @@ type ProviderFormState = {
   orchestrationTemperature: string
   orchestrationMaxTokens: string
   orchestrationTimeout: string
+  semanticRecoveryExtractionFailure: string
+  semanticRecoveryMissingTarget: string
+  semanticRecoveryMissingVectorSpace: string
+  semanticRecoveryInvalidVectorSpace: string
+  semanticRecoveryUnknownAction: string
+  semanticRecoveryActionDomainMismatch: string
+  semanticRecoveryAdvancedNoEvidence: string
   generationLlmProvider: string
   generationModel: string
   generationTemperature: string
@@ -182,6 +189,13 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   orchestrationTemperature: '',
   orchestrationMaxTokens: '',
   orchestrationTimeout: '',
+  semanticRecoveryExtractionFailure: 'LLM_REPAIR_THEN_FAIL',
+  semanticRecoveryMissingTarget: 'LLM_REPAIR_THEN_CLARIFY',
+  semanticRecoveryMissingVectorSpace: 'LLM_REPAIR_THEN_CLARIFY',
+  semanticRecoveryInvalidVectorSpace: 'LLM_REPAIR_THEN_FAIL',
+  semanticRecoveryUnknownAction: 'LLM_REPAIR_THEN_FAIL',
+  semanticRecoveryActionDomainMismatch: 'DENY_AND_LLM_REPLAN',
+  semanticRecoveryAdvancedNoEvidence: 'RETURN_NO_EVIDENCE',
   generationLlmProvider: '',
   generationModel: '',
   generationTemperature: '',
@@ -290,6 +304,13 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'orchestrationTemperature',
   'orchestrationMaxTokens',
   'orchestrationTimeout',
+  'semanticRecoveryExtractionFailure',
+  'semanticRecoveryMissingTarget',
+  'semanticRecoveryMissingVectorSpace',
+  'semanticRecoveryInvalidVectorSpace',
+  'semanticRecoveryUnknownAction',
+  'semanticRecoveryActionDomainMismatch',
+  'semanticRecoveryAdvancedNoEvidence',
   'generationLlmProvider',
   'generationModel',
   'generationTemperature',
@@ -382,6 +403,96 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'zillizCloudCuType',
   'zillizCloudCuSize',
   'zillizCloudClusterNameOverride',
+]
+
+type SemanticRecoveryFormKey =
+  | 'semanticRecoveryExtractionFailure'
+  | 'semanticRecoveryMissingTarget'
+  | 'semanticRecoveryMissingVectorSpace'
+  | 'semanticRecoveryInvalidVectorSpace'
+  | 'semanticRecoveryUnknownAction'
+  | 'semanticRecoveryActionDomainMismatch'
+  | 'semanticRecoveryAdvancedNoEvidence'
+
+const SEMANTIC_RECOVERY_FORM_KEYS = new Set<keyof ProviderFormState>([
+  'semanticRecoveryExtractionFailure',
+  'semanticRecoveryMissingTarget',
+  'semanticRecoveryMissingVectorSpace',
+  'semanticRecoveryInvalidVectorSpace',
+  'semanticRecoveryUnknownAction',
+  'semanticRecoveryActionDomainMismatch',
+  'semanticRecoveryAdvancedNoEvidence',
+])
+
+const SEMANTIC_RECOVERY_FIELDS: Array<{
+  key: SemanticRecoveryFormKey
+  label: string
+  helperText: string
+  options: Array<{ value: string; label: string }>
+}> = [
+  {
+    key: 'semanticRecoveryExtractionFailure',
+    label: 'Invalid or incomplete extraction',
+    helperText: 'A bounded model repair runs first. Choose whether unresolved output fails or asks the user.',
+    options: [
+      { value: 'LLM_REPAIR_THEN_FAIL', label: 'Repair, then fail' },
+      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+    ],
+  },
+  {
+    key: 'semanticRecoveryMissingTarget',
+    label: 'Missing conversational target',
+    helperText: 'The runtime must ask the model to repair, then clarify rather than infer a target from wording.',
+    options: [
+      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+    ],
+  },
+  {
+    key: 'semanticRecoveryMissingVectorSpace',
+    label: 'Missing knowledge-source decision',
+    helperText: 'Strict mode clarifies. Bounded fan-out may search only server-allowed sources.',
+    options: [
+      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+      { value: 'BOUNDED_ALLOWED_FAN_OUT', label: 'Bounded allowed-source fan-out' },
+    ],
+  },
+  {
+    key: 'semanticRecoveryInvalidVectorSpace',
+    label: 'Invalid knowledge-source decision',
+    helperText: 'Unknown or disallowed source identifiers are never replaced from query text.',
+    options: [
+      { value: 'LLM_REPAIR_THEN_FAIL', label: 'Repair, then fail' },
+      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+    ],
+  },
+  {
+    key: 'semanticRecoveryUnknownAction',
+    label: 'Unknown or unavailable action',
+    helperText: 'Replanning to information is available only when this server-owned policy explicitly permits it.',
+    options: [
+      { value: 'LLM_REPAIR_THEN_FAIL', label: 'Repair, then fail' },
+      { value: 'LLM_REPLAN_TO_INFORMATION', label: 'Model replan to information' },
+    ],
+  },
+  {
+    key: 'semanticRecoveryActionDomainMismatch',
+    label: 'Action and evidence-domain mismatch',
+    helperText: 'The mismatched action is always denied. This controls only the bounded next step.',
+    options: [
+      { value: 'DENY_AND_FAIL', label: 'Deny and fail' },
+      { value: 'DENY_AND_LLM_REPLAN', label: 'Deny and model replan' },
+      { value: 'DENY_AND_ALLOWED_RAG', label: 'Deny and allowed retrieval' },
+    ],
+  },
+  {
+    key: 'semanticRecoveryAdvancedNoEvidence',
+    label: 'Advanced retrieval with no evidence',
+    helperText: 'Strict mode returns no evidence. Recovery remains bounded by the deployment source allowlist.',
+    options: [
+      { value: 'RETURN_NO_EVIDENCE', label: 'Return no evidence' },
+      { value: 'BOUNDED_ALLOWED_SPACE_RECOVERY', label: 'Bounded allowed-source recovery' },
+    ],
+  },
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1057,6 +1168,15 @@ function buildVendorSetupGuides(
 
 function readProviderForm(config: unknown): ProviderFormState {
   const record = isRecord(config) ? config : {}
+  const orchestrationModeOverrides = isRecord(record.orchestrationModeOverrides)
+    ? record.orchestrationModeOverrides
+    : {}
+  const executorOverrides = isRecord(orchestrationModeOverrides.executor)
+    ? orchestrationModeOverrides.executor
+    : {}
+  const semanticRecovery = isRecord(executorOverrides.semanticRecovery)
+    ? executorOverrides.semanticRecovery
+    : {}
   const vectorStrategy = readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy)
   const vectorProvisioningMode = normalizeVectorProvisioningMode(
     vectorStrategy,
@@ -1082,6 +1202,41 @@ function readProviderForm(config: unknown): ProviderFormState {
     orchestrationTemperature: readString(record, 'orchestrationTemperature'),
     orchestrationMaxTokens: readString(record, 'orchestrationMaxTokens'),
     orchestrationTimeout: readString(record, 'orchestrationTimeout'),
+    semanticRecoveryExtractionFailure: readString(
+      semanticRecovery,
+      'extractionFailure',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryExtractionFailure,
+    ).toUpperCase(),
+    semanticRecoveryMissingTarget: readString(
+      semanticRecovery,
+      'missingTarget',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryMissingTarget,
+    ).toUpperCase(),
+    semanticRecoveryMissingVectorSpace: readString(
+      semanticRecovery,
+      'missingVectorSpace',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryMissingVectorSpace,
+    ).toUpperCase(),
+    semanticRecoveryInvalidVectorSpace: readString(
+      semanticRecovery,
+      'invalidVectorSpace',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryInvalidVectorSpace,
+    ).toUpperCase(),
+    semanticRecoveryUnknownAction: readString(
+      semanticRecovery,
+      'unknownAction',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryUnknownAction,
+    ).toUpperCase(),
+    semanticRecoveryActionDomainMismatch: readString(
+      semanticRecovery,
+      'actionDomainMismatch',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryActionDomainMismatch,
+    ).toUpperCase(),
+    semanticRecoveryAdvancedNoEvidence: readString(
+      semanticRecovery,
+      'advancedNoEvidence',
+      DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryAdvancedNoEvidence,
+    ).toUpperCase(),
     generationLlmProvider: readString(record, 'generationLlmProvider'),
     generationModel: readString(record, 'generationModel'),
     generationTemperature: readString(record, 'generationTemperature'),
@@ -1211,6 +1366,13 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     { label: 'Runtime profile', value: form.runtimeProfile.trim() || 'Not configured' },
     { label: 'Connector profile', value: form.connectorProfile.trim() || 'Not configured' },
     { label: 'Fallback enabled', value: String(form.enableFallback) },
+    { label: 'Extraction recovery', value: form.semanticRecoveryExtractionFailure },
+    { label: 'Missing target recovery', value: form.semanticRecoveryMissingTarget },
+    { label: 'Missing source recovery', value: form.semanticRecoveryMissingVectorSpace },
+    { label: 'Invalid source recovery', value: form.semanticRecoveryInvalidVectorSpace },
+    { label: 'Unknown action recovery', value: form.semanticRecoveryUnknownAction },
+    { label: 'Action-domain mismatch', value: form.semanticRecoveryActionDomainMismatch },
+    { label: 'No-evidence recovery', value: form.semanticRecoveryAdvancedNoEvidence },
   ]
 
   if (form.orchestrationLlmProvider.trim()) {
@@ -1344,9 +1506,29 @@ function providerFormsEqual(left: ProviderFormState, right: ProviderFormState): 
 function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState): Record<string, unknown> {
   const nextConfig = cloneJson(isRecord(baseConfig) ? baseConfig : {}) as Record<string, unknown>
   providerFormKeys.forEach((key) => {
+    if (SEMANTIC_RECOVERY_FORM_KEYS.has(key)) {
+      return
+    }
     const value = form[key]
     nextConfig[key] = typeof value === 'string' ? value.trim() : value
   })
+  const orchestrationModeOverrides = cloneJson(
+    isRecord(nextConfig.orchestrationModeOverrides) ? nextConfig.orchestrationModeOverrides : {},
+  ) as Record<string, unknown>
+  const executorOverrides = cloneJson(
+    isRecord(orchestrationModeOverrides.executor) ? orchestrationModeOverrides.executor : {},
+  ) as Record<string, unknown>
+  executorOverrides.semanticRecovery = {
+    extractionFailure: form.semanticRecoveryExtractionFailure,
+    missingTarget: form.semanticRecoveryMissingTarget,
+    missingVectorSpace: form.semanticRecoveryMissingVectorSpace,
+    invalidVectorSpace: form.semanticRecoveryInvalidVectorSpace,
+    unknownAction: form.semanticRecoveryUnknownAction,
+    actionDomainMismatch: form.semanticRecoveryActionDomainMismatch,
+    advancedNoEvidence: form.semanticRecoveryAdvancedNoEvidence,
+  }
+  orchestrationModeOverrides.executor = executorOverrides
+  nextConfig.orchestrationModeOverrides = orchestrationModeOverrides
   nextConfig.vectorStoragePosture = normalizeVectorStoragePosture(
     form.vectorStrategy,
     form.vectorProvisioningMode,
@@ -2192,6 +2374,37 @@ export function ProvidersPage() {
                             onChange={(event) => handleFieldChange('orchestrationTimeout', event.target.value)}
                             helperText="Optional request timeout for orchestration."
                           />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Divider textAlign="left">Semantic recovery policy</Divider>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Alert severity="info">
+                            These are server-owned recovery decisions. Strict defaults expose unresolved model output
+                            instead of guessing from query words. Optional recovery remains bounded by the deployment
+                            action and knowledge-source allowlists.
+                          </Alert>
+                        </Grid>
+                        {SEMANTIC_RECOVERY_FIELDS.map((field) => (
+                          <Grid item xs={12} md={field.key === 'semanticRecoveryMissingTarget' ? 12 : 6} key={field.key}>
+                            <TextField
+                              select
+                              fullWidth
+                              label={field.label}
+                              value={formState[field.key]}
+                              onChange={(event) => handleFieldChange(field.key, event.target.value)}
+                              helperText={field.helperText}
+                            >
+                              {field.options.map((option) => (
+                                <MenuItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </Grid>
+                        ))}
+                        <Grid item xs={12}>
+                          <Divider textAlign="left">Answer generation routing</Divider>
                         </Grid>
                         <Grid item xs={12} md={4}>
                           <TextField

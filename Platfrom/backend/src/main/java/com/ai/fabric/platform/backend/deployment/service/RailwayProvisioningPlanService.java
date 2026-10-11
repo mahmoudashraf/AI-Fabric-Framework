@@ -1048,25 +1048,46 @@ public class RailwayProvisioningPlanService {
             ));
         }
         JsonNode readAction = executor.path("readActionResolution");
-        if (readAction == null || !readAction.isObject()) {
-            return;
+        if (readAction != null && readAction.isObject()) {
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_PLANNING_MODE",
+                text(readAction, "planningMode").toUpperCase(Locale.ROOT)
+            );
+            JsonNode maxIterations = readAction.path("maxIterations");
+            if (maxIterations.isIntegralNumber()) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ITERATIONS",
+                    Integer.toString(maxIterations.asInt())
+                ));
+            }
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
+                text(readAction, "ragCooperationMode").toUpperCase(Locale.ROOT)
+            );
         }
+
+        JsonNode semanticRecovery = executor.path("semanticRecovery");
+        if (semanticRecovery != null && semanticRecovery.isObject()) {
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "extractionFailure", "EXTRACTION_FAILURE");
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "missingTarget", "MISSING_TARGET");
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "missingVectorSpace", "MISSING_VECTOR_SPACE");
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "invalidVectorSpace", "INVALID_VECTOR_SPACE");
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "unknownAction", "UNKNOWN_ACTION");
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "actionDomainMismatch", "ACTION_DOMAIN_MISMATCH");
+            addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "advancedNoEvidence", "ADVANCED_NO_EVIDENCE");
+        }
+    }
+
+    private void addSemanticRecoveryEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                        JsonNode semanticRecovery,
+                                        String field,
+                                        String envSuffix) {
         addOptionalEnv(
             runtimeEnv,
-            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_PLANNING_MODE",
-            text(readAction, "planningMode").toUpperCase(Locale.ROOT)
-        );
-        JsonNode maxIterations = readAction.path("maxIterations");
-        if (maxIterations.isIntegralNumber()) {
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ITERATIONS",
-                Integer.toString(maxIterations.asInt())
-            ));
-        }
-        addOptionalEnv(
-            runtimeEnv,
-            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
-            text(readAction, "ragCooperationMode").toUpperCase(Locale.ROOT)
+            "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_" + envSuffix,
+            text(semanticRecovery, field).toUpperCase(Locale.ROOT)
         );
     }
 

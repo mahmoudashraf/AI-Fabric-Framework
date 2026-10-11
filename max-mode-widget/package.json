@@ -30,7 +30,8 @@
     "smoke:action-presentation": "node scripts/action-presentation-smoke.mjs",
     "smoke:action-draft-submission": "node scripts/action-draft-submission-smoke.mjs",
     "smoke:request-context": "node scripts/request-context-smoke.mjs",
-    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context"
+    "smoke:semantic-boundary": "node scripts/semantic-boundary-smoke.mjs",
+    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation && npm run smoke:action-draft-submission && npm run smoke:request-context && npm run smoke:semantic-boundary"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

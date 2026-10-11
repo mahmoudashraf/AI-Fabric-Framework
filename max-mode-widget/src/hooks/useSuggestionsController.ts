@@ -29,36 +29,8 @@ export function useSuggestionsController({
     const timeoutId = setTimeout(async () => {
       setIsLoadingSuggestions(true);
       try {
-        const attachments = attachedItems.map((item, index) => {
-          if (item.type === "current-page") {
-            return toRuntimeAttachment(item, index);
-          }
-
-          const parts: string[] = [];
-          if (item.data.name) parts.push(item.data.name);
-          if (item.data.title) parts.push(item.data.title);
-          if (item.data.category) parts.push(`(${item.data.category})`);
-          if (item.data.price) parts.push(`$${item.data.price}`);
-          if (item.data.code) parts.push(`Code: ${item.data.code}`);
-
-          const explicitVectorSpace = [
-            item.data.vectorSpace,
-            item.data.entityType,
-            item.data.metadata?.vectorSpace,
-            item.data.metadata?.entityType,
-          ].find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
-          let vectorSpace = explicitVectorSpace || "product";
-          if (!explicitVectorSpace && item.type === "order") vectorSpace = "order";
-          else if (!explicitVectorSpace && item.type === "review") vectorSpace = "review";
-          else if (!explicitVectorSpace && item.type === "coupon") vectorSpace = "coupon";
-
-          return {
-            id: item.data.id || item.data.sku || Date.now().toString(),
-            vectorSpace,
-            contentText: parts.join(" - "),
-            source: "ui-card",
-          };
-        });
+        const attachments = attachedItems.map((item, index) =>
+          toRuntimeAttachment(item, index));
 
         const contentParts = attachedItems.map((item) => {
           const name = item.data.name || item.data.title || item.data.code || "Item";

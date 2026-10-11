@@ -70,7 +70,9 @@ if [[ "${UI_BUILD}" == "true" ]]; then
 fi
 
 if [[ "${SHELL_SYNTAX_CHECKS}" == "true" ]]; then
+  run_step "Platform semantic-decision source guard" bash .github/scripts/validate-platform-semantic-decision-source-guard.sh
   run_step "Shell syntax checks" bash -lc '
+    bash -n .github/scripts/validate-platform-semantic-decision-source-guard.sh &&
     bash -n scripts/verify-ecommerce-deployment.sh &&
     bash -n scripts/verify-marketplace-install-flow.sh &&
     bash -n scripts/verify-managed-vector-providers.sh &&

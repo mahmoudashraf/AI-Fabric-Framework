@@ -2468,6 +2468,15 @@ class DeploymentDraftValidationServiceTest {
                         "planningMode": "ITERATIVE",
                         "maxIterations": 2,
                         "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+                      },
+                      "semanticRecovery": {
+                        "extractionFailure": "LLM_REPAIR_THEN_FAIL",
+                        "missingTarget": "LLM_REPAIR_THEN_CLARIFY",
+                        "missingVectorSpace": "LLM_REPAIR_THEN_CLARIFY",
+                        "invalidVectorSpace": "LLM_REPAIR_THEN_FAIL",
+                        "unknownAction": "LLM_REPAIR_THEN_FAIL",
+                        "actionDomainMismatch": "DENY_AND_LLM_REPLAN",
+                        "advancedNoEvidence": "RETURN_NO_EVIDENCE"
                       }
                     }
                   }
@@ -2490,7 +2499,10 @@ class DeploymentDraftValidationServiceTest {
                 "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
                 "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
                 "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
-                "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID"
+                "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID",
+                "SEMANTIC_RECOVERY_OVERRIDE_OBJECT_REQUIRED",
+                "SEMANTIC_RECOVERY_OVERRIDE_FIELD_UNSUPPORTED",
+                "SEMANTIC_RECOVERY_POLICY_INVALID"
             );
     }
 
@@ -2515,6 +2527,10 @@ class DeploymentDraftValidationServiceTest {
                         "maxIterations": 20,
                         "ragCooperationMode": "ALWAYS",
                         "rawEnvironment": "not-allowed"
+                      },
+                      "semanticRecovery": {
+                        "missingVectorSpace": "SEARCH_EVERYTHING",
+                        "rawEnvironment": "not-allowed"
                       }
                     },
                     "unknown": {}
@@ -2534,7 +2550,9 @@ class DeploymentDraftValidationServiceTest {
                 "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
                 "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
                 "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
-                "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID"
+                "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID",
+                "SEMANTIC_RECOVERY_OVERRIDE_FIELD_UNSUPPORTED",
+                "SEMANTIC_RECOVERY_POLICY_INVALID"
             );
     }
 

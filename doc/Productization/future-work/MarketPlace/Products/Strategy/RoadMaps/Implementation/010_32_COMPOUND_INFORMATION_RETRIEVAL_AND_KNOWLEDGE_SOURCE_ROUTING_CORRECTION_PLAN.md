@@ -26,6 +26,7 @@ Related plans:
 - [010.27 Auto Trader Integration Platform Readiness Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 - [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md)
 - [010.31 Platform-Hosted AI Workspace Installation Plan](010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md)
+- [010.33 LLM-Driven Semantic Decisions And Explicit Recovery Policy Plan](010_33_LLM_DRIVEN_SEMANTIC_DECISIONS_AND_EXPLICIT_RECOVERY_POLICY_PLAN.md)
 
 ## 1. Purpose
 
@@ -966,3 +967,21 @@ These exceptions do not invalidate the compound retrieval correction,
 Northfield canary, ProdUS retrieval, Shopify private execution, or the green
 canonical deployment gate. They do prevent claiming that every unrelated
 Platform product gate is globally green.
+
+## 24. Post-Release Semantic-Decision Audit
+
+The `0.8.21` compound correction remains implemented and live, and its hosted
+evidence remains valid. A later architecture review found that several generic
+framework paths used during or near this release do not satisfy the now-
+explicit rule that natural-language semantic decisions must not be inferred by
+text matching. In particular, conversational-target recovery, vector-space
+query mention matching, compound evidence reranking/excerpt selection, and
+some semantic fallback/coercion paths require correction.
+
+This does not reopen or erase this plan's functional result. It creates a
+separate current-only framework correction tracked in `010.33`. Do not add a
+private LoomAI workaround, dealership phrase rule, or prompt-only patch for
+those framework-owned mechanisms. The next immutable framework release must
+remove the prohibited behavior, make semantic recovery explicitly policy-
+controlled, and then replace the current runtime through the normal release
+gate.

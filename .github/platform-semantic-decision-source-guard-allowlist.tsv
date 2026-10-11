@@ -1,0 +1,6 @@
+# path<TAB>required line marker<TAB>owner<TAB>reason
+ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/ChatRuntimeController.java	RESERVED_ROUTING_CONTEXT_KEYS.contains(normalizedKey)	runtime	Exact reserved request-context key validation; it removes untrusted routing fields and cannot infer semantics.
+ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/ChatRuntimeController.java	text.split(",")	runtime	Structured comma-delimited trusted-backend routing hints followed by syntax and authority validation.
+max-mode-widget/src/hooks/useMaxModeController.ts	["open-tools", "open-documents", "prompt"].includes(item.action)	workspace	Exact configured shell action identifier validation.
+max-mode-widget/src/hooks/useMaxModeController.ts	allowedConversationModes.includes(prompt.mode)	workspace	Exact configured conversation-mode allowlist validation.
+max-mode-widget/src/hooks/useMaxModeController.ts	allowedConversationModes.includes(shellPromptMode(prompt.moduleId))	workspace	Exact configured module-to-mode contract validation.

@@ -248,7 +248,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
-            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.21")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.22")
             .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
@@ -921,6 +921,15 @@ class RailwayProvisioningPlanServiceTest {
                     "planningMode": "ITERATIVE",
                     "maxIterations": 2,
                     "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+                  },
+                  "semanticRecovery": {
+                    "extractionFailure": "LLM_REPAIR_THEN_FAIL",
+                    "missingTarget": "LLM_REPAIR_THEN_CLARIFY",
+                    "missingVectorSpace": "LLM_REPAIR_THEN_CLARIFY",
+                    "invalidVectorSpace": "LLM_REPAIR_THEN_FAIL",
+                    "unknownAction": "LLM_REPAIR_THEN_FAIL",
+                    "actionDomainMismatch": "DENY_AND_LLM_REPLAN",
+                    "advancedNoEvidence": "RETURN_NO_EVIDENCE"
                   }
                 }
               }
@@ -946,6 +955,34 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry(
                 "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
                 "RAG_IF_ACTIONS_INSUFFICIENT"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_EXTRACTION_FAILURE",
+                "LLM_REPAIR_THEN_FAIL"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_MISSING_TARGET",
+                "LLM_REPAIR_THEN_CLARIFY"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_MISSING_VECTOR_SPACE",
+                "LLM_REPAIR_THEN_CLARIFY"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_INVALID_VECTOR_SPACE",
+                "LLM_REPAIR_THEN_FAIL"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_UNKNOWN_ACTION",
+                "LLM_REPAIR_THEN_FAIL"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_ACTION_DOMAIN_MISMATCH",
+                "DENY_AND_LLM_REPLAN"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_SEMANTIC_RECOVERY_ADVANCED_NO_EVIDENCE",
+                "RETURN_NO_EVIDENCE"
             );
     }
 
@@ -2244,7 +2281,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
-        version.setAiFabricFrameworkVersion("0.8.21");
+        version.setAiFabricFrameworkVersion("0.8.22");
         version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
@@ -2271,7 +2308,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
             {
-              "aiFabricFrameworkVersion": "0.8.21",
+              "aiFabricFrameworkVersion": "0.8.22",
               "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
               "entityConfigHash": "entity-hash-123"
             }

@@ -378,6 +378,18 @@ export type ThinkerDeploymentControlSummary = {
   updatedBy: string | null
 }
 
+export type ThinkerIssueOutcome = 'RESOLVED' | 'INSUFFICIENT_EVIDENCE' | 'WRITE_REQUIRED_ESCALATED' | 'BLOCKED'
+export type ThinkerIssueCategory = 'GENERAL_DIAGNOSIS' | 'POLICY_LOOKUP' | 'AVAILABILITY_DIAGNOSIS' | 'PRODUCT_COMPARISON' | 'WRITE_REQUIRED_SUPPORT' | 'SECURITY_REVIEW'
+export type ThinkerRiskClass = 'READ_ONLY' | 'LOW_WRITE_REQUESTED' | 'BLOCKED'
+export type ThinkerDecisionReason = 'EVIDENCE_SUFFICIENT' | 'EVIDENCE_MISSING' | 'GOVERNED_WRITE_REQUIRED' | 'SECURITY_POLICY_DENIED' | 'ACTION_POLICY_DENIED' | 'MODEL_CLARIFICATION_REQUIRED' | 'RUNTIME_FAILURE' | 'CROSS_TENANT_BOUNDARY_DENIED'
+
+export type ThinkerSemanticDecisionInput = {
+  outcome: ThinkerIssueOutcome
+  issueCategory: ThinkerIssueCategory
+  riskClass: ThinkerRiskClass
+  reasonCode: ThinkerDecisionReason
+}
+
 export type ThinkerIssueSessionSummary = {
   id: string
   deploymentId: string | null
@@ -6167,6 +6179,7 @@ export function createThinkerSession(payload: {
   shopDomain?: string
   userQuestion: string
   userSafeAnswer?: string
+  semanticDecision: ThinkerSemanticDecisionInput
   evidence?: Array<{
     kind?: string
     sourceKind?: string

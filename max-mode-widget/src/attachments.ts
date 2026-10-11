@@ -2,6 +2,7 @@ import type { AttachedItem } from "@/types";
 import type { MaxModePresentationResultReference } from "@/actionPresentation";
 import { presentationReferenceAttachmentId } from "@/actionPresentation";
 import { CURRENT_PAGE_ATTACHMENT_TYPE } from "@/pageAttachment";
+import { explicitAttachmentVectorSpace } from "@/requestSemantics";
 
 export const ACTION_RESULT_ATTACHMENT_TYPE = "action-result-context";
 
@@ -44,19 +45,7 @@ export function toRuntimeAttachment(item: AttachedItem, index: number): RuntimeA
   if (data.orderNumber) contentParts.push(`Order #${data.orderNumber}`);
 
   const sourceMetadata: Record<string, any> = { ...(data.metadata || {}) };
-  const explicitVectorSpace = firstString(
-    data.vectorSpace,
-    data.entityType,
-    sourceMetadata.vectorSpace,
-    sourceMetadata.entityType,
-  );
-  let vectorSpace = explicitVectorSpace || "product";
-  if (!explicitVectorSpace && item.type === "order") {
-    vectorSpace = "order";
-  } else if (!explicitVectorSpace && item.type === "document") {
-    const docCategory = data.metadata?.category?.toLowerCase();
-    vectorSpace = docCategory === "order" ? "order" : "product";
-  }
+  const vectorSpace = explicitAttachmentVectorSpace(data);
 
   delete sourceMetadata.productVariantId;
   delete sourceMetadata.firstAvailableVariantId;
@@ -98,13 +87,6 @@ export function toRuntimeAttachment(item: AttachedItem, index: number): RuntimeA
     url: cleanValue(data.url),
     imageUrl: cleanValue(data.imageUrl || data.metadata?.imageUrl),
   });
-}
-
-/** Page context informs generation but must not silently change the host's routing mode. */
-export function isRoutingTargetAttachment(item: AttachedItem): boolean {
-  return item.type !== CURRENT_PAGE_ATTACHMENT_TYPE
-    && item.type !== ACTION_RESULT_ATTACHMENT_TYPE
-    && item.type !== "ai-search";
 }
 
 export function toActionResultAttachedItem(reference: MaxModePresentationResultReference): AttachedItem {
@@ -201,6 +183,7 @@ function removeUndefinedValues(values: Record<string, any>): Record<string, any>
 }
 
 function removeEmptyOptionalFields<T extends RuntimeAttachment>(attachment: T): T {
+  if (!attachment.vectorSpace) delete attachment.vectorSpace;
   if (!attachment.url) delete attachment.url;
   if (!attachment.imageUrl) delete attachment.imageUrl;
   return attachment;

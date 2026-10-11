@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
-import { isRoutingTargetAttachment, toRuntimeAttachments } from "@/attachments";
+import { toRuntimeAttachments } from "@/attachments";
 import { emitEvent } from "@/config";
 import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
@@ -11,6 +11,7 @@ import type { AttachedItem, ChatMessage, ChatResult, DebugData, Document, Result
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import { resolveChatRequestSemantics } from "@/requestSemantics";
 
 function firstString(...values: unknown[]) {
   for (const value of values) {
@@ -92,7 +93,6 @@ function normalizeRuntimeDocument(doc: any, idx: number, options?: { entityType?
 export function useChatFlow({
   chatQuery,
   setChatQuery,
-  chatMessagesLength,
   setChatMessages,
   attachedItems,
   searchCategory,
@@ -112,7 +112,6 @@ export function useChatFlow({
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
-  chatMessagesLength: number;
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   attachedItems: Array<{ type: string; data: any }>;
   searchCategory: string | null;
@@ -146,13 +145,6 @@ export function useChatFlow({
       const currentSearchCategory = searchCategory;
       const aiSearchAttachment = effectiveAttachedItems.find((item) => item.type === "ai-search");
 
-      let apiQuery = query;
-      if (currentSearchCategory) {
-        apiQuery = `search relevance vector spaces for ${currentSearchCategory} ${query}`;
-      } else if (aiSearchAttachment) {
-        apiQuery = `search relevance vector spaces for ${aiSearchAttachment.data.category} ${query}`;
-      }
-
       const userMessage: ChatMessage = {
         id: Date.now().toString(),
         type: "user",
@@ -169,25 +161,16 @@ export function useChatFlow({
       const currentAttachments = effectiveAttachedItems.filter((item) => item.type !== "ai-search");
       setSuggestions([]);
 
-      const hasRoutingTargetAttachments = currentAttachments.some(isRoutingTargetAttachment);
-      const isFirstQuery = chatMessagesLength === 0;
-
-      let position: "landing" | "catalog" | "search" | "cart" =
-        actionPosition ?? (hasRoutingTargetAttachments ? "cart" : currentPosition);
-      let mode: MaxModeMode =
-        actionMode ?? (hasRoutingTargetAttachments ? "cart_assistant" : currentMode);
-
-      // Search category tag forces navigator mode (position = search)
-      const hasSearchTag = !!(currentSearchCategory || aiSearchAttachment);
-      if (hasSearchTag) {
-        position = "search";
-        mode = "navigator";
-      }
-
-      // Deep/Thinker mode is highest priority — overrides generic search routing.
-      if (currentMode === "navigator_deep" || currentMode === "thinker_deep") {
-        mode = currentMode;
-      }
+      const requestSemantics = resolveChatRequestSemantics({
+        query,
+        currentPosition,
+        currentMode,
+        actionPosition,
+        actionMode,
+        searchCategory: currentSearchCategory,
+        attachmentSearchCategory: aiSearchAttachment?.data?.category,
+      });
+      const { position, mode } = requestSemantics;
 
       emitEvent("message:sent", {
         query,
@@ -215,16 +198,19 @@ export function useChatFlow({
           }
         }
 
-        const mergedRequestContext = {
+        const mergedRequestContext: Record<string, any> = {
           ...(requestContext || {}),
           ...(liveRequestContext || {}),
           ...(extraRequestContext || {}),
+          ...(requestSemantics.searchCategory
+            ? { uiSearchCategory: requestSemantics.searchCategory }
+            : {}),
         };
         if (hasShopifyRequestContext(mergedRequestContext)) {
           mergedRequestContext.shopifyEffectiveConversationMode = mode;
         }
         const requestPayload = withRequestContext({
-          query: apiQuery,
+          query: requestSemantics.query,
           conversationId: currentConversationId || undefined,
           position,
           mode,
@@ -377,7 +363,6 @@ export function useChatFlow({
     },
     [
       attachedItems,
-      chatMessagesLength,
       chatQuery,
       currentConversationId,
       currentMode,
