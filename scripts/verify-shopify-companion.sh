@@ -1421,6 +1421,7 @@ print(json.dumps({
     "params": {
         "query": sample_query,
         "country": "US",
+        "language": "en-US",
         "intent": "product comparison",
         "limit": 5
     },
@@ -1431,14 +1432,20 @@ print(json.dumps({
             "execution": {
                 "adapterType": "mcp-tool",
                 "mcp": {
-                    "serverRef": "shopify-storefront",
-                    "endpointKind": "STOREFRONT_STANDARD",
+                    "serverRef": "shopify-storefront-ucp",
+                    "endpointKind": "UCP_CATALOG",
                     "toolName": "search_catalog",
                     "argumentTemplate": {
+                        "meta": {
+                            "ucp-agent": {
+                                "profileRef": "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"
+                            }
+                        },
                         "catalog": {
                             "query": "{{params.query}}",
                             "context": {
                                 "address_country": "{{params.country}}",
+                                "language": "{{params.language}}",
                                 "intent": "{{params.intent}}"
                             },
                             "pagination": {
