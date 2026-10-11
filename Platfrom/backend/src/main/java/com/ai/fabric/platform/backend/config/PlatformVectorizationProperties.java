@@ -7,6 +7,8 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "platform.vectorization")
 public record PlatformVectorizationProperties(
     Duration registrationTokenTtl,
+    Duration managedRegistrationTokenTtl,
+    Duration managedRegistrationRenewalWindow,
     Duration runnerSessionTtl,
     Duration runLeaseTtl,
     int maxRecentRuns,
@@ -16,6 +18,8 @@ public record PlatformVectorizationProperties(
 
     public PlatformVectorizationProperties {
         registrationTokenTtl = normalizeDuration(registrationTokenTtl, Duration.ofDays(7));
+        managedRegistrationTokenTtl = normalizeDuration(managedRegistrationTokenTtl, Duration.ofDays(365));
+        managedRegistrationRenewalWindow = normalizeDuration(managedRegistrationRenewalWindow, Duration.ofDays(30));
         runnerSessionTtl = normalizeDuration(runnerSessionTtl, Duration.ofHours(6));
         runLeaseTtl = normalizeDuration(runLeaseTtl, Duration.ofMinutes(15));
         maxRecentRuns = maxRecentRuns <= 0 ? 20 : maxRecentRuns;

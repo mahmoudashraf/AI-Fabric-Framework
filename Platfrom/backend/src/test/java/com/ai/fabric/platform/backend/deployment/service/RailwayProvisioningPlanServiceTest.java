@@ -65,6 +65,8 @@ class RailwayProvisioningPlanServiceTest {
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             new PlatformVectorizationProperties(
                 Duration.ofDays(7),
+                Duration.ofDays(365),
+                Duration.ofDays(30),
                 Duration.ofHours(6),
                 Duration.ofMinutes(15),
                 100,
@@ -124,6 +126,8 @@ class RailwayProvisioningPlanServiceTest {
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             new PlatformVectorizationProperties(
                 Duration.ofDays(7),
+                Duration.ofDays(365),
+                Duration.ofDays(30),
                 Duration.ofHours(6),
                 Duration.ofMinutes(15),
                 100,

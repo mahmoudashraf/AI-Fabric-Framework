@@ -60,7 +60,16 @@ class VectorizationServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final VectorizationJsonSupport jsonSupport = new VectorizationJsonSupport(objectMapper);
-    private final PlatformVectorizationProperties properties = new PlatformVectorizationProperties(null, null, null, 0, null, null);
+    private final PlatformVectorizationProperties properties = new PlatformVectorizationProperties(
+        null,
+        null,
+        null,
+        null,
+        null,
+        0,
+        null,
+        null
+    );
 
     @Test
     void previewReturnsEntityScopeAsArray() {

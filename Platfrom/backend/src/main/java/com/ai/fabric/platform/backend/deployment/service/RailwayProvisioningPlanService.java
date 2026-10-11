@@ -85,7 +85,7 @@ public class RailwayProvisioningPlanService {
         this(
             provisioningProperties,
             deliveryProperties,
-            new PlatformVectorizationProperties(null, null, null, 0, null, null),
+            new PlatformVectorizationProperties(null, null, null, null, null, 0, null, null),
             new PlatformVectorizationRunnerProvisioningProperties(null, null, null, null, null),
             new PlatformInferenceProvisioningProperties(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
             artifactService,

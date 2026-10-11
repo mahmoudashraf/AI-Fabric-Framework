@@ -183,6 +183,8 @@ platform:
       max-output-characters: ${PLATFORM_HOSTED_VERIFICATION_MAX_OUTPUT_CHARACTERS:200000}
   vectorization:
     registration-token-ttl: ${PLATFORM_VECTORIZATION_REGISTRATION_TOKEN_TTL:7d}
+    managed-registration-token-ttl: ${PLATFORM_VECTORIZATION_MANAGED_REGISTRATION_TOKEN_TTL:365d}
+    managed-registration-renewal-window: ${PLATFORM_VECTORIZATION_MANAGED_REGISTRATION_RENEWAL_WINDOW:30d}
     runner-session-ttl: ${PLATFORM_VECTORIZATION_RUNNER_SESSION_TTL:6h}
     run-lease-ttl: ${PLATFORM_VECTORIZATION_RUN_LEASE_TTL:15m}
     max-recent-runs: ${PLATFORM_VECTORIZATION_MAX_RECENT_RUNS:20}

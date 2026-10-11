@@ -45,7 +45,7 @@ public class VectorizationRunnerProvisioningService {
         if (registration != null
             && "ACTIVE".equalsIgnoreCase(registration.getStatus())
             && registration.getTokenExpiresAt() != null
-            && registration.getTokenExpiresAt().isAfter(now)
+            && registration.getTokenExpiresAt().isAfter(now.plus(properties.managedRegistrationRenewalWindow()))
             && StringUtils.hasText(existingToken)
             && tokenService.hashToken(existingToken).equals(registration.getTokenHash())) {
             registration.setRunnerMode("PLATFORM_MANAGED_AUTO");
@@ -55,7 +55,7 @@ public class VectorizationRunnerProvisioningService {
         }
 
         String registrationToken = tokenService.generateToken();
-        Instant expiresAt = now.plus(properties.registrationTokenTtl());
+        Instant expiresAt = now.plus(properties.managedRegistrationTokenTtl());
         VectorizationRunnerRegistrationEntity entity = registration != null ? registration : new VectorizationRunnerRegistrationEntity();
         if (!StringUtils.hasText(entity.getId())) {
             entity.setId(generateId("vrr"));
