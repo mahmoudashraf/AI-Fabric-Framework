@@ -5,13 +5,15 @@ import com.ai.infrastructure.connector.rest.config.RestConnectorAdminAuthPropert
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(exclude = {
     DataSourceAutoConfiguration.class,
-    HibernateJpaAutoConfiguration.class
+    HibernateJpaAutoConfiguration.class,
+    DataJpaRepositoriesAutoConfiguration.class
 })
 @EnableScheduling
 @EnableConfigurationProperties({
