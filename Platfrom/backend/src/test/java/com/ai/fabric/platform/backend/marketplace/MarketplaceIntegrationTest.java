@@ -451,7 +451,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='support-capabilities')].query", is(List.of("What can you help me with?"))))
             .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='refund-policy')].moduleId", is(List.of("docs"))))
             .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='notification-troubleshooting')].moduleId", is(List.of("support"))))
-            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("guided-support")))
+            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("thinker_deep")))
             .andExpect(jsonPath("$.providerConfig.generationBaseUrl", is("https://api.openai.com/v1")))
             .andExpect(jsonPath("$.providerConfig.generationApiKeySecretRef", is("sec-openai-byok")))
             .andExpect(jsonPath("$.providerConfig.generationModel", is("gpt-4.1-mini")))

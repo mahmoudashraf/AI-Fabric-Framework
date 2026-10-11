@@ -2076,7 +2076,10 @@ public class DeploymentService {
         root.set("greeting", objectMapper.createObjectNode());
         String normalizedCuratedModuleId = deploymentCuratedModuleCatalogService.normalizeModuleId(curatedModuleId);
         if ("support".equals(normalizedCuratedModuleId)) {
-            root.put("defaultConversationMode", "guided-support");
+            root.put("defaultConversationMode", "thinker_deep");
+            root.putArray("allowedConversationModes")
+                .add("thinker_deep")
+                .add("executor");
             root.with("greeting")
                 .put("title", "Support Desk")
                 .put("message", "Ask about help-center guidance, troubleshooting steps, support policies, or available support actions.");
