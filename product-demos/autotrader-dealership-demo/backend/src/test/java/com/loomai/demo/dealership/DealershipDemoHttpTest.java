@@ -40,6 +40,7 @@ class DealershipDemoHttpTest {
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:h2:mem:dealership-" + UUID.randomUUID() + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH");
         registry.add("dealership.internal.api-key", () -> INTERNAL_KEY);
+        registry.add("dealership.public-media-base-url", () -> "https://dealership.example.test");
         registry.add("dealership.privacy.encryption-key-base64", () -> ENCRYPTION_KEY);
         registry.add("dealership.staff.username", () -> "staff");
         registry.add("dealership.staff.password-hash-base64", () -> Base64.getEncoder().encodeToString(
@@ -124,6 +125,8 @@ class DealershipDemoHttpTest {
             .andExpect(jsonPath("$.vehicle.id").value("veh-aster-e1"))
             .andExpect(jsonPath("$.vehicle.slug").value("aster-e1-motion"))
             .andExpect(jsonPath("$.vehicle.model").value("E1"))
+            .andExpect(jsonPath("$.vehicle.imageUrl").value("https://dealership.example.test/assets/demos/dealership/vehicle-01.webp"))
+            .andExpect(jsonPath("$.vehicle.imagePath").doesNotExist())
             .andExpect(jsonPath("$.vehicle.lifecycleState").value("ACTIVE"));
     }
 
@@ -153,6 +156,8 @@ class DealershipDemoHttpTest {
             .andExpect(jsonPath("$.vehicles.length()").value(2))
             .andExpect(jsonPath("$.vehicles[0].id").value("veh-aster-e1"))
             .andExpect(jsonPath("$.vehicles[0].priceGbp").value(31950.00))
+            .andExpect(jsonPath("$.vehicles[0].imageUrl").value("https://dealership.example.test/assets/demos/dealership/vehicle-01.webp"))
+            .andExpect(jsonPath("$.vehicles[0].imagePath").doesNotExist())
             .andExpect(jsonPath("$.vehicles[1].id").value("veh-morrow-c2"));
     }
 

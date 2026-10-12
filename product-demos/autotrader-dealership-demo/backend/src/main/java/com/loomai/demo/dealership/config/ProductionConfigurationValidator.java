@@ -29,6 +29,8 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
         require(properties.getStaff().getPasswordHashBase64(), "APP_STAFF_PASSWORD_HASH_BASE64", missing);
         require(properties.getInternal().getApiKey(), "APP_INTERNAL_API_KEY", missing);
         require(properties.getPrivacy().getEncryptionKeyBase64(), "APP_PII_ENCRYPTION_KEY_BASE64", missing);
+        require(properties.getPublicMediaBaseUrl(), "DEALERSHIP_PUBLIC_MEDIA_BASE_URL", missing);
+        validateHttpsUrl(properties.getPublicMediaBaseUrl(), "DEALERSHIP_PUBLIC_MEDIA_BASE_URL", missing);
         if (properties.getAllowedOrigins().isEmpty()) {
             missing.add("CORS_ALLOWED_ORIGINS");
         }

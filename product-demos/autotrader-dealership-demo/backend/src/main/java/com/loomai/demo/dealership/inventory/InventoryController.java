@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -102,7 +103,13 @@ public class InventoryController {
         @RequestParam String dealershipId,
         @RequestParam String reference
     ) {
-        return vehicleDetail(resolveOneActiveVehicle(dealershipId, reference));
+        Vehicle vehicle = resolveOneActiveVehicle(dealershipId, reference);
+        return Map.of(
+            "success", true,
+            "vehicle", actionVehicle(vehicle),
+            "source", sourceSummary(),
+            "dataNotice", "Fictional demonstration inventory. Confirm current availability with the dealership."
+        );
     }
 
     @GetMapping("/resolve")
@@ -185,7 +192,7 @@ public class InventoryController {
         }
         return Map.of(
             "success", true,
-            "vehicles", vehicles.stream().map(this::publicVehicle).toList(),
+            "vehicles", vehicles.stream().map(this::actionVehicle).toList(),
             "count", vehicles.size(),
             "source", sourceSummary()
         );
@@ -240,5 +247,36 @@ public class InventoryController {
         payload.put("priceFormatted", NumberFormat.getCurrencyInstance(Locale.UK).format(priceGbp));
         payload.put("dealershipId", properties.getId());
         return payload;
+    }
+
+    private ObjectNode actionVehicle(Vehicle vehicle) {
+        ObjectNode payload = publicVehicle(vehicle);
+        payload.remove("imagePath");
+        String imageUrl = canonicalImageUrl(vehicle.imagePath());
+        if (imageUrl != null) {
+            payload.put("imageUrl", imageUrl);
+        }
+        return payload;
+    }
+
+    private String canonicalImageUrl(String imagePath) {
+        if (imagePath == null || imagePath.isBlank()) {
+            return null;
+        }
+        try {
+            URI path = URI.create(imagePath.trim());
+            if (path.isAbsolute()) {
+                return "https".equalsIgnoreCase(path.getScheme()) ? path.toString() : null;
+            }
+            String configuredBase = properties.getPublicMediaBaseUrl();
+            if (configuredBase == null || configuredBase.isBlank()) {
+                return null;
+            }
+            URI base = URI.create(configuredBase.trim().replaceAll("/+$", "") + "/");
+            URI resolved = base.resolve(imagePath.trim().replaceFirst("^/+", ""));
+            return "https".equalsIgnoreCase(resolved.getScheme()) ? resolved.toString() : null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }

@@ -13,6 +13,7 @@ public class DealershipDemoProperties {
     private String id = "dealer-demo-001";
     private String name = "Northfield Motor House";
     private String sourceLabel = "Demonstration inventory";
+    private String publicMediaBaseUrl;
     private List<String> allowedOrigins = new ArrayList<>(List.of("http://127.0.0.1:4321", "http://localhost:4321"));
     private final Staff staff = new Staff();
     private final Internal internal = new Internal();
@@ -28,6 +29,8 @@ public class DealershipDemoProperties {
     public void setName(String name) { this.name = name; }
     public String getSourceLabel() { return sourceLabel; }
     public void setSourceLabel(String sourceLabel) { this.sourceLabel = sourceLabel; }
+    public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
+    public void setPublicMediaBaseUrl(String publicMediaBaseUrl) { this.publicMediaBaseUrl = publicMediaBaseUrl; }
     public List<String> getAllowedOrigins() { return allowedOrigins; }
     public void setAllowedOrigins(List<String> allowedOrigins) { this.allowedOrigins = allowedOrigins == null ? new ArrayList<>() : new ArrayList<>(allowedOrigins); }
     public Staff getStaff() { return staff; }
