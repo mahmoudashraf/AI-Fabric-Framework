@@ -866,6 +866,9 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (actionEntry.path("groundingEligible").isBoolean()) {
             compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
         }
+        if (actionEntry.path("groundingVectorSpaces").isArray()) {
+            compiled.set("groundingVectorSpaces", actionEntry.path("groundingVectorSpaces").deepCopy());
+        }
         if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
             compiled.put(
                 "readActionResolutionEligible",

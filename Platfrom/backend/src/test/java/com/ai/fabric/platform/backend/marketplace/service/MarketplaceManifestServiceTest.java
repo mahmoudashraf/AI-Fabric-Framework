@@ -164,6 +164,60 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void actionManifestAcceptsOptionalGroundingVectorSpaces() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "readOnly": true,
+                    "groundingEligible": true,
+                    "groundingVectorSpaces": ["dealer-vehicle"]
+                  }
+                ]
+              }
+            }
+            """;
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            service.parseAndValidate(actionPlugin(), version(manifest));
+
+        assertThat(parsed.contributions().actionIds()).containsExactly("inventory_search");
+    }
+
+    @Test
+    void actionManifestRejectsInvalidGroundingVectorSpaces() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "readOnly": true,
+                    "groundingVectorSpaces": ["dealer-vehicle", "dealer-vehicle"]
+                  }
+                ]
+              }
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("groundingVectorSpaces entries must be unique");
+    }
+
+    @Test
     void mcpToolActionRejectsUnknownDispatchMode() {
         String manifest = """
             {

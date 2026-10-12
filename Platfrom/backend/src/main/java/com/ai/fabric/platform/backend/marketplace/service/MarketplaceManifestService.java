@@ -553,6 +553,7 @@ public class MarketplaceManifestService {
             if (!StringUtils.hasText(actionId)) {
                 throw invalid(plugin, version, "each action contribution must declare id or actionId.");
             }
+            validateGroundingVectorSpaces(plugin, version, action, actionId.trim());
             validateActionExecutionContribution(plugin, version, action, actionId.trim(), mcpServerRefs);
             JsonNode route = action.path("route");
             if (route.isObject()) {
@@ -608,6 +609,32 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private void validateGroundingVectorSpaces(MarketplacePluginEntity plugin,
+                                               MarketplacePluginVersionEntity version,
+                                               JsonNode action,
+                                               String actionId) {
+        JsonNode vectorSpaces = action.path("groundingVectorSpaces");
+        if (vectorSpaces.isMissingNode() || vectorSpaces.isNull()) {
+            return;
+        }
+        if (!vectorSpaces.isArray()) {
+            throw invalid(plugin, version,
+                "action '" + actionId + "' groundingVectorSpaces must be an array when provided.");
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (JsonNode vectorSpace : vectorSpaces) {
+            String value = vectorSpace.isTextual() ? vectorSpace.asText("").trim() : "";
+            if (!StringUtils.hasText(value)) {
+                throw invalid(plugin, version,
+                    "action '" + actionId + "' groundingVectorSpaces entries must be non-empty strings.");
+            }
+            if (!seen.add(value)) {
+                throw invalid(plugin, version,
+                    "action '" + actionId + "' groundingVectorSpaces entries must be unique.");
+            }
+        }
     }
 
     private void validateSourceProjectionActionRoute(MarketplacePluginEntity plugin,

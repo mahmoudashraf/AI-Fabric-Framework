@@ -136,6 +136,7 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
               "readOnly": true,
               "anonymousAllowed": true,
               "groundingEligible": true,
+              "groundingVectorSpaces": ["product"],
               "readActionResolutionEligible": true,
               "params": [
                 {
@@ -165,6 +166,9 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(compiled.path("name").asText()).isEqualTo("shopify_search_catalog");
         assertThat(compiled.path("adapterType").asText()).isEqualTo("mcp-tool");
         assertThat(compiled.path("accessMode").asText()).isEqualTo("READ");
+        assertThat(compiled.path("groundingVectorSpaces"))
+            .extracting(JsonNode::asText)
+            .containsExactly("product");
         assertThat(compiled.path("execution").path("adapterType").asText()).isEqualTo("mcp-tool");
         assertThat(compiled.path("execution").path("mcp").path("serverRef").asText()).isEqualTo("shopify-storefront-ucp");
         assertThat(compiled.path("execution").path("mcp").path("toolName").asText()).isEqualTo("search_catalog");
