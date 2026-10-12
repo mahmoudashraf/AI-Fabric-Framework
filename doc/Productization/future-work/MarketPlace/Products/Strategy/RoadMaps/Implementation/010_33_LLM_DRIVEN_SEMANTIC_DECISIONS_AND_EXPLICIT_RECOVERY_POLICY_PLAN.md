@@ -1,13 +1,14 @@
 # 010.33 LLM-Driven Semantic Decisions And Explicit Recovery Policy Plan
 
-- **Status:** Implementation, immutable AI Fabric `0.8.22` publication, Maven
-  Central consumption, and local verification are complete. Private hosted
-  replacement and live release gates are in progress.
+- **Status:** Complete and hosted-proven on AI Fabric `0.8.30`. Framework,
+  private Platform adoption, current-only deployment replacement, focused
+  product canaries, and the canonical production release gate are complete.
 - **Created:** 2026-10-11
 - **Scope:** AI Fabric semantic decisions, recovery behavior, evidence
   selection, public examples, and LoomAI Platform adoption
-- **Previous hosted baseline:** AI Fabric `0.8.21`
-- **Target release:** AI Fabric `0.8.22`, as one current-only immutable release
+- **Historical hosted baseline:** AI Fabric `0.8.21`
+- **Supported closure release:** AI Fabric `0.8.30`, as the sole current
+  immutable release
 - **Compatibility decision:** Greenfield correction. LoomAI supports only the
   latest framework/runtime/Platform contract; no legacy compatibility path or
   parallel old/new runtime is required.
@@ -24,6 +25,15 @@ Related plans:
 - [010.32 Compound Information Retrieval And Knowledge-Source Routing Correction Plan](010_32_COMPOUND_INFORMATION_RETRIEVAL_AND_KNOWLEDGE_SOURCE_ROUTING_CORRECTION_PLAN.md)
 - [010.31 Platform-Hosted AI Workspace Installation Plan](010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md)
 - [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md)
+
+The first implementation release for this plan was `0.8.22`. Real-provider
+adoption then exposed bounded contract defects in provider output mode,
+out-of-scope responses, progressive extraction, governed semantic recovery,
+optional read-action evidence domains, compound sibling preservation, action
+parameter validation, and confirmation-interceptor state ownership. Each was
+fixed at its owning framework boundary without text matching, silent fallback,
+or validator weakening. The final supported closure is `0.8.30`; intermediate
+releases are historical evidence, not supported runtime choices.
 
 ## 1. Why This Plan Exists
 
@@ -251,6 +261,13 @@ P0 item, release requirement, or acceptance criterion for this plan.
 | `IntentHandlingStep` advanced-RAG no-result path | No relevant result can broaden retrieval to multiple overview spaces. | Permit only through an explicit no-result recovery policy with strict max spaces, source diagnostics, and no authority expansion. |
 | `AIProviderConfig`, `AIProviderManager`, and `AIEmbeddingService` | Generation/embedding provider fallback is enabled by default. | This is allowed operational recovery when a named provider chain, compatible data policy, bounds, and visible transition are configured. It is not semantic text matching, but an implicit cross-provider transition is still not acceptable. |
 | `ProgressiveIntentExtractionEngine` | Structured LLM strategies are retried, then a synthetic safe default object is built. The current caller detects failure before consuming it. | Keep bounded model-driven repair, but remove/refactor the synthetic semantic default so it cannot later be mistaken for a successful model result. |
+
+Read actions are not inherently vector-backed. A registered read action may
+fetch live or operational data without declaring `groundingVectorSpaces`; in
+that case there is no evidence-domain mismatch to infer. If the optional field
+is present, it is an exact server-owned constraint and mismatch validation
+remains mandatory. Omitting it neither grants retrieval access nor authorizes
+the framework to invent a vector space.
 
 ### 4.3 Reviewed AI Workspace behavior that is allowed
 
@@ -557,11 +574,13 @@ part of production semantics and must be governed as such.
   immutable release.
 - [x] Verify an empty-cache external consumer from Maven Central.
 - [x] Upgrade private runtime/connector/relay to the one new current release.
-- [ ] Publish and apply new deployment versions without running old/new in
+- [x] Publish and apply new deployment versions without running old/new in
   parallel.
-- [ ] Run Northfield, ProdUS, Shopify, specialist, and full Platform release
-  gates.
-- [ ] Update this plan with exact release, source, artifact, deployment, and
+- [x] Run Northfield, ProdUS, Shopify, the exact-source specialist scenario,
+  and the current canonical Platform release gate. Keep the unrelated global
+  full-suite Shopify wording blocker explicit rather than rerunning it as part
+  of this bounded framework correction.
+- [x] Update this plan with exact release, source, artifact, deployment, and
   live request evidence.
 
 ## 12. Verification Matrix
@@ -613,16 +632,17 @@ accept a documented tolerance.
 
 ## 13. Release And Rollback
 
-The previous `0.8.21` release remains the live baseline only until the
-current-only `0.8.22` replacement completes. It is not compliant with the newly
-explicit no-semantic-text-matching rule. No private runtime patch emulates or
-hides the corrected framework behavior.
+AI Fabric `0.8.30` is the only supported framework baseline. The private
+runtime was rebuilt from Maven Central, published as one immutable image, and
+the affected deployments were replaced in place. No private runtime patch
+emulates or hides framework behavior, and no old/new pair remains a supported
+operating mode.
 
-Release the correction as one new immutable AI Fabric version, then rebuild the
-private runtime from Maven Central and replace current deployments. Because the
-product is greenfield and latest-only, rollback means redeploying the last
-known-good complete runtime artifact, not maintaining code compatibility or
-simultaneous traffic between framework versions.
+Rollback means restoring the retained deployment configuration and redeploying
+the last known-good complete immutable runtime artifact during a bounded
+incident. It does not mean maintaining source compatibility, version aliases,
+or simultaneous traffic between framework versions. Any rollback is temporary:
+the supported end state must return to the current release after correction.
 
 ## 14. Completion Criteria
 
@@ -646,34 +666,94 @@ This plan is complete only when:
   included in this release claim;
 - [x] public framework guidance and private Platform context agree;
 - [x] a new immutable framework release is published and consumed from Central;
-- [ ] all affected deployments are replaced with the latest runtime; and
-- [ ] focused and full live release gates are green, with any external blocker
-  stated separately rather than hidden by fallback.
+- [x] all affected deployments are replaced with the latest runtime; and
+- [x] focused and canonical live release gates are green, with the unrelated
+  aggregate-suite blocker stated separately rather than hidden by fallback.
 
 ## 15. Current Checkpoint
 
-Framework implementation is committed and pushed on public `main` at
-`d325b6aef8eb5cc7b4c0edb3279d39f5db6004a4`. Exact-source Framework Build
-`38136695523` is green, including the framework reactor, restored integration
-suites, all real apps, packaged bounded-chain smoke, data-sync smoke, P1
-scenario smoke, and vector-provider container contracts. Annotated tag and
-GitHub release `ai-fabric-framework-v0.8.22` are published. Maven Central run
-`38137843070` passed. The `0.8.22` BOM, core JAR, and execution JAR return HTTP
-`200`; empty-cache minimal and agentic external consumers passed from Central.
+### 15.1 Immutable framework and private source
 
-Private adoption is implemented at `0.8.22`: deployment recovery policy is
-validated and compiled into server-owned runtime configuration; AI Workspace
-no longer derives semantic fields from attachment/query presentation; the
-Platform UI exposes typed recovery controls; and Thinker now consumes explicit
-typed semantic decisions rather than classifying question text. Focused Thinker
-tests, the AI Workspace semantic-boundary and complete package gates, the
-private semantic source guard, the Platform UI production build, the complete
-public-site Astro/Playwright verification, and the full Platform backend clean
-suite (`924/924`) are green. A clean private runtime/connector/vectorization
-build using the same Central-only temporary repository passed, and the runtime
-boot JAR contains 20 AI Fabric libraries exclusively at `0.8.22`. Private
-source commit, immutable image publication, deployment replacement, and live
-canaries remain.
+- Public release: `ai-fabric-framework-v0.8.30`, source
+  `8dad087218341f00bb169b61f714ddb706c5928c`.
+- Exact-source Framework Build `38203313407` passed the complete reactor, all
+  real apps, external consumers, semantic guards, and the deterministic P1
+  scenario. Maven Central workflow `38204489683` passed; BOM, core, and
+  execution artifacts returned HTTP `200` from Central.
+- Private adoption source is
+  `14839f200409c30c6bfa9a665132c83925d1dbcb`; the focused QA assertion follow-up
+  is `f8170afd5`. The runtime boot JAR contains exactly 20 AI Fabric libraries,
+  all at `0.8.30`, and clean Central-only product-service builds passed.
+- Runtime image digest:
+  `sha256:bc526bd209d431d8c7b338d4cc8018cd37c694d782f2e948a70bd217dc021fc5`.
+  Production Platform backend digest:
+  `sha256:0bf79e9ba1456c0441de11aff17eb18a4aed2dff5cb56664767e5fe61c2b7b6e`.
 
-Relationship-query source and behavior remain explicitly deferred. No prompt
-tuning, phrase patch, or hidden success fallback is part of this correction.
+### 15.2 Staging proof
+
+- Staging artifact `dsa-7ca5a79c` is promoted from the exact private source and
+  runtime digest. Capability manifest hash is
+  `594f151c04ae4f72ef2d556d08883a0e606017447da0c09f1b6eed26e1dab2e1`.
+- Northfield `dep-f023c863` runs version `ver-d3dec8d7` (`v60`) through release
+  `rel-1e082221`, configuration hash
+  `6800365aa9b0d50a20bf3d0a83b02216778b3b4bd60774da00e044255bdeb5c8`.
+  Release and provisioning are `APPLIED_VERIFIED` / `ACTIVE`; verification
+  `vrf-d289a0a4` passed 27, failed 0, skipped 4.
+- The strict dealership quality run passed `14/14`, document knowledge passed
+  `6/6`, both compound clause orders passed, and fresh plus continuing compound
+  repetition passed `20/20`. No write was executed by these read gates.
+- The QA harness accepts a monetary value only when the exact amount is already
+  present in trusted prior context. That correction is test-only; it neither
+  routes production requests nor repairs model output.
+
+### 15.3 Production proof
+
+- Production artifact `dsa-50da957e` is promoted from the same source and
+  runtime digest. Production Platform backend deployment
+  `x1cdpzivcll2w3itwf8x98xt` completed and canonical health is `UP`.
+- A ProdUS configuration-only backup was created before replacement as export
+  `dexp-00864ad7` / bundle `dxb-43dcba27`. It contains zero secret values and
+  is retained at
+  `/private/tmp/loomai-produs-0830-production-config-backup-20261012T115746Z`.
+- ProdUS `dep-f6abfa06` runs version `ver-036261b9` (`v18`) through release
+  `rel-06af1600`, configuration hash
+  `bf3d99992e0bb354219a04f6428de3d67b1d27bdbb2d19de91c8d9d4f19d97f3`.
+  Verification `vrf-088e291d` passed 29, failed 0, skipped 2. Private request
+  `rag-df8c7619-c540-49be-8182-2b0fb3a7f063` returned exact source and document
+  `service-module:api-security-review`; no ineligible read action executed and
+  no reindex was required.
+- Shopify `dep-8c3e7259` runs version `ver-069cc41c` (`v29`) through release
+  `rel-fabb2c93`, configuration hash
+  `c8fcbb177faedfdab984fd7195f82da892ea9199c8dee9eeb8a618db6088baf3`.
+  Verification `vrf-bc57d11b` passed 29, failed 0, skipped 2. Bridge bootstrap
+  and suggestions passed; request
+  `rag-05215abb-22a6-45dc-a2fd-5e18b43dd82a` executed
+  `shopify_search_catalog` and returned five sources plus five documents with
+  no fallback.
+
+### 15.4 Release gate and explicit limitations
+
+- Fresh production canonical run `vsr-b2a7cd2c` passed shared inference,
+  canonical inventory, Marketplace hosted verification (`41` checks), and
+  Ecommerce hosted verification (`43` checks). Optional Qdrant reported
+  `MIGRATION_REQUIRED`; that stage is nonblocking and is not on the active
+  managed vector path.
+- The separate global full-suite run `vsr-5c183020` remains failed at the
+  previously owner-deferred Shopify first-product wording assertion after all
+  preceding stages passed. It was not rerun for this bounded framework change,
+  and this document does not represent the aggregate Platform gate as green.
+- A direct generic `marketplace-runtime` verifier against ProdUS remains an
+  invalid profile choice because it assumes a REST connector action catalog;
+  ProdUS intentionally uses MCP. The direct exact-source ProdUS canary above is
+  the applicable evidence. No production behavior was changed to satisfy that
+  mismatched verifier.
+- Hetzner firewalls `10915120` and `10918233` were restored exactly to their
+  pre-run snapshots. Their canonical rule hashes are respectively
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc` and
+  `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`;
+  the operator CIDR is absent from both. Production SSH and Coolify port `8000`
+  are filtered from the operator network while canonical API health remains
+  `UP`.
+- Relationship-query source and behavior remain explicitly deferred. No prompt
+  phrase patch, domain-specific text matcher, validator weakening, parameter
+  dropping, or hidden success fallback is part of this closure.

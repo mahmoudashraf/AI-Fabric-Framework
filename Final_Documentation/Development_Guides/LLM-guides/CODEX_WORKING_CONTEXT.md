@@ -4307,3 +4307,46 @@ Critical fixes that made the gate pass:
 - Updated public framework assistant rules plus framework, Platform-product,
   and Platform session philosophy. `010.32` remains functionally closed and
   links this follow-up compliance correction.
+
+## 2026-10-12 LLM-Driven Semantic Decisions 0.8.30 Closure
+
+- Canonical plan `010.33` is complete and hosted-proven. AI Fabric `0.8.30` is
+  the only supported release: tag source
+  `8dad087218341f00bb169b61f714ddb706c5928c`, Framework Build
+  `38203313407`, and Maven Central run `38204489683` passed. Central serves the
+  BOM, core, and execution artifacts.
+- The final release preserves strict action parameter validation while moving
+  framework-owned confirmation interceptor guards out of business action
+  parameters. Read actions may omit `groundingVectorSpaces`; an omitted field
+  creates no domain mismatch and grants no retrieval authority. If present,
+  the exact server-owned evidence-domain constraint remains enforced.
+- Private runtime source `14839f200409c30c6bfa9a665132c83925d1dbcb`
+  consumes only `0.8.30`. Its boot JAR contains exactly 20 AI Fabric libraries
+  at that version. QA-only follow-up `f8170afd5` corrected a monetary assertion
+  without changing production routing, model output, or fallback behavior.
+- Northfield staging is `ver-d3dec8d7` / `rel-1e082221`; verification
+  `vrf-d289a0a4` passed 27/0/4. Strict quality passed 14/14, document knowledge
+  6/6, and compound fresh/continuing repetition 20/20.
+- ProdUS production is `ver-036261b9` / `rel-06af1600`; verification
+  `vrf-088e291d` passed 29/0/2. Exact request
+  `rag-df8c7619-c540-49be-8182-2b0fb3a7f063` returned
+  `service-module:api-security-review` with no ineligible action and no reindex.
+- Shopify production is `ver-069cc41c` / `rel-fabb2c93`; verification
+  `vrf-bc57d11b` passed 29/0/2. Bridge request
+  `rag-05215abb-22a6-45dc-a2fd-5e18b43dd82a` executed the catalog read action
+  and returned five sources plus five documents without fallback.
+- Fresh canonical production suite `vsr-b2a7cd2c` passed shared inference,
+  canonical inventory, Marketplace hosted verification (41 checks), and
+  Ecommerce hosted verification (43 checks). Optional Qdrant remains
+  nonblocking `MIGRATION_REQUIRED`.
+- The aggregate global suite is not green: `vsr-5c183020` remains failed at the
+  separately owner-deferred Shopify first-product wording assertion. Do not
+  relabel focused or canonical proof as a green aggregate gate.
+- Hetzner firewalls `10915120` and `10918233` were restored exactly with hashes
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc` and
+  `8fd900686a4b064cbe647e8fcab437a79a44b6399109d6fa4fe91660e17df931`.
+  The operator CIDR is absent; production SSH and Coolify are filtered while
+  canonical API health remains `UP`.
+- No production phrase patch, domain-specific matcher, silent semantic
+  fallback, validator weakening, parameter dropping, or private framework
+  workaround was introduced. Relationship-query remains deferred.
