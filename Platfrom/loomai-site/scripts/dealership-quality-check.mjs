@@ -490,13 +490,20 @@ function scenarioAssertions(id, result, observedQueries) {
     ]
   }
   if (id === 'contextual-follow-up') {
-    const statesPrice = /(?:GBP\s*|£\s*)\d/i.test(answer)
-    const statesAuthoritativePrice = /(?:GBP\s*|£\s*)22[, ]?750(?:\.00)?/i.test(answer)
+    const statedMonetaryValues = [...answer.matchAll(/(?:GBP\s*|£\s*)(\d[\d, ]*(?:\.\d{1,2})?)/gi)]
+      .map((match) => Number.parseFloat(match[1].replace(/[ ,]/g, '')))
+      .filter(Number.isFinite)
+    const unsupportedMonetaryValues = statedMonetaryValues.filter((value) => ![22_750, 40_000].includes(value))
     const identifiesMorrowC2 = /Morrow\s+C2/i.test(answer)
       || (/\bMorrow\b/i.test(answer) && /\bC2\b/i.test(answer))
     return [
       check('follow-up resolves the prior result set', identifiesMorrowC2 && /(1,980|1980)/i.test(answer) && /Hatchback/i.test(answer), 'Morrow C2, 1,980 miles, and Hatchback', summarizeText(answer)),
-      check('follow-up does not invent a price', !statesPrice || statesAuthoritativePrice, 'Omit price or preserve GBP 22,750 from current provider evidence.', summarizeText(answer)),
+      check(
+        'follow-up does not invent a price',
+        unsupportedMonetaryValues.length === 0,
+        'Only the known GBP 40,000 buyer budget and GBP 22,750 provider price may appear.',
+        { statedMonetaryValues, unsupportedMonetaryValues, answer: summarizeText(answer) },
+      ),
       check('follow-up is grounded', grounded, 'Action or non-action RAG evidence.', evidence.groundingPath),
     ]
   }
