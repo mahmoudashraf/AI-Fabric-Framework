@@ -1044,6 +1044,8 @@ public class DeploymentReleaseVerificationService {
                 }
             }
         }
+        Set<String> expectedServerOwnedRuntimeActionNames = serverOwnedRuntimeActionNames(behaviorConfig);
+        expectedActionNames.addAll(expectedServerOwnedRuntimeActionNames);
 
         Set<String> expectedConfirmationInterceptorNames = new LinkedHashSet<>();
         JsonNode confirmationInterceptors = actionsConfig.path("confirmationInterceptors");
@@ -1101,7 +1103,10 @@ public class DeploymentReleaseVerificationService {
             : 0;
         boolean expectedShellGreetingConfigured = hasText(shellConfig.path("greeting").path("message").asText(""))
             || hasText(shellConfig.path("greeting").path("title").asText(""));
-        Set<String> expectedActionNamesWithPresentationHints = expectedActionNamesWithPresentationHints(actionsConfig.path("actions"));
+        Set<String> expectedActionNamesWithPresentationHints = new LinkedHashSet<>(
+            expectedActionNamesWithPresentationHints(actionsConfig.path("actions"))
+        );
+        expectedActionNamesWithPresentationHints.addAll(expectedServerOwnedRuntimeActionNames);
         Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
         Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
         Set<String> expectedActionNamesWithProvenance = Set.copyOf(expectedActionNames);
@@ -2645,6 +2650,18 @@ public class DeploymentReleaseVerificationService {
     static boolean expectsSpecialistChains(JsonNode behaviorConfig) {
         return behaviorConfig != null
             && "AGENTIC_SPECIALIST_TEAM".equals(behaviorConfig.path("type").asText(""));
+    }
+
+    static Set<String> serverOwnedRuntimeActionNames(JsonNode behaviorConfig) {
+        if (behaviorConfig == null) {
+            return Set.of();
+        }
+        JsonNode actionBinding = behaviorConfig.path("conversationHandover").path("actionBinding");
+        if (!"SERVER_OWNED_RUNTIME_ACTION".equals(actionBinding.path("implementation").asText(""))) {
+            return Set.of();
+        }
+        String actionId = actionBinding.path("actionId").asText("").trim();
+        return actionId.isEmpty() ? Set.of() : Set.of(actionId);
     }
 
     static boolean hasExternalDocumentDataset(JsonNode marketplaceDatasetConfig) {

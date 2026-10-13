@@ -322,6 +322,7 @@ public class RuntimeAdminOverviewController {
             case "ai-review-task" -> "ai-review-task-v1";
             case "ai-review-dispatch" -> "ai-review-dispatch-v1";
             case "loomai-document-ingestion" -> "loomai-document-ingestion-v1";
+            case "conversation-handover" -> "loomai-conversation-handover-v1";
             default -> slug + "-v" + version.trim();
         };
     }

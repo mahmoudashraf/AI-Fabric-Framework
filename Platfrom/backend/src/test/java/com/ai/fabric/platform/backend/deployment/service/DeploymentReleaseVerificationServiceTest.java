@@ -26,10 +26,12 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSum
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,6 +42,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -52,6 +55,90 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
+
+    @Test
+    void serverOwnedRuntimeActionExpectationsComeFromExplicitBehaviorBinding() throws Exception {
+        JsonNode behaviorConfig = objectMapper.readTree("""
+            {
+              "conversationHandover": {
+                "actionBinding": {
+                  "actionId": "request_conversation_handover",
+                  "implementation": "SERVER_OWNED_RUNTIME_ACTION"
+                }
+              }
+            }
+            """);
+
+        assertThat(DeploymentReleaseVerificationService.serverOwnedRuntimeActionNames(behaviorConfig))
+            .containsExactly("request_conversation_handover");
+
+        ((ObjectNode) behaviorConfig.path("conversationHandover").path("actionBinding"))
+            .put("implementation", "EXTERNAL_HTTP");
+
+        assertThat(DeploymentReleaseVerificationService.serverOwnedRuntimeActionNames(behaviorConfig))
+            .isEmpty();
+        assertThat(DeploymentReleaseVerificationService.serverOwnedRuntimeActionNames(null))
+            .isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buildExpectationsIncludesServerOwnedActionMetadataWithoutExternalRoute() {
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        DeploymentReleaseVerificationService service = releaseVerificationService(
+            platformSecretService,
+            artifactService
+        );
+        DeploymentVersionEntity version = runtimeOnlyImageVersion();
+        version.setBehaviorConfigJson("""
+            {
+              "type": "CONVERSATIONAL",
+              "schemaVersion": "loomai-deployment-behavior-v1",
+              "contractVersion": 1,
+              "executionExtensions": ["CONVERSATION_HANDOVER"],
+              "conversationHandover": {
+                "actionBinding": {
+                  "actionId": "request_conversation_handover",
+                  "implementation": "SERVER_OWNED_RUNTIME_ACTION"
+                }
+              }
+            }
+            """);
+        DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+            "dep-123",
+            "ver-123",
+            "v1",
+            "hash-123",
+            "https://platform.example/ai-actions.yml",
+            "https://platform.example/ai-entity-config.yml",
+            "https://platform.example/actions-routing.yml",
+            "https://platform.example/ai-prompt-config.json",
+            "https://platform.example/deployment-manifest.json"
+        );
+
+        Object expectations = ReflectionTestUtils.invokeMethod(
+            service,
+            "buildExpectations",
+            deployment("https://runtime.example", "https://connector.example"),
+            version,
+            runtimeOnlyImageRelease(),
+            artifacts
+        );
+
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNames"))
+            .containsExactly("request_conversation_handover");
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(
+            expectations,
+            "expectedActionNamesWithPresentationHints"
+        )).containsExactly("request_conversation_handover");
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(
+            expectations,
+            "expectedActionNamesWithProvenance"
+        )).containsExactly("request_conversation_handover");
+        assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expectations, "expectedRoutingActions"))
+            .isEmpty();
+    }
 
     private static final String AI_FABRIC_VERSION = "0.8.30";
     private static final String ENTITY_CONFIG_CONTRACT_VERSION =

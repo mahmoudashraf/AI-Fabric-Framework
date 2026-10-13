@@ -96,6 +96,37 @@ class RuntimeAdminOverviewControllerTest {
     }
 
     @Test
+    void mapsConversationHandoverFlywayMigrationToStableCapabilityId() {
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        RuntimeAdminOverviewController controller = instantiateController(
+            mock(AIActionRegistry.class),
+            mock(RuntimeActionCatalogGateway.class),
+            mock(AIEntityConfigurationLoader.class),
+            new TestVectorDatabaseService(),
+            authProperties,
+            new RuntimeRequestAuthResolver(
+                authProperties,
+                new RuntimePrivateAssertionService(authProperties),
+                null
+            ),
+            emptyProvider(ConfirmationInterceptorCatalogProvider.class),
+            emptyProvider(ConnectorActionWebhookPolicyCatalog.class),
+            emptyProvider(RuntimeDeploymentKnowledgeSourceConfigService.class),
+            emptyProvider(RuntimeDeploymentShellConfigService.class),
+            emptyProvider(SearchSourceRegistry.class)
+        );
+
+        String migrationId = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+            controller,
+            "semanticMigrationId",
+            "conversation handover",
+            "10"
+        );
+
+        assertThat(migrationId).isEqualTo("loomai-conversation-handover-v1");
+    }
+
+    @Test
     void overviewIncludesVectorScopeDiagnostics() {
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
         AIEntityConfigurationLoader entityConfigurationLoader = mock(AIEntityConfigurationLoader.class);
