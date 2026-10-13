@@ -462,7 +462,7 @@ final class RuntimeConversationHandoverRepository {
                        FROM ai_conversation_handover_dispatch earlier
                       WHERE earlier.handover_id = candidate.handover_id
                         AND earlier.dispatch_sequence < candidate.dispatch_sequence
-                        AND earlier.status <> 'DELIVERED'
+                        AND earlier.status NOT IN ('DELIVERED', 'SKIPPED')
                    )
                  ORDER BY candidate.created_at, candidate.handover_id, candidate.dispatch_sequence
                  LIMIT 1 FOR UPDATE
@@ -547,6 +547,39 @@ final class RuntimeConversationHandoverRepository {
             dispatchId, attempt
         );
         return updated == 1;
+    }
+
+    boolean skipProcessingDispatch(
+        String dispatchId,
+        int attempt,
+        String reasonCode,
+        String reasonMessage
+    ) {
+        Instant now = clock.instant();
+        return jdbc.update(
+            """
+            UPDATE ai_conversation_handover_dispatch
+               SET status = 'SKIPPED', lease_owner = NULL, lease_until = NULL,
+                   failure_code = ?, failure_message = ?, completed_at = ?,
+                   updated_at = ?, version = version + 1
+             WHERE dispatch_id = ? AND status = 'PROCESSING' AND attempt_count = ?
+            """,
+            trim(reasonCode), bounded(reasonMessage, 1000), timestamp(now), timestamp(now),
+            dispatchId, attempt
+        ) == 1;
+    }
+
+    int skipDeadLifecycleStaleDispatches() {
+        Instant now = clock.instant();
+        return jdbc.update(
+            """
+            UPDATE ai_conversation_handover_dispatch
+               SET status = 'SKIPPED', completed_at = COALESCE(completed_at, ?),
+                   updated_at = ?, version = version + 1
+             WHERE status = 'DEAD' AND failure_code = 'HANDOVER_LIFECYCLE_STALE'
+            """,
+            timestamp(now), timestamp(now)
+        );
     }
 
     Map<String, Long> handoverStatusCounts() {

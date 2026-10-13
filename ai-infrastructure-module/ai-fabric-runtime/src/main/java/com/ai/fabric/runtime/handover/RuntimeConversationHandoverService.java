@@ -850,18 +850,11 @@ public class RuntimeConversationHandoverService {
                     claim.dispatch().dispatchId(), claim.attempt(), claim.dispatch()
                 );
             }
-            repository.completeDispatch(
+            repository.skipProcessingDispatch(
                 claim.dispatch().dispatchId(),
-                new ConversationChannelDeliveryResult(
-                    false,
-                    null,
-                    null,
-                    "HANDOVER_LIFECYCLE_STALE",
-                    "The handover lifecycle no longer accepts this dispatch.",
-                    false
-                ),
                 claim.attempt(),
-                5
+                "HANDOVER_LIFECYCLE_STALE",
+                "The handover lifecycle no longer accepts this dispatch."
             );
             log.warn(
                 "Rejected stale conversation-channel dispatch dispatchId={} handoverId={} type={}",
@@ -1054,6 +1047,13 @@ public class RuntimeConversationHandoverService {
     }
 
     public HandoverMaintenanceResult runMaintenance() {
+        int staleDispatchesSkipped = repository.skipDeadLifecycleStaleDispatches();
+        if (staleDispatchesSkipped > 0) {
+            log.info(
+                "Marked {} obsolete conversation-channel dispatches as skipped",
+                staleDispatchesSkipped
+            );
+        }
         Instant now = clock.instant();
         Instant queueCutoff = now.minus(properties.getQueueTimeout());
         int queueExpired = 0;

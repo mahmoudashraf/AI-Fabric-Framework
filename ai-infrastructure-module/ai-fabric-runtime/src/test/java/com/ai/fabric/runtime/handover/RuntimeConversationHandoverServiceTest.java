@@ -487,7 +487,7 @@ class RuntimeConversationHandoverServiceTest {
         assertThat(maintenance.queueExpired()).isEqualTo(1);
         assertThat(service.view(owner, CONVERSATION_ID, 0).handoverStatus()).isEqualTo("EXPIRED");
         assertThat(service.claimDispatch("connector-1", Duration.ofSeconds(30))).isNull();
-        assertThat(repository.dispatchStatusCounts()).containsEntry("DEAD", 1L);
+        assertThat(repository.dispatchStatusCounts()).containsEntry("SKIPPED", 1L);
 
         ConversationView retried = service.retry(
             owner,
@@ -501,7 +501,79 @@ class RuntimeConversationHandoverServiceTest {
         assertThat(claim).isNotNull();
         assertThat(((ConversationChannelDispatch) claim.dispatch()).type())
             .isEqualTo(ConversationChannelDispatchType.OPEN_HANDOVER);
-        assertThat(repository.recentDispatches(10)).hasSize(1);
+        assertThat(repository.recentDispatches(10)).hasSize(2);
+        assertThat(service.operationsOverview().recentDispatches())
+            .filteredOn(dispatch -> "SKIPPED".equals(dispatch.status()))
+            .singleElement()
+            .satisfies(dispatch -> assertThat(dispatch.retryEligible()).isFalse());
+    }
+
+    @Test
+    void obsoleteOpenDispatchIsSkippedWithoutBlockingCancellation() {
+        ConversationView pending = requestAnonymous("handover-cancel-before-delivery").conversation();
+        service.cancel(owner, CONVERSATION_ID, pending.handoverId(), "cancel-before-delivery");
+
+        DispatchClaim claim = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+
+        assertThat(claim).isNotNull();
+        assertThat(((ConversationChannelDispatch) claim.dispatch()).type())
+            .isEqualTo(ConversationChannelDispatchType.CANCEL_HANDOVER);
+        assertThat(repository.dispatchStatusCounts())
+            .containsEntry("SKIPPED", 1L)
+            .containsEntry("PROCESSING", 1L);
+    }
+
+    @Test
+    void maintenanceRepairsPersistedLifecycleDeadLetterWithoutSkippingProviderFailures() {
+        ConversationView pending = requestAnonymous("handover-stale-dead-repair").conversation();
+        DispatchClaim open = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+        service.cancel(owner, CONVERSATION_ID, pending.handoverId(), "cancel-stale-dead-repair");
+        service.completeDispatch(
+            open.dispatchId(),
+            new DispatchOutcome(
+                false,
+                null,
+                null,
+                "HANDOVER_LIFECYCLE_STALE",
+                "The handover lifecycle no longer accepts this dispatch.",
+                false
+            ),
+            open.attempt()
+        );
+        service.request(
+            owner,
+            "conversation-provider-failure",
+            "handover-provider-failure",
+            new HandoverRequest("USER_REQUESTED", true, Map.of(), List.of())
+        );
+        DispatchClaim providerFailure = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+        service.completeDispatch(
+            providerFailure.dispatchId(),
+            new DispatchOutcome(
+                false,
+                null,
+                null,
+                "PROVIDER_DOWN",
+                "Provider unavailable.",
+                false
+            ),
+            providerFailure.attempt()
+        );
+
+        assertThat(repository.dispatchStatusCounts())
+            .containsEntry("DEAD", 2L)
+            .containsEntry("PENDING", 1L);
+
+        service.runMaintenance();
+        DispatchClaim cancel = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+
+        assertThat(cancel).isNotNull();
+        assertThat(((ConversationChannelDispatch) cancel.dispatch()).type())
+            .isEqualTo(ConversationChannelDispatchType.CANCEL_HANDOVER);
+        assertThat(repository.dispatchStatusCounts())
+            .containsEntry("DEAD", 1L)
+            .containsEntry("SKIPPED", 1L)
+            .containsEntry("PROCESSING", 1L);
     }
 
     @Test
