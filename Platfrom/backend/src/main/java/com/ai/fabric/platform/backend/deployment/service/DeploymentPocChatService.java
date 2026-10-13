@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -60,6 +61,7 @@ public class DeploymentPocChatService {
     private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
     private static final String SCOPE_CHAT_QUERY = "chat:query";
+    private static final String SCOPE_CHAT_MESSAGES = "chat:messages";
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
     private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
     private static final String SCOPE_CHAT_PROMPT_PREVIEW = "chat:prompt-preview";
@@ -150,13 +152,19 @@ public class DeploymentPocChatService {
         }
         QueryPayload queryPayload = prepareQueryPayload(deployment, authPath, body, request.promptPreview());
 
+        RuntimeQueryTarget queryTarget = runtimeQueryTarget(
+            deployment,
+            queryPayload.body(),
+            queryPayload.promptPreview() != null
+        );
         JsonNode response = sendJson(
             deployment,
             "POST",
-            "/api/chat/me/query",
+            queryTarget.path(),
             queryPayload.body(),
             authPath,
-            queryScopes(queryPayload.promptPreview() != null)
+            queryTarget.scopes(),
+            queryTarget.headers()
         );
         JsonNode runtimeResult = response.path("result");
         if (runtimeResult.isMissingNode() || runtimeResult.isNull() || !runtimeResult.isObject()) {
@@ -319,13 +327,19 @@ public class DeploymentPocChatService {
         }
         body.put("query", query);
         QueryPayload queryPayload = prepareQueryPayload(deployment, DeploymentPocAuthPath.defaultValue(authPath), body, null);
+        RuntimeQueryTarget queryTarget = runtimeQueryTarget(
+            deployment,
+            queryPayload.body(),
+            queryPayload.promptPreview() != null
+        );
         return sendJson(
             deployment,
             "POST",
-            "/api/chat/me/query",
+            queryTarget.path(),
             queryPayload.body(),
             DeploymentPocAuthPath.defaultValue(authPath),
-            queryScopes(queryPayload.promptPreview() != null)
+            queryTarget.scopes(),
+            queryTarget.headers()
         );
     }
 
@@ -587,17 +601,35 @@ public class DeploymentPocChatService {
                               JsonNode body,
                               DeploymentPocAuthPath authPath,
                               List<String> grantedScopes) {
+        return sendJson(deployment, method, pathWithQuery, body, authPath, grantedScopes, Map.of());
+    }
+
+    private JsonNode sendJson(DeploymentEntity deployment,
+                              String method,
+                              String pathWithQuery,
+                              JsonNode body,
+                              DeploymentPocAuthPath authPath,
+                              List<String> grantedScopes,
+                              Map<String, String> requestHeaders) {
         try {
-            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(
+            Map<String, String> resolvedAuthHeaders = runtimeAuthHeaders(
                 deployment,
                 DeploymentPocAuthPath.defaultValue(authPath),
                 grantedScopes
             );
-            if (runtimeAuthHeaders.isEmpty()) {
+            if (resolvedAuthHeaders.isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_REQUEST,
                     pocAuthPathUnavailableMessage(deployment, DeploymentPocAuthPath.defaultValue(authPath))
                 );
+            }
+            Map<String, String> runtimeAuthHeaders = new LinkedHashMap<>(resolvedAuthHeaders);
+            if (requestHeaders != null) {
+                requestHeaders.forEach((name, value) -> {
+                    if (StringUtils.hasText(name) && StringUtils.hasText(value)) {
+                        runtimeAuthHeaders.put(name.trim(), value.trim());
+                    }
+                });
             }
             HttpResponse<String> response = sendRequest(
                 runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery),
@@ -871,6 +903,50 @@ public class DeploymentPocChatService {
             .map(this::readJson)
             .map(shell -> trimToNull(textOrNull(shell, "defaultConversationMode")))
             .orElse(null);
+    }
+
+    private RuntimeQueryTarget runtimeQueryTarget(DeploymentEntity deployment,
+                                                  ObjectNode body,
+                                                  boolean promptPreview) {
+        if (!conversationHandoverEnabled(deployment)) {
+            return new RuntimeQueryTarget("/api/chat/me/query", queryScopes(promptPreview), Map.of());
+        }
+        String conversationId = trimToNull(textOrNull(body, "conversationId"));
+        if (!StringUtils.hasText(conversationId)) {
+            conversationId = "chat-poc-" + UUID.randomUUID();
+            body.put("conversationId", conversationId);
+        }
+        List<String> scopes = promptPreview
+            ? List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_PROMPT_PREVIEW)
+            : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_MESSAGES);
+        return new RuntimeQueryTarget(
+            "/api/chat/me/conversations/" + encodePathSegment(conversationId) + "/messages",
+            scopes,
+            Map.of("Idempotency-Key", "poc-message-" + UUID.randomUUID())
+        );
+    }
+
+    private boolean conversationHandoverEnabled(DeploymentEntity deployment) {
+        String activeVersionId = trimToNull(deployment == null ? null : deployment.getActiveVersionId());
+        if (!StringUtils.hasText(activeVersionId)) {
+            return false;
+        }
+        JsonNode behavior = deploymentVersionRepository.findById(activeVersionId)
+            .map(DeploymentVersionEntity::getBehaviorConfigJson)
+            .map(this::readJson)
+            .orElse(null);
+        if (behavior == null) {
+            return false;
+        }
+        if (!behavior.path("conversationHandover").path("enabled").asBoolean(false)) {
+            return false;
+        }
+        for (JsonNode extension : behavior.path("executionExtensions")) {
+            if ("CONVERSATION_HANDOVER".equals(extension.asText(""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {
@@ -1599,6 +1675,13 @@ public class DeploymentPocChatService {
     }
 
     private record QueryPayload(ObjectNode body, ObjectNode promptPreview, String promptPreviewSource) {}
+
+    private record RuntimeQueryTarget(
+        String path,
+        List<String> scopes,
+        Map<String, String> headers
+    ) {
+    }
 
     private String encodePathSegment(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");

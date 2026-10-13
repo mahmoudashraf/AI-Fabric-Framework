@@ -242,6 +242,66 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
+    void queryUsesCanonicalMessageRouteWhenConversationHandoverIsEnabled() throws Exception {
+        AtomicReference<String> capturedPath = new AtomicReference<>();
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        AtomicReference<String> capturedIdempotencyKey = new AtomicReference<>();
+        AtomicReference<String> capturedPrivateAuthorization = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/conversations/", exchange -> {
+                capturedPath.set(exchange.getRequestURI().getPath());
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                capturedIdempotencyKey.set(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+                capturedPrivateAuthorization.set(
+                    exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION")
+                );
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "type": "INFORMATION_PROVIDED",
+                          "answer": "Canonical response",
+                          "safeSummary": "Canonical response",
+                          "conversationId": "chat-poc-runtime"
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(
+                server,
+                null,
+                "trusted-backend-key",
+                "executor",
+                true
+            );
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Please connect me to a person", null, null, null, null, null)
+            );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            String conversationId = requestBody.path("conversationId").asText();
+            assertThat(conversationId).startsWith("chat-poc-");
+            assertThat(capturedPath.get())
+                .isEqualTo("/api/chat/me/conversations/" + conversationId + "/messages");
+            assertThat(capturedIdempotencyKey.get()).startsWith("poc-message-");
+            assertThat(decodeAssertionPayload(capturedPrivateAuthorization.get()).get("scopes"))
+                .isEqualTo(List.of("chat:query", "chat:messages"));
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Canonical response");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void queryUsesVersionedShellDefaultModeWhenCallerOmitsMode() throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
@@ -1254,6 +1314,20 @@ class DeploymentPocChatServiceTest {
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey,
                                                 String defaultConversationMode) {
+        return serviceFor(
+            server,
+            sessionPromptPreview,
+            runtimeTrustedBackendApiKey,
+            defaultConversationMode,
+            false
+        );
+    }
+
+    private DeploymentPocChatService serviceFor(HttpServer server,
+                                                JsonNode sessionPromptPreview,
+                                                String runtimeTrustedBackendApiKey,
+                                                String defaultConversationMode,
+                                                boolean conversationHandoverEnabled) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
@@ -1285,6 +1359,17 @@ class DeploymentPocChatServiceTest {
               "publicRuntimeBootstrapEnabled": true
             }
             """);
+        if (conversationHandoverEnabled) {
+            version.setBehaviorConfigJson("""
+                {
+                  "contractVersion": "DEPLOYMENT_BEHAVIOR_CONFIG_V1",
+                  "executionExtensions": ["CONVERSATION_HANDOVER"],
+                  "conversationHandover": {
+                    "enabled": true
+                  }
+                }
+                """);
+        }
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(version));
