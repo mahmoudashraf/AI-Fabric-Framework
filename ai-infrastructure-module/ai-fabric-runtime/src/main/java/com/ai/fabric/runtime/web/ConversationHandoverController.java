@@ -312,6 +312,7 @@ public class ConversationHandoverController {
             RuntimeScopeCatalog.CHAT_HANDOVER_READ,
             "/api/chat/me/conversations/{conversationId}/events"
         );
+        handoverService.requireConversationAccess(identity, conversationId);
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         try {
             sseExecutor.execute(() -> streamEvents(emitter, identity, conversationId, lastEventId));

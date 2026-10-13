@@ -45,6 +45,7 @@ class ConversationHandoverControllerTest {
     private RuntimeRequestAuthResolver authResolver;
     private RuntimeConversationHandoverService handoverService;
     private ChatRuntimeController chatRuntimeController;
+    private TaskExecutor sseExecutor;
     private ConversationHandoverController controller;
     private HttpServletRequest request;
     private RuntimeResolvedIdentity identity;
@@ -54,11 +55,12 @@ class ConversationHandoverControllerTest {
         authResolver = mock(RuntimeRequestAuthResolver.class);
         handoverService = mock(RuntimeConversationHandoverService.class);
         chatRuntimeController = mock(ChatRuntimeController.class);
+        sseExecutor = mock(TaskExecutor.class);
         controller = new ConversationHandoverController(
             authResolver,
             handoverService,
             chatRuntimeController,
-            mock(TaskExecutor.class)
+            sseExecutor
         );
         request = mock(HttpServletRequest.class);
         identity = RuntimeResolvedIdentity.builder()
@@ -162,6 +164,19 @@ class ConversationHandoverControllerTest {
         verify(chatRuntimeController, never()).controlledQuery(any(), any(), any());
         verify(handoverService, never()).claimAiInteraction(any(), any(), any(), any(), any());
         verify(handoverService, never()).appendAiMessage(any(), any(), any(), any());
+    }
+
+    @Test
+    void eventStreamVerifiesConversationAccessBeforeStartingAsyncWork() {
+        controller.events(CONVERSATION_ID, null, request);
+
+        verify(authResolver).requireScope(
+            identity,
+            RuntimeScopeCatalog.CHAT_HANDOVER_READ,
+            "/api/chat/me/conversations/{conversationId}/events"
+        );
+        verify(handoverService).requireConversationAccess(identity, CONVERSATION_ID);
+        verify(sseExecutor).execute(any());
     }
 
     private ChatQueryRequest query(String text) {

@@ -745,6 +745,10 @@ public class RuntimeConversationHandoverService {
         return view(scope(identity, conversationId), afterMessageSequence);
     }
 
+    public void requireConversationAccess(RuntimeResolvedIdentity identity, String conversationId) {
+        controlGateway.status(scope(identity, conversationId));
+    }
+
     public ConversationView history(RuntimeResolvedIdentity identity, String conversationId) {
         ConversationScope scope = scope(identity, conversationId);
         requireCanonicalConversation(scope);
