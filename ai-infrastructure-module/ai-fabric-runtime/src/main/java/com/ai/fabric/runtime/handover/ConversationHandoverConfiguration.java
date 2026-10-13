@@ -4,7 +4,6 @@ import ai.fabric.chat.control.ConversationControlGateway;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import javax.sql.DataSource;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -45,7 +44,6 @@ public class ConversationHandoverConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(ConversationControlGateway.class)
     RuntimeConversationHandoverRepository runtimeConversationHandoverRepository(
         DataSource dataSource,
         ObjectMapper objectMapper,

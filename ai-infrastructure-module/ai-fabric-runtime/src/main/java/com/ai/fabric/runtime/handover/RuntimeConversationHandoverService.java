@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -77,6 +78,7 @@ public class RuntimeConversationHandoverService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    @Autowired
     public RuntimeConversationHandoverService(
         ConversationControlGateway controlGateway,
         RuntimeConversationHandoverRepository repository,
