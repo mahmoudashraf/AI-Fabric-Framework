@@ -1,13 +1,15 @@
 # 010.34 Temporary Human Conversation Handover And Live-Agent Extension Plan
 
-- **Status:** Implementation active. H0-H6 are implemented and locally
-  verified; immutable framework publication and hosted H7 canary evidence are
-  in progress.
+- **Status:** Implemented and hosted-verified for the scoped first release.
+  H0-H7 are complete; critical release gates passed on 2026-10-13. Broader
+  unrelated Platform checklist items remain separately tracked and do not
+  weaken this capability claim.
 - **Created:** 2026-10-11
 - **Scope:** AI Fabric conversation lifecycle, private runtime, deployment
 integration connector, LoomAI Platform composition, AI Workspace, provider
 channel contracts, and hosted verification
-- **Framework release candidate:** AI Fabric `0.8.32`
+- **Framework release:** AI Fabric `0.8.32`, source `561659dc`, tag
+  `ai-fabric-framework-v0.8.32`
 - **Compatibility decision:** Current-only. LoomAI does not need parallel
 support for older framework, runtime, Platform, or widget contracts.
 - **Primary product name:** Conversation Handover
@@ -1005,19 +1007,22 @@ Local implementation status recorded on 2026-10-13:
 
 - **H0 complete:** terminology, authority boundaries, state model, trigger
   policy, and provider responsibilities are codified.
-- **H1 implemented and critical-gate green:** the `0.8.32` candidate passed
-  the clean 30-module release reactor with 2,100 tests and zero
-  failures/errors/skips, plus focused conversation-control, terminal-action,
-  vector-contract, real-app, packaging, and restart checks. Immutable
-  publication remains part of the active release step.
-- **H2-H6 implemented and locally green:** runtime, connector, Platform,
+- **H1 complete and published:** AI Fabric `0.8.32` passed the clean 30-module
+  release reactor with 2,100 tests and zero failures/errors/skips, plus focused
+  conversation-control, terminal-action, vector-contract, real-app, packaging,
+  and restart checks. The immutable tag, GitHub release, BOM, core, execution,
+  and chat-session artifacts are published.
+- **H2-H6 complete and locally green:** runtime, connector, Platform,
   Basic LoomAI Inbox, AI Workspace, migrations, UI, and external guides are
   present. Private critical gates passed 351 product-service tests, 937
   Platform-backend tests, Basic Inbox verification, Platform UI build/smoke,
   and widget type/build/smoke checks.
-- **H7 pending hosted evidence:** do not call the capability market-ready
-  until the deployed canary lifecycle, real-provider trigger, restart,
-  outage, race, and isolation checks below are recorded.
+- **H7 complete for controlled release:** staging release `rel-49b2eb38` is
+  `APPLIED_VERIFIED` / `PASSED`. Direct and LLM-selected handover, anonymous
+  ownership, consented intake, duplicate idempotency, Basic Inbox claim/reply,
+  SSE replay, explicit return to AI, real-provider execution, restart,
+  provider outage recovery, forged callback rejection, and owner isolation are
+  recorded in Section 19.
 
 
 
@@ -1214,5 +1219,147 @@ proof;
 and
 - one hosted conversational deployment has current immutable evidence.
 
-Until those conditions are met, LoomAI may describe Conversation Handover as a
-planned capability, not as market-ready Human in the Loop support.
+Those conditions are met for the current controlled first release on
+`CONVERSATIONAL` deployments using reviewed channel integrations. LoomAI may
+describe this scope as Conversation Handover with Basic LoomAI Inbox support.
+It must not imply support for Smart Brain, specialist-team handover, arbitrary
+provider adapters, or enterprise workforce routing until those separately
+deferred scopes are implemented and certified.
+
+## 19. Final Release And Hosted Evidence
+
+Evidence recorded on 2026-10-13 supersedes the earlier active/pending status in
+this document.
+
+### 19.1 Immutable release identity
+
+- Public framework source: `561659dc0a4e8872f83654ef8549ead3cc4acc32`.
+- Immutable tag and release: `ai-fabric-framework-v0.8.32`.
+- Framework verification: 30 selected modules and 2,100 tests passed with zero
+  failures, errors, or skips. Container vector contracts, 26 real-app reactor
+  entries, 11 packaged real-app starts, restart smoke, integration compilation,
+  and external-consumer checks passed.
+- Maven Central returns HTTP `200` for the `0.8.32` BOM, core, execution, and
+  chat-session artifacts. The GitHub release URL also returns HTTP `200`.
+- Private source implementing the final anonymous authorization boundary:
+  `7b4665849b0f82d862ef898ec659228668d19de7` on `Platform-V11`.
+- Runtime image workflow `38391857383` and Platform Core workflow
+  `38391857307` passed for that exact source.
+- Runtime image digest:
+  `sha256:2a11764b426f714b58d16210c7d2e0783361413a5534feeded41c7c11e6abff6`.
+- Staging Platform backend deployment `p14hg50bjh1opncgtoqlo32s` completed from
+  exact source `7b4665849b0f82d862ef898ec659228668d19de7`; app
+  `lnlgausj8hzrim7f5fa8pmpx` is `running:healthy` and public health is `UP`.
+  Coolify's application-level `git_commit_sha` field remained a stale branch
+  annotation, so the immutable deployment record is the source-of-truth proof.
+
+### 19.2 Platform composition and apply proof
+
+- Canary deployment: `dep-ebf4c7c3` / customer `cus-28e3b6f9` / tenant
+  `ten-09df34bf`.
+- Published deployment version: `ver-627e433c`.
+- Target profile: `dtp-coolify-staging-behavior`.
+- Installed Marketplace resources: template `mpi-ce89cdfd`, handover action
+  `mpi-b1f2947d`, and channel integration `mpi-2b9931a1`.
+- Runtime artifact `dsa-f47248fa` is promoted on `staging` with the exact image
+  digest and AI Fabric `0.8.32` capability manifest.
+- Platform release `rel-49b2eb38` reached `APPLIED_VERIFIED`; verification is
+  `PASSED`.
+- Runtime app `yq1tqyv6c5hn379ik5g3yff3`, connector
+  `p48zva29xjkg6h8kvvdz4fki`, runtime database
+  `t4wex7lwd1x58e8hvzvii7vc`, Basic Inbox
+  `g14p1jagvqwu4nbul0pyyeqt`, and Inbox database
+  `h12u68e3oz0f90cb5w1dentt` are deployment-scoped resources.
+- Effective runtime configuration contains
+  `AI_FABRIC_RUNTIME_AUTHZ_ALLOW_ANONYMOUS_SESSIONS=true` only because this
+  deployment explicitly enables signed public bootstrap under
+  `ALLOW_VERIFIED`.
+
+### 19.3 Live lifecycle proof
+
+- Fresh signed anonymous session
+  `anon-54862e1d-e8be-4f30-b370-3ab44bba84fb` was bound to the expected
+  deployment/customer/tenant and received only the declared chat and handover
+  scopes.
+- Conversation
+  `chat-handover-live-ef28820a-403a-49a7-965e-27f19c44581f` and handover
+  `handover-2f636394d63dbab184b6fcbeb7da104e` completed:
+  `AI_ACTIVE -> HUMAN_PENDING -> HUMAN_ACTIVE -> AI_ACTIVE`.
+- Basic Inbox accepted the request as `WAITING`, queued one operator claim,
+  delivered one human reply into the canonical deployment transcript, and
+  returned the conversation explicitly as `RETURNED_TO_AI`.
+- Runtime replay and SSE exposed durable `HANDOVER_REQUESTED`,
+  `HANDOVER_CLAIMED`, `HUMAN_MESSAGE`, and `HANDOVER_RELEASED` events with
+  stable event IDs. No browser-only message/state was required.
+- A post-return and post-restart anonymous AI request returned HTTP `200`,
+  `success=true`, and a provider request ID. Intent extraction used the live
+  OpenAI provider; no deterministic production provider or text matcher was
+  used.
+- Natural-language request conversation
+  `chat-handover-natural-4be28c9f-fd64-464d-a6b3-a89766bd0a5f` returned typed
+  `HANDOVER_REQUESTED` through the registered LLM-selected terminal action.
+  Its test handover was then explicitly cancelled.
+- Missing contact consent returned `HANDOVER_INTAKE_CONSENT_REQUIRED` while
+  control remained `AI_ACTIVE` with no handover or event. A consented request
+  exposed only declared `name` and `email` fields to the Inbox.
+- Repeating the exact consented request with one idempotency key returned
+  `IDEMPOTENT_ACTIVE_HANDOVER` and the same handover ID; no duplicate dispatch
+  was created.
+- A second anonymous session received `404 NOT_FOUND` for the first owner's
+  conversation. Existing cross-tenant/deployment and forged-callback tests also
+  fail closed; the hosted forged callback returned
+  `CHANNEL_CALLBACK_SIGNATURE_INVALID`.
+- Controlled restart deployment `mrtq4f8d3agn9dfatvpl09mc` completed. The
+  renewed anonymous token retained the same session ID, and the full transcript,
+  event journal, `AI_ACTIVE` state, and subsequent real-provider turn survived.
+- Provider-outage evidence proves visible `HUMAN_PENDING`, bounded retry, and
+  eventual Inbox recovery. The final dispatch overview contains 23
+  `DELIVERED`, one terminal `SKIPPED` obsolete-lifecycle record, and zero
+  `PENDING`, `PROCESSING`, or `DEAD` records. `SKIPPED` is an intentional
+  terminal outcome and is not a hidden success or retry backlog.
+
+### 19.4 Anonymous authorization correction
+
+The private runtime remains fail-closed by default. Anonymous entity access is
+permitted only when the deployment explicitly enables it and every verified
+claim is present: `PUBLIC_RUNTIME_ANONYMOUS` auth mode, `PUBLIC_BROWSER` caller,
+matching subject/session, deployment, tenant, issuer, audience, unexpired
+expiry, and `chat:query` scope. Platform emits the opt-in only when public
+bootstrap, `ALLOW_VERIFIED`, and a public signing key are all configured.
+
+Focused correction gates passed:
+
+- `AllowVerifiedEntityAccessPolicyTest`: 6/6;
+- `RailwayProvisioningPlanServiceTest`: 33/33;
+- full private runtime suite: 266/266; and
+- Platform provisioning plus release-verification suites: 58/58.
+
+This is a typed verified-identity rule. It does not inspect query text, infer a
+domain, broaden retrieval/action authority, or add a fallback that masks an LLM
+decision.
+
+### 19.5 Release posture and accepted nonblocking gaps
+
+All capability-critical gates are green: immutable framework publication,
+clean framework reactor, current-only private consumption, auth fail-closed
+tests, exact image evidence, Platform apply verification, lifecycle,
+idempotency, consent, callback rejection, owner isolation, durable replay,
+restart, outage recovery, and real-provider action selection.
+
+The optional local framework real-provider matrix was not made a deterministic
+publication blocker; the hosted canary supplies the real OpenAI proof required
+for this host composition. The unrelated aggregate
+`full-platform-release-readiness` suite was not relabelled or required for this
+bounded feature release. Known Shopify wording and Partner identity/Supabase
+issues remain owned by their product gates. Per the release decision, those
+full-checklist gaps are recorded but do not block Conversation Handover because
+its critical tests and hosted evidence pass.
+
+### 19.6 Operator cleanup
+
+- Hetzner firewall `10915120` was restored exactly to its pre-run rules hash
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`.
+- The operator CIDR has zero matches and direct SSH is filtered. Staging port
+  `8000` retains its normal baseline unauthenticated `401`; no temporary rule
+  remains.
+- Production firewall `10918233` was not changed during this release.

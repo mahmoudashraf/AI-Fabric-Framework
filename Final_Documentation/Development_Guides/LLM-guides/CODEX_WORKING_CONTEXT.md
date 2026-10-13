@@ -4350,3 +4350,45 @@ Critical fixes that made the gate pass:
 - No production phrase patch, domain-specific matcher, silent semantic
   fallback, validator weakening, parameter dropping, or private framework
   workaround was introduced. Relationship-query remains deferred.
+
+## 2026-10-13 Conversation Handover 0.8.32 Closure
+
+- Canonical plan `010.34` is implemented and hosted-verified for the scoped
+  `CONVERSATIONAL` first release. Conversation Handover remains distinct from
+  action Human Review; the deployment owns control/transcript/events, while a
+  `CONVERSATION_CHANNEL` provider owns operators and queue UX.
+- AI Fabric `0.8.32` is published from `561659dc`, tagged
+  `ai-fabric-framework-v0.8.32`. The clean 30-module release reactor passed
+  2,100 tests, and Maven Central serves the BOM, core, execution, and
+  chat-session artifacts.
+- Private source `7b4665849` adds a default-false verified-anonymous authz
+  option. It permits only signed `PUBLIC_RUNTIME_ANONYMOUS` / `PUBLIC_BROWSER`
+  identities with matching session ownership, tenant/deployment/issuer,
+  audience, expiry, and `chat:query`; Platform emits the opt-in only for an
+  explicitly configured public deployment. No text matcher or semantic
+  fallback was added.
+- Runtime workflow `38391857383` and Platform Core workflow `38391857307`
+  passed. Promoted runtime artifact `dsa-f47248fa` uses digest
+  `sha256:2a11764b426f714b58d16210c7d2e0783361413a5534feeded41c7c11e6abff6`.
+- Handover canary `dep-ebf4c7c3` release `rel-49b2eb38` is
+  `APPLIED_VERIFIED` / `PASSED`. Direct and natural-language requests, Basic
+  Inbox claim/reply, durable SSE replay, explicit return to AI, consent,
+  duplicate idempotency, owner isolation, forged callback rejection, outage
+  recovery, restart, token renewal, and post-return real OpenAI execution
+  passed.
+- Final dispatch state is 23 `DELIVERED`, one terminal `SKIPPED` stale record,
+  and zero `PENDING`, `PROCESSING`, or `DEAD`. Controlled restart
+  `mrtq4f8d3agn9dfatvpl09mc` preserved transcript, events, session owner, and
+  `AI_ACTIVE` state.
+- The capability is ready for controlled release only on conversational
+  deployments with reviewed channel plugins. Smart Brain, specialist-team
+  handover, arbitrary providers, and enterprise workforce routing remain out
+  of scope.
+- Optional framework real-provider matrix gaps and unrelated aggregate
+  Platform product gates are nonblocking. Do not claim the global
+  `full-platform-release-readiness` suite is green; the handover critical gates
+  and hosted OpenAI proof are independently green.
+- Staging firewall `10915120` was restored exactly to hash
+  `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`;
+  the operator CIDR is absent and SSH is filtered. Production firewall
+  `10918233` was untouched.
