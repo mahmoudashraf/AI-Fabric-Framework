@@ -44,8 +44,8 @@ class BasicInboxServiceTest {
                 + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1"
         );
         new ResourceDatabasePopulator(
-            new ClassPathResource("db/migration/V1__basic_inbox.sql"),
-            new ClassPathResource("db/migration/V2__callback_fifo_index.sql")
+            new ClassPathResource("db/basic-inbox-migration/V1__basic_inbox.sql"),
+            new ClassPathResource("db/basic-inbox-migration/V2__callback_fifo_index.sql")
         ).execute(dataSource);
 
         BasicInboxProperties properties = properties();

@@ -10,6 +10,7 @@ spring:
     password: ${BASIC_INBOX_JDBC_PASSWORD:}
   flyway:
     enabled: true
+    locations: classpath:db/basic-inbox-migration
 
 management:
   endpoint:
@@ -20,6 +21,9 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+
+ai:
+  enabled: false
 
 loomai:
   basic-inbox:
