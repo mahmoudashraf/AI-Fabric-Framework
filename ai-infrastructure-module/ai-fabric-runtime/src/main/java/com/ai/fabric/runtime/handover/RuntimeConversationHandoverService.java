@@ -550,21 +550,23 @@ public class RuntimeConversationHandoverService {
                 throw conflict("HANDOVER_RETRY_NOT_ALLOWED", "Only an expired handover can be retried.");
             }
             repository.recordOperation(scope, "RETRY_HANDOVER", key, handoverId);
-            ConversationChannelDispatch dispatch = new ConversationChannelDispatch(
-                deterministicId("dispatch-retry-open", scope, handoverId + ":" + key),
-                ConversationChannelDispatchType.OPEN_HANDOVER,
-                scope,
-                handoverId,
-                handover.channelBindingId(),
-                current.version(),
-                null,
-                null,
-                List.of(),
-                channelTranscript(scope),
-                repository.consentedIntake(handoverId),
-                clock.instant()
-            );
-            repository.addDispatch(dispatch, "retry-open:" + handoverId + ":" + key);
+            if (!repository.reactivateOpenDispatch(handoverId)) {
+                ConversationChannelDispatch dispatch = new ConversationChannelDispatch(
+                    deterministicId("dispatch-retry-open", scope, handoverId + ":" + key),
+                    ConversationChannelDispatchType.OPEN_HANDOVER,
+                    scope,
+                    handoverId,
+                    handover.channelBindingId(),
+                    current.version(),
+                    null,
+                    null,
+                    List.of(),
+                    channelTranscript(scope),
+                    repository.consentedIntake(handoverId),
+                    clock.instant()
+                );
+                repository.addDispatch(dispatch, "retry-open:" + handoverId + ":" + key);
+            }
             appendEvent(scope, "HANDOVER_RETRY_REQUESTED", Map.of("handoverId", handoverId));
             return view(scope, 0);
         });
@@ -835,11 +837,65 @@ public class RuntimeConversationHandoverService {
 
     public DispatchClaim claimDispatch(String workerId, Duration lease) {
         String normalizedWorker = required(workerId, "workerId is required.");
-        return repository.claimNextDispatch(normalizedWorker, boundedLease(lease))
-            .map(claim -> new DispatchClaim(
-                claim.dispatch().dispatchId(), claim.attempt(), claim.dispatch()
-            ))
+        Duration normalizedLease = boundedLease(lease);
+        for (int skipped = 0; skipped < 10; skipped++) {
+            RuntimeConversationHandoverRepository.ClaimedDispatch claim = repository
+                .claimNextDispatch(normalizedWorker, normalizedLease)
+                .orElse(null);
+            if (claim == null) {
+                return null;
+            }
+            if (dispatchMatchesCurrentLifecycle(claim.dispatch())) {
+                return new DispatchClaim(
+                    claim.dispatch().dispatchId(), claim.attempt(), claim.dispatch()
+                );
+            }
+            repository.completeDispatch(
+                claim.dispatch().dispatchId(),
+                new ConversationChannelDeliveryResult(
+                    false,
+                    null,
+                    null,
+                    "HANDOVER_LIFECYCLE_STALE",
+                    "The handover lifecycle no longer accepts this dispatch.",
+                    false
+                ),
+                claim.attempt(),
+                5
+            );
+            log.warn(
+                "Rejected stale conversation-channel dispatch dispatchId={} handoverId={} type={}",
+                claim.dispatch().dispatchId(),
+                claim.dispatch().handoverId(),
+                claim.dispatch().type()
+            );
+        }
+        return null;
+    }
+
+    private boolean dispatchMatchesCurrentLifecycle(ConversationChannelDispatch dispatch) {
+        RuntimeConversationHandoverRepository.HandoverRecord handover = repository
+            .findById(dispatch.handoverId())
             .orElse(null);
+        if (handover == null || !handover.scope().equals(dispatch.scope())) {
+            return false;
+        }
+        ConversationControlSnapshot control = controlGateway.status(dispatch.scope());
+        boolean activeHandover = dispatch.handoverId().equals(control.activeHandoverId());
+        return switch (dispatch.type()) {
+            case OPEN_HANDOVER -> activeHandover
+                && control.state() == ConversationControlState.HUMAN_PENDING
+                && "PENDING".equals(handover.status());
+            case USER_MESSAGE -> activeHandover
+                && Set.of(ConversationControlState.HUMAN_PENDING, ConversationControlState.HUMAN_ACTIVE)
+                    .contains(control.state())
+                && Set.of("PENDING", "ACTIVE").contains(handover.status());
+            case RETURN_TO_AI -> activeHandover
+                && control.state() == ConversationControlState.AI_RESUME_PENDING
+                && "ACTIVE".equals(handover.status());
+            case CANCEL_HANDOVER -> "CANCELLED".equals(handover.status());
+            case CLOSE -> "CLOSED".equals(handover.status());
+        };
     }
 
     public void completeDispatch(String dispatchId, DispatchOutcome outcome, int attempt) {
@@ -942,6 +998,14 @@ public class RuntimeConversationHandoverService {
             if (!normalizedDeployment.equals(handover.scope().deploymentId())) {
                 throw notFound("DISPATCH_NOT_FOUND", "The handover dispatch is not available.");
             }
+            ConversationChannelDispatch payload = repository.findDispatchPayload(normalizedDispatch)
+                .orElseThrow(() -> notFound("DISPATCH_NOT_FOUND", "The handover dispatch is not available."));
+            if (!dispatchMatchesCurrentLifecycle(payload)) {
+                throw conflict(
+                    "DISPATCH_HANDOVER_STATE_INVALID",
+                    "The handover lifecycle no longer accepts this dispatch recovery."
+                );
+            }
             if (!repository.retryDeadDispatch(normalizedDispatch)) {
                 throw conflict("DISPATCH_RETRY_NOT_ALLOWED", "Only a dead dispatch can be retried.");
             }
@@ -965,6 +1029,12 @@ public class RuntimeConversationHandoverService {
             if (current.state() != ConversationControlState.HUMAN_PENDING
                 || !"PENDING".equals(handover.status())) {
                 throw conflict("HANDOVER_EXPIRY_NOT_ALLOWED", "Only a pending handover can be expired.");
+            }
+            if (repository.hasProcessingDispatch(handover.handoverId())) {
+                throw conflict(
+                    "HANDOVER_EXPIRY_NOT_ALLOWED",
+                    "A handover with an active channel delivery cannot be expired."
+                );
             }
             if (!repository.expirePendingHandover(handover.handoverId(), clock.instant())) {
                 throw conflict("HANDOVER_EXPIRY_STALE", "The pending handover changed before it could be expired.");
@@ -993,6 +1063,9 @@ public class RuntimeConversationHandoverService {
                 ConversationControlSnapshot control = controlGateway.status(handover.scope());
                 if (control.state() != ConversationControlState.HUMAN_PENDING
                     || !handover.handoverId().equals(control.activeHandoverId())) {
+                    return false;
+                }
+                if (repository.hasProcessingDispatch(handover.handoverId())) {
                     return false;
                 }
                 if (!repository.expirePendingHandover(handover.handoverId(), queueCutoff)) {

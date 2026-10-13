@@ -478,6 +478,66 @@ class RuntimeConversationHandoverServiceTest {
     }
 
     @Test
+    void expiredOpenDispatchIsNotDeliveredUntilOwnerRetries() {
+        ConversationView pending = requestAnonymous("handover-expired-dispatch").conversation();
+
+        clock.advance(Duration.ofMinutes(16));
+        HandoverMaintenanceResult maintenance = service.runMaintenance();
+
+        assertThat(maintenance.queueExpired()).isEqualTo(1);
+        assertThat(service.view(owner, CONVERSATION_ID, 0).handoverStatus()).isEqualTo("EXPIRED");
+        assertThat(service.claimDispatch("connector-1", Duration.ofSeconds(30))).isNull();
+        assertThat(repository.dispatchStatusCounts()).containsEntry("DEAD", 1L);
+
+        ConversationView retried = service.retry(
+            owner,
+            CONVERSATION_ID,
+            pending.handoverId(),
+            "retry-expired-dispatch"
+        );
+        DispatchClaim claim = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+
+        assertThat(retried.handoverStatus()).isEqualTo("PENDING");
+        assertThat(claim).isNotNull();
+        assertThat(((ConversationChannelDispatch) claim.dispatch()).type())
+            .isEqualTo(ConversationChannelDispatchType.OPEN_HANDOVER);
+        assertThat(repository.recentDispatches(10)).hasSize(1);
+    }
+
+    @Test
+    void adminCannotRetryOpenDispatchForExpiredHandover() {
+        requestAnonymous("handover-expired-admin-retry");
+        DispatchClaim claim = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+        service.completeDispatch(
+            claim.dispatchId(),
+            new DispatchOutcome(false, null, null, "PROVIDER_DOWN", "Provider unavailable", false),
+            claim.attempt()
+        );
+
+        clock.advance(Duration.ofMinutes(16));
+        assertThat(service.runMaintenance().queueExpired()).isEqualTo(1);
+
+        assertThatThrownBy(() -> service.retryDispatch("deployment-1", claim.dispatchId()))
+            .isInstanceOf(ConversationHandoverException.class)
+            .extracting(exception -> ((ConversationHandoverException) exception).code())
+            .isEqualTo("DISPATCH_HANDOVER_STATE_INVALID");
+    }
+
+    @Test
+    void maintenanceDoesNotExpireHandoverWithProcessingDispatch() {
+        requestAnonymous("handover-processing-dispatch");
+        DispatchClaim claim = service.claimDispatch("connector-1", Duration.ofSeconds(30));
+
+        clock.advance(Duration.ofMinutes(16));
+        HandoverMaintenanceResult maintenance = service.runMaintenance();
+
+        assertThat(claim).isNotNull();
+        assertThat(maintenance.queueExpired()).isZero();
+        assertThat(service.view(owner, CONVERSATION_ID, 0).handoverStatus()).isEqualTo("PENDING");
+        assertThat(repository.dispatchStatusCounts()).containsEntry("PROCESSING", 1L);
+    }
+
+    @Test
     void canonicalHistoryIsOwnerScopedSafelyProjectedAndExplicitlyClosed() {
         ConversationMessage userMessage = service.appendUserMessage(
             owner,

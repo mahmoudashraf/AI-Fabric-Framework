@@ -648,6 +648,37 @@ final class RuntimeConversationHandoverRepository {
         ) == 1;
     }
 
+    boolean reactivateOpenDispatch(String handoverId) {
+        Integer active = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM ai_conversation_handover_dispatch"
+                + " WHERE handover_id = ? AND dispatch_type = 'OPEN_HANDOVER'"
+                + " AND status IN ('PENDING', 'PROCESSING')",
+            Integer.class,
+            handoverId
+        );
+        if (active != null && active > 0) {
+            return true;
+        }
+        List<String> dead = jdbc.query(
+            "SELECT dispatch_id FROM ai_conversation_handover_dispatch"
+                + " WHERE handover_id = ? AND dispatch_type = 'OPEN_HANDOVER' AND status = 'DEAD'"
+                + " ORDER BY dispatch_sequence LIMIT 1 FOR UPDATE",
+            (rs, row) -> rs.getString("dispatch_id"),
+            handoverId
+        );
+        return !dead.isEmpty() && retryDeadDispatch(dead.getFirst());
+    }
+
+    boolean hasProcessingDispatch(String handoverId) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM ai_conversation_handover_dispatch"
+                + " WHERE handover_id = ? AND status = 'PROCESSING'",
+            Integer.class,
+            handoverId
+        );
+        return count != null && count > 0;
+    }
+
     List<HandoverRecord> pendingHandoversBefore(Instant cutoff, int limit) {
         return jdbc.query(
             handoverSelect()
