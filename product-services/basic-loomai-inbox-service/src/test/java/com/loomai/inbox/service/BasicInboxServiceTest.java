@@ -45,7 +45,8 @@ class BasicInboxServiceTest {
         );
         new ResourceDatabasePopulator(
             new ClassPathResource("db/basic-inbox-migration/V1__basic_inbox.sql"),
-            new ClassPathResource("db/basic-inbox-migration/V2__callback_fifo_index.sql")
+            new ClassPathResource("db/basic-inbox-migration/V2__callback_fifo_index.sql"),
+            new ClassPathResource("db/basic-inbox-migration/V3__handover_scoped_message_identity.sql")
         ).execute(dataSource);
 
         BasicInboxProperties properties = properties();
@@ -203,6 +204,29 @@ class BasicInboxServiceTest {
         assertThat(service.detail(operator, HANDOVER_ID).conversation().status())
             .isEqualTo("RETURNED_TO_AI");
         assertThat(service.dispatch(returnDispatch, rawReturn)).isEqualTo(accepted);
+    }
+
+    @Test
+    void repeatedHandoverProjectsTheSameConversationMessagesIntoEachEpisode() throws Exception {
+        ConversationScope scope = new ConversationScope(
+            "tenant-1", "deployment-1", "conversation-1", "opaque-owner-1"
+        );
+        ConversationChannelDispatch first = openDispatch(
+            "dispatch-open-first", "handover-first", scope, "Please connect me."
+        );
+        ConversationChannelDispatch second = openDispatch(
+            "dispatch-open-second", "handover-second", scope, "Please connect me."
+        );
+
+        assertThat(service.dispatch(first, objectMapper.writeValueAsString(first)).accepted()).isTrue();
+        assertThat(service.dispatch(second, objectMapper.writeValueAsString(second)).accepted()).isTrue();
+
+        assertThat(service.detail(operator, "handover-first").messages())
+            .extracting(message -> message.content())
+            .containsExactly("Please connect me.", "I can connect you to a person.");
+        assertThat(service.detail(operator, "handover-second").messages())
+            .extracting(message -> message.content())
+            .containsExactly("Please connect me.", "I can connect you to a person.");
     }
 
     private ConversationChannelDispatch openDispatch(String dispatchId, String firstMessage) {

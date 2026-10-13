@@ -157,13 +157,16 @@ public class BasicInboxRepository {
     }
 
     private boolean storeProjectedMessage(String handoverId, ConversationChannelMessage message) {
-        try {
-            jdbc.update("""
+        int inserted = jdbc.update("""
                 INSERT INTO inbox_message
-                    (message_id, handover_id, participant_role, actor_ref, safe_actor_display_name,
+                    (message_id, source_message_id, handover_id, participant_role, actor_ref, safe_actor_display_name,
                      content, attachment_refs_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM inbox_message WHERE handover_id = ? AND source_message_id = ?
+                 )
                 """,
+                storageMessageId(handoverId, message.messageId()),
                 message.messageId(),
                 handoverId,
                 message.role().name(),
@@ -171,13 +174,15 @@ public class BasicInboxRepository {
                 message.safeActorDisplayName(),
                 message.text(),
                 write(message.attachmentRefs()),
-                Timestamp.from(message.createdAt())
+                Timestamp.from(message.createdAt()),
+                handoverId,
+                message.messageId()
             );
+        if (inserted == 1) {
             return true;
-        } catch (DuplicateKeyException ignored) {
-            verifyProjectedMessageReplay(handoverId, message);
-            return false;
         }
+        verifyProjectedMessageReplay(handoverId, message);
+        return false;
     }
 
     private void verifyProjectedMessageReplay(
@@ -189,7 +194,7 @@ public class BasicInboxRepository {
             SELECT handover_id, participant_role, actor_ref, safe_actor_display_name,
                    content, attachment_refs_json, created_at
               FROM inbox_message
-             WHERE message_id = ?
+             WHERE handover_id = ? AND source_message_id = ?
             """,
             (rs, row) -> handoverId.equals(rs.getString("handover_id"))
                 && message.role().name().equals(rs.getString("participant_role"))
@@ -202,6 +207,7 @@ public class BasicInboxRepository {
                 && message.attachmentRefs().equals(
                     read(rs.getString("attachment_refs_json"), LIST_TYPE)
                 ),
+            handoverId,
             message.messageId()
         );
         if (matches.size() != 1 || !matches.getFirst()) {
@@ -263,9 +269,9 @@ public class BasicInboxRepository {
     public ConversationDetail detail(String handoverId) {
         ConversationRecord conversation = requireConversation(handoverId);
         List<MessageView> messages = jdbc.query("""
-            SELECT * FROM inbox_message WHERE handover_id = ? ORDER BY created_at, message_id
+            SELECT * FROM inbox_message WHERE handover_id = ? ORDER BY created_at, source_message_id
             """, (rs, row) -> new MessageView(
-            rs.getString("message_id"),
+            rs.getString("source_message_id"),
             rs.getString("participant_role"),
             rs.getString("actor_ref"),
             rs.getString("safe_actor_display_name"),
@@ -325,21 +331,26 @@ public class BasicInboxRepository {
                 "Only the active operator may reply to this conversation."
             );
         }
-        try {
-            jdbc.update("""
+        int inserted = jdbc.update("""
                 INSERT INTO inbox_message
-                    (message_id, handover_id, participant_role, actor_ref, safe_actor_display_name,
+                    (message_id, source_message_id, handover_id, participant_role, actor_ref, safe_actor_display_name,
                      content, attachment_refs_json, created_at)
-                VALUES (?, ?, 'HUMAN', ?, ?, ?, '[]', ?)
+                SELECT ?, ?, ?, 'HUMAN', ?, ?, ?, '[]', ?
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM inbox_message WHERE handover_id = ? AND source_message_id = ?
+                 )
                 """,
+                storageMessageId(handoverId, messageId),
                 messageId,
                 handoverId,
                 operatorId,
                 displayName,
                 content,
-                Timestamp.from(Instant.now())
+                Timestamp.from(Instant.now()),
+                handoverId,
+                messageId
             );
-        } catch (DuplicateKeyException ignored) {
+        if (inserted == 0) {
             requireHumanMessageReplay(messageId, handoverId, operatorId, displayName, content);
         }
         return messageId;
@@ -354,7 +365,7 @@ public class BasicInboxRepository {
     ) {
         List<Boolean> matches = jdbc.query(
             "SELECT handover_id, participant_role, actor_ref, safe_actor_display_name, content"
-                + " FROM inbox_message WHERE message_id = ?",
+                + " FROM inbox_message WHERE handover_id = ? AND source_message_id = ?",
             (rs, row) -> {
                 if (!handoverId.equals(rs.getString("handover_id"))
                     || !"HUMAN".equals(rs.getString("participant_role"))
@@ -368,6 +379,7 @@ public class BasicInboxRepository {
                 }
                 return Boolean.TRUE;
             },
+            handoverId,
             messageId
         );
         return !matches.isEmpty();
@@ -386,6 +398,10 @@ public class BasicInboxRepository {
                 "The existing operator reply could not be verified."
             );
         }
+    }
+
+    private String storageMessageId(String handoverId, String sourceMessageId) {
+        return "inbox-message-" + security.sha256(handoverId + "\n" + sourceMessageId);
     }
 
     public void markTransitionPending(String handoverId, String operatorId, String nextStatus) {
