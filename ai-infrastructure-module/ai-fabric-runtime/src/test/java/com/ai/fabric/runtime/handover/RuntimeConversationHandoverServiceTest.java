@@ -402,6 +402,9 @@ class RuntimeConversationHandoverServiceTest {
         assertThat(replay.conversation().messages())
             .filteredOn(message -> "pending-message-replay".equals(message.clientMessageId()))
             .hasSize(1);
+        assertThat(replay.conversation().events())
+            .filteredOn(event -> "USER_MESSAGE_ACCEPTED".equals(event.type()))
+            .hasSize(1);
         assertThat(repository.dispatchStatusCounts()).containsEntry("PENDING", 2L);
     }
 

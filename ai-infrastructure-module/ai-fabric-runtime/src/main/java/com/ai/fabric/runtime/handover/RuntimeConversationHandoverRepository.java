@@ -400,8 +400,8 @@ final class RuntimeConversationHandoverRepository {
         return Map.copyOf(values);
     }
 
-    void addDispatch(ConversationChannelDispatch dispatch, String idempotencyKey) {
-        transactional(() -> {
+    boolean addDispatch(ConversationChannelDispatch dispatch, String idempotencyKey) {
+        return transactional(() -> {
             Instant now = clock.instant();
             jdbc.queryForObject(
                 "SELECT handover_id FROM ai_conversation_handover WHERE handover_id = ? FOR UPDATE",
@@ -410,7 +410,7 @@ final class RuntimeConversationHandoverRepository {
             );
             if (dispatchReplayExists(dispatch.dispatchId(), idempotencyKey)) {
                 verifyDispatchReplay(dispatch, idempotencyKey);
-                return Boolean.TRUE;
+                return Boolean.FALSE;
             }
             Long maximum = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(dispatch_sequence), 0)"

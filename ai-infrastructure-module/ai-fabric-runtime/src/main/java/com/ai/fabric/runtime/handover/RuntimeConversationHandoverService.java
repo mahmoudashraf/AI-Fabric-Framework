@@ -359,12 +359,14 @@ public class RuntimeConversationHandoverService {
                 Map.of(),
                 clock.instant()
             );
-            repository.addDispatch(dispatch, "user-message:" + message.messageId());
-            appendEvent(scope, "USER_MESSAGE_ACCEPTED", Map.of(
-                "messageId", message.messageId(),
-                "messageSequence", message.sequence(),
-                "controlState", snapshot.state().name()
-            ));
+            boolean dispatchCreated = repository.addDispatch(dispatch, "user-message:" + message.messageId());
+            if (dispatchCreated) {
+                appendEvent(scope, "USER_MESSAGE_ACCEPTED", Map.of(
+                    "messageId", message.messageId(),
+                    "messageSequence", message.sequence(),
+                    "controlState", snapshot.state().name()
+                ));
+            }
             return new HumanMessageAcceptance("ACCEPTED_FOR_HUMAN", message.messageId(), view(scope, 0));
         });
     }
