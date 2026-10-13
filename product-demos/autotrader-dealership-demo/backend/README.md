@@ -81,6 +81,21 @@ event evidence. Browser workspace installation, assigned-runtime discovery,
 and public conversation routes are owned by the LoomAI Platform installation;
 this dealership service does not disclose or route them.
 
+Required when the deployment's Basic LoomAI Inbox channel is enabled:
+
+```text
+HUMAN_INBOX_ENABLED=true
+HUMAN_INBOX_BASE_URL=https://<deployment-bound-basic-inbox>
+HUMAN_INBOX_OPERATOR_API_KEY=<deployment-bound-operator-key>
+HUMAN_INBOX_REQUEST_TIMEOUT=PT8S
+```
+
+The operator key is consumed only by this backend. The browser authenticates
+with the existing dealership staff session and calls the narrow
+`/api/staff/human-conversations/**` BFF. The customer workspace continues to
+call the assigned runtime directly with its anonymous owner session; the
+dealership backend is not placed in the customer chat traffic path.
+
 The protected meeting-demo simulator controls additionally require:
 
 ```text
@@ -142,6 +157,13 @@ GET  /api/staff/integration/status
 POST /api/staff/integration/reconcile
 GET  /api/staff/provider-simulator/status
 POST /api/staff/provider-simulator/scenarios/{scenario}
+GET  /api/staff/human-conversations/status
+GET  /api/staff/human-conversations
+GET  /api/staff/human-conversations/{handoverId}
+POST /api/staff/human-conversations/{handoverId}/claim
+POST /api/staff/human-conversations/{handoverId}/messages
+POST /api/staff/human-conversations/{handoverId}/return-to-ai
+POST /api/staff/human-conversations/{handoverId}/close
 ```
 
 The bounded simulator scenarios are `add-stock`, `update-price`, `mark-sold`,

@@ -221,6 +221,24 @@ class DealershipDemoHttpTest {
     }
 
     @Test
+    void humanConversationInboxIsStaffOnlyAndFailsClosedWhenNotBound() throws Exception {
+        mvc.perform(get("/api/staff/human-conversations/status"))
+            .andExpect(status().isUnauthorized());
+
+        MvcResult login = mvc.perform(post("/api/staff/session")
+                .contentType("application/json")
+                .content("{\"username\":\"staff\",\"password\":\"test-password\"}"))
+            .andExpect(status().isOk())
+            .andReturn();
+        MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
+
+        mvc.perform(get("/api/staff/human-conversations/status").session(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.enabled").value(false))
+            .andExpect(jsonPath("$.operator").doesNotExist());
+    }
+
+    @Test
     void crossSiteCsrfCookieUsesTheConfiguredSecureSessionPolicy() throws Exception {
         MvcResult csrf = mvc.perform(get("/api/public/security/csrf"))
             .andExpect(status().isOk())

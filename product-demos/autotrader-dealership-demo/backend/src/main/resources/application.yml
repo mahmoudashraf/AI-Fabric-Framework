@@ -71,6 +71,11 @@ dealership:
     control-api-key: ${PROVIDER_SIMULATOR_CONTROL_API_KEY:}
     advertiser-id: ${PROVIDER_SIMULATOR_ADVERTISER_ID:}
     webhook-target-url: ${PROVIDER_SIMULATOR_WEBHOOK_TARGET_URL:}
+  human-inbox:
+    enabled: ${HUMAN_INBOX_ENABLED:false}
+    base-url: ${HUMAN_INBOX_BASE_URL:}
+    operator-api-key: ${HUMAN_INBOX_OPERATOR_API_KEY:}
+    request-timeout: ${HUMAN_INBOX_REQUEST_TIMEOUT:PT8S}
   runtime:
     enabled: ${LOOMAI_RUNTIME_ENABLED:false}
     base-url: ${LOOMAI_RUNTIME_BASE_URL:}

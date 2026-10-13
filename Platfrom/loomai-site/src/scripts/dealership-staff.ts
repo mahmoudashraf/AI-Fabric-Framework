@@ -66,6 +66,46 @@ type ProviderScenarioReceipt = {
   reconciliationErrorClass?: string | null
 }
 
+type HumanOperator = {
+  operatorId: string
+  displayName: string
+  bindingIds: string[]
+}
+
+type HumanConversationSummary = {
+  handoverId: string
+  externalConversationRef: string
+  status: string
+  safeCustomerLabel: string
+  claimedBy?: string | null
+  claimedDisplayName?: string | null
+  unreadCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+type HumanConversationMessage = {
+  messageId: string
+  participantRole: 'USER' | 'AI' | 'HUMAN' | 'SYSTEM'
+  safeActorDisplayName?: string | null
+  content: string
+  createdAt: string
+}
+
+type HumanConversationDetail = {
+  conversation: HumanConversationSummary
+  consentedIntake?: Record<string, unknown>
+  messages: HumanConversationMessage[]
+}
+
+type HumanInboxUiState = {
+  enabled: boolean
+  operator: HumanOperator | null
+  selectedHandoverId: string
+  refreshTask: Promise<void> | null
+  pollTimer: number | null
+}
+
 const root = document.querySelector<HTMLElement>('[data-dealership-staff]')
 
 if (root) {
@@ -75,10 +115,18 @@ if (root) {
 async function startStaffWorkspace(app: HTMLElement) {
   let apiBaseUrl = ''
   let activeLeadId = ''
+  const humanState: HumanInboxUiState = {
+    enabled: false,
+    operator: null,
+    selectedHandoverId: '',
+    refreshTask: null,
+    pollTimer: null,
+  }
   const loginPanel = required<HTMLElement>(app, '[data-login-panel]')
   const workspace = required<HTMLElement>(app, '[data-staff-workspace]')
   const loginForm = required<HTMLFormElement>(app, '[data-login-form]')
   const statusForm = required<HTMLFormElement>(app, '[data-lead-status-form]')
+  const humanReplyForm = required<HTMLFormElement>(app, '[data-human-reply-form]')
 
   try {
     apiBaseUrl = await resolveApiBaseUrl(app)
@@ -89,6 +137,7 @@ async function startStaffWorkspace(app: HTMLElement) {
   }
 
   const showLogin = () => {
+    stopHumanInboxPolling(humanState)
     loginPanel.hidden = false
     workspace.hidden = true
   }
@@ -101,6 +150,8 @@ async function startStaffWorkspace(app: HTMLElement) {
       activeLeadId = id
       void openLead(app, apiBaseUrl, id)
     })
+    await refreshHumanInbox(app, apiBaseUrl, humanState)
+    startHumanInboxPolling(app, apiBaseUrl, humanState)
   }
 
   try {
@@ -144,6 +195,39 @@ async function startStaffWorkspace(app: HTMLElement) {
       activeLeadId = id
       void openLead(app, apiBaseUrl, id)
     })
+    void refreshHumanInbox(app, apiBaseUrl, humanState)
+  })
+
+  app.querySelector('[data-refresh-human]')?.addEventListener('click', () => {
+    void refreshHumanInbox(app, apiBaseUrl, humanState)
+  })
+
+  app.querySelector('[data-human-claim]')?.addEventListener('click', () => {
+    void runHumanCommand(app, apiBaseUrl, humanState, 'claim')
+  })
+
+  app.querySelector('[data-human-return]')?.addEventListener('click', () => {
+    void runHumanCommand(app, apiBaseUrl, humanState, 'return-to-ai')
+  })
+
+  app.querySelector('[data-human-close]')?.addEventListener('click', () => {
+    void runHumanCommand(app, apiBaseUrl, humanState, 'close')
+  })
+
+  humanReplyForm.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (!humanState.selectedHandoverId) return
+    const textarea = required<HTMLTextAreaElement>(humanReplyForm, 'textarea[name="reply"]')
+    const text = textarea.value.trim()
+    if (!text) return
+    const submit = required<HTMLButtonElement>(humanReplyForm, 'button[type="submit"]')
+    submit.disabled = true
+    try {
+      await runHumanCommand(app, apiBaseUrl, humanState, 'messages', { text })
+      textarea.value = ''
+    } finally {
+      if (!textarea.disabled) submit.disabled = false
+    }
   })
 
   app.querySelector('[data-run-reconcile]')?.addEventListener('click', async (event) => {
@@ -205,6 +289,7 @@ async function startStaffWorkspace(app: HTMLElement) {
     } catch (error) {
       if (!isUnauthorized(error)) showAlert(app, messageOf(error))
     }
+    resetHumanInbox(app, humanState)
     showLogin()
   })
 
@@ -243,6 +328,250 @@ async function startStaffWorkspace(app: HTMLElement) {
       submit.disabled = false
     }
   })
+}
+
+function startHumanInboxPolling(app: HTMLElement, apiBaseUrl: string, state: HumanInboxUiState) {
+  stopHumanInboxPolling(state)
+  state.pollTimer = window.setInterval(() => {
+    if (!document.hidden) void refreshHumanInbox(app, apiBaseUrl, state, true)
+  }, 4000)
+}
+
+function stopHumanInboxPolling(state: HumanInboxUiState) {
+  if (state.pollTimer != null) window.clearInterval(state.pollTimer)
+  state.pollTimer = null
+}
+
+function resetHumanInbox(app: HTMLElement, state: HumanInboxUiState) {
+  stopHumanInboxPolling(state)
+  state.enabled = false
+  state.operator = null
+  state.selectedHandoverId = ''
+  required<HTMLElement>(app, '[data-human-inbox]').hidden = true
+}
+
+async function refreshHumanInbox(
+  app: HTMLElement,
+  apiBaseUrl: string,
+  state: HumanInboxUiState,
+  quiet = false,
+) {
+  if (state.refreshTask) {
+    await state.refreshTask
+    return
+  }
+
+  const task = performHumanInboxRefresh(app, apiBaseUrl, state, quiet)
+  state.refreshTask = task.finally(() => {
+    state.refreshTask = null
+  })
+  await state.refreshTask
+}
+
+async function performHumanInboxRefresh(
+  app: HTMLElement,
+  apiBaseUrl: string,
+  state: HumanInboxUiState,
+  quiet: boolean,
+) {
+  const panel = required<HTMLElement>(app, '[data-human-inbox]')
+  try {
+    const status = await fetchApi<{ enabled: boolean; operator?: HumanOperator; message?: string }>(
+      apiBaseUrl,
+      '/api/staff/human-conversations/status',
+      { method: 'GET' },
+    )
+    state.enabled = status.enabled === true
+    state.operator = status.operator || null
+    panel.hidden = !state.enabled
+    if (!state.enabled) return
+
+    setText(app, '[data-human-operator]', state.operator?.displayName || 'Dealership operator')
+    const response = await fetchApi<{ items: HumanConversationSummary[] }>(
+      apiBaseUrl,
+      '/api/staff/human-conversations?limit=100',
+      { method: 'GET' },
+    )
+    const conversations = Array.isArray(response.items) ? response.items : []
+    setText(app, '[data-human-count]', String(conversations.filter((item) => item.status !== 'CLOSED').length))
+    renderHumanQueue(app, conversations, state, (handoverId) => {
+      state.selectedHandoverId = handoverId
+      app.querySelectorAll<HTMLElement>('[data-human-handover-id]').forEach((item) => {
+        const selected = item.dataset.humanHandoverId === handoverId
+        item.dataset.selected = String(selected)
+        item.setAttribute('aria-pressed', String(selected))
+      })
+      void openHumanConversation(app, apiBaseUrl, state)
+    })
+
+    if (state.selectedHandoverId) {
+      await openHumanConversation(app, apiBaseUrl, state)
+    }
+  } catch (error) {
+    panel.hidden = false
+    setText(app, '[data-human-operator]', 'Inbox unavailable')
+    showHumanError(app, messageOf(error))
+    if (!quiet && isUnauthorized(error)) showAlert(app, 'Your staff session expired. Sign in again.')
+  }
+}
+
+function renderHumanQueue(
+  app: HTMLElement,
+  conversations: HumanConversationSummary[],
+  state: HumanInboxUiState,
+  onSelect: (handoverId: string) => void,
+) {
+  const root = required<HTMLElement>(app, '[data-human-queue]')
+  root.replaceChildren()
+  if (conversations.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'human-inbox__empty-copy'
+    empty.textContent = 'No customers are waiting for a human conversation.'
+    root.append(empty)
+    return
+  }
+
+  for (const conversation of conversations) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'human-queue-item'
+    button.dataset.humanHandoverId = conversation.handoverId
+    button.dataset.selected = String(conversation.handoverId === state.selectedHandoverId)
+    button.setAttribute('aria-pressed', button.dataset.selected)
+
+    const top = document.createElement('span')
+    top.className = 'human-queue-item__top'
+    const customer = document.createElement('strong')
+    customer.textContent = conversation.safeCustomerLabel || 'Anonymous customer'
+    const status = document.createElement('span')
+    status.dataset.state = conversation.status
+    status.textContent = humanStatusLabel(conversation.status)
+    top.append(customer, status)
+
+    const meta = document.createElement('small')
+    meta.textContent = `${conversation.unreadCount || 0} unread · ${formatDateTime(conversation.updatedAt)}`
+    button.append(top, meta)
+    button.addEventListener('click', () => onSelect(conversation.handoverId))
+    root.append(button)
+  }
+}
+
+async function openHumanConversation(app: HTMLElement, apiBaseUrl: string, state: HumanInboxUiState) {
+  if (!state.selectedHandoverId) return
+  try {
+    const response = await fetchApi<{ item: HumanConversationDetail }>(
+      apiBaseUrl,
+      `/api/staff/human-conversations/${encodeURIComponent(state.selectedHandoverId)}`,
+      { method: 'GET' },
+    )
+    renderHumanConversation(app, response.item, state.operator)
+  } catch (error) {
+    showHumanError(app, messageOf(error))
+  }
+}
+
+function renderHumanConversation(app: HTMLElement, detail: HumanConversationDetail, operator: HumanOperator | null) {
+  required<HTMLElement>(app, '[data-human-empty]').hidden = true
+  required<HTMLElement>(app, '[data-human-conversation]').hidden = false
+  hideHumanError(app)
+  setText(app, '[data-human-reference]', detail.conversation.externalConversationRef || 'Customer conversation')
+  setText(app, '[data-human-customer]', detail.conversation.safeCustomerLabel || 'Anonymous customer')
+  const stateBadge = required<HTMLElement>(app, '[data-human-state]')
+  stateBadge.textContent = humanStatusLabel(detail.conversation.status)
+  stateBadge.dataset.state = detail.conversation.status
+
+  const intake = required<HTMLElement>(app, '[data-human-intake]')
+  const intakeEntries = Object.entries(detail.consentedIntake || {})
+  intake.hidden = intakeEntries.length === 0
+  intake.textContent = intakeEntries.map(([key, value]) => `${titleCase(key)}: ${String(value)}`).join(' · ')
+
+  const messages = required<HTMLElement>(app, '[data-human-messages]')
+  messages.replaceChildren()
+  for (const message of detail.messages || []) {
+    const item = document.createElement('article')
+    item.className = 'human-message'
+    item.dataset.role = message.participantRole
+    const meta = document.createElement('div')
+    meta.className = 'human-message__meta'
+    const actor = document.createElement('strong')
+    actor.textContent = message.safeActorDisplayName || participantLabel(message.participantRole)
+    const time = document.createElement('time')
+    time.textContent = formatDateTime(message.createdAt)
+    meta.append(actor, time)
+    const content = document.createElement('p')
+    content.textContent = message.content
+    item.append(meta, content)
+    messages.append(item)
+  }
+  messages.scrollTop = messages.scrollHeight
+
+  const ownActive = detail.conversation.status === 'ACTIVE'
+    && Boolean(operator?.operatorId)
+    && detail.conversation.claimedBy === operator?.operatorId
+  required<HTMLButtonElement>(app, '[data-human-claim]').hidden = !['WAITING', 'CLAIM_PENDING'].includes(detail.conversation.status)
+  required<HTMLButtonElement>(app, '[data-human-return]').hidden = !ownActive
+  required<HTMLButtonElement>(app, '[data-human-close]').hidden = !ownActive
+  const reply = required<HTMLTextAreaElement>(app, '[data-human-reply-form] textarea[name="reply"]')
+  const send = required<HTMLButtonElement>(app, '[data-human-reply-form] button[type="submit"]')
+  reply.disabled = !ownActive
+  send.disabled = !ownActive
+  reply.placeholder = ownActive ? 'Reply to this customer...' : 'Claim this conversation to reply...'
+}
+
+async function runHumanCommand(
+  app: HTMLElement,
+  apiBaseUrl: string,
+  state: HumanInboxUiState,
+  operation: 'claim' | 'messages' | 'return-to-ai' | 'close',
+  values: { text?: string } = {},
+) {
+  if (!state.selectedHandoverId) return
+  hideHumanError(app)
+  try {
+    const csrf = await csrfHeaders(apiBaseUrl)
+    await fetchApi(
+      apiBaseUrl,
+      `/api/staff/human-conversations/${encodeURIComponent(state.selectedHandoverId)}/${operation}`,
+      {
+        method: 'POST',
+        headers: { ...csrf, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...values, idempotencyKey: crypto.randomUUID() }),
+      },
+    )
+    if (operation === 'close') state.selectedHandoverId = ''
+    if (state.refreshTask) await state.refreshTask
+    await refreshHumanInbox(app, apiBaseUrl, state)
+    if (!state.selectedHandoverId) {
+      required<HTMLElement>(app, '[data-human-empty]').hidden = false
+      required<HTMLElement>(app, '[data-human-conversation]').hidden = true
+    }
+  } catch (error) {
+    showHumanError(app, messageOf(error))
+  }
+}
+
+function showHumanError(app: HTMLElement, message: string) {
+  const error = required<HTMLElement>(app, '[data-human-error]')
+  error.textContent = message
+  error.hidden = false
+}
+
+function hideHumanError(app: HTMLElement) {
+  required<HTMLElement>(app, '[data-human-error]').hidden = true
+}
+
+function humanStatusLabel(status: string) {
+  if (status === 'WAITING' || status === 'CLAIM_PENDING') return 'Waiting'
+  if (status === 'ACTIVE') return 'Human active'
+  if (status === 'RETURN_PENDING') return 'Returning to AI'
+  return titleCase(status.toLowerCase().replaceAll('_', ' '))
+}
+
+function participantLabel(role: HumanConversationMessage['participantRole']) {
+  if (role === 'USER') return 'Customer'
+  if (role === 'HUMAN') return 'Dealership team'
+  if (role === 'AI') return 'Northfield AI'
+  return 'System'
 }
 
 async function refreshWorkspace(

@@ -56,6 +56,16 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
             validateHttpsUrl(simulator.getBaseUrl(), "PROVIDER_SIMULATOR_BASE_URL", missing);
             validateHttpsUrl(simulator.getWebhookTargetUrl(), "PROVIDER_SIMULATOR_WEBHOOK_TARGET_URL", missing);
         }
+        if (properties.getHumanInbox().isEnabled()) {
+            var inbox = properties.getHumanInbox();
+            require(inbox.getBaseUrl(), "HUMAN_INBOX_BASE_URL", missing);
+            require(inbox.getOperatorApiKey(), "HUMAN_INBOX_OPERATOR_API_KEY", missing);
+            validateHttpsUrl(inbox.getBaseUrl(), "HUMAN_INBOX_BASE_URL", missing);
+            if (inbox.getRequestTimeout() == null || inbox.getRequestTimeout().isZero()
+                || inbox.getRequestTimeout().isNegative() || inbox.getRequestTimeout().compareTo(java.time.Duration.ofSeconds(30)) > 0) {
+                missing.add("HUMAN_INBOX_REQUEST_TIMEOUT (must be between 1ms and 30s)");
+            }
+        }
         validateEncryptionKey(missing);
         validateStaffPasswordHash(missing);
         if (!missing.isEmpty()) {
