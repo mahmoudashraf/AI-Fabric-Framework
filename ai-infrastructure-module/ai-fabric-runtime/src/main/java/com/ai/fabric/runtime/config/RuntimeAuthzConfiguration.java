@@ -35,8 +35,8 @@ class RuntimeAuthzConfiguration {
     @Bean
     @ConditionalOnMissingBean(EntityAccessPolicy.class)
     @ConditionalOnProperty(prefix = "ai.fabric.runtime.authz", name = "mode", havingValue = "ALLOW_VERIFIED")
-    EntityAccessPolicy allowVerifiedEntityAccessPolicy() {
-        return new AllowVerifiedEntityAccessPolicy();
+    EntityAccessPolicy allowVerifiedEntityAccessPolicy(RuntimeAuthzProperties properties) {
+        return new AllowVerifiedEntityAccessPolicy(properties.isAllowAnonymousSessions());
     }
 
     @Bean

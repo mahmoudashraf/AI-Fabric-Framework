@@ -1,20 +1,36 @@
 package com.ai.fabric.runtime.authz;
 
+import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import ai.fabric.access.policy.EntityAccessPolicy;
 import ai.fabric.dto.AIAccessSubjectContext;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 /**
  * Simple runtime authz policy for platform-managed deployments that only need verified caller identity.
  *
- * <p>This policy stays fail-closed for anonymous or malformed subjects. It is intentionally explicit and must be
- * selected by configuration; {@code REMOTE_HTTP} remains the default runtime authz mode.</p>
+ * <p>This policy stays fail-closed for malformed subjects. Anonymous browser sessions remain denied unless the
+ * deployment explicitly opts in, in which case the complete verified public-runtime contract is required.
+ * {@code REMOTE_HTTP} remains the default runtime authz mode.</p>
  */
 public class AllowVerifiedEntityAccessPolicy implements EntityAccessPolicy {
 
-    private static final String ANONYMOUS_SUBJECT_TYPE = "ANONYMOUS_SESSION";
+    private static final String CHAT_QUERY_SCOPE = "chat:query";
+
+    private final boolean allowAnonymousSessions;
+
+    public AllowVerifiedEntityAccessPolicy() {
+        this(false);
+    }
+
+    public AllowVerifiedEntityAccessPolicy(boolean allowAnonymousSessions) {
+        this.allowAnonymousSessions = allowAnonymousSessions;
+    }
 
     @Override
     public boolean canAccess(AIAccessSubjectContext authContext, Map<String, Object> entity) {
@@ -28,7 +44,34 @@ public class AllowVerifiedEntityAccessPolicy implements EntityAccessPolicy {
             return false;
         }
         String subjectType = authContext.getSubjectType();
-        return StringUtils.hasText(subjectType)
-            && !ANONYMOUS_SUBJECT_TYPE.equalsIgnoreCase(subjectType.trim());
+        if (!StringUtils.hasText(subjectType)) {
+            return false;
+        }
+        if (!RuntimeAuthSubjectType.ANONYMOUS_SESSION.name().equalsIgnoreCase(subjectType.trim())) {
+            return true;
+        }
+        return allowAnonymousSessions && hasVerifiedAnonymousContract(authContext);
+    }
+
+    private boolean hasVerifiedAnonymousContract(AIAccessSubjectContext authContext) {
+        if (!RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name().equals(authContext.getAuthMode())
+            || !RuntimeAuthCallerType.PUBLIC_BROWSER.name().equals(authContext.getCallerType())
+            || !StringUtils.hasText(authContext.getSessionId())
+            || !authContext.getSubjectId().equals(authContext.getSessionId())
+            || !StringUtils.hasText(authContext.getDeploymentId())
+            || !StringUtils.hasText(authContext.getTenantId())
+            || !StringUtils.hasText(authContext.getIssuer())
+            || authContext.getAudiences() == null
+            || authContext.getAudiences().stream().noneMatch(StringUtils::hasText)
+            || authContext.getGrantedScopes() == null
+            || !authContext.getGrantedScopes().contains(CHAT_QUERY_SCOPE)) {
+            return false;
+        }
+        try {
+            return StringUtils.hasText(authContext.getExpiresAt())
+                && Instant.parse(authContext.getExpiresAt()).isAfter(Instant.now());
+        } catch (DateTimeParseException ex) {
+            return false;
+        }
     }
 }

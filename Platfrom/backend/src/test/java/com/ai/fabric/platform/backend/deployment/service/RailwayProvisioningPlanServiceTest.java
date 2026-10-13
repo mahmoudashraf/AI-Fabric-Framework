@@ -688,7 +688,53 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER", "shopify-app")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS", "shopify-app,runtime-public-bootstrap")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES", "storefront-chat")
-            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE", "storefront-chat");
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE", "storefront-chat")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_AUTHZ_ALLOW_ANONYMOUS_SESSIONS");
+    }
+
+    @Test
+    void buildPlanExplicitlyAllowsVerifiedAnonymousSessionsForPublicAllowVerifiedDeployment() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions",
+                "https://platform.example/entities",
+                "https://platform.example/routing",
+                "https://platform.example/prompts",
+                "https://platform.example/manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "ALLOW_VERIFIED",
+              "publicRuntimeBootstrapEnabled": true,
+              "publicRuntimeTokenIssuer": "runtime-public-bootstrap",
+              "publicRuntimeDefaultAudience": "dep-123"
+            }
+            """);
+
+        Map<String, String> runtimeEnv = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTHZ_MODE", "ALLOW_VERIFIED")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTHZ_ALLOW_ANONYMOUS_SESSIONS", "true");
     }
 
     @Test
@@ -739,7 +785,8 @@ class RailwayProvisioningPlanServiceTest {
             .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER")
             .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS")
             .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES")
-            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE");
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_AUTHZ_ALLOW_ANONYMOUS_SESSIONS");
     }
 
     @Test

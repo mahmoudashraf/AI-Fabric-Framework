@@ -1940,6 +1940,14 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED",
             Boolean.toString(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig))
         ));
+        if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equals(
+            ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
+        ) && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTHZ_ALLOW_ANONYMOUS_SESSIONS",
+                "true"
+            ));
+        }
         addOptionalEnv(
             runtimeEnv,
             "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS",

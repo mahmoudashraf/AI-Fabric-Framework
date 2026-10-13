@@ -40,6 +40,12 @@ public class RuntimeAuthzProperties {
      */
     private Mode mode = Mode.REMOTE_HTTP;
 
+    /**
+     * Allow a fully verified public anonymous browser session when {@link #mode} is {@link Mode#ALLOW_VERIFIED}.
+     * Disabled by default and intended only for deployments that explicitly expose anonymous public bootstrap.
+     */
+    private boolean allowAnonymousSessions;
+
     private Remote remote = new Remote();
 
     @Data
