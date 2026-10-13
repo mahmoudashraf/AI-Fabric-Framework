@@ -11,8 +11,10 @@ import java.util.List;
 public class ConversationResponse {
     private String id;
     private String status;
+    private String controlState;
     private LocalDateTime createdAt;
     private LocalDateTime lastInteractionAt;
     private RuntimeAuthContextResponse authContext;
     private List<TurnResponse> turns;
+    private List<ConversationParticipantMessageResponse> participantMessages;
 }

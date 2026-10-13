@@ -60,6 +60,7 @@ import type {
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
+import { useConversationHandover } from "./useConversationHandover";
 import { useClarificationFlow } from "./useClarificationFlow";
 import { useConfirmationFlow } from "./useConfirmationFlow";
 import { useConversationsController } from "./useConversationsController";
@@ -967,6 +968,16 @@ export function useMaxModeController({
     });
   }), [maxModeContext, resetConversation, setAttachedItems, toast]);
 
+  const handoverController = useConversationHandover({
+    isOpen,
+    currentConversationId,
+    setCurrentConversationId,
+    setChatMessages,
+    setSuggestions,
+    setShowSuggestions,
+    toast,
+  });
+
   const { handleChatQuery } = useChatFlow({
     chatQuery,
     setChatQuery,
@@ -986,6 +997,7 @@ export function useMaxModeController({
     currentMode,
     requestContext: hostRequestContext,
     requestContextProvider: hostConfig?.requestContextProvider,
+    onRuntimeResponse: handoverController.syncConversationControlFromResponse,
   });
 
   const handleProgrammaticPrompt = useCallback(
@@ -1014,6 +1026,7 @@ export function useMaxModeController({
     setCurrentConversationId,
     setIsLoading,
     toast,
+    onRuntimeResponse: handoverController.syncConversationControlFromResponse,
   });
 
   useEffect(() => {
@@ -1079,6 +1092,7 @@ export function useMaxModeController({
     setCurrentConversationId,
     setIsLoading,
     toast,
+    onRuntimeResponse: handoverController.syncConversationControlFromResponse,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1683,6 +1697,7 @@ export function useMaxModeController({
     attachCartToChat,
     proceedToCheckoutFromCart,
     browseProductsFromCart,
+    ...handoverController,
   } as const;
 }
 

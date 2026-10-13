@@ -8,6 +8,8 @@ import { AttachmentsRow } from "./Composer/AttachmentsRow";
 import { ComposerInputRow } from "./Composer/ComposerInputRow";
 import { SuggestionsPanel } from "./Composer/SuggestionsPanel";
 import type { AttachedItem } from "./types";
+import { ConversationHandoverStatusBar } from "../Handover/ConversationHandoverStatusBar";
+import type { ConversationControlState } from "@/types";
 
 export type { AttachedItem } from "./types";
 
@@ -40,6 +42,17 @@ export function Composer({
   conversationsEnabled,
   onOpenDebug,
   onSubmit,
+  handoverEnabled,
+  handoverState,
+  handoverStatus,
+  handoverDisplayName,
+  handoverCanCancel,
+  handoverCanResume,
+  handoverBusy,
+  onOpenHandover,
+  onCancelHandover,
+  onRetryHandover,
+  onResumeAi,
 }: {
   attachedItems: AttachedItem[];
   onRemoveAttachment: (filteredIndex: number) => void;
@@ -69,6 +82,17 @@ export function Composer({
   conversationsEnabled: boolean;
   onOpenDebug: () => void;
   onSubmit: () => void;
+  handoverEnabled: boolean;
+  handoverState: ConversationControlState;
+  handoverStatus?: string | null;
+  handoverDisplayName?: string | null;
+  handoverCanCancel: boolean;
+  handoverCanResume: boolean;
+  handoverBusy: boolean;
+  onOpenHandover: () => void;
+  onCancelHandover: () => void;
+  onRetryHandover: () => void;
+  onResumeAi: () => void;
 }) {
   const [showAttachments, setShowAttachments] = useState(true);
   const composerStackRef = useRef<HTMLDivElement>(null);
@@ -102,6 +126,20 @@ export function Composer({
     >
       <div className="px-3 md:px-6">
         <div className="pointer-events-auto mx-auto max-w-3xl">
+          {handoverEnabled && (
+            <ConversationHandoverStatusBar
+              state={handoverState}
+              handoverStatus={handoverStatus}
+              displayName={handoverDisplayName}
+              canCancel={handoverCanCancel}
+              canResume={handoverCanResume}
+              busy={handoverBusy}
+              onOpen={onOpenHandover}
+              onCancel={onCancelHandover}
+              onRetry={onRetryHandover}
+              onResume={onResumeAi}
+            />
+          )}
           <AttachmentsRow
             items={nonAiAttachments}
             showAttachments={showAttachments}
@@ -151,6 +189,7 @@ export function Composer({
             onOpenDebug={onOpenDebug}
             nonAiAttachmentsCount={nonAiAttachments.length}
             onSubmit={onSubmit}
+            conversationControlState={handoverState}
           />
         </div>
       </div>

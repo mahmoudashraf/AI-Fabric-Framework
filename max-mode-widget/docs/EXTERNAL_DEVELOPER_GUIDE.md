@@ -23,6 +23,8 @@ The Max Mode chat application owns:
 
 - the Companion dock and full-screen Max Mode UI;
 - messages, conversation history, suggestions, and attachments;
+- deployment-advertised conversation handover, canonical owner messaging, and
+  reconnectable event-stream state;
 - `default` and `contextual` host-owned tool groups;
 - current-page text capture when explicitly enabled;
 - bounded action-result presentation extensions;
@@ -224,6 +226,11 @@ It rejects a renewal that returns a different session ID. Expiry, runtime
 change, HTTP 401/403, identity change, or typed conversation access denial
 clears conversation-bound state and never replays the denied request.
 
+If the deployment advertises Conversation Handover, provisioning also supplies
+the seven handover route templates documented in [Section 12](#12-conversation-handover).
+Do not derive them from the query URL or enable the UI with an incomplete route
+set.
+
 ## 7. Public Runtime Authenticated Setup
 
 The customer application supplies a fresh short-lived token. Identity and
@@ -253,6 +260,12 @@ MaxMode.init({
 ```
 
 Do not use a long-lived deployment or connector key as this token.
+
+Authenticated and private-adapter installations use the same handover
+contract. The trusted token broker or backend adapter may project the exact
+routes, but it must preserve owner authorization, idempotency headers, SSE
+replay, and typed control responses. It must not proxy provider credentials to
+the browser.
 
 ## 8. Host-Owned Tool Groups
 
@@ -457,7 +470,77 @@ whose names identify recognized credentials or secrets. This improves default
 presentation but does not replace a custom allowlisted projection for a stable
 domain result contract.
 
-## 12. Events
+## 12. Conversation Handover
+
+Conversation Handover is capability driven. It is enabled only when
+`apiConfig.conversationHandover.enabled` is true and every required route is
+present:
+
+```js
+apiConfig: {
+  conversationHandover: {
+    enabled: true,
+    contractVersion: "LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1",
+    modelInitiatedPolicy: "CONFIRM",
+    userCanCancelPending: true,
+    userCanResumeAi: true,
+    queueTimeoutSeconds: 300,
+    intake: {
+      anonymousAllowed: true,
+      fields: [
+        {
+          key: "email",
+          label: "Email for follow-up",
+          type: "EMAIL",
+          required: false,
+          maxLength: 254,
+          purpose: "Operator follow-up",
+          consentRequired: true
+        }
+      ]
+    }
+  },
+  runtimeRoutes: {
+    conversationMessageUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/messages",
+    handoverRequestUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/handover-requests",
+    handoverCancelUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/cancel",
+    handoverRetryUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/retry",
+    conversationControlUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/control",
+    conversationEventsUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/events",
+    aiResumeRequestUrlTemplate:
+      "/api/chat/me/conversations/{conversationId}/ai-resume-requests"
+  }
+}
+```
+
+Platform-managed one-script installations receive this configuration from the
+origin-scoped manifest. Explicit integrations should consume exact
+provisioning metadata rather than copy the example paths blindly.
+
+The direct user control and a model-selected structured handover action reach
+the same deployment command. The widget never infers handover from phrases.
+When the model recommends handover without an explicit user request, the
+server-owned policy can require confirmation. Optional intake remains
+purpose-bound and consented; choosing anonymous continuation must not invent
+contact data.
+
+During `HUMAN_PENDING` or `HUMAN_ACTIVE`, messages use the canonical
+conversation-message route and do not invoke AI orchestration. The event
+stream and control snapshot restore operator messages and state after
+navigation, reload, or a transient disconnect. Return to AI is always an
+explicit authorized command.
+
+Provider operator queues and authentication are outside the widget. The Basic
+LoomAI Inbox is one low-volume reference provider; another reviewed provider
+uses the same browser/runtime contract.
+
+## 13. Events
 
 Use `onEvent` for host analytics and operational UI:
 
@@ -476,7 +559,7 @@ events, cart events, `product:view`, and `error`. Treat event data as
 operational telemetry, not an authorization signal. Do not forward raw event
 data to analytics until the customer has reviewed and redacted its fields.
 
-## 13. API Routes
+## 14. API Routes
 
 Unless overridden, the widget resolves these paths relative to
 `apiConfig.chatBaseUrl`:
@@ -489,6 +572,12 @@ Unless overridden, the widget resolves these paths relative to
 | `GET` | `/chat/me/shell-config` | Read deployment-owned shell configuration |
 | `GET` | `/chat/me/conversations` | List the current subject's conversations |
 | `GET` / `DELETE` | `/chat/me/conversations/{conversationId}` | Read or delete one owned conversation |
+| `POST` | Configured `conversationMessageUrlTemplate` | Send an owner message through the current AI or human channel |
+| `POST` | Configured `handoverRequestUrlTemplate` | Request handover or receive a typed intake requirement |
+| `POST` | Configured cancel/retry templates | Cancel or retry the current owned handover |
+| `GET` | Configured `conversationControlUrlTemplate` | Read control state and ordered participant-message replay |
+| `GET` | Configured `conversationEventsUrlTemplate` | Follow owner-authorized SSE control/message events |
+| `POST` | Configured `aiResumeRequestUrlTemplate` | Explicitly request return to AI |
 | `POST` | Configured public bootstrap URL | Create an anonymous session |
 | `POST` | Configured public renewal URL | Renew the same anonymous session |
 
@@ -500,7 +589,7 @@ application exposes reviewed browser-facing business APIs such as cart
 operations. The widget must not silently use the runtime or connector as a
 business CRUD service.
 
-## 14. CORS and Content Security Policy
+## 15. CORS and Content Security Policy
 
 For cross-origin runtime access:
 
@@ -520,7 +609,7 @@ img-src 'self' data: https://approved-media.example.com
 Add only the origins used by the selected configuration and presentation
 renderers.
 
-## 15. Security Checklist
+## 16. Security Checklist
 
 - [ ] No API key, runtime assertion, connector credential, or provider token is
       present in HTML, JavaScript, bootstrap JSON, or browser storage.
@@ -533,8 +622,12 @@ renderers.
 - [ ] Action renderers receive only bounded projected fields.
 - [ ] CORS and CSP list only reviewed origins.
 - [ ] Debug mode is disabled for customer production.
+- [ ] Handover routes are advertised only when the deployment extension and
+      channel binding are live; provider credentials never enter the browser.
+- [ ] Human-active messages bypass AI, and return to AI requires an explicit
+      authorized transition.
 
-## 16. Acceptance Checklist
+## 17. Acceptance Checklist
 
 Test at desktop and mobile widths:
 
@@ -551,8 +644,13 @@ Test at desktop and mobile widths:
 11. A write action requires the configured server-side policy and produces a
     durable application-owned result or receipt.
 12. Keyboard, focus, mobile layout, and screen-reader labels are usable.
+13. A direct handover request and a structured model-selected request converge
+    on one idempotent control lifecycle.
+14. Pending/human-active messaging, operator reply, reload/replay, cancel,
+    retry, and explicit return-to-AI work without AI responding during human
+    ownership.
 
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 ### The script loaded but no UI appears
 
@@ -588,7 +686,14 @@ unreviewed raw payload to a renderer.
 Set an exact `rootSelector`, add `excludeSelectors`, or supply a deterministic
 `contentProvider` for an SPA.
 
-## 18. Experience Packs
+### Talk to a person is not shown
+
+Confirm the assigned deployment has `CONVERSATION_HANDOVER`, the reviewed
+handover action, and a healthy `CONVERSATION_CHANNEL` binding. The manifest
+must contain `conversationHandover.enabled=true` and all seven route
+templates. The widget intentionally hides partial or unadvertised support.
+
+## 19. Experience Packs
 
 An experience pack configures the generic AI Workspace for a reusable
 domain without changing widget core. It may provide:

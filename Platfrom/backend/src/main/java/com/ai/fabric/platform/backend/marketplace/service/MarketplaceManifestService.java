@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginCompatibilitySummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContributionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceConversationChannelContributionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginInstallFieldSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPermissionsSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary;
@@ -45,7 +46,8 @@ public class MarketplaceManifestService {
         "shellconfig",
         "templates",
         "providers",
-        "specialists"
+        "specialists",
+        "integrations"
     );
     private static final Set<String> SUPPORTED_INSTALL_FIELD_TYPES = Set.of(
         "text",
@@ -279,6 +281,70 @@ public class MarketplaceManifestService {
         "specialistRefs",
         "chainRefs"
     );
+    private static final String CONVERSATION_CHANNEL_CONTRACT_VERSION =
+        "LOOMAI_CONVERSATION_CHANNEL_V1";
+    private static final Set<String> CONVERSATION_CHANNEL_FIELDS = Set.of(
+        "contractVersion",
+        "bindingId",
+        "adapterImplementationId",
+        "adapterVersion",
+        "compatibleBehaviorTypes",
+        "capabilities",
+        "providerBaseUrlField",
+        "providerApiKeySecretRefField",
+        "runtimeCallbackSigningSecretRefField",
+        "providerWebhookSigningSecretRefField",
+        "operatorConsoleUrlField",
+        "requiredRuntimeCapabilityIds",
+        "requiredMigrationIds",
+        "verificationPackIds",
+        "configuration"
+    );
+    private static final Set<String> CONVERSATION_CHANNEL_CAPABILITIES = Set.of(
+        "DISPATCH",
+        "CLAIM",
+        "INBOUND_MESSAGE",
+        "OUTBOUND_MESSAGE",
+        "RETURN_TO_AI",
+        "CLOSE",
+        "AVAILABILITY"
+    );
+    private static final Set<String> CONVERSATION_CHANNEL_CONFIGURATION_FIELDS = Set.of(
+        "modelInitiatedPolicy",
+        "userCanCancelPending",
+        "userCanResumeAi",
+        "activeIdleAutoResume",
+        "queueTimeoutSeconds",
+        "queueTimeoutOutcome",
+        "transcriptProjection",
+        "intake"
+    );
+    private static final Set<String> CONVERSATION_CHANNEL_INTAKE_FIELDS = Set.of(
+        "anonymousAllowed",
+        "fields"
+    );
+    private static final Set<String> CONVERSATION_CHANNEL_INTAKE_FIELD_FIELDS = Set.of(
+        "id",
+        "label",
+        "type",
+        "required",
+        "maxLength",
+        "purpose",
+        "consentRequired"
+    );
+    private static final Map<String, String> CONVERSATION_CHANNEL_INTAKE_FIELD_TYPES = Map.of(
+        "name", "text",
+        "email", "email",
+        "phone", "tel"
+    );
+    private static final Map<String, Integer> CONVERSATION_CHANNEL_INTAKE_FIELD_MAX_LENGTHS = Map.of(
+        "name", 120,
+        "email", 254,
+        "phone", 40
+    );
+    private static final Map<String, Set<String>> REVIEWED_CONVERSATION_CHANNEL_ADAPTERS = Map.of(
+        "loomai-basic-inbox", Set.of("1")
+    );
 
     private final ObjectMapper objectMapper;
     private final EntityConfigContractService entityConfigContractService;
@@ -334,6 +400,7 @@ public class MarketplaceManifestService {
             case "DATA" -> parseDataContribution(plugin, version, contributions, datasets);
             case "INFERENCE_PROFILE" -> parseInferenceContribution(plugin, version, contributions);
             case "SPECIALIST" -> parseSpecialistContribution(plugin, version, contributions);
+            case "INTEGRATION" -> parseIntegrationContribution(plugin, version, contributions);
             default -> throw invalid(plugin, version, "unsupported pluginType: " + expectedType);
         };
         if ("INFERENCE_PROFILE".equals(expectedType)
@@ -342,6 +409,7 @@ public class MarketplaceManifestService {
         }
         validateCapabilityProfiles(plugin, version, manifest.path("capabilityProfiles"));
         List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
+        validateConversationChannelInstallFields(plugin, version, contributionSummary.conversationChannel(), installForm);
         List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
         MarketplacePluginPricingSummary pricing = parsePricing(plugin, version, manifest.path("pricing"));
         MarketplacePluginPermissionsSummary permissions = parsePermissions(
@@ -463,6 +531,13 @@ public class MarketplaceManifestService {
             "allowedExecutionExtensions",
             contract.allowedExecutionExtensions()
         );
+        List<String> defaultExtensions = resolvedOptionalTemplateSubset(
+            plugin,
+            version,
+            behavior,
+            "defaultExecutionExtensions",
+            allowedExtensions
+        );
         List<String> allowedChannels = resolvedTemplateSubset(
             plugin,
             version,
@@ -475,9 +550,31 @@ public class MarketplaceManifestService {
             contract.contractVersion(),
             requiredCapabilities,
             allowedExtensions,
+            defaultExtensions,
             allowedChannels,
             verificationPacks
         );
+    }
+
+    private List<String> resolvedOptionalTemplateSubset(MarketplacePluginEntity plugin,
+                                                        MarketplacePluginVersionEntity version,
+                                                        JsonNode behavior,
+                                                        String field,
+                                                        List<String> allowedValues) {
+        if (!behavior.has(field)) {
+            return List.of();
+        }
+        List<String> configured = readStringList(behavior, field);
+        List<String> unsupported = configured.stream().filter(value -> !allowedValues.contains(value)).toList();
+        if (!unsupported.isEmpty()) {
+            throw invalid(
+                plugin,
+                version,
+                "template deploymentBehavior." + field + " contains values outside allowedExecutionExtensions: "
+                    + String.join(", ", unsupported)
+            );
+        }
+        return configured;
     }
 
     private List<String> resolvedExactTemplateValues(MarketplacePluginEntity plugin,
@@ -554,6 +651,7 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version, "each action contribution must declare id or actionId.");
             }
             validateGroundingVectorSpaces(plugin, version, action, actionId.trim());
+            validateConversationControlAction(plugin, version, action, actionId.trim());
             validateActionExecutionContribution(plugin, version, action, actionId.trim(), mcpServerRefs);
             JsonNode route = action.path("route");
             if (route.isObject()) {
@@ -609,6 +707,244 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private void validateConversationControlAction(MarketplacePluginEntity plugin,
+                                                   MarketplacePluginVersionEntity version,
+                                                   JsonNode action,
+                                                   String actionId) {
+        String adapterType = firstText(action, "adapterType");
+        boolean reservedAction = "request_conversation_handover".equals(actionId);
+        boolean reservedAdapter = "conversation-control".equals(adapterType);
+        if (!reservedAction && !reservedAdapter) {
+            return;
+        }
+        if (!reservedAction
+            || !reservedAdapter
+            || !"REQUEST_HANDOVER".equals(action.path("operation").asText(""))
+            || !action.path("terminal").asBoolean(false)
+            || !action.path("confirmationRequired").asBoolean(false)
+            || !action.path("anonymousAllowed").asBoolean(false)) {
+            throw invalid(
+                plugin,
+                version,
+                "conversation-control is reserved for the canonical confirmed terminal handover action."
+            );
+        }
+        if (action.has("route") || action.has("execution") || action.has("url") || action.has("path")) {
+            throw invalid(
+                plugin,
+                version,
+                "conversation-control actions cannot select an external route or executable adapter."
+            );
+        }
+    }
+
+    private MarketplacePluginContributionSummary parseIntegrationContribution(
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        JsonNode contributions
+    ) {
+        JsonNode channel = contributions.path("conversationChannel");
+        if (!channel.isObject()) {
+            throw invalid(plugin, version, "integration plugins must declare contributions.conversationChannel.");
+        }
+        rejectUnknownFields(plugin, version, channel, CONVERSATION_CHANNEL_FIELDS, "conversationChannel");
+        String contractVersion = channel.path("contractVersion").asText("").trim();
+        String bindingId = channel.path("bindingId").asText("").trim();
+        String adapterId = channel.path("adapterImplementationId").asText("").trim();
+        String adapterVersion = channel.path("adapterVersion").asText("").trim();
+        if (!CONVERSATION_CHANNEL_CONTRACT_VERSION.equals(contractVersion)) {
+            throw invalid(plugin, version, "conversationChannel contractVersion is unsupported.");
+        }
+        if (!bindingId.matches("^[a-z][a-z0-9-]{1,79}$")) {
+            throw invalid(plugin, version, "conversationChannel bindingId must be stable lower-kebab-case.");
+        }
+        if (!REVIEWED_CONVERSATION_CHANNEL_ADAPTERS
+            .getOrDefault(adapterId, Set.of())
+            .contains(adapterVersion)) {
+            throw invalid(plugin, version, "conversationChannel selects an unreviewed adapter implementation.");
+        }
+        List<String> compatibleBehaviorTypes = normalizeUppercaseValues(channel.path("compatibleBehaviorTypes"));
+        if (!compatibleBehaviorTypes.equals(List.of("CONVERSATIONAL"))) {
+            throw invalid(plugin, version, "Conversation Channel V1 is compatible only with CONVERSATIONAL deployments.");
+        }
+        List<String> capabilities = normalizeUppercaseValues(channel.path("capabilities"));
+        Set<String> uniqueCapabilities = new LinkedHashSet<>(capabilities);
+        if (!uniqueCapabilities.equals(CONVERSATION_CHANNEL_CAPABILITIES)
+            || uniqueCapabilities.size() != capabilities.size()) {
+            throw invalid(plugin, version, "conversationChannel capabilities must exactly match the reviewed V1 contract.");
+        }
+        String providerBaseUrlField = requiredManifestFieldRef(plugin, version, channel, "providerBaseUrlField");
+        String providerApiKeySecretRefField = requiredManifestFieldRef(plugin, version, channel, "providerApiKeySecretRefField");
+        String runtimeCallbackSigningSecretRefField = requiredManifestFieldRef(plugin, version, channel, "runtimeCallbackSigningSecretRefField");
+        String providerWebhookSigningSecretRefField = requiredManifestFieldRef(plugin, version, channel, "providerWebhookSigningSecretRefField");
+        String operatorConsoleUrlField = optionalManifestFieldRef(plugin, version, channel, "operatorConsoleUrlField");
+        List<String> requiredCapabilities = readStringList(channel.path("requiredRuntimeCapabilityIds"));
+        List<String> requiredMigrations = readStringList(channel.path("requiredMigrationIds"));
+        List<String> verificationPacks = readStringList(channel.path("verificationPackIds"));
+        if (!requiredCapabilities.containsAll(List.of("conversation-control", "conversation-channel-outbox"))
+            || !requiredMigrations.contains("loomai-conversation-handover-v1")
+            || !verificationPacks.contains("conversation-handover-v1")) {
+            throw invalid(plugin, version, "conversationChannel runtime requirements do not satisfy the V1 extension contract.");
+        }
+        JsonNode configuration = channel.path("configuration");
+        validateConversationChannelConfiguration(plugin, version, configuration);
+        MarketplaceConversationChannelContributionSummary summary =
+            new MarketplaceConversationChannelContributionSummary(
+                contractVersion,
+                bindingId,
+                adapterId,
+                adapterVersion,
+                compatibleBehaviorTypes,
+                capabilities,
+                providerBaseUrlField,
+                providerApiKeySecretRefField,
+                runtimeCallbackSigningSecretRefField,
+                providerWebhookSigningSecretRefField,
+                operatorConsoleUrlField,
+                requiredCapabilities,
+                requiredMigrations,
+                verificationPacks,
+                configuration.deepCopy()
+            );
+        return new MarketplacePluginContributionSummary(
+            null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            null, null, List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), summary
+        );
+    }
+
+    private void validateConversationChannelConfiguration(MarketplacePluginEntity plugin,
+                                                          MarketplacePluginVersionEntity version,
+                                                          JsonNode configuration) {
+        if (!configuration.isObject()) {
+            throw invalid(plugin, version, "conversationChannel configuration must be an object.");
+        }
+        rejectUnknownFields(
+            plugin,
+            version,
+            configuration,
+            CONVERSATION_CHANNEL_CONFIGURATION_FIELDS,
+            "conversationChannel.configuration"
+        );
+        if (!"REQUIRE_USER_CONFIRMATION".equals(configuration.path("modelInitiatedPolicy").asText(""))
+            || !configuration.path("userCanCancelPending").asBoolean(false)
+            || !configuration.path("userCanResumeAi").asBoolean(false)
+            || configuration.path("activeIdleAutoResume").asBoolean(true)
+            || !"EXPIRED_REQUIRES_EXPLICIT_RECOVERY".equals(configuration.path("queueTimeoutOutcome").asText(""))
+            || !"SAFE_TEXT_AND_ATTACHMENT_REFS".equals(configuration.path("transcriptProjection").asText(""))) {
+            throw invalid(plugin, version, "conversationChannel configuration widens the reviewed V1 control policy.");
+        }
+        int queueTimeoutSeconds = configuration.path("queueTimeoutSeconds").asInt(-1);
+        JsonNode intake = configuration.path("intake");
+        if (queueTimeoutSeconds < 30 || queueTimeoutSeconds > 3_600
+            || !intake.isObject()
+            || !intake.path("fields").isArray()
+            || intake.path("fields").size() > 6) {
+            throw invalid(plugin, version, "conversationChannel timeout or intake schema is outside the V1 bounds.");
+        }
+        rejectUnknownFields(
+            plugin,
+            version,
+            intake,
+            CONVERSATION_CHANNEL_INTAKE_FIELDS,
+            "conversationChannel.configuration.intake"
+        );
+        if (!intake.path("anonymousAllowed").asBoolean(false)) {
+            throw invalid(plugin, version, "Conversation Channel V1 must allow deployment-owned anonymous continuation.");
+        }
+        Set<String> fieldIds = new LinkedHashSet<>();
+        for (JsonNode field : intake.path("fields")) {
+            if (!field.isObject()) {
+                throw invalid(plugin, version, "conversationChannel intake fields must be objects.");
+            }
+            rejectUnknownFields(
+                plugin,
+                version,
+                field,
+                CONVERSATION_CHANNEL_INTAKE_FIELD_FIELDS,
+                "conversationChannel.configuration.intake.fields entry"
+            );
+            String id = field.path("id").asText("").trim();
+            String expectedType = CONVERSATION_CHANNEL_INTAKE_FIELD_TYPES.get(id);
+            if (expectedType == null || !fieldIds.add(id)) {
+                throw invalid(plugin, version, "conversationChannel intake field IDs must be unique reviewed V1 fields.");
+            }
+            int maxLength = field.path("maxLength").asInt(-1);
+            if (!expectedType.equals(field.path("type").asText(""))
+                || field.path("required").asBoolean(true)
+                || maxLength < 1
+                || maxLength > CONVERSATION_CHANNEL_INTAKE_FIELD_MAX_LENGTHS.get(id)
+                || !StringUtils.hasText(field.path("label").asText(""))
+                || field.path("label").asText("").length() > 80
+                || !StringUtils.hasText(field.path("purpose").asText(""))
+                || field.path("purpose").asText("").length() > 200) {
+                throw invalid(plugin, version, "conversationChannel intake field '" + id + "' is outside the V1 bounds.");
+            }
+            boolean consentRequired = field.path("consentRequired").asBoolean(false);
+            if (("email".equals(id) || "phone".equals(id)) != consentRequired) {
+                throw invalid(plugin, version, "conversationChannel follow-up fields require explicit consent.");
+            }
+        }
+    }
+
+    private String requiredManifestFieldRef(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode node,
+                                            String field) {
+        String value = optionalManifestFieldRef(plugin, version, node, field);
+        if (!StringUtils.hasText(value)) {
+            throw invalid(plugin, version, "conversationChannel " + field + " is required.");
+        }
+        return value;
+    }
+
+    private String optionalManifestFieldRef(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode node,
+                                            String field) {
+        String value = node.path(field).asText("").trim();
+        if (StringUtils.hasText(value) && !value.matches("^[A-Za-z][A-Za-z0-9_-]{1,79}$")) {
+            throw invalid(plugin, version, "conversationChannel " + field + " is invalid.");
+        }
+        return value;
+    }
+
+    private void validateConversationChannelInstallFields(
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        MarketplaceConversationChannelContributionSummary channel,
+        List<MarketplacePluginInstallFieldSummary> installForm
+    ) {
+        if (channel == null) {
+            return;
+        }
+        Map<String, MarketplacePluginInstallFieldSummary> fields = installForm.stream()
+            .collect(java.util.stream.Collectors.toMap(
+                MarketplacePluginInstallFieldSummary::id,
+                value -> value,
+                (left, right) -> left
+            ));
+        requireInstallField(plugin, version, fields, channel.providerBaseUrlField(), "url");
+        requireInstallField(plugin, version, fields, channel.providerApiKeySecretRefField(), "secretRef");
+        requireInstallField(plugin, version, fields, channel.runtimeCallbackSigningSecretRefField(), "secretRef");
+        requireInstallField(plugin, version, fields, channel.providerWebhookSigningSecretRefField(), "secretRef");
+        if (StringUtils.hasText(channel.operatorConsoleUrlField())) {
+            requireInstallField(plugin, version, fields, channel.operatorConsoleUrlField(), "url");
+        }
+    }
+
+    private void requireInstallField(MarketplacePluginEntity plugin,
+                                     MarketplacePluginVersionEntity version,
+                                     Map<String, MarketplacePluginInstallFieldSummary> fields,
+                                     String fieldId,
+                                     String expectedType) {
+        MarketplacePluginInstallFieldSummary field = fields.get(fieldId);
+        if (field == null || !expectedType.equals(field.type())) {
+            throw invalid(plugin, version, "conversationChannel install field '" + fieldId
+                + "' must exist with type " + expectedType + ".");
+        }
     }
 
     private void validateGroundingVectorSpaces(MarketplacePluginEntity plugin,
@@ -1820,11 +2156,20 @@ public class MarketplaceManifestService {
         Integer contractVersion,
         List<String> requiredRuntimeCapabilityIds,
         List<String> allowedExecutionExtensions,
+        List<String> defaultExecutionExtensions,
         List<String> allowedChannelBindings,
         List<String> verificationPackIds
     ) {
         private static TemplateBehaviorContribution empty() {
-            return new TemplateBehaviorContribution(null, null, List.of(), List.of(), List.of(), List.of());
+            return new TemplateBehaviorContribution(
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()
+            );
         }
     }
 
@@ -3293,7 +3638,7 @@ public class MarketplaceManifestService {
                                                                  List<MarketplacePluginInstallFieldSummary> installForm) {
         boolean hasShellPresentation = !contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty();
         boolean requiresDeploymentSecrets = installForm.stream().anyMatch(field -> "secretRef".equals(field.type()));
-        boolean requiresExternalHttpExecution = false;
+        boolean requiresExternalHttpExecution = "INTEGRATION".equals(pluginType);
         boolean requiresSharedDatasetAccess = "DATA".equals(pluginType) && !contributions.knowledgeSourceIds().isEmpty();
         return new MarketplacePluginPermissionsSummary(
             permissionsNode.path("contributesTemplate").asBoolean("TEMPLATE".equals(pluginType)),
@@ -3301,6 +3646,7 @@ public class MarketplaceManifestService {
             permissionsNode.path("contributesKnowledgeSources").asBoolean("DATA".equals(pluginType)),
             permissionsNode.path("contributesProviders").asBoolean("INFERENCE_PROFILE".equals(pluginType)),
             permissionsNode.path("contributesSpecialists").asBoolean("SPECIALIST".equals(pluginType)),
+            permissionsNode.path("contributesIntegrations").asBoolean("INTEGRATION".equals(pluginType)),
             permissionsNode.path("contributesShellPresentation").asBoolean(hasShellPresentation),
             permissionsNode.path("requiresExternalHttpExecution").asBoolean(requiresExternalHttpExecution),
             permissionsNode.path("requiresSharedDatasetAccess").asBoolean(requiresSharedDatasetAccess),
@@ -3328,6 +3674,9 @@ public class MarketplaceManifestService {
         }
         if (!contributions.specialistBundleRefs().isEmpty() && !permissions.contributesSpecialists()) {
             throw invalid(plugin, version, "specialist contributions require permissions.contributesSpecialists=true.");
+        }
+        if (contributions.conversationChannel() != null && !permissions.contributesIntegrations()) {
+            throw invalid(plugin, version, "conversation channel contributions require permissions.contributesIntegrations=true.");
         }
         if ((!contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty())
             && !permissions.contributesShellPresentation()) {

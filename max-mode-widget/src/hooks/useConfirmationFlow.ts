@@ -21,6 +21,7 @@ export function useConfirmationFlow({
   setCurrentConversationId,
   setIsLoading,
   toast,
+  onRuntimeResponse,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   currentConversationId: string | null;
@@ -31,6 +32,7 @@ export function useConfirmationFlow({
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   toast: ToastFn;
+  onRuntimeResponse?: (response: any) => void;
 }) {
   const handleConfirmation = useCallback(
     async (messageId: string, confirmed: boolean) => {
@@ -57,7 +59,8 @@ export function useConfirmationFlow({
           conversationId: currentConversationId || undefined,
           attachments: toRuntimeAttachments(attachedItems),
           mode: currentMode,
-        });
+        }, { idempotencyKey: `confirmation-${userMessage.id}` });
+        onRuntimeResponse?.(data);
 
         if (data.conversationId && !currentConversationId) {
           setCurrentConversationId(data.conversationId);
@@ -132,6 +135,7 @@ export function useConfirmationFlow({
       setContextDocuments,
       setCurrentConversationId,
       setIsLoading,
+      onRuntimeResponse,
       toast,
     ],
   );

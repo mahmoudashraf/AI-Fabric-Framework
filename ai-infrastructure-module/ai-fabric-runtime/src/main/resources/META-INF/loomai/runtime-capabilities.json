@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.30",
+  "aiFabricVersion": "0.8.32",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -21,12 +21,19 @@
     "SIGNED_WEBHOOK"
   ],
   "supportedExecutionExtensions": [
-    "HUMAN_REVIEW"
+    "HUMAN_REVIEW",
+    "CONVERSATION_HANDOVER"
   ],
   "capabilities": [
     "ai-fabric-chat-session",
     "ai-fabric-core",
     "ai-fabric-execution",
+    "conversation-control",
+    "participant-messages",
+    "conversation-turn-leases",
+    "durable-conversation-handover",
+    "conversation-channel-outbox",
+    "conversation-event-stream",
     "action-proposal-human-review",
     "cloudevents-ingress",
     "customer-backend-ingestion",
@@ -44,6 +51,12 @@
   ],
   "endpointClasses": [
     "chat-query",
+    "canonical-conversation-message",
+    "owner-handover-control",
+    "conversation-event-stream-replay",
+    "conversation-channel-dispatch",
+    "conversation-channel-callback",
+    "explicit-ai-resume",
     "chain-cancel",
     "chain-execute",
     "chain-status-result",
@@ -83,6 +96,7 @@
     "loomai-smart-brain-delivery-v1",
     "loomai-smart-brain-operation-v1",
     "loomai-smart-brain-scheduler-v1"
+    ,"loomai-conversation-handover-v1"
     ,"loomai-document-ingestion-v1"
     ,"integration-connector-state-v1"
   ],
@@ -91,6 +105,7 @@
     "conversational-behavior-v1",
     "human-review-action-proposal-v1",
     "smart-brain-behavior-v1"
+    ,"conversation-handover-v1"
     ,"document-knowledge-operations-v1"
     ,"external-http-integration-v1"
   ],

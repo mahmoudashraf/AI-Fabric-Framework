@@ -13,6 +13,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +29,9 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
 
     @Autowired
     private MarketplaceCatalogService marketplaceCatalogService;
+
+    @Autowired
+    private MarketplaceManifestService marketplaceManifestService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -50,6 +56,61 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(starterPrompts).hasSize(3);
         assertThat(starterPrompts).extracting(node -> node.path("id").asText())
             .contains("support-capabilities", "refund-policy", "notification-troubleshooting");
+    }
+
+    @Test
+    void canonicalConversationControlActionCompilesAsServerOwnedBindingOnly() throws Exception {
+        MarketplacePluginEntity plugin = actionPlugin("mkp-action-conversation-handover");
+        MarketplacePluginVersionEntity version = actionVersion(
+            plugin.getId(),
+            """
+                {
+                  "schemaVersion": 1,
+                  "pluginType": "ACTION",
+                  "compatibility": {"requiredCapabilities": ["actions"]},
+                  "pricing": {"pricingModel": "FREE"},
+                  "permissions": {"contributesActions": true},
+                  "contributions": {
+                    "actions": [{
+                      "actionId": "request_conversation_handover",
+                      "description": "Request temporary human ownership.",
+                      "readOnly": false,
+                      "confirmationRequired": true,
+                      "anonymousAllowed": true,
+                      "terminal": true,
+                      "adapterType": "conversation-control",
+                      "operation": "REQUEST_HANDOVER"
+                    }]
+                  }
+                }
+                """
+        );
+        DeploymentMarketplacePluginInstallEntity install = install();
+        install.setPluginId(plugin.getId());
+        install.setPluginVersionId(version.getId());
+        ObjectNode actionsRoot = objectMapper.createObjectNode();
+        ObjectNode shellRoot = objectMapper.createObjectNode();
+        Map<String, ObjectNode> bindings = new LinkedHashMap<>();
+
+        compilerService.applyActionPlugin(
+            actionsRoot,
+            shellRoot,
+            install,
+            plugin,
+            version,
+            marketplaceManifestService.parseAndValidate(plugin, version),
+            new LinkedHashSet<>(),
+            bindings
+        );
+
+        assertThat(actionsRoot.path("actions")).isEmpty();
+        assertThat(bindings).containsOnlyKeys("request_conversation_handover");
+        JsonNode binding = bindings.get("request_conversation_handover");
+        assertThat(binding.path("implementation").asText()).isEqualTo("SERVER_OWNED_RUNTIME_ACTION");
+        assertThat(binding.path("operation").asText()).isEqualTo("REQUEST_HANDOVER");
+        assertThat(binding.path("marketplacePluginId").asText()).isEqualTo(plugin.getId());
+        assertThat(binding.has("route")).isFalse();
+        assertThat(binding.has("execution")).isFalse();
     }
 
     @Test
@@ -533,6 +594,22 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         plugin.setCreatedAt(Instant.parse("2026-05-04T00:00:00Z"));
         plugin.setUpdatedAt(Instant.parse("2026-05-04T00:00:00Z"));
         return plugin;
+    }
+
+    private MarketplacePluginEntity actionPlugin(String id) {
+        MarketplacePluginEntity plugin = plugin();
+        plugin.setId(id);
+        plugin.setSlug(id.replace("mkp-action-", ""));
+        plugin.setDisplayName("Conversation Handover Action");
+        return plugin;
+    }
+
+    private MarketplacePluginVersionEntity actionVersion(String pluginId, String manifest) {
+        MarketplacePluginVersionEntity version = version();
+        version.setId("mkv-" + pluginId + "-v1");
+        version.setPluginId(pluginId);
+        version.setManifestJson(manifest);
+        return version;
     }
 
     private MarketplacePluginVersionEntity version() {

@@ -50,6 +50,27 @@ public class DeploymentIntegrationOperationsController {
         return response(service.replayWebhook(deploymentId, sourceId, eventId));
     }
 
+    @GetMapping("/conversation-handover")
+    public ResponseEntity<JsonNode> conversationHandover(@PathVariable String deploymentId) {
+        return response(service.conversationHandoverOverview(deploymentId));
+    }
+
+    @PostMapping("/conversation-handover/dispatches/{dispatchId}/retry")
+    public ResponseEntity<JsonNode> retryConversationHandoverDispatch(
+        @PathVariable String deploymentId,
+        @PathVariable String dispatchId
+    ) {
+        return response(service.retryConversationHandoverDispatch(deploymentId, dispatchId));
+    }
+
+    @PostMapping("/conversation-handover/handovers/{handoverId}/expire")
+    public ResponseEntity<JsonNode> expireConversationHandover(
+        @PathVariable String deploymentId,
+        @PathVariable String handoverId
+    ) {
+        return response(service.expireConversationHandover(deploymentId, handoverId));
+    }
+
     private ResponseEntity<JsonNode> response(DeploymentIntegrationOperationsService.RuntimeResponse response) {
         return ResponseEntity.status(response.status()).body(response.body());
     }

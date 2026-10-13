@@ -31,9 +31,15 @@ function normalizePath(value: string): string {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
-function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl" | "shellConfigUrl") {
+function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl" | "shellConfigUrl" | "conversationMessageUrlTemplate") {
   const routes = getWidgetConfig().apiConfig.runtimeRoutes;
   return trimToNull(routes?.[name]);
+}
+
+function canonicalMessagePath(conversationId?: string) {
+  const template = routeOverride("conversationMessageUrlTemplate");
+  if (!template || !conversationId?.trim()) return undefined;
+  return normalizePath(template).replace("{conversationId}", encodeURIComponent(conversationId.trim()));
 }
 
 function queryPath() {
@@ -89,12 +95,17 @@ export async function getChatSuggestions(payload: {
   });
 }
 
-export async function postChatQuery(payload: any) {
-  const path = queryPath();
+export async function postChatQuery(payload: any, options?: { idempotencyKey?: string }) {
+  const path = canonicalMessagePath(payload?.conversationId) ?? queryPath();
   const startedAt = performance.now();
   const response = await apiFetchResponse(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(canonicalMessagePath(payload?.conversationId)
+        ? { "Idempotency-Key": options?.idempotencyKey ?? createRequestId("message") }
+        : {}),
+    },
     body: JSON.stringify(payload),
   });
   const durationMs = Math.round(performance.now() - startedAt);
@@ -136,6 +147,25 @@ export function resolvedChatQueryPath() {
 
 export function resolvedChatQueryUrl() {
   return resolveUrl(queryPath());
+}
+
+export function resolvedChatMessageUrl(conversationId?: string) {
+  return resolveUrl(canonicalMessagePath(conversationId) ?? queryPath());
+}
+
+export function usesCanonicalConversationMessages() {
+  return Boolean(routeOverride("conversationMessageUrlTemplate"));
+}
+
+export function createConversationId() {
+  return createRequestId("chat");
+}
+
+function createRequestId(prefix: string) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${suffix}`;
 }
 
 export function resolvedSuggestionsPath() {

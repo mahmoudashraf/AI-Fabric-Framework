@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -97,6 +98,69 @@ public class DeploymentIntegrationOperationsService {
         return response;
     }
 
+    public RuntimeResponse conversationHandoverOverview(String deploymentId) {
+        OperationAccess access = requireConversationHandoverAccess(deploymentId, false);
+        RuntimeResponse runtime = send(
+            access,
+            "GET",
+            "/api/admin/conversation-handover/overview",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_READ)
+        );
+        if (runtime.statusCode() < 200 || runtime.statusCode() >= 300) {
+            return runtime;
+        }
+        RuntimeResponse connector = send(
+            access,
+            "GET",
+            "/api/admin/connector/conversation-channel",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_READ)
+        );
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("success", true);
+        body.set("runtime", runtime.body());
+        ObjectNode connectorProjection = body.putObject("connector");
+        connectorProjection.put("reachable", connector.statusCode() >= 200 && connector.statusCode() < 300);
+        connectorProjection.put("statusCode", connector.statusCode());
+        if (connector.statusCode() >= 200 && connector.statusCode() < 300) {
+            connectorProjection.set("status", connector.body());
+        }
+        String operatorConsoleUrl = operatorConsoleUrl(access.version());
+        if (StringUtils.hasText(operatorConsoleUrl)) {
+            body.put("operatorConsoleUrl", operatorConsoleUrl);
+        }
+        return new RuntimeResponse(200, body);
+    }
+
+    public RuntimeResponse retryConversationHandoverDispatch(String deploymentId, String dispatchId) {
+        OperationAccess access = requireConversationHandoverAccess(deploymentId, true);
+        String normalizedDispatch = required(dispatchId, "dispatchId");
+        RuntimeResponse response = send(
+            access,
+            "POST",
+            "/api/admin/conversation-handover/dispatches/" + encode(normalizedDispatch) + "/retry",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER)
+        );
+        auditSuccess("CONVERSATION_HANDOVER_DISPATCH_RETRY_REQUESTED", access.deployment(), response, Map.of(
+            "dispatchId", normalizedDispatch
+        ));
+        return response;
+    }
+
+    public RuntimeResponse expireConversationHandover(String deploymentId, String handoverId) {
+        OperationAccess access = requireConversationHandoverAccess(deploymentId, true);
+        String normalizedHandover = required(handoverId, "handoverId");
+        RuntimeResponse response = send(
+            access,
+            "POST",
+            "/api/admin/conversation-handover/handovers/" + encode(normalizedHandover) + "/expire",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER)
+        );
+        auditSuccess("CONVERSATION_HANDOVER_EXPIRE_REQUESTED", access.deployment(), response, Map.of(
+            "handoverId", normalizedHandover
+        ));
+        return response;
+    }
+
     private OperationAccess requireAccess(String deploymentId, boolean mutate) {
         DeploymentEntity deployment = deploymentRepository.findById(required(deploymentId, "deploymentId"))
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
@@ -120,7 +184,33 @@ public class DeploymentIntegrationOperationsService {
         if (!RuntimePrivateAccessSupport.isConfigured(secretService, objectMapper)) {
             throw new ResponseStatusException(BAD_REQUEST, "Secure private-runtime integration administration is not configured.");
         }
-        return new OperationAccess(deployment);
+        return new OperationAccess(deployment, version);
+    }
+
+    private OperationAccess requireConversationHandoverAccess(String deploymentId, boolean mutate) {
+        DeploymentEntity deployment = deploymentRepository.findById(required(deploymentId, "deploymentId"))
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+        if (mutate) {
+            accessService.requireDeploymentOperatorAccess(deployment);
+        } else {
+            accessService.requireDeploymentAccess(deployment);
+        }
+        if (!StringUtils.hasText(deployment.getActiveVersionId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Apply a conversation-handover-enabled version first.");
+        }
+        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
+            .filter(candidate -> deployment.getId().equals(candidate.getDeploymentId()))
+            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "The active deployment version is unavailable."));
+        if (!claimsConversationHandover(version)) {
+            throw new ResponseStatusException(BAD_REQUEST, "The active deployment version does not claim Conversation Handover.");
+        }
+        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
+            throw new ResponseStatusException(BAD_REQUEST, "The deployment runtime URL is unavailable.");
+        }
+        if (!RuntimePrivateAccessSupport.isConfigured(secretService, objectMapper)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Secure private-runtime integration administration is not configured.");
+        }
+        return new OperationAccess(deployment, version);
     }
 
     private boolean claimsExternalHttpIntegration(DeploymentVersionEntity version) {
@@ -136,14 +226,25 @@ public class DeploymentIntegrationOperationsService {
         return false;
     }
 
+    private boolean claimsConversationHandover(DeploymentVersionEntity version) {
+        return readJson(version.getBehaviorConfigJson())
+            .path("conversationHandover")
+            .path("enabled")
+            .asBoolean(false);
+    }
+
     private RuntimeResponse send(OperationAccess access, String method, String path, boolean mutate) {
+        List<String> scopes = mutate
+            ? List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_WRITE)
+            : List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_READ);
+        return send(access, method, path, scopes);
+    }
+
+    private RuntimeResponse send(OperationAccess access, String method, String path, List<String> scopes) {
         try {
             HttpRequest.Builder request = HttpRequest.newBuilder(runtimeUri(access.deployment().getRuntimeBaseUrl(), path))
                 .timeout(TIMEOUT)
                 .header("Accept", "application/json");
-            List<String> scopes = mutate
-                ? List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_WRITE)
-                : List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_READ);
             RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
                 secretService,
                 objectMapper,
@@ -208,6 +309,16 @@ public class DeploymentIntegrationOperationsService {
         }
     }
 
+    private String operatorConsoleUrl(DeploymentVersionEntity version) {
+        String value = readJson(version.getBehaviorConfigJson())
+            .path("conversationHandover")
+            .path("channel")
+            .path("operatorConsoleUrl")
+            .asText("")
+            .trim();
+        return StringUtils.hasText(value) ? value : null;
+    }
+
     private String required(String value, String field) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isEmpty() || normalized.length() > 160 || !normalized.matches("[A-Za-z0-9._:-]+")) {
@@ -230,7 +341,7 @@ public class DeploymentIntegrationOperationsService {
         auditService.record(action, "DEPLOYMENT", deployment.getId(), safe);
     }
 
-    private record OperationAccess(DeploymentEntity deployment) {
+    private record OperationAccess(DeploymentEntity deployment, DeploymentVersionEntity version) {
     }
 
     public record RuntimeResponse(int statusCode, JsonNode body) {

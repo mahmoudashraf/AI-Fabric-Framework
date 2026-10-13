@@ -54,7 +54,17 @@ export function getConversation(conversationId: string) {
 }
 
 export async function deleteConversation(conversationId: string) {
-  await apiFetchOk(conversationItemPath(conversationId), { method: "DELETE" });
+  await apiFetchOk(conversationItemPath(conversationId), {
+    method: "DELETE",
+    headers: { "Idempotency-Key": createRequestId("close-conversation") },
+  });
+}
+
+function createRequestId(prefix: string) {
+  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${suffix}`;
 }
 
 function resolveUrl(path: string): string {

@@ -11,6 +11,8 @@ public final class RuntimeAdminScopeCatalog {
     public static final String RUNTIME_INDEXING_VECTORS = "runtime:index:vectors";
     public static final String RUNTIME_CONNECTOR_READ = "runtime:connector:read";
     public static final String RUNTIME_CONNECTOR_WRITE = "runtime:connector:write";
+    public static final String RUNTIME_CONVERSATION_HANDOVER_READ = "runtime:conversation-handover:read";
+    public static final String RUNTIME_CONVERSATION_HANDOVER_RECOVER = "runtime:conversation-handover:recover";
     public static final String RUNTIME_MIGRATION_CLEAR = "runtime:migration:clear";
 
     private RuntimeAdminScopeCatalog() {

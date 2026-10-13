@@ -2177,6 +2177,85 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanWiresConversationHandoverWithoutWideningDataSyncBypass() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity handoverVersion = version();
+        handoverVersion.setBehaviorConfigJson("""
+            {
+              "schemaVersion": "loomai-deployment-behavior-v1",
+              "type": "CONVERSATIONAL",
+              "contractVersion": 1,
+              "executionExtensions": ["CONVERSATION_HANDOVER"],
+              "conversationHandover": {
+                "enabled": true,
+                "channelBindingId": "basic-loomai-inbox",
+                "intake": {
+                  "anonymousAllowed": true,
+                  "fields": [{"id": "email", "required": false}]
+                },
+                "channel": {
+                  "providerBaseUrl": "https://inbox.example",
+                  "providerApiKeySecretRef": "INBOX_PROVIDER_API_KEY",
+                  "runtimeCallbackSigningSecretRef": "INBOX_RUNTIME_CALLBACK_SIGNING_SECRET",
+                  "providerWebhookSigningSecretRef": "INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET"
+                }
+              }
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), handoverVersion);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("LOOMAI_CONVERSATION_HANDOVER_ENABLED", "true")
+            .containsEntry("LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID", "basic-loomai-inbox")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_ENABLED", "true")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_VALUE",
+                "${secret:" + DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-123") + "}"
+            )
+            .containsEntry(
+                "LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET",
+                "${secret:INBOX_RUNTIME_CALLBACK_SIGNING_SECRET}"
+            )
+            .doesNotContainKey("AI_DATA_SYNC_ALLOW_TRUSTED_PLATFORM_INTERNAL_SYNC_BYPASS");
+        assertThat(connectorEnv)
+            .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_ENABLED", "true")
+            .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID", "basic-loomai-inbox")
+            .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL", "https://inbox.example")
+            .containsEntry(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY",
+                "${secret:INBOX_PROVIDER_API_KEY}"
+            )
+            .containsEntry(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET",
+                "${secret:INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET}"
+            );
+    }
+
+    @Test
     void buildPlanInjectsManagedSecretsReferencedByConnectorRouting() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

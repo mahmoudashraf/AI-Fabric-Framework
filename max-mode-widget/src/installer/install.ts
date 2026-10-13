@@ -170,7 +170,7 @@ async function connectionWidgetConfig(
         renewUrl: absoluteUrl(connection.runtimeBaseUrl, connection.anonymousBootstrap.renewUrl),
         authContextUrl: absoluteUrl(connection.runtimeBaseUrl, connection.routes.authContextUrl),
         probeAuthContextOnOpen: true,
-      }),
+      }, connection.conversationHandover),
     };
   }
   if (connection.mode === "public-runtime-authenticated") {
@@ -183,7 +183,7 @@ async function connectionWidgetConfig(
         authContextUrl: absoluteUrl(connection.runtimeBaseUrl, connection.routes.authContextUrl),
         probeAuthContextOnOpen: true,
         getBearerToken: tokenSupplier,
-      }),
+      }, connection.conversationHandover),
     };
   }
   const adapterConfig = await bootstrapPrivateAdapter(connection, manifest);
@@ -193,7 +193,12 @@ async function connectionWidgetConfig(
   };
 }
 
-function directRuntimeApiConfig(runtimeBaseUrl: string, routes: WorkspaceRuntimeRoutes, runtimeAuth: Record<string, unknown>) {
+function directRuntimeApiConfig(
+  runtimeBaseUrl: string,
+  routes: WorkspaceRuntimeRoutes,
+  runtimeAuth: Record<string, unknown>,
+  conversationHandover?: import("@/config").MaxModeConversationHandoverConfig,
+) {
   const base = normalizeHttpsUrl(runtimeBaseUrl, "runtimeBaseUrl");
   return {
     chatBaseUrl: base,
@@ -204,7 +209,9 @@ function directRuntimeApiConfig(runtimeBaseUrl: string, routes: WorkspaceRuntime
       shellConfigUrl: absoluteUrl(base, routes.shellConfigUrl),
       conversationsUrl: absoluteUrl(base, routes.conversationsUrl),
       conversationItemUrlTemplate: absoluteTemplateUrl(base, routes.conversationItemUrlTemplate),
+      ...optionalRuntimeRoutes(base, routes),
     },
+    conversationHandover,
     runtimeAuth,
     probeShellConfigOnOpen: true,
   };
@@ -291,7 +298,9 @@ async function bootstrapPrivateAdapter(
       shellConfigUrl: absoluteUrl(chatBaseUrl, routes.shellConfigUrl),
       conversationsUrl: absoluteUrl(chatBaseUrl, routes.conversationsUrl),
       conversationItemUrlTemplate: absoluteTemplateUrl(chatBaseUrl, routes.conversationItemUrlTemplate),
+      ...optionalRuntimeRoutes(chatBaseUrl, routes),
     },
+    conversationHandover: validateConversationHandover(result.conversationHandover),
     features: { conversations: conversationsEnabled },
     probeShellConfigOnOpen: result.probeShellConfigOnOpen === true,
     runtimeAuth: { probeAuthContextOnOpen: result.probeAuthContextOnOpen === true },
@@ -361,6 +370,30 @@ function validateRoutes(value: any): WorkspaceRuntimeRoutes {
   return value as WorkspaceRuntimeRoutes;
 }
 
+function optionalRuntimeRoutes(baseUrl: string, routes: WorkspaceRuntimeRoutes) {
+  const routeKeys = [
+    "conversationMessageUrlTemplate",
+    "handoverRequestUrlTemplate",
+    "handoverCancelUrlTemplate",
+    "handoverRetryUrlTemplate",
+    "conversationControlUrlTemplate",
+    "conversationEventsUrlTemplate",
+    "aiResumeRequestUrlTemplate",
+  ] as const;
+  return Object.fromEntries(routeKeys.flatMap((key) => {
+    const route = routes[key];
+    return typeof route === "string" && route.startsWith("/api/")
+      ? [[key, absoluteTemplateUrl(baseUrl, route)]]
+      : [];
+  }));
+}
+
+function validateConversationHandover(value: unknown) {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Record<string, unknown>;
+  return candidate.enabled === true ? candidate : { enabled: false };
+}
+
 function validateEphemeralHeaders(value: unknown) {
   if (value == null) return undefined;
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Private adapter headers are invalid.");
@@ -416,8 +449,19 @@ function absoluteUrl(base: string, path: string) {
 }
 
 function absoluteTemplateUrl(base: string, path: string) {
-  const placeholder = "__LOOMAI_CONVERSATION_ID__";
-  return new URL(path.replace("{conversationId}", placeholder), `${base}/`).toString().replace(placeholder, "{conversationId}");
+  const placeholders = new Map([
+    ["{conversationId}", "__LOOMAI_CONVERSATION_ID__"],
+    ["{handoverId}", "__LOOMAI_HANDOVER_ID__"],
+  ]);
+  let safePath = path;
+  placeholders.forEach((placeholder, token) => {
+    safePath = safePath.replace(token, placeholder);
+  });
+  let result = new URL(safePath, `${base}/`).toString();
+  placeholders.forEach((placeholder, token) => {
+    result = result.replace(placeholder, token);
+  });
+  return result;
 }
 
 function validateRegistration(registration: AIWorkspaceExperiencePackRegistration) {

@@ -77,6 +77,9 @@ ai:
           issuer: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER:runtime-public-bootstrap}
           accepted-issuers: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS:}
           accepted-audiences: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES:}
+          anonymous-granted-scopes: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ANONYMOUS_GRANTED_SCOPES:chat:query,chat:suggestions,chat:conversations}
+          authenticated-default-scopes: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES:chat:query,chat:suggestions,chat:conversations}
+          authenticated-allowed-scopes: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES:chat:query,chat:suggestions,chat:conversations}
           default-audience: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE:}
           ttl-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_TTL_SECONDS:900}
           bootstrap:
@@ -107,6 +110,9 @@ ai:
     window-size: 12
     max-context-chars: 8000
     auto-create-sessions: true
+    control:
+      enabled: ${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}
+      initialize-schema: false
 
   # Default OFF for privacy/noise in dev. Enable if you want analytics/auditing.
   intent-history:
@@ -342,6 +348,24 @@ app:
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
 
 loomai:
+  conversation-handover:
+    enabled: ${LOOMAI_CONVERSATION_HANDOVER_ENABLED:false}
+    channel-binding-id: ${LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID:}
+    encryption-secret: ${LOOMAI_CONVERSATION_HANDOVER_ENCRYPTION_SECRET:}
+    callback-signing-secret: ${LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET:}
+    retention: ${LOOMAI_CONVERSATION_HANDOVER_RETENTION:P30D}
+    intake-retention: ${LOOMAI_CONVERSATION_HANDOVER_INTAKE_RETENTION:P7D}
+    queue-timeout: ${LOOMAI_CONVERSATION_HANDOVER_QUEUE_TIMEOUT:PT15M}
+    maintenance-interval: ${LOOMAI_CONVERSATION_HANDOVER_MAINTENANCE_INTERVAL:PT30S}
+    ai-turn-lease: ${LOOMAI_CONVERSATION_HANDOVER_AI_TURN_LEASE:PT5M}
+    callback-clock-skew: ${LOOMAI_CONVERSATION_HANDOVER_CALLBACK_CLOCK_SKEW:PT5M}
+    anonymous-allowed: ${LOOMAI_CONVERSATION_HANDOVER_ANONYMOUS_ALLOWED:true}
+    contact-intake-enabled: ${LOOMAI_CONVERSATION_HANDOVER_CONTACT_INTAKE_ENABLED:true}
+    intake-schema-json: ${LOOMAI_CONVERSATION_HANDOVER_INTAKE_SCHEMA_JSON:}
+    required-intake-fields: ${LOOMAI_CONVERSATION_HANDOVER_REQUIRED_INTAKE_FIELDS:}
+    sse-core-threads: ${LOOMAI_CONVERSATION_HANDOVER_SSE_CORE_THREADS:4}
+    sse-max-threads: ${LOOMAI_CONVERSATION_HANDOVER_SSE_MAX_THREADS:32}
+    sse-queue-capacity: ${LOOMAI_CONVERSATION_HANDOVER_SSE_QUEUE_CAPACITY:128}
   deployment:
     manifest-url: ${LOOMAI_DEPLOYMENT_MANIFEST_URL:}
   documents:

@@ -1,5 +1,6 @@
 import CableRoundedIcon from '@mui/icons-material/CableRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
+import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
@@ -25,9 +26,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import {
+  expireConversationHandover,
+  fetchConversationHandoverOperations,
   fetchDeploymentIntegrations,
   reconcileDeploymentIntegrationSource,
   replayDeploymentIntegrationWebhook,
+  retryConversationHandoverDispatch,
+  type ConversationHandoverOperationsOverview,
   type IntegrationWebhookEvent,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -53,14 +58,25 @@ function errorText(value: unknown): string {
 export function IntegrationsPage() {
   const queryClient = useQueryClient()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
-  const configured = workspace?.externalIntegrationConfigured ?? false
-  const live = workspace?.externalIntegrationLive ?? false
+  const dataConfigured = workspace?.externalIntegrationConfigured ?? false
+  const dataLive = workspace?.externalIntegrationLive ?? false
+  const handoverConfigured = workspace?.conversationHandoverConfigured ?? false
+  const handoverLive = workspace?.conversationHandoverLive ?? false
+  const configured = dataConfigured || handoverConfigured
+  const live = dataLive || handoverLive
   const canOperate = workspace?.access.canOperate ?? false
 
   const overview = useQuery({
     queryKey: ['deployment-integrations', selectedDeploymentId],
     queryFn: () => fetchDeploymentIntegrations(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0 && live,
+    enabled: selectedDeploymentId.length > 0 && dataLive,
+    retry: false,
+    refetchInterval: 10_000,
+  })
+  const handover = useQuery({
+    queryKey: ['conversation-handover-operations', selectedDeploymentId],
+    queryFn: () => fetchConversationHandoverOperations(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0 && handoverLive,
     retry: false,
     refetchInterval: 10_000,
   })
@@ -77,6 +93,18 @@ export function IntegrationsPage() {
     ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['deployment-integrations', selectedDeploymentId] })
+    },
+  })
+  const retryDispatch = useMutation({
+    mutationFn: (dispatchId: string) => retryConversationHandoverDispatch(selectedDeploymentId, dispatchId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId] })
+    },
+  })
+  const expireHandover = useMutation({
+    mutationFn: (handoverId: string) => expireConversationHandover(selectedDeploymentId, handoverId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId] })
     },
   })
 
@@ -97,7 +125,7 @@ export function IntegrationsPage() {
             </Button>
           )}
         >
-          This deployment has no external HTTP DATA package in its draft. Install and configure a reviewed Marketplace package first.
+          This deployment has no external DATA or conversation-channel integration in its draft. Install a reviewed Marketplace package first.
         </Alert>
       </Stack>
     )
@@ -116,7 +144,13 @@ export function IntegrationsPage() {
           <Chip icon={<CableRoundedIcon />} label={live ? 'Applied live' : 'Draft configured'} color={live ? 'success' : 'warning'} />
           <Tooltip title="Refresh integration state">
             <span>
-              <IconButton onClick={() => void overview.refetch()} disabled={!live || overview.isFetching}>
+              <IconButton
+                onClick={() => {
+                  if (dataLive) void overview.refetch()
+                  if (handoverLive) void handover.refetch()
+                }}
+                disabled={!live || overview.isFetching || handover.isFetching}
+              >
                 <SyncRoundedIcon />
               </IconButton>
             </span>
@@ -129,12 +163,25 @@ export function IntegrationsPage() {
           The integration exists in the draft but is not part of the active deployment version. Publish and apply the draft before operating it.
         </Alert>
       ) : null}
-      {overview.isLoading ? (
+      {overview.isLoading || handover.isLoading ? (
         <Box sx={{ py: 8, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
       ) : null}
       {overview.error ? <Alert severity="error">{errorText(overview.error)}</Alert> : null}
+      {handover.error ? <Alert severity="error">{errorText(handover.error)}</Alert> : null}
       {reconcile.error ? <Alert severity="error">{errorText(reconcile.error)}</Alert> : null}
       {replay.error ? <Alert severity="error">{errorText(replay.error)}</Alert> : null}
+      {retryDispatch.error ? <Alert severity="error">{errorText(retryDispatch.error)}</Alert> : null}
+      {expireHandover.error ? <Alert severity="error">{errorText(expireHandover.error)}</Alert> : null}
+
+      {handover.data ? (
+        <ConversationHandoverOperations
+          value={handover.data}
+          canOperate={canOperate}
+          busy={retryDispatch.isPending || expireHandover.isPending}
+          onRetry={(dispatchId) => retryDispatch.mutate(dispatchId)}
+          onExpire={(handoverId) => expireHandover.mutate(handoverId)}
+        />
+      ) : null}
 
       {overview.data ? (
         <>
@@ -302,6 +349,146 @@ export function IntegrationsPage() {
         </>
       ) : null}
     </Stack>
+  )
+}
+
+function ConversationHandoverOperations({
+  value,
+  canOperate,
+  busy,
+  onRetry,
+  onExpire,
+}: {
+  value: ConversationHandoverOperationsOverview
+  canOperate: boolean
+  busy: boolean
+  onRetry: (dispatchId: string) => void
+  onExpire: (handoverId: string) => void
+}) {
+  const callbackStatus = value.connector.status
+  return (
+    <Box>
+      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 1.5 }}>
+        <Box>
+          <Typography variant="h6">Conversation handover</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Deployment-owned conversation authority and delivery evidence. Message and intake content are not projected here.
+          </Typography>
+        </Box>
+        {value.operatorConsoleUrl ? (
+          <Button
+            component="a"
+            href={value.operatorConsoleUrl}
+            target="_blank"
+            rel="noreferrer"
+            variant="outlined"
+            startIcon={<LaunchRoundedIcon />}
+          >
+            Operator inbox
+          </Button>
+        ) : null}
+      </Stack>
+
+      <Paper variant="outlined" sx={{ p: 2.5, mb: 1.5 }}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip label={`Binding ${value.runtime.channelBindingId}`} variant="outlined" />
+          <Chip
+            label={value.connector.reachable ? 'Connector reachable' : 'Connector unavailable'}
+            color={value.connector.reachable ? 'success' : 'error'}
+          />
+          {Object.entries(value.runtime.handoverCounts).map(([status, count]) => (
+            <Chip key={status} size="small" label={`${status} ${count}`} color={statusColor(status)} variant="outlined" />
+          ))}
+          <Chip
+            size="small"
+            label={`Oldest queued ${formatTime(value.runtime.oldestPendingDispatchAt)}`}
+            variant="outlined"
+          />
+        </Stack>
+      </Paper>
+
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>Delivery queue</Typography>
+      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Dispatch</TableCell><TableCell>Type</TableCell><TableCell>Status</TableCell>
+              <TableCell>Attempts</TableCell><TableCell>Updated</TableCell><TableCell>Error</TableCell>
+              <TableCell align="right">Recovery</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {value.runtime.recentDispatches.map((dispatch) => (
+              <TableRow key={dispatch.dispatchId}>
+                <TableCell sx={{ fontFamily: 'monospace' }}>{dispatch.dispatchId}</TableCell>
+                <TableCell>{dispatch.dispatchType}</TableCell>
+                <TableCell><Chip size="small" label={dispatch.status} color={statusColor(dispatch.status)} /></TableCell>
+                <TableCell>{dispatch.attemptCount}</TableCell>
+                <TableCell>{formatTime(dispatch.updatedAt)}</TableCell>
+                <TableCell>{dispatch.failureCode ?? '—'}</TableCell>
+                <TableCell align="right">
+                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                    <Tooltip title="Retry this dead delivery">
+                      <span>
+                        <IconButton
+                          size="small"
+                          disabled={!canOperate || busy || !dispatch.retryEligible}
+                          onClick={() => onRetry(dispatch.dispatchId)}
+                        ><ReplayRoundedIcon /></IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Expire this pending handover; the user must then retry or explicitly continue with AI">
+                      <span>
+                        <Button
+                          size="small"
+                          color="warning"
+                          disabled={!canOperate || busy || dispatch.dispatchType !== 'OPEN_HANDOVER'
+                            || !['PENDING', 'PROCESSING', 'DEAD'].includes(dispatch.status)}
+                          onClick={() => onExpire(dispatch.handoverId)}
+                        >
+                          Expire
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            ))}
+            {value.runtime.recentDispatches.length === 0 ? (
+              <TableRow><TableCell colSpan={7}>No handover deliveries have been created.</TableCell></TableRow>
+            ) : null}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>Provider callbacks</Typography>
+      {!value.connector.reachable || !callbackStatus ? (
+        <Alert severity="warning">Callback diagnostics are unavailable. Provider-owned delivery retries remain authoritative.</Alert>
+      ) : (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow><TableCell>Event</TableCell><TableCell>Type</TableCell><TableCell>Status</TableCell><TableCell>Attempts</TableCell><TableCell>Received</TableCell><TableCell>Error</TableCell></TableRow>
+            </TableHead>
+            <TableBody>
+              {callbackStatus.recentCallbacks.map((callback) => (
+                <TableRow key={callback.eventId}>
+                  <TableCell sx={{ fontFamily: 'monospace' }}>{callback.eventId}</TableCell>
+                  <TableCell>{callback.eventType}</TableCell>
+                  <TableCell><Chip size="small" label={callback.status} color={statusColor(callback.status)} /></TableCell>
+                  <TableCell>{callback.attemptCount}</TableCell>
+                  <TableCell>{formatTime(callback.receivedAt)}</TableCell>
+                  <TableCell>{callback.errorClass ?? '—'}</TableCell>
+                </TableRow>
+              ))}
+              {callbackStatus.recentCallbacks.length === 0 ? (
+                <TableRow><TableCell colSpan={6}>No signed provider callbacks have been received.</TableCell></TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Box>
   )
 }
 

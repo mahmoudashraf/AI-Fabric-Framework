@@ -92,7 +92,13 @@ public class PublicAIWorkspaceManifestService {
         var workspaceAsset = assetCatalogService.workspace();
         if (pack.asset() == null) unavailable();
 
-        ObjectNode connection = connection(installation.getConnectionMode(), assignment.runtimeBaseUrl(), profile);
+        JsonNode behaviorConfiguration = readJson(assignment.version().getBehaviorConfigJson());
+        ObjectNode connection = connection(
+            installation.getConnectionMode(),
+            assignment.runtimeBaseUrl(),
+            profile,
+            behaviorConfiguration
+        );
         ObjectNode workspace = objectMapper.createObjectNode();
         workspace.set("asset", assetProjection(workspaceAsset));
         ObjectNode packNode = assetProjection(pack.asset());
@@ -129,15 +135,19 @@ public class PublicAIWorkspaceManifestService {
 
     private ObjectNode connection(AIWorkspaceConnectionMode mode,
                                   String runtimeBaseUrl,
-                                  AIWorkspaceConnectionProfileRegistry.ConnectionProfile profile) {
+                                  AIWorkspaceConnectionProfileRegistry.ConnectionProfile profile,
+                                  JsonNode behaviorConfiguration) {
         ObjectNode connection = objectMapper.createObjectNode();
         connection.put("mode", mode.manifestValue());
         connection.put("profileCode", profile.code());
         connection.put("profileVersion", profile.version());
         connection.put("handler", profile.handler());
+        ObjectNode handover = publicConversationHandover(behaviorConfiguration);
+        boolean handoverEnabled = handover.path("enabled").asBoolean(false);
+        connection.set("conversationHandover", handover);
         if (mode != AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME) {
             connection.put("runtimeBaseUrl", runtimeBaseUrl);
-            connection.set("routes", directRuntimeRoutes());
+            connection.set("routes", directRuntimeRoutes(handoverEnabled));
         }
         if (mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS) {
             ObjectNode bootstrap = objectMapper.createObjectNode();
@@ -164,7 +174,7 @@ public class PublicAIWorkspaceManifestService {
         return connection;
     }
 
-    private ObjectNode directRuntimeRoutes() {
+    private ObjectNode directRuntimeRoutes(boolean conversationHandoverEnabled) {
         ObjectNode routes = objectMapper.createObjectNode();
         routes.put("queryUrl", "/api/chat/me/query");
         routes.put("suggestionsUrl", "/api/chat/me/suggestions");
@@ -172,7 +182,51 @@ public class PublicAIWorkspaceManifestService {
         routes.put("shellConfigUrl", "/api/chat/me/shell-config");
         routes.put("conversationsUrl", "/api/chat/me/conversations");
         routes.put("conversationItemUrlTemplate", "/api/chat/me/conversations/{conversationId}");
+        if (conversationHandoverEnabled) {
+            routes.put("conversationMessageUrlTemplate", "/api/chat/me/conversations/{conversationId}/messages");
+            routes.put("handoverRequestUrlTemplate", "/api/chat/me/conversations/{conversationId}/handover-requests");
+            routes.put("handoverCancelUrlTemplate", "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/cancel");
+            routes.put("handoverRetryUrlTemplate", "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/retry");
+            routes.put("conversationControlUrlTemplate", "/api/chat/me/conversations/{conversationId}/control");
+            routes.put("conversationEventsUrlTemplate", "/api/chat/me/conversations/{conversationId}/events");
+            routes.put("aiResumeRequestUrlTemplate", "/api/chat/me/conversations/{conversationId}/ai-resume-requests");
+        }
         return routes;
+    }
+
+    private ObjectNode publicConversationHandover(JsonNode behaviorConfiguration) {
+        ObjectNode result = objectMapper.createObjectNode();
+        JsonNode configured = behaviorConfiguration.path("conversationHandover");
+        boolean extensionSelected = false;
+        JsonNode extensions = behaviorConfiguration.path("executionExtensions");
+        if (extensions.isArray()) {
+            for (JsonNode extension : extensions) {
+                if ("CONVERSATION_HANDOVER".equals(extension.asText(""))) {
+                    extensionSelected = true;
+                    break;
+                }
+            }
+        }
+        boolean enabled = extensionSelected && configured.path("enabled").asBoolean(false);
+        result.put("enabled", enabled);
+        if (!enabled) {
+            return result;
+        }
+        result.put("contractVersion", configured.path("contractVersion").asText(""));
+        result.put("modelInitiatedPolicy", configured.path("modelInitiatedPolicy").asText(""));
+        result.put("userCanCancelPending", configured.path("userCanCancelPending").asBoolean(false));
+        result.put("userCanResumeAi", configured.path("userCanResumeAi").asBoolean(false));
+        result.put("queueTimeoutSeconds", configured.path("queueTimeoutSeconds").asInt(0));
+        JsonNode intake = configured.path("intake");
+        ObjectNode publicIntake = result.putObject("intake");
+        publicIntake.put("anonymousAllowed", intake.path("anonymousAllowed").asBoolean(true));
+        publicIntake.set(
+            "fields",
+            intake.path("fields").isArray()
+                ? intake.path("fields").deepCopy()
+                : objectMapper.createArrayNode()
+        );
+        return result;
     }
 
     private ObjectNode assetProjection(com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceAssetDescriptor asset) {

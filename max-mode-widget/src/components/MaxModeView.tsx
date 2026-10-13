@@ -34,8 +34,12 @@ export function MaxModeView({
       <MaxModeHeader
         onClose={onClose}
         assistantLabel={controller.assistantLabel}
+        handoverEnabled={controller.handoverEnabled}
+        handoverState={controller.conversationControlState}
+        handoverBusy={controller.isHandoverBusy}
+        onOpenHandover={controller.openHandover}
       />
-      <MaxModeQuickActions controller={controller} />
+      {!controller.handoverBlocksAi && <MaxModeQuickActions controller={controller} />}
       <MaxModeMainContent controller={controller} />
       <MaxModeCollectionAnimation collectingItem={controller.collectingItem} />
       <MaxModeComposerBar controller={controller} />

@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -180,13 +181,16 @@ public class DeploymentMarketplaceDraftCompilerService {
         stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
         stripMarketplaceManagedInference(providerRoot);
         stripMarketplaceManagedSpecialistBundles(behaviorRoot);
+        stripMarketplaceManagedConversationHandover(behaviorRoot);
         behaviorRoot.remove(MARKETPLACE_REQUIREMENTS_FIELD);
 
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
         Set<String> existingSpecialistBundleIds = specialistBundleIds(behaviorRoot.path("specialistBundles"));
+        Map<String, ObjectNode> installedControlActionBindings = new LinkedHashMap<>();
         String activeInferencePluginId = null;
+        String activeConversationChannelPluginId = null;
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             if (!isEnabledForCompilation(install.getStatus())) {
@@ -205,7 +209,16 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
 
             switch (parsed.pluginType()) {
-                case "ACTION" -> applyActionPlugin(actionsRoot, shellRoot, install, plugin, version, parsed, existingActionNames);
+                case "ACTION" -> applyActionPlugin(
+                    actionsRoot,
+                    shellRoot,
+                    install,
+                    plugin,
+                    version,
+                    parsed,
+                    existingActionNames,
+                    installedControlActionBindings
+                );
                 case "DATA" -> applyDataPlugin(
                     entityRoot,
                     knowledgeSourceRoot,
@@ -256,6 +269,18 @@ public class DeploymentMarketplaceDraftCompilerService {
                     parsed,
                     existingSpecialistBundleIds
                 );
+                case "INTEGRATION" -> {
+                    if (activeConversationChannelPluginId != null
+                        && !activeConversationChannelPluginId.equals(plugin.getId())) {
+                        throw new ResponseStatusException(
+                            CONFLICT,
+                            "Only one enabled conversation-channel integration may compile into a deployment. Found "
+                                + activeConversationChannelPluginId + " and " + plugin.getId() + "."
+                        );
+                    }
+                    activeConversationChannelPluginId = plugin.getId();
+                    applyConversationChannelPlugin(behaviorRoot, install, plugin, version, parsed);
+                }
                 default -> throw new ResponseStatusException(
                     CONFLICT,
                     "Unsupported marketplace plugin type during draft compilation: " + parsed.pluginType()
@@ -264,6 +289,8 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
 
         applyTemplateRequirements(behaviorRoot, installs);
+        applyResolvedTemplateExecutionExtensionDefaults(behaviorRoot, installs);
+        validateConversationHandoverComposition(behaviorRoot, installedControlActionBindings);
 
         synchronizeEntityVectorDimensions(entityRoot, providerRoot);
         boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
@@ -366,6 +393,53 @@ public class DeploymentMarketplaceDraftCompilerService {
             UNRESOLVED_REQUIRED_PLUGIN_REFS_FIELD,
             toStringArray(requiredPluginRefs.stream().filter(ref -> !resolvedPluginRefs.contains(ref)).toList())
         );
+    }
+
+    private void applyResolvedTemplateExecutionExtensionDefaults(
+        ObjectNode behaviorRoot,
+        List<DeploymentMarketplacePluginInstallEntity> installs
+    ) {
+        JsonNode unresolved = behaviorRoot.path(MARKETPLACE_REQUIREMENTS_FIELD)
+            .path(UNRESOLVED_REQUIRED_PLUGIN_REFS_FIELD);
+        if (unresolved.isArray() && !unresolved.isEmpty()) {
+            return;
+        }
+
+        LinkedHashSet<String> defaults = new LinkedHashSet<>();
+        for (DeploymentMarketplacePluginInstallEntity install : installs) {
+            if (!isEnabledForCompilation(install.getStatus())) {
+                continue;
+            }
+            MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+            MarketplacePluginVersionEntity version =
+                marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId());
+            MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+                marketplaceManifestService.parseAndValidate(plugin, version);
+            if (!"TEMPLATE".equals(parsed.pluginType())) {
+                continue;
+            }
+            JsonNode configuredDefaults = parsed.manifest()
+                .path("contributions")
+                .path("template")
+                .path("deploymentBehavior")
+                .path("defaultExecutionExtensions");
+            if (configuredDefaults.isArray()) {
+                configuredDefaults.forEach(value -> {
+                    String normalized = value.asText("").trim();
+                    if (hasText(normalized)) {
+                        defaults.add(normalized);
+                    }
+                });
+            }
+        }
+        if (defaults.isEmpty()) {
+            return;
+        }
+
+        ArrayNode selected = ensureArray(behaviorRoot, "executionExtensions");
+        LinkedHashSet<String> existing = new LinkedHashSet<>();
+        selected.forEach(value -> existing.add(value.asText("")));
+        defaults.stream().filter(existing::add).forEach(selected::add);
     }
 
     private Set<String> blockingIssueKeys(DraftValidationResponse validation) {
@@ -728,13 +802,14 @@ public class DeploymentMarketplaceDraftCompilerService {
         return securityRoot;
     }
 
-    private void applyActionPlugin(ObjectNode actionsRoot,
-                                   ObjectNode shellRoot,
-                                   DeploymentMarketplacePluginInstallEntity install,
-                                   MarketplacePluginEntity plugin,
-                                   MarketplacePluginVersionEntity version,
-                                   MarketplaceManifestService.ParsedMarketplaceManifest parsed,
-                                   Set<String> existingActionNames) {
+    void applyActionPlugin(ObjectNode actionsRoot,
+                           ObjectNode shellRoot,
+                           DeploymentMarketplacePluginInstallEntity install,
+                           MarketplacePluginEntity plugin,
+                           MarketplacePluginVersionEntity version,
+                           MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                           Set<String> existingActionNames,
+                           Map<String, ObjectNode> installedControlActionBindings) {
         ArrayNode actions = ensureArray(actionsRoot, "actions");
         ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
         ArrayNode mcpServers = ensureArray(actionsRoot, "mcpServers");
@@ -805,6 +880,20 @@ public class DeploymentMarketplaceDraftCompilerService {
             if (!StringUtils.hasText(actionName)) {
                 continue;
             }
+            if ("conversation-control".equals(actionEntry.path("adapterType").asText(""))) {
+                ObjectNode binding = objectMapper.createObjectNode();
+                binding.put("actionId", actionName);
+                binding.put("operation", actionEntry.path("operation").asText(""));
+                binding.put("implementation", "SERVER_OWNED_RUNTIME_ACTION");
+                applyMarketplaceProvenance(binding, install, plugin, version);
+                if (installedControlActionBindings.putIfAbsent(actionName, binding) != null) {
+                    throw new ResponseStatusException(
+                        CONFLICT,
+                        "Only one marketplace plugin may bind the server-owned control action: " + actionName
+                    );
+                }
+                continue;
+            }
             if (!existingActionNames.add(actionName)) {
                 if (!replaceGreenfieldShopifyActionConflict(actions, existingActionNames, plugin.getId(), actionName)) {
                     throw new ResponseStatusException(
@@ -863,6 +952,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (actionEntry.path("anonymousAllowed").isBoolean()) {
             compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
         }
+        if (actionEntry.path("terminal").isBoolean()) {
+            compiled.put("terminal", actionEntry.path("terminal").asBoolean());
+        }
+        copyIfText(actionEntry, compiled, "operation", "operation");
         if (actionEntry.path("groundingEligible").isBoolean()) {
             compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
         }
@@ -895,6 +988,144 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         applyMarketplaceProvenance(compiled, install, plugin, version);
         return compiled;
+    }
+
+    private void applyConversationChannelPlugin(
+        ObjectNode behaviorRoot,
+        DeploymentMarketplacePluginInstallEntity install,
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed
+    ) {
+        var contribution = parsed.contributions().conversationChannel();
+        if (contribution == null) {
+            throw new ResponseStatusException(CONFLICT, "Conversation channel contribution is missing: " + plugin.getId());
+        }
+        JsonNode installConfig = readJson(install.getConfigJson());
+        JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
+        String providerBaseUrl = requiredInstallValue(
+            installConfig,
+            contribution.providerBaseUrlField(),
+            "provider base URL"
+        );
+        requireHttpsUrl(providerBaseUrl, "Conversation channel provider base URL");
+        String providerApiKeySecretRef = requiredSecretRef(
+            installSecretRefs,
+            contribution.providerApiKeySecretRefField()
+        );
+        String runtimeCallbackSigningSecretRef = requiredSecretRef(
+            installSecretRefs,
+            contribution.runtimeCallbackSigningSecretRefField()
+        );
+        String providerWebhookSigningSecretRef = requiredSecretRef(
+            installSecretRefs,
+            contribution.providerWebhookSigningSecretRefField()
+        );
+
+        ObjectNode handover = contribution.configuration().isObject()
+            ? (ObjectNode) contribution.configuration().deepCopy()
+            : objectMapper.createObjectNode();
+        handover.put("contractVersion", "LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1");
+        handover.put("enabled", true);
+        handover.put("actionId", "request_conversation_handover");
+        handover.put("channelBindingId", contribution.bindingId());
+        ObjectNode channel = handover.putObject("channel");
+        channel.put("contractVersion", contribution.contractVersion());
+        channel.put("bindingId", contribution.bindingId());
+        channel.put("adapterImplementationId", contribution.adapterImplementationId());
+        channel.put("adapterVersion", contribution.adapterVersion());
+        channel.set("capabilities", toStringArray(contribution.capabilities()));
+        channel.put("providerBaseUrl", providerBaseUrl);
+        channel.put("providerApiKeySecretRef", providerApiKeySecretRef);
+        channel.put("runtimeCallbackSigningSecretRef", runtimeCallbackSigningSecretRef);
+        channel.put("providerWebhookSigningSecretRef", providerWebhookSigningSecretRef);
+        if (hasText(contribution.operatorConsoleUrlField())) {
+            String operatorConsoleUrl = text(installConfig, contribution.operatorConsoleUrlField());
+            if (hasText(operatorConsoleUrl)) {
+                requireHttpsUrl(operatorConsoleUrl, "Conversation channel operator console URL");
+                channel.put("operatorConsoleUrl", operatorConsoleUrl);
+            }
+        }
+        applyMarketplaceProvenance(handover, install, plugin, version);
+        behaviorRoot.set("conversationHandover", handover);
+    }
+
+    private void validateConversationHandoverComposition(
+        ObjectNode behaviorRoot,
+        Map<String, ObjectNode> installedControlActionBindings
+    ) {
+        boolean extensionEnabled = arrayContains(
+            behaviorRoot.path("executionExtensions"),
+            "CONVERSATION_HANDOVER"
+        );
+        JsonNode handover = behaviorRoot.path("conversationHandover");
+        if (!extensionEnabled && !handover.isMissingNode()) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "A conversation-channel integration requires the CONVERSATION_HANDOVER execution extension."
+            );
+        }
+        if (!extensionEnabled) {
+            return;
+        }
+        if (!handover.isObject()) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "CONVERSATION_HANDOVER requires one enabled reviewed conversation-channel integration."
+            );
+        }
+        ObjectNode actionBinding = installedControlActionBindings.get("request_conversation_handover");
+        if (actionBinding == null) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "CONVERSATION_HANDOVER requires the canonical request_conversation_handover action plugin."
+            );
+        }
+        ((ObjectNode) handover).set("actionBinding", actionBinding.deepCopy());
+    }
+
+    private boolean arrayContains(JsonNode values, String expected) {
+        if (!values.isArray()) {
+            return false;
+        }
+        for (JsonNode value : values) {
+            if (expected.equals(value.asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String requiredInstallValue(JsonNode installConfig, String field, String label) {
+        String value = installConfig == null ? "" : installConfig.path(field).asText("").trim();
+        if (!hasText(value)) {
+            throw new ResponseStatusException(CONFLICT, "Conversation channel " + label + " is required.");
+        }
+        return value;
+    }
+
+    private String requiredSecretRef(JsonNode installSecretRefs, String field) {
+        String value = installSecretRefs == null ? "" : installSecretRefs.path(field).asText("").trim();
+        if (!value.matches("^[A-Z][A-Z0-9_]{2,127}$")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Conversation channel requires a valid deployment secret reference for " + field + "."
+            );
+        }
+        return value;
+    }
+
+    private void requireHttpsUrl(String value, String label) {
+        try {
+            java.net.URI uri = java.net.URI.create(value);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                || uri.getHost() == null
+                || uri.getUserInfo() != null) {
+                throw new IllegalArgumentException();
+            }
+        } catch (RuntimeException exception) {
+            throw new ResponseStatusException(CONFLICT, label + " must be an HTTPS URL without embedded credentials.");
+        }
     }
 
     private ObjectNode compileActionRoute(JsonNode routeEntry) {
@@ -1423,6 +1654,12 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     private void stripMarketplaceManagedSpecialistBundles(ObjectNode behaviorRoot) {
         removeMarketplaceManagedEntries(ensureArray(behaviorRoot, "specialistBundles"));
+    }
+
+    private void stripMarketplaceManagedConversationHandover(ObjectNode behaviorRoot) {
+        if (isMarketplaceManaged(behaviorRoot.path("conversationHandover"))) {
+            behaviorRoot.remove("conversationHandover");
+        }
     }
 
     private Set<String> specialistBundleIds(JsonNode bundles) {

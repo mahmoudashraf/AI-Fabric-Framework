@@ -83,6 +83,16 @@ public class RuntimeConnectorAdminProxyController {
         return toResponse(enrichIntegrationOverview(proxyService.forwardGet("/api/admin/integrations")));
     }
 
+    @GetMapping("/conversation-channel")
+    public ResponseEntity<String> conversationChannel(HttpServletRequest request) {
+        authorize(
+            request,
+            RuntimeAdminScopeCatalog.RUNTIME_CONVERSATION_HANDOVER_READ,
+            "/api/admin/connector/conversation-channel"
+        );
+        return toResponse(proxyService.forwardGet("/api/admin/conversation-channel"));
+    }
+
     @GetMapping("/integrations/sources/{sourceId}")
     public ResponseEntity<String> integrationSource(@PathVariable String sourceId, HttpServletRequest request) {
         authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ, "/api/admin/connector/integrations/sources/{sourceId}");

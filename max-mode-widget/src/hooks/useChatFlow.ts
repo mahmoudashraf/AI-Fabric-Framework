@@ -1,7 +1,12 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
+import {
+  createConversationId,
+  postChatQuery,
+  resolvedChatMessageUrl,
+  usesCanonicalConversationMessages,
+} from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { toRuntimeAttachments } from "@/attachments";
 import { emitEvent } from "@/config";
@@ -109,6 +114,7 @@ export function useChatFlow({
   currentMode,
   requestContext,
   requestContextProvider,
+  onRuntimeResponse,
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
@@ -128,6 +134,7 @@ export function useChatFlow({
   currentMode: MaxModeMode;
   requestContext?: Record<string, any>;
   requestContextProvider?: MaxModeHostRequestContextProvider;
+  onRuntimeResponse?: (response: any) => void;
 }) {
   const handleChatQuery = useCallback(
     async (
@@ -139,6 +146,12 @@ export function useChatFlow({
     ) => {
       const query = presetQuery ?? chatQuery;
       if (!query.trim()) return;
+
+      const effectiveConversationId = currentConversationId
+        ?? (usesCanonicalConversationMessages() ? createConversationId() : null);
+      if (effectiveConversationId && !currentConversationId) {
+        setCurrentConversationId(effectiveConversationId);
+      }
 
       const effectiveAttachedItems = mergeAttachments(attachedItems, ephemeralAttachments || []);
 
@@ -174,7 +187,7 @@ export function useChatFlow({
 
       emitEvent("message:sent", {
         query,
-        conversationId: currentConversationId,
+        conversationId: effectiveConversationId,
         position,
         mode,
         attachmentsCount: effectiveAttachedItems.length,
@@ -211,21 +224,23 @@ export function useChatFlow({
         }
         const requestPayload = withRequestContext({
           query: requestSemantics.query,
-          conversationId: currentConversationId || undefined,
+          conversationId: effectiveConversationId || undefined,
           position,
           mode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
         }, mergedRequestContext);
 
         setLastRequestData({
-          endpoint: resolvedChatQueryUrl(),
+          endpoint: resolvedChatMessageUrl(effectiveConversationId || undefined),
           method: "POST",
           timestamp: new Date().toISOString(),
           payload: requestPayload,
         });
         setSelectedDebugMessage(null);
 
-        const { data, status, durationMs } = await postChatQuery(requestPayload);
+        const { data, status, durationMs } = await postChatQuery(requestPayload, {
+          idempotencyKey: `message-${userMessage.id}`,
+        });
 
         setLastResponseData({
           timestamp: new Date().toISOString(),
@@ -234,8 +249,19 @@ export function useChatFlow({
           durationMs,
         });
 
-        if (data.conversationId && !currentConversationId) {
+        if (data.conversationId && !effectiveConversationId) {
           setCurrentConversationId(data.conversationId);
+        }
+        onRuntimeResponse?.(data);
+
+        if (String(data.type || "").toUpperCase() === "HUMAN_MESSAGE_ACCEPTED") {
+          emitEvent("message:received", {
+            conversationId: data.conversationId || effectiveConversationId,
+            resultType: data.type,
+            success: true,
+            durationMs,
+          });
+          return;
         }
 
         let messageContent: unknown = "";
@@ -303,7 +329,7 @@ export function useChatFlow({
         }
 
         emitEvent("message:received", {
-          conversationId: data.conversationId || currentConversationId,
+          conversationId: data.conversationId || effectiveConversationId,
           resultType,
           success: result?.success ?? data.result?.success ?? data.success ?? true,
           durationMs,
@@ -314,7 +340,7 @@ export function useChatFlow({
 
         const messageDebugData: DebugData = {
           request: {
-            endpoint: resolvedChatQueryUrl(),
+            endpoint: resolvedChatMessageUrl(effectiveConversationId || undefined),
             method: "POST",
             timestamp: new Date().toISOString(),
             payload: requestPayload,
@@ -367,6 +393,7 @@ export function useChatFlow({
       currentConversationId,
       currentMode,
       currentPosition,
+      onRuntimeResponse,
       requestContext,
       requestContextProvider,
       searchCategory,

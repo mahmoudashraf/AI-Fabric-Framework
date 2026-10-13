@@ -940,6 +940,8 @@ public class PublicProvisioningApiService {
         boolean agentic = "AGENTIC_SPECIALIST_TEAM".equals(behaviorType);
         boolean smartBrain = "SMART_BRAIN".equals(behaviorType);
         boolean humanReview = textValues(behaviorConfig.path("executionExtensions")).contains("HUMAN_REVIEW");
+        boolean conversationHandover = textValues(behaviorConfig.path("executionExtensions"))
+            .contains("CONVERSATION_HANDOVER");
         return new PublicRuntimeEndpointsSummary(
             conversational ? baseUrl : null,
             null,
@@ -960,7 +962,14 @@ public class PublicProvisioningApiService {
             humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/action-proposals/{receiptId}" : null,
             humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks" : null,
             humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks/{taskId}" : null,
-            humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks/{taskId}/decisions" : null
+            humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks/{taskId}/decisions" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/messages" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/handover-requests" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/cancel" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/handover-requests/{handoverId}/retry" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/control" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/events" : null,
+            conversationHandover && baseUrl != null ? baseUrl + "/api/chat/me/conversations/{conversationId}/ai-resume-requests" : null
         );
     }
 

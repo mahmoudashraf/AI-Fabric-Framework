@@ -148,6 +148,67 @@ class PublicAIWorkspaceManifestServiceTest {
             .doesNotContain("must-not-leak");
     }
 
+    @Test
+    void projectsCanonicalHandoverRoutesWithoutProviderOrMarketplaceSecrets() throws Exception {
+        AIWorkspaceInstallationEntity installation = installation();
+        stubReadyInstallation(installation, """
+            {
+              "type": "CONVERSATIONAL",
+              "executionExtensions": ["CONVERSATION_HANDOVER"],
+              "conversationHandover": {
+                "contractVersion": "LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1",
+                "enabled": true,
+                "modelInitiatedPolicy": "REQUIRE_USER_CONFIRMATION",
+                "userCanCancelPending": true,
+                "userCanResumeAi": true,
+                "queueTimeoutSeconds": 900,
+                "intake": {
+                  "anonymousAllowed": true,
+                  "fields": [{
+                    "id": "email",
+                    "label": "Email",
+                    "type": "email",
+                    "required": false,
+                    "maxLength": 254,
+                    "purpose": "Optional follow-up",
+                    "consentRequired": true
+                  }]
+                },
+                "actionBinding": {
+                  "marketplacePluginId": "must-not-leak-plugin"
+                },
+                "channel": {
+                  "providerBaseUrl": "https://private-provider.example",
+                  "providerApiKeySecretRef": "must-not-leak-api-key-ref",
+                  "runtimeCallbackSigningSecretRef": "must-not-leak-callback-ref"
+                }
+              }
+            }
+            """);
+
+        JsonNode connection = service().resolve(
+            installation.getInstallationId(), "https://dealer.example").manifest().connection();
+        JsonNode routes = connection.path("routes");
+        String json = objectMapper.writeValueAsString(connection);
+
+        assertThat(connection.path("conversationHandover").path("enabled").asBoolean()).isTrue();
+        assertThat(routes.path("conversationMessageUrlTemplate").asText())
+            .isEqualTo("/api/chat/me/conversations/{conversationId}/messages");
+        assertThat(routes.path("handoverRequestUrlTemplate").asText()).isNotBlank();
+        assertThat(routes.path("handoverCancelUrlTemplate").asText()).isNotBlank();
+        assertThat(routes.path("handoverRetryUrlTemplate").asText()).isNotBlank();
+        assertThat(routes.path("conversationControlUrlTemplate").asText()).isNotBlank();
+        assertThat(routes.path("conversationEventsUrlTemplate").asText()).isNotBlank();
+        assertThat(routes.path("aiResumeRequestUrlTemplate").asText()).isNotBlank();
+        assertThat(json)
+            .doesNotContain("private-provider.example")
+            .doesNotContain("must-not-leak-api-key-ref")
+            .doesNotContain("must-not-leak-callback-ref")
+            .doesNotContain("must-not-leak-plugin")
+            .doesNotContain("actionBinding")
+            .doesNotContain("channel");
+    }
+
     private PublicAIWorkspaceManifestService service() {
         return service(properties);
     }
@@ -162,12 +223,18 @@ class PublicAIWorkspaceManifestServiceTest {
     }
 
     private void stubReadyInstallation(AIWorkspaceInstallationEntity installation) throws Exception {
+        stubReadyInstallation(installation, null);
+    }
+
+    private void stubReadyInstallation(AIWorkspaceInstallationEntity installation,
+                                       String behaviorConfigurationJson) throws Exception {
         PlatformConsumerEntity consumer = consumer();
         DeploymentEntity deployment = deployment();
         DeploymentReleaseEntity release = release();
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-1");
         version.setSecurityConfigJson("{\"privateSecret\":\"must-not-leak\"}");
+        version.setBehaviorConfigJson(behaviorConfigurationJson);
         AIWorkspaceAssignmentService.Assignment assignment = new AIWorkspaceAssignmentService.Assignment(
             consumer, deployment, release, version, objectMapper.readTree(version.getSecurityConfigJson()),
             "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64));

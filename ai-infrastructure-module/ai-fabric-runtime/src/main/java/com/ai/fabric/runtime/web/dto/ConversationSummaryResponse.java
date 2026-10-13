@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 public class ConversationSummaryResponse {
     private String id;
     private String status;
+    private String controlState;
     private LocalDateTime createdAt;
     private LocalDateTime lastInteractionAt;
     private int turnsCount;

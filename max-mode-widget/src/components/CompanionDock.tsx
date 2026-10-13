@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Loader2, MessageCircle, Send, Sparkles, X, Zap } from "lucide-react";
+import { Headphones, Loader2, MessageCircle, Send, Sparkles, UserRound, X, Zap } from "lucide-react";
 
 import { MessageList } from "@/components/Chat/MessageList";
 import { CurrentPageAttachmentControl } from "@/components/Chat/CurrentPageAttachmentControl";
 import type { MaxModeMode } from "@/constants";
 import type { MaxModeController } from "@/hooks/useMaxModeController";
 import { Button } from "@/ui/button";
+import { ConversationHandoverDialog } from "@/components/Handover/ConversationHandoverDialog";
+import { ConversationHandoverStatusBar } from "@/components/Handover/ConversationHandoverStatusBar";
+import { getWidgetConfig } from "@/config";
 
 function defaultModeLabel(mode: MaxModeMode) {
   switch (mode) {
@@ -53,6 +56,7 @@ export function CompanionDock({
   const hasAiSearch = Boolean(controller.attachedItems.find((item) => item.type === "ai-search"));
   const aiSearchCategory =
     (controller.attachedItems.find((item) => item.type === "ai-search")?.data?.category as string | undefined) || null;
+  const handoverConfig = getWidgetConfig().apiConfig.conversationHandover;
 
   useEffect(() => {
     if (controller.isInputFocused) {
@@ -87,14 +91,29 @@ export function CompanionDock({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-white hover:text-gray-950 dark:hover:bg-gray-800 dark:hover:text-white"
-              aria-label="Minimize assistant"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {controller.handoverEnabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={controller.openHandover}
+                  disabled={controller.isHandoverBusy}
+                  className="rounded-full border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
+                >
+                  {controller.conversationControlState === "HUMAN_ACTIVE" ? <UserRound className="mr-1.5 h-4 w-4" /> : <Headphones className="mr-1.5 h-4 w-4" />}
+                  <span className="hidden sm:inline">{controller.conversationControlState === "AI_ACTIVE" ? "Talk to a person" : "Human support"}</span>
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-white hover:text-gray-950 dark:hover:bg-gray-800 dark:hover:text-white"
+                aria-label="Minimize assistant"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="max-h-[min(46vh,28rem)] min-h-[18rem] overflow-hidden bg-white dark:bg-gray-950">
@@ -174,6 +193,20 @@ export function CompanionDock({
         className="rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950"
         data-max-mode-companion-input-shell
       >
+        {controller.handoverEnabled && (
+          <ConversationHandoverStatusBar
+            state={controller.conversationControlState}
+            handoverStatus={controller.conversationControl?.handoverStatus}
+            displayName={controller.conversationControl?.safeHumanDisplayName}
+            canCancel={handoverConfig?.userCanCancelPending === true}
+            canResume={handoverConfig?.userCanResumeAi === true}
+            busy={controller.isHandoverBusy}
+            onOpen={controller.openHandover}
+            onCancel={() => void controller.cancelHandover()}
+            onRetry={() => void controller.retryHandover()}
+            onResume={() => void controller.resumeAi()}
+          />
+        )}
         {expanded && (
           <div className="mb-2 flex flex-wrap justify-end gap-2 px-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
@@ -195,11 +228,17 @@ export function CompanionDock({
             data-max-mode-autofocus="false"
             rows={1}
             value={controller.chatQuery}
-            disabled={controller.oldConversationLocked}
+            disabled={controller.oldConversationLocked || controller.conversationControlState === "AI_RESUME_PENDING"}
             aria-label={`Ask ${controller.assistantLabel}`}
             placeholder={
               controller.oldConversationLocked
                 ? "This conversation is locked..."
+                : controller.conversationControlState === "HUMAN_PENDING"
+                  ? "Message while you wait for human support..."
+                  : controller.conversationControlState === "HUMAN_ACTIVE"
+                    ? "Message human support..."
+                    : controller.conversationControlState === "AI_RESUME_PENDING"
+                      ? "Returning this conversation to AI..."
                 : controller.searchCategory || hasAiSearch
                   ? "Type your search query..."
                   : nonAiAttachments.length > 0
@@ -252,6 +291,25 @@ export function CompanionDock({
           </div>
         )}
       </div>
+
+      {controller.handoverEnabled && (
+        <ConversationHandoverDialog
+          open={controller.isHandoverDialogOpen}
+          onOpenChange={controller.setIsHandoverDialogOpen}
+          state={controller.conversationControlState}
+          handoverStatus={controller.conversationControl?.handoverStatus}
+          displayName={controller.conversationControl?.safeHumanDisplayName}
+          fields={controller.handoverIntakeSchema?.fields || handoverConfig?.intake?.fields || []}
+          anonymousAllowed={controller.handoverIntakeSchema?.anonymousAllowed ?? handoverConfig?.intake?.anonymousAllowed !== false}
+          canCancel={handoverConfig?.userCanCancelPending === true}
+          canResume={handoverConfig?.userCanResumeAi === true}
+          busy={controller.isHandoverBusy}
+          onSubmit={(values, consentedFields, anonymous) => void controller.submitHandover(values, consentedFields, anonymous)}
+          onCancel={() => void controller.cancelHandover()}
+          onRetry={() => void controller.retryHandover()}
+          onResume={() => void controller.resumeAi()}
+        />
+      )}
     </section>
   );
 }

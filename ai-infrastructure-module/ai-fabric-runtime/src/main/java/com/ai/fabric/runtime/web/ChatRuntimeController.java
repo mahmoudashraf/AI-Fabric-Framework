@@ -7,9 +7,15 @@ import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
+import com.ai.fabric.runtime.handover.ConversationHandoverContracts.CanonicalConversationSummary;
+import com.ai.fabric.runtime.handover.ConversationHandoverContracts.ConversationView;
+import com.ai.fabric.runtime.handover.ConversationHandoverContracts.PublicConversationMessage;
+import com.ai.fabric.runtime.handover.RuntimeConversationHandoverService;
+import com.ai.fabric.runtime.handover.RuntimeConversationTurn;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
+import com.ai.fabric.runtime.web.dto.ConversationParticipantMessageResponse;
 import com.ai.fabric.runtime.web.dto.ConversationSummaryResponse;
 import com.ai.fabric.runtime.web.dto.RuntimeAuthContextResponse;
 import com.ai.fabric.runtime.web.dto.RuntimeShellConfigResponse;
@@ -32,6 +38,8 @@ import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
 import ai.fabric.intent.orchestration.OrchestrationResult;
 import ai.fabric.intent.orchestration.RAGOrchestrator;
 import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
+import ai.fabric.intent.orchestration.request.ConversationPersistencePolicy;
+import ai.fabric.intent.orchestration.request.OrchestrationRequest;
 import ai.fabric.prompt.PromptPreviewOverlaySupport;
 import ai.fabric.shell.BuiltInShellCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -66,6 +74,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 
 @RestController
@@ -111,6 +121,7 @@ public class ChatRuntimeController {
 
     private enum QueryPersistenceMode {
         PERSIST_IF_AVAILABLE,
+        READ_ONLY,
         NEVER_PERSIST
     }
 
@@ -128,29 +139,60 @@ public class ChatRuntimeController {
     private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
     private final ObjectProvider<RuntimeDeploymentPromptConfigService> deploymentPromptConfigServiceProvider;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> deploymentShellConfigServiceProvider;
+    private final ObjectProvider<RuntimeConversationHandoverService> conversationHandoverServiceProvider;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     @Value("${ai.fabric.runtime.transient-file-url.allowed-hosts:}")
     private String transientFileUrlAllowedHosts;
 
+    @Value("${loomai.conversation-handover.enabled:false}")
+    private boolean conversationHandoverEnabled;
+
     @PostMapping("/me/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
                                                    HttpServletRequest servletRequest) {
+        rejectLegacyQueryWhenConversationControlEnabled();
         rejectUnexpectedFields("/api/chat/me/query", request.getUnexpectedFields());
-        return handleQuery(request, servletRequest, "/api/chat/me/query", QueryPersistenceMode.PERSIST_IF_AVAILABLE);
+        return handleQuery(request, servletRequest, "/api/chat/me/query", QueryPersistenceMode.PERSIST_IF_AVAILABLE, null);
     }
 
     @PostMapping("/me/query-once")
     public ResponseEntity<ChatQueryResponse> queryOnce(@Valid @RequestBody ChatQueryRequest request,
                                                        HttpServletRequest servletRequest) {
+        rejectLegacyQueryWhenConversationControlEnabled();
         rejectUnexpectedFields("/api/chat/me/query-once", request.getUnexpectedFields());
-        return handleQuery(request, servletRequest, "/api/chat/me/query-once", QueryPersistenceMode.NEVER_PERSIST);
+        return handleQuery(request, servletRequest, "/api/chat/me/query-once", QueryPersistenceMode.NEVER_PERSIST, null);
+    }
+
+    public ResponseEntity<ChatQueryResponse> controlledQuery(
+        ChatQueryRequest request,
+        HttpServletRequest servletRequest,
+        RuntimeConversationTurn turn
+    ) {
+        rejectUnexpectedFields(
+            "/api/chat/me/conversations/{conversationId}/messages",
+            request.getUnexpectedFields()
+        );
+        if (turn == null || turn.guard() == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "A conversation-control turn is required."
+            );
+        }
+        return handleQuery(
+            request,
+            servletRequest,
+            "/api/chat/me/conversations/{conversationId}/messages",
+            QueryPersistenceMode.READ_ONLY,
+            turn
+        );
     }
 
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
                                                           HttpServletRequest servletRequest,
                                                           String requestPath,
-                                                          QueryPersistenceMode persistenceMode) {
+                                                          QueryPersistenceMode persistenceMode,
+                                                          RuntimeConversationTurn controlledTurn) {
         long requestStartTime = System.currentTimeMillis();
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
@@ -191,14 +233,34 @@ public class ChatRuntimeController {
                 : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW),
             persistenceMode
         );
+        if (controlledTurn != null) {
+            context.setOrchestrationTurnGuard(controlledTurn.guard());
+            context.setApprovedConversationSnapshot(controlledTurn.conversationSnapshot());
+        }
         long contextBuildDurationMs = System.currentTimeMillis() - contextBuildStartTime;
         long orchestrationStartTime = System.currentTimeMillis();
-        OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
+        OrchestrationResult result = controlledTurn == null
+            ? orchestrator.orchestrate(request.getQuery(), context)
+            : orchestrator.orchestrate(new OrchestrationRequest(
+                request.getQuery(),
+                context,
+                null,
+                ConversationPersistencePolicy.READ_ONLY
+            ));
         long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
         long requestDurationMs = System.currentTimeMillis() - requestStartTime;
         attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
 
         return okWithAuthHeaders(toCanonicalChatResponse(request, conversationId, context, result, identity), identity, requestPath);
+    }
+
+    private void rejectLegacyQueryWhenConversationControlEnabled() {
+        if (conversationHandoverEnabled) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.GONE,
+                "Use the canonical conversation message endpoint when conversation handover is enabled."
+            );
+        }
     }
 
     private ChatQueryResponse toCanonicalChatResponse(ChatQueryRequest request,
@@ -755,6 +817,16 @@ public class ChatRuntimeController {
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
         }
+        if (conversationHandoverEnabled) {
+            RuntimeConversationHandoverService handoverService = requiredConversationHandoverService();
+            CanonicalConversationSummary summary = handoverService.conversationSummary(identity, conversationId);
+            ConversationView conversation = handoverService.history(identity, conversationId);
+            return okWithAuthHeaders(
+                toCanonicalConversationResponse(summary, conversation, identity),
+                identity,
+                requestPath
+            );
+        }
         if (!runtimeConversationGateway.isAvailable()) {
             return withAuthHeaders(ResponseEntity.status(404), null, identity, requestPath);
         }
@@ -775,6 +847,11 @@ public class ChatRuntimeController {
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
         }
+        if (conversationHandoverEnabled) {
+            return okWithAuthHeaders(requiredConversationHandoverService().listConversations(identity).stream()
+                .map(summary -> toCanonicalConversationSummaryResponse(summary, identity))
+                .toList(), identity, requestPath);
+        }
         if (!runtimeConversationGateway.isAvailable()) {
             return okWithAuthHeaders(List.of(), identity, requestPath);
         }
@@ -784,8 +861,14 @@ public class ChatRuntimeController {
     }
 
     @DeleteMapping("/me/conversations/{conversationId}")
-    public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
-                                                   HttpServletRequest servletRequest) {
+    public ResponseEntity<Void> deleteConversation(
+        @PathVariable String conversationId,
+        @org.springframework.web.bind.annotation.RequestHeader(
+            name = "Idempotency-Key",
+            required = false
+        ) String idempotencyKey,
+        HttpServletRequest servletRequest
+    ) {
         String requestPath = "/api/chat/me/conversations/{conversationId}";
         rejectLegacyIdentityQueryParams(requestPath, servletRequest);
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest);
@@ -793,6 +876,10 @@ public class ChatRuntimeController {
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
+        }
+        if (conversationHandoverEnabled) {
+            requiredConversationHandoverService().closeConversation(identity, conversationId, idempotencyKey);
+            return noContentWithAuthHeaders(identity, requestPath);
         }
         runtimeConversationGateway.deleteConversation(conversationId, resolvedOwnerId);
         return noContentWithAuthHeaders(identity, requestPath);
@@ -1656,6 +1743,72 @@ public class ChatRuntimeController {
             .authContext(toResponseAuthContext(identity))
             .turns(mappedTurns)
             .build();
+    }
+
+    private ConversationResponse toCanonicalConversationResponse(
+        CanonicalConversationSummary summary,
+        ConversationView conversation,
+        RuntimeResolvedIdentity identity
+    ) {
+        return ConversationResponse.builder()
+            .id(summary.conversationId())
+            .status(summary.controlState() == ai.fabric.chat.control.ConversationControlState.CLOSED
+                ? "CLOSED"
+                : "ACTIVE")
+            .controlState(summary.controlState().name())
+            .createdAt(toUtcDateTime(summary.createdAt()))
+            .lastInteractionAt(toUtcDateTime(summary.lastInteractionAt()))
+            .authContext(toResponseAuthContext(identity))
+            .turns(List.of())
+            .participantMessages(conversation.messages().stream()
+                .map(this::toParticipantMessageResponse)
+                .toList())
+            .build();
+    }
+
+    private ConversationParticipantMessageResponse toParticipantMessageResponse(PublicConversationMessage message) {
+        return ConversationParticipantMessageResponse.builder()
+            .messageId(message.messageId())
+            .sequence(message.sequence())
+            .role(message.role())
+            .participantDisplayName(message.participantDisplayName())
+            .content(message.content())
+            .clientMessageId(message.clientMessageId())
+            .metadata(message.metadata())
+            .createdAt(message.createdAt())
+            .build();
+    }
+
+    private ConversationSummaryResponse toCanonicalConversationSummaryResponse(
+        CanonicalConversationSummary summary,
+        RuntimeResolvedIdentity identity
+    ) {
+        return ConversationSummaryResponse.builder()
+            .id(summary.conversationId())
+            .status(summary.controlState() == ai.fabric.chat.control.ConversationControlState.CLOSED
+                ? "CLOSED"
+                : "ACTIVE")
+            .controlState(summary.controlState().name())
+            .createdAt(toUtcDateTime(summary.createdAt()))
+            .lastInteractionAt(toUtcDateTime(summary.lastInteractionAt()))
+            .turnsCount(summary.userMessageCount())
+            .authContext(toResponseAuthContext(identity))
+            .build();
+    }
+
+    private LocalDateTime toUtcDateTime(Instant value) {
+        return value == null ? null : LocalDateTime.ofInstant(value, ZoneOffset.UTC);
+    }
+
+    private RuntimeConversationHandoverService requiredConversationHandoverService() {
+        RuntimeConversationHandoverService service = conversationHandoverServiceProvider.getIfAvailable();
+        if (service == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Conversation handover is enabled but its runtime service is unavailable."
+            );
+        }
+        return service;
     }
 
     private ConversationSummaryResponse toConversationSummaryResponse(RuntimeConversationRecord session,

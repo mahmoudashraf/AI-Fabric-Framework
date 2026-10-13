@@ -21,6 +21,7 @@ export function useClarificationFlow({
   setCurrentConversationId,
   setIsLoading,
   toast,
+  onRuntimeResponse,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   currentConversationId: string | null;
@@ -30,6 +31,7 @@ export function useClarificationFlow({
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   toast: ToastFn;
+  onRuntimeResponse?: (response: any) => void;
 }) {
   const handleClarificationSubmit = useCallback(
     async (action: string, parameters: Record<string, any>) => {
@@ -60,7 +62,9 @@ export function useClarificationFlow({
             action,
             parameters,
           ),
+          { idempotencyKey: `clarification-${userMessage.id}` },
         );
+        onRuntimeResponse?.(data);
 
         if (data.conversationId && !currentConversationId) {
           setCurrentConversationId(data.conversationId);
@@ -129,6 +133,7 @@ export function useClarificationFlow({
       setContextDocuments,
       setCurrentConversationId,
       setIsLoading,
+      onRuntimeResponse,
       toast,
     ],
   );

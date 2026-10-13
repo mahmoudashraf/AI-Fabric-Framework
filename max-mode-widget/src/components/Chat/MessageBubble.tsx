@@ -26,6 +26,7 @@ import {
   Star,
   XCircle,
   Zap,
+  UserRound,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -114,6 +115,7 @@ export function MessageBubble({
   const sanitizedResultData = message.result?.sanitizedPayload?.data;
   const primaryActionName = extractActionName(sanitizedResultData);
   const additionalActionResults = extractActionResultCandidates(sanitizedResultData);
+  const isHumanMessage = message.participantRole === "human";
 
   return (
     <>
@@ -130,10 +132,20 @@ export function MessageBubble({
         className={`max-w-[85%] md:max-w-[90%] rounded-3xl overflow-hidden ${
           message.type === "user"
             ? "bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 text-white shadow-lg mr-16 md:mr-0"
-            : `${aiStyles?.bg} shadow-xl relative`
+            : `${isHumanMessage ? "border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : aiStyles?.bg} shadow-xl relative`
         }`}
       >
-        {message.type === "ai" && Icon && !aiStyles?.hideBadge && (
+        {isHumanMessage && (
+          <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 dark:border-emerald-900 dark:bg-emerald-950/50">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+                <UserRound className="h-3.5 w-3.5" />
+              </span>
+              <span className="text-xs font-bold">{message.participantDisplayName || "Human support"}</span>
+            </div>
+          </div>
+        )}
+        {message.type === "ai" && !isHumanMessage && Icon && !aiStyles?.hideBadge && (
           <div className="relative">
             <div className={`px-4 md:px-5 py-2 md:py-2.5 flex items-center justify-between bg-gradient-to-r ${aiStyles?.bg}`}>
               <div className="flex items-center gap-2">
@@ -159,7 +171,7 @@ export function MessageBubble({
           </div>
         )}
 
-        <div className={`p-4 md:p-5 ${message.type === "ai" ? "bg-white dark:bg-gray-900" : ""}`}>
+        <div className={`p-4 md:p-5 ${message.type === "ai" && !isHumanMessage ? "bg-white dark:bg-gray-900" : ""}`}>
           {message.type === "user" && message.searchCategory && (
             <div className="mb-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-white/20 border border-white/30 rounded-full text-[10px] sm:text-xs font-semibold">

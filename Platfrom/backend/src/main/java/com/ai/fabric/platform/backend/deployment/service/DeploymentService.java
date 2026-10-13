@@ -507,7 +507,9 @@ public class DeploymentService {
             hasExternalDocumentDataset(readJson(draft.getMarketplaceDatasetConfigJson())),
             liveVersion != null && requiresDocumentKnowledge(liveVersion),
             hasExternalHttpDataset(readJson(draft.getMarketplaceDatasetConfigJson())),
-            liveVersion != null && requiresExternalHttpIntegration(liveVersion)
+            liveVersion != null && requiresExternalHttpIntegration(liveVersion),
+            hasConversationHandover(readJson(draft.getBehaviorConfigJson())),
+            liveVersion != null && hasConversationHandover(readJson(liveVersion.getBehaviorConfigJson()))
         );
     }
 
@@ -1815,6 +1817,10 @@ public class DeploymentService {
             }
         }
         return false;
+    }
+
+    private boolean hasConversationHandover(JsonNode behaviorConfig) {
+        return behaviorConfig.path("conversationHandover").path("enabled").asBoolean(false);
     }
 
     private String expectedPromotionChannel(String environmentName) {

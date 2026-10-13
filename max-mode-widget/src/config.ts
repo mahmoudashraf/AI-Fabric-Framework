@@ -39,6 +39,8 @@ export interface MaxModeApiConfig {
    * Values may be absolute URLs or paths relative to `chatBaseUrl`.
    */
   runtimeRoutes?: MaxModeRuntimeRouteConfig;
+  /** Safe, public conversation-handover behavior advertised by the assigned runtime. */
+  conversationHandover?: MaxModeConversationHandoverConfig;
   /** Optional public-runtime auth helpers for secure browser-facing modes */
   runtimeAuth?: MaxModeRuntimeAuthConfig;
   /**
@@ -67,6 +69,37 @@ export interface MaxModeRuntimeRouteConfig {
   shellConfigUrl?: string;
   conversationsUrl?: string;
   conversationItemUrlTemplate?: string;
+  conversationMessageUrlTemplate?: string;
+  handoverRequestUrlTemplate?: string;
+  handoverCancelUrlTemplate?: string;
+  handoverRetryUrlTemplate?: string;
+  conversationControlUrlTemplate?: string;
+  conversationEventsUrlTemplate?: string;
+  aiResumeRequestUrlTemplate?: string;
+}
+
+export interface MaxModeHandoverIntakeFieldConfig {
+  key: string;
+  label: string;
+  type: "TEXT" | "EMAIL" | "PHONE" | "BOOLEAN" | "SELECT";
+  required?: boolean;
+  maxLength?: number;
+  purpose?: string;
+  consentRequired?: boolean;
+  options?: string[];
+}
+
+export interface MaxModeConversationHandoverConfig {
+  enabled: boolean;
+  contractVersion?: string;
+  modelInitiatedPolicy?: string;
+  userCanCancelPending?: boolean;
+  userCanResumeAi?: boolean;
+  queueTimeoutSeconds?: number;
+  intake?: {
+    anonymousAllowed?: boolean;
+    fields?: MaxModeHandoverIntakeFieldConfig[];
+  };
 }
 
 export interface MaxModeRuntimeAuthConfig {
@@ -409,6 +442,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     defaultHeaders: undefined,
     fetchCredentials: undefined,
     runtimeRoutes: undefined,
+    conversationHandover: undefined,
     probeShellConfigOnOpen: true,
   },
   integrationMode: "backend-mediated-private-runtime",
@@ -473,6 +507,7 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
         ...DEFAULT_CONFIG.apiConfig.runtimeRoutes,
         ...config.apiConfig?.runtimeRoutes,
       },
+      conversationHandover: config.apiConfig?.conversationHandover,
       probeShellConfigOnOpen:
         config.apiConfig?.probeShellConfigOnOpen ?? DEFAULT_CONFIG.apiConfig.probeShellConfigOnOpen,
     },

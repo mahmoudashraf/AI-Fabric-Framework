@@ -70,6 +70,11 @@ public class DeploymentExecutionSecretService {
             names.add(reviewEncryptionSecretName(deployment.getId()));
             names.add(reviewFingerprintSecretName(deployment.getId()));
         }
+        if (contains(behavior.path("executionExtensions"), "CONVERSATION_HANDOVER")) {
+            names.add(conversationHandoverEncryptionSecretName(deployment.getId()));
+            names.add(integrationServiceApiKeyName(deployment.getId()));
+            names.add(integrationConnectorDatabasePasswordName(deployment.getId()));
+        }
         if (hasExternalHttpDataset(marketplaceDatasets)) {
             names.add(integrationServiceApiKeyName(deployment.getId()));
             names.add(integrationConnectorDatabasePasswordName(deployment.getId()));
@@ -98,6 +103,7 @@ public class DeploymentExecutionSecretService {
             actionReceiptFingerprintSecretName(deploymentId),
             reviewEncryptionSecretName(deploymentId),
             reviewFingerprintSecretName(deploymentId),
+            conversationHandoverEncryptionSecretName(deploymentId),
             connectorInvocationApiKeyName(deploymentId),
             connectorAdminApiKeyName(deploymentId),
             integrationServiceApiKeyName(deploymentId),
@@ -143,6 +149,10 @@ public class DeploymentExecutionSecretService {
 
     public static String actionReceiptEncryptionSecretName(String deploymentId) {
         return managedName("ACTION_RECEIPT_ENCRYPTION", deploymentId);
+    }
+
+    public static String conversationHandoverEncryptionSecretName(String deploymentId) {
+        return managedName("CONVERSATION_HANDOVER_ENCRYPTION", deploymentId);
     }
 
     public static String actionReceiptFingerprintSecretName(String deploymentId) {

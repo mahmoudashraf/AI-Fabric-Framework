@@ -6,11 +6,16 @@ import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
 import com.ai.fabric.runtime.chat.RuntimeConversationTurnRecord;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.ai.fabric.runtime.handover.ConversationHandoverContracts.CanonicalConversationSummary;
+import com.ai.fabric.runtime.handover.ConversationHandoverContracts.ConversationView;
+import com.ai.fabric.runtime.handover.ConversationHandoverContracts.PublicConversationMessage;
+import com.ai.fabric.runtime.handover.RuntimeConversationHandoverService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
 import com.ai.fabric.runtime.web.dto.ConversationSummaryResponse;
@@ -18,16 +23,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,7 +72,7 @@ class ChatRuntimeControllerConversationAuthTest {
             mock(RuntimeConversationGateway.class),
             strictAuthResolver()
         );
-        assertThatThrownBy(() -> controller.deleteConversation("chat-1", new MockHttpServletRequest()))
+        assertThatThrownBy(() -> controller.deleteConversation("chat-1", null, new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Verified runtime auth context is required");
@@ -138,6 +147,66 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     @Test
+    void handoverEnabledConversationDetailUsesCanonicalParticipantHistory() {
+        RuntimeConversationGateway legacyGateway = mock(RuntimeConversationGateway.class);
+        RuntimeConversationHandoverService handoverService = mock(RuntimeConversationHandoverService.class);
+        Instant now = Instant.parse("2026-10-13T10:00:00Z");
+        CanonicalConversationSummary summary = new CanonicalConversationSummary(
+            "chat-1",
+            ai.fabric.chat.control.ConversationControlState.HUMAN_ACTIVE,
+            now,
+            now,
+            1
+        );
+        ConversationView view = new ConversationView(
+            "chat-1",
+            ai.fabric.chat.control.ConversationControlState.HUMAN_ACTIVE,
+            2,
+            "handover-1",
+            "binding-1",
+            "ACTIVE",
+            "Alice",
+            List.of(new PublicConversationMessage(
+                "message-1",
+                1,
+                "HUMAN",
+                "Alice",
+                "Hello from support.",
+                null,
+                Map.of(),
+                now
+            )),
+            List.of(),
+            now
+        );
+        when(handoverService.conversationSummary(any(RuntimeResolvedIdentity.class), eq("chat-1")))
+            .thenReturn(summary);
+        when(handoverService.history(any(RuntimeResolvedIdentity.class), eq("chat-1"))).thenReturn(view);
+
+        ChatRuntimeController controller = instantiateController(
+            legacyGateway,
+            strictAuthResolver(),
+            handoverService
+        );
+        ReflectionTestUtils.setField(controller, "conversationHandoverEnabled", true);
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        ConversationResponse response = controller.getConversation("chat-1", servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getControlState()).isEqualTo("HUMAN_ACTIVE");
+        assertThat(response.getTurns()).isEmpty();
+        assertThat(response.getParticipantMessages()).singleElement().satisfies(message -> {
+            assertThat(message.getRole()).isEqualTo("HUMAN");
+            assertThat(message.getParticipantDisplayName()).isEqualTo("Alice");
+            assertThat(message.getContent()).isEqualTo("Hello from support.");
+        });
+        verify(handoverService).history(any(RuntimeResolvedIdentity.class), eq("chat-1"));
+        org.mockito.Mockito.verifyNoInteractions(legacyGateway);
+    }
+
+    @Test
     void getConversationRejectsLegacyQueryParamsOnVerifiedRoute() {
         ChatRuntimeController controller = instantiateController(
             mock(RuntimeConversationGateway.class),
@@ -167,7 +236,7 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<Void> responseEntity = controller.deleteConversation("chat-1", servletRequest);
+        ResponseEntity<Void> responseEntity = controller.deleteConversation("chat-1", null, servletRequest);
         assertThat(responseEntity.getStatusCode().value()).isEqualTo(204);
 
         verify(conversationGateway).deleteConversation("chat-1", "verified-user");
@@ -343,6 +412,14 @@ class ChatRuntimeControllerConversationAuthTest {
 
     private ChatRuntimeController instantiateController(RuntimeConversationGateway conversationGateway,
                                                         RuntimeRequestAuthResolver authResolver) {
+        return instantiateController(conversationGateway, authResolver, null);
+    }
+
+    private ChatRuntimeController instantiateController(
+        RuntimeConversationGateway conversationGateway,
+        RuntimeRequestAuthResolver authResolver,
+        RuntimeConversationHandoverService handoverService
+    ) {
         try {
             Constructor<?> constructor = ChatRuntimeController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -353,6 +430,7 @@ class ChatRuntimeControllerConversationAuthTest {
                 provider(null),
                 provider(null),
                 provider(null),
+                provider(handoverService),
                 authResolver
             );
         } catch (ReflectiveOperationException ex) {

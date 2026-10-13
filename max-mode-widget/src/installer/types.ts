@@ -19,6 +19,13 @@ export interface WorkspaceRuntimeRoutes {
   shellConfigUrl: string;
   conversationsUrl: string;
   conversationItemUrlTemplate: string;
+  conversationMessageUrlTemplate?: string;
+  handoverRequestUrlTemplate?: string;
+  handoverCancelUrlTemplate?: string;
+  handoverRetryUrlTemplate?: string;
+  conversationControlUrlTemplate?: string;
+  conversationEventsUrlTemplate?: string;
+  aiResumeRequestUrlTemplate?: string;
 }
 
 interface WorkspaceConnectionBase {
@@ -26,6 +33,7 @@ interface WorkspaceConnectionBase {
   profileCode: string;
   profileVersion: string;
   handler: "direct-public-runtime" | "brokered-public-runtime" | "private-backend-adapter";
+  conversationHandover?: import("@/config").MaxModeConversationHandoverConfig;
 }
 
 export interface WorkspaceAnonymousConnection extends WorkspaceConnectionBase {

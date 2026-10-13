@@ -484,6 +484,7 @@ public class DeploymentMarketplaceInstallService {
                 case "AUTOMATION" -> automationPluginCount++;
                 case "INFERENCE_PROFILE" -> inferenceProfilePluginCount++;
                 case "SPECIALIST" -> specialistPluginCount++;
+                case "INTEGRATION" -> { }
                 case "TEMPLATE" -> {
                     templatePluginCount++;
                     if (!"BOOTSTRAPPED".equalsIgnoreCase(install.getStatus())) {
@@ -823,6 +824,14 @@ public class DeploymentMarketplaceInstallService {
             warnings.add(
                 "Incompatible deployment behavior. Specialist supports: "
                     + String.join(", ", parsed.contributions().specialistCompatibleBehaviorTypes()) + "."
+            );
+        }
+        if ("INTEGRATION".equals(parsed.pluginType())
+            && parsed.contributions().conversationChannel() != null
+            && !parsed.contributions().conversationChannel().compatibleBehaviorTypes().contains(deployment.getBehaviorType())) {
+            warnings.add(
+                "Incompatible deployment behavior. Conversation channel supports: "
+                    + String.join(", ", parsed.contributions().conversationChannel().compatibleBehaviorTypes()) + "."
             );
         }
         if (containsSharedIndexContribution(parsed)) {

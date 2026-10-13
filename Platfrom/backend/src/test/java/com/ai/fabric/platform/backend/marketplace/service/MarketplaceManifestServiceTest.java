@@ -1011,6 +1011,73 @@ class MarketplaceManifestServiceTest {
             .hasMessageContaining("not a valid HTTP header name");
     }
 
+    @Test
+    void canonicalConversationControlActionIsAccepted() {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            actionPlugin(),
+            version(validConversationControlActionManifest())
+        );
+
+        assertThat(parsed.contributions().actionIds())
+            .containsExactly("request_conversation_handover");
+    }
+
+    @Test
+    void reservedConversationControlActionCannotSelectAnotherAdapter() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validConversationControlActionManifest());
+        ((ObjectNode) manifest.path("contributions").path("actions").get(0))
+            .put("adapterType", "webhook");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            actionPlugin(),
+            version(objectMapper.writeValueAsString(manifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("reserved for the canonical confirmed terminal handover action");
+    }
+
+    @Test
+    void conversationChannelRejectsCapabilityAndIntakeWidening() throws Exception {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            integrationPlugin(),
+            integrationVersion(validConversationChannelManifest())
+        );
+        assertThat(parsed.contributions().conversationChannel().capabilities())
+            .containsExactlyInAnyOrder(
+                "DISPATCH", "CLAIM", "INBOUND_MESSAGE", "OUTBOUND_MESSAGE",
+                "RETURN_TO_AI", "CLOSE", "AVAILABILITY"
+            );
+
+        ObjectNode extraCapability = (ObjectNode) objectMapper.readTree(validConversationChannelManifest());
+        ((com.fasterxml.jackson.databind.node.ArrayNode) extraCapability.path("contributions")
+            .path("conversationChannel").path("capabilities"))
+            .add("TRANSCRIPT_EXPORT");
+        assertThatThrownBy(() -> service.parseAndValidate(
+            integrationPlugin(),
+            integrationVersion(objectMapper.writeValueAsString(extraCapability))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("exactly match the reviewed V1 contract");
+
+        ObjectNode unsafeIntake = (ObjectNode) objectMapper.readTree(validConversationChannelManifest());
+        ((com.fasterxml.jackson.databind.node.ArrayNode) unsafeIntake.path("contributions")
+            .path("conversationChannel").path("configuration").path("intake").path("fields"))
+            .addObject()
+            .put("id", "accountPassword")
+            .put("label", "Password")
+            .put("type", "text")
+            .put("required", false)
+            .put("maxLength", 120)
+            .put("purpose", "Operator context")
+            .put("consentRequired", false);
+        assertThatThrownBy(() -> service.parseAndValidate(
+            integrationPlugin(),
+            integrationVersion(objectMapper.writeValueAsString(unsafeIntake))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("unique reviewed V1 fields");
+    }
+
     private MarketplacePluginEntity actionPlugin() {
         MarketplacePluginEntity plugin = new MarketplacePluginEntity();
         plugin.setId("mkp-action-test");
@@ -1046,6 +1113,16 @@ class MarketplaceManifestServiceTest {
         return plugin;
     }
 
+    private MarketplacePluginEntity integrationPlugin() {
+        MarketplacePluginEntity plugin = actionPlugin();
+        plugin.setId("mkp-integration-test");
+        plugin.setSlug("integration-test");
+        plugin.setDisplayName("Integration Test");
+        plugin.setPluginType("INTEGRATION");
+        plugin.setShortDescription("Test integration plugin.");
+        return plugin;
+    }
+
     private MarketplacePluginVersionEntity version(String manifestJson) {
         MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
         version.setId("mkv-action-test-v1");
@@ -1071,6 +1148,109 @@ class MarketplaceManifestServiceTest {
         version.setId("mkv-specialist-test-v1");
         version.setPluginId("mkp-specialist-test");
         return version;
+    }
+
+    private MarketplacePluginVersionEntity integrationVersion(String manifestJson) {
+        MarketplacePluginVersionEntity version = version(manifestJson);
+        version.setId("mkv-integration-test-v1");
+        version.setPluginId("mkp-integration-test");
+        return version;
+    }
+
+    private String validConversationControlActionManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [{
+                  "actionId": "request_conversation_handover",
+                  "description": "Request temporary human ownership.",
+                  "readOnly": false,
+                  "confirmationRequired": true,
+                  "anonymousAllowed": true,
+                  "terminal": true,
+                  "adapterType": "conversation-control",
+                  "operation": "REQUEST_HANDOVER"
+                }]
+              }
+            }
+            """;
+    }
+
+    private String validConversationChannelManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "INTEGRATION",
+              "compatibility": {"requiredCapabilities": ["integrations"]},
+              "pricing": {"pricingModel": "FREE"},
+              "installForm": [
+                {"id": "providerBaseUrl", "type": "url", "required": true},
+                {"id": "operatorConsoleUrl", "type": "url", "required": false},
+                {"id": "providerApiKeySecretRef", "type": "secretRef", "required": true},
+                {"id": "runtimeCallbackSigningSecretRef", "type": "secretRef", "required": true},
+                {"id": "providerWebhookSigningSecretRef", "type": "secretRef", "required": true}
+              ],
+              "permissions": {
+                "contributesIntegrations": true,
+                "requiresExternalHttpExecution": true,
+                "requiresDeploymentSecrets": true
+              },
+              "contributions": {
+                "conversationChannel": {
+                  "contractVersion": "LOOMAI_CONVERSATION_CHANNEL_V1",
+                  "bindingId": "basic-loomai-inbox",
+                  "adapterImplementationId": "loomai-basic-inbox",
+                  "adapterVersion": "1",
+                  "compatibleBehaviorTypes": ["CONVERSATIONAL"],
+                  "capabilities": [
+                    "DISPATCH", "CLAIM", "INBOUND_MESSAGE", "OUTBOUND_MESSAGE",
+                    "RETURN_TO_AI", "CLOSE", "AVAILABILITY"
+                  ],
+                  "providerBaseUrlField": "providerBaseUrl",
+                  "providerApiKeySecretRefField": "providerApiKeySecretRef",
+                  "runtimeCallbackSigningSecretRefField": "runtimeCallbackSigningSecretRef",
+                  "providerWebhookSigningSecretRefField": "providerWebhookSigningSecretRef",
+                  "operatorConsoleUrlField": "operatorConsoleUrl",
+                  "requiredRuntimeCapabilityIds": [
+                    "conversation-control", "conversation-channel-outbox", "conversation-event-stream"
+                  ],
+                  "requiredMigrationIds": ["loomai-conversation-handover-v1"],
+                  "verificationPackIds": ["conversation-handover-v1"],
+                  "configuration": {
+                    "modelInitiatedPolicy": "REQUIRE_USER_CONFIRMATION",
+                    "userCanCancelPending": true,
+                    "userCanResumeAi": true,
+                    "activeIdleAutoResume": false,
+                    "queueTimeoutSeconds": 900,
+                    "queueTimeoutOutcome": "EXPIRED_REQUIRES_EXPLICIT_RECOVERY",
+                    "transcriptProjection": "SAFE_TEXT_AND_ATTACHMENT_REFS",
+                    "intake": {
+                      "anonymousAllowed": true,
+                      "fields": [
+                        {
+                          "id": "name", "label": "Name", "type": "text", "required": false,
+                          "maxLength": 120, "purpose": "Conversation continuity", "consentRequired": false
+                        },
+                        {
+                          "id": "email", "label": "Email", "type": "email", "required": false,
+                          "maxLength": 254, "purpose": "Optional follow-up", "consentRequired": true
+                        },
+                        {
+                          "id": "phone", "label": "Phone", "type": "tel", "required": false,
+                          "maxLength": 40, "purpose": "Optional follow-up", "consentRequired": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+            """;
     }
 
     private String validAgenticSpecialistManifest() {

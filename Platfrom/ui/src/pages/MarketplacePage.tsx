@@ -206,6 +206,8 @@ function pluginTypeColor(pluginType: string): 'primary' | 'secondary' | 'success
       return 'primary'
     case 'SPECIALIST':
       return 'secondary'
+    case 'INTEGRATION':
+      return 'success'
     default:
       return 'warning'
   }
@@ -225,6 +227,8 @@ function categoryLabel(plugin: MarketplacePluginSummary): string {
       return 'Inference Profiles'
     case 'SPECIALIST':
       return 'Specialists'
+    case 'INTEGRATION':
+      return 'Integrations'
     default:
       return plugin.pluginType
   }
@@ -1300,6 +1304,54 @@ export function MarketplacePage() {
                           </Card>
                         </Grid>
                       ) : null}
+                      {selectedVersionSummary?.contributions.conversationChannel ? (
+                        <Grid item xs={12}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1.5}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Conversation channel contract
+                                  </Typography>
+                                  <Chip
+                                    size="small"
+                                    label={selectedVersionSummary.contributions.conversationChannel.bindingId}
+                                    color="success"
+                                    variant="outlined"
+                                  />
+                                  <Chip
+                                    size="small"
+                                    label={`Contract ${selectedVersionSummary.contributions.conversationChannel.contractVersion}`}
+                                    variant="outlined"
+                                  />
+                                </Stack>
+                                <Typography variant="body2">
+                                  Adapter: {selectedVersionSummary.contributions.conversationChannel.adapterImplementationId}
+                                  {' '}({selectedVersionSummary.contributions.conversationChannel.adapterVersion})
+                                </Typography>
+                                <Typography variant="body2">
+                                  Compatible behaviors: {contributionList(selectedVersionSummary.contributions.conversationChannel.compatibleBehaviorTypes)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Channel capabilities: {contributionList(selectedVersionSummary.contributions.conversationChannel.capabilities)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Runtime capabilities: {contributionList(selectedVersionSummary.contributions.conversationChannel.requiredRuntimeCapabilityIds)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Migrations: {contributionList(selectedVersionSummary.contributions.conversationChannel.requiredMigrationIds)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Verification packs: {contributionList(selectedVersionSummary.contributions.conversationChannel.verificationPackIds)}
+                                </Typography>
+                                <Alert severity="info">
+                                  Provider URLs and deployment-bound secret references are collected by the generated install form. Secret values are not stored in this manifest.
+                                </Alert>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ) : null}
                       <Grid item xs={12} md={6}>
                         <Card variant="outlined">
                           <CardContent>
@@ -1547,11 +1599,16 @@ export function MarketplacePage() {
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Action, data, inference-profile, and specialist plugins compile into the target deployment draft. Publish and apply are still required before they affect the live runtime.
+                      Action, data, inference-profile, specialist, and integration plugins compile into the target deployment draft. Publish and apply are still required before they affect the live runtime.
                     </Typography>
                     {selectedPlugin?.pluginType === 'SPECIALIST' ? (
                       <Alert severity="info">
                         This installs exact references to specialists already packaged and verified in a promoted private runtime image. It does not upload executable specialist definitions.
+                      </Alert>
+                    ) : null}
+                    {selectedPlugin?.pluginType === 'INTEGRATION' ? (
+                      <Alert severity="info">
+                        This installs a reviewed integration contract and allowlisted adapter. Provider credentials remain deployment-bound secret references and are never exposed to the browser.
                       </Alert>
                     ) : null}
                     {!targetDeploymentId ? (

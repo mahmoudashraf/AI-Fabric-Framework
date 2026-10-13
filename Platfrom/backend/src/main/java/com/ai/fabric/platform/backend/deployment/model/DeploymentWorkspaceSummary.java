@@ -15,6 +15,8 @@ public record DeploymentWorkspaceSummary(
     boolean documentKnowledgeConfigured,
     boolean documentKnowledgeLive,
     boolean externalIntegrationConfigured,
-    boolean externalIntegrationLive
+    boolean externalIntegrationLive,
+    boolean conversationHandoverConfigured,
+    boolean conversationHandoverLive
 ) {
 }

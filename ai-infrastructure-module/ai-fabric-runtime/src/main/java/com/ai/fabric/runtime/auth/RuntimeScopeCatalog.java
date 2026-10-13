@@ -23,6 +23,10 @@ public final class RuntimeScopeCatalog {
     public static final String DOCUMENTS_REGISTER = "documents:register";
     public static final String DOCUMENTS_INDEX = "documents:index";
     public static final String DOCUMENTS_DELETE_INDEX = "documents:delete-index";
+    public static final String CHAT_MESSAGES = "chat:messages";
+    public static final String CHAT_HANDOVER_REQUEST = "chat:handover:request";
+    public static final String CHAT_HANDOVER_CONTROL = "chat:handover:control";
+    public static final String CHAT_HANDOVER_READ = "chat:handover:read";
 
     private RuntimeScopeCatalog() {
     }

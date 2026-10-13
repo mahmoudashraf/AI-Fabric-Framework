@@ -26,6 +26,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -123,6 +124,65 @@ class DeploymentIntegrationOperationsServiceTest {
             .hasMessageContaining("does not claim an external HTTP integration");
     }
 
+    @Test
+    void conversationHandoverOverviewUsesReadScopeAndSafeOperatorProjection() throws Exception {
+        List<String> paths = new ArrayList<>();
+        List<String> assertions = new ArrayList<>();
+        startServer(exchange -> {
+            paths.add(exchange.getRequestURI().getPath());
+            assertions.add(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER));
+            respond(exchange, 200, exchange.getRequestURI().getPath().contains("connector")
+                ? "{\"enabled\":true,\"providerConfigured\":true}"
+                : "{\"enabled\":true,\"queued\":1}");
+        });
+        configureDeployment();
+        when(versionRepository.findById("ver-1")).thenReturn(Optional.of(handoverVersion()));
+
+        var response = service().conversationHandoverOverview("dep-1");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(paths).containsExactly(
+            "/api/admin/conversation-handover/overview",
+            "/api/admin/connector/conversation-channel"
+        );
+        for (String value : assertions) {
+            assertThat(assertionClaims(value).path("scopes").toString())
+                .isEqualTo("[\"runtime:conversation-handover:read\"]");
+        }
+        assertThat(response.body().path("runtime").path("queued").asInt()).isEqualTo(1);
+        assertThat(response.body().path("connector").path("reachable").asBoolean()).isTrue();
+        assertThat(response.body().path("operatorConsoleUrl").asText())
+            .isEqualTo("https://inbox.example/operators");
+        assertThat(response.body().toString()).doesNotContain("INBOX_PROVIDER_API_KEY");
+    }
+
+    @Test
+    void conversationHandoverRetryUsesRecoveryScopeAndAudits() throws Exception {
+        AtomicReference<String> path = new AtomicReference<>();
+        AtomicReference<String> assertion = new AtomicReference<>();
+        startServer(exchange -> {
+            path.set(exchange.getRequestURI().getPath());
+            assertion.set(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER));
+            respond(exchange, 202, "{\"status\":\"RETRY_QUEUED\"}");
+        });
+        configureDeployment();
+        when(versionRepository.findById("ver-1")).thenReturn(Optional.of(handoverVersion()));
+
+        var response = service().retryConversationHandoverDispatch("dep-1", "dsp-123");
+
+        assertThat(response.statusCode()).isEqualTo(202);
+        assertThat(path.get()).isEqualTo("/api/admin/conversation-handover/dispatches/dsp-123/retry");
+        assertThat(assertionClaims(assertion.get()).path("scopes").toString())
+            .isEqualTo("[\"runtime:conversation-handover:recover\"]");
+        verify(accessService).requireDeploymentOperatorAccess(any(DeploymentEntity.class));
+        verify(auditService).record(
+            eq("CONVERSATION_HANDOVER_DISPATCH_RETRY_REQUESTED"),
+            eq("DEPLOYMENT"),
+            eq("dep-1"),
+            any()
+        );
+    }
+
     private DeploymentIntegrationOperationsService service() {
         return new DeploymentIntegrationOperationsService(
             deploymentRepository,
@@ -158,6 +218,25 @@ class DeploymentIntegrationOperationsServiceTest {
         version.setDeploymentId("dep-1");
         version.setMarketplaceDatasetConfigJson("""
             {"datasets":[{"datasetId":"neutral-data","ingestionMode":"EXTERNAL_SYNC_HTTP"}]}
+            """);
+        return version;
+    }
+
+    private DeploymentVersionEntity handoverVersion() {
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-1");
+        version.setDeploymentId("dep-1");
+        version.setBehaviorConfigJson("""
+            {
+              "executionExtensions": ["CONVERSATION_HANDOVER"],
+              "conversationHandover": {
+                "enabled": true,
+                "channel": {
+                  "operatorConsoleUrl": "https://inbox.example/operators",
+                  "providerApiKeySecretRef": "INBOX_PROVIDER_API_KEY"
+                }
+              }
+            }
             """);
         return version;
     }

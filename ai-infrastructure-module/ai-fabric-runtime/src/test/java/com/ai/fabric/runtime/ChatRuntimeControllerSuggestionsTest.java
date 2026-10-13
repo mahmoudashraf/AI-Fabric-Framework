@@ -375,6 +375,7 @@ class ChatRuntimeControllerSuggestionsTest {
                 aiActionRegistryProvider,
                 promptConfigProvider,
                 shellConfigProvider,
+                provider(null),
                 authResolver
             );
         } catch (ReflectiveOperationException ex) {

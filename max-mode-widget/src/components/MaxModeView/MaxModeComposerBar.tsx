@@ -1,6 +1,7 @@
 import { Composer } from "../Chat/Composer";
 
 import type { MaxModeController } from "@/hooks/useMaxModeController";
+import { getWidgetConfig } from "@/config";
 
 export function MaxModeComposerBar({ controller }: { controller: MaxModeController }) {
   const {
@@ -33,6 +34,7 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
     openDebugInspector,
     handleChatQuery,
   } = controller;
+  const handoverConfig = getWidgetConfig().apiConfig.conversationHandover;
 
   return (
     <Composer
@@ -58,12 +60,23 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
       isLoading={isLoading}
       currentPosition={currentPosition}
       currentMode={currentMode}
-      availableModes={allowedConversationModes}
+      availableModes={controller.handoverBlocksAi ? [currentMode] : allowedConversationModes}
       onModeChange={setCurrentMode}
       debugEnabled={debugEnabled}
       conversationsEnabled={conversationsEnabled}
       onOpenDebug={() => openDebugInspector()}
       onSubmit={() => handleChatQuery()}
+      handoverEnabled={controller.handoverEnabled}
+      handoverState={controller.conversationControlState}
+      handoverStatus={controller.conversationControl?.handoverStatus}
+      handoverDisplayName={controller.conversationControl?.safeHumanDisplayName}
+      handoverCanCancel={handoverConfig?.userCanCancelPending === true}
+      handoverCanResume={handoverConfig?.userCanResumeAi === true}
+      handoverBusy={controller.isHandoverBusy}
+      onOpenHandover={controller.openHandover}
+      onCancelHandover={() => void controller.cancelHandover()}
+      onRetryHandover={() => void controller.retryHandover()}
+      onResumeAi={() => void controller.resumeAi()}
     />
   );
 }

@@ -26,6 +26,61 @@ public record MarketplacePluginContributionSummary(
     List<String> specialistRequiredMigrationIds,
     List<String> specialistRequiredSecretNames,
     List<String> specialistVerificationPackIds,
-    List<String> specialistUnsupportedClaims
+    List<String> specialistUnsupportedClaims,
+    MarketplaceConversationChannelContributionSummary conversationChannel
 ) {
+    public MarketplacePluginContributionSummary(
+        String templateCuratedModuleId,
+        List<String> actionIds,
+        List<String> knowledgeSourceIds,
+        List<String> shellModuleIds,
+        List<String> shellCardIds,
+        List<String> automationWorkflowIds,
+        List<String> inferenceProfileIds,
+        List<String> inferenceEndpointProfileRefs,
+        List<String> inferenceManagedServiceRefs,
+        String templateDeploymentBehaviorType,
+        Integer templateDeploymentBehaviorContractVersion,
+        List<String> templateRequiredRuntimeCapabilityIds,
+        List<String> templateAllowedExecutionExtensions,
+        List<String> templateAllowedChannelBindings,
+        List<String> templateVerificationPackIds,
+        List<String> templateRequiredPluginRefs,
+        String specialistContractVersion,
+        List<String> specialistCompatibleBehaviorTypes,
+        List<MarketplaceSpecialistBundleRefSummary> specialistBundleRefs,
+        List<String> specialistRequiredRuntimeCapabilityIds,
+        List<String> specialistRequiredMigrationIds,
+        List<String> specialistRequiredSecretNames,
+        List<String> specialistVerificationPackIds,
+        List<String> specialistUnsupportedClaims
+    ) {
+        this(
+            templateCuratedModuleId,
+            actionIds,
+            knowledgeSourceIds,
+            shellModuleIds,
+            shellCardIds,
+            automationWorkflowIds,
+            inferenceProfileIds,
+            inferenceEndpointProfileRefs,
+            inferenceManagedServiceRefs,
+            templateDeploymentBehaviorType,
+            templateDeploymentBehaviorContractVersion,
+            templateRequiredRuntimeCapabilityIds,
+            templateAllowedExecutionExtensions,
+            templateAllowedChannelBindings,
+            templateVerificationPackIds,
+            templateRequiredPluginRefs,
+            specialistContractVersion,
+            specialistCompatibleBehaviorTypes,
+            specialistBundleRefs,
+            specialistRequiredRuntimeCapabilityIds,
+            specialistRequiredMigrationIds,
+            specialistRequiredSecretNames,
+            specialistVerificationPackIds,
+            specialistUnsupportedClaims,
+            null
+        );
+    }
 }

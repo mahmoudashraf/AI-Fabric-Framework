@@ -165,7 +165,35 @@ interface MaxModeWidgetConfig {
       suggestionsUrl?: string;              // Optional absolute URL or path
       conversationsUrl?: string;            // Optional absolute URL or path
       conversationItemUrlTemplate?: string; // Use {conversationId} placeholder when possible
+      conversationMessageUrlTemplate?: string;
+      handoverRequestUrlTemplate?: string;
+      handoverCancelUrlTemplate?: string;    // Uses {conversationId} and {handoverId}
+      handoverRetryUrlTemplate?: string;     // Uses {conversationId} and {handoverId}
+      conversationControlUrlTemplate?: string;
+      conversationEventsUrlTemplate?: string;
+      aiResumeRequestUrlTemplate?: string;
       authContextUrl?: string;              // Optional absolute URL or path
+    };
+    conversationHandover?: {
+      enabled: boolean;
+      contractVersion?: string;
+      modelInitiatedPolicy?: string;
+      userCanCancelPending?: boolean;
+      userCanResumeAi?: boolean;
+      queueTimeoutSeconds?: number;
+      intake?: {
+        anonymousAllowed?: boolean;
+        fields?: Array<{
+          key: string;
+          label: string;
+          type: "TEXT" | "EMAIL" | "PHONE" | "BOOLEAN" | "SELECT";
+          required?: boolean;
+          maxLength?: number;
+          purpose?: string;
+          consentRequired?: boolean;
+          options?: string[];
+        }>;
+      };
     };
     headers?: Record<string, string>;
     chatHeaders?: Record<string, string>;
@@ -254,6 +282,15 @@ interface MaxModeWidgetConfig {
   onClose?: () => void;
 }
 ```
+
+Conversation Handover is enabled only when the deployment advertises the
+capability and all seven handover routes. It provides a generic **Talk to a
+person** flow, bounded optional intake, canonical owner messaging, SSE replay,
+pending/human-active states, and explicit return to AI. The widget does not
+select an operator provider, infer handover from text, or receive provider
+credentials. Platform-managed one-script installations populate this contract
+from their origin-scoped manifest; explicit integrations must use exact
+provisioning route metadata.
 
 When enabled, the attach/refresh control is rendered in a separate utility rail
 above the collapsed Companion input shell. Capturing or refreshing a page does

@@ -5,6 +5,7 @@ import { History, Info, Loader2, Search, Send, X } from "lucide-react";
 
 import { AISearchDisplay } from "@/components/AISearchDisplay";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
+import type { ConversationControlState } from "@/types";
 import { Button } from "@/ui/button";
 import { Textarea } from "@/ui/textarea";
 import { ModeSelector } from "./ModeSelector";
@@ -45,6 +46,7 @@ export function ComposerInputRow({
   onOpenDebug,
   nonAiAttachmentsCount,
   onSubmit,
+  conversationControlState,
 }: {
   searchCategory: string | null;
   hasAiSearch: boolean;
@@ -68,6 +70,7 @@ export function ComposerInputRow({
   onOpenDebug: () => void;
   nonAiAttachmentsCount: number;
   onSubmit: () => void;
+  conversationControlState: ConversationControlState;
 }) {
   return (
     <div className="space-y-1.5">
@@ -141,6 +144,12 @@ export function ComposerInputRow({
           placeholder={
             oldConversationLocked
               ? "This conversation is locked..."
+              : conversationControlState === "HUMAN_PENDING"
+                ? "Message while you wait for human support..."
+                : conversationControlState === "HUMAN_ACTIVE"
+                  ? "Message human support..."
+                  : conversationControlState === "AI_RESUME_PENDING"
+                    ? "Returning this conversation to AI..."
               : searchCategory || hasAiSearch
                 ? "Type your search query..."
                 : nonAiAttachmentsCount > 0
@@ -157,7 +166,7 @@ export function ComposerInputRow({
               onSubmit();
             }
           }}
-          disabled={oldConversationLocked}
+          disabled={oldConversationLocked || conversationControlState === "AI_RESUME_PENDING"}
           className={`${
             isInputFocused ? "min-h-[80px] sm:min-h-[100px] md:min-h-[80px]" : "min-h-[56px] sm:min-h-[60px] md:min-h-[80px]"
           } ${searchCategory || hasAiSearch ? "pt-9 sm:pt-10" : "pt-4"} pb-4 pr-14 pl-4 text-sm sm:text-base resize-none border border-gray-200 rounded-2xl shadow-lg focus:shadow-xl leading-relaxed transition-all bg-white dark:bg-gray-900 dark:border-gray-700 ${

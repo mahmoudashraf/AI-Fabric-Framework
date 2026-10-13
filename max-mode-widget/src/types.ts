@@ -97,6 +97,44 @@ export interface ChatMessage {
   documents?: Document[];
   debugData?: DebugData;
   searchCategory?: string;
+  participantRole?: "ai" | "human" | "system";
+  participantDisplayName?: string;
+}
+
+export type ConversationControlState =
+  | "AI_ACTIVE"
+  | "HUMAN_PENDING"
+  | "HUMAN_ACTIVE"
+  | "AI_RESUME_PENDING"
+  | "CLOSED";
+
+export interface RuntimeConversationMessage {
+  messageId: string;
+  sequence: number;
+  role: "USER" | "AI" | "HUMAN" | "SYSTEM";
+  participantDisplayName?: string;
+  content: string;
+  clientMessageId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ConversationControlView {
+  conversationId: string;
+  controlState: ConversationControlState;
+  controlVersion: number;
+  handoverId?: string | null;
+  channelBindingId?: string | null;
+  handoverStatus?: string | null;
+  safeHumanDisplayName?: string | null;
+  messages?: RuntimeConversationMessage[];
+  events?: Array<{
+    eventId: string;
+    type: string;
+    payload?: Record<string, unknown>;
+    createdAt: string;
+  }>;
+  updatedAt?: string;
 }
 
 export interface CustomerAccountConnectAction {
@@ -132,6 +170,7 @@ export interface Conversation {
   id: string;
   title?: string;
   status?: string;
+  controlState?: ConversationControlState;
   createdAt: string;
   lastInteractionAt?: string;
   turnsCount?: number;
@@ -144,7 +183,8 @@ export interface ConversationTurn {
 }
 
 export interface ConversationDetail extends Conversation {
-  turns: ConversationTurn[];
+  turns?: ConversationTurn[];
+  participantMessages?: RuntimeConversationMessage[];
 }
 
 export interface RuntimeAuthContextSummary {

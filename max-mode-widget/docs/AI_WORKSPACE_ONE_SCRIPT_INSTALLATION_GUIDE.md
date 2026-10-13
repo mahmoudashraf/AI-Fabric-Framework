@@ -73,6 +73,35 @@ profile, experience pack, and exact versions are Platform-owned installation
 configuration. Customer JavaScript must not choose a deployment or elevate
 scopes.
 
+## Conversation Handover
+
+When the assigned conversational deployment has the reviewed
+`CONVERSATION_HANDOVER` extension, handover action, and
+`CONVERSATION_CHANNEL` integration installed, the origin-scoped manifest
+also advertises the generic handover capability and exact route templates.
+The same one-script installation then provides:
+
+- **Talk to a person**, structured optional intake, pending and human-active
+  states, cancellation/retry, and explicit **Continue with AI** controls;
+- canonical owner messages and an owner-authorized event stream, so AI is not
+  called while a person owns the conversation;
+- same-tab navigation and reload continuity for the conversation, messages,
+  attachments, and anonymous owner proof; and
+- the same behavior for a reviewed direct public runtime, authenticated
+  runtime, or private backend-adapter route contract.
+
+The website does not add provider credentials or operator logic. Platform
+publishes only safe behavior configuration and these route templates:
+`conversationMessageUrlTemplate`, `handoverRequestUrlTemplate`,
+`handoverCancelUrlTemplate`, `handoverRetryUrlTemplate`,
+`conversationControlUrlTemplate`, `conversationEventsUrlTemplate`, and
+`aiResumeRequestUrlTemplate`. They are omitted when the extension is not
+live, which keeps the UI hidden and the APIs unavailable.
+
+The selected conversation-channel provider owns its operator login, queue,
+claim, and reply experience. A configured operator-console link may open that
+provider, but it is not exposed to anonymous website users.
+
 ## Origin And CSP Requirements
 
 The exact website origin must be listed on the installation. Public runtime
@@ -144,6 +173,9 @@ Before release, verify:
    credential, private runtime assertion, or signing material.
 6. Disablement, reassignment, token expiry, and inaccessible conversations fail
    closed and offer a fresh session rather than replaying private history.
+7. When handover is enabled, direct request, optional intake, pending,
+   operator reply, reload/replay, and explicit return-to-AI all complete
+   without an AI response during human ownership.
 
 ## Failure Handling
 

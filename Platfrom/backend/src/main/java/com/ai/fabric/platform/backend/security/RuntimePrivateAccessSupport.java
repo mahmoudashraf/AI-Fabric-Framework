@@ -30,6 +30,8 @@ public final class RuntimePrivateAccessSupport {
     public static final String SCOPE_RUNTIME_INDEXING_VECTORS = "runtime:index:vectors";
     public static final String SCOPE_RUNTIME_CONNECTOR_READ = "runtime:connector:read";
     public static final String SCOPE_RUNTIME_CONNECTOR_WRITE = "runtime:connector:write";
+    public static final String SCOPE_RUNTIME_CONVERSATION_HANDOVER_READ = "runtime:conversation-handover:read";
+    public static final String SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER = "runtime:conversation-handover:recover";
     public static final String SCOPE_RUNTIME_MIGRATION_CLEAR = "runtime:migration:clear";
     public static final String SCOPE_DOCUMENTS_READ = "documents:read";
 
@@ -44,7 +46,8 @@ public final class RuntimePrivateAccessSupport {
             SCOPE_RUNTIME_WEBHOOKS_OVERVIEW,
             SCOPE_RUNTIME_INDEXING_OVERVIEW,
             SCOPE_RUNTIME_INDEXING_VECTORS,
-            SCOPE_RUNTIME_CONNECTOR_READ
+            SCOPE_RUNTIME_CONNECTOR_READ,
+            SCOPE_RUNTIME_CONVERSATION_HANDOVER_READ
         );
     }
 

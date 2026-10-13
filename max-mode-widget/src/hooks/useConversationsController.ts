@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Conversation } from "@/types";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, Conversation, ConversationDetail, RuntimeConversationMessage } from "@/types";
 
 import { deleteConversation, getConversation, listConversations } from "@/api/conversations";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
@@ -98,26 +97,14 @@ export function useConversationsController({
         setIsLoading(true);
         const data = await getConversation(conversationId);
 
-        const messages: ChatMessage[] = [];
-        data.turns.forEach((turn, idx) => {
-          messages.push({
-            id: `${conversationId}-user-${idx}`,
-            type: "user",
-            content: turn.userQuery,
-            timestamp: turn.timestamp,
-          });
-          messages.push({
-            id: `${conversationId}-ai-${idx}`,
-            type: "ai",
-            content: turn.aiResponse,
-            timestamp: turn.timestamp,
-          });
-        });
+        const messages = toChatMessages(data, conversationId);
 
         setChatMessages(messages);
         setCurrentConversationId(conversationId);
         setIsViewingOldConversation(true);
-        const isLocked = data.status === "LOCKED" || data.status === "CLOSED";
+        const isLocked = data.status === "LOCKED"
+          || data.status === "CLOSED"
+          || data.controlState === "CLOSED";
         setOldConversationLocked(isLocked);
         setIsConversationsOpen(false);
         setAttachedItems([]);
@@ -209,21 +196,7 @@ export function useConversationsController({
         if (!recentUnlocked) return;
 
         const data = await getConversation(recentUnlocked.id);
-        const messages: ChatMessage[] = [];
-        data.turns.forEach((turn, idx) => {
-          messages.push({
-            id: `${recentUnlocked.id}-user-${idx}`,
-            type: "user",
-            content: turn.userQuery,
-            timestamp: turn.timestamp,
-          });
-          messages.push({
-            id: `${recentUnlocked.id}-ai-${idx}`,
-            type: "ai",
-            content: turn.aiResponse,
-            timestamp: turn.timestamp,
-          });
-        });
+        const messages = toChatMessages(data, recentUnlocked.id);
 
         setChatMessages(messages);
         setCurrentConversationId(recentUnlocked.id);
@@ -256,4 +229,45 @@ export function useConversationsController({
     resetConversation,
     openConversationsPanel,
   } as const;
+}
+
+function toChatMessages(data: ConversationDetail, conversationId: string): ChatMessage[] {
+  if (Array.isArray(data.participantMessages) && data.participantMessages.length > 0) {
+    return [...data.participantMessages]
+      .sort((left, right) => left.sequence - right.sequence)
+      .map(toChatMessage);
+  }
+
+  const messages: ChatMessage[] = [];
+  for (const [index, turn] of (data.turns ?? []).entries()) {
+    messages.push({
+      id: `${conversationId}-user-${index}`,
+      type: "user",
+      content: turn.userQuery,
+      timestamp: turn.timestamp,
+    });
+    messages.push({
+      id: `${conversationId}-ai-${index}`,
+      type: "ai",
+      participantRole: "ai",
+      content: turn.aiResponse,
+      timestamp: turn.timestamp,
+    });
+  }
+  return messages;
+}
+
+function toChatMessage(message: RuntimeConversationMessage): ChatMessage {
+  const role = message.role.toLowerCase() as "user" | "ai" | "human" | "system";
+  return {
+    id: message.messageId,
+    type: role === "user" ? "user" : "ai",
+    ...(role === "user" ? {} : { participantRole: role }),
+    ...(message.participantDisplayName
+      ? { participantDisplayName: message.participantDisplayName }
+      : {}),
+    content: message.content,
+    timestamp: message.createdAt,
+    success: true,
+  };
 }

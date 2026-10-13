@@ -29,8 +29,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -310,6 +312,11 @@ public class RailwayProvisioningPlanService {
         boolean specialistChainsEnabled = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType);
         boolean deploymentKnowledgeSpecialistEnabled = !"SMART_BRAIN".equals(deploymentBehaviorType);
         boolean humanReviewEnabled = contains(behaviorConfig.path("executionExtensions"), "HUMAN_REVIEW");
+        boolean conversationHandoverEnabled = contains(
+            behaviorConfig.path("executionExtensions"),
+            "CONVERSATION_HANDOVER"
+        );
+        JsonNode conversationHandover = behaviorConfig.path("conversationHandover");
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED",
             Boolean.toString(specialistChainsEnabled)
@@ -400,6 +407,58 @@ public class RailwayProvisioningPlanService {
             ));
         }
         runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_CONVERSATION_HANDOVER_ENABLED",
+            Boolean.toString(conversationHandoverEnabled)
+        ));
+        if (conversationHandoverEnabled) {
+            JsonNode channel = conversationHandover.path("channel");
+            String handoverChatScopes = String.join(",",
+                "chat:query",
+                "chat:suggestions",
+                "chat:conversations",
+                "chat:messages",
+                "chat:handover:request",
+                "chat:handover:control",
+                "chat:handover:read"
+            );
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ANONYMOUS_GRANTED_SCOPES",
+                handoverChatScopes
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_DEFAULT_SCOPES",
+                handoverChatScopes
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES",
+                handoverChatScopes
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_CONVERSATION_HANDOVER_CHANNEL_BINDING_ID",
+                requireReleaseMetadata("conversationHandover.channelBindingId", conversationHandover.path("channelBindingId").asText(""))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_CONVERSATION_HANDOVER_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.conversationHandoverEncryptionSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET",
+                secretReference(channel, "runtimeCallbackSigningSecretRef")
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_CONVERSATION_HANDOVER_ANONYMOUS_ALLOWED",
+                Boolean.toString(conversationHandover.path("intake").path("anonymousAllowed").asBoolean(true))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_CONVERSATION_HANDOVER_INTAKE_SCHEMA_JSON",
+                conversationHandover.path("intake").toString()
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_CONVERSATION_HANDOVER_REQUIRED_INTAKE_FIELDS",
+                requiredIntakeFields(conversationHandover.path("intake").path("fields"))
+            ));
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
             "LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE",
             requireReleaseMetadata("deploymentBehaviorType", deploymentBehaviorType)
         ));
@@ -444,7 +503,7 @@ public class RailwayProvisioningPlanService {
         addOptionalEnv(runtimeEnv, "AI_KNOWLEDGE_SOURCES_DEPLOYMENT_CONFIG_FILE", artifactUrls.knowledgeSources());
         addOptionalEnv(runtimeEnv, "AI_SHELL_DEPLOYMENT_CONFIG_FILE", artifactUrls.shell());
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
-        if (externalHttpIntegration) {
+        if (externalHttpIntegration || conversationHandoverEnabled) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL",
                 connectorBaseUrl
@@ -499,7 +558,7 @@ public class RailwayProvisioningPlanService {
                 Boolean.toString(customerIngestion.readinessEnabled())
             ));
         }
-        if (externalHttpIntegration) {
+        if (externalHttpIntegration || conversationHandoverEnabled) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_ENABLED",
                 "true"
@@ -559,7 +618,7 @@ public class RailwayProvisioningPlanService {
         ));
         connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
         addConnectorSecretEnv(connectorEnv, routingConfig, marketplaceDatasetConfig);
-        if (externalHttpIntegration) {
+        if (externalHttpIntegration || conversationHandoverEnabled) {
             String connectorDatabaseRole = integrationConnectorDatabaseRole(deployment.getId());
             connectorEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL", runtimeBaseUrl));
             connectorEnv.add(new RailwayEnvVarSummary(
@@ -573,6 +632,41 @@ public class RailwayProvisioningPlanService {
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_JDBC_PASSWORD",
                 "${secret:" + DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName(deployment.getId()) + "}"
+            ));
+        }
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "REST_CONNECTOR_CONVERSATION_CHANNEL_ENABLED",
+            Boolean.toString(conversationHandoverEnabled)
+        ));
+        if (conversationHandoverEnabled) {
+            JsonNode channel = conversationHandover.path("channel");
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_BINDING_ID",
+                conversationHandover.path("channelBindingId").asText("")
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_RUNTIME_BASE_URL",
+                runtimeBaseUrl
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_RUNTIME_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.integrationServiceApiKeyName(deployment.getId()) + "}"
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_RUNTIME_CALLBACK_SIGNING_SECRET",
+                secretReference(channel, "runtimeCallbackSigningSecretRef")
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL",
+                channel.path("providerBaseUrl").asText("")
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY",
+                secretReference(channel, "providerApiKeySecretRef")
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET",
+                secretReference(channel, "providerWebhookSigningSecretRef")
             ));
         }
         addShopifyBridgeConnectorEnv(connectorEnv, deployment);
@@ -2029,6 +2123,31 @@ public class RailwayProvisioningPlanService {
             }
         }
         return false;
+    }
+
+    private String secretReference(JsonNode node, String field) {
+        String secretName = node == null ? "" : node.path(field).asText("").trim();
+        if (!secretName.matches("^[A-Z][A-Z0-9_]{2,127}$")) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Conversation Handover requires a valid deployment secret reference for " + field + "."
+            );
+        }
+        return "${secret:" + secretName + "}";
+    }
+
+    private String requiredIntakeFields(JsonNode fields) {
+        if (fields == null || !fields.isArray()) {
+            return "";
+        }
+        LinkedHashSet<String> required = new LinkedHashSet<>();
+        for (JsonNode field : fields) {
+            String key = field.path("id").asText("").trim();
+            if (field.path("required").asBoolean(false) && StringUtils.hasText(key)) {
+                required.add(key);
+            }
+        }
+        return String.join(",", required);
     }
 
     private boolean hasExternalHttpDataset(JsonNode config) {

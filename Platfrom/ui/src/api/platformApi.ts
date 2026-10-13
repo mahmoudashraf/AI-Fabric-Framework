@@ -719,6 +719,8 @@ export type DeploymentWorkspaceSummary = {
   documentKnowledgeLive: boolean
   externalIntegrationConfigured: boolean
   externalIntegrationLive: boolean
+  conversationHandoverConfigured: boolean
+  conversationHandoverLive: boolean
 }
 
 export type MarketplacePluginContributionSummary = {
@@ -746,6 +748,25 @@ export type MarketplacePluginContributionSummary = {
   specialistRequiredSecretNames: string[]
   specialistVerificationPackIds: string[]
   specialistUnsupportedClaims: string[]
+  conversationChannel: MarketplaceConversationChannelContributionSummary | null
+}
+
+export type MarketplaceConversationChannelContributionSummary = {
+  contractVersion: string
+  bindingId: string
+  adapterImplementationId: string
+  adapterVersion: string
+  compatibleBehaviorTypes: string[]
+  capabilities: string[]
+  providerBaseUrlField: string
+  providerApiKeySecretRefField: string
+  runtimeCallbackSigningSecretRefField: string
+  providerWebhookSigningSecretRefField: string
+  operatorConsoleUrlField: string
+  requiredRuntimeCapabilityIds: string[]
+  requiredMigrationIds: string[]
+  verificationPackIds: string[]
+  configuration: Record<string, unknown>
 }
 
 export type MarketplaceSpecialistBundleRefSummary = {
@@ -2305,6 +2326,57 @@ export type DeploymentIntegrationOverview = {
     enabled: boolean
     baseUrlConfigured: boolean
     serviceCredentialConfigured: boolean
+  }
+}
+
+export type ConversationHandoverDispatch = {
+  dispatchId: string
+  handoverId: string
+  dispatchType: string
+  status: string
+  attemptCount: number
+  failureCode: string | null
+  createdAt: string
+  updatedAt: string
+  retryEligible: boolean
+}
+
+export type ConversationHandoverCallback = {
+  eventId: string
+  eventType: string
+  status: string
+  attemptCount: number
+  duplicateCount: number
+  errorClass?: string
+  receivedAt: string
+  updatedAt: string
+}
+
+export type ConversationHandoverOperationsOverview = {
+  success: boolean
+  operatorConsoleUrl?: string
+  runtime: {
+    enabled: boolean
+    channelBindingId: string
+    handoverCounts: Record<string, number>
+    dispatchCounts: Record<string, number>
+    oldestPendingDispatchAt: string | null
+    recentDispatches: ConversationHandoverDispatch[]
+  }
+  connector: {
+    reachable: boolean
+    statusCode: number
+    status?: {
+      enabled: boolean
+      bindingId: string
+      providerConfigured: boolean
+      runtimeConfigured: boolean
+      callbackRecoveryOwner: string
+      manualCallbackReplaySupported: boolean
+      rejectedCallbackCount: number
+      callbackCounts: Record<string, number>
+      recentCallbacks: ConversationHandoverCallback[]
+    }
   }
 }
 
@@ -5611,6 +5683,26 @@ export function replayDeploymentIntegrationWebhook(
 ) {
   return request<{ accepted: boolean; duplicate: boolean; status: string; eventId: string; errorClass: string | null }>(
     `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events/${encodeURIComponent(eventId)}/replay`,
+    { method: 'POST', body: '{}' },
+  )
+}
+
+export function fetchConversationHandoverOperations(deploymentId: string) {
+  return request<ConversationHandoverOperationsOverview>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/conversation-handover`,
+  )
+}
+
+export function retryConversationHandoverDispatch(deploymentId: string, dispatchId: string) {
+  return request<ConversationHandoverOperationsOverview>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/conversation-handover/dispatches/${encodeURIComponent(dispatchId)}/retry`,
+    { method: 'POST', body: '{}' },
+  )
+}
+
+export function expireConversationHandover(deploymentId: string, handoverId: string) {
+  return request<ConversationHandoverOperationsOverview>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/conversation-handover/handovers/${encodeURIComponent(handoverId)}/expire`,
     { method: 'POST', body: '{}' },
   )
 }

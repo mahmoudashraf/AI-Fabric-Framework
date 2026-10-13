@@ -248,6 +248,92 @@ public class DeploymentBehaviorCatalogService {
                 return smartBrain;
             }
         }
+        boolean conversationHandoverEnabled = stringSet(config.path("executionExtensions"))
+            .contains("CONVERSATION_HANDOVER");
+        if (conversationHandoverEnabled) {
+            Validation conversationHandover = validateConversationHandover(config.path("conversationHandover"));
+            if (!conversationHandover.valid()) {
+                return conversationHandover;
+            }
+        } else if (config.has("conversationHandover") && !config.path("conversationHandover").isNull()) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_EXTENSION_REQUIRED",
+                "conversationHandover configuration requires the CONVERSATION_HANDOVER execution extension."
+            );
+        }
+        return Validation.valid(config.deepCopy());
+    }
+
+    private Validation validateConversationHandover(JsonNode config) {
+        if (!config.isObject()
+            || !"LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1".equals(config.path("contractVersion").asText(""))) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_CONFIG_INVALID",
+                "conversationHandover.contractVersion must be LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1."
+            );
+        }
+        String bindingId = config.path("channelBindingId").asText("").trim();
+        if (!config.path("enabled").asBoolean(false)
+            || !"request_conversation_handover".equals(config.path("actionId").asText(""))
+            || !bindingId.matches("^[a-z][a-z0-9-]{1,79}$")) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_CONFIG_INVALID",
+                "Conversation Handover requires its canonical action and a stable channel binding ID."
+            );
+        }
+        JsonNode actionBinding = config.path("actionBinding");
+        if (!actionBinding.isObject()
+            || !"request_conversation_handover".equals(actionBinding.path("actionId").asText(""))
+            || !"REQUEST_HANDOVER".equals(actionBinding.path("operation").asText(""))
+            || !"SERVER_OWNED_RUNTIME_ACTION".equals(actionBinding.path("implementation").asText(""))
+            || !actionBinding.path("marketplaceManaged").asBoolean(false)
+            || !StringUtils.hasText(actionBinding.path("marketplacePluginId").asText(""))
+            || !StringUtils.hasText(actionBinding.path("marketplaceInstallId").asText(""))
+            || !StringUtils.hasText(actionBinding.path("marketplacePluginVersion").asText(""))) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_ACTION_BINDING_INVALID",
+                "Conversation Handover requires the reviewed server-owned runtime action binding."
+            );
+        }
+        if (!"REQUIRE_USER_CONFIRMATION".equals(config.path("modelInitiatedPolicy").asText(""))
+            || !config.path("userCanCancelPending").asBoolean(false)
+            || !config.path("userCanResumeAi").asBoolean(false)
+            || config.path("activeIdleAutoResume").asBoolean(true)
+            || !"EXPIRED_REQUIRES_EXPLICIT_RECOVERY".equals(config.path("queueTimeoutOutcome").asText(""))
+            || !"SAFE_TEXT_AND_ATTACHMENT_REFS".equals(config.path("transcriptProjection").asText(""))) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_POLICY_INVALID",
+                "Conversation Handover V1 requires confirmation, explicit recovery, and safe transcript projection."
+            );
+        }
+        int queueTimeoutSeconds = config.path("queueTimeoutSeconds").asInt(-1);
+        if (queueTimeoutSeconds < 30 || queueTimeoutSeconds > 3_600) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_POLICY_INVALID",
+                "conversationHandover.queueTimeoutSeconds must be between 30 and 3600."
+            );
+        }
+        JsonNode intake = config.path("intake");
+        if (!intake.isObject() || !intake.path("fields").isArray() || intake.path("fields").size() > 6) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_INTAKE_INVALID",
+                "conversationHandover.intake requires a bounded fields array."
+            );
+        }
+        JsonNode channel = config.path("channel");
+        if (!channel.isObject()
+            || !StringUtils.hasText(channel.path("adapterImplementationId").asText(""))
+            || !StringUtils.hasText(channel.path("adapterVersion").asText(""))
+            || !bindingId.equals(channel.path("bindingId").asText(""))
+            || !StringUtils.hasText(channel.path("providerBaseUrl").asText(""))
+            || !StringUtils.hasText(channel.path("providerApiKeySecretRef").asText(""))
+            || !StringUtils.hasText(channel.path("runtimeCallbackSigningSecretRef").asText(""))
+            || !StringUtils.hasText(channel.path("providerWebhookSigningSecretRef").asText(""))) {
+            return Validation.invalid(
+                "CONVERSATION_HANDOVER_CHANNEL_INVALID",
+                "Conversation Handover requires one reviewed channel binding and deployment secret references."
+            );
+        }
         return Validation.valid(config.deepCopy());
     }
 
@@ -644,7 +730,7 @@ public class DeploymentBehaviorCatalogService {
             "Authoring is available. Hosted and market-ready claims are shown only when an exact template release has current stored evidence.",
             List.of("AUTHENTICATED_INTERACTIVE"),
             List.of("BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT", "QUERY_ONCE"),
-            List.of("GOVERNED_RESOLVER", "HUMAN_REVIEW"),
+            List.of("GOVERNED_RESOLVER", "HUMAN_REVIEW", "CONVERSATION_HANDOVER"),
             "OPTIONAL_BACKEND_SESSION",
             List.of("ai-fabric-core", "ai-fabric-chat-session"),
             List.of("chat-query", "query-once", "session-management"),
@@ -751,6 +837,33 @@ public class DeploymentBehaviorCatalogService {
             List.of("review-inbox", "review-detail", "review-decision", "review-outcome"),
             List.of("ai-action-proposal-receipt-v1", "ai-review-task-v1", "ai-review-dispatch-v1"),
             List.of("human-review-action-proposal-v1")
+        ));
+        result.put("CONVERSATION_HANDOVER", new ExecutionExtensionContract(
+            "CONVERSATION_HANDOVER",
+            "Conversation Handover",
+            "Temporarily transfers response ownership to a human channel while preserving deployment-local conversation authority.",
+            "PLATFORM_SELECTABLE",
+            "Apply requires the canonical handover action, a reviewed conversation-channel integration, durable control state, and current hosted evidence.",
+            List.of(DeploymentBehaviorType.CONVERSATIONAL),
+            List.of(
+                "ai-fabric-chat-session",
+                "conversation-control",
+                "participant-messages",
+                "conversation-turn-leases",
+                "durable-conversation-handover",
+                "conversation-channel-outbox",
+                "conversation-event-stream"
+            ),
+            List.of(
+                "canonical-conversation-message",
+                "owner-handover-control",
+                "conversation-event-stream-replay",
+                "conversation-channel-dispatch",
+                "conversation-channel-callback",
+                "explicit-ai-resume"
+            ),
+            List.of("loomai-conversation-handover-v1"),
+            List.of("conversation-handover-v1")
         ));
         return Collections.unmodifiableMap(new LinkedHashMap<>(result));
     }

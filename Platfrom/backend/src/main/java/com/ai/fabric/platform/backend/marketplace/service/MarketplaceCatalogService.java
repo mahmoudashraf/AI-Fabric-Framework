@@ -101,7 +101,8 @@ public class MarketplaceCatalogService {
             category("specialist", "Specialists", counts.getOrDefault("SPECIALIST", 0L)),
             category("action", "Actions", counts.getOrDefault("ACTION", 0L)),
             category("data", "Data", counts.getOrDefault("DATA", 0L)),
-            category("inference-profile", "Inference Profiles", counts.getOrDefault("INFERENCE_PROFILE", 0L))
+            category("inference-profile", "Inference Profiles", counts.getOrDefault("INFERENCE_PROFILE", 0L)),
+            category("integration", "Integrations", counts.getOrDefault("INTEGRATION", 0L))
         );
     }
 
