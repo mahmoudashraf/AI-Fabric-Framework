@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1022,6 +1023,198 @@ class CoolifyDeploymentProviderTest {
         assertThat(env).containsEntry("SPRING_DATASOURCE_PASSWORD", "pg-password");
         assertThat(env).containsEntry("PLATFORM_RUNTIME_DATABASE_MODE", "COOLIFY_POSTGRES");
         assertThat(env).containsEntry("PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", "db-uuid");
+    }
+
+    @Test
+    void provisionsConversationHandoverConnectorWithRestrictedDatabaseRole() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setId("dtp-coolify-production");
+        profile.setEnvironmentName("production");
+        profile.setResourceDefaultsJson("""
+            {
+              "runtimeDatabaseMode": "COOLIFY_POSTGRES",
+              "runtimeDatabaseNamePrefix": "ai-fabric-runtime-postgres",
+              "runtimeDatabaseName": "runtime_chat",
+              "runtimeDatabaseUsername": "runtime_user",
+              "runtimeDatabaseImage": "postgres:16-alpine",
+              "runtimeDatabasePort": "5432",
+              "runtimeDatabasePublic": false
+            }
+            """);
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "production",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary runtimeApplication = new CoolifyApplicationSummary(
+            "runtime-uuid",
+            "ai-fabric-runtime-dep-123",
+            "https://dep-123.runtime.example.test",
+            "running:healthy",
+            "ghcr.io/example/runtime",
+            "sha",
+            objectMapper.createObjectNode()
+        );
+        CoolifyApplicationSummary connectorApplication = new CoolifyApplicationSummary(
+            "connector-uuid",
+            "ai-fabric-connector-dep-123",
+            "https://dep-123-connector.runtime.example.test",
+            "running:healthy",
+            "ghcr.io/example/runtime",
+            "sha",
+            objectMapper.createObjectNode()
+        );
+        CoolifyDatabaseSummary database = new CoolifyDatabaseSummary(
+            "db-uuid",
+            "ai-fabric-runtime-postgres-dep-123",
+            "running:healthy",
+            "postgresql",
+            "runtime_user",
+            "runtime_chat",
+            objectMapper.createObjectNode()
+        );
+        DeploymentVersionEntity handoverVersion = version();
+        handoverVersion.setBehaviorConfigJson("""
+            {
+              "executionExtensions": ["CONVERSATION_HANDOVER"]
+            }
+            """);
+
+        when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+            .thenReturn(railwayPlanWithHandoverPersistence());
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-production"),
+            anyString()
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createDockerImageApplication(eq(connection), any()))
+            .thenReturn("runtime-uuid")
+            .thenReturn("connector-uuid");
+        when(coolifyApiClient.getApplication(connection, "runtime-uuid")).thenReturn(Optional.of(runtimeApplication));
+        when(coolifyApiClient.getApplication(connection, "connector-uuid")).thenReturn(Optional.of(connectorApplication));
+        when(platformSecretService.resolveSecret(
+            "MANAGED_RUNTIME_POSTGRES_PASSWORD_DEP_DEP_123_PROFILE_DTP_COOLIFY_PRODUCTION"
+        )).thenReturn("runtime-db-password");
+        when(platformSecretService.resolveSecret(
+            DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-123")
+        )).thenReturn("connector-db-password");
+        when(coolifyApiClient.listDatabases(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createPostgresDatabase(eq(connection), any())).thenReturn("db-uuid");
+        when(coolifyApiClient.getDatabase(connection, "db-uuid")).thenReturn(Optional.of(database));
+        when(coolifyApiClient.startDatabase(connection, "db-uuid"))
+            .thenReturn(new CoolifyActionResponse("Database start queued.", "db-deploy", objectMapper.createObjectNode()));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("runtime-uuid"), any())).thenReturn(14);
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("connector-uuid"), any())).thenReturn(18);
+        when(coolifyApiClient.start(connection, "connector-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Connector deployment queued.", "connector-deploy-1", objectMapper.createObjectNode()))
+            .thenReturn(new CoolifyActionResponse("Connector redeployment queued.", "connector-deploy-2", objectMapper.createObjectNode()));
+        when(coolifyApiClient.deleteEnvironmentVariablesByKey(
+            eq(connection),
+            eq("connector-uuid"),
+            any()
+        )).thenReturn(4);
+        when(coolifyApiClient.start(connection, "runtime-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Runtime deployment queued.", "runtime-deploy", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            objectMapper
+        );
+        DeploymentReleaseEntity release = release();
+        release.setTargetProfileId("dtp-coolify-production");
+
+        ProvisioningResult result = provider.provision(
+            deployment(),
+            handoverVersion,
+            release,
+            ProvisioningProgressTracker.noop()
+        );
+
+        assertThat(result.detailsJson()).contains("connector-uuid", "db-uuid", "COOLIFY_POSTGRES");
+        verify(coolifyApiClient).configurePrivateApplicationNetwork(
+            connection,
+            "runtime-uuid",
+            "loomai-runtime-dep-123"
+        );
+        verify(coolifyApiClient).configurePrivateApplicationNetwork(
+            connection,
+            "connector-uuid",
+            "loomai-connector-dep-123"
+        );
+        ArgumentCaptor<List<CoolifyEnvVar>> runtimeEnvCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<CoolifyEnvVar>> connectorEnvCaptor = ArgumentCaptor.forClass(List.class);
+        verify(coolifyApiClient).updateEnvironmentVariables(
+            eq(connection),
+            eq("runtime-uuid"),
+            runtimeEnvCaptor.capture()
+        );
+        verify(coolifyApiClient).updateEnvironmentVariables(
+            eq(connection),
+            eq("connector-uuid"),
+            connectorEnvCaptor.capture()
+        );
+        Map<String, CoolifyEnvVar> runtimeEnv = envByKey(runtimeEnvCaptor.getValue());
+        Map<String, CoolifyEnvVar> connectorEnv = envByKey(connectorEnvCaptor.getValue());
+        assertThat(runtimeEnv.get("AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL").value())
+            .isEqualTo("https://dep-123-connector.runtime.example.test");
+        assertThat(connectorEnv.get("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL").value())
+            .isEqualTo("http://loomai-runtime-dep-123:8097");
+        assertThat(connectorEnv.get("REST_CONNECTOR_JDBC_URL").value())
+            .isEqualTo("jdbc:postgresql://db-uuid:5432/runtime_chat");
+        assertThat(connectorEnv.get("REST_CONNECTOR_JDBC_USERNAME").value()).isEqualTo("integration_dep_123");
+        assertThat(connectorEnv.get("REST_CONNECTOR_JDBC_PASSWORD").value()).isEqualTo("connector-db-password");
+        assertThat(connectorEnv.get("REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME").value()).isEqualTo("runtime_user");
+        assertThat(connectorEnv.get("REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD").value())
+            .isEqualTo("runtime-db-password");
+        verify(coolifyApiClient).deleteEnvironmentVariablesByKey(
+            connection,
+            "connector-uuid",
+            Set.of(
+                "REST_CONNECTOR_BOOTSTRAP_JDBC_URL",
+                "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME",
+                "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD",
+                "REST_CONNECTOR_DATABASE_ROLE"
+            )
+        );
+        verify(coolifyApiClient, times(2)).start(connection, "connector-uuid", true, true);
     }
 
     @Test
@@ -2131,6 +2324,63 @@ class CoolifyDeploymentProviderTest {
                 new RailwayEnvVarSummary(
                     "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
                     "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+                )
+            )
+        );
+        return new RailwayProvisioningPlanSummary(
+            "dep-123",
+            "Demo",
+            "staging",
+            "template",
+            "ver-123",
+            "v1",
+            "hash",
+            "api",
+            "demo-staging",
+            "mahmoudashraf/AI-Fabric-Framework",
+            "Platform-V8",
+            null,
+            "REMOTE_CONFIG_BUNDLES",
+            new RailwayArtifactUrlsSummary(
+                "https://artifacts.example/actions.yaml",
+                "https://artifacts.example/entities.yaml",
+                "https://artifacts.example/routing.yaml",
+                "https://artifacts.example/prompts.yaml",
+                "https://artifacts.example/manifest.json"
+            ),
+            new RailwayProvisioningServicesSummary(runtime, connector),
+            List.of()
+        );
+    }
+
+    private RailwayProvisioningPlanSummary railwayPlanWithHandoverPersistence() {
+        RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
+            "runtime-dep-123",
+            null,
+            "ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile",
+            "https://runtime-dep-123.placeholder.local",
+            List.of(new RailwayEnvVarSummary(
+                "AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL",
+                "https://connector-dep-123.placeholder.local"
+            ))
+        );
+        RailwayServicePlanSummary connector = new RailwayServicePlanSummary(
+            "rest-connector-dep-123",
+            null,
+            "ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile",
+            "https://connector-dep-123.placeholder.local",
+            List.of(
+                new RailwayEnvVarSummary(
+                    "AI_FABRIC_RUNTIME_INTERNAL_BASE_URL",
+                    "https://runtime-dep-123.placeholder.local"
+                ),
+                new RailwayEnvVarSummary("REST_CONNECTOR_PERSISTENCE_ENABLED", "true"),
+                new RailwayEnvVarSummary("REST_CONNECTOR_PERSISTENCE_SCHEMA", "integration_connector"),
+                new RailwayEnvVarSummary("REST_CONNECTOR_DATABASE_ROLE", "integration_dep_123"),
+                new RailwayEnvVarSummary("REST_CONNECTOR_JDBC_USERNAME", "integration_dep_123"),
+                new RailwayEnvVarSummary(
+                    "REST_CONNECTOR_JDBC_PASSWORD",
+                    "${secret:" + DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-123") + "}"
                 )
             )
         );

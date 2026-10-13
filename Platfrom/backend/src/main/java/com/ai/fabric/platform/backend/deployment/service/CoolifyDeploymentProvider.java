@@ -552,7 +552,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             : normalizeRuntimeBaseUrl(connectorApplication.fqdn());
         String connectorRuntimeBaseUrl;
         String runtimeConnectorBaseUrl = connectorBaseUrl;
-        if (hasExternalHttpDataset(version) && connectorApplication != null) {
+        if (requiresDurableConnectorPersistence(version) && connectorApplication != null) {
             String runtimeInternalName = integrationInternalName(deployment, SERVICE_ROLE_RUNTIME);
             String connectorInternalName = integrationInternalName(deployment, SERVICE_ROLE_CONNECTOR);
             CoolifyApplicationSummary finalConnectorApplication = connectorApplication;
@@ -602,10 +602,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             "Create or reuse the profile-managed runtime PostgreSQL database when production profile requires durable chat storage.",
             () -> reconcileRuntimeDatabaseBinding(connection, resourceScope, deployment, profile, resourceDefaults)
         );
-        if (hasExternalHttpDataset(version) && runtimeDatabaseBinding == null) {
+        if (requiresDurableConnectorPersistence(version) && runtimeDatabaseBinding == null) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "EXTERNAL_SYNC_HTTP requires a target profile with managed Coolify PostgreSQL enabled."
+                "Durable connector capabilities require a target profile with managed Coolify PostgreSQL enabled."
             );
         }
         DeploymentProviderResourceHandleEntity provisionalRuntimeDatabaseHandle = runtimeDatabaseBinding == null ? null : tracked(
@@ -726,7 +726,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     progressTracker
                 )
             );
-            if (hasExternalHttpDataset(version) && runtimeDatabaseBinding != null) {
+            if (requiresDurableConnectorPersistence(version) && runtimeDatabaseBinding != null) {
                 int removedBootstrapVariables = tracked(
                     progressTracker,
                     "remove_coolify_connector_database_bootstrap_credentials",
@@ -2232,13 +2232,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             putEnv(env, "PLATFORM_RUNTIME_DATABASE_PASSWORD_SECRET", runtimeDatabaseBinding.passwordSecretName(), true);
         }
         if (SERVICE_ROLE_RUNTIME.equals(serviceRole)
-            && hasExternalHttpDataset(version)
+            && requiresDurableConnectorPersistence(version)
             && StringUtils.hasText(publicConnectorBaseUrl)) {
             putEnv(env, "AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL", publicConnectorBaseUrl);
         }
         if (SERVICE_ROLE_CONNECTOR.equals(serviceRole)
             && runtimeDatabaseBinding != null
-            && hasExternalHttpDataset(version)) {
+            && requiresDurableConnectorPersistence(version)) {
             putEnv(env, "REST_CONNECTOR_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
             putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
             putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME", runtimeDatabaseBinding.username(), true);
@@ -2827,6 +2827,26 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         for (JsonNode dataset : datasets) {
             if ("EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean requiresDurableConnectorPersistence(DeploymentVersionEntity version) {
+        return hasExternalHttpDataset(version) || hasExecutionExtension(version, "CONVERSATION_HANDOVER");
+    }
+
+    private boolean hasExecutionExtension(DeploymentVersionEntity version, String extension) {
+        if (version == null || !StringUtils.hasText(extension)) {
+            return false;
+        }
+        JsonNode extensions = readJson(version.getBehaviorConfigJson()).path("executionExtensions");
+        if (!extensions.isArray()) {
+            return false;
+        }
+        for (JsonNode configuredExtension : extensions) {
+            if (extension.equals(configuredExtension.asText(""))) {
                 return true;
             }
         }
