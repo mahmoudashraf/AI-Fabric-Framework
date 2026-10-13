@@ -570,11 +570,12 @@ final class RuntimeConversationHandoverRepository {
     }
 
     Instant oldestPendingDispatchAt() {
-        return jdbc.query(
+        List<Instant> rows = jdbc.query(
             "SELECT MIN(created_at) AS oldest_at FROM ai_conversation_handover_dispatch"
                 + " WHERE status IN ('PENDING', 'PROCESSING')",
             (rs, row) -> nullableInstant(rs, "oldest_at")
-        ).stream().findFirst().orElse(null);
+        );
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     List<DispatchAdminRecord> recentDispatches(int limit) {

@@ -100,6 +100,15 @@ class RuntimeConversationHandoverServiceTest {
     }
 
     @Test
+    void operationsOverviewSupportsAnEmptyPendingDispatchSet() {
+        HandoverOperationsOverview overview = service.operationsOverview();
+
+        assertThat(overview.oldestPendingDispatchAt()).isNull();
+        assertThat(overview.dispatchCounts()).isEmpty();
+        assertThat(overview.recentDispatches()).isEmpty();
+    }
+
+    @Test
     void canonicalAiInteractionIsClaimedOnceAndReplaysItsCompletedResponse() {
         ConversationMessage userMessage = service.appendUserMessage(
             owner,
