@@ -1,7 +1,11 @@
 package com.ai.infrastructure.connector.rest;
 
+import ai.fabric.chat.channel.ConversationChannelEvent;
+import ai.fabric.chat.channel.ConversationChannelEventType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -24,10 +28,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AIFabricGenericRestConnectorApplicationTest {
 
     private final ApplicationContext applicationContext;
+    private final ObjectMapper objectMapper;
 
     @Autowired
-    AIFabricGenericRestConnectorApplicationTest(ApplicationContext applicationContext) {
+    AIFabricGenericRestConnectorApplicationTest(
+        ApplicationContext applicationContext,
+        ObjectMapper objectMapper
+    ) {
         this.applicationContext = applicationContext;
+        this.objectMapper = objectMapper;
     }
 
     @Test
@@ -45,6 +54,29 @@ class AIFabricGenericRestConnectorApplicationTest {
             HibernateJpaAutoConfiguration.class,
             DataJpaRepositoriesAutoConfiguration.class
         );
+    }
+
+    @Test
+    void deserializesConversationChannelEventsWithIsoInstantTimestamps() throws Exception {
+        ConversationChannelEvent event = objectMapper.readValue("""
+            {
+              "eventId": "event-1",
+              "type": "HANDOVER_CLAIMED",
+              "channelBindingId": "basic-inbox",
+              "handoverId": "handover-1",
+              "externalConversationRef": "provider:handover-1",
+              "externalActorRef": "operator-1",
+              "safeActorDisplayName": "Operator",
+              "messageId": null,
+              "text": null,
+              "expectedControlVersion": 1,
+              "metadata": {"provider": "basic-inbox"},
+              "occurredAt": "2026-10-13T08:28:29.675154Z"
+            }
+            """, ConversationChannelEvent.class);
+
+        assertThat(event.type()).isEqualTo(ConversationChannelEventType.HANDOVER_CLAIMED);
+        assertThat(event.occurredAt()).isEqualTo(Instant.parse("2026-10-13T08:28:29.675154Z"));
     }
 
     @TestConfiguration(proxyBeanMethods = false)

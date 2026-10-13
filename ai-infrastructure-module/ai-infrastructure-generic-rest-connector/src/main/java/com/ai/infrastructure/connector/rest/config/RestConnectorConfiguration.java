@@ -1,6 +1,7 @@
 package com.ai.infrastructure.connector.rest.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +14,9 @@ public class RestConnectorConfiguration {
     @Bean
     @ConditionalOnMissingBean(ObjectMapper.class)
     public ObjectMapper jackson2ObjectMapper() {
-        return new ObjectMapper();
+        return JsonMapper.builder()
+            .findAndAddModules()
+            .build();
     }
 
     @Bean
