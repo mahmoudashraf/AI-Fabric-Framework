@@ -408,6 +408,10 @@ final class RuntimeConversationHandoverRepository {
                 String.class,
                 dispatch.handoverId()
             );
+            if (dispatchReplayExists(dispatch.dispatchId(), idempotencyKey)) {
+                verifyDispatchReplay(dispatch, idempotencyKey);
+                return Boolean.TRUE;
+            }
             Long maximum = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(dispatch_sequence), 0)"
                     + " FROM ai_conversation_handover_dispatch WHERE handover_id = ?",
@@ -415,24 +419,31 @@ final class RuntimeConversationHandoverRepository {
                 dispatch.handoverId()
             );
             long sequence = (maximum == null ? 0 : maximum) + 1;
-            try {
-                jdbc.update(
-                    """
-                    INSERT INTO ai_conversation_handover_dispatch (
-                      dispatch_id, handover_id, dispatch_sequence, dispatch_type, idempotency_key,
-                      protected_payload, status, attempt_count, next_attempt_at,
-                      created_at, updated_at, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?, ?, 0)
-                    """,
-                    dispatch.dispatchId(), dispatch.handoverId(), sequence, dispatch.type().name(),
-                    idempotencyKey, security.encrypt(writeJson(dispatch)), timestamp(now),
-                    timestamp(now), timestamp(now)
-                );
-            } catch (DuplicateKeyException ignored) {
-                verifyDispatchReplay(dispatch, idempotencyKey);
-            }
+            jdbc.update(
+                """
+                INSERT INTO ai_conversation_handover_dispatch (
+                  dispatch_id, handover_id, dispatch_sequence, dispatch_type, idempotency_key,
+                  protected_payload, status, attempt_count, next_attempt_at,
+                  created_at, updated_at, version
+                ) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?, ?, 0)
+                """,
+                dispatch.dispatchId(), dispatch.handoverId(), sequence, dispatch.type().name(),
+                idempotencyKey, security.encrypt(writeJson(dispatch)), timestamp(now),
+                timestamp(now), timestamp(now)
+            );
             return Boolean.TRUE;
         });
+    }
+
+    private boolean dispatchReplayExists(String dispatchId, String idempotencyKey) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM ai_conversation_handover_dispatch"
+                + " WHERE dispatch_id = ? OR idempotency_key = ?",
+            Integer.class,
+            dispatchId,
+            idempotencyKey
+        );
+        return count != null && count > 0;
     }
 
     Optional<ClaimedDispatch> claimNextDispatch(String workerId, Duration leaseDuration) {

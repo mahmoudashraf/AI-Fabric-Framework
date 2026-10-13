@@ -380,6 +380,32 @@ class RuntimeConversationHandoverServiceTest {
     }
 
     @Test
+    void duplicateHumanBoundMessageReplaysWithoutCreatingAnotherDispatch() {
+        requestAnonymous("handover-message-replay");
+
+        HumanMessageAcceptance first = service.appendHumanBoundUserMessage(
+            owner,
+            CONVERSATION_ID,
+            "pending-message-replay",
+            "Please also tell them this.",
+            List.of("attachment-1")
+        );
+        HumanMessageAcceptance replay = service.appendHumanBoundUserMessage(
+            owner,
+            CONVERSATION_ID,
+            "pending-message-replay",
+            "Please also tell them this.",
+            List.of("attachment-1")
+        );
+
+        assertThat(replay.messageId()).isEqualTo(first.messageId());
+        assertThat(replay.conversation().messages())
+            .filteredOn(message -> "pending-message-replay".equals(message.clientMessageId()))
+            .hasSize(1);
+        assertThat(repository.dispatchStatusCounts()).containsEntry("PENDING", 2L);
+    }
+
+    @Test
     void callbackSignatureAndTimestampFailClosed() {
         String body = "{\"eventId\":\"event-1\"}";
         String timestamp = Long.toString(NOW.getEpochSecond());
