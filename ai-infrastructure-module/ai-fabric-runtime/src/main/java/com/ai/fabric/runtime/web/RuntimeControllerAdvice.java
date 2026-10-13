@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime.web;
 
+import ai.fabric.chat.control.ConversationControlViolationException;
 import ai.fabric.chat.exception.ChatSessionAccessDeniedException;
 import ai.fabric.chat.exception.ChatSessionNotFoundException;
 import com.ai.fabric.runtime.specialist.DeploymentKnowledgeSpecialistService.DeploymentKnowledgeInvocationException;
@@ -15,9 +16,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @RestControllerAdvice
 public class RuntimeControllerAdvice {
+
+    private static final Set<String> CONVERSATION_NOT_FOUND_CODES = Set.of(
+        "CONVERSATION_NOT_FOUND",
+        "CONVERSATION_OWNER_MISMATCH"
+    );
 
     @ExceptionHandler(DocumentKnowledgeException.class)
     public ResponseEntity<Map<String, Object>> handleDocumentKnowledge(DocumentKnowledgeException ex) {
@@ -58,6 +65,22 @@ public class RuntimeControllerAdvice {
     public ResponseEntity<Map<String, Object>> handleAccessDenied(ChatSessionAccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
             "error", "FORBIDDEN",
+            "message", ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(ConversationControlViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConversationControl(
+        ConversationControlViolationException ex
+    ) {
+        if (CONVERSATION_NOT_FOUND_CODES.contains(ex.code())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "NOT_FOUND",
+                "message", "Conversation is not available."
+            ));
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+            "error", ex.code(),
             "message", ex.getMessage()
         ));
     }
