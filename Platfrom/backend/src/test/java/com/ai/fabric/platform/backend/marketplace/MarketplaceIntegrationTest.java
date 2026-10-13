@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublisherSe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -1048,6 +1049,100 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[0].pluginId", is("mkp-template-commerce-shell")))
             .andExpect(jsonPath("$[0].status", is("BOOTSTRAPPED")))
             .andExpect(jsonPath("$[0].liveState", is("BOOTSTRAPPED")));
+    }
+
+    @Test
+    @Sql({
+        "classpath:db/migration/V156__conversation_handover_marketplace_products.sql",
+        "classpath:db/migration/V157__conversation_handover_public_runtime_template.sql"
+    })
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void bootstrappedTemplateCanUpgradeOnlyItsPublishedVersionAndRecompileDraft() throws Exception {
+        String response = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-conversation-handover")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Conversation Handover Template Upgrade",
+                        "environment", "dev",
+                        "templateId", "custom-start-from-scratch"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String deploymentId = objectMapper.readTree(response).path("id").asText();
+
+        String installsResponse = mockMvc.perform(asAdmin(
+                get("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)
+            ))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String templateInstallId = null;
+        String integrationInstallId = null;
+        for (JsonNode install : objectMapper.readTree(installsResponse)) {
+            if ("mkp-template-conversation-handover".equals(install.path("pluginId").asText())) {
+                templateInstallId = install.path("id").asText();
+            }
+            if ("mkp-integration-basic-loomai-inbox".equals(install.path("pluginId").asText())) {
+                integrationInstallId = install.path("id").asText();
+            }
+        }
+        assertThat(templateInstallId).isNotBlank();
+        assertThat(integrationInstallId).isNotBlank();
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deploymentId, integrationInstallId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "status", "ENABLED",
+                        "config", java.util.Map.of(
+                            "providerBaseUrl", "https://inbox.example",
+                            "operatorConsoleUrl", "https://inbox.example"
+                        ),
+                        "secretRefs", java.util.Map.of(
+                            "providerApiKeySecretRef", "INBOX_PROVIDER_API_KEY",
+                            "runtimeCallbackSigningSecretRef", "INBOX_RUNTIME_CALLBACK_SIGNING_SECRET",
+                            "providerWebhookSigningSecretRef", "INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET"
+                        )
+                    )))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("ENABLED")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deploymentId, templateInstallId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("pluginVersion", "1.0.1")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pluginVersion", is("1.0.1")))
+            .andExpect(jsonPath("$.status", is("BOOTSTRAPPED")))
+            .andExpect(jsonPath("$.readinessStatus", is("BOOTSTRAPPED")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.securityConfig.publicRuntimeBootstrapEnabled", is(true)))
+            .andExpect(jsonPath("$.securityConfig.publicRuntimeTokenIssuer", is("runtime-public-bootstrap")))
+            .andExpect(jsonPath("$.securityConfig.publicRuntimeAcceptedAudiences", is("loomai-ai-workspace")))
+            .andExpect(jsonPath("$.securityConfig.publicRuntimeDefaultAudience", is("loomai-ai-workspace")));
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deploymentId, templateInstallId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.1",
+                        "status", "ENABLED"
+                    )))
+            ))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", is(
+                "Template install updates may change only pluginVersion. Template status, config, and secret refs are bootstrap-owned."
+            )));
     }
 
     @Test

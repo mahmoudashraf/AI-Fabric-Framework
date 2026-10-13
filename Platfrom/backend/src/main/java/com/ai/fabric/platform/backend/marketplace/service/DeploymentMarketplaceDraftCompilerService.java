@@ -815,6 +815,65 @@ public class DeploymentMarketplaceDraftCompilerService {
         return securityRoot;
     }
 
+    /**
+     * Applies a reviewed template security transition without disturbing fields that neither template version owns.
+     * A field removed by the target manifest is cleared only when the previous manifest contributed that field.
+     */
+    public ObjectNode compileTemplateSecurityVersionTransition(MarketplacePluginEntity plugin,
+                                                               MarketplacePluginVersionEntity currentVersion,
+                                                               MarketplacePluginVersionEntity targetVersion,
+                                                               JsonNode existingSecurityConfig) {
+        MarketplaceManifestService.ParsedMarketplaceManifest current =
+            marketplaceManifestService.parseAndValidate(plugin, currentVersion);
+        MarketplaceManifestService.ParsedMarketplaceManifest target =
+            marketplaceManifestService.parseAndValidate(plugin, targetVersion);
+        if (!"TEMPLATE".equals(current.pluginType()) || !"TEMPLATE".equals(target.pluginType())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not a template plugin: " + plugin.getId());
+        }
+
+        ObjectNode securityRoot = ensureObject(existingSecurityConfig);
+        JsonNode currentSecurity = current.manifest().path("contributions").path("template").path("security");
+        JsonNode targetSecurity = target.manifest().path("contributions").path("template").path("security");
+        removeRetiredTemplateSecurity(securityRoot, currentSecurity, targetSecurity);
+        applyTemplateSecurity(securityRoot, targetSecurity);
+        return securityRoot;
+    }
+
+    /**
+     * Updates only the active draft security boundary for an already-authorized marketplace workflow.
+     * The caller's transaction also updates the template install and recompiles the complete draft.
+     */
+    @Transactional
+    public DeploymentDraftResponse transitionTemplateSecurityForTrustedCaller(
+        String deploymentId,
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity currentVersion,
+        MarketplacePluginVersionEntity targetVersion
+    ) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId);
+        ObjectNode security = compileTemplateSecurityVersionTransition(
+            plugin,
+            currentVersion,
+            targetVersion,
+            draft.securityConfig()
+        );
+        return deploymentService.updateDraftForTrustedCaller(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                null,
+                null,
+                null,
+                null,
+                security,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
     void applyActionPlugin(ObjectNode actionsRoot,
                            ObjectNode shellRoot,
                            DeploymentMarketplacePluginInstallEntity install,
@@ -1500,6 +1559,24 @@ public class DeploymentMarketplaceDraftCompilerService {
             JsonNode value = templateSecurity.path(field);
             if (value.isBoolean()) {
                 securityRoot.put(field, value.asBoolean());
+            }
+        }
+    }
+
+    private void removeRetiredTemplateSecurity(ObjectNode securityRoot,
+                                               JsonNode currentTemplateSecurity,
+                                               JsonNode targetTemplateSecurity) {
+        if (!currentTemplateSecurity.isObject()) {
+            return;
+        }
+        for (String field : TEMPLATE_SECURITY_STRING_FIELDS) {
+            if (currentTemplateSecurity.has(field) && !targetTemplateSecurity.has(field)) {
+                securityRoot.remove(field);
+            }
+        }
+        for (String field : TEMPLATE_SECURITY_BOOLEAN_FIELDS) {
+            if (currentTemplateSecurity.has(field) && !targetTemplateSecurity.has(field)) {
+                securityRoot.remove(field);
             }
         }
     }

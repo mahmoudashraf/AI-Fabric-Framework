@@ -275,11 +275,24 @@ public class DeploymentMarketplaceInstallService {
                                                                           boolean syncDraft) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+        MarketplacePluginVersionEntity currentVersion = requirePluginVersionById(install.getPluginVersionId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
-        validateInstallable(plugin, version, deployment.getId(), install.getId());
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
+        if ("TEMPLATE".equals(parsed.pluginType())) {
+            validateBootstrappedTemplateVersionUpdate(
+                deployment,
+                activeDraft,
+                install,
+                plugin,
+                version,
+                parsed,
+                request
+            );
+        } else {
+            validateInstallable(plugin, version, deployment.getId(), install.getId());
+        }
         marketplacePluginDatasetDefinitionService.syncPluginVersionDatasets(plugin, version, parsed);
 
         if (request.status() != null) {
@@ -305,9 +318,20 @@ public class DeploymentMarketplaceInstallService {
         install.setUpdatedAt(Instant.now());
         installRepository.save(install);
         marketplaceEntitlementService.ensureEntitlement(install, parsed);
+        if ("TEMPLATE".equals(parsed.pluginType())
+            && !currentVersion.getId().equals(version.getId())) {
+            deploymentMarketplaceDraftCompilerService.transitionTemplateSecurityForTrustedCaller(
+                deployment.getId(),
+                plugin,
+                currentVersion,
+                version
+            );
+        }
 
         platformAuditService.record(
-            "MARKETPLACE_INSTALL_UPDATED",
+            "TEMPLATE".equals(parsed.pluginType())
+                ? "MARKETPLACE_TEMPLATE_VERSION_UPDATED"
+                : "MARKETPLACE_INSTALL_UPDATED",
             "DEPLOYMENT_MARKETPLACE_INSTALL",
             install.getId(),
             Map.of(
@@ -322,6 +346,45 @@ public class DeploymentMarketplaceInstallService {
         }
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
+    }
+
+    private void validateBootstrappedTemplateVersionUpdate(
+        DeploymentEntity deployment,
+        DeploymentDraftEntity activeDraft,
+        DeploymentMarketplacePluginInstallEntity install,
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+        UpdateDeploymentMarketplaceInstallRequest request
+    ) {
+        if (!"BOOTSTRAPPED".equalsIgnoreCase(install.getStatus())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Template version updates require an existing BOOTSTRAPPED template install."
+            );
+        }
+        if (!StringUtils.hasText(request.pluginVersion())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Template version updates require pluginVersion.");
+        }
+        if (request.status() != null || request.config() != null || request.secretRefs() != null) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Template install updates may change only pluginVersion. Template status, config, and secret refs are bootstrap-owned."
+            );
+        }
+        if (!"ACTIVE".equalsIgnoreCase(plugin.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not active: " + plugin.getId());
+        }
+        if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace plugin version is not published: " + plugin.getId() + "@" + version.getVersion()
+            );
+        }
+        List<String> compatibilityWarnings = evaluateCompatibility(deployment, activeDraft, parsed);
+        if (!compatibilityWarnings.isEmpty()) {
+            throw new ResponseStatusException(CONFLICT, String.join(" ", compatibilityWarnings));
+        }
     }
 
     @Transactional

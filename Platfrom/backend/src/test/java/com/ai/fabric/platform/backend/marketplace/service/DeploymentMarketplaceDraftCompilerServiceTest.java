@@ -105,6 +105,76 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileTemplateSecurityVersionTransitionReplacesOnlyTemplateOwnedFields() {
+        MarketplacePluginEntity plugin = new MarketplacePluginEntity();
+        plugin.setId("mkp-template-conversation-handover");
+        plugin.setPluginType("TEMPLATE");
+        MarketplacePluginVersionEntity currentVersion = templateSecurityVersion(
+            "mkv-template-conversation-handover-v1-0-0",
+            "1.0.0",
+            """
+                "authzMode": "ALLOW_VERIFIED",
+                "corsAllowedOrigins": "https://old.example",
+                "publicRuntimeBootstrapEnabled": false
+                """
+        );
+        MarketplacePluginVersionEntity targetVersion = templateSecurityVersion(
+            "mkv-template-conversation-handover-v1-0-1",
+            "1.0.1",
+            """
+                "authzMode": "ALLOW_VERIFIED",
+                "publicRuntimeBootstrapEnabled": true,
+                "publicRuntimeTokenIssuer": "runtime-public-bootstrap"
+                """
+        );
+        ObjectNode existing = objectMapper.createObjectNode();
+        existing.put("authzMode", "ALLOW_VERIFIED");
+        existing.put("corsAllowedOrigins", "https://old.example");
+        existing.put("publicRuntimeBootstrapEnabled", false);
+        existing.put("adminApiKeyEnabled", true);
+
+        ObjectNode compiled = compilerService.compileTemplateSecurityVersionTransition(
+            plugin,
+            currentVersion,
+            targetVersion,
+            existing
+        );
+
+        assertThat(compiled.path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(compiled.path("publicRuntimeBootstrapEnabled").asBoolean()).isTrue();
+        assertThat(compiled.path("publicRuntimeTokenIssuer").asText()).isEqualTo("runtime-public-bootstrap");
+        assertThat(compiled.has("corsAllowedOrigins")).isFalse();
+        assertThat(compiled.path("adminApiKeyEnabled").asBoolean()).isTrue();
+    }
+
+    private MarketplacePluginVersionEntity templateSecurityVersion(String id,
+                                                                    String versionNumber,
+                                                                    String securityFields) {
+        MarketplacePluginVersionEntity version = version();
+        version.setId(id);
+        version.setPluginId("mkp-template-conversation-handover");
+        version.setVersion(versionNumber);
+        version.setManifestJson("""
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {
+                "template": {
+                  "templateId": "custom-start-from-scratch",
+                  "security": {
+                    %s
+                  }
+                }
+              }
+            }
+            """.formatted(securityFields));
+        return version;
+    }
+
+    @Test
     void canonicalConversationControlActionCompilesAsServerOwnedBindingOnly() throws Exception {
         MarketplacePluginEntity plugin = actionPlugin("mkp-action-conversation-handover");
         MarketplacePluginVersionEntity version = actionVersion(
