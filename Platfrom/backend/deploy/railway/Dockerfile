@@ -7,7 +7,7 @@ WORKDIR /workspace/max-mode-widget
 COPY max-mode-widget/package.json max-mode-widget/package-lock.json ./
 RUN npm ci
 COPY max-mode-widget ./
-RUN npm run typecheck && npm run build
+RUN npm run typecheck && npm run build:embedded
 
 WORKDIR /workspace/experience-packs/dealership-experience
 COPY experience-packs/dealership-experience/package.json experience-packs/dealership-experience/package-lock.json ./
