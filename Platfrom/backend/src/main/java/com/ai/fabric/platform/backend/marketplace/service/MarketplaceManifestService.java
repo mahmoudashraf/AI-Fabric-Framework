@@ -63,6 +63,21 @@ public class MarketplaceManifestService {
         "PUBLIC_RUNTIME_AUTHENTICATED",
         "PUBLIC_RUNTIME_ANONYMOUS"
     );
+    private static final Set<String> TEMPLATE_SECURITY_FIELDS = Set.of(
+        "authzMode",
+        "corsAllowedOrigins",
+        "corsAllowedOriginPatterns",
+        "corsAllowCredentials",
+        "publicRuntimeBootstrapEnabled",
+        "publicRuntimeTokenIssuer",
+        "publicRuntimeAcceptedIssuers",
+        "publicRuntimeAcceptedAudiences",
+        "publicRuntimeDefaultAudience"
+    );
+    private static final Set<String> TEMPLATE_SECURITY_BOOLEAN_FIELDS = Set.of(
+        "corsAllowCredentials",
+        "publicRuntimeBootstrapEnabled"
+    );
     private static final Set<String> SUPPORTED_PROVIDER_MODE_KEYS = Set.of(
         "llm",
         "embedding",
@@ -620,6 +635,20 @@ public class MarketplaceManifestService {
         }
         if (!security.isObject()) {
             throw invalid(plugin, version, "template security contribution must be an object when provided.");
+        }
+        rejectUnknownFields(plugin, version, security, TEMPLATE_SECURITY_FIELDS, "template security contribution");
+        for (String field : TEMPLATE_SECURITY_FIELDS) {
+            if (!security.has(field)) {
+                continue;
+            }
+            JsonNode value = security.path(field);
+            if (TEMPLATE_SECURITY_BOOLEAN_FIELDS.contains(field)) {
+                if (!value.isBoolean()) {
+                    throw invalid(plugin, version, "template security contribution " + field + " must be a boolean.");
+                }
+            } else if (!value.isTextual() || !StringUtils.hasText(value.asText())) {
+                throw invalid(plugin, version, "template security contribution " + field + " must be a non-blank string.");
+            }
         }
         String authzMode = security.path("authzMode").asText("").trim();
         if (StringUtils.hasText(authzMode)

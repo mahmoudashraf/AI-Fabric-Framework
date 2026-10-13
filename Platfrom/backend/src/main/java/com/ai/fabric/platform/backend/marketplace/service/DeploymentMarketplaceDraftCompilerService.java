@@ -60,6 +60,19 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String KNOWLEDGE_SOURCE_HANDLE_REF_FIELD = "knowledgeSourceHandleRef";
     private static final String TENANT_ID_FIELD = "tenantId";
     private static final String DEPLOYMENT_ID_FIELD = "deploymentId";
+    private static final Set<String> TEMPLATE_SECURITY_STRING_FIELDS = Set.of(
+        "authzMode",
+        "corsAllowedOrigins",
+        "corsAllowedOriginPatterns",
+        "publicRuntimeTokenIssuer",
+        "publicRuntimeAcceptedIssuers",
+        "publicRuntimeAcceptedAudiences",
+        "publicRuntimeDefaultAudience"
+    );
+    private static final Set<String> TEMPLATE_SECURITY_BOOLEAN_FIELDS = Set.of(
+        "corsAllowCredentials",
+        "publicRuntimeBootstrapEnabled"
+    );
     private static final Set<String> GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS = Set.of(
         "mkp-action-shopify-storefront-read-mcp",
         "mkp-action-shopify-cart-mcp",
@@ -1477,9 +1490,17 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (!templateSecurity.isObject()) {
             return;
         }
-        String authzMode = text(templateSecurity, "authzMode");
-        if (StringUtils.hasText(authzMode)) {
-            securityRoot.put("authzMode", authzMode);
+        for (String field : TEMPLATE_SECURITY_STRING_FIELDS) {
+            String value = text(templateSecurity, field);
+            if (StringUtils.hasText(value)) {
+                securityRoot.put(field, value);
+            }
+        }
+        for (String field : TEMPLATE_SECURITY_BOOLEAN_FIELDS) {
+            JsonNode value = templateSecurity.path(field);
+            if (value.isBoolean()) {
+                securityRoot.put(field, value.asBoolean());
+            }
         }
     }
 

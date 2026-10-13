@@ -59,6 +59,52 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileTemplateSecurityBaselineAppliesOnlyReviewedNonSecretRuntimePolicy() {
+        MarketplacePluginEntity plugin = new MarketplacePluginEntity();
+        plugin.setId("mkp-template-conversation-handover");
+        plugin.setPluginType("TEMPLATE");
+        MarketplacePluginVersionEntity version = version();
+        version.setId("mkv-template-conversation-handover-v1-0-1");
+        version.setPluginId(plugin.getId());
+        version.setVersion("1.0.1");
+        version.setManifestJson("""
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {
+                "template": {
+                  "templateId": "custom-start-from-scratch",
+                  "security": {
+                    "authzMode": "ALLOW_VERIFIED",
+                    "publicRuntimeBootstrapEnabled": true,
+                    "publicRuntimeTokenIssuer": "runtime-public-bootstrap",
+                    "publicRuntimeAcceptedIssuers": "runtime-public-bootstrap",
+                    "publicRuntimeAcceptedAudiences": "loomai-ai-workspace",
+                    "publicRuntimeDefaultAudience": "loomai-ai-workspace"
+                  }
+                }
+              }
+            }
+            """);
+        ObjectNode existing = objectMapper.createObjectNode();
+        existing.put("adminApiKeyEnabled", true);
+
+        ObjectNode compiled = compilerService.compileTemplateSecurityBaseline(plugin, version, existing);
+
+        assertThat(compiled.path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(compiled.path("publicRuntimeBootstrapEnabled").asBoolean()).isTrue();
+        assertThat(compiled.path("publicRuntimeTokenIssuer").asText()).isEqualTo("runtime-public-bootstrap");
+        assertThat(compiled.path("publicRuntimeAcceptedIssuers").asText()).isEqualTo("runtime-public-bootstrap");
+        assertThat(compiled.path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("loomai-ai-workspace");
+        assertThat(compiled.path("publicRuntimeDefaultAudience").asText()).isEqualTo("loomai-ai-workspace");
+        assertThat(compiled.path("adminApiKeyEnabled").asBoolean()).isTrue();
+        assertThat(compiled.has("publicRuntimeTokenSigningKey")).isFalse();
+    }
+
+    @Test
     void canonicalConversationControlActionCompilesAsServerOwnedBindingOnly() throws Exception {
         MarketplacePluginEntity plugin = actionPlugin("mkp-action-conversation-handover");
         MarketplacePluginVersionEntity version = actionVersion(

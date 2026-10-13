@@ -39,7 +39,7 @@ class ConversationHandoverMarketplaceMigrationPostgresTest {
         Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("156"))
+            .target(MigrationVersion.fromVersion("157"))
             .load()
             .migrate();
 
@@ -89,6 +89,7 @@ class ConversationHandoverMarketplaceMigrationPostgresTest {
             var template = parse(seeds.get("mkp-template-conversation-handover"));
             var templateContribution = template.manifest().path("contributions").path("template");
             assertThat(template.pluginType()).isEqualTo("TEMPLATE");
+            assertThat(template.manifest().path("version").asText()).isEqualTo("1.0.1");
             assertThat(templateContribution.path("deploymentBehavior").path("type").asText())
                 .isEqualTo("CONVERSATIONAL");
             assertThat(templateContribution.path("deploymentBehavior").path("defaultExecutionExtensions"))
@@ -100,6 +101,12 @@ class ConversationHandoverMarketplaceMigrationPostgresTest {
                     "mkp-action-conversation-handover@1.0.0",
                     "mkp-integration-basic-loomai-inbox@1.0.0"
                 );
+            assertThat(templateContribution.path("security").path("publicRuntimeBootstrapEnabled").asBoolean())
+                .isTrue();
+            assertThat(templateContribution.path("security").path("publicRuntimeAcceptedIssuers").asText())
+                .isEqualTo("runtime-public-bootstrap");
+            assertThat(templateContribution.path("security").path("publicRuntimeAcceptedAudiences").asText())
+                .isEqualTo("loomai-ai-workspace");
         }
     }
 
@@ -131,7 +138,7 @@ class ConversationHandoverMarketplaceMigrationPostgresTest {
                'mkp-template-conversation-handover'
              )
                and v.status = 'PUBLISHED'
-             order by p.id
+             order by p.id, v.version
             """)) {
             while (rows.next()) {
                 Seed seed = new Seed(
