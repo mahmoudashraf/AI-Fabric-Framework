@@ -33,6 +33,7 @@ export async function mountInstallation(
 ): Promise<DealershipExperienceController> {
   const config = validateConfig(context.configuration as unknown as DealershipExperienceConfig)
   const page = resolvePage(config)
+  const standalone = context.deliveryMode === 'standalone'
   notifyRuntimeState(config, 'checking', 'Connecting workspace', 'Preparing the assigned LoomAI deployment')
 
   try {
@@ -69,6 +70,7 @@ export async function mountInstallation(
       launcher: false,
       beforeNewConversation: context.refreshAssignment,
       host: {
+        ...((context.widgetConfig.host as Record<string, unknown> | undefined) || {}),
         assistantLabel: config.dealer.assistantLabel,
         welcomeMessage: copy.welcomeMessage,
         toolGroups,
@@ -86,7 +88,7 @@ export async function mountInstallation(
         allowedConversationModes: ['executor'],
         actionPresentation: dealershipActionPresentationConfig({ ...config.presentation, capabilities }),
         showUtilityPanel: false,
-        companionDock: true,
+        companionDock: !standalone,
         currentPageAttachment: {
           enabled: true,
           maxChars: config.page.maxChars || 1800,
@@ -108,6 +110,7 @@ export async function mountInstallation(
         }
       },
     })
+    if (standalone) maxMode.open()
 
     const controller = createController(maxMode, context, config)
     activeController = controller

@@ -21,6 +21,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "vite build && vite build --config vite.config.iife.ts && tsc -p tsconfig.build.json",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "devDependencies": {

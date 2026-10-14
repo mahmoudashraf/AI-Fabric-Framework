@@ -185,6 +185,7 @@ export interface AIWorkspacePackMountContext {
   manifestRevision: string
   assignmentRevision: string
   connectionMode: 'public-runtime-anonymous' | 'public-runtime-authenticated' | 'backend-mediated-private-runtime'
+  deliveryMode: 'embedded' | 'standalone'
   configuration: Record<string, unknown>
   widgetConfig: Record<string, unknown> & { apiConfig: Record<string, unknown> }
   maxMode: MaxModeBrowserApi
