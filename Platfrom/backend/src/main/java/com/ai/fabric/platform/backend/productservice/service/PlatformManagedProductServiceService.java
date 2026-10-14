@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProdu
 import com.ai.fabric.platform.backend.productservice.model.CreatePlatformManagedProductServiceRequest;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceShopifyBillingConfigRequest;
+import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceReleaseRequest;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
@@ -95,7 +96,15 @@ public class PlatformManagedProductServiceService {
         entity.setDockerfilePath(defaultDockerfilePath(entity.getServiceKind(), request.dockerfilePath()));
         entity.setSecretName(trimToNull(request.secretName()));
         entity.setStatus(StringUtils.hasText(entity.getBaseUrl()) ? "ACTIVE" : "CREATED");
-        entity.setDetailsJson(initialDetailsJson(entity.getServiceKind(), request.shopifyBillingConfig(), request.targetProfileId()));
+        entity.setDetailsJson(initialDetailsJson(
+            entity.getServiceKind(),
+            request.shopifyBillingConfig(),
+            request.targetProfileId(),
+            request.imageRepository(),
+            request.imageTag(),
+            request.imageDigest(),
+            request.sourceCommit()
+        ));
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         repository.save(entity);
@@ -125,6 +134,26 @@ public class PlatformManagedProductServiceService {
             objectMapper,
             service.getDetailsJson(),
             request
+        );
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        repository.save(service);
+        return toSummary(service);
+    }
+
+    public PlatformManagedProductServiceSummary updateRelease(
+        String serviceRef,
+        UpdatePlatformManagedProductServiceReleaseRequest request
+    ) {
+        PlatformManagedProductServiceEntity service = requireService(serviceRef);
+        requireStandaloneWorkspace(service);
+        ObjectNode details = readDetails(service.getDetailsJson()).deepCopy();
+        writeStandaloneRelease(
+            details,
+            request.imageRepository(),
+            request.imageTag(),
+            request.imageDigest(),
+            request.sourceCommit()
         );
         service.setDetailsJson(details.toPrettyString());
         service.setUpdatedAt(Instant.now());
@@ -179,6 +208,10 @@ public class PlatformManagedProductServiceService {
             text(details, "driftMessage"),
             dependentStores,
             activeDependentStores,
+            text(details, "imageRepository"),
+            text(details, "imageTag"),
+            text(details, "imageDigest"),
+            text(details, "sourceCommit"),
             PlatformManagedProductServiceShopifyBillingConfigSupport.summaryFromDetails(
                 objectMapper,
                 entity.getDetailsJson(),
@@ -189,7 +222,11 @@ public class PlatformManagedProductServiceService {
 
     private String initialDetailsJson(String serviceKind,
                                       UpdatePlatformManagedProductServiceShopifyBillingConfigRequest shopifyBillingConfig,
-                                      String targetProfileId) {
+                                      String targetProfileId,
+                                      String imageRepository,
+                                      String imageTag,
+                                      String imageDigest,
+                                      String sourceCommit) {
         ObjectNode details = objectMapper.createObjectNode();
         String normalizedTargetProfileId = trimToNull(targetProfileId);
         if (normalizedTargetProfileId != null) {
@@ -203,7 +240,58 @@ public class PlatformManagedProductServiceService {
                 shopifyBillingConfig
             );
         }
+        if (STANDALONE_AI_WORKSPACE_SERVICE.equals(normalizeEnum(serviceKind))) {
+            writeStandaloneRelease(details, imageRepository, imageTag, imageDigest, sourceCommit);
+        } else if (hasAnyText(imageRepository, imageTag, imageDigest, sourceCommit)) {
+            throw new ResponseStatusException(CONFLICT, "Immutable image release fields are supported only for standalone AI Workspace services.");
+        }
         return details.toPrettyString();
+    }
+
+    private void requireStandaloneWorkspace(PlatformManagedProductServiceEntity service) {
+        if (!STANDALONE_AI_WORKSPACE_SERVICE.equals(normalizeEnum(service.getServiceKind()))) {
+            throw new ResponseStatusException(CONFLICT, "Immutable image release updates are supported only for standalone AI Workspace services.");
+        }
+    }
+
+    private void writeStandaloneRelease(ObjectNode details,
+                                        String imageRepository,
+                                        String imageTag,
+                                        String imageDigest,
+                                        String sourceCommit) {
+        String repository = trimToNull(imageRepository);
+        String tag = trimToNull(imageTag);
+        String digest = trimToNull(imageDigest);
+        String commit = trimToNull(sourceCommit);
+        if (!hasText(repository) || !hasText(tag) || !hasText(digest) || !hasText(commit)) {
+            throw new ResponseStatusException(CONFLICT, "Standalone AI Workspace services require image repository, immutable tag, digest, and source commit.");
+        }
+        if (!repository.matches("[A-Za-z0-9._/-]+")) {
+            throw new ResponseStatusException(CONFLICT, "Standalone image repository is invalid.");
+        }
+        if (!tag.matches("[a-f0-9]{40}") || !commit.matches("[a-f0-9]{40}")) {
+            throw new ResponseStatusException(CONFLICT, "Standalone image tag and source commit must be exact 40-character commits.");
+        }
+        if (!tag.equals(commit)) {
+            throw new ResponseStatusException(CONFLICT, "Standalone image tag must match the source commit.");
+        }
+        if (!digest.matches("sha256:[a-f0-9]{64}")) {
+            throw new ResponseStatusException(CONFLICT, "Standalone image digest must be a sha256 digest.");
+        }
+        details.put("imageRepository", repository);
+        details.put("imageTag", tag);
+        details.put("imageDigest", digest);
+        details.put("sourceCommit", commit);
+        details.put("releaseUpdatedAt", Instant.now().toString());
+    }
+
+    private boolean hasAnyText(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JsonNode readDetails(String detailsJson) {

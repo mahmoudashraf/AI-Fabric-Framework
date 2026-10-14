@@ -55,6 +55,7 @@ import {
   rotateProductServiceSecret,
   scaleProductService,
   updateProductServiceShopifyBillingConfig,
+  updateProductServiceRelease,
   type CreatePlatformManagedProductServiceRequest,
   type DeploymentTargetProfileSummary,
   type PlatformAuditEventSummary,
@@ -64,6 +65,7 @@ import {
   type PlatformManagedProductServiceProbeSummary,
   type PlatformManagedProductServiceShopifyBillingConfig,
   type PlatformManagedProductServiceSummary,
+  type UpdatePlatformManagedProductServiceReleaseRequest,
   type RailwayLogEntrySummary,
   type ShopifyStoreConnectionSummary,
 } from '../api/platformApi'
@@ -280,6 +282,10 @@ const emptyForm: ProductServiceFormState = {
   dockerfilePath: 'product-services/shopify-bridge-service/deploy/railway/Dockerfile',
   secretName: null,
   targetProfileId: null,
+  imageRepository: null,
+  imageTag: null,
+  imageDigest: null,
+  sourceCommit: null,
   shopifyBillingConfig: defaultShopifyBillingConfig,
 }
 
@@ -313,6 +319,10 @@ const productServicePresets: Record<string, Partial<ProductServiceFormState>> = 
     dockerfilePath: 'workspace-apps/standalone-ai-workspace/Dockerfile',
     healthPath: '/health',
     secretName: null,
+    imageRepository: 'ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace',
+    imageTag: null,
+    imageDigest: null,
+    sourceCommit: null,
     shopifyBillingConfig: null,
   },
 }
@@ -511,6 +521,7 @@ export function ProductServicesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
   const [shopifyBillingDialogOpen, setShopifyBillingDialogOpen] = useState(false)
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false)
   const [forceRecreateDialogOpen, setForceRecreateDialogOpen] = useState(false)
   const [decommissionDialogOpen, setDecommissionDialogOpen] = useState(false)
   const [webhookDialogStore, setWebhookDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
@@ -526,6 +537,12 @@ export function ProductServicesPage() {
   const [form, setForm] = useState<ProductServiceFormState>(emptyForm)
   const [shopifyBillingDraft, setShopifyBillingDraft] =
     useState<PlatformManagedProductServiceShopifyBillingConfig>(defaultShopifyBillingConfig)
+  const [releaseDraft, setReleaseDraft] = useState<UpdatePlatformManagedProductServiceReleaseRequest>({
+    imageRepository: 'ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace',
+    imageTag: '',
+    imageDigest: '',
+    sourceCommit: '',
+  })
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -575,6 +592,12 @@ export function ProductServicesPage() {
     if (selectedService) {
       setScaleValue(`${selectedService.desiredReplicas ?? 1}`)
       setShopifyBillingDraft(billingConfigOrDefault(selectedService.shopifyBillingConfig))
+      setReleaseDraft({
+        imageRepository: selectedService.imageRepository ?? 'ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace',
+        imageTag: selectedService.imageTag ?? '',
+        imageDigest: selectedService.imageDigest ?? '',
+        sourceCommit: selectedService.sourceCommit ?? '',
+      })
     }
   }, [selectedService?.desiredReplicas, selectedService?.serviceRef, selectedService?.shopifyBillingConfig])
 
@@ -720,6 +743,18 @@ export function ProductServicesPage() {
       }),
   })
 
+  const updateReleaseMutation = useMutation({
+    mutationFn: ({ serviceRef, payload }: { serviceRef: string; payload: UpdatePlatformManagedProductServiceReleaseRequest }) =>
+      updateProductServiceRelease(serviceRef, payload),
+    onSuccess: async (service) => {
+      setMessage({ type: 'success', text: `Updated immutable release for ${service.displayName}. Reconcile to deploy it.` })
+      setReleaseDialogOpen(false)
+      await refreshSelected(service.serviceRef)
+    },
+    onError: (error) =>
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to update the immutable service release.' }),
+  })
+
   const restartMutation = useMutation({
     mutationFn: (serviceRef: string) => restartProductService(serviceRef),
     onSuccess: async (service) => {
@@ -842,6 +877,11 @@ export function ProductServicesPage() {
                         >
                           Reconcile
                         </Button>
+                        {isStandaloneWorkspace ? (
+                          <Button variant="outlined" onClick={() => setReleaseDialogOpen(true)}>
+                            Set release
+                          </Button>
+                        ) : null}
                         <Button variant="outlined" onClick={() => setDeploymentHistoryDialogOpen(true)}>
                           Inspect provider deployments
                         </Button>
@@ -915,6 +955,14 @@ export function ProductServicesPage() {
                         ['Dockerfile', selectedService.dockerfilePath],
                         ['Provider service', selectedService.railwayServiceId],
                         ['Dependents', `${selectedService.dependentStoresCount} stores`],
+                        ...(isStandaloneWorkspace
+                          ? [
+                              ['Image', selectedService.imageRepository],
+                              ['Image tag', selectedService.imageTag],
+                              ['Image digest', selectedService.imageDigest],
+                              ['Source commit', selectedService.sourceCommit],
+                            ]
+                          : []),
                       ].map(([label, value]) => (
                         <Grid item xs={12} md={4} key={label}>
                           <Typography variant="caption" color="text.secondary">
@@ -1321,6 +1369,16 @@ export function ProductServicesPage() {
             <TextField label="Service root" value={form.serviceRoot ?? ''} onChange={(event) => setForm((current) => ({ ...current, serviceRoot: event.target.value || null }))} fullWidth />
             <TextField label="Dockerfile path" value={form.dockerfilePath ?? ''} onChange={(event) => setForm((current) => ({ ...current, dockerfilePath: event.target.value || null }))} fullWidth />
             <TextField label="Secret name (optional)" value={form.secretName ?? ''} onChange={(event) => setForm((current) => ({ ...current, secretName: event.target.value || null }))} fullWidth />
+            {form.serviceKind === 'STANDALONE_AI_WORKSPACE_SERVICE' ? (
+              <>
+                <Divider />
+                <Typography sx={{ fontWeight: 700 }}>Immutable frontend release</Typography>
+                <TextField label="Image repository" value={form.imageRepository ?? ''} onChange={(event) => setForm((current) => ({ ...current, imageRepository: event.target.value || null }))} fullWidth />
+                <TextField label="Image tag (exact source commit)" value={form.imageTag ?? ''} onChange={(event) => setForm((current) => ({ ...current, imageTag: event.target.value || null }))} fullWidth />
+                <TextField label="Image digest" value={form.imageDigest ?? ''} onChange={(event) => setForm((current) => ({ ...current, imageDigest: event.target.value || null }))} fullWidth />
+                <TextField label="Source commit" value={form.sourceCommit ?? ''} onChange={(event) => setForm((current) => ({ ...current, sourceCommit: event.target.value || null }))} fullWidth />
+              </>
+            ) : null}
             <TextField
               select
               label="Coolify target profile"
@@ -1405,6 +1463,36 @@ export function ProductServicesPage() {
             disabled={!selectedService || updateShopifyBillingMutation.isPending}
           >
             Save billing config
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={releaseDialogOpen} onClose={() => setReleaseDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Set immutable frontend release</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="info">Save the published image identity, then run Reconcile to deploy that exact artifact.</Alert>
+            <TextField label="Image repository" value={releaseDraft.imageRepository} onChange={(event) => setReleaseDraft((current) => ({ ...current, imageRepository: event.target.value }))} fullWidth />
+            <TextField label="Image tag (exact source commit)" value={releaseDraft.imageTag} onChange={(event) => setReleaseDraft((current) => ({ ...current, imageTag: event.target.value }))} fullWidth />
+            <TextField label="Image digest" value={releaseDraft.imageDigest} onChange={(event) => setReleaseDraft((current) => ({ ...current, imageDigest: event.target.value }))} fullWidth />
+            <TextField label="Source commit" value={releaseDraft.sourceCommit} onChange={(event) => setReleaseDraft((current) => ({ ...current, sourceCommit: event.target.value }))} fullWidth />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReleaseDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => selectedService && updateReleaseMutation.mutate({ serviceRef: selectedService.serviceRef, payload: releaseDraft })}
+            disabled={
+              !selectedService ||
+              !releaseDraft.imageRepository.trim() ||
+              !releaseDraft.imageTag.trim() ||
+              !releaseDraft.imageDigest.trim() ||
+              !releaseDraft.sourceCommit.trim() ||
+              updateReleaseMutation.isPending
+            }
+          >
+            Save release
           </Button>
         </DialogActions>
       </Dialog>

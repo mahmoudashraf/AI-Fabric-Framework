@@ -521,6 +521,10 @@ class PlatformManagedProductAdminServiceTest {
             null,
             0,
             0,
+            null,
+            null,
+            null,
+            null,
             null
         );
 

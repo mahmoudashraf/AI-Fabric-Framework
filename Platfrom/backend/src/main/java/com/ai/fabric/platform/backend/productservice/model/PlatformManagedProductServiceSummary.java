@@ -43,6 +43,10 @@ public record PlatformManagedProductServiceSummary(
     String driftMessage,
     int dependentStoresCount,
     int activeDependentStoresCount,
+    String imageRepository,
+    String imageTag,
+    String imageDigest,
+    String sourceCommit,
     PlatformManagedProductServiceShopifyBillingConfigSummary shopifyBillingConfig
 ) {
 }

@@ -23,6 +23,10 @@ public record CreatePlatformManagedProductServiceRequest(
     @Size(max = 2000) String dockerfilePath,
     @Size(max = 255) String secretName,
     @Size(max = 128) String targetProfileId,
+    @Size(max = 512) String imageRepository,
+    @Size(max = 128) String imageTag,
+    @Size(max = 128) String imageDigest,
+    @Size(max = 64) String sourceCommit,
     UpdatePlatformManagedProductServiceShopifyBillingConfigRequest shopifyBillingConfig
 ) {
 }

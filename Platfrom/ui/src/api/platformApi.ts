@@ -929,6 +929,10 @@ export type PlatformManagedProductServiceSummary = {
   driftMessage: string | null
   dependentStoresCount: number
   activeDependentStoresCount: number
+  imageRepository: string | null
+  imageTag: string | null
+  imageDigest: string | null
+  sourceCommit: string | null
   shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
 }
 
@@ -1154,7 +1158,18 @@ export type CreatePlatformManagedProductServiceRequest = {
   dockerfilePath: string | null
   secretName: string | null
   targetProfileId: string | null
+  imageRepository: string | null
+  imageTag: string | null
+  imageDigest: string | null
+  sourceCommit: string | null
   shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
+}
+
+export type UpdatePlatformManagedProductServiceReleaseRequest = {
+  imageRepository: string
+  imageTag: string
+  imageDigest: string
+  sourceCommit: string
 }
 
 export type UpdatePlatformManagedProductServiceScaleRequest = {
@@ -5153,6 +5168,19 @@ export function scaleProductService(serviceRef: string, payload: UpdatePlatformM
     method: 'PUT',
     body: JSON.stringify(payload),
   })
+}
+
+export function updateProductServiceRelease(
+  serviceRef: string,
+  payload: UpdatePlatformManagedProductServiceReleaseRequest,
+) {
+  return request<PlatformManagedProductServiceSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/release`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function updateProductServiceShopifyBillingConfig(

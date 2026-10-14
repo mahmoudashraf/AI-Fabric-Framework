@@ -513,6 +513,71 @@ class PlatformManagedProductProvisioningServiceTest {
     }
 
     @Test
+    void reconcileStandaloneWorkspaceUsesTheRecordedImmutableDockerImage() {
+        PlatformManagedProductServiceEntity service = standaloneWorkspaceService();
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileEntity stagingProfile = coolifyProfile();
+        CoolifyConnection stagingConnection = coolifyConnection();
+        CoolifyApplicationSummary created = new CoolifyApplicationSummary(
+            "coolify-engage",
+            "loomai-engage-loomai-engage-web",
+            "https://loomai-engage-web.46.224.145.148.sslip.io",
+            "running:healthy",
+            "ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace",
+            "21280f75e129a889f0e9c1bc5ef2a0634d495985",
+            new ObjectMapper().createObjectNode()
+        );
+
+        when(serviceService.requireService("loomai-engage-web")).thenReturn(service);
+        when(serviceService.getService("loomai-engage-web")).thenAnswer(invocation -> summary(service));
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(stagingProfile));
+        when(targetProfileResolver.requireConnection(stagingProfile)).thenReturn(stagingConnection);
+        when(coolifyApiClient.listApplications(stagingConnection)).thenReturn(List.of());
+        when(coolifyApiClient.createDockerImageApplication(eq(stagingConnection), any())).thenReturn("coolify-engage");
+        when(coolifyApiClient.getApplication(stagingConnection, "coolify-engage")).thenReturn(Optional.of(created));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(stagingConnection), eq("coolify-engage"), any())).thenReturn(3);
+        when(coolifyApiClient.start(stagingConnection, "coolify-engage", true, true))
+            .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-engage", new ObjectMapper().createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, stagingConnection);
+
+        PlatformManagedProductProvisioningService provisioningService = newCoolifyProvisioningService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            platformSecretService,
+            platformAuditService,
+            railwayGraphqlClient,
+            targetProfileResolver,
+            coolifyApiClient,
+            targetProfileRepository
+        );
+
+        PlatformManagedProductServiceSummary result = provisioningService.reconcile("loomai-engage-web");
+
+        assertThat(result.serviceRef()).isEqualTo("loomai-engage-web");
+        assertThat(service.getStatus()).isEqualTo("ACTIVE");
+        assertThat(service.getBaseUrl()).isEqualTo("https://loomai-engage-web.46.224.145.148.sslip.io");
+        ArgumentCaptor<CoolifyCreateDockerImageApplicationRequest> request =
+            ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
+        verify(coolifyApiClient).createDockerImageApplication(eq(stagingConnection), request.capture());
+        assertThat(request.getValue().imageRepository())
+            .isEqualTo("ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace");
+        assertThat(request.getValue().imageTag()).isEqualTo("21280f75e129a889f0e9c1bc5ef2a0634d495985");
+        assertThat(request.getValue().domains()).isEqualTo("https://loomai-engage-web.46.224.145.148.sslip.io");
+        verify(coolifyApiClient, never()).createPublicApplication(eq(stagingConnection), any());
+        verifyNoInteractions(railwayGraphqlClient);
+    }
+
+    @Test
     void reconcileCoolifyManagedServiceCanMoveToExplicitTargetProfile() {
         PlatformManagedProductServiceEntity service = mcpGatewayService();
         service.setBaseUrl("https://mcp-execution-gateway.46.224.145.148.sslip.io");
@@ -984,6 +1049,30 @@ class PlatformManagedProductProvisioningServiceTest {
         return service;
     }
 
+    private PlatformManagedProductServiceEntity standaloneWorkspaceService() {
+        PlatformManagedProductServiceEntity service = productService("loomai-engage-web");
+        service.setId("psv-engage");
+        service.setDisplayName("LoomAI Engage shared workspace");
+        service.setProductFamily("LOOMAI_ENGAGE");
+        service.setServiceKind(PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE);
+        service.setEnvironmentScope("staging");
+        service.setHealthPath("/health");
+        service.setServiceRoot("workspace-apps/standalone-ai-workspace");
+        service.setDockerfilePath("workspace-apps/standalone-ai-workspace/Dockerfile");
+        service.setSecretName(null);
+        service.setDetailsJson("""
+            {
+              "providerType": "COOLIFY",
+              "targetProfileId": "dtp-coolify-staging",
+              "imageRepository": "ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace",
+              "imageTag": "21280f75e129a889f0e9c1bc5ef2a0634d495985",
+              "imageDigest": "sha256:52297385ec80afa3440d9fae31f17098e695e56f5927bf0f52e2da8125f0d61d",
+              "sourceCommit": "21280f75e129a889f0e9c1bc5ef2a0634d495985"
+            }
+            """);
+        return service;
+    }
+
     private DeploymentTargetProfileEntity coolifyProfile() {
         DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
         profile.setId("dtp-coolify-staging");
@@ -1176,6 +1265,10 @@ class PlatformManagedProductProvisioningServiceTest {
             null,
             0,
             0,
+            null,
+            null,
+            null,
+            null,
             null
         );
     }
