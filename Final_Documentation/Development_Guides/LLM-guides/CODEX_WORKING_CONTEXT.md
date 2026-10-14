@@ -4497,3 +4497,30 @@ Critical fixes that made the gate pass:
 - No product/framework code, dependency, live configuration, or deployment
   was changed for this documentation update. All web and mobile execution
   checkboxes remain pending.
+
+## 2026-10-14 Coding Assistant Skill And Coolify Resource Audit
+
+- Plan `010.35` is implemented. Public framework commit `2f8cda26` adds the
+  `ai-fabric` coding-assistant skill, five focused references, validation, and
+  CI. Private status commit `b4fc6e749` records completion.
+- Completed an ownership-aware Coolify cleanup without deleting active customer
+  assignments. Protected mappings include staging ProdUS `dep-7706fafb`,
+  production ProdUS `dep-f6abfa06`, Shopify `dep-8c3e7259`, and Northfield
+  `dep-f023c863`.
+- Staging was reduced from 86 applications / 25 databases to 49 applications /
+  7 databases. A fresh readback shows all 49 applications running and all seven
+  databases healthy. Production was reduced from 40 applications / 24
+  databases to 16 applications / 3 databases.
+- Thirteen obsolete Platform deployment records and their tracked resources
+  were hard-deleted. Old ProdUS/Qdrant attempts and stale Pinecone, Milvus,
+  local-vector, application, and database resources were removed. One old
+  staging Weaviate deletion operation, `del-ca59d4fe`, remains historically
+  `RUNNING` but has no matching Coolify application/database resource.
+- Auto-deploy is now restricted to current public-framework demos,
+  dealership/support, ProdUS, and Shopify surfaces. Platform core, canonical
+  verification fixtures, partner UI, public site, and MCP gateway require
+  deliberate deployment. Watch paths were normalized.
+- Both servers retain nightly Docker cleanup at the 80% threshold and do not
+  auto-delete volumes or networks. Production already allowed one concurrent
+  build; staging was reduced from two to one on 2026-10-14. Direct production
+  Coolify/API access was closed again after work; no operator CIDR remains.
