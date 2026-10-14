@@ -14,6 +14,7 @@ let runtimeToken = null
 let providerToken = null
 let runtimeOrigin = null
 let posts = 0
+let cleanupAnonymousHandover = null
 try {
   report.stage = 'anonymous-query'
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -35,6 +36,24 @@ try {
   await page.evaluate(() => window.MaxMode.attachItem({type:'current-page',data:{id:'auth-boundary-page',title:'Authentication boundary reference',content:'Synthetic attachment for identity transition verification.',metadata:{attachmentKind:'CURRENT_PAGE',capturedCharacters:59}}}))
   await page.waitForFunction(() => Object.keys(sessionStorage).filter(key => key.startsWith('maxmode_widget_state:')).some(key=>JSON.parse(sessionStorage.getItem(key)).attachedItems?.some(item=>item.data.id==='auth-boundary-page')))
   const anonymous = await state(page, 'anonymous')
+  const anonymousOwner = await page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find(key => key.startsWith('maxmode_public_runtime_session_credential_v2:'))
+    return JSON.parse(sessionStorage.getItem(key)).token
+  })
+  await page.getByRole('button', { name: 'Talk to a person', exact: true }).first().click()
+  const transferResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/handover-requests') && response.request().method() === 'POST')
+  await page.getByRole('dialog', { name: 'Talk to a person' }).getByRole('button', { name: 'Continue anonymously', exact: true }).click()
+  const transfer = await transferResponse
+  assert.equal(transfer.status(), 202)
+  const episode = (await transfer.json()).conversation
+  assert.equal(episode.controlState, 'HUMAN_PENDING')
+  const originalRuntime = new URL(transfer.url()).origin
+  cleanupAnonymousHandover = async () => {
+    const cancelled = await page.request.post(`${originalRuntime}/api/chat/me/conversations/${anonymous.conversationId}/handover-requests/${episode.handoverId}/cancel`, {
+      headers: { Origin: origin, Authorization: `Bearer ${anonymousOwner}`, 'Idempotency-Key': `auth-boundary-cleanup-${episode.handoverId}` }, data: {},
+    })
+    assert.equal(cancelled.status(), 200, 'Original anonymous handover cleanup failed')
+  }
   const postsBeforeLogin = posts
   report.stage = 'failed-login'
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -72,6 +91,9 @@ try {
   const priorConversation = await page.request.get(`${runtimeOrigin}/api/chat/me/conversations/${anonymous.conversationId}`, {headers:{Origin:origin,Authorization:`Bearer ${runtimeToken}`}})
   assert([403,404].includes(priorConversation.status()), `Authenticated owner could access an anonymous conversation: HTTP ${priorConversation.status()}`)
   report.checks.anonymousConversationNotTransferred = true
+  report.checks.activeAnonymousHandoverOwnershipNotTransferred = true
+  await cleanupAnonymousHandover()
+  cleanupAnonymousHandover = null
   providerToken = await page.evaluate(() => {
     const key=Object.keys(sessionStorage).find(key=>key.startsWith('loomai_engage_identity:'))
     return JSON.parse(sessionStorage.getItem(key)).access_token
@@ -88,11 +110,22 @@ try {
   })
   assert([401,403].includes(deniedOrigin.status()))
   report.checks.unregisteredOriginRejected = true
+  const operatorOnly = await page.request.get(`${runtimeOrigin}/api/admin/conversation-handover/overview`, {
+    headers: { Origin: origin, Authorization: `Bearer ${runtimeToken}` },
+  })
+  assert([401, 403].includes(operatorOnly.status()))
+  report.checks.signedInOwnerCannotUseOperatorApi = true
   report.stage = 'authenticated-query'
   const answer = await send(page, 'What is the dealership delivery policy?')
   assert.equal(answer.success,true)
   assert.equal(answer.metadata?.authenticated,true)
   report.checks.authenticatedQueryUsedDirectRuntime = true
+  const authenticatedControl = await page.request.get(`${runtimeOrigin}/api/chat/me/conversations/${answer.conversationId}/control`, {
+    headers: { Origin: origin, Authorization: `Bearer ${runtimeToken}` },
+  })
+  assert.equal(authenticatedControl.status(), 200)
+  assert.equal((await authenticatedControl.json()).controlState, 'AI_ACTIVE')
+  report.checks.authenticatedConversationDidNotInheritAnonymousHandover = true
   const beforeRefresh = await state(page, 'authenticated:')
   report.stage = 'provider-refresh'
   await page.evaluate(() => {
@@ -121,6 +154,9 @@ try {
   report.errors.push(error.message)
   process.exitCode=1
 } finally {
+  if (cleanupAnonymousHandover) {
+    try { await cleanupAnonymousHandover() } catch (error) { report.errors.push(error.message); process.exitCode = 1 }
+  }
   await browser.close()
   await writeFile(resolve(output,'report.json'),`${JSON.stringify(report,null,2)}\n`)
   console.log(JSON.stringify(report,null,2))
