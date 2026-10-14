@@ -346,32 +346,8 @@ public class CoolifyApiClient {
         if (envVars == null || envVars.isEmpty()) {
             return 0;
         }
-        deleteStaleShownOnceEnvironmentVariables(connection, uuid, envVars);
-        List<CoolifyEnvVar> bulkEnvVars = envVars.stream()
-            .filter(envVar -> envVar != null && !envVar.preview())
-            .toList();
-        int updated = 0;
-        if (!bulkEnvVars.isEmpty()) {
-            updated += updateEnvironmentVariablesBulk(connection, uuid, bulkEnvVars);
-        }
-        for (CoolifyEnvVar envVar : envVars) {
-            if (envVar == null || !envVar.preview()) {
-                continue;
-            }
-            updateEnvironmentVariable(connection, uuid, envVar);
-            updated++;
-        }
-        deduplicateEnvironmentVariables(connection, uuid, envVars);
-        return updated;
-    }
-
-    private void deleteStaleShownOnceEnvironmentVariables(
-        CoolifyConnection connection,
-        String uuid,
-        List<CoolifyEnvVar> envVars
-    ) {
         Map<EnvIdentity, CoolifyEnvVar> desired = envVars.stream()
-            .filter(envVar -> envVar != null && envVar.shownOnce() && StringUtils.hasText(envVar.key()))
+            .filter(envVar -> envVar != null && StringUtils.hasText(envVar.key()))
             .collect(Collectors.toMap(
                 envVar -> new EnvIdentity(envVar.key().trim(), envVar.preview()),
                 envVar -> envVar,
@@ -379,37 +355,107 @@ public class CoolifyApiClient {
                 LinkedHashMap::new
             ));
         if (desired.isEmpty()) {
-            return;
+            return 0;
         }
 
-        JsonNode existing = requestJson(
+        JsonNode existing = environmentInventory(connection, uuid);
+        Map<EnvIdentity, List<CoolifyEnvRecord>> existingByIdentity = environmentRecords(existing, desired.keySet());
+        List<CoolifyEnvVar> changed = new ArrayList<>();
+        for (Map.Entry<EnvIdentity, CoolifyEnvVar> entry : desired.entrySet()) {
+            List<CoolifyEnvRecord> records = existingByIdentity.getOrDefault(entry.getKey(), List.of());
+            if (records.stream().anyMatch(record -> environmentMatches(record, entry.getValue()))) {
+                continue;
+            }
+            if (entry.getValue().shownOnce()) {
+                for (CoolifyEnvRecord record : records) {
+                    deleteEnvironmentVariable(connection, uuid, record.uuid());
+                }
+            }
+            changed.add(entry.getValue());
+        }
+
+        List<CoolifyEnvVar> bulkEnvVars = changed.stream()
+            .filter(envVar -> !envVar.preview())
+            .toList();
+        int updated = 0;
+        if (!bulkEnvVars.isEmpty()) {
+            updated += updateEnvironmentVariablesBulk(connection, uuid, bulkEnvVars);
+        }
+        for (CoolifyEnvVar envVar : changed) {
+            if (!envVar.preview()) {
+                continue;
+            }
+            updateEnvironmentVariable(connection, uuid, envVar);
+            updated++;
+        }
+        JsonNode reconciled = changed.isEmpty() ? existing : environmentInventory(connection, uuid);
+        deduplicateEnvironmentVariables(connection, uuid, desired, reconciled);
+        return updated;
+    }
+
+    private JsonNode environmentInventory(CoolifyConnection connection, String uuid) {
+        JsonNode inventory = requestJson(
             connection,
             "GET",
             "/applications/" + encodePath(uuid) + "/envs",
             null,
             true
         );
-        if (existing == null || !existing.isArray()) {
+        if (inventory == null || !inventory.isArray()) {
             throw new CoolifyApiException(
-                "Coolify environment inventory is unavailable for shown-once secret reconciliation.",
+                "Coolify environment inventory is unavailable for environment reconciliation.",
                 502,
                 "/applications/" + encodePath(uuid) + "/envs"
             );
         }
+        return inventory;
+    }
 
-        for (JsonNode item : existing) {
+    private Map<EnvIdentity, List<CoolifyEnvRecord>> environmentRecords(
+        JsonNode inventory,
+        Set<EnvIdentity> desiredIdentities
+    ) {
+        Map<EnvIdentity, List<CoolifyEnvRecord>> recordsByIdentity = new LinkedHashMap<>();
+        int index = 0;
+        for (JsonNode item : inventory) {
             String envUuid = textFirst(item, "uuid", "id");
             String key = textFirst(item, "key");
             if (!StringUtils.hasText(envUuid) || !StringUtils.hasText(key)) {
+                index++;
                 continue;
             }
             EnvIdentity identity = new EnvIdentity(key.trim(), item.path("is_preview").asBoolean(false));
-            CoolifyEnvVar expected = desired.get(identity);
-            if (expected == null || Objects.equals(textFirst(item, "value"), expected.value())) {
+            if (!desiredIdentities.contains(identity)) {
+                index++;
                 continue;
             }
-            deleteEnvironmentVariable(connection, uuid, envUuid);
+            recordsByIdentity.computeIfAbsent(identity, ignored -> new ArrayList<>())
+                .add(new CoolifyEnvRecord(
+                    envUuid,
+                    firstNonBlank(textFirst(item, "updated_at", "updatedAt"), textFirst(item, "created_at", "createdAt")),
+                    index,
+                    item.path("value").isMissingNode() || item.path("value").isNull()
+                        ? null
+                        : item.path("value").asText(),
+                    item.path("is_literal").asBoolean(false),
+                    item.path("is_multiline").asBoolean(false),
+                    item.path("is_shown_once").asBoolean(false),
+                    item.path("is_buildtime").asBoolean(false),
+                    item.path("is_runtime").asBoolean(true)
+                ));
+            index++;
         }
+        return recordsByIdentity;
+    }
+
+    private boolean environmentMatches(CoolifyEnvRecord record, CoolifyEnvVar desired) {
+        String desiredValue = desired.value() == null ? "" : desired.value();
+        return Objects.equals(record.value(), desiredValue)
+            && record.literal() == desired.literal()
+            && record.multiline() == desired.multiline()
+            && record.shownOnce() == desired.shownOnce()
+            && !record.buildtime()
+            && record.runtime();
     }
 
     public int deleteEnvironmentVariablesByKey(
@@ -606,52 +652,30 @@ public class CoolifyApiClient {
         requestJson(connection, "PATCH", "/applications/" + encodePath(uuid) + "/envs", envBody(envVar), true);
     }
 
-    private void deduplicateEnvironmentVariables(CoolifyConnection connection, String uuid, List<CoolifyEnvVar> updatedEnvVars) {
-        Set<EnvIdentity> updatedKeys = updatedEnvVars.stream()
-            .filter(envVar -> envVar != null && StringUtils.hasText(envVar.key()))
-            .map(envVar -> new EnvIdentity(envVar.key().trim(), envVar.preview()))
-            .collect(Collectors.toSet());
-        if (updatedKeys.isEmpty()) {
-            return;
-        }
-
-        JsonNode response = requestJson(connection, "GET", "/applications/" + encodePath(uuid) + "/envs", null, true);
-        if (response == null || !response.isArray()) {
-            return;
-        }
-
-        Map<EnvIdentity, List<CoolifyEnvRecord>> recordsByIdentity = new LinkedHashMap<>();
-        int index = 0;
-        for (JsonNode item : response) {
-            String envUuid = textFirst(item, "uuid", "id");
-            String key = textFirst(item, "key");
-            if (!StringUtils.hasText(envUuid) || !StringUtils.hasText(key)) {
-                index++;
-                continue;
-            }
-            EnvIdentity identity = new EnvIdentity(key.trim(), item.path("is_preview").asBoolean(false));
-            if (!updatedKeys.contains(identity)) {
-                index++;
-                continue;
-            }
-            recordsByIdentity.computeIfAbsent(identity, ignored -> new ArrayList<>())
-                .add(new CoolifyEnvRecord(
-                    envUuid,
-                    firstNonBlank(textFirst(item, "updated_at", "updatedAt"), textFirst(item, "created_at", "createdAt")),
-                    index
-                ));
-            index++;
-        }
-
-        for (List<CoolifyEnvRecord> records : recordsByIdentity.values()) {
+    private void deduplicateEnvironmentVariables(
+        CoolifyConnection connection,
+        String uuid,
+        Map<EnvIdentity, CoolifyEnvVar> desired,
+        JsonNode inventory
+    ) {
+        Map<EnvIdentity, List<CoolifyEnvRecord>> recordsByIdentity = environmentRecords(inventory, desired.keySet());
+        for (Map.Entry<EnvIdentity, List<CoolifyEnvRecord>> entry : recordsByIdentity.entrySet()) {
+            List<CoolifyEnvRecord> records = entry.getValue();
             if (records.size() < 2) {
                 continue;
             }
             records.sort(Comparator
                 .comparing((CoolifyEnvRecord record) -> normalizeTimestamp(record.updatedAt()))
                 .thenComparingInt(CoolifyEnvRecord::index));
-            for (int i = 0; i < records.size() - 1; i++) {
-                deleteEnvironmentVariable(connection, uuid, records.get(i).uuid());
+            CoolifyEnvVar expected = desired.get(entry.getKey());
+            CoolifyEnvRecord keeper = records.stream()
+                .filter(record -> environmentMatches(record, expected))
+                .reduce((left, right) -> right)
+                .orElse(records.get(records.size() - 1));
+            for (CoolifyEnvRecord record : records) {
+                if (!record.uuid().equals(keeper.uuid())) {
+                    deleteEnvironmentVariable(connection, uuid, record.uuid());
+                }
             }
         }
     }
@@ -1252,6 +1276,16 @@ public class CoolifyApiClient {
     private record EnvIdentity(String key, boolean preview) {
     }
 
-    private record CoolifyEnvRecord(String uuid, String updatedAt, int index) {
+    private record CoolifyEnvRecord(
+        String uuid,
+        String updatedAt,
+        int index,
+        String value,
+        boolean literal,
+        boolean multiline,
+        boolean shownOnce,
+        boolean buildtime,
+        boolean runtime
+    ) {
     }
 }

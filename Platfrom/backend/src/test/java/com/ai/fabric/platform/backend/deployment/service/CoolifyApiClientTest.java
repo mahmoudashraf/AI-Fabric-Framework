@@ -323,7 +323,34 @@ class CoolifyApiClientTest {
     }
 
     @Test
-    void updateEnvironmentVariablesReplacesStaleShownOnceSecretsBeforeUpsert() throws Exception {
+    void updateEnvironmentVariablesSkipsRowsThatAlreadyMatch() throws Exception {
+        AtomicInteger getRequests = new AtomicInteger();
+        AtomicInteger writeRequests = new AtomicInteger();
+        HttpServer server = matchingEnvironmentServer(getRequests, writeRequests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            int updated = client.updateEnvironmentVariables(
+                connection(server),
+                "app-uuid",
+                List.of(
+                    new CoolifyEnvVar("PLATFORM_DEPLOYMENT_VERSION_ID", "ver-current", false, true, false, false),
+                    new CoolifyEnvVar("PLATFORM_DEPLOYMENT_VERSION_ID", "ver-current", true, true, false, false),
+                    new CoolifyEnvVar("CONNECTOR_API_KEY", "managed-secret", false, true, false, true),
+                    new CoolifyEnvVar("CONNECTOR_API_KEY", "managed-secret", true, true, false, true)
+                )
+            );
+
+            assertThat(updated).isZero();
+            assertThat(getRequests).hasValue(1);
+            assertThat(writeRequests).hasValue(0);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void updateEnvironmentVariablesReplacesOnlyStaleShownOnceSecretsBeforeUpsert() throws Exception {
         AtomicInteger deleteRequests = new AtomicInteger();
         AtomicReference<String> deletedPath = new AtomicReference<>();
         AtomicReference<String> observedBulkBody = new AtomicReference<>();
@@ -346,15 +373,13 @@ class CoolifyApiClientTest {
                 )
             );
 
-            assertThat(updated).isEqualTo(2);
+            assertThat(updated).isEqualTo(1);
             assertThat(deleteRequests).hasValue(1);
             assertThat(deletedPath).hasValue("/api/v1/applications/app-uuid/envs/env-stale");
             JsonNode bulkBody = objectMapper.readTree(observedBulkBody.get());
             assertThat(bulkBody.path("data").get(0).path("value").asText()).isEqualTo("managed-secret");
             assertThat(bulkBody.path("data").get(0).path("is_shown_once").asBoolean()).isTrue();
-            JsonNode previewBody = objectMapper.readTree(observedPreviewBody.get());
-            assertThat(previewBody.path("value").asText()).isEqualTo("managed-secret");
-            assertThat(previewBody.path("is_preview").asBoolean()).isTrue();
+            assertThat(observedPreviewBody.get()).isNull();
         } finally {
             server.stop(0);
         }
@@ -456,7 +481,7 @@ class CoolifyApiClientTest {
                 ))
             );
 
-            assertThat(updated).isEqualTo(1);
+            assertThat(updated).isZero();
             assertThat(deleteRequests.get()).isEqualTo(1);
             assertThat(deletedPath.get()).isEqualTo("/api/v1/applications/app-uuid/envs/env-old");
         } finally {
@@ -704,24 +729,35 @@ class CoolifyApiClientTest {
         });
         server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
             if ("GET".equals(exchange.getRequestMethod())) {
+                String value = bulkRequests.get() == 0 && previewRequests.get() == 0 ? "ver-old" : "ver-new";
                 sendJson(exchange, 200, """
                     [
                       {
                         "uuid": "env-standard",
                         "key": "PLATFORM_DEPLOYMENT_VERSION_ID",
-                        "value": "ver-new",
+                        "value": "%s",
                         "is_preview": false,
+                        "is_literal": true,
+                        "is_multiline": false,
+                        "is_shown_once": false,
+                        "is_buildtime": false,
+                        "is_runtime": true,
                         "updated_at": "2026-05-06T20:00:00.000000Z"
                       },
                       {
                         "uuid": "env-preview",
                         "key": "PLATFORM_DEPLOYMENT_VERSION_ID",
-                        "value": "ver-new",
+                        "value": "%s",
                         "is_preview": true,
+                        "is_literal": true,
+                        "is_multiline": false,
+                        "is_shown_once": false,
+                        "is_buildtime": false,
+                        "is_runtime": true,
                         "updated_at": "2026-05-06T20:00:01.000000Z"
                       }
                     ]
-                    """);
+                    """.formatted(value, value));
                 return;
             }
             if (!"PATCH".equals(exchange.getRequestMethod())) {
@@ -739,6 +775,35 @@ class CoolifyApiClientTest {
                   "is_preview": true
                 }
                 """);
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer matchingEnvironmentServer(
+        AtomicInteger getRequests,
+        AtomicInteger writeRequests
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs/bulk", exchange -> {
+            writeRequests.incrementAndGet();
+            sendJson(exchange, 201, "[]");
+        });
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            if ("GET".equals(exchange.getRequestMethod())) {
+                getRequests.incrementAndGet();
+                sendJson(exchange, 200, """
+                    [
+                      {"uuid":"env-version","key":"PLATFORM_DEPLOYMENT_VERSION_ID","value":"ver-current","is_preview":false,"is_literal":true,"is_multiline":false,"is_shown_once":false,"is_buildtime":false,"is_runtime":true},
+                      {"uuid":"env-version-preview","key":"PLATFORM_DEPLOYMENT_VERSION_ID","value":"ver-current","is_preview":true,"is_literal":true,"is_multiline":false,"is_shown_once":false,"is_buildtime":false,"is_runtime":true},
+                      {"uuid":"env-secret","key":"CONNECTOR_API_KEY","value":"managed-secret","is_preview":false,"is_literal":true,"is_multiline":false,"is_shown_once":true,"is_buildtime":false,"is_runtime":true},
+                      {"uuid":"env-secret-preview","key":"CONNECTOR_API_KEY","value":"managed-secret","is_preview":true,"is_literal":true,"is_multiline":false,"is_shown_once":true,"is_buildtime":false,"is_runtime":true}
+                    ]
+                    """);
+                return;
+            }
+            writeRequests.incrementAndGet();
+            sendJson(exchange, 201, "{}");
         });
         server.start();
         return server;
@@ -775,6 +840,11 @@ class CoolifyApiClientTest {
                         "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
                         "value": "https://old.example",
                         "is_preview": false,
+                        "is_literal": true,
+                        "is_multiline": false,
+                        "is_shown_once": false,
+                        "is_buildtime": false,
+                        "is_runtime": true,
                         "updated_at": "2026-05-06T11:44:58.000000Z"
                       },
                       {
@@ -782,6 +852,11 @@ class CoolifyApiClientTest {
                         "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
                         "value": "https://bridge.example",
                         "is_preview": false,
+                        "is_literal": true,
+                        "is_multiline": false,
+                        "is_shown_once": false,
+                        "is_buildtime": false,
+                        "is_runtime": true,
                         "updated_at": "2026-05-06T20:42:28.000000Z"
                       },
                       {
@@ -789,6 +864,11 @@ class CoolifyApiClientTest {
                         "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
                         "value": "https://preview.example",
                         "is_preview": true,
+                        "is_literal": true,
+                        "is_multiline": false,
+                        "is_shown_once": false,
+                        "is_buildtime": false,
+                        "is_runtime": true,
                         "updated_at": "2026-05-06T10:00:00.000000Z"
                       }
                     ]
@@ -831,8 +911,8 @@ class CoolifyApiClientTest {
                 String standardValue = deleteRequests.get() == 0 ? "test" : "managed-secret";
                 sendJson(exchange, 200, """
                     [
-                      {"uuid":"%s","key":"CONNECTOR_API_KEY","value":"%s","is_preview":false,"is_shown_once":true},
-                      {"uuid":"env-preview","key":"CONNECTOR_API_KEY","value":"managed-secret","is_preview":true,"is_shown_once":true}
+                      {"uuid":"%s","key":"CONNECTOR_API_KEY","value":"%s","is_preview":false,"is_literal":true,"is_multiline":false,"is_shown_once":true,"is_buildtime":false,"is_runtime":true},
+                      {"uuid":"env-preview","key":"CONNECTOR_API_KEY","value":"managed-secret","is_preview":true,"is_literal":true,"is_multiline":false,"is_shown_once":true,"is_buildtime":false,"is_runtime":true}
                     ]
                     """.formatted(standardUuid, standardValue));
                 return;
