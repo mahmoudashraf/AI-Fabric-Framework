@@ -4524,3 +4524,33 @@ Critical fixes that made the gate pass:
   auto-delete volumes or networks. Production already allowed one concurrent
   build; staging was reduced from two to one on 2026-10-14. Direct production
   Coolify/API access was closed again after work; no operator CIDR remains.
+
+## 2026-10-14 Standalone AI Workspace Source And Local Verification
+
+- Plan `010.36` source implementation is complete locally and awaits immutable
+  image publication plus hosted staging/production evidence. LoomAI Engage is
+  the commercial name; AI Workspace remains the generic technical contract.
+- Added manifest v2, a domain-neutral experience pack, a shared standalone web
+  shell, exact-host app bootstrap, **Create AI App**, standalone domain and
+  authentication configuration, Supabase-first deployment-local identity
+  brokerage, app-specific readiness, and managed Coolify route reconciliation.
+- Custom domains require TXT ownership before route activation. Route health is
+  verified through pinned resolved public addresses with hostname-aware TLS and
+  no redirects. The shared service retains its canonical base URL while its
+  full Platform-managed domain set is stored separately.
+- Password and magic-link login start a fresh authenticated workspace and clear
+  the prior anonymous app namespace. Logout clears authenticated and stale
+  anonymous state. The runtime broker fails startup unless deployment,
+  customer, and tenant ownership defaults are complete.
+- Publication is path-scoped: backend and UI images build independently, and
+  the standalone shell has its own verification/image workflow. Platform core
+  remains deliberate-deploy under the current build-capacity policy.
+- Local gates are green: Platform backend 42/42 with all 158 migrations,
+  runtime broker/startup 15/15, widget type/build plus four contract smokes,
+  generic pack type/build, Platform UI build/smoke, standalone server 1/1 and
+  browser 6/6, full public-site browser smoke, workflow YAML parsing, and a
+  production Docker build with live `/health` and no-store runtime config.
+- Do not yet claim hosted standalone or authenticated Supabase readiness. Next:
+  commit/push the 010.36 source, wait for immutable images, deploy the shared
+  staging service, prove two exact app hosts and provider/runtime boundaries,
+  then promote the same revision to production and regress Shopify/dealership.

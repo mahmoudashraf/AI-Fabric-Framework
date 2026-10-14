@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.aiworkspace.service;
 
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
+import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceDomainEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceAssetDescriptor;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMode;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
@@ -40,8 +41,12 @@ class PublicAIWorkspaceManifestServiceTest {
     private final AIWorkspaceAssetCatalogService assets = mock(AIWorkspaceAssetCatalogService.class);
     private final AIWorkspaceExperiencePackRegistry packs = mock(AIWorkspaceExperiencePackRegistry.class);
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final AIWorkspaceAuthenticationProfileRegistry authenticationProfiles =
+        new AIWorkspaceAuthenticationProfileRegistry(objectMapper);
+    private final AIWorkspaceDomainService domains = mock(AIWorkspaceDomainService.class);
     private final PlatformAIWorkspaceProperties properties = new PlatformAIWorkspaceProperties(
-        Path.of("."), false, 120, Duration.ofSeconds(60), null, "https://shopify-bridge.loomai.pro");
+        Path.of("."), false, 120, Duration.ofSeconds(60), null, "https://shopify-bridge.loomai.pro",
+        "apps.loomai.test", "https://workspace.loomai.test");
 
     @Test
     void returnsOnlySafeAssignedRuntimeProjectionForAllowedOrigin() throws Exception {
@@ -106,7 +111,15 @@ class PublicAIWorkspaceManifestServiceTest {
         stubReadyInstallation(installation);
         PlatformAIWorkspaceProperties authenticatedProperties = new PlatformAIWorkspaceProperties(
             Path.of("."), false, 120, Duration.ofSeconds(60),
-            "https://identity.example/workspace/token", "https://shopify-bridge.loomai.pro");
+            "https://identity.example/workspace/token", "https://shopify-bridge.loomai.pro",
+            "apps.loomai.test", "https://workspace.loomai.test");
+        installation.setInteractionPolicy(
+            com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy.LOGIN_REQUIRED);
+        installation.setAuthProfileCode(AIWorkspaceAuthenticationProfileRegistry.SUPABASE);
+        installation.setAuthProfileVersion(AIWorkspaceAuthenticationProfileRegistry.VERSION);
+        installation.setAuthConfigurationJson("""
+            {"projectUrl":"https://identity.example","publishableKey":"publishable-test-key","methods":["email-password"]}
+            """);
 
         var result = service(authenticatedProperties).resolve(
             installation.getInstallationId(), "https://dealer.example");
@@ -116,8 +129,8 @@ class PublicAIWorkspaceManifestServiceTest {
         assertThat(connection.path("handler").asText()).isEqualTo("brokered-public-runtime");
         assertThat(connection.path("runtimeBaseUrl").asText()).isEqualTo("https://dep-example.loomai.pro");
         assertThat(connection.path("credentialBroker").path("url").asText())
-            .isEqualTo("https://identity.example/workspace/token");
-        assertThat(connection.path("credentialBroker").path("credentials").asText()).isEqualTo("include");
+            .isEqualTo("https://dep-example.loomai.pro/api/public/auth/runtime-token");
+        assertThat(connection.path("credentialBroker").path("credentials").asText()).isEqualTo("omit");
         assertThat(connection.has("anonymousBootstrap")).isFalse();
         assertThat(connection.has("adapter")).isFalse();
     }
@@ -209,6 +222,46 @@ class PublicAIWorkspaceManifestServiceTest {
             .doesNotContain("channel");
     }
 
+    @Test
+    void resolvesStandaloneBootstrapOnlyFromTheVerifiedRequestHost() {
+        AIWorkspaceInstallationEntity installation = installation();
+        installation.setDeliveryMode(
+            com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.STANDALONE);
+        installation.setAppSlug("northfield");
+        installation.setAllowedOriginsJson("[\"https://northfield.apps.loomai.test\"]");
+        AIWorkspaceDomainEntity domain = new AIWorkspaceDomainEntity();
+        domain.setInstallationEntityId(installation.getId());
+        domain.setHostname("northfield.apps.loomai.test");
+        when(domains.resolveVerifiedOrigin("https://northfield.apps.loomai.test")).thenReturn(domain);
+        when(repository.findById(installation.getId())).thenReturn(Optional.of(installation));
+        when(readiness.evaluate(installation)).thenReturn(new AIWorkspaceReadinessSummary(
+            true, installation.getInstallationId(), "public-runtime-anonymous", "northfield-web",
+            "dep-1", "rel-1", "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64),
+            java.util.List.of()));
+        when(assets.installer()).thenReturn(asset(
+            "installer", "installer", "/api/public/ai-workspace/install.js"));
+
+        var result = service().resolveApp("https://northfield.apps.loomai.test");
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(result.bootstrap());
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+
+        assertThat(result.origin()).isEqualTo("https://northfield.apps.loomai.test");
+        assertThat(result.bootstrap().schemaVersion()).isEqualTo("loomai-ai-workspace-app-bootstrap-v1");
+        assertThat(result.bootstrap().installationId()).isEqualTo(installation.getInstallationId());
+        assertThat(result.bootstrap().delivery().path("appUrl").asText())
+            .isEqualTo("https://northfield.apps.loomai.test");
+        assertThat(result.bootstrap().installer().path("url").asText())
+            .isEqualTo("https://api.loomai.pro/api/public/ai-workspace/install.js");
+        assertThat(json)
+            .doesNotContain("dep-1")
+            .doesNotContain("customer-1")
+            .doesNotContain("tenant-1");
+    }
+
     private PublicAIWorkspaceManifestService service() {
         return service(properties);
     }
@@ -217,6 +270,7 @@ class PublicAIWorkspaceManifestServiceTest {
         return new PublicAIWorkspaceManifestService(
             repository, consumers, consumerService, assignments, readiness, assets, packs,
             new AIWorkspaceConnectionProfileRegistry(serviceProperties),
+            authenticationProfiles, domains,
             new PlatformDeliveryProperties("https://api.loomai.pro", true, Duration.ofMinutes(10)),
             serviceProperties, objectMapper
         );
@@ -273,6 +327,13 @@ class PublicAIWorkspaceManifestServiceTest {
         installation.setConnectionProfileVersion("1.0.0");
         installation.setConnectionConfigurationJson("{}");
         installation.setAllowedOriginsJson("[\"https://dealer.example\"]");
+        installation.setDeliveryMode(
+            com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.EMBEDDED);
+        installation.setInteractionPolicy(
+            com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy.PUBLIC);
+        installation.setAuthProfileCode(AIWorkspaceAuthenticationProfileRegistry.NONE);
+        installation.setAuthProfileVersion(AIWorkspaceAuthenticationProfileRegistry.VERSION);
+        installation.setAuthConfigurationJson("{}");
         installation.setConfigurationJson("{\"dealer\":{\"id\":\"dealer-1\",\"assistantLabel\":\"Northfield AI\"},\"page\":{\"kind\":\"auto\",\"rootSelector\":\"main\",\"contextLabel\":\"Current page\"}}");
         installation.setCreatedAt(Instant.parse("2026-10-09T00:00:00Z"));
         installation.setUpdatedAt(Instant.parse("2026-10-09T00:00:00Z"));

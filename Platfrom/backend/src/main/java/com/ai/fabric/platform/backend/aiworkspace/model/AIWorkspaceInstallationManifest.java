@@ -11,6 +11,8 @@ public record AIWorkspaceInstallationManifest(
     String assignmentRevision,
     Instant generatedAt,
     long cacheTtlSeconds,
+    JsonNode delivery,
+    JsonNode authentication,
     JsonNode connection,
     JsonNode workspace
 ) {

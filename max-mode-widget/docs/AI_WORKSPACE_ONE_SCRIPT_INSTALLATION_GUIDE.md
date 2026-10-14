@@ -7,6 +7,12 @@ LoomAI Platform can install the generic AI Workspace, its reviewed experience
 pack, and its current assigned deployment connection from one public script.
 The host page contains an opaque installation ID only.
 
+This guide covers **embedded** delivery. For the full-page LoomAI Engage app,
+domain routing, and entry/action-time login, use
+[LOOMAI_ENGAGE_STANDALONE_AI_WORKSPACE_DELIVERY_GUIDE.md](../../Final_Documentation/External_User_Guides/LOOMAI_ENGAGE_STANDALONE_AI_WORKSPACE_DELIVERY_GUIDE.md).
+Both delivery forms use the same installation, pack, assignment, and connection
+contracts; standalone delivery does not require a customer page script.
+
 ## Configure In LoomAI Platform
 
 An authorized operator prepares the installation before a website developer

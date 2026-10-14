@@ -55,6 +55,21 @@ public class PublicAIWorkspaceController {
         return new ResponseEntity<>(result.manifest(), headers, HttpStatus.OK);
     }
 
+    @GetMapping("/apps/bootstrap")
+    public ResponseEntity<?> appBootstrap(
+        @RequestHeader(value = HttpHeaders.ORIGIN, required = false) String origin,
+        @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch
+    ) {
+        var result = manifests.resolveApp(origin);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setETag(result.etag());
+        headers.setVary(java.util.List.of(HttpHeaders.ORIGIN));
+        headers.setCacheControl(CacheControl.noCache().mustRevalidate().getHeaderValue());
+        headers.set("X-Content-Type-Options", "nosniff");
+        if (result.etag().equals(ifNoneMatch)) return new ResponseEntity<>(headers, HttpStatus.NOT_MODIFIED);
+        return new ResponseEntity<>(result.bootstrap(), headers, HttpStatus.OK);
+    }
+
     @GetMapping(value = "/assets/{kind}/{version}/{assetName:.+}", produces = "application/javascript")
     public ResponseEntity<byte[]> asset(@PathVariable String kind,
                                         @PathVariable String version,

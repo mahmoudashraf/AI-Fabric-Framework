@@ -133,6 +133,36 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
             );
         }
 
+        RuntimeAuthProperties.ExternalIdentityBroker externalIdentity = properties.getExternalIdentityBroker();
+        if (externalIdentity != null && externalIdentity.isEnabled()) {
+            if (!publicRuntimeConfigured) {
+                errors.add("External identity broker requires the runtime public token signing key.");
+            }
+            if (!"SUPABASE".equalsIgnoreCase(externalIdentity.getProvider())) {
+                errors.add("External identity broker provider must be SUPABASE in the current release.");
+            }
+            if (!StringUtils.hasText(externalIdentity.getIssuer())
+                || !StringUtils.hasText(externalIdentity.getJwkSetUri())
+                || !StringUtils.hasText(externalIdentity.getAudience())) {
+                errors.add("External identity broker requires issuer, JWK set URI, and audience configuration.");
+            }
+            if (isEmpty(externalIdentity.getAllowedOrigins())) {
+                errors.add("External identity broker requires at least one exact allowed origin.");
+            }
+            if (isEmpty(externalIdentity.getGrantedScopes())) {
+                errors.add("External identity broker requires a non-empty bounded runtime scope set.");
+            }
+            RuntimeAuthProperties.Defaults defaults = publicTokens.getDefaults();
+            if (!StringUtils.hasText(defaults.getDeploymentId())
+                || !StringUtils.hasText(defaults.getCustomerId())
+                || !StringUtils.hasText(defaults.getTenantId())) {
+                errors.add(
+                    "External identity broker requires deployment, customer, and tenant ownership defaults. "
+                        + "Configure ai.fabric.runtime.auth.public-tokens.defaults before enabling the broker."
+                );
+            }
+        }
+
         return List.copyOf(errors);
     }
 

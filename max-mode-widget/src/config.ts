@@ -310,6 +310,16 @@ export interface MaxModeHostCustomerAccountAuthConfig {
   returnTo?: string;
 }
 
+export interface MaxModeHostAuthenticationConfig {
+  interactionPolicy: "public" | "login-required" | "public-with-protected-capabilities";
+  status: "anonymous" | "authenticated";
+  displayName?: string;
+  signInAvailable?: boolean;
+  signOutAvailable?: boolean;
+  onSignIn?: () => Promise<void> | void;
+  onSignOut?: () => Promise<void> | void;
+}
+
 export type MaxModeHostRequestContextProvider = () =>
   | Record<string, any>
   | undefined
@@ -372,6 +382,10 @@ export interface MaxModeHostConfig {
   companionEmptyMessage?: string;
   /** Optional Shopify Customer Account auth handoff used for customer-owned resources */
   customerAccountAuth?: MaxModeHostCustomerAccountAuthConfig;
+  /** Provider-neutral host identity controls. Authentication remains server-enforced. */
+  authentication?: MaxModeHostAuthenticationConfig;
+  /** Hide the close affordance when the workspace is the primary standalone application. */
+  showCloseButton?: boolean;
 }
 
 export interface MaxModeWidgetConfig {
@@ -419,6 +433,9 @@ export type MaxModeEventType =
   | "action-presentation:fallback"
   | "action-presentation:command"
   | "customer-account-auth:start"
+  | "authentication:required"
+  | "authentication:sign-in"
+  | "authentication:sign-out"
   | "cart:add"
   | "cart:remove"
   | "cart:checkout"
@@ -488,6 +505,8 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     companionPlaceholder: undefined,
     companionEmptyMessage: undefined,
     customerAccountAuth: undefined,
+    authentication: undefined,
+    showCloseButton: true,
   },
   onEvent: undefined,
   beforeNewConversation: undefined,

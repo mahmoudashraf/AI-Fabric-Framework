@@ -1953,6 +1953,40 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS",
             effectiveCorsAllowedOrigins(securityConfig)
         );
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_BROKER_ENABLED",
+            Boolean.toString(ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(securityConfig))
+        ));
+        if (ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(securityConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_PROVIDER",
+                ManagedDeploymentProfileCatalog.externalIdentityProvider(securityConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ISSUER",
+                ManagedDeploymentProfileCatalog.externalIdentityIssuer(securityConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_JWK_SET_URI",
+                ManagedDeploymentProfileCatalog.externalIdentityJwkSetUri(securityConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_AUDIENCE",
+                ManagedDeploymentProfileCatalog.externalIdentityAudience(securityConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_REQUIRE_VERIFIED_EMAIL",
+                Boolean.toString(ManagedDeploymentProfileCatalog.externalIdentityRequireVerifiedEmail(securityConfig))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ALLOWED_ORIGINS",
+                effectiveCorsAllowedOrigins(securityConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES",
+                ManagedDeploymentProfileCatalog.externalIdentityGrantedScopes(securityConfig)
+            ));
+        }
     }
 
     private String effectiveCorsAllowedOrigins(JsonNode securityConfig) {

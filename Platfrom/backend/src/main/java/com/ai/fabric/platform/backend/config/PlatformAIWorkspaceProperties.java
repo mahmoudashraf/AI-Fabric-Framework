@@ -12,7 +12,9 @@ public record PlatformAIWorkspaceProperties(
     int manifestRequestsPerMinute,
     Duration manifestCacheTtl,
     String authenticatedBrokerUrl,
-    String shopifyBridgeBaseUrl
+    String shopifyBridgeBaseUrl,
+    String standaloneBaseDomain,
+    String standaloneShellBaseUrl
 ) {
 
     public PlatformAIWorkspaceProperties {
@@ -23,6 +25,10 @@ public record PlatformAIWorkspaceProperties(
             : manifestCacheTtl;
         authenticatedBrokerUrl = normalizeBaseUrl(authenticatedBrokerUrl);
         shopifyBridgeBaseUrl = normalizeBaseUrl(shopifyBridgeBaseUrl);
+        standaloneBaseDomain = standaloneBaseDomain == null || standaloneBaseDomain.isBlank()
+            ? "apps.loomai.pro"
+            : standaloneBaseDomain.trim().toLowerCase();
+        standaloneShellBaseUrl = normalizeBaseUrl(standaloneShellBaseUrl);
     }
 
     private static String normalizeBaseUrl(String value) {

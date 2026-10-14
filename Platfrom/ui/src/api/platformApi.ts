@@ -4263,6 +4263,25 @@ export type AIWorkspaceInstallationSummary = {
   connectionConfiguration: Record<string, unknown>
   allowedOrigins: string[]
   configuration: Record<string, any>
+  deliveryMode: 'embedded' | 'standalone' | string
+  appSlug: string | null
+  appUrl: string | null
+  interactionPolicy: 'public' | 'login-required' | 'public-with-protected-capabilities' | string
+  authProfileCode: string
+  authProfileVersion: string
+  authConfiguration: Record<string, any>
+  domains: Array<{
+    hostname: string
+    url: string
+    type: string
+    status: string
+    dnsRecordName: string
+    dnsRecordValue: string
+    routingRecordName: string | null
+    routingRecordValue: string | null
+    lastVerificationError: string | null
+    verifiedAt: string | null
+  }>
   deploymentId: string | null
   releaseId: string | null
   assignmentRevision: string | null
@@ -4307,6 +4326,13 @@ export type AIWorkspaceCatalogSummary = {
     enabled: boolean
     availabilityMessage: string
   }>
+  authenticationProfiles: Array<{
+    code: string
+    version: string
+    name: string
+    configurationSchemaVersion: string
+    enabled: boolean
+  }>
 }
 
 export type SaveAIWorkspaceInstallationRequest = {
@@ -4320,6 +4346,13 @@ export type SaveAIWorkspaceInstallationRequest = {
   connectionConfiguration: Record<string, unknown>
   allowedOrigins: string[]
   configuration: Record<string, unknown>
+  deliveryMode: string
+  appSlug?: string
+  customDomains: string[]
+  interactionPolicy: string
+  authProfileCode: string
+  authProfileVersion: string
+  authConfiguration: Record<string, unknown>
   rowVersion?: number
 }
 
@@ -6231,6 +6264,13 @@ export function deleteAIWorkspaceInstallation(customerId: string, installationId
 export function fetchAIWorkspaceReadiness(customerId: string, installationId: string) {
   return request<AIWorkspaceReadinessSummary>(
     `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/readiness`,
+  )
+}
+
+export function verifyAIWorkspaceDomain(customerId: string, installationId: string, hostname: string) {
+  return request<AIWorkspaceInstallationSummary['domains'][number]>(
+    `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/domains/${encodeURIComponent(hostname)}/verify`,
+    { method: 'POST' },
   )
 }
 

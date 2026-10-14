@@ -92,6 +92,17 @@ ai:
             deployment-id: ${AI_FABRIC_RUNTIME_DEPLOYMENT_ID:}
             customer-id: ${AI_FABRIC_RUNTIME_CUSTOMER_ID:}
             tenant-id: ${AI_FABRIC_RUNTIME_TENANT_ID:}
+        external-identity-broker:
+          enabled: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_BROKER_ENABLED:false}
+          provider: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_PROVIDER:SUPABASE}
+          issuer: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ISSUER:}
+          jwk-set-uri: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_JWK_SET_URI:}
+          audience: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_AUDIENCE:authenticated}
+          require-verified-email: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_REQUIRE_VERIFIED_EMAIL:false}
+          allowed-origins: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ALLOWED_ORIGINS:}
+          granted-scopes: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES:chat:query,chat:suggestions,chat:conversations}
+          max-requests-per-window: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_MAX_REQUESTS_PER_WINDOW:30}
+          rate-limit-window-seconds: ${AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_RATE_LIMIT_WINDOW_SECONDS:60}
       authz:
         # Remote access control for runtime product deployments.
         # Default base URL inherits ACTIONS_CONNECTOR_BASE_URL so runtime -> REST connector -> customer authz is easy to wire.

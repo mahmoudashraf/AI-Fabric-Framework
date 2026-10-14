@@ -58,7 +58,9 @@ class AIWorkspaceAssetCatalogServiceTest {
 
     private AIWorkspaceAssetCatalogService service() {
         return new AIWorkspaceAssetCatalogService(
-            new PlatformAIWorkspaceProperties(root, false, 120, Duration.ofSeconds(60), null, null),
+            new PlatformAIWorkspaceProperties(
+                root, false, 120, Duration.ofSeconds(60), null, null,
+                "apps.loomai.test", "https://workspace.loomai.test"),
             objectMapper
         );
     }

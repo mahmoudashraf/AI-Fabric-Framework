@@ -199,6 +199,7 @@ function workspaceManifest(installationId) {
           url: `${mockOrigin}/broker/runtime-token`,
           method: 'POST',
           credentials: 'include',
+          externalAuthorizationHeader: 'Authorization',
           responseSchemaVersion: 'loomai-workspace-runtime-token-v1',
         },
       }
@@ -230,12 +231,25 @@ function workspaceManifest(installationId) {
           },
         }
   return {
-    schemaVersion: 'loomai-ai-workspace-installation-v1',
+    schemaVersion: 'loomai-ai-workspace-installation-v2',
     installationId,
     manifestRevision: `sha256:${(external ? 'b' : 'a').repeat(64)}`,
     assignmentRevision: `sha256:${'c'.repeat(64)}`,
     generatedAt: '2026-10-09T00:00:00Z',
     cacheTtlSeconds: 60,
+    delivery: {
+      mode: 'embedded',
+      closeAllowed: true,
+    },
+    authentication: {
+      interactionPolicy: authenticated ? 'login-required' : 'public',
+      profileCode: authenticated ? 'supabase' : 'none',
+      profileVersion: '1.0.0',
+      configurationSchemaVersion: authenticated
+        ? 'loomai-workspace-auth-supabase-v1'
+        : 'loomai-workspace-auth-none-v1',
+      configuration: {},
+    },
     connection,
     workspace: {
       asset: widgetAsset,
@@ -311,11 +325,21 @@ const mockServer = createServer(async (request, response) => {
     '/external-private-host': privateInstallationId,
   }[url.pathname]
   if (connectionHost) {
+    const hostCapabilities = connectionHost === authenticatedInstallationId
+      ? `<script>
+          window.LoomAIWorkspaceHost = {
+            version: '1.0.0',
+            identity: { status: 'authenticated', subjectKey: 'browser-smoke-user' },
+            getIdentityAccessToken: async () => 'browser-smoke-provider-token'
+          };
+        </script>`
+      : ''
     writeMockHtml(response, 200, `<!doctype html>
       <html lang="en">
         <head><meta charset="utf-8"><title>Harbour Motors</title></head>
         <body>
           <main id="dealer-content"><h1>Harbour Motors inventory</h1><p>Independent dealership host.</p></main>
+          ${hostCapabilities}
           <script async src="${mockOrigin}/api/public/ai-workspace/install.js" data-installation-id="${connectionHost}"></script>
         </body>
       </html>`)
@@ -350,13 +374,12 @@ const mockServer = createServer(async (request, response) => {
 
   if (url.pathname === '/broker/runtime-token' && request.method === 'POST') {
     authenticatedBrokerCount += 1
-    const payload = await readMockJson(request)
+    await readMockJson(request)
     writeMockJson(response, 200, {
       schemaVersion: 'loomai-workspace-runtime-token-v1',
       accessToken: 'authenticated-browser-smoke-runtime-token',
       tokenType: 'Bearer',
       expiresAt: '2099-01-01T00:00:00Z',
-      assignmentRevision: payload.assignmentRevision,
     })
     return
   }
@@ -1110,7 +1133,7 @@ try {
   if (JSON.stringify(initialBrowseTools) !== JSON.stringify(expectedBrowseTools)) {
     throw new Error(`Listing did not expose the expected Browse stock tools: ${JSON.stringify(initialBrowseTools)}`)
   }
-  await page.getByRole('button', { name: 'Close MAX Mode' }).click()
+  await page.getByRole('button', { name: 'Close AI Workspace' }).click()
   const listingCompanion = page.locator('section[aria-label="Northfield AI"]')
   await listingCompanion.waitFor()
   await listingCompanion.getByRole('textbox', { name: 'Ask Northfield AI' }).focus()
@@ -1219,7 +1242,7 @@ try {
   if ((await page.locator('[data-max-mode-view] [data-max-mode-current-page-chip]').count()) !== 2) {
     throw new Error('Max Mode did not retain the attached page context after hiding its attach control')
   }
-  await page.getByRole('button', { name: 'Close MAX Mode' }).click()
+  await page.getByRole('button', { name: 'Close AI Workspace' }).click()
   await page.locator('section[aria-label="Northfield AI"]').waitFor()
 
   await page.goto(`${origin}/demos/dealership-ai/vehicles/aster-e2-sport`, { waitUntil: 'networkidle' })
@@ -1583,7 +1606,7 @@ try {
     animations: 'disabled',
   })
   await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.getByRole('button', { name: 'Close MAX Mode' }).click()
+  await page.getByRole('button', { name: 'Close AI Workspace' }).click()
   await page.locator('section[aria-label="Northfield AI"]').waitFor()
 
   const actionRequestPromise = page.waitForRequest((request) => {
@@ -1897,7 +1920,7 @@ try {
       await detailContextualScope.isDisabled()) {
     throw new Error('Vehicle detail page hid Current context or failed to expose Browse stock')
   }
-  await detailToolsPage.getByRole('button', { name: 'Close MAX Mode' }).click()
+  await detailToolsPage.getByRole('button', { name: 'Close AI Workspace' }).click()
   const detailCompanion = detailToolsPage.locator('section[aria-label="Northfield AI"]')
   await detailCompanion.getByRole('button', { name: 'Attach current page' }).click()
   await detailToolsPage.waitForFunction(() => {

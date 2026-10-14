@@ -16,6 +16,8 @@ public interface AIWorkspaceInstallationRepository extends JpaRepository<AIWorks
 
     Optional<AIWorkspaceInstallationEntity> findByInstallationId(String installationId);
 
+    Optional<AIWorkspaceInstallationEntity> findByAppSlugIgnoreCase(String appSlug);
+
     boolean existsByConsumerEntityId(String consumerEntityId);
 
     List<AIWorkspaceInstallationEntity> findByConsumerEntityIdAndStatusIn(

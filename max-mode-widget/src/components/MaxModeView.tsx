@@ -38,6 +38,8 @@ export function MaxModeView({
         handoverState={controller.conversationControlState}
         handoverBusy={controller.isHandoverBusy}
         onOpenHandover={controller.openHandover}
+        authentication={getWidgetConfig().host?.authentication}
+        showCloseButton={getWidgetConfig().host?.showCloseButton !== false}
       />
       {!controller.handoverBlocksAi && <MaxModeQuickActions controller={controller} />}
       <MaxModeMainContent controller={controller} />

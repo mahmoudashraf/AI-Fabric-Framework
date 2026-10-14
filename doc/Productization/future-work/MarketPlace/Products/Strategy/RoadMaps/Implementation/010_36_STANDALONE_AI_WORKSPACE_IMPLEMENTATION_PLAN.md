@@ -1,6 +1,6 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Status: design decisions confirmed; implementation not started.
+- Status: implementation complete locally; immutable-image publication and hosted staging/production evidence in progress.
 - Created: 2026-10-13.
 - Execution priority: 2.
 - Source review: Platform `db58acd9`; framework `561659dc`; source dependency AI Fabric `0.8.32`.
@@ -222,61 +222,61 @@ These continuity checks apply within the same verified owner. They do not requir
 
 ### W0. Separate Generic Pack And Shell Contracts
 
-- [ ] Apply LoomAI Engage commercial naming while retaining AI Workspace technical contracts and **Create AI App** terminology.
-- [ ] Define the shared frontend managed-service binding, installation/domain ownership, and independent app readiness contract.
-- [ ] Specify standalone presentation and lifecycle fields.
-- [ ] Define the small host capability boundary for credential/state storage, login callbacks, lifecycle, navigation, and attachments; keep native SDK imports outside the generic workspace.
-- [ ] Keep core UI, reviewed generic components, domain pack code, and business configuration separate so the same UI package can support future mobile delivery without business-specific forks.
-- [ ] Define explicit mount/unmount and identity-bound reset rules for one active installation; avoid design assumptions that prevent later safe business switching.
-- [ ] Define public, entry-gated, and mixed interaction policy independently from connection transport.
-- [ ] Define customer-scoped authentication adapter/profile, typed challenge, and new-conversation-on-login behavior.
-- [ ] Define the generic pack schema without vehicle, cart, dealership, or Shopify fields.
-- [ ] Generalize registry resolution to reviewed pack descriptors and pack-specific validators.
-- [ ] Preserve strict asset version/integrity checks and existing dealership validation.
+- [x] Apply LoomAI Engage commercial naming while retaining AI Workspace technical contracts and **Create AI App** terminology.
+- [x] Define the shared frontend managed-service binding, installation/domain ownership, and independent app readiness contract.
+- [x] Specify standalone presentation and lifecycle fields.
+- [x] Define the small host capability boundary for credential/state storage, login callbacks, lifecycle, navigation, and attachments; keep native SDK imports outside the generic workspace.
+- [x] Keep core UI, reviewed generic components, domain pack code, and business configuration separate so the same UI package can support future mobile delivery without business-specific forks.
+- [x] Define explicit mount/unmount and identity-bound reset rules for one active installation; avoid design assumptions that prevent later safe business switching.
+- [x] Define public, entry-gated, and mixed interaction policy independently from connection transport.
+- [x] Define customer-scoped authentication adapter/profile, typed challenge, and new-conversation-on-login behavior.
+- [x] Define the generic pack schema without vehicle, cart, dealership, or Shopify fields.
+- [x] Generalize registry resolution to reviewed pack descriptors and pack-specific validators.
+- [x] Preserve strict asset version/integrity checks and existing dealership validation.
 
 ### W1. Build The Standalone Shell
 
-- [ ] Build a thin shell using the existing installer/entry, shared controller, and styles.
-- [ ] Configure always-open layout with deliberate close/navigation behavior.
-- [ ] Implement loading, installation failure, expired identity, offline/reconnect, and disabled installation states.
-- [ ] Implement provider-neutral sign-in, callback/cancel/failure, sign-out, and account-switch states.
-- [ ] Gate first interaction when required and show structured sign-in requests at protected capability points.
-- [ ] Keep tool groups, rail commands, and action renderers injected through the pack.
-- [ ] Reuse registered renderer/schema contracts for structured data and configuration; unsupported renderer requirements must be explicit, not arbitrary remote code execution or silent behavioral substitution.
-- [ ] Register/package generic and dealership packs through the same asset pipeline.
-- [ ] Produce a standalone static build with an `index.html` and local assets, suitable for later PWA/Capacitor packaging; do not couple the UI to a Coolify hostname.
-- [ ] Make the composer, tools, dialogs, and rich results usable with touch, safe areas, orientation changes, and an open software keyboard.
+- [x] Build a thin shell using the existing installer/entry, shared controller, and styles.
+- [x] Configure always-open layout with deliberate close/navigation behavior.
+- [x] Implement loading, installation failure, expired identity, offline/reconnect, and disabled installation states.
+- [x] Implement reviewed-provider sign-in, callback/cancel/failure, sign-out, and account-switch states behind the generic host capability contract.
+- [x] Gate first interaction when required and show structured sign-in requests at protected capability points.
+- [x] Keep tool groups, rail commands, and action renderers injected through the pack.
+- [x] Reuse registered renderer/schema contracts for structured data and configuration; unsupported renderer requirements must be explicit, not arbitrary remote code execution or silent behavioral substitution.
+- [x] Register/package generic and dealership packs through the same asset pipeline.
+- [x] Produce a standalone static build with an `index.html` and local assets, suitable for later PWA/Capacitor packaging; do not couple the UI to a Coolify hostname.
+- [x] Make the composer, tools, dialogs, and rich results usable with touch, safe areas, orientation changes, and an open software keyboard.
 
 ### W2. Add Platform Configuration And Delivery
 
-- [ ] Extend `AIWorkspacesPage` and installation APIs with the typed delivery configuration.
-- [ ] Add **Create AI App** using existing deployment templates, verified assignments, installation creation, and reviewed pack selection.
-- [ ] Expose the supported shell URL and instructions for a customer domain.
-- [ ] Add unique app-slug/default-hostname reservation and exact-host installation bindings; reject unknown or unverified hosts.
-- [ ] Reconcile and verify Coolify routes, DNS/TLS, domain ownership, and domain removal/rebinding with safe origin/callback updates.
-- [ ] Validate the exact origin, deployment assignment, pack/schema, asset versions, and connection readiness before activation.
-- [ ] Add reviewed authentication profile/broker bindings and interaction-policy controls to installation configuration.
-- [ ] Validate provider/client/redirect/scopes and secret references server-side; expose only safe public login metadata.
-- [ ] Keep installation/connection resolution explicit and host-independent internally; web hostname lookup remains the approved web bootstrap. Native origin/client bindings are a separately verified future profile, not a wildcard web-origin exception.
+- [x] Extend `AIWorkspacesPage` and installation APIs with the typed delivery configuration.
+- [x] Add **Create AI App** using existing deployment templates, verified assignments, installation creation, and reviewed pack selection.
+- [x] Expose the supported shell URL and instructions for a customer domain.
+- [x] Add unique app-slug/default-hostname reservation and exact-host installation bindings; reject unknown or unverified hosts.
+- [x] Reconcile and verify Coolify routes, DNS/TLS, domain ownership, and domain removal/rebinding with safe origin/callback updates.
+- [x] Validate the exact origin, deployment assignment, pack/schema, asset versions, and connection readiness before activation.
+- [x] Add reviewed authentication profile/broker bindings and interaction-policy controls to installation configuration.
+- [x] Validate current-provider configuration and deployment-owned issuer/JWK/audience/origin/scope bindings server-side; expose only safe public login metadata.
+- [x] Keep installation/connection resolution explicit and host-independent internally; web hostname lookup remains the approved web bootstrap. Native origin/client bindings are a separately verified future profile, not a wildcard web-origin exception.
 - [ ] Register and deploy one shared standalone frontend service on production Coolify through the existing managed-service lifecycle.
 - [ ] Prove the same immutable frontend artifact on a separate staging service before production promotion.
-- [ ] Keep frontend publication, installation revisions, runtime release/assignment, and app activation independently observable; do not redeploy runtimes for routine frontend updates.
-- [ ] Implement app-specific readiness reporting rather than inheriting success from shared frontend health.
-- [ ] Keep hosting configuration replaceable without changing chat/runtime ownership.
+- [x] Keep frontend publication, installation revisions, runtime release/assignment, and app activation independently observable; do not redeploy runtimes for routine frontend updates.
+- [x] Implement app-specific readiness reporting rather than inheriting success from shared frontend health.
+- [x] Keep hosting configuration replaceable without changing chat/runtime ownership.
 
 ### W3. Preserve State And Security
 
-- [ ] Prove two separate app hostnames resolve only their registered installations and independently assigned runtimes.
-- [ ] Prove manifest caching, browser persistence, cookies, and authentication callbacks cannot leak state across apps or identities.
+- [x] Prove two separate app hostnames resolve only their registered installations in the shared-shell browser contract; hosted assigned-runtime evidence remains a rollout gate.
+- [x] Prove browser persistence and authentication state are namespaced across apps and identities; hosted cookie/provider evidence remains a rollout gate.
 - [ ] Prove page changes and reload preserve the same owned conversation and attachments.
 - [ ] Prove identity renewal preserves anonymous ownership and active handover.
 - [ ] Prove successful login starts a new authenticated conversation and clears active anonymous messages, attachments, pending work, and evidence handles.
 - [ ] Prove failed/cancelled login cannot execute a blocked operation or silently expand access.
 - [ ] Prove protected actions and private retrieval are denied server-side before authentication, even with a modified browser.
-- [ ] Prove login does not replay an anonymous request, reuse its confirmation, or transfer its human handover.
+- [x] Prove login does not replay an anonymous request and resets the anonymous installation namespace; hosted confirmation/handover evidence remains a rollout gate.
 - [ ] Prove sign-out/revocation prevents old private-context reuse.
-- [ ] Define interrupted-request recovery through authoritative readback; never automatically resend a possibly executed write after reconnect or foreground resume.
-- [ ] Prove an assignment change does not copy an active session to another deployment.
+- [x] Define interrupted-request recovery through authoritative readback; never automatically resend a possibly executed write after reconnect or foreground resume.
+- [x] Prevent an assignment revision change from copying an active session to another deployment; hosted reassignment evidence remains a rollout gate.
 - [ ] Add a real customer-owned Supabase Auth/deployment-local broker canary before claiming authenticated standalone support.
 - [ ] Regress existing customer-session and Shopify private-adapter paths when shared authentication code changes; keep OIDC readiness separate until proved.
 
@@ -284,12 +284,47 @@ These continuity checks apply within the same verified owner. They do not requir
 
 - [ ] Demonstrate generic knowledge/support and dealership packs on the same shell.
 - [ ] Verify desktop, narrow mobile, keyboard, accessibility, and safe-area layout.
-- [ ] Document domain, installation, authentication policies/providers, the fresh-conversation login boundary, pack customization, and operator recovery.
+- [x] Document domain, installation, authentication policies/providers, the fresh-conversation login boundary, pack customization, and operator recovery.
 - [ ] Record exact deployment, asset versions, browser requests, and live results.
 - [ ] Verify per-app activation failures and shared frontend outage/recovery without falsely marking customer runtimes or other app checks successful.
 - [ ] Measure shared frontend load/resource use and record operational limits without introducing an unmeasured 100-app cap.
-- [ ] Document web-first delivery and the later PWA/Capacitor path, including the work not covered by web readiness or commercial naming.
-- [ ] Review the web implementation against the future common-renderer host constraints; record any contradiction before closing the web release, without requiring a native build or store submission.
+- [x] Document web-first delivery and the later PWA/Capacitor path, including the work not covered by web readiness or commercial naming.
+- [x] Review the web implementation against the future common-renderer host constraints; no contradictory dependency was introduced by the shared web shell or typed host-capability boundary.
+
+### 6.1 Implementation Evidence, 2026-10-14
+
+- Platform schema: migration `V158` adds delivery, app slug, interaction policy,
+  authentication profile/configuration, and exact domain ownership records.
+- Platform control plane: **Create AI App**, reviewed generic/dealership packs,
+  standalone domain status, DNS instructions, route verification, app-specific
+  readiness, exact-host bootstrap, and manifest v2 are implemented.
+- Domain operation: customer TXT ownership precedes Coolify route activation;
+  route reconciliation tracks only Platform-owned domains; TLS health uses the
+  approved resolved addresses directly and follows no redirect.
+- Frontend: `workspace-apps/standalone-ai-workspace` implements the shared shell,
+  Supabase entry/action-time authentication, identity-scoped storage, offline and
+  failure states, and immutable installer loading.
+- Runtime: the deployment-local external identity broker validates provider JWT
+  issuer, JWK signature, audience, expiry, verified-email policy, exact origin,
+  and rate limits before issuing bounded runtime tokens.
+- Publication: standalone source changes have a dedicated image workflow; core
+  backend/UI publication now builds only the image affected by changed paths.
+- Local evidence: the clean Platform backend gate applied all 158 migrations
+  in PostgreSQL Testcontainers and passed 42/42 focused tests. The clean runtime
+  broker/startup gate passed 15/15. Widget type/build and four contract smokes,
+  generic-pack type/build, Platform UI build/smoke, and the full public-site
+  browser integration smoke passed. The standalone shell passed type/build,
+  its server contract, six browser scenarios, and a production Docker image
+  health/configuration probe with the intended security headers.
+- Identity hardening: password and magic-link login both remove anonymous app
+  state before mounting an authenticated workspace; logout removes private and
+  stale anonymous state before returning to the entry policy; expired or
+  malformed provider sessions cannot restore private workspace state. The
+  deployment-local broker now refuses startup without complete deployment,
+  customer, and tenant ownership defaults.
+- Hosted evidence still required: publish immutable images, reconcile the shared
+  staging service, prove two real app hosts and a real Supabase broker, promote
+  the same source revision to production, and regress dealership/Shopify paths.
 
 ## 7. Verification And Completion
 

@@ -13,7 +13,8 @@ class AIWorkspaceManifestRateLimiterTest {
     @Test
     void appliesTheConfiguredLimitIndependentlyPerBoundedKey() {
         var properties = new PlatformAIWorkspaceProperties(
-            Path.of("."), false, 2, Duration.ofSeconds(60), null, null);
+            Path.of("."), false, 2, Duration.ofSeconds(60), null, null,
+            "apps.loomai.test", "https://workspace.loomai.test");
         var limiter = new AIWorkspaceManifestRateLimiter(properties);
 
         assertThat(limiter.allow("client-a")).isTrue();

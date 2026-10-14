@@ -315,6 +315,18 @@ public class CoolifyApiClient {
         );
     }
 
+    public void updateApplicationDomains(CoolifyConnection connection, String uuid, String domains) {
+        ObjectNode body = objectMapper.createObjectNode();
+        put(body, "domains", domains);
+        requestJson(
+            connection,
+            "PATCH",
+            "/applications/" + encodePath(uuid),
+            body,
+            true
+        );
+    }
+
     public void configurePrivateApplicationNetwork(CoolifyConnection connection,
                                                    String uuid,
                                                    String internalName) {

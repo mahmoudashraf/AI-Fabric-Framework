@@ -30,6 +30,8 @@ public class AIWorkspaceReadinessService {
     private final AIWorkspaceAssetCatalogService assetCatalogService;
     private final AIWorkspaceExperiencePackRegistry experiencePackRegistry;
     private final AIWorkspaceConnectionProfileRegistry connectionProfileRegistry;
+    private final AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry;
+    private final AIWorkspaceDomainService domainService;
     private final PlatformSecretService secretService;
     private final PlatformAIWorkspaceProperties properties;
     private final ObjectMapper objectMapper;
@@ -39,6 +41,8 @@ public class AIWorkspaceReadinessService {
                                        AIWorkspaceAssetCatalogService assetCatalogService,
                                        AIWorkspaceExperiencePackRegistry experiencePackRegistry,
                                        AIWorkspaceConnectionProfileRegistry connectionProfileRegistry,
+                                       AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry,
+                                       AIWorkspaceDomainService domainService,
                                        PlatformSecretService secretService,
                                        PlatformAIWorkspaceProperties properties,
                                        ObjectMapper objectMapper) {
@@ -47,6 +51,8 @@ public class AIWorkspaceReadinessService {
         this.assetCatalogService = assetCatalogService;
         this.experiencePackRegistry = experiencePackRegistry;
         this.connectionProfileRegistry = connectionProfileRegistry;
+        this.authenticationProfileRegistry = authenticationProfileRegistry;
+        this.domainService = domainService;
         this.secretService = secretService;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -106,9 +112,41 @@ public class AIWorkspaceReadinessService {
         if (origins.isEmpty()) blocked(checks, "ORIGINS", "At least one exact origin is required.");
         else passed(checks, "ORIGINS", origins.size() + " exact website origin(s) configured.");
 
+        com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy interactionPolicy =
+            installation.getInteractionPolicy() == null
+                ? com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy.PUBLIC
+                : installation.getInteractionPolicy();
+        AIWorkspaceAuthenticationProfileRegistry.AuthenticationProfile authenticationProfile = null;
+        try {
+            authenticationProfile = authenticationProfileRegistry.resolve(
+                installation.getAuthProfileCode(), installation.getAuthProfileVersion(), interactionPolicy,
+                readJson(installation.getAuthConfigurationJson()));
+            passed(checks, "AUTHENTICATION_PROFILE", "Authentication policy and reviewed provider profile are compatible.");
+        } catch (RuntimeException ex) {
+            blocked(checks, "AUTHENTICATION_PROFILE", ex.getMessage());
+        }
+
+        var deliveryMode = installation.getDeliveryMode() == null
+            ? com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.EMBEDDED
+            : installation.getDeliveryMode();
+        if (deliveryMode == com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.STANDALONE) {
+            var domains = domainService.summaries(installation.getId());
+            check(domains.stream().anyMatch(domain -> "VERIFIED".equals(domain.status())), checks,
+                "APP_DOMAIN", "At least one exact standalone app domain is verified.",
+                "No standalone app domain is verified.");
+        }
+
         if (assignment != null) {
             validateEndpoint(assignment.runtimeBaseUrl(), checks);
             validateMode(installation.getConnectionMode(), assignment.securityConfig(), origins, checks);
+            if (interactionPolicy.requiresAuthenticationProfile()) {
+                check(ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(assignment.securityConfig()), checks,
+                    "EXTERNAL_IDENTITY_BROKER", "Assigned runtime enables the deployment-local external identity broker.",
+                    "Assigned runtime does not enable the deployment-local external identity broker.");
+                if (authenticationProfile != null) {
+                    validateExternalIdentityBinding(authenticationProfile, assignment.securityConfig(), checks);
+                }
+            }
         }
 
         boolean ready = checks.stream().noneMatch(check -> "BLOCKED".equals(check.status()));
@@ -123,6 +161,29 @@ public class AIWorkspaceReadinessService {
             assignment == null ? null : assignment.assignmentRevision(),
             List.copyOf(checks)
         );
+    }
+
+    private void validateExternalIdentityBinding(
+        AIWorkspaceAuthenticationProfileRegistry.AuthenticationProfile authenticationProfile,
+        JsonNode securityConfig,
+        List<AIWorkspaceReadinessCheck> checks
+    ) {
+        if (!AIWorkspaceAuthenticationProfileRegistry.SUPABASE.equals(authenticationProfile.code())) {
+            blocked(checks, "EXTERNAL_IDENTITY_BINDING", "The assigned runtime does not support this authentication provider.");
+            return;
+        }
+        String projectUrl = authenticationProfile.publicConfiguration().path("projectUrl").asText("");
+        String expectedIssuer = projectUrl + "/auth/v1";
+        String expectedJwkSetUri = expectedIssuer + "/.well-known/jwks.json";
+        boolean matches = "SUPABASE".equalsIgnoreCase(
+            ManagedDeploymentProfileCatalog.externalIdentityProvider(securityConfig))
+            && expectedIssuer.equals(ManagedDeploymentProfileCatalog.externalIdentityIssuer(securityConfig))
+            && expectedJwkSetUri.equals(ManagedDeploymentProfileCatalog.externalIdentityJwkSetUri(securityConfig))
+            && "authenticated".equals(ManagedDeploymentProfileCatalog.externalIdentityAudience(securityConfig));
+        check(matches, checks,
+            "EXTERNAL_IDENTITY_BINDING",
+            "Assigned runtime identity validation matches the installation authentication profile.",
+            "Assigned runtime identity issuer, JWK set, audience, or provider does not match the installation authentication profile.");
     }
 
     private void validateMode(AIWorkspaceConnectionMode mode,

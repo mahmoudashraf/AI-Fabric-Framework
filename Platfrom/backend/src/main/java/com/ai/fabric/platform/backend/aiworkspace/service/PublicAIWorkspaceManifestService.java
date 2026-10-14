@@ -2,8 +2,11 @@ package com.ai.fabric.platform.backend.aiworkspace.service;
 
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMode;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceAppBootstrap;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationManifest;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
@@ -31,7 +34,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class PublicAIWorkspaceManifestService {
 
-    public static final String SCHEMA_VERSION = "loomai-ai-workspace-installation-v1";
+    public static final String SCHEMA_VERSION = "loomai-ai-workspace-installation-v2";
+    public static final String APP_BOOTSTRAP_SCHEMA_VERSION = "loomai-ai-workspace-app-bootstrap-v1";
 
     private final AIWorkspaceInstallationRepository repository;
     private final PlatformConsumerRepository consumerRepository;
@@ -41,6 +45,8 @@ public class PublicAIWorkspaceManifestService {
     private final AIWorkspaceAssetCatalogService assetCatalogService;
     private final AIWorkspaceExperiencePackRegistry experiencePackRegistry;
     private final AIWorkspaceConnectionProfileRegistry connectionProfileRegistry;
+    private final AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry;
+    private final AIWorkspaceDomainService domainService;
     private final PlatformDeliveryProperties deliveryProperties;
     private final PlatformAIWorkspaceProperties properties;
     private final ObjectMapper objectMapper;
@@ -53,6 +59,8 @@ public class PublicAIWorkspaceManifestService {
                                             AIWorkspaceAssetCatalogService assetCatalogService,
                                             AIWorkspaceExperiencePackRegistry experiencePackRegistry,
                                             AIWorkspaceConnectionProfileRegistry connectionProfileRegistry,
+                                            AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry,
+                                            AIWorkspaceDomainService domainService,
                                             PlatformDeliveryProperties deliveryProperties,
                                             PlatformAIWorkspaceProperties properties,
                                             ObjectMapper objectMapper) {
@@ -64,6 +72,8 @@ public class PublicAIWorkspaceManifestService {
         this.assetCatalogService = assetCatalogService;
         this.experiencePackRegistry = experiencePackRegistry;
         this.connectionProfileRegistry = connectionProfileRegistry;
+        this.authenticationProfileRegistry = authenticationProfileRegistry;
+        this.domainService = domainService;
         this.deliveryProperties = deliveryProperties;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -87,6 +97,10 @@ public class PublicAIWorkspaceManifestService {
         var profile = connectionProfileRegistry.resolve(
             installation.getConnectionProfileCode(), installation.getConnectionProfileVersion(),
             installation.getConnectionMode(), connectionConfiguration);
+        AIWorkspaceInteractionPolicy interactionPolicy = effectiveInteractionPolicy(installation);
+        var authenticationProfile = authenticationProfileRegistry.resolve(
+            installation.getAuthProfileCode(), installation.getAuthProfileVersion(), interactionPolicy,
+            readJson(installation.getAuthConfigurationJson()));
         var pack = experiencePackRegistry.resolve(
             installation.getExperiencePackCode(), installation.getExperiencePackVersion());
         var workspaceAsset = assetCatalogService.workspace();
@@ -97,8 +111,11 @@ public class PublicAIWorkspaceManifestService {
             installation.getConnectionMode(),
             assignment.runtimeBaseUrl(),
             profile,
+            interactionPolicy,
             behaviorConfiguration
         );
+        ObjectNode delivery = delivery(installation, origin);
+        ObjectNode authentication = authentication(interactionPolicy, authenticationProfile);
         ObjectNode workspace = objectMapper.createObjectNode();
         workspace.set("asset", assetProjection(workspaceAsset));
         ObjectNode packNode = assetProjection(pack.asset());
@@ -112,14 +129,61 @@ public class PublicAIWorkspaceManifestService {
         String revisionMaterial = installation.getInstallationId() + "\n"
             + installation.getUpdatedAt() + "\n" + installation.getRowVersion() + "\n"
             + assignment.assignmentRevision() + "\n" + profile.code() + "@" + profile.version() + "\n"
+            + authenticationProfile.code() + "@" + authenticationProfile.version() + "\n"
             + workspaceAsset.sha256() + "\n" + pack.asset().sha256() + "\n"
-            + generatedAt + "\n" + connection + "\n" + workspace;
+            + generatedAt + "\n" + delivery + "\n" + authentication + "\n" + connection + "\n" + workspace;
         String manifestRevision = "sha256:" + sha256(revisionMaterial);
         AIWorkspaceInstallationManifest manifest = new AIWorkspaceInstallationManifest(
             SCHEMA_VERSION, installation.getInstallationId(), manifestRevision, assignment.assignmentRevision(),
-            generatedAt, properties.manifestCacheTtl().toSeconds(), connection, workspace
+            generatedAt, properties.manifestCacheTtl().toSeconds(), delivery, authentication, connection, workspace
         );
         return new ManifestResult(manifest, origin, '"' + manifestRevision + '"');
+    }
+
+    @Transactional(readOnly = true)
+    public AppBootstrapResult resolveApp(String requestOrigin) {
+        String origin = normalizeRequestOrigin(requestOrigin);
+        var domain = domainService.resolveVerifiedOrigin(origin);
+        AIWorkspaceInstallationEntity installation = repository.findById(domain.getInstallationEntityId())
+            .orElseThrow(this::unavailableException);
+        if (installation.getStatus() != AIWorkspaceInstallationStatus.ACTIVE
+            || effectiveDeliveryMode(installation) != AIWorkspaceDeliveryMode.STANDALONE
+            || !readOrigins(installation.getAllowedOriginsJson()).contains(origin)
+            || !readinessService.evaluate(installation).ready()) {
+            unavailable();
+        }
+        AIWorkspaceInteractionPolicy policy = effectiveInteractionPolicy(installation);
+        var authenticationProfile = authenticationProfileRegistry.resolve(
+            installation.getAuthProfileCode(), installation.getAuthProfileVersion(), policy,
+            readJson(installation.getAuthConfigurationJson()));
+        var installerAsset = assetCatalogService.installer();
+        ObjectNode installer = assetProjection(installerAsset);
+        AIWorkspaceAppBootstrap bootstrap = new AIWorkspaceAppBootstrap(
+            APP_BOOTSTRAP_SCHEMA_VERSION,
+            installation.getInstallationId(),
+            installation.getDisplayName(),
+            policy.manifestValue(),
+            delivery(installation, origin),
+            authentication(policy, authenticationProfile),
+            installer
+        );
+        String revision = "sha256:" + sha256(bootstrap.toString() + "\n" + installation.getUpdatedAt());
+        return new AppBootstrapResult(bootstrap, origin, '"' + revision + '"');
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isAppOriginAllowed(String requestOrigin) {
+        try {
+            String origin = normalizeRequestOrigin(requestOrigin);
+            var domain = domainService.resolveVerifiedOrigin(origin);
+            return repository.findById(domain.getInstallationEntityId())
+                .filter(installation -> installation.getStatus() == AIWorkspaceInstallationStatus.ACTIVE)
+                .filter(installation -> effectiveDeliveryMode(installation) == AIWorkspaceDeliveryMode.STANDALONE)
+                .map(installation -> readOrigins(installation.getAllowedOriginsJson()).contains(origin))
+                .orElse(false);
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -136,6 +200,7 @@ public class PublicAIWorkspaceManifestService {
     private ObjectNode connection(AIWorkspaceConnectionMode mode,
                                   String runtimeBaseUrl,
                                   AIWorkspaceConnectionProfileRegistry.ConnectionProfile profile,
+                                  AIWorkspaceInteractionPolicy interactionPolicy,
                                   JsonNode behaviorConfiguration) {
         ObjectNode connection = objectMapper.createObjectNode();
         connection.put("mode", mode.manifestValue());
@@ -156,13 +221,11 @@ public class PublicAIWorkspaceManifestService {
             bootstrap.put("authorizationHeader", "Authorization");
             bootstrap.put("tokenScheme", "Bearer");
             connection.set("anonymousBootstrap", bootstrap);
+            if (interactionPolicy == AIWorkspaceInteractionPolicy.PUBLIC_WITH_PROTECTED_CAPABILITIES) {
+                connection.set("credentialBroker", credentialBroker(runtimeBaseUrl));
+            }
         } else if (mode == AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED) {
-            ObjectNode broker = objectMapper.createObjectNode();
-            broker.put("url", profile.endpoint());
-            broker.put("method", "POST");
-            broker.put("credentials", "include");
-            broker.put("responseSchemaVersion", "loomai-workspace-runtime-token-v1");
-            connection.set("credentialBroker", broker);
+            connection.set("credentialBroker", credentialBroker(runtimeBaseUrl));
         } else {
             ObjectNode adapter = objectMapper.createObjectNode();
             adapter.put("bootstrapUrl", profile.endpoint());
@@ -172,6 +235,51 @@ public class PublicAIWorkspaceManifestService {
             connection.set("adapter", adapter);
         }
         return connection;
+    }
+
+    private ObjectNode credentialBroker(String runtimeBaseUrl) {
+        ObjectNode broker = objectMapper.createObjectNode();
+        broker.put("url", absoluteRuntimeUrl(runtimeBaseUrl, "/api/public/auth/runtime-token"));
+        broker.put("method", "POST");
+        broker.put("credentials", "omit");
+        broker.put("externalAuthorizationHeader", "Authorization");
+        broker.put("responseSchemaVersion", "loomai-workspace-runtime-token-v1");
+        return broker;
+    }
+
+    private ObjectNode delivery(AIWorkspaceInstallationEntity installation, String origin) {
+        ObjectNode node = objectMapper.createObjectNode();
+        AIWorkspaceDeliveryMode mode = effectiveDeliveryMode(installation);
+        node.put("mode", mode.manifestValue());
+        node.put("closeAllowed", mode == AIWorkspaceDeliveryMode.EMBEDDED);
+        if (installation.getAppSlug() != null) node.put("appSlug", installation.getAppSlug());
+        if (mode == AIWorkspaceDeliveryMode.STANDALONE) node.put("appUrl", origin);
+        return node;
+    }
+
+    private ObjectNode authentication(
+        AIWorkspaceInteractionPolicy policy,
+        AIWorkspaceAuthenticationProfileRegistry.AuthenticationProfile profile
+    ) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("interactionPolicy", policy.manifestValue());
+        node.put("profileCode", profile.code());
+        node.put("profileVersion", profile.version());
+        node.put("configurationSchemaVersion", profile.configurationSchemaVersion());
+        node.set("configuration", profile.publicConfiguration());
+        return node;
+    }
+
+    private AIWorkspaceDeliveryMode effectiveDeliveryMode(AIWorkspaceInstallationEntity installation) {
+        return installation.getDeliveryMode() == null ? AIWorkspaceDeliveryMode.EMBEDDED : installation.getDeliveryMode();
+    }
+
+    private AIWorkspaceInteractionPolicy effectiveInteractionPolicy(AIWorkspaceInstallationEntity installation) {
+        return installation.getInteractionPolicy() == null ? AIWorkspaceInteractionPolicy.PUBLIC : installation.getInteractionPolicy();
+    }
+
+    private String absoluteRuntimeUrl(String baseUrl, String path) {
+        return URI.create(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/").resolve(path.substring(1)).toString();
     }
 
     private ObjectNode directRuntimeRoutes(boolean conversationHandoverEnabled) {
@@ -308,5 +416,8 @@ public class PublicAIWorkspaceManifestService {
     }
 
     public record ManifestResult(AIWorkspaceInstallationManifest manifest, String origin, String etag) {
+    }
+
+    public record AppBootstrapResult(AIWorkspaceAppBootstrap bootstrap, String origin, String etag) {
     }
 }

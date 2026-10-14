@@ -140,4 +140,38 @@ class RuntimeAuthStartupValidatorTest {
             .hasMessageContaining("accepted-issuers")
             .hasMessageContaining("accepted-audiences");
     }
+
+    @Test
+    void externalIdentityBrokerRequiresCompleteDeploymentOwnershipDefaults() {
+        RuntimeAuthProperties properties = configuredPublicRuntime();
+        RuntimeAuthProperties.ExternalIdentityBroker broker = properties.getExternalIdentityBroker();
+        broker.setEnabled(true);
+        broker.setIssuer("https://customer.supabase.co/auth/v1");
+        broker.setJwkSetUri("https://customer.supabase.co/auth/v1/.well-known/jwks.json");
+        broker.setAllowedOrigins(java.util.List.of("https://assistant.customer.example"));
+        broker.setGrantedScopes(java.util.List.of("chat:query"));
+
+        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
+
+        assertThat(validator.validationErrors())
+            .anyMatch(message -> message.contains("deployment, customer, and tenant ownership defaults"));
+
+        properties.getPublicTokens().getDefaults().setDeploymentId("dep-customer");
+        properties.getPublicTokens().getDefaults().setCustomerId("customer-1");
+        properties.getPublicTokens().getDefaults().setTenantId("tenant-1");
+
+        assertThat(new RuntimeAuthStartupValidator(properties).validationErrors()).isEmpty();
+    }
+
+    private RuntimeAuthProperties configuredPublicRuntime() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
+        properties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-key");
+        properties.getIngress().setAcceptedIssuers(java.util.List.of("platform-poc:SESSION"));
+        properties.getIngress().setAcceptedAudiences(java.util.List.of("dep-customer"));
+        properties.getPublicTokens().setSigningKey("runtime-public-token-test-signing-key-with-more-than-thirty-two-bytes");
+        properties.getPublicTokens().setAcceptedIssuers(java.util.List.of("runtime-public-bootstrap"));
+        properties.getPublicTokens().setAcceptedAudiences(java.util.List.of("dep-customer"));
+        return properties;
+    }
 }

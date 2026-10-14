@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { BrainCircuit, Headphones, Loader2, UserRound, X } from "lucide-react";
+import { BrainCircuit, Headphones, Loader2, LogIn, LogOut, UserRound, X } from "lucide-react";
 
 import type { ConversationControlState } from "@/types";
+import { emitEvent, type MaxModeHostAuthenticationConfig } from "@/config";
 
 import { Button } from "@/ui/button";
 
@@ -12,6 +13,8 @@ export function MaxModeHeader({
   handoverState,
   handoverBusy,
   onOpenHandover,
+  authentication,
+  showCloseButton,
 }: {
   onClose: () => void;
   assistantLabel: string;
@@ -19,6 +22,8 @@ export function MaxModeHeader({
   handoverState: ConversationControlState;
   handoverBusy: boolean;
   onOpenHandover: () => void;
+  authentication?: MaxModeHostAuthenticationConfig;
+  showCloseButton: boolean;
 }) {
   return (
     <motion.div
@@ -42,6 +47,35 @@ export function MaxModeHeader({
           <span className="hidden sm:inline">{handoverState === "AI_ACTIVE" ? "Talk to a person" : handoverState === "HUMAN_ACTIVE" ? "Human support" : "Connecting"}</span>
         </Button>
       )}
+      {authentication?.status === "anonymous" && authentication.signInAvailable && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            emitEvent("authentication:sign-in", { interactionPolicy: authentication.interactionPolicy });
+            void authentication.onSignIn?.();
+          }}
+          className="h-9 rounded-full border border-blue-200 bg-white px-3 text-xs font-bold text-blue-700 shadow-lg hover:bg-blue-50"
+        >
+          <LogIn className="mr-1.5 h-4 w-4" />
+          <span>Sign in</span>
+        </Button>
+      )}
+      {authentication?.status === "authenticated" && authentication.signOutAvailable && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            emitEvent("authentication:sign-out", {});
+            void authentication.onSignOut?.();
+          }}
+          className="h-9 rounded-full border border-gray-200 bg-white px-3 text-xs font-bold text-gray-800 shadow-lg hover:bg-gray-50"
+          title={authentication.displayName ? `Signed in as ${authentication.displayName}` : "Signed in"}
+        >
+          <LogOut className="mr-1.5 h-4 w-4" />
+          <span className="hidden sm:inline">Sign out</span>
+        </Button>
+      )}
       <div className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 rounded-full pl-3 pr-1 py-1 shadow-xl border-2 border-white/30">
         <div className="flex items-center gap-2">
           <motion.div
@@ -52,15 +86,17 @@ export function MaxModeHeader({
           </motion.div>
           <span className="text-xs md:text-sm font-bold text-white">{assistantLabel}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="text-white hover:bg-white/20 h-7 w-7 md:h-8 md:w-8 rounded-full"
-          aria-label="Close MAX Mode"
-        >
-          <X className="h-4 w-4 md:h-4.5 md:w-4.5" />
-        </Button>
+        {showCloseButton && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="text-white hover:bg-white/20 h-7 w-7 md:h-8 md:w-8 rounded-full"
+            aria-label="Close AI Workspace"
+          >
+            <X className="h-4 w-4 md:h-4.5 md:w-4.5" />
+          </Button>
+        )}
       </div>
     </motion.div>
   );

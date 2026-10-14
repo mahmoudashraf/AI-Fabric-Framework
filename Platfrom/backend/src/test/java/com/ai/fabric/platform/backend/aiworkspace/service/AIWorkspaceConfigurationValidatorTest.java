@@ -16,7 +16,9 @@ class AIWorkspaceConfigurationValidatorTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AIWorkspaceConfigurationValidator validator = new AIWorkspaceConfigurationValidator(
-        new PlatformAIWorkspaceProperties(Path.of("."), false, 120, Duration.ofSeconds(60), null, null)
+        new PlatformAIWorkspaceProperties(
+            Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
+            "apps.loomai.test", "https://workspace.loomai.test")
     );
 
     @Test

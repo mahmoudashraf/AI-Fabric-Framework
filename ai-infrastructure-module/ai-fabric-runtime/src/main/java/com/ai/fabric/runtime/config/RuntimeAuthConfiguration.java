@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.config;
 import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
+import com.ai.fabric.runtime.auth.RuntimeExternalIdentityBrokerService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,5 +27,13 @@ public class RuntimeAuthConfiguration {
                                                           RuntimePrivateAssertionService runtimePrivateAssertionService,
                                                           RuntimePublicTokenService runtimePublicTokenService) {
         return new RuntimeRequestAuthResolver(properties, runtimePrivateAssertionService, runtimePublicTokenService);
+    }
+
+    @Bean
+    RuntimeExternalIdentityBrokerService runtimeExternalIdentityBrokerService(
+        RuntimeAuthProperties properties,
+        RuntimePublicTokenService runtimePublicTokenService
+    ) {
+        return new RuntimeExternalIdentityBrokerService(properties, runtimePublicTokenService);
     }
 }

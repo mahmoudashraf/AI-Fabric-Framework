@@ -25,7 +25,7 @@ function customer(id, name, consumerId) {
   }
 }
 
-function installation(installationId, customerId, consumerId, displayName) {
+function installation(installationId, customerId, consumerId, displayName, overrides = {}) {
   return {
     id: `internal-${installationId}`,
     installationId,
@@ -47,6 +47,14 @@ function installation(installationId, customerId, consumerId, displayName) {
       presentation: { imageHostAllowlist: [], detailBasePath: '/vehicles/', detailSlugs: { 'stock-1': 'vehicle-one' } },
       theme: { primaryColor: '#123b35' },
     },
+    deliveryMode: 'embedded',
+    appSlug: null,
+    appUrl: null,
+    interactionPolicy: 'public',
+    authProfileCode: 'none',
+    authProfileVersion: '1.0.0',
+    authConfiguration: {},
+    domains: [],
     deploymentId: `dep-${customerId}`,
     releaseId: `rel-${customerId}`,
     assignmentRevision: `sha256:${'c'.repeat(64)}`,
@@ -57,6 +65,7 @@ function installation(installationId, customerId, consumerId, displayName) {
     updatedAt: now,
     activatedAt: null,
     disabledAt: null,
+    ...overrides,
   }
 }
 
@@ -112,11 +121,18 @@ try {
       await json(route, {
         assetsReady: true,
         assetStatus: 'READY',
-        experiencePacks: [{ code: 'dealership', version: '1.0.0', name: 'Dealership', configurationSchemaVersion: 'v1', enabled: true }],
+        experiencePacks: [
+          { code: 'generic-workspace', version: '1.0.0', name: 'Generic workspace', configurationSchemaVersion: 'v1', enabled: true },
+          { code: 'dealership', version: '1.1.0', name: 'Dealership', configurationSchemaVersion: 'v1', enabled: true },
+        ],
         connectionProfiles: [
           { code: 'runtime-anonymous-direct', version: '1.0.0', name: 'Direct anonymous runtime', mode: 'public-runtime-anonymous', handler: 'direct-public-runtime', configurationSchemaVersion: 'v1', enabled: true, availabilityMessage: 'Ready' },
           { code: 'runtime-authenticated-broker', version: '1.0.0', name: 'Authenticated runtime broker', mode: 'public-runtime-authenticated', handler: 'brokered-public-runtime', configurationSchemaVersion: 'v1', enabled: false, availabilityMessage: 'No reviewed broker endpoint is configured.' },
           { code: 'shopify-storefront-bridge', version: '1.0.0', name: 'Shopify storefront bridge', mode: 'backend-mediated-private-runtime', handler: 'private-backend-adapter', configurationSchemaVersion: 'v1', enabled: true, availabilityMessage: 'Ready' },
+        ],
+        authenticationProfiles: [
+          { code: 'none', version: '1.0.0', name: 'No customer authentication', configurationSchemaVersion: 'v1', enabled: true },
+          { code: 'supabase', version: '1.0.0', name: 'Supabase Auth', configurationSchemaVersion: 'v1', enabled: true },
         ],
       })
       return
@@ -129,7 +145,36 @@ try {
     if (collection && request.method() === 'POST') {
       const payload = request.postDataJSON()
       createdPayloads.push(payload)
-      const created = installation('awi_pub_cccccccccccccccccccccccccccccccc', collection[1], payload.consumerId, payload.displayName)
+      const hostname = `${payload.appSlug}.apps.loomai.pro`
+      const created = installation(
+        'awi_pub_cccccccccccccccccccccccccccccccc',
+        collection[1],
+        payload.consumerId,
+        payload.displayName,
+        {
+          experiencePackCode: payload.experiencePackCode,
+          experiencePackVersion: payload.experiencePackVersion,
+          allowedOrigins: payload.allowedOrigins,
+          configuration: payload.configuration,
+          deliveryMode: payload.deliveryMode,
+          appSlug: payload.appSlug,
+          appUrl: `https://${hostname}`,
+          interactionPolicy: payload.interactionPolicy,
+          authProfileCode: payload.authProfileCode,
+          authProfileVersion: payload.authProfileVersion,
+          authConfiguration: payload.authConfiguration,
+          domains: [{
+            hostname,
+            url: `https://${hostname}`,
+            type: 'PLATFORM_DEFAULT',
+            status: 'VERIFIED',
+            dnsRecordName: null,
+            dnsRecordValue: null,
+            lastVerificationError: null,
+            verifiedAt: now,
+          }],
+        },
+      )
       installations.get(collection[1])?.push(created)
       await json(route, created, 201)
       return
@@ -171,17 +216,21 @@ try {
     throw new Error('Customer switch retained a row from the previous customer.')
   }
 
-  await page.getByRole('button', { name: 'New workspace' }).click()
-  await page.getByRole('heading', { name: 'Create AI Workspace' }).waitFor()
+  await page.getByRole('button', { name: 'Create AI App' }).click()
+  await page.getByRole('heading', { name: 'Create AI App' }).waitFor()
   await page.getByLabel('Workspace name').fill('Beta Second Workspace')
+  await page.getByLabel('App slug').fill('beta-second')
+  await page.getByLabel('Interaction policy').click()
+  await page.getByRole('option', { name: 'Public only' }).click()
   await page.getByLabel('Allowed website origins').fill('https://beta.example')
-  await page.getByLabel('Dealership ID').fill('beta-dealer')
-  await page.getByLabel('Detail page mappings').fill('stock-42=vehicle-forty-two')
   await page.getByRole('button', { name: 'Save draft' }).click()
   await page.getByText('Beta Second Workspace', { exact: true }).first().waitFor()
-  await page.getByText('Use this exact script on an approved origin.', { exact: true }).waitFor()
-  if (createdPayloads[0]?.configuration?.presentation?.detailSlugs?.['stock-42'] !== 'vehicle-forty-two') {
-    throw new Error('The AI Workspace form did not project detail-page mappings into installation configuration.')
+  await page.getByRole('link', { name: 'https://beta-second.apps.loomai.pro' }).waitFor()
+  if (createdPayloads[0]?.experiencePackCode !== 'generic-workspace'
+      || createdPayloads[0]?.deliveryMode !== 'standalone'
+      || createdPayloads[0]?.interactionPolicy !== 'public'
+      || createdPayloads[0]?.authProfileCode !== 'none') {
+    throw new Error('The AI Workspace form did not project the standalone generic app contract.')
   }
 
   console.log('AI Workspace Platform UI smoke passed.')

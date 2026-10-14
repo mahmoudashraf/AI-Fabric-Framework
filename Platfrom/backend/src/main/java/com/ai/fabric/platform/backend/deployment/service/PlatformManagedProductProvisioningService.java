@@ -1279,6 +1279,8 @@ public class PlatformManagedProductProvisioningService {
                 trimProjectName(productProvisioningProperties.shopifyBridgeServiceNamePrefix() + "-" + normalizeToken(service.getServiceRef()));
             case "MCP_EXECUTION_GATEWAY_SERVICE" ->
                 trimProjectName(productProvisioningProperties.mcpExecutionGatewayServiceNamePrefix() + "-" + normalizeToken(service.getServiceRef()));
+            case PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE ->
+                trimProjectName("loomai-engage-" + normalizeToken(service.getServiceRef()));
             default -> trimProjectName("product-" + normalizeToken(service.getServiceRef()));
         };
     }
@@ -1290,6 +1292,8 @@ public class PlatformManagedProductProvisioningService {
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> productProvisioningProperties.shopifyBridgeServiceRoot();
             case "MCP_EXECUTION_GATEWAY_SERVICE" -> productProvisioningProperties.mcpExecutionGatewayServiceRoot();
+            case PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE ->
+                "workspace-apps/standalone-ai-workspace";
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         };
     }
@@ -1301,6 +1305,8 @@ public class PlatformManagedProductProvisioningService {
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> productProvisioningProperties.shopifyBridgeDockerfilePath();
             case "MCP_EXECUTION_GATEWAY_SERVICE" -> productProvisioningProperties.mcpExecutionGatewayDockerfilePath();
+            case PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE ->
+                "workspace-apps/standalone-ai-workspace/Dockerfile";
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         };
     }
@@ -1312,6 +1318,7 @@ public class PlatformManagedProductProvisioningService {
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> productProvisioningProperties.shopifyBridgeHealthPath();
             case "MCP_EXECUTION_GATEWAY_SERVICE" -> productProvisioningProperties.mcpExecutionGatewayHealthPath();
+            case PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE -> "/health";
             default -> "/actuator/health";
         };
     }
@@ -1322,6 +1329,9 @@ public class PlatformManagedProductProvisioningService {
     }
 
     private void ensureServiceSecret(PlatformManagedProductServiceEntity service) {
+        if (PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE.equals(upper(service.getServiceKind()))) {
+            return;
+        }
         if (!hasText(service.getSecretName())) {
             service.setSecretName(defaultSecretName(service.getServiceRef()));
         }
@@ -1424,6 +1434,12 @@ public class PlatformManagedProductProvisioningService {
                     env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET", checkoutClientSecret));
                 }
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
+            }
+            case PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE -> {
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput(
+                    "PLATFORM_API_BASE_URL", deliveryProperties.publicBaseUrl()));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("PORT", "8080"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("NODE_ENV", "production"));
             }
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         }

@@ -2612,6 +2612,11 @@ public class DeploymentDraftValidationService {
         validateOptionalString(securityNode, "publicRuntimeAcceptedIssuers", "security", issues);
         validateOptionalString(securityNode, "publicRuntimeAcceptedAudiences", "security", issues);
         validateOptionalString(securityNode, "publicRuntimeDefaultAudience", "security", issues);
+        validateOptionalString(securityNode, "externalIdentityProvider", "security", issues);
+        validateOptionalString(securityNode, "externalIdentityIssuer", "security", issues);
+        validateOptionalString(securityNode, "externalIdentityJwkSetUri", "security", issues);
+        validateOptionalString(securityNode, "externalIdentityAudience", "security", issues);
+        validateOptionalString(securityNode, "externalIdentityGrantedScopes", "security", issues);
         if (!securityNode.path("corsAllowCredentials").isMissingNode()
             && !securityNode.path("corsAllowCredentials").isBoolean()) {
             issues.add(error("security", "CORS_ALLOW_CREDENTIALS_BOOLEAN_REQUIRED", "$.corsAllowCredentials", "corsAllowCredentials must be a boolean when provided."));
@@ -2619,6 +2624,14 @@ public class DeploymentDraftValidationService {
         if (!securityNode.path("publicRuntimeBootstrapEnabled").isMissingNode()
             && !securityNode.path("publicRuntimeBootstrapEnabled").isBoolean()) {
             issues.add(error("security", "PUBLIC_RUNTIME_BOOTSTRAP_BOOLEAN_REQUIRED", "$.publicRuntimeBootstrapEnabled", "publicRuntimeBootstrapEnabled must be a boolean when provided."));
+        }
+        if (!securityNode.path("externalIdentityBrokerEnabled").isMissingNode()
+            && !securityNode.path("externalIdentityBrokerEnabled").isBoolean()) {
+            issues.add(error("security", "EXTERNAL_IDENTITY_BROKER_BOOLEAN_REQUIRED", "$.externalIdentityBrokerEnabled", "externalIdentityBrokerEnabled must be a boolean when provided."));
+        }
+        if (!securityNode.path("externalIdentityRequireVerifiedEmail").isMissingNode()
+            && !securityNode.path("externalIdentityRequireVerifiedEmail").isBoolean()) {
+            issues.add(error("security", "EXTERNAL_IDENTITY_EMAIL_BOOLEAN_REQUIRED", "$.externalIdentityRequireVerifiedEmail", "externalIdentityRequireVerifiedEmail must be a boolean when provided."));
         }
 
         String allowedOrigins = securityNode.path("corsAllowedOrigins").asText("").trim();
@@ -2635,6 +2648,24 @@ public class DeploymentDraftValidationService {
         validateSecurityTokenIdentifier(publicRuntimeDefaultAudience, "$.publicRuntimeDefaultAudience", "PUBLIC_RUNTIME_DEFAULT_AUDIENCE_INVALID", issues);
         validateSecurityTokenIdentifierCsv(publicRuntimeAcceptedIssuers, "$.publicRuntimeAcceptedIssuers", "PUBLIC_RUNTIME_ACCEPTED_ISSUER_INVALID", issues);
         validateSecurityTokenIdentifierCsv(publicRuntimeAcceptedAudiences, "$.publicRuntimeAcceptedAudiences", "PUBLIC_RUNTIME_ACCEPTED_AUDIENCE_INVALID", issues);
+
+        if (ManagedDeploymentProfileCatalog.externalIdentityBrokerEnabled(securityNode)) {
+            String provider = ManagedDeploymentProfileCatalog.externalIdentityProvider(securityNode);
+            if (!"SUPABASE".equals(provider)) {
+                issues.add(error("security", "EXTERNAL_IDENTITY_PROVIDER_UNSUPPORTED", "$.externalIdentityProvider", "The current release supports SUPABASE as the external identity provider."));
+            }
+            validateRequiredHttpsUrl(securityNode, "externalIdentityIssuer", "security", issues);
+            validateRequiredHttpsUrl(securityNode, "externalIdentityJwkSetUri", "security", issues);
+            validateSecurityTokenIdentifier(
+                ManagedDeploymentProfileCatalog.externalIdentityAudience(securityNode),
+                "$.externalIdentityAudience", "EXTERNAL_IDENTITY_AUDIENCE_INVALID", issues);
+            validateSecurityTokenIdentifierCsv(
+                ManagedDeploymentProfileCatalog.externalIdentityGrantedScopes(securityNode),
+                "$.externalIdentityGrantedScopes", "EXTERNAL_IDENTITY_SCOPE_INVALID", issues);
+            if (allowedOrigins.isBlank()) {
+                issues.add(error("security", "EXTERNAL_IDENTITY_ORIGINS_REQUIRED", "$.corsAllowedOrigins", "External identity broker requires exact CORS origins."));
+            }
+        }
 
         if (allowCredentials && containsWildcardOrigin(allowedOrigins)) {
             issues.add(error(
@@ -2838,6 +2869,25 @@ public class DeploymentDraftValidationService {
         String value = node.path(key).asText("").trim();
         if (!value.isBlank() && !isAbsoluteHttpUrl(value)) {
             issues.add(error("providers", code, "$." + key, key + " must be a valid absolute http(s) URL."));
+        }
+    }
+
+    private void validateRequiredHttpsUrl(JsonNode node,
+                                          String key,
+                                          String section,
+                                          List<DraftValidationIssue> issues) {
+        String value = node.path(key).asText("").trim();
+        boolean valid = false;
+        try {
+            URI uri = URI.create(value);
+            valid = "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null
+                && uri.getUserInfo() == null && uri.getFragment() == null;
+        } catch (RuntimeException ignored) {
+            valid = false;
+        }
+        if (!valid) {
+            issues.add(error(section, "EXTERNAL_IDENTITY_HTTPS_URL_REQUIRED", "$." + key,
+                key + " must be a valid absolute HTTPS URL."));
         }
     }
 

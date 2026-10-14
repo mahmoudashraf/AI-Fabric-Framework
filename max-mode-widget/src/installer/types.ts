@@ -47,6 +47,15 @@ export interface WorkspaceAnonymousConnection extends WorkspaceConnectionBase {
     authorizationHeader: string;
     tokenScheme: string;
   };
+  credentialBroker?: WorkspaceCredentialBroker;
+}
+
+export interface WorkspaceCredentialBroker {
+  url: string;
+  method: "POST";
+  credentials: "include" | "same-origin" | "omit";
+  externalAuthorizationHeader: "Authorization";
+  responseSchemaVersion: "loomai-workspace-runtime-token-v1";
 }
 
 export interface WorkspaceAuthenticatedConnection extends WorkspaceConnectionBase {
@@ -54,12 +63,7 @@ export interface WorkspaceAuthenticatedConnection extends WorkspaceConnectionBas
   handler: "brokered-public-runtime";
   runtimeBaseUrl: string;
   routes: WorkspaceRuntimeRoutes;
-  credentialBroker: {
-    url: string;
-    method: "POST";
-    credentials: "include" | "same-origin" | "omit";
-    responseSchemaVersion: "loomai-workspace-runtime-token-v1";
-  };
+  credentialBroker: WorkspaceCredentialBroker;
 }
 
 export interface WorkspacePrivateConnection extends WorkspaceConnectionBase {
@@ -79,12 +83,25 @@ export type WorkspaceConnection =
   | WorkspacePrivateConnection;
 
 export interface AIWorkspaceInstallationManifest {
-  schemaVersion: "loomai-ai-workspace-installation-v1";
+  schemaVersion: "loomai-ai-workspace-installation-v2";
   installationId: string;
   manifestRevision: string;
   assignmentRevision: string;
   generatedAt: string;
   cacheTtlSeconds: number;
+  delivery: {
+    mode: "embedded" | "standalone";
+    closeAllowed: boolean;
+    appSlug?: string;
+    appUrl?: string;
+  };
+  authentication: {
+    interactionPolicy: "public" | "login-required" | "public-with-protected-capabilities";
+    profileCode: "none" | "supabase" | string;
+    profileVersion: string;
+    configurationSchemaVersion: string;
+    configuration: Record<string, unknown>;
+  };
   connection: WorkspaceConnection;
   workspace: {
     asset: WorkspaceAssetReference;
@@ -98,6 +115,8 @@ export interface AIWorkspacePackMountContext {
   manifestRevision: string;
   assignmentRevision: string;
   connectionMode: WorkspaceConnectionMode;
+  deliveryMode: "embedded" | "standalone";
+  interactionPolicy: "public" | "login-required" | "public-with-protected-capabilities";
   configuration: Record<string, unknown>;
   widgetConfig: Record<string, unknown> & { apiConfig: Record<string, unknown> };
   maxMode: MaxModeAPI;
@@ -115,4 +134,17 @@ export interface AIWorkspaceBrowserApi {
   registerExperiencePack(registration: AIWorkspaceExperiencePackRegistration): void;
   getController(): unknown;
   refresh(): Promise<void>;
+}
+
+export interface AIWorkspaceHostCapabilities {
+  version: "1.0.0";
+  standalone?: boolean;
+  identity?: {
+    status: "anonymous" | "authenticated";
+    subjectKey?: string;
+    displayName?: string;
+  };
+  getIdentityAccessToken?: () => Promise<string | null> | string | null;
+  requestSignIn?: () => Promise<void> | void;
+  signOut?: () => Promise<void> | void;
 }

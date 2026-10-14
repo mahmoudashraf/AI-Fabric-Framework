@@ -61,7 +61,7 @@ public class AIWorkspaceObservability {
 
     private String boundedSurface(String value) {
         return switch (value == null ? "" : value) {
-            case "installer", "manifest", "asset" -> value;
+            case "installer", "manifest", "app-bootstrap", "asset" -> value;
             default -> "unknown";
         };
     }

@@ -18,6 +18,12 @@ RUN npm ci
 COPY experience-packs/dealership-experience ./
 RUN npm run typecheck && npm run build
 
+WORKDIR /workspace/experience-packs/generic-workspace-experience
+COPY experience-packs/generic-workspace-experience/package.json experience-packs/generic-workspace-experience/package-lock.json ./
+RUN npm ci
+COPY experience-packs/generic-workspace-experience ./
+RUN npm run typecheck && npm run build
+
 WORKDIR /workspace
 COPY Platfrom/backend/scripts/build-ai-workspace-assets.mjs Platfrom/backend/scripts/build-ai-workspace-assets.mjs
 RUN node Platfrom/backend/scripts/build-ai-workspace-assets.mjs --output /workspace/ai-workspace-assets

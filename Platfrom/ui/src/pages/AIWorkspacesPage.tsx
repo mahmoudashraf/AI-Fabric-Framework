@@ -48,9 +48,20 @@ import {
   type PlatformCustomerSummary,
   type SaveAIWorkspaceInstallationRequest,
   updateAIWorkspaceInstallation,
+  verifyAIWorkspaceDomain,
 } from '../api/platformApi'
 
 type FormState = {
+  packCode: string
+  deliveryMode: string
+  appSlug: string
+  customDomains: string
+  interactionPolicy: string
+  authProfileCode: string
+  supabaseProjectUrl: string
+  supabasePublishableKey: string
+  supabaseEmailPassword: boolean
+  supabaseMagicLink: boolean
   displayName: string
   consumerId: string
   connectionMode: string
@@ -72,6 +83,16 @@ type FormState = {
 }
 
 const defaultForm: FormState = {
+  packCode: 'generic-workspace',
+  deliveryMode: 'standalone',
+  appSlug: '',
+  customDomains: '',
+  interactionPolicy: 'public-with-protected-capabilities',
+  authProfileCode: 'supabase',
+  supabaseProjectUrl: '',
+  supabasePublishableKey: '',
+  supabaseEmailPassword: true,
+  supabaseMagicLink: true,
   displayName: '',
   consumerId: '',
   connectionMode: 'public-runtime-anonymous',
@@ -203,6 +224,21 @@ export function AIWorkspacesPage() {
     const presentation = config.presentation ?? {}
     const theme = config.theme ?? {}
     setForm({
+      packCode: installation.experiencePackCode,
+      deliveryMode: installation.deliveryMode,
+      appSlug: installation.appSlug ?? '',
+      customDomains: installation.domains
+        .filter((domain) => domain.type === 'CUSTOMER_CUSTOM')
+        .map((domain) => domain.hostname)
+        .join('\n'),
+      interactionPolicy: installation.interactionPolicy,
+      authProfileCode: installation.authProfileCode,
+      supabaseProjectUrl: String(installation.authConfiguration.projectUrl ?? ''),
+      supabasePublishableKey: String(installation.authConfiguration.publishableKey ?? ''),
+      supabaseEmailPassword: Array.isArray(installation.authConfiguration.methods)
+        && installation.authConfiguration.methods.includes('email-password'),
+      supabaseMagicLink: Array.isArray(installation.authConfiguration.methods)
+        && installation.authConfiguration.methods.includes('magic-link'),
       displayName: installation.displayName,
       consumerId: installation.consumerId ?? '',
       connectionMode: installation.connectionMode,
@@ -227,11 +263,58 @@ export function AIWorkspacesPage() {
 
   const submit = () => {
     const profile = catalog?.connectionProfiles.find((item) => item.code === form.profileCode)
+    const pack = catalog?.experiencePacks.find((item) => item.code === form.packCode)
+    const authProfile = catalog?.authenticationProfiles.find((item) => item.code === form.authProfileCode)
+    const genericConfiguration = {
+      app: { assistantLabel: form.assistantLabel.trim() },
+      page: {
+        rootSelector: form.rootSelector.trim(),
+        contextLabel: form.contextLabel.trim(),
+        maxChars: 1800,
+        maxPages: 3,
+        maxTotalChars: 10000,
+      },
+      capabilities: { currentPage: true, handover: true },
+      theme: {
+        primaryColor: form.primaryColor,
+        borderRadius: '0.5rem',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        darkMode: false,
+      },
+    }
+    const dealershipConfiguration = {
+      dealer: {
+        id: form.dealerId.trim(),
+        assistantLabel: form.assistantLabel.trim(),
+        sourceMode: form.sourceMode.trim(),
+      },
+      page: {
+        kind: 'auto',
+        rootSelector: form.rootSelector.trim(),
+        contextLabel: form.contextLabel.trim(),
+        maxChars: 1800,
+        maxPages: 3,
+        maxTotalChars: 10000,
+      },
+      knowledge: { inventoryVectorSpace: 'dealer-vehicle' },
+      capabilities: { comparison: form.comparison, testDrive: form.testDrive, callback: form.callback },
+      presentation: {
+        detailBasePath: form.detailBasePath.trim(),
+        imageHostAllowlist: lines(form.imageHosts),
+        detailSlugs: detailSlugMappings.values,
+      },
+      theme: {
+        primaryColor: form.primaryColor,
+        borderRadius: '0.5rem',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        darkMode: false,
+      },
+    }
     const payload: SaveAIWorkspaceInstallationRequest = {
       consumerId: form.consumerId,
       displayName: form.displayName.trim(),
-      experiencePackCode: 'dealership',
-      experiencePackVersion: catalog?.experiencePacks.find((pack) => pack.code === 'dealership')?.version ?? '1.1.0',
+      experiencePackCode: form.packCode,
+      experiencePackVersion: pack?.version ?? '1.0.0',
       connectionMode: form.connectionMode,
       connectionProfileCode: form.profileCode,
       connectionProfileVersion: profile?.version ?? '1.0.0',
@@ -239,40 +322,21 @@ export function AIWorkspacesPage() {
         ? { shopDomain: form.shopDomain.trim() }
         : {},
       allowedOrigins: lines(form.origins),
-      configuration: {
-        dealer: {
-          id: form.dealerId.trim(),
-          assistantLabel: form.assistantLabel.trim(),
-          sourceMode: form.sourceMode.trim(),
-        },
-        page: {
-          kind: 'auto',
-          rootSelector: form.rootSelector.trim(),
-          contextLabel: form.contextLabel.trim(),
-          maxChars: 1800,
-          maxPages: 3,
-          maxTotalChars: 10000,
-        },
-        knowledge: {
-          inventoryVectorSpace: 'dealer-vehicle',
-        },
-        capabilities: {
-          comparison: form.comparison,
-          testDrive: form.testDrive,
-          callback: form.callback,
-        },
-        presentation: {
-          detailBasePath: form.detailBasePath.trim(),
-          imageHostAllowlist: lines(form.imageHosts),
-          detailSlugs: detailSlugMappings.values,
-        },
-        theme: {
-          primaryColor: form.primaryColor,
-          borderRadius: '0.5rem',
-          fontFamily: 'Inter, system-ui, sans-serif',
-          darkMode: false,
-        },
-      },
+      configuration: form.packCode === 'dealership' ? dealershipConfiguration : genericConfiguration,
+      deliveryMode: form.deliveryMode,
+      appSlug: form.deliveryMode === 'standalone' ? form.appSlug.trim() : undefined,
+      customDomains: form.deliveryMode === 'standalone' ? lines(form.customDomains) : [],
+      interactionPolicy: form.interactionPolicy,
+      authProfileCode: form.authProfileCode,
+      authProfileVersion: authProfile?.version ?? '1.0.0',
+      authConfiguration: form.authProfileCode === 'supabase' ? {
+        projectUrl: form.supabaseProjectUrl.trim(),
+        publishableKey: form.supabasePublishableKey.trim(),
+        methods: [
+          ...(form.supabaseEmailPassword ? ['email-password'] : []),
+          ...(form.supabaseMagicLink ? ['magic-link'] : []),
+        ],
+      } : {},
       ...(editing !== 'new' && editing ? { rowVersion: editing.rowVersion } : {}),
     }
     saveMutation.mutate(payload)
@@ -301,7 +365,7 @@ export function AIWorkspacesPage() {
             {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
           </TextField>
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!customer || !catalog?.assetsReady}>
-            New workspace
+            Create AI App
           </Button>
         </Stack>
       </Stack>
@@ -315,6 +379,7 @@ export function AIWorkspacesPage() {
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
+              <TableCell>Delivery</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Consumer</TableCell>
               <TableCell>Connection</TableCell>
@@ -337,6 +402,10 @@ export function AIWorkspacesPage() {
                   <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                     {installation.installationId}
                   </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{installation.deliveryMode === 'standalone' ? 'Standalone app' : 'Embedded'}</Typography>
+                  <Typography variant="caption" color="text.secondary">{installation.appUrl ?? installation.experiencePackCode}</Typography>
                 </TableCell>
                 <TableCell><Chip size="small" label={installation.status} color={statusColor(installation.status)} /></TableCell>
                 <TableCell>{installation.consumerId ?? 'Unavailable'}</TableCell>
@@ -368,7 +437,7 @@ export function AIWorkspacesPage() {
               </TableRow>
             ))}
             {!installationsQuery.isLoading && installations.length === 0 && (
-              <TableRow><TableCell colSpan={7}><Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No AI Workspace installations for this customer.</Typography></TableCell></TableRow>
+              <TableRow><TableCell colSpan={8}><Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No AI Workspace installations for this customer.</Typography></TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -377,7 +446,7 @@ export function AIWorkspacesPage() {
       {selected && <WorkspaceDetails installation={selected} refresh={invalidate} />}
 
       <Dialog open={editing != null} onClose={() => setEditing(null)} maxWidth="md" fullWidth>
-        <DialogTitle>{editing === 'new' ? 'Create AI Workspace' : 'Edit AI Workspace'}</DialogTitle>
+        <DialogTitle>{editing === 'new' ? 'Create AI App' : 'Edit AI App'}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2.5}>
             <Alert severity="info">
@@ -391,6 +460,55 @@ export function AIWorkspacesPage() {
                 ))}
               </TextField>
             </Stack>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+              <TextField select fullWidth label="Experience pack" value={form.packCode} onChange={(e) => setForm({ ...form, packCode: e.target.value })}>
+                {(catalog?.experiencePacks ?? []).map((pack) => <MenuItem key={pack.code} value={pack.code} disabled={!pack.enabled}>{pack.name}</MenuItem>)}
+              </TextField>
+              <TextField select fullWidth label="Delivery" value={form.deliveryMode} onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}>
+                <MenuItem value="standalone">Standalone AI app</MenuItem>
+                <MenuItem value="embedded">Embedded one-script workspace</MenuItem>
+              </TextField>
+            </Stack>
+            {form.deliveryMode === 'standalone' && (
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                <TextField fullWidth label="App slug" helperText="Creates <slug>.apps.loomai.pro" value={form.appSlug} onChange={(e) => setForm({ ...form, appSlug: e.target.value.toLowerCase() })} />
+                <TextField fullWidth multiline minRows={2} label="Custom domains" helperText="Optional exact hostnames, one per line" value={form.customDomains} onChange={(e) => setForm({ ...form, customDomains: e.target.value })} />
+              </Stack>
+            )}
+            <Divider />
+            <Typography variant="subtitle2">Interaction and identity</Typography>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+              <TextField
+                select fullWidth label="Interaction policy" value={form.interactionPolicy}
+                onChange={(e) => {
+                  const policy = e.target.value
+                  const authenticated = policy === 'login-required'
+                  const isPublic = policy === 'public'
+                  const mode = authenticated ? 'public-runtime-authenticated' : 'public-runtime-anonymous'
+                  const profile = catalog?.connectionProfiles.find((item) => item.mode === mode && item.enabled)
+                  setForm({ ...form, interactionPolicy: policy, authProfileCode: isPublic ? 'none' : 'supabase', connectionMode: mode, profileCode: profile?.code ?? '' })
+                }}
+              >
+                <MenuItem value="public-with-protected-capabilities">Public with protected capabilities</MenuItem>
+                <MenuItem value="login-required">Login required</MenuItem>
+                <MenuItem value="public">Public only</MenuItem>
+              </TextField>
+              <TextField select fullWidth label="Authentication profile" value={form.authProfileCode} disabled={form.interactionPolicy === 'public'} onChange={(e) => setForm({ ...form, authProfileCode: e.target.value })}>
+                {(catalog?.authenticationProfiles ?? []).map((profile) => <MenuItem key={profile.code} value={profile.code} disabled={!profile.enabled || (form.interactionPolicy !== 'public' && profile.code === 'none')}>{profile.name}</MenuItem>)}
+              </TextField>
+            </Stack>
+            {form.authProfileCode === 'supabase' && (
+              <>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                  <TextField fullWidth label="Supabase project URL" value={form.supabaseProjectUrl} onChange={(e) => setForm({ ...form, supabaseProjectUrl: e.target.value })} />
+                  <TextField fullWidth label="Supabase publishable key" value={form.supabasePublishableKey} onChange={(e) => setForm({ ...form, supabasePublishableKey: e.target.value })} />
+                </Stack>
+                <Stack direction="row" spacing={2} flexWrap="wrap">
+                  <FormControlLabel control={<Checkbox checked={form.supabaseEmailPassword} onChange={(e) => setForm({ ...form, supabaseEmailPassword: e.target.checked })} />} label="Email and password" />
+                  <FormControlLabel control={<Checkbox checked={form.supabaseMagicLink} onChange={(e) => setForm({ ...form, supabaseMagicLink: e.target.checked })} />} label="Magic link" />
+                </Stack>
+              </>
+            )}
             <Divider />
             <Typography variant="subtitle2">Connection</Typography>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -419,27 +537,27 @@ export function AIWorkspacesPage() {
             )}
             <TextField multiline minRows={2} label="Allowed website origins" helperText="One exact HTTPS origin per line" value={form.origins} onChange={(e) => setForm({ ...form, origins: e.target.value })} />
             <Divider />
-            <Typography variant="subtitle2">Dealership experience</Typography>
+            <Typography variant="subtitle2">{form.packCode === 'dealership' ? 'Dealership experience' : 'Generic experience'}</Typography>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField fullWidth label="Dealership ID" value={form.dealerId} onChange={(e) => setForm({ ...form, dealerId: e.target.value })} />
+              {form.packCode === 'dealership' && <TextField fullWidth label="Dealership ID" value={form.dealerId} onChange={(e) => setForm({ ...form, dealerId: e.target.value })} />}
               <TextField fullWidth label="Assistant label" value={form.assistantLabel} onChange={(e) => setForm({ ...form, assistantLabel: e.target.value })} />
-              <TextField fullWidth label="Source mode" value={form.sourceMode} onChange={(e) => setForm({ ...form, sourceMode: e.target.value })} />
+              {form.packCode === 'dealership' && <TextField fullWidth label="Source mode" value={form.sourceMode} onChange={(e) => setForm({ ...form, sourceMode: e.target.value })} />}
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField fullWidth label="Page content selector" value={form.rootSelector} onChange={(e) => setForm({ ...form, rootSelector: e.target.value })} />
               <TextField fullWidth label="Default context label" value={form.contextLabel} onChange={(e) => setForm({ ...form, contextLabel: e.target.value })} />
               <TextField fullWidth type="color" label="Primary colour" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} InputLabelProps={{ shrink: true }} />
             </Stack>
-            <Stack direction="row" spacing={2} flexWrap="wrap">
+            {form.packCode === 'dealership' && <Stack direction="row" spacing={2} flexWrap="wrap">
               <FormControlLabel control={<Checkbox checked={form.comparison} onChange={(e) => setForm({ ...form, comparison: e.target.checked })} />} label="Vehicle comparison" />
               <FormControlLabel control={<Checkbox checked={form.testDrive} onChange={(e) => setForm({ ...form, testDrive: e.target.checked })} />} label="Test-drive request" />
               <FormControlLabel control={<Checkbox checked={form.callback} onChange={(e) => setForm({ ...form, callback: e.target.checked })} />} label="Callback request" />
-            </Stack>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+            </Stack>}
+            {form.packCode === 'dealership' && <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField fullWidth label="Vehicle detail path" value={form.detailBasePath} onChange={(e) => setForm({ ...form, detailBasePath: e.target.value })} />
               <TextField fullWidth multiline minRows={2} label="Approved image hosts" helperText="One hostname per line" value={form.imageHosts} onChange={(e) => setForm({ ...form, imageHosts: e.target.value })} />
-            </Stack>
-            <TextField
+            </Stack>}
+            {form.packCode === 'dealership' && <TextField
               fullWidth
               multiline
               minRows={3}
@@ -448,12 +566,12 @@ export function AIWorkspacesPage() {
               error={Boolean(detailSlugMappings.error)}
               value={form.detailSlugs}
               onChange={(e) => setForm({ ...form, detailSlugs: e.target.value })}
-            />
+            />}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId || !form.profileCode || Boolean(detailSlugMappings.error)}>Save draft</Button>
+          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId || !form.profileCode || (form.deliveryMode === 'standalone' && !form.appSlug.trim()) || (form.packCode === 'dealership' && Boolean(detailSlugMappings.error)) || (form.authProfileCode === 'supabase' && (!form.supabaseProjectUrl.trim() || !form.supabasePublishableKey.trim() || (!form.supabaseEmailPassword && !form.supabaseMagicLink)))}>Save draft</Button>
         </DialogActions>
       </Dialog>
     </Stack>
@@ -462,6 +580,10 @@ export function AIWorkspacesPage() {
 
 function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void> }) {
   const [copied, setCopied] = useState(false)
+  const verifyMutation = useMutation({
+    mutationFn: (hostname: string) => verifyAIWorkspaceDomain(installation.customerId, installation.installationId, hostname),
+    onSuccess: () => void refresh(),
+  })
   const snippet = `<script\n  async\n  src="${getPlatformApiBaseUrl()}/api/public/ai-workspace/install.js"\n  data-installation-id="${installation.installationId}">\n</script>`
   return (
     <Box>
@@ -477,13 +599,49 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
         <Paper variant="outlined" sx={{ p: 2.5, flex: 1, borderRadius: 1 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="subtitle2">Installation script</Typography>
-            <Tooltip title="Copy installation script">
-              <IconButton size="small" onClick={() => { void navigator.clipboard.writeText(snippet); setCopied(true) }}><ContentCopyRoundedIcon /></IconButton>
+            <Typography variant="subtitle2">{installation.deliveryMode === 'standalone' ? 'AI app address' : 'Installation script'}</Typography>
+            <Tooltip title={installation.deliveryMode === 'standalone' ? 'Copy app address' : 'Copy installation script'}>
+              <IconButton size="small" onClick={() => { void navigator.clipboard.writeText(installation.deliveryMode === 'standalone' ? (installation.appUrl ?? '') : snippet); setCopied(true) }}><ContentCopyRoundedIcon /></IconButton>
             </Tooltip>
           </Stack>
-          <Box component="pre" sx={{ m: 0, p: 2, bgcolor: 'grey.950', color: 'grey.100', borderRadius: 1, overflowX: 'auto', fontSize: 12 }}>{snippet}</Box>
-          <Typography variant="caption" color={copied ? 'success.main' : 'text.secondary'}>{copied ? 'Copied.' : 'Use this exact script on an approved origin.'}</Typography>
+          {installation.deliveryMode === 'standalone' ? (
+            <>
+              <Typography component="a" href={installation.appUrl ?? undefined} target="_blank" rel="noreferrer" sx={{ fontWeight: 750 }}>{installation.appUrl ?? 'App address unavailable'}</Typography>
+              <Stack spacing={1.5} sx={{ mt: 2 }}>
+                {installation.domains.map((domain) => (
+                  <Paper key={domain.hostname} variant="outlined" sx={{ p: 1.5, borderRadius: 1 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{domain.hostname}</Typography>
+                        <Typography variant="caption" color="text.secondary">{domain.type} · {domain.status}</Typography>
+                      </Box>
+                      {domain.status !== 'VERIFIED' && (
+                        <Button size="small" onClick={() => verifyMutation.mutate(domain.hostname)} disabled={verifyMutation.isPending}>
+                          {domain.type === 'CUSTOMER_CUSTOM' ? 'Verify domain' : 'Verify route'}
+                        </Button>
+                      )}
+                    </Stack>
+                    {domain.type === 'CUSTOMER_CUSTOM' && domain.status !== 'VERIFIED' && (
+                      <Stack spacing={0.5} sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
+                          TXT {domain.dnsRecordName} = {domain.dnsRecordValue}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
+                          CNAME {domain.routingRecordName} = {domain.routingRecordValue ?? 'shared frontend route pending'}
+                        </Typography>
+                      </Stack>
+                    )}
+                    {domain.lastVerificationError && <Typography variant="caption" color="warning.main">{domain.lastVerificationError}</Typography>}
+                  </Paper>
+                ))}
+              </Stack>
+            </>
+          ) : (
+            <>
+              <Box component="pre" sx={{ m: 0, p: 2, bgcolor: 'grey.950', color: 'grey.100', borderRadius: 1, overflowX: 'auto', fontSize: 12 }}>{snippet}</Box>
+              <Typography variant="caption" color={copied ? 'success.main' : 'text.secondary'}>{copied ? 'Copied.' : 'Use this exact script on an approved origin.'}</Typography>
+            </>
+          )}
         </Paper>
         <Paper variant="outlined" sx={{ p: 2.5, flex: 1, borderRadius: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Readiness</Typography>

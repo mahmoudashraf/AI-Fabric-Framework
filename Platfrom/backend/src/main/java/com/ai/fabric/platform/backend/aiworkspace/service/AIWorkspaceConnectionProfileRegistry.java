@@ -41,8 +41,7 @@ public class AIWorkspaceConnectionProfileRegistry {
             case AUTHENTICATED -> new ConnectionProfile(
                 AUTHENTICATED, VERSION, "Authenticated runtime broker", AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED,
                 "brokered-public-runtime", "loomai-runtime-token-broker-v1",
-                properties.authenticatedBrokerUrl() != null,
-                properties.authenticatedBrokerUrl(), Map.of()
+                true, null, Map.of()
             );
             case SHOPIFY -> shopifyProfile(configuration);
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace connection profile.");
@@ -61,8 +60,8 @@ public class AIWorkspaceConnectionProfileRegistry {
             summary(ANONYMOUS, "Direct anonymous runtime", AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS,
                 "direct-public-runtime", "loomai-runtime-anonymous-v1", true, "Ready"),
             summary(AUTHENTICATED, "Authenticated runtime broker", AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED,
-                "brokered-public-runtime", "loomai-runtime-token-broker-v1", properties.authenticatedBrokerUrl() != null,
-                properties.authenticatedBrokerUrl() == null ? "No reviewed broker endpoint is configured." : "Ready"),
+                "brokered-public-runtime", "loomai-runtime-token-broker-v1", true,
+                "Deployment-local identity broker"),
             summary(SHOPIFY, "Shopify storefront bridge", AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME,
                 "private-backend-adapter", "loomai-shopify-bridge-adapter-v1", properties.shopifyBridgeBaseUrl() != null,
                 properties.shopifyBridgeBaseUrl() == null ? "Shopify Bridge is not configured." : "Ready")

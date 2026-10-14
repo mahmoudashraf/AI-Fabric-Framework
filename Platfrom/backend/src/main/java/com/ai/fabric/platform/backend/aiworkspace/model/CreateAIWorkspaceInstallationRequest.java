@@ -14,6 +14,13 @@ public record CreateAIWorkspaceInstallationRequest(
     String connectionProfileVersion,
     JsonNode connectionConfiguration,
     List<String> allowedOrigins,
-    JsonNode configuration
+    JsonNode configuration,
+    String deliveryMode,
+    String appSlug,
+    List<String> customDomains,
+    String interactionPolicy,
+    String authProfileCode,
+    String authProfileVersion,
+    JsonNode authConfiguration
 ) {
 }

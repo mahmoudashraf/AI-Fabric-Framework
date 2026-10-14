@@ -302,6 +302,19 @@ const productServicePresets: Record<string, Partial<ProductServiceFormState>> = 
     healthPath: '/actuator/health',
     shopifyBillingConfig: null,
   },
+  STANDALONE_AI_WORKSPACE_SERVICE: {
+    serviceRef: 'loomai-engage-web',
+    displayName: 'LoomAI Engage shared workspace',
+    productFamily: 'LOOMAI_ENGAGE',
+    serviceKind: 'STANDALONE_AI_WORKSPACE_SERVICE',
+    deploymentMode: 'SHARED_PLATFORM_SERVICE',
+    tenantMode: 'MULTI_TENANT_SHARED_FRONTEND',
+    serviceRoot: 'workspace-apps/standalone-ai-workspace',
+    dockerfilePath: 'workspace-apps/standalone-ai-workspace/Dockerfile',
+    healthPath: '/health',
+    secretName: null,
+    shopifyBillingConfig: null,
+  },
 }
 
 function billingConfigOrDefault(
@@ -554,6 +567,8 @@ export function ProductServicesPage() {
   })
 
   const selectedService = selectedServiceQuery.data ?? selectedSummary
+  const isShopifyBridge = selectedService?.serviceKind === 'SHOPIFY_BRIDGE_SERVICE'
+  const isStandaloneWorkspace = selectedService?.serviceKind === 'STANDALONE_AI_WORKSPACE_SERVICE'
   const decommissionBlocked = (selectedService?.dependentStoresCount ?? 0) > 0
 
   useEffect(() => {
@@ -566,7 +581,7 @@ export function ProductServicesPage() {
   const dependentsQuery = useQuery({
     queryKey: ['product-services', selectedServiceRef, 'dependents'],
     queryFn: () => fetchProductServiceDependents(selectedServiceRef),
-    enabled: selectedServiceRef.length > 0,
+    enabled: selectedServiceRef.length > 0 && isShopifyBridge,
   })
 
   const activityQuery = useQuery({
@@ -584,25 +599,25 @@ export function ProductServicesPage() {
   const overviewQuery = useQuery({
     queryKey: ['product-services', selectedServiceRef, 'overview'],
     queryFn: () => fetchProductServiceOverview(selectedServiceRef),
-    enabled: selectedServiceRef.length > 0,
+    enabled: selectedServiceRef.length > 0 && isShopifyBridge,
   })
 
   const webhookSubscriptionsQuery = useQuery({
     queryKey: ['product-services', selectedServiceRef, 'webhook-subscriptions', webhookDialogStore?.shopDomain ?? ''],
     queryFn: () => fetchProductServiceWebhookSubscriptions(selectedServiceRef, webhookDialogStore?.shopDomain ?? ''),
-    enabled: selectedServiceRef.length > 0 && webhookDialogStore != null,
+    enabled: selectedServiceRef.length > 0 && isShopifyBridge && webhookDialogStore != null,
   })
 
   const storeBillingSummaryQuery = useQuery({
     queryKey: ['product-services', selectedServiceRef, 'store-billing-summary', billingDialogStore?.shopDomain ?? ''],
     queryFn: () => fetchProductServiceStoreBillingSummary(selectedServiceRef, billingDialogStore?.shopDomain ?? ''),
-    enabled: selectedServiceRef.length > 0 && billingDialogStore != null,
+    enabled: selectedServiceRef.length > 0 && isShopifyBridge && billingDialogStore != null,
   })
 
   const storeBindingQuery = useQuery({
     queryKey: ['product-services', selectedServiceRef, 'store-binding', bindingDialogStore?.shopDomain ?? ''],
     queryFn: () => fetchProductServiceStoreBinding(selectedServiceRef, bindingDialogStore?.shopDomain ?? ''),
-    enabled: selectedServiceRef.length > 0 && bindingDialogStore != null,
+    enabled: selectedServiceRef.length > 0 && isShopifyBridge && bindingDialogStore != null,
   })
 
   const deploymentHistoryQuery = useQuery({
@@ -756,7 +771,7 @@ export function ProductServicesPage() {
             Product Services
           </Typography>
           <Typography color="text.secondary">
-            Operator lifecycle for shared product backends such as the Shopify Bridge Service.
+            Operate shared product services, including Shopify, MCP, and the LoomAI Engage frontend.
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreateDialogOpen(true)}>
@@ -967,6 +982,8 @@ export function ProductServicesPage() {
                 </Grid>
               </Grid>
 
+              {isShopifyBridge ? (
+                <>
               <Card variant="outlined">
                 <CardContent>
                   <Stack spacing={1.5}>
@@ -1202,6 +1219,29 @@ export function ProductServicesPage() {
                   </Stack>
                 </CardContent>
               </Card>
+                </>
+              ) : isStandaloneWorkspace ? (
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.25}>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <HubRoundedIcon color="primary" />
+                        <Typography sx={{ fontWeight: 700 }}>Standalone AI Workspace delivery</Typography>
+                        <Chip size="small" label={healthQuery.data?.status ?? selectedService.status} color={chipColor(healthQuery.data?.status ?? selectedService.status)} />
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        This shared frontend serves exact verified AI app domains. Customer conversations and actions continue directly through each installation&apos;s assigned deployment.
+                      </Typography>
+                      <Typography variant="body2">
+                        Shell URL {detailValue(selectedService.baseUrl)} · health {detailValue(selectedService.healthPath)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Create and activate customer apps from AI Workspaces; frontend health does not replace installation, domain, authentication, or runtime readiness.
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card variant="outlined">
                 <CardContent>
@@ -1243,6 +1283,7 @@ export function ProductServicesPage() {
               <TextField select label="Product family" value={form.productFamily} onChange={(event) => setForm((current) => ({ ...current, productFamily: event.target.value }))} fullWidth>
                 <MenuItem value="SHOPIFY">SHOPIFY</MenuItem>
                 <MenuItem value="MCP">MCP</MenuItem>
+                <MenuItem value="LOOMAI_ENGAGE">LOOMAI_ENGAGE</MenuItem>
                 <MenuItem value="WOOCOMMERCE">WOOCOMMERCE</MenuItem>
               </TextField>
               <TextField
@@ -1260,6 +1301,7 @@ export function ProductServicesPage() {
               >
                 <MenuItem value="SHOPIFY_BRIDGE_SERVICE">SHOPIFY_BRIDGE_SERVICE</MenuItem>
                 <MenuItem value="MCP_EXECUTION_GATEWAY_SERVICE">MCP_EXECUTION_GATEWAY_SERVICE</MenuItem>
+                <MenuItem value="STANDALONE_AI_WORKSPACE_SERVICE">STANDALONE_AI_WORKSPACE_SERVICE</MenuItem>
               </TextField>
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>

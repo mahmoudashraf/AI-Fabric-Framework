@@ -15,6 +15,13 @@ public record UpdateAIWorkspaceInstallationRequest(
     JsonNode connectionConfiguration,
     List<String> allowedOrigins,
     JsonNode configuration,
+    String deliveryMode,
+    String appSlug,
+    List<String> customDomains,
+    String interactionPolicy,
+    String authProfileCode,
+    String authProfileVersion,
+    JsonNode authConfiguration,
     Long rowVersion
 ) {
 }

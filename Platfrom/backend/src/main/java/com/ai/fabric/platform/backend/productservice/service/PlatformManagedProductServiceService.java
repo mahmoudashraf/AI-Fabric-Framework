@@ -25,6 +25,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class PlatformManagedProductServiceService {
 
+    public static final String STANDALONE_AI_WORKSPACE_SERVICE = "STANDALONE_AI_WORKSPACE_SERVICE";
+
     private final PlatformManagedProductServiceRepository repository;
     private final ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
     private final PlatformSecretService platformSecretService;
@@ -261,6 +263,7 @@ public class PlatformManagedProductServiceService {
         }
         return switch (normalizeEnum(serviceKind)) {
             case "SHOPIFY_BRIDGE_SERVICE" -> "/actuator/health";
+            case STANDALONE_AI_WORKSPACE_SERVICE -> "/health";
             default -> "/actuator/health";
         };
     }
@@ -273,6 +276,7 @@ public class PlatformManagedProductServiceService {
         return switch (normalizeEnum(serviceKind)) {
             case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service";
             case "MCP_EXECUTION_GATEWAY_SERVICE" -> "product-services/mcp-execution-gateway-service";
+            case STANDALONE_AI_WORKSPACE_SERVICE -> "workspace-apps/standalone-ai-workspace";
             default -> null;
         };
     }
@@ -285,6 +289,7 @@ public class PlatformManagedProductServiceService {
         return switch (normalizeEnum(serviceKind)) {
             case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service/deploy/container/Dockerfile";
             case "MCP_EXECUTION_GATEWAY_SERVICE" -> "product-services/mcp-execution-gateway-service/deploy/container/Dockerfile";
+            case STANDALONE_AI_WORKSPACE_SERVICE -> "workspace-apps/standalone-ai-workspace/Dockerfile";
             default -> null;
         };
     }

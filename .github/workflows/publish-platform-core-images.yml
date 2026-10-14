@@ -10,6 +10,7 @@ on:
       - "Platfrom/ui/**"
       - "max-mode-widget/**"
       - "experience-packs/dealership-experience/**"
+      - "experience-packs/generic-workspace-experience/**"
       - "ai-fabric-product/**"
       - "scripts/**"
   workflow_dispatch:
@@ -26,20 +27,62 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  publish:
-    name: Publish ${{ matrix.name }} image
+  changes:
+    name: Resolve affected images
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.scope.outputs.backend }}
+      ui: ${{ steps.scope.outputs.ui }}
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve build scope
+        id: scope
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "ui=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+            changed_files="$(git ls-tree -r --name-only "$CURRENT_SHA")"
+          else
+            changed_files="$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")"
+          fi
+
+          backend=false
+          ui=false
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/publish-platform-core-images.yml|Platfrom/backend/*|max-mode-widget/*|experience-packs/dealership-experience/*|experience-packs/generic-workspace-experience/*|ai-fabric-product/*|scripts/*)
+                backend=true
+                ;;
+            esac
+            case "$path" in
+              .github/workflows/publish-platform-core-images.yml|Platfrom/ui/*)
+                ui=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "ui=$ui" >> "$GITHUB_OUTPUT"
+
+  publish-backend:
+    name: Publish Platform backend image
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Platform backend
-            image: loomai-platform-backend
-            dockerfile: Platfrom/backend/deploy/railway/Dockerfile
-          - name: Platform UI
-            image: loomai-platform-ui
-            dockerfile: Platfrom/ui/deploy/railway/Dockerfile
     steps:
       - name: Checkout exact source revision
         uses: actions/checkout@v4
@@ -64,24 +107,76 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: Platfrom/backend/deploy/railway/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/loomai-platform-backend:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.build.outputs.time }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-from: type=gha,scope=loomai-platform-backend
+          cache-to: type=gha,mode=max,scope=loomai-platform-backend
 
       - name: Record immutable image identity
         shell: bash
         run: |
           {
-            echo "## ${{ matrix.name }} image"
+            echo "## Platform backend image"
             echo
-            echo "- Image: \`${REGISTRY}/${{ github.repository_owner }}/${{ matrix.image }}:${GITHUB_SHA}\`"
+            echo "- Image: \`${REGISTRY}/${{ github.repository_owner }}/loomai-platform-backend:${GITHUB_SHA}\`"
+            echo "- Digest: \`${{ steps.image.outputs.digest }}\`"
+            echo "- Source: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-ui:
+    name: Publish Platform UI image
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Capture build time
+        id: build
+        shell: bash
+        run: echo "time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish immutable image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Platfrom/ui/deploy/railway/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/loomai-platform-ui:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.build.outputs.time }}
+          cache-from: type=gha,scope=loomai-platform-ui
+          cache-to: type=gha,mode=max,scope=loomai-platform-ui
+
+      - name: Record immutable image identity
+        shell: bash
+        run: |
+          {
+            echo "## Platform UI image"
+            echo
+            echo "- Image: \`${REGISTRY}/${{ github.repository_owner }}/loomai-platform-ui:${GITHUB_SHA}\`"
             echo "- Digest: \`${{ steps.image.outputs.digest }}\`"
             echo "- Source: \`${GITHUB_SHA}\`"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,7 +1,9 @@
 package com.ai.fabric.platform.backend.aiworkspace.entity;
 
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMode;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -51,6 +53,26 @@ public class AIWorkspaceInstallationEntity {
     @Column(nullable = false)
     private String connectionProfileVersion;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AIWorkspaceDeliveryMode deliveryMode;
+
+    @Column(unique = true)
+    private String appSlug;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AIWorkspaceInteractionPolicy interactionPolicy;
+
+    @Column(nullable = false)
+    private String authProfileCode;
+
+    @Column(nullable = false)
+    private String authProfileVersion;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String authConfigurationJson;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String connectionConfigurationJson;
 
@@ -96,6 +118,18 @@ public class AIWorkspaceInstallationEntity {
     public void setConnectionProfileCode(String connectionProfileCode) { this.connectionProfileCode = connectionProfileCode; }
     public String getConnectionProfileVersion() { return connectionProfileVersion; }
     public void setConnectionProfileVersion(String connectionProfileVersion) { this.connectionProfileVersion = connectionProfileVersion; }
+    public AIWorkspaceDeliveryMode getDeliveryMode() { return deliveryMode; }
+    public void setDeliveryMode(AIWorkspaceDeliveryMode deliveryMode) { this.deliveryMode = deliveryMode; }
+    public String getAppSlug() { return appSlug; }
+    public void setAppSlug(String appSlug) { this.appSlug = appSlug; }
+    public AIWorkspaceInteractionPolicy getInteractionPolicy() { return interactionPolicy; }
+    public void setInteractionPolicy(AIWorkspaceInteractionPolicy interactionPolicy) { this.interactionPolicy = interactionPolicy; }
+    public String getAuthProfileCode() { return authProfileCode; }
+    public void setAuthProfileCode(String authProfileCode) { this.authProfileCode = authProfileCode; }
+    public String getAuthProfileVersion() { return authProfileVersion; }
+    public void setAuthProfileVersion(String authProfileVersion) { this.authProfileVersion = authProfileVersion; }
+    public String getAuthConfigurationJson() { return authConfigurationJson; }
+    public void setAuthConfigurationJson(String authConfigurationJson) { this.authConfigurationJson = authConfigurationJson; }
     public String getConnectionConfigurationJson() { return connectionConfigurationJson; }
     public void setConnectionConfigurationJson(String connectionConfigurationJson) { this.connectionConfigurationJson = connectionConfigurationJson; }
     public String getAllowedOriginsJson() { return allowedOriginsJson; }

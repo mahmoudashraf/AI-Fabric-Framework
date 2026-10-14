@@ -3,11 +3,12 @@ import type {
   AIWorkspaceExperiencePackRegistration,
   AIWorkspaceInstallationManifest,
   WorkspaceConnection,
+  AIWorkspaceHostCapabilities,
   WorkspaceRuntimeRoutes,
 } from "./types";
 
 const INSTALLER_VERSION = "1.0.0";
-const MANIFEST_SCHEMA = "loomai-ai-workspace-installation-v1";
+const MANIFEST_SCHEMA = "loomai-ai-workspace-installation-v2";
 const INSTALLATION_PATTERN = /^awi_pub_[a-f0-9]{32}$/;
 const SCRIPT_TIMEOUT_MS = 15_000;
 const INSTALLER_STATE_KEY = "__LOOMAI_AI_WORKSPACE_INSTALLER_STATE__";
@@ -45,6 +46,7 @@ const browserApi: AIWorkspaceBrowserApi = {
 declare global {
   interface Window {
     LoomAIWorkspace?: AIWorkspaceBrowserApi;
+    LoomAIWorkspaceHost?: AIWorkspaceHostCapabilities;
     MaxMode?: any;
   }
 }
@@ -94,19 +96,30 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
     const key = packKey(manifest.workspace.experiencePack.code, manifest.workspace.experiencePack.version);
     const registration = state.registrations.get(key);
     if (!registration) throw new Error(`Experience pack ${key} did not register itself.`);
+    const hostCapabilities = validateHostCapabilities(window.LoomAIWorkspaceHost);
+    const identityKey = hostCapabilities?.identity?.status === "authenticated"
+      ? `authenticated:${hostCapabilities.identity.subjectKey}`
+      : "anonymous";
     const widgetConfig = {
       ...await connectionWidgetConfig(manifest.connection, manifest),
       storageNamespace: [
         installationId,
         manifest.connection.mode,
         manifest.assignmentRevision,
+        identityKey,
       ].join(":"),
+      host: {
+        authentication: authenticationHostConfig(manifest, hostCapabilities),
+        showCloseButton: manifest.delivery.closeAllowed,
+      },
     };
     state.activeController = await registration.mount({
       installationId,
       manifestRevision: manifest.manifestRevision,
       assignmentRevision: manifest.assignmentRevision,
       connectionMode: manifest.connection.mode,
+      deliveryMode: manifest.delivery.mode,
+      interactionPolicy: manifest.authentication.interactionPolicy,
       configuration: manifest.workspace.configuration,
       widgetConfig,
       maxMode: window.MaxMode,
@@ -161,6 +174,9 @@ async function connectionWidgetConfig(
   manifest: AIWorkspaceInstallationManifest,
 ) {
   if (connection.mode === "public-runtime-anonymous") {
+    const tokenSupplier = connection.credentialBroker
+      ? credentialBrokerTokenSupplier(connection.credentialBroker, manifest, false)
+      : undefined;
     return {
       integrationMode: connection.mode,
       apiConfig: directRuntimeApiConfig(connection.runtimeBaseUrl, connection.routes, {
@@ -170,11 +186,12 @@ async function connectionWidgetConfig(
         renewUrl: absoluteUrl(connection.runtimeBaseUrl, connection.anonymousBootstrap.renewUrl),
         authContextUrl: absoluteUrl(connection.runtimeBaseUrl, connection.routes.authContextUrl),
         probeAuthContextOnOpen: true,
+        getBearerToken: tokenSupplier,
       }, connection.conversationHandover),
     };
   }
   if (connection.mode === "public-runtime-authenticated") {
-    const tokenSupplier = credentialBrokerTokenSupplier(connection, manifest);
+    const tokenSupplier = credentialBrokerTokenSupplier(connection.credentialBroker, manifest, true);
     return {
       integrationMode: connection.mode,
       apiConfig: directRuntimeApiConfig(connection.runtimeBaseUrl, connection.routes, {
@@ -218,41 +235,55 @@ function directRuntimeApiConfig(
 }
 
 function credentialBrokerTokenSupplier(
-  connection: Extract<WorkspaceConnection, { mode: "public-runtime-authenticated" }>,
+  broker: import("./types").WorkspaceCredentialBroker,
   manifest: AIWorkspaceInstallationManifest,
+  required: boolean,
 ) {
   let cached: { token: string; expiresAt: number; assignmentRevision: string } | null = null;
   let pending: Promise<string> | null = null;
   return async () => {
+    const host = validateHostCapabilities(window.LoomAIWorkspaceHost);
+    const externalToken = await host?.getIdentityAccessToken?.();
+    if (!externalToken) {
+      if (required) {
+        emit("authentication-required", {
+          installationId: manifest.installationId,
+          interactionPolicy: manifest.authentication.interactionPolicy,
+        });
+        throw new Error("Authentication is required before this workspace can connect.");
+      }
+      return null;
+    }
     const now = Date.now();
     if (cached && cached.expiresAt - now > 30_000 && cached.assignmentRevision === manifest.assignmentRevision) {
       return cached.token;
     }
     if (pending) return pending;
     pending = (async () => {
-      const response = await fetch(normalizeHttpsUrl(connection.credentialBroker.url, "credential broker URL"), {
+      const response = await fetch(normalizeHttpsUrl(broker.url, "credential broker URL"), {
         method: "POST",
-        credentials: connection.credentialBroker.credentials,
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: broker.credentials,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          [broker.externalAuthorizationHeader]: `Bearer ${externalToken}`,
+        },
         body: JSON.stringify({
           schemaVersion: "loomai-workspace-runtime-token-request-v1",
-          installationId: manifest.installationId,
-          assignmentRevision: manifest.assignmentRevision,
         }),
       });
       if (!response.ok) throw new Error(`Credential broker returned HTTP ${response.status}.`);
       const result = await response.json() as Record<string, unknown>;
       if (result.schemaVersion !== "loomai-workspace-runtime-token-v1"
         || typeof result.accessToken !== "string" || result.accessToken.length < 20
-        || result.tokenType !== "Bearer" || typeof result.expiresAt !== "string"
-        || result.assignmentRevision !== manifest.assignmentRevision) {
+        || result.tokenType !== "Bearer" || typeof result.expiresAt !== "string") {
         throw new Error("Credential broker returned an invalid token contract.");
       }
       const expiresAt = Date.parse(result.expiresAt);
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
         throw new Error("Credential broker token is already expired.");
       }
-      cached = { token: result.accessToken, expiresAt, assignmentRevision: result.assignmentRevision as string };
+      cached = { token: result.accessToken, expiresAt, assignmentRevision: manifest.assignmentRevision };
       return cached.token;
     })();
     try {
@@ -319,6 +350,14 @@ function validateManifest(value: AIWorkspaceInstallationManifest, installationId
     throw new Error("AI Workspace configuration is invalid.");
   }
   validateConnection(value.connection);
+  if (!value.delivery || !["embedded", "standalone"].includes(value.delivery.mode)
+    || typeof value.delivery.closeAllowed !== "boolean") {
+    throw new Error("AI Workspace delivery contract is invalid.");
+  }
+  if (!value.authentication || !["public", "login-required", "public-with-protected-capabilities"]
+    .includes(value.authentication.interactionPolicy)) {
+    throw new Error("AI Workspace authentication contract is invalid.");
+  }
 }
 
 function validateConnection(connection: WorkspaceConnection) {
@@ -330,14 +369,12 @@ function validateConnection(connection: WorkspaceConnection) {
     if (!connection.anonymousBootstrap?.url || !connection.anonymousBootstrap?.renewUrl) {
       throw new Error("Anonymous bootstrap contract is invalid.");
     }
+    if (connection.credentialBroker) validateCredentialBroker(connection.credentialBroker);
   } else if (connection.mode === "public-runtime-authenticated") {
     if (connection.handler !== "brokered-public-runtime") throw new Error("Authenticated connection handler is invalid.");
     normalizeHttpsUrl(connection.runtimeBaseUrl, "runtimeBaseUrl");
     validateRoutes(connection.routes);
-    if (connection.credentialBroker?.responseSchemaVersion !== "loomai-workspace-runtime-token-v1") {
-      throw new Error("Credential broker contract is invalid.");
-    }
-    normalizeHttpsUrl(connection.credentialBroker.url, "credential broker URL");
+    validateCredentialBroker(connection.credentialBroker);
   } else if (connection.mode === "backend-mediated-private-runtime") {
     if (connection.handler !== "private-backend-adapter"
       || connection.adapter?.responseSchemaVersion !== "loomai-workspace-private-adapter-v1") {
@@ -347,6 +384,39 @@ function validateConnection(connection: WorkspaceConnection) {
   } else {
     throw new Error("AI Workspace connection mode is unsupported.");
   }
+}
+
+function validateCredentialBroker(value: import("./types").WorkspaceCredentialBroker) {
+  if (!value || value.responseSchemaVersion !== "loomai-workspace-runtime-token-v1"
+    || value.externalAuthorizationHeader !== "Authorization") {
+    throw new Error("Credential broker contract is invalid.");
+  }
+  normalizeHttpsUrl(value.url, "credential broker URL");
+}
+
+function validateHostCapabilities(value: AIWorkspaceHostCapabilities | undefined) {
+  if (!value) return undefined;
+  if (value.version !== "1.0.0") throw new Error("AI Workspace host capability version is unsupported.");
+  if (value.identity?.status === "authenticated" && !value.identity.subjectKey) {
+    throw new Error("Authenticated host identity requires a stable subject key.");
+  }
+  return value;
+}
+
+function authenticationHostConfig(
+  manifest: AIWorkspaceInstallationManifest,
+  host: AIWorkspaceHostCapabilities | undefined,
+) {
+  const status = host?.identity?.status || "anonymous";
+  return {
+    interactionPolicy: manifest.authentication.interactionPolicy,
+    status,
+    displayName: host?.identity?.displayName,
+    signInAvailable: typeof host?.requestSignIn === "function",
+    signOutAvailable: status === "authenticated" && typeof host?.signOut === "function",
+    onSignIn: host?.requestSignIn,
+    onSignOut: host?.signOut,
+  };
 }
 
 function validateAsset(asset: any, requireCode: boolean, platformBaseUrl: string) {
@@ -479,7 +549,7 @@ function cssEscape(value: string) {
   return value.replace(/["\\]/g, "\\$&");
 }
 
-function emit(type: "loading" | "ready" | "error", detail: Record<string, unknown>) {
+function emit(type: "loading" | "ready" | "error" | "authentication-required", detail: Record<string, unknown>) {
   window.dispatchEvent(new CustomEvent(`loomai:workspace-${type}`, {
     detail: { ...detail, timestamp: new Date().toISOString() },
   }));

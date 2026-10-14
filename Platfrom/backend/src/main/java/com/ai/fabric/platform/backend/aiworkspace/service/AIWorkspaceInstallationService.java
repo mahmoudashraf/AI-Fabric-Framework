@@ -3,8 +3,10 @@ package com.ai.fabric.platform.backend.aiworkspace.service;
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceCatalogSummary;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMode;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationSummary;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessSummary;
 import com.ai.fabric.platform.backend.aiworkspace.model.CreateAIWorkspaceInstallationRequest;
 import com.ai.fabric.platform.backend.aiworkspace.model.UpdateAIWorkspaceInstallationRequest;
@@ -45,7 +47,9 @@ public class AIWorkspaceInstallationService {
     private final PlatformCustomerAccessService customerAccessService;
     private final AIWorkspaceExperiencePackRegistry experiencePackRegistry;
     private final AIWorkspaceConnectionProfileRegistry connectionProfileRegistry;
+    private final AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry;
     private final AIWorkspaceConfigurationValidator configurationValidator;
+    private final AIWorkspaceDomainService domainService;
     private final AIWorkspaceReadinessService readinessService;
     private final AIWorkspaceAssetCatalogService assetCatalogService;
     private final PlatformAuditService auditService;
@@ -57,7 +61,9 @@ public class AIWorkspaceInstallationService {
                                           PlatformCustomerAccessService customerAccessService,
                                           AIWorkspaceExperiencePackRegistry experiencePackRegistry,
                                           AIWorkspaceConnectionProfileRegistry connectionProfileRegistry,
+                                          AIWorkspaceAuthenticationProfileRegistry authenticationProfileRegistry,
                                           AIWorkspaceConfigurationValidator configurationValidator,
+                                          AIWorkspaceDomainService domainService,
                                           AIWorkspaceReadinessService readinessService,
                                           AIWorkspaceAssetCatalogService assetCatalogService,
                                           PlatformAuditService auditService,
@@ -68,7 +74,9 @@ public class AIWorkspaceInstallationService {
         this.customerAccessService = customerAccessService;
         this.experiencePackRegistry = experiencePackRegistry;
         this.connectionProfileRegistry = connectionProfileRegistry;
+        this.authenticationProfileRegistry = authenticationProfileRegistry;
         this.configurationValidator = configurationValidator;
+        this.domainService = domainService;
         this.readinessService = readinessService;
         this.assetCatalogService = assetCatalogService;
         this.auditService = auditService;
@@ -79,7 +87,8 @@ public class AIWorkspaceInstallationService {
     public AIWorkspaceCatalogSummary catalog() {
         var health = assetCatalogService.health();
         return new AIWorkspaceCatalogSummary(
-            health.ready(), health.status(), experiencePackRegistry.summaries(), connectionProfileRegistry.summaries());
+            health.ready(), health.status(), experiencePackRegistry.summaries(), connectionProfileRegistry.summaries(),
+            authenticationProfileRegistry.summaries());
     }
 
     @Transactional(readOnly = true)
@@ -103,7 +112,9 @@ public class AIWorkspaceInstallationService {
         ValidatedInput input = validateInput(
             request.displayName(), request.experiencePackCode(), request.experiencePackVersion(),
             request.connectionMode(), request.connectionProfileCode(), request.connectionProfileVersion(),
-            request.connectionConfiguration(), request.allowedOrigins(), request.configuration());
+            request.connectionConfiguration(), request.allowedOrigins(), request.configuration(),
+            request.deliveryMode(), request.appSlug(), request.customDomains(), request.interactionPolicy(),
+            request.authProfileCode(), request.authProfileVersion(), request.authConfiguration(), null);
         Instant now = Instant.now();
         AIWorkspaceInstallationEntity entity = new AIWorkspaceInstallationEntity();
         entity.setId("awi-" + UUID.randomUUID());
@@ -116,6 +127,7 @@ public class AIWorkspaceInstallationService {
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         repository.saveAndFlush(entity);
+        synchronizeDomains(entity, input);
         audit("AI_WORKSPACE_INSTALLATION_CREATED", entity, Map.of("consumerId", consumer.getConsumerId()));
         return summary(entity);
     }
@@ -137,12 +149,15 @@ public class AIWorkspaceInstallationService {
         ValidatedInput input = validateInput(
             request.displayName(), request.experiencePackCode(), request.experiencePackVersion(),
             request.connectionMode(), request.connectionProfileCode(), request.connectionProfileVersion(),
-            request.connectionConfiguration(), request.allowedOrigins(), request.configuration());
+            request.connectionConfiguration(), request.allowedOrigins(), request.configuration(),
+            request.deliveryMode(), request.appSlug(), request.customDomains(), request.interactionPolicy(),
+            request.authProfileCode(), request.authProfileVersion(), request.authConfiguration(), entity.getId());
         entity.setConsumerEntityId(consumer.getId());
         entity.setDisplayName(input.displayName());
         apply(entity, input);
         entity.setUpdatedAt(Instant.now());
         repository.saveAndFlush(entity);
+        synchronizeDomains(entity, input);
         audit("AI_WORKSPACE_INSTALLATION_UPDATED", entity, Map.of("consumerId", consumer.getConsumerId()));
         return summary(entity);
     }
@@ -200,12 +215,31 @@ public class AIWorkspaceInstallationService {
         return readinessService.evaluate(requireInstallation(customerId, installationId));
     }
 
+    @Transactional
+    public com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainSummary verifyDomain(
+        String customerId,
+        String installationId,
+        String hostname
+    ) {
+        requireCustomerAccess(customerId);
+        AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
+        var result = domainService.verify(entity.getId(), hostname);
+        audit("AI_WORKSPACE_DOMAIN_VERIFIED", entity, Map.of("hostname", result.hostname(), "status", result.status()));
+        return result;
+    }
+
     private void apply(AIWorkspaceInstallationEntity entity, ValidatedInput input) {
         entity.setExperiencePackCode(input.packCode());
         entity.setExperiencePackVersion(input.packVersion());
         entity.setConnectionMode(input.mode());
         entity.setConnectionProfileCode(input.profileCode());
         entity.setConnectionProfileVersion(input.profileVersion());
+        entity.setDeliveryMode(input.deliveryMode());
+        entity.setAppSlug(input.appSlug());
+        entity.setInteractionPolicy(input.interactionPolicy());
+        entity.setAuthProfileCode(input.authProfileCode());
+        entity.setAuthProfileVersion(input.authProfileVersion());
+        entity.setAuthConfigurationJson(writeJson(input.authConfiguration()));
         entity.setConnectionConfigurationJson(writeJson(input.connectionConfiguration()));
         entity.setAllowedOriginsJson(writeJson(input.origins()));
         entity.setConfigurationJson(writeJson(input.configuration()));
@@ -219,29 +253,102 @@ public class AIWorkspaceInstallationService {
                                          String profileVersion,
                                          JsonNode connectionConfiguration,
                                          List<String> allowedOrigins,
-                                         JsonNode configuration) {
+                                         JsonNode configuration,
+                                         String deliveryMode,
+                                         String appSlug,
+                                         List<String> customDomains,
+                                         String interactionPolicy,
+                                         String authProfileCode,
+                                         String authProfileVersion,
+                                         JsonNode authConfiguration,
+                                         String currentEntityId) {
         String normalizedName = required(displayName, "displayName", 255);
         String normalizedPackCode = required(packCode, "experiencePackCode", 96);
         String normalizedPackVersion = required(packVersion, "experiencePackVersion", 64);
         String normalizedProfileCode = required(profileCode, "connectionProfileCode", 96);
         String normalizedProfileVersion = required(profileVersion, "connectionProfileVersion", 64);
         AIWorkspaceConnectionMode mode;
+        AIWorkspaceDeliveryMode delivery;
+        AIWorkspaceInteractionPolicy policy;
         try {
             mode = AIWorkspaceConnectionMode.parse(connectionMode);
+            delivery = AIWorkspaceDeliveryMode.parse(deliveryMode);
+            policy = AIWorkspaceInteractionPolicy.parse(interactionPolicy);
         } catch (RuntimeException ex) {
-            throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace connection mode.");
+            throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace connection, delivery, or interaction mode.");
+        }
+        String normalizedSlug = delivery == AIWorkspaceDeliveryMode.STANDALONE
+            ? domainService.normalizeSlug(appSlug)
+            : null;
+        if (delivery == AIWorkspaceDeliveryMode.EMBEDDED && appSlug != null && !appSlug.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "appSlug is supported only for standalone delivery.");
+        }
+        if (normalizedSlug != null) {
+            repository.findByAppSlugIgnoreCase(normalizedSlug).ifPresent(existing -> {
+                if (!existing.getId().equals(currentEntityId)) {
+                    throw new ResponseStatusException(CONFLICT, "AI app slug is already reserved.");
+                }
+            });
+        }
+        if (policy == AIWorkspaceInteractionPolicy.LOGIN_REQUIRED
+            && mode != AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED) {
+            throw new ResponseStatusException(BAD_REQUEST, "LOGIN_REQUIRED uses the authenticated runtime connection mode.");
+        }
+        if (policy == AIWorkspaceInteractionPolicy.PUBLIC_WITH_PROTECTED_CAPABILITIES
+            && mode != AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS) {
+            throw new ResponseStatusException(BAD_REQUEST, "Mixed public/protected interaction uses the anonymous runtime connection mode with an authenticated broker.");
         }
         ObjectNode safeConnection = connectionConfiguration == null || connectionConfiguration.isNull()
             ? objectMapper.createObjectNode()
             : requireObject(connectionConfiguration, "connectionConfiguration");
         ObjectNode safeConfiguration = requireObject(configuration, "configuration");
-        List<String> origins = configurationValidator.normalizeOrigins(allowedOrigins);
+        List<String> domainNames = delivery == AIWorkspaceDeliveryMode.STANDALONE
+            ? normalizeCustomDomains(customDomains)
+            : List.of();
+        List<String> requestedOrigins = delivery == AIWorkspaceDeliveryMode.STANDALONE
+            ? new java.util.ArrayList<>()
+            : allowedOrigins == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(allowedOrigins);
+        if (delivery == AIWorkspaceDeliveryMode.STANDALONE) {
+            requestedOrigins.add("https://" + normalizedSlug + "." + domainServiceBaseDomain());
+            domainNames.forEach(hostname -> requestedOrigins.add("https://" + hostname));
+        }
+        List<String> origins = configurationValidator.normalizeOrigins(requestedOrigins);
         experiencePackRegistry.validateConfiguration(normalizedPackCode, normalizedPackVersion, safeConfiguration);
         configurationValidator.validatePublicConfiguration(safeConnection);
         connectionProfileRegistry.resolve(
             normalizedProfileCode, normalizedProfileVersion, mode, safeConnection);
+        String normalizedAuthProfileCode = authProfileCode == null || authProfileCode.isBlank()
+            ? AIWorkspaceAuthenticationProfileRegistry.NONE
+            : required(authProfileCode, "authProfileCode", 96);
+        String normalizedAuthProfileVersion = authProfileVersion == null || authProfileVersion.isBlank()
+            ? AIWorkspaceAuthenticationProfileRegistry.VERSION
+            : required(authProfileVersion, "authProfileVersion", 64);
+        ObjectNode safeAuthConfiguration = authConfiguration == null || authConfiguration.isNull()
+            ? objectMapper.createObjectNode()
+            : requireObject(authConfiguration, "authConfiguration");
+        authenticationProfileRegistry.resolve(
+            normalizedAuthProfileCode, normalizedAuthProfileVersion, policy, safeAuthConfiguration);
         return new ValidatedInput(normalizedName, normalizedPackCode, normalizedPackVersion, mode,
-            normalizedProfileCode, normalizedProfileVersion, safeConnection, origins, safeConfiguration);
+            normalizedProfileCode, normalizedProfileVersion, safeConnection, origins, safeConfiguration,
+            delivery, normalizedSlug, domainNames, policy, normalizedAuthProfileCode,
+            normalizedAuthProfileVersion, safeAuthConfiguration);
+    }
+
+    private void synchronizeDomains(AIWorkspaceInstallationEntity entity, ValidatedInput input) {
+        List<String> origins = domainService.synchronize(
+            entity, input.deliveryMode(), input.appSlug(), input.customDomains(), input.origins());
+        entity.setAllowedOriginsJson(writeJson(origins));
+        repository.saveAndFlush(entity);
+    }
+
+    private List<String> normalizeCustomDomains(List<String> customDomains) {
+        if (customDomains == null) return List.of();
+        return customDomains.stream().filter(value -> value != null && !value.isBlank())
+            .map(domainService::normalizeHostname).distinct().toList();
+    }
+
+    private String domainServiceBaseDomain() {
+        return domainService.defaultBaseDomain();
     }
 
     private PlatformConsumerEntity requireConsumer(String customerId, String consumerId) {
@@ -276,7 +383,12 @@ public class AIWorkspaceInstallationService {
             entity.getExperiencePackCode(), entity.getExperiencePackVersion(), entity.getConnectionMode().manifestValue(),
             entity.getConnectionProfileCode(), entity.getConnectionProfileVersion(),
             readJson(entity.getConnectionConfigurationJson()), readOrigins(entity.getAllowedOriginsJson()),
-            readJson(entity.getConfigurationJson()), readiness.deploymentId(), readiness.releaseId(),
+            readJson(entity.getConfigurationJson()),
+            (entity.getDeliveryMode() == null ? AIWorkspaceDeliveryMode.EMBEDDED : entity.getDeliveryMode()).manifestValue(), entity.getAppSlug(),
+            domainService.appUrl(entity),
+            (entity.getInteractionPolicy() == null ? AIWorkspaceInteractionPolicy.PUBLIC : entity.getInteractionPolicy()).manifestValue(), entity.getAuthProfileCode(),
+            entity.getAuthProfileVersion(), readJson(entity.getAuthConfigurationJson()), domainService.summaries(entity.getId()),
+            readiness.deploymentId(), readiness.releaseId(),
             readiness.assignmentRevision(), readiness.ready(), readiness.checks(), entity.getRowVersion(),
             entity.getCreatedAt(), entity.getUpdatedAt(), entity.getActivatedAt(), entity.getDisabledAt()
         );
@@ -344,7 +456,14 @@ public class AIWorkspaceInstallationService {
         String profileVersion,
         JsonNode connectionConfiguration,
         List<String> origins,
-        JsonNode configuration
+        JsonNode configuration,
+        AIWorkspaceDeliveryMode deliveryMode,
+        String appSlug,
+        List<String> customDomains,
+        AIWorkspaceInteractionPolicy interactionPolicy,
+        String authProfileCode,
+        String authProfileVersion,
+        JsonNode authConfiguration
     ) {
     }
 }

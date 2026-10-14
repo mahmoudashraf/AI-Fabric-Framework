@@ -99,6 +99,8 @@ platform:
     manifest-cache-ttl: ${PLATFORM_AI_WORKSPACE_MANIFEST_CACHE_TTL:60s}
     authenticated-broker-url: ${PLATFORM_AI_WORKSPACE_AUTHENTICATED_BROKER_URL:}
     shopify-bridge-base-url: ${PLATFORM_AI_WORKSPACE_SHOPIFY_BRIDGE_BASE_URL:https://shopify-bridge.loomai.pro}
+    standalone-base-domain: ${PLATFORM_AI_WORKSPACE_STANDALONE_BASE_DOMAIN:apps.loomai.pro}
+    standalone-shell-base-url: ${PLATFORM_AI_WORKSPACE_STANDALONE_SHELL_BASE_URL:}
   core-services:
     enabled: ${PLATFORM_CORE_SERVICES_ENABLED:true}
     target-profile-id: ${PLATFORM_CORE_SERVICES_TARGET_PROFILE_ID:dtp-coolify-production}

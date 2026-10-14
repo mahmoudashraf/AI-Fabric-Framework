@@ -15,6 +15,8 @@ public class AIWorkspaceExperiencePackRegistry {
 
     public static final String DEALERSHIP_CODE = "dealership";
     public static final String DEALERSHIP_VERSION = "1.1.0";
+    public static final String GENERIC_CODE = "generic-workspace";
+    public static final String GENERIC_VERSION = "1.0.0";
 
     private final AIWorkspaceAssetCatalogService assets;
     private final AIWorkspaceConfigurationValidator validator;
@@ -26,7 +28,8 @@ public class AIWorkspaceExperiencePackRegistry {
     }
 
     public ExperiencePack resolve(String code, String version) {
-        if (!DEALERSHIP_CODE.equals(code) || !DEALERSHIP_VERSION.equals(version)) {
+        ExperiencePackDefinition definition = definition(code, version);
+        if (definition == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace experience pack.");
         }
         AIWorkspaceAssetDescriptor asset = null;
@@ -38,8 +41,8 @@ public class AIWorkspaceExperiencePackRegistry {
         return new ExperiencePack(
             code,
             version,
-            "Dealership experience",
-            "loomai-dealership-experience-config-v1",
+            definition.name(),
+            definition.configurationSchemaVersion(),
             true,
             asset
         );
@@ -47,23 +50,41 @@ public class AIWorkspaceExperiencePackRegistry {
 
     public void validateConfiguration(String code, String version, JsonNode configuration) {
         resolve(code, version);
-        validator.validateDealershipConfiguration(configuration);
+        if (DEALERSHIP_CODE.equals(code)) validator.validateDealershipConfiguration(configuration);
+        else if (GENERIC_CODE.equals(code)) validator.validateGenericConfiguration(configuration);
+        else throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace experience pack.");
     }
 
     public List<AIWorkspaceCatalogSummary.ExperiencePackSummary> summaries() {
+        return List.of(
+            summary(GENERIC_CODE, GENERIC_VERSION),
+            summary(DEALERSHIP_CODE, DEALERSHIP_VERSION)
+        );
+    }
+
+    private AIWorkspaceCatalogSummary.ExperiencePackSummary summary(String code, String version) {
+        ExperiencePackDefinition definition = definition(code, version);
         boolean enabled;
         try {
-            enabled = resolve(DEALERSHIP_CODE, DEALERSHIP_VERSION).asset() != null;
+            enabled = resolve(code, version).asset() != null;
         } catch (RuntimeException ex) {
             enabled = false;
         }
-        return List.of(new AIWorkspaceCatalogSummary.ExperiencePackSummary(
-            DEALERSHIP_CODE,
-            DEALERSHIP_VERSION,
-            "Dealership experience",
-            "loomai-dealership-experience-config-v1",
-            enabled
-        ));
+        return new AIWorkspaceCatalogSummary.ExperiencePackSummary(
+            code, version, definition.name(), definition.configurationSchemaVersion(), enabled);
+    }
+
+    private ExperiencePackDefinition definition(String code, String version) {
+        if (DEALERSHIP_CODE.equals(code) && DEALERSHIP_VERSION.equals(version)) {
+            return new ExperiencePackDefinition("Dealership experience", "loomai-dealership-experience-config-v1");
+        }
+        if (GENERIC_CODE.equals(code) && GENERIC_VERSION.equals(version)) {
+            return new ExperiencePackDefinition("Generic knowledge and service experience", "loomai-generic-workspace-config-v1");
+        }
+        return null;
+    }
+
+    private record ExperiencePackDefinition(String name, String configurationSchemaVersion) {
     }
 
     public record ExperiencePack(

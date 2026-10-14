@@ -1,0 +1,25 @@
+{
+  "name": "@loom-ai-labs/standalone-ai-workspace",
+  "version": "1.0.0",
+  "description": "Shared standalone delivery shell for LoomAI Engage AI Workspace installations",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 4175",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node --test tests/*.smoke.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.2",
+    "playwright": "^1.58.2",
+    "typescript": "5.8.3",
+    "vite": "6.4.3"
+  },
+  "private": true,
+  "license": "UNLICENSED"
+}

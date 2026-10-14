@@ -93,6 +93,42 @@ public class AIWorkspaceConfigurationValidator {
         validateTheme(configuration.path("theme"));
     }
 
+    public void validateGenericConfiguration(JsonNode configuration) {
+        validatePublicConfiguration(configuration);
+        if (configuration == null || !configuration.isObject()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Generic experience configuration must be an object.");
+        }
+        rejectUnknown(configuration, Set.of(
+            "app", "page", "capabilities", "copy", "toolGroups", "toolRail", "requestContext", "theme"),
+            "configuration");
+
+        JsonNode app = requireObject(configuration, "app", "app");
+        rejectUnknown(app, Set.of("assistantLabel"), "app");
+        requireText(app, "assistantLabel", "app.assistantLabel", 128);
+
+        JsonNode page = configuration.path("page");
+        if (!page.isMissingNode() && !page.isNull()) {
+            requireObjectNode(page, "page");
+            rejectUnknown(page, Set.of("rootSelector", "contextLabel", "maxChars", "maxPages", "maxTotalChars"), "page");
+            optionalText(page, "rootSelector", "page.rootSelector", 256);
+            optionalText(page, "contextLabel", "page.contextLabel", 160);
+            validatePageLimits(page);
+        }
+
+        JsonNode capabilities = configuration.path("capabilities");
+        if (!capabilities.isMissingNode() && !capabilities.isNull()) {
+            requireObjectNode(capabilities, "capabilities");
+            rejectUnknown(capabilities, Set.of("currentPage", "handover"), "capabilities");
+            optionalBoolean(capabilities, "currentPage", "capabilities.currentPage");
+            optionalBoolean(capabilities, "handover", "capabilities.handover");
+        }
+        validateCopy(configuration.path("copy"));
+        validateToolGroups(configuration.path("toolGroups"));
+        validateToolRail(configuration.path("toolRail"));
+        validateRequestContext(configuration.path("requestContext"));
+        validateTheme(configuration.path("theme"));
+    }
+
     public void validatePublicConfiguration(JsonNode configuration) {
         if (configuration == null || !configuration.isObject()) {
             throw new ResponseStatusException(BAD_REQUEST, "AI Workspace configuration must be an object.");
@@ -153,6 +189,19 @@ public class AIWorkspaceConfigurationValidator {
         requireObjectNode(knowledge, "knowledge");
         rejectUnknown(knowledge, Set.of("inventoryVectorSpace"), "knowledge");
         optionalIdentifier(knowledge, "inventoryVectorSpace", "knowledge.inventoryVectorSpace");
+    }
+
+    private void validatePageLimits(JsonNode page) {
+        int maxChars = page.path("maxChars").asInt(1800);
+        int maxPages = page.path("maxPages").asInt(3);
+        int maxTotalChars = page.path("maxTotalChars").asInt(10000);
+        if ((page.has("maxChars") && !page.path("maxChars").isIntegralNumber())
+            || (page.has("maxPages") && !page.path("maxPages").isIntegralNumber())
+            || (page.has("maxTotalChars") && !page.path("maxTotalChars").isIntegralNumber())
+            || maxChars < 500 || maxChars > 10_000 || maxPages < 1 || maxPages > 10
+            || maxTotalChars < maxChars || maxTotalChars > 50_000) {
+            throw new ResponseStatusException(BAD_REQUEST, "Page attachment limits are outside the supported range.");
+        }
     }
 
     private void validateCapabilities(JsonNode capabilities, String label) {

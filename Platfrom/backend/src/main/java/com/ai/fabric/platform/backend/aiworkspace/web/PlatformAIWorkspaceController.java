@@ -83,4 +83,13 @@ public class PlatformAIWorkspaceController {
                                                  @PathVariable String installationId) {
         return service.readiness(customerId, installationId);
     }
+
+    @PostMapping("/customers/{customerId}/ai-workspace-installations/{installationId}/domains/{hostname}/verify")
+    public com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainSummary verifyDomain(
+        @PathVariable String customerId,
+        @PathVariable String installationId,
+        @PathVariable String hostname
+    ) {
+        return service.verifyDomain(customerId, installationId, hostname);
+    }
 }

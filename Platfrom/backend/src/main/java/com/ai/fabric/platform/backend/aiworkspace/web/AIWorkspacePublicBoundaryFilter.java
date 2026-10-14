@@ -26,6 +26,7 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
 
     private static final Pattern MANIFEST = Pattern.compile(
         "^/api/public/ai-workspace/installations/(awi_pub_[a-f0-9]{32})/manifest$");
+    private static final String APP_BOOTSTRAP = "/api/public/ai-workspace/apps/bootstrap";
 
     private final PublicAIWorkspaceManifestService manifestService;
     private final AIWorkspaceManifestRateLimiter rateLimiter;
@@ -51,7 +52,8 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
         }
         long startedAt = System.nanoTime();
         Matcher matcher = MANIFEST.matcher(requestUri);
-        if (!matcher.matches()) {
+        boolean appBootstrap = APP_BOOTSTRAP.equals(requestUri);
+        if (!matcher.matches() && !appBootstrap) {
             projectPublicAssetCors(response);
             if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
                 response.setStatus(HttpServletResponse.SC_NO_CONTENT);
@@ -61,7 +63,7 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
             observeChain(request, response, filterChain, surface, startedAt, null);
             return;
         }
-        String installationId = matcher.group(1);
+        String installationId = matcher.matches() ? matcher.group(1) : "host-bootstrap";
         String origin = request.getHeader(HttpHeaders.ORIGIN);
         String remote = clientAddress(request);
         if (!rateLimiter.allow("manifest-client|" + fingerprint(remote))) {
@@ -77,7 +79,9 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
             observability.recordPublicRequest(surface, "rate_limited", startedAt);
             return;
         }
-        boolean originAllowed = manifestService.isOriginAllowed(installationId, origin);
+        boolean originAllowed = appBootstrap
+            ? manifestService.isAppOriginAllowed(origin)
+            : manifestService.isOriginAllowed(installationId, origin);
         if (originAllowed) {
             response.setHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
             response.setHeader(HttpHeaders.VARY, HttpHeaders.ORIGIN);
@@ -116,6 +120,7 @@ public class AIWorkspacePublicBoundaryFilter extends OncePerRequestFilter {
 
     private String surface(String requestUri) {
         if ("/api/public/ai-workspace/install.js".equals(requestUri)) return "installer";
+        if (APP_BOOTSTRAP.equals(requestUri)) return "app-bootstrap";
         if (MANIFEST.matcher(requestUri).matches()) return "manifest";
         if (requestUri.startsWith("/api/public/ai-workspace/assets/")) return "asset";
         return null;

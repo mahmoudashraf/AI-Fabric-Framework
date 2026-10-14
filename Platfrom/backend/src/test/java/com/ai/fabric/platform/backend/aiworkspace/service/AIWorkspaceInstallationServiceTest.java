@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,9 +40,13 @@ class AIWorkspaceInstallationServiceTest {
     private final PlatformCustomerAccessService access = mock(PlatformCustomerAccessService.class);
     private final AIWorkspaceExperiencePackRegistry packs = mock(AIWorkspaceExperiencePackRegistry.class);
     private final AIWorkspaceConnectionProfileRegistry profiles = mock(AIWorkspaceConnectionProfileRegistry.class);
+    private final AIWorkspaceAuthenticationProfileRegistry authenticationProfiles =
+        new AIWorkspaceAuthenticationProfileRegistry(new ObjectMapper());
     private final AIWorkspaceConfigurationValidator validator = new AIWorkspaceConfigurationValidator(
         new com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties(
-            Path.of("."), false, 120, Duration.ofSeconds(60), null, null));
+            Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
+            "apps.loomai.test", "https://workspace.loomai.test"));
+    private final AIWorkspaceDomainService domains = mock(AIWorkspaceDomainService.class);
     private final AIWorkspaceReadinessService readiness = mock(AIWorkspaceReadinessService.class);
     private final AIWorkspaceAssetCatalogService assets = mock(AIWorkspaceAssetCatalogService.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
@@ -57,12 +62,16 @@ class AIWorkspaceInstallationServiceTest {
         when(repository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
         when(readiness.evaluate(any())).thenAnswer(call -> notReady(call.getArgument(0)));
         when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
+        when(domains.synchronize(any(), any(), any(), any(), any()))
+            .thenAnswer(call -> call.getArgument(4));
+        when(domains.summaries(any())).thenReturn(List.of());
 
         var created = service().create("customer-1", new CreateAIWorkspaceInstallationRequest(
             "northfield-web", " Northfield website ", "dealership", "1.1.0",
             "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
             objectMapper.createObjectNode(), List.of("https://Dealer.Example", "https://dealer.example"),
-            dealershipConfiguration()
+            dealershipConfiguration(), "embedded", null, List.of(), "public", "none", "1.0.0",
+            objectMapper.createObjectNode()
         ));
 
         assertThat(created.status()).isEqualTo("DRAFT");
@@ -70,7 +79,7 @@ class AIWorkspaceInstallationServiceTest {
         assertThat(created.installationId()).matches("awi_pub_[a-f0-9]{32}");
         assertThat(created.allowedOrigins()).containsExactly("https://dealer.example");
         ArgumentCaptor<AIWorkspaceInstallationEntity> saved = ArgumentCaptor.forClass(AIWorkspaceInstallationEntity.class);
-        verify(repository).saveAndFlush(saved.capture());
+        verify(repository, times(2)).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getCustomerId()).isEqualTo("customer-1");
         assertThat(saved.getValue().getConnectionConfigurationJson()).isEqualTo("{}");
         verify(access).requireCustomerManagementAccess("customer-1");
@@ -86,7 +95,8 @@ class AIWorkspaceInstallationServiceTest {
         assertThatThrownBy(() -> service().create("customer-1", new CreateAIWorkspaceInstallationRequest(
             "other-consumer", "Workspace", "dealership", "1.1.0",
             "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
-            objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration()
+            objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration(),
+            "embedded", null, List.of(), "public", "none", "1.0.0", objectMapper.createObjectNode()
         ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("Consumer not found");
         verify(repository, never()).saveAndFlush(any());
 
@@ -98,14 +108,16 @@ class AIWorkspaceInstallationServiceTest {
             new UpdateAIWorkspaceInstallationRequest(
                 "northfield-web", "Changed", "dealership", "1.1.0",
                 "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
-                objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration(), 0L
+                objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration(),
+                "embedded", null, List.of(), "public", "none", "1.0.0",
+                objectMapper.createObjectNode(), 0L
             ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("Disable");
     }
 
     private AIWorkspaceInstallationService service() {
         return new AIWorkspaceInstallationService(
-            repository, customers, consumers, access, packs, profiles, validator,
-            readiness, assets, audit, objectMapper
+            repository, customers, consumers, access, packs, profiles, authenticationProfiles, validator,
+            domains, readiness, assets, audit, objectMapper
         );
     }
 

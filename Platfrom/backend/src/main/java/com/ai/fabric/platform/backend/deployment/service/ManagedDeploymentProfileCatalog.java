@@ -324,6 +324,7 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean publicRuntimeRequested(JsonNode securityConfig) {
         return publicRuntimeBootstrapEnabled(securityConfig)
+            || externalIdentityBrokerEnabled(securityConfig)
             || !publicRuntimeTokenIssuer(securityConfig).isBlank()
             || !publicRuntimeAcceptedIssuers(securityConfig).isBlank()
             || !publicRuntimeAcceptedAudiences(securityConfig).isBlank()
@@ -344,6 +345,37 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String publicRuntimeDefaultAudience(JsonNode securityConfig) {
         return trimmedText(securityConfig, "publicRuntimeDefaultAudience");
+    }
+
+    public static boolean externalIdentityBrokerEnabled(JsonNode securityConfig) {
+        return securityConfig != null && securityConfig.path("externalIdentityBrokerEnabled").asBoolean(false);
+    }
+
+    public static String externalIdentityProvider(JsonNode securityConfig) {
+        String value = trimmedText(securityConfig, "externalIdentityProvider");
+        return value.isBlank() ? "SUPABASE" : value.toUpperCase(Locale.ROOT);
+    }
+
+    public static String externalIdentityIssuer(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "externalIdentityIssuer");
+    }
+
+    public static String externalIdentityJwkSetUri(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "externalIdentityJwkSetUri");
+    }
+
+    public static String externalIdentityAudience(JsonNode securityConfig) {
+        String value = trimmedText(securityConfig, "externalIdentityAudience");
+        return value.isBlank() ? "authenticated" : value;
+    }
+
+    public static boolean externalIdentityRequireVerifiedEmail(JsonNode securityConfig) {
+        return securityConfig != null && securityConfig.path("externalIdentityRequireVerifiedEmail").asBoolean(false);
+    }
+
+    public static String externalIdentityGrantedScopes(JsonNode securityConfig) {
+        String value = trimmedText(securityConfig, "externalIdentityGrantedScopes");
+        return value.isBlank() ? "chat:query,chat:suggestions,chat:conversations" : value;
     }
 
     public static String privateRuntimeAcceptedIssuers(JsonNode securityConfig) {

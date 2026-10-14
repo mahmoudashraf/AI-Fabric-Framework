@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.aiworkspace.web;
 
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceAssetDescriptor;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceAppBootstrap;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationManifest;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceAssetCatalogService;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceManifestRateLimiter;
@@ -93,6 +94,50 @@ class PublicAIWorkspaceControllerTest {
     }
 
     @Test
+    void resolvesStandaloneAppByExactOriginWithNoCacheBootstrap() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var bootstrap = new AIWorkspaceAppBootstrap(
+            "loomai-ai-workspace-app-bootstrap-v1",
+            INSTALLATION_ID,
+            "Dealer Workspace",
+            "public-with-protected-capabilities",
+            mapper.createObjectNode().put("mode", "standalone").put("appUrl", ORIGIN),
+            mapper.createObjectNode().put("profileCode", "supabase"),
+            mapper.createObjectNode().put("url", "https://api.loomai.pro/api/public/ai-workspace/install.js")
+        );
+        var result = new PublicAIWorkspaceManifestService.AppBootstrapResult(
+            bootstrap, ORIGIN, "\"sha256:" + "c".repeat(64) + "\"");
+        when(manifests.isAppOriginAllowed(ORIGIN)).thenReturn(true);
+        when(manifests.resolveApp(ORIGIN)).thenReturn(result);
+
+        mvc.perform(get("/api/public/ai-workspace/apps/bootstrap").header(HttpHeaders.ORIGIN, ORIGIN))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN))
+            .andExpect(header().string(HttpHeaders.VARY, HttpHeaders.ORIGIN))
+            .andExpect(header().string(HttpHeaders.ETAG, result.etag()))
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-cache, must-revalidate"))
+            .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+
+        mvc.perform(get("/api/public/ai-workspace/apps/bootstrap")
+                .header(HttpHeaders.ORIGIN, ORIGIN)
+                .header(HttpHeaders.IF_NONE_MATCH, result.etag()))
+            .andExpect(status().isNotModified())
+            .andExpect(header().string(HttpHeaders.ETAG, result.etag()));
+    }
+
+    @Test
+    void unknownStandaloneAppOriginFailsWithoutCorsProjection() throws Exception {
+        String unknown = "https://unknown.example";
+        when(manifests.isAppOriginAllowed(unknown)).thenReturn(false);
+        when(manifests.resolveApp(unknown))
+            .thenThrow(new ResponseStatusException(NOT_FOUND, "AI Workspace app is unavailable."));
+
+        mvc.perform(get("/api/public/ai-workspace/apps/bootstrap").header(HttpHeaders.ORIGIN, unknown))
+            .andExpect(status().isNotFound())
+            .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    @Test
     void rateLimitStopsManifestResolutionBeforeInstallationLookup() throws Exception {
         reset(rateLimiter);
         when(rateLimiter.allow(anyString())).thenReturn(false);
@@ -150,8 +195,10 @@ class PublicAIWorkspaceControllerTest {
         ObjectMapper mapper = new ObjectMapper();
         String revision = "sha256:" + "a".repeat(64);
         var manifest = new AIWorkspaceInstallationManifest(
-            "loomai-ai-workspace-installation-v1", INSTALLATION_ID, revision,
+            "loomai-ai-workspace-installation-v2", INSTALLATION_ID, revision,
             "sha256:" + "b".repeat(64), Instant.parse("2026-10-09T00:00:00Z"), 60,
+            mapper.createObjectNode().put("mode", "embedded"),
+            mapper.createObjectNode().put("interactionPolicy", "public"),
             mapper.createObjectNode().put("mode", "public-runtime-anonymous"), mapper.createObjectNode());
         return new PublicAIWorkspaceManifestService.ManifestResult(manifest, ORIGIN, '"' + revision + '"');
     }

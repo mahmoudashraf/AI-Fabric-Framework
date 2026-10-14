@@ -1,0 +1,30 @@
+{
+  "name": "@loom-ai-labs/generic-workspace-experience-pack",
+  "version": "1.0.0",
+  "description": "Domain-neutral knowledge and service experience pack for LoomAI Engage",
+  "type": "module",
+  "main": "./dist/generic-workspace-experience.esm.js",
+  "module": "./dist/generic-workspace-experience.esm.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/generic-workspace-experience.esm.js"
+    },
+    "./embed": "./dist/generic-workspace-experience.iife.js"
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build && vite build --config vite.config.iife.ts && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.2",
+    "typescript": "5.8.3",
+    "vite": "6.4.3"
+  },
+  "keywords": ["loomai", "ai-workspace", "knowledge", "customer-experience"],
+  "license": "UNLICENSED",
+  "private": true
+}

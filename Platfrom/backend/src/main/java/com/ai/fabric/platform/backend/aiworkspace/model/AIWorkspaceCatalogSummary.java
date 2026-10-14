@@ -6,7 +6,8 @@ public record AIWorkspaceCatalogSummary(
     boolean assetsReady,
     String assetStatus,
     List<ExperiencePackSummary> experiencePacks,
-    List<ConnectionProfileSummary> connectionProfiles
+    List<ConnectionProfileSummary> connectionProfiles,
+    List<AuthenticationProfileSummary> authenticationProfiles
 ) {
     public record ExperiencePackSummary(
         String code,
@@ -26,6 +27,15 @@ public record AIWorkspaceCatalogSummary(
         String configurationSchemaVersion,
         boolean enabled,
         String availabilityMessage
+    ) {
+    }
+
+    public record AuthenticationProfileSummary(
+        String code,
+        String version,
+        String name,
+        String configurationSchemaVersion,
+        boolean enabled
     ) {
     }
 }

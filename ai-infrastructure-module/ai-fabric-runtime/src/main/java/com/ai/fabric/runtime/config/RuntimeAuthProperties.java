@@ -13,6 +13,7 @@ public class RuntimeAuthProperties {
 
     private Ingress ingress = new Ingress();
     private PublicTokens publicTokens = new PublicTokens();
+    private ExternalIdentityBroker externalIdentityBroker = new ExternalIdentityBroker();
 
     @Data
     public static class Ingress {
@@ -92,5 +93,19 @@ public class RuntimeAuthProperties {
         private String deploymentId;
         private String customerId;
         private String tenantId;
+    }
+
+    @Data
+    public static class ExternalIdentityBroker {
+        private boolean enabled = false;
+        private String provider = "SUPABASE";
+        private String issuer;
+        private String jwkSetUri;
+        private String audience = "authenticated";
+        private boolean requireVerifiedEmail = false;
+        private List<String> allowedOrigins = new ArrayList<>();
+        private List<String> grantedScopes = new ArrayList<>(List.of("chat:query", "chat:suggestions", "chat:conversations"));
+        private int maxRequestsPerWindow = 30;
+        private int rateLimitWindowSeconds = 60;
     }
 }
