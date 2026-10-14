@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-14T10:34:45.993Z",
+  "checks": {
+    "disabledAndUnknownHostsFailClosedWithoutBlockingOtherApp": true,
+    "frontendOutageBlocksDeliveryButDoesNotRevokeAssignmentOrRuntime": true,
+    "sameImmutableFrontendRecovered": true
+  },
+  "errors": [],
+  "disabledStatus": 403,
+  "otherAppStatus": 200,
+  "unknownStatus": 401,
+  "imageTag": "f305938c2f44592937b964897f722c94500120f8",
+  "imageDigest": "sha256:76f00f8781e5c8c0d66ac0fa9f461368996dbef304a9d3a20410aae457124209"
+}

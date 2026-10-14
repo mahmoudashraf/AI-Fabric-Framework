@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-14T10:37:34.955Z",
+  "origin": "https://northfield-auth.apps.46.224.145.148.sslip.io",
+  "checks": {
+    "failedLoginPreservedAnonymousConversation": true,
+    "realEs256ProviderTokenAccepted": true,
+    "loginClearedAnonymousAttachments": true,
+    "loginDidNotReplayRequest": true,
+    "anonymousConversationNotTransferred": true,
+    "activeAnonymousHandoverOwnershipNotTransferred": true,
+    "tamperedProviderSignatureRejected": true,
+    "unregisteredOriginRejected": true,
+    "signedInOwnerCannotUseOperatorApi": true,
+    "authenticatedQueryUsedDirectRuntime": true,
+    "authenticatedConversationDidNotInheritAnonymousHandover": true,
+    "realProviderRefreshPreservedConversation": true,
+    "logoutClearedPrivateBrowserState": true,
+    "runtimeOrigin": "https://dep-f023c863.46.224.145.148.sslip.io"
+  },
+  "errors": [],
+  "stage": "completed"
+}

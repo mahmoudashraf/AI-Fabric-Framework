@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-14T10:38:15.543Z",
+  "requestCount": 40,
+  "concurrency": 4,
+  "requestKind": "Shared static shell runtime configuration; no chat, writes, provider calls, or private responses",
+  "elapsedMs": 648,
+  "p50Ms": 37,
+  "p95Ms": 169,
+  "maxMs": 230,
+  "errors": [],
+  "capacityClaim": "This is a bounded HTTP sample, not a maximum business/app/user capacity or container-memory measurement."
+}

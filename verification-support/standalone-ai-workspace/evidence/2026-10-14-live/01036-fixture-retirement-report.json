@@ -1,0 +1,91 @@
+{
+  "checkedAt": "2026-10-14T10:15:37.158Z",
+  "deployments": [
+    {
+      "environment": "staging",
+      "deploymentId": "dep-c5b5fe23",
+      "name": "Ecommerce Verification",
+      "status": "ARCHIVED"
+    },
+    {
+      "environment": "staging",
+      "deploymentId": "dep-d99b3252",
+      "name": "Marketplace Runtime Verification",
+      "status": "ARCHIVED"
+    },
+    {
+      "environment": "production",
+      "deploymentId": "dep-f772d1a4",
+      "name": "Marketplace Runtime Verification",
+      "status": "ARCHIVED"
+    },
+    {
+      "environment": "production",
+      "deploymentId": "dep-f8492dcc",
+      "name": "Ecommerce Verification",
+      "status": "ARCHIVED"
+    }
+  ],
+  "applications": [
+    {
+      "uuid": "fyl7wpz8e82fdmrqe3ogu9f4",
+      "name": "rest-connector-dep-c5b5fe23",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "rfesqvfv819eq9fdc6zile13",
+      "name": "runtime-dep-c5b5fe23",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "sjl133hpycqxxgfhsn7wq498",
+      "name": "vectorization-runner-dep-c5b5fe23",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "g1451jwkq2q9e1kfvaeanrar",
+      "name": "rest-connector-dep-d99b3252",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "y2y8fav1ka3xdc1knxb17mo9",
+      "name": "runtime-dep-d99b3252",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "f62q2kh70jwuek4s9iau4829",
+      "name": "vectorization-runner-dep-d99b3252",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "rmf5azg75s1zlpjg7zdfdpzo",
+      "name": "rest-connector-dep-f772d1a4",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "f10vk0gdj759nj3gjyeih6e3",
+      "name": "runtime-dep-f772d1a4",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "sbik3c302l5hg9nqr3d36z3q",
+      "name": "vectorization-runner-dep-f772d1a4",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "u6ks9tavt1axz69ac2l565j3",
+      "name": "rest-connector-dep-f8492dcc",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "x69bardbizfovty73jjos541",
+      "name": "runtime-dep-f8492dcc",
+      "volumesDeleted": false
+    },
+    {
+      "uuid": "bpidz1373g07g6ys060cxoy3",
+      "name": "vectorization-runner-dep-f8492dcc",
+      "volumesDeleted": false
+    }
+  ]
+}

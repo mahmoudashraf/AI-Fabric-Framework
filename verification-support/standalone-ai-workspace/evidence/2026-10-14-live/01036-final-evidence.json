@@ -1,0 +1,235 @@
+{
+  "checkedAt": "2026-10-14T10:43:25.590Z",
+  "staging": {
+    "applications": 33,
+    "databases": 5,
+    "duplicateNames": [],
+    "apps": [
+      {
+        "name": "ai-fabric-account-resolver",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-agentic-action-resolver",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-chat-capabilities-demo",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-connector-dep-f023c863",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-conversation-handover-demo",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-deployment-knowledge-guard",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-document-knowledge-operations",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-incident-investigation",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-live-data-sync",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-mcp-operations",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-mcp-reference-server",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-privacy-shield",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-runtime-dep-f023c863",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-tenant-guard",
+        "status": "running:healthy"
+      },
+      {
+        "name": "behavior-churn-signals",
+        "status": "running:healthy"
+      },
+      {
+        "name": "external-vehicle-provider-simulator",
+        "status": "running:healthy"
+      },
+      {
+        "name": "loomai-dealership-demo-api",
+        "status": "running:healthy"
+      },
+      {
+        "name": "loomai-engage-loomai-engage-web",
+        "status": "running:healthy"
+      },
+      {
+        "name": "loomai-partner-ui",
+        "status": "running:unknown"
+      },
+      {
+        "name": "loomai-platform-backend",
+        "status": "running:healthy"
+      },
+      {
+        "name": "loomai-platform-ui",
+        "status": "running:healthy"
+      },
+      {
+        "name": "mcp-gateway-mcp-execution-gatewa",
+        "status": "running:healthy"
+      },
+      {
+        "name": "northfield-dealership-basic-inbox",
+        "status": "running:healthy"
+      },
+      {
+        "name": "produs-backend-staging",
+        "status": "running:healthy"
+      },
+      {
+        "name": "produs-frontend-staging",
+        "status": "running:unknown"
+      },
+      {
+        "name": "produs-scanner-worker-staging",
+        "status": "running:healthy"
+      },
+      {
+        "name": "rest-connector-dep-7706fafb",
+        "status": "running:healthy"
+      },
+      {
+        "name": "rest-connector-dep-8c3e7259",
+        "status": "running:healthy"
+      },
+      {
+        "name": "runtime-dep-7706fafb",
+        "status": "running:healthy"
+      },
+      {
+        "name": "runtime-dep-8c3e7259",
+        "status": "running:healthy"
+      },
+      {
+        "name": "shopify-bridge-shopify-bridge-st",
+        "status": "running:healthy"
+      },
+      {
+        "name": "vectorization-runner-dep-7706fafb",
+        "status": "running:healthy"
+      },
+      {
+        "name": "vectorization-runner-dep-8c3e7259",
+        "status": "running:healthy"
+      }
+    ],
+    "databaseRoles": [
+      {
+        "name": "loomai-dealership-demo-postgres",
+        "status": "running:healthy"
+      },
+      {
+        "name": "produs-postgres-staging",
+        "status": "running:healthy"
+      },
+      {
+        "name": "loomai-platform-postgres-staging",
+        "status": "running:healthy"
+      },
+      {
+        "name": "northfield-dealership-inbox-db",
+        "status": "running:healthy"
+      },
+      {
+        "name": "ai-fabric-runtime-postgres-dep-f023c863",
+        "status": "running:healthy"
+      }
+    ]
+  },
+  "production": {
+    "applications": 17,
+    "databases": 3,
+    "note": "Exact inventory recorded before restoring the production management firewall; public health and managed service rechecked afterward."
+  },
+  "services": [
+    {
+      "environment": "staging",
+      "platformHealthHttpStatus": 200,
+      "serviceRef": "loomai-engage-web",
+      "status": "ACTIVE",
+      "imageTag": "f305938c2f44592937b964897f722c94500120f8",
+      "imageDigest": "sha256:76f00f8781e5c8c0d66ac0fa9f461368996dbef304a9d3a20410aae457124209",
+      "desiredReplicas": 1,
+      "actualReplicas": 1
+    },
+    {
+      "environment": "production",
+      "platformHealthHttpStatus": 200,
+      "serviceRef": "loomai-engage-web",
+      "status": "ACTIVE",
+      "imageTag": "f305938c2f44592937b964897f722c94500120f8",
+      "imageDigest": "sha256:76f00f8781e5c8c0d66ac0fa9f461368996dbef304a9d3a20410aae457124209",
+      "desiredReplicas": 1,
+      "actualReplicas": 1
+    }
+  ],
+  "runtime": {
+    "aiFabricVersion": "0.8.32",
+    "sourceCommit": "b41b60c1f50d68c157ebcf6c07581db45202ad7e",
+    "artifactId": "dsa-3c32e702",
+    "deploymentId": "dep-f023c863",
+    "versionId": "ver-59379dc5",
+    "releaseId": "rel-a7c74618",
+    "status": "APPLIED_VERIFIED",
+    "verificationStatus": "PASSED"
+  },
+  "installations": [
+    {
+      "installationId": "awi_pub_54380db3d6216bbff9561c2c5e62d1aa",
+      "appSlug": "northfield-private",
+      "status": "DISABLED",
+      "consumerId": "northfield-private-support"
+    },
+    {
+      "installationId": "awi_pub_fe258f30e5ccbceb2345a8ffa2c9510e",
+      "appSlug": "northfield-auth",
+      "status": "ACTIVE",
+      "consumerId": "northfield-handover-canary"
+    },
+    {
+      "installationId": "awi_pub_1b5bb4c82f55a13337555b7b0637d585",
+      "appSlug": "northfield-support",
+      "status": "ACTIVE",
+      "consumerId": "northfield-handover-canary"
+    },
+    {
+      "installationId": "awi_pub_5f08bc3f4e861595531454fec14663ca",
+      "appSlug": "northfield-demo",
+      "status": "ACTIVE",
+      "consumerId": "northfield-dealership-demo"
+    },
+    {
+      "installationId": "awi_pub_456ec9f67744f4d7e231a939e835ac05",
+      "appSlug": null,
+      "status": "ACTIVE",
+      "consumerId": "northfield-dealership-demo"
+    }
+  ],
+  "productionCustomerAppCreated": false,
+  "temporaryPrivateCanaryRetired": true
+}

@@ -41,22 +41,21 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.11` through:
+The current private product source target is AI Fabric `0.8.32` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.11`
-- Git tag `ai-fabric-framework-v0.8.11`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.32`
+- Git tag `ai-fabric-framework-v0.8.32`
 
 The immutable tag, GitHub release, framework CI, Maven Central publication,
-and empty-cache external-consumer proof match release commit `c9205bea`.
-Private runtime image source
-`33d600d16bed47df84d9f1f626cb5d28fd413ef9` resolves one framework version
-only and is the current deployment source artifact.
+and empty-cache external-consumer proof are recorded for release commit
+`561659dc`. Current private runtime changes are product adapter changes, not
+new framework releases. Exact hosted image and assignment evidence belongs in
+`CODEX_WORKING_CONTEXT.md` and the private handoff; do not infer it from HEAD.
 
 Source target and hosted-fleet truth remain separate. Never infer a future live
 version from a source POM or relabel the fleet before immutable image,
 release/apply, and live readback evidence exists. The current dealership
-closure is recorded in `CODEX_WORKING_CONTEXT.md` and
-`verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json`;
+closure is recorded in `CODEX_WORKING_CONTEXT.md` and its dated verification evidence;
 older migration records remain historical evidence only.
 
 The private runtime and embedding worker must each resolve one AI Fabric
@@ -75,8 +74,9 @@ rollout preserves existing behavior with
 secrets, endpoints, or product claims retroactively to that dependency upgrade.
 Gate B schema preparation, Gate C one-worker declarative mechanics canary, and
 Gate D real multi-specialist product adoption are separate reviewed decisions.
-Gate A evidence is recorded; Gate B and Gate C remain unstarted and require a
-new reviewed decision before implementation.
+Gate A evidence is historical. Current behavior/extension readiness comes from
+the published deployment configuration, source capability manifest, and dated
+handoff evidence, not from that earlier migration checkpoint.
 
 The private runtime indexing admin facade uses `IndexingWorkQuery` and
 `IndexingWorkStatus` for durable per-work Data Sync reconciliation. Keep the
@@ -88,7 +88,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR is `0.7.0`, and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.32`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 

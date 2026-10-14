@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-14T10:34:45.231Z",
+  "origin": "https://northfield-private.apps.46.224.145.148.sslip.io",
+  "checks": {
+    "privateEntryRequiresSignIn": true,
+    "failedLoginDidNotMountWorkspace": true,
+    "realProviderMountedPrivateWorkspaceWithoutReplay": true,
+    "anonymousBootstrapAndQueryDenied": true,
+    "otherDeploymentRejectedToken": true,
+    "logoutRestoredEntryGate": true
+  },
+  "errors": [],
+  "anonymousMessageStatus": 401,
+  "runtimeOrigin": "https://dep-ebf4c7c3.46.224.145.148.sslip.io"
+}

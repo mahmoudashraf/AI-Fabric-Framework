@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-10-14T10:25:06.072Z",
+  "results": [
+    {
+      "origin": "https://northfield-demo.apps.46.224.145.148.sslip.io",
+      "runtimeOrigin": "https://dep-f023c863.46.224.145.148.sslip.io",
+      "success": true,
+      "type": "INFORMATION_PROVIDED",
+      "sources": 6,
+      "actions": 1,
+      "conversationId": "chat-c625da39-ef6f-481d-80ef-7113d677d017",
+      "reloadPreservedMessages": true,
+      "reloadPreservedAttachments": true,
+      "reloadReplayedRequests": false,
+      "layouts": [
+        {
+          "width": 390,
+          "composerFits": true
+        },
+        {
+          "width": 320,
+          "composerFits": true
+        }
+      ],
+      "browserErrors": []
+    },
+    {
+      "origin": "https://northfield-support.apps.46.224.145.148.sslip.io",
+      "runtimeOrigin": "https://dep-f023c863.46.224.145.148.sslip.io",
+      "success": true,
+      "type": "INFORMATION_PROVIDED",
+      "sources": 6,
+      "actions": 1,
+      "conversationId": "chat-039f8450-2924-4246-b041-e580989071ad",
+      "reloadPreservedMessages": true,
+      "reloadPreservedAttachments": true,
+      "reloadReplayedRequests": false,
+      "layouts": [
+        {
+          "width": 390,
+          "composerFits": true
+        },
+        {
+          "width": 320,
+          "composerFits": true
+        }
+      ],
+      "browserErrors": []
+    }
+  ],
+  "errors": []
+}

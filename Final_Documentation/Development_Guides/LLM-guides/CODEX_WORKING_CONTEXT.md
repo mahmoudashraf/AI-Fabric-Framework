@@ -4554,3 +4554,62 @@ Critical fixes that made the gate pass:
   commit/push the 010.36 source, wait for immutable images, deploy the shared
   staging service, prove two exact app hosts and provider/runtime boundaries,
   then promote the same revision to production and regress Shopify/dealership.
+
+## 2026-10-14 Standalone Hosted Verification And Reduced Staging Fleet
+
+- Supersedes the earlier local-only 010.36 checkpoint. Plan 010.35 remains
+  complete at public framework commit `2f8cda26`; framework main is clean.
+- Shared standalone service `loomai-engage-web` is active in staging and
+  production, one replica each, image `f305938c2...`, digest
+  `sha256:76f00f8781e5c8c0d66ac0fa9f461368996dbef304a9d3a20410aae457124209`.
+  Both Platform backends are on `c6274f3ec...`; UI remains `18ac7b5f1...`.
+- Private runtime source `b41b60c1f...` still consumes AI Fabric `0.8.32`.
+  `dep-f023c863` release `rel-a7c74618` / version `ver-59379dc5` /
+  artifact `dsa-3c32e702` is `APPLIED_VERIFIED` / `PASSED`. Dealer and support
+  consumers are explicitly rebound to it. No framework binary release occurred.
+- Fixed product issues found by live checks: accept reviewed Supabase ES256;
+  map foreign/missing canonical history to safe HTTP 404; require the explicit
+  seven owner scopes for authenticated handover; report actual frontend route
+  availability separately from domain ownership/assignment readiness.
+- Public dealer and generic-support gates passed with six sources and one
+  read action each; reload retained messages/attachments without replay,
+  desktop/390/320px layouts passed, and no browser errors occurred.
+- Real Supabase mixed login passed identity/attachment/pending-handover
+  isolation, no replay, genuine refresh, logout, invalid signature/origin, and
+  operator denial. Anonymous UI handover/queued messages/token renewal/UI
+  cancellation passed on both packs. Private entry, anonymous canonical 401,
+  foreign-deployment token rejection, and logout passed on the temporary canary.
+- App disable/unknown origin and shared frontend outage/recovery passed.
+  `APP_DELIVERY` correctly fails during frontend outage without revoking domain
+  ownership or marking runtime liveness down. Use `dtp-coolify-staging`, not
+  the runtime-only `dtp-coolify-staging-behavior`, to reconcile the shared shell.
+- During concurrent backend/runtime replacement staging reached aggregate CPU
+  around 800% across eight cores and stopped responding. A staging-only soft
+  reboot and clean backend restart recovered it. Interrupted releases were
+  preserved as failures, then replaced by explicitly verified applies. Never
+  restart the control plane during an active runtime apply.
+- At the owner's request, archived four unbound old verification deployments
+  and deleted their twelve staging services. Removed the obsolete ecommerce
+  fixture and its verification-upstream setting. After private-entry proof,
+  disabled/unbound the temporary canary and removed its runtime, connector,
+  inbox, and two databases. Configuration history and persistent volumes remain.
+- Final inventory: staging 33 apps/five healthy databases, no duplicate names;
+  production 17 apps/three databases. Retained services are live framework demos,
+  required Platform/shared services, ProdUS, Shopify, and the dealership demo.
+  Database roles: Platform, ProdUS, dealership backend, dealership runtime,
+  dealership inbox. Do not recreate permanent verification fleets.
+- Main-only demo watch paths are already module-scoped; core publication is
+  affected-image only. Tests-only commit `7845a2eb4` passed workflow
+  `38551050599` and skipped image publication. No broad rebuild/release matrix ran.
+- Static-shell sample: 40 requests, concurrency four, p95 169ms, maximum 230ms.
+  Latest measured aggregate CPU was 164% staging and 12% production; container
+  RSS/disk are not newly measured because SSH remains blocked. Do not infer
+  a 100-app or universal capacity guarantee from this sample.
+- Synthetic Supabase account/credential export removed. Temporary firewall
+  operator rules are zero; direct production Coolify port 8000 times out again.
+- Production wildcard DNS is verified. Shared production delivery is live,
+  but no production Northfield app or customer-secret clone was created.
+- Evidence: `verification-support/standalone-ai-workspace/evidence/2026-10-14-live/`.
+  Remaining 010.36 acceptance checks are explicit in section 6.2; do not label
+  the entire plan complete or the full Platform release gate green from these
+  scoped checks alone.

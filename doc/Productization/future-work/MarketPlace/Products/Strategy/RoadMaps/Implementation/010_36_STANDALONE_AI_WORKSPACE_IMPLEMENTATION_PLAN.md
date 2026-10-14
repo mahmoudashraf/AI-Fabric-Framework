@@ -1,6 +1,6 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Status: implementation complete locally; immutable-image publication and hosted staging/production evidence in progress.
+- Status: source implemented; shared frontend deployed on staging and production; hosted public, identity, handover, and recovery canaries passed. Remaining acceptance details are explicit in section 6.2.
 - Created: 2026-10-13.
 - Execution priority: 2.
 - Source review: Platform `db58acd9`; framework `561659dc`; source dependency AI Fabric `0.8.32`.
@@ -258,8 +258,8 @@ These continuity checks apply within the same verified owner. They do not requir
 - [x] Add reviewed authentication profile/broker bindings and interaction-policy controls to installation configuration.
 - [x] Validate current-provider configuration and deployment-owned issuer/JWK/audience/origin/scope bindings server-side; expose only safe public login metadata.
 - [x] Keep installation/connection resolution explicit and host-independent internally; web hostname lookup remains the approved web bootstrap. Native origin/client bindings are a separately verified future profile, not a wildcard web-origin exception.
-- [ ] Register and deploy one shared standalone frontend service on production Coolify through the existing managed-service lifecycle.
-- [ ] Prove the same immutable frontend artifact on a separate staging service before production promotion.
+- [x] Register and deploy one shared standalone frontend service on production Coolify through the existing managed-service lifecycle.
+- [x] Prove the same immutable frontend artifact on a separate staging service before production promotion.
 - [x] Keep frontend publication, installation revisions, runtime release/assignment, and app activation independently observable; do not redeploy runtimes for routine frontend updates.
 - [x] Implement app-specific readiness reporting rather than inheriting success from shared frontend health.
 - [x] Keep hosting configuration replaceable without changing chat/runtime ownership.
@@ -268,25 +268,25 @@ These continuity checks apply within the same verified owner. They do not requir
 
 - [x] Prove two separate app hostnames resolve only their registered installations in the shared-shell browser contract; hosted assigned-runtime evidence remains a rollout gate.
 - [x] Prove browser persistence and authentication state are namespaced across apps and identities; hosted cookie/provider evidence remains a rollout gate.
-- [ ] Prove page changes and reload preserve the same owned conversation and attachments.
-- [ ] Prove identity renewal preserves anonymous ownership and active handover.
-- [ ] Prove successful login starts a new authenticated conversation and clears active anonymous messages, attachments, pending work, and evidence handles.
+- [x] Prove page changes and reload preserve the same owned conversation and attachments.
+- [x] Prove identity renewal preserves anonymous ownership and active handover.
+- [x] Prove successful login starts a new authenticated conversation and clears active anonymous messages, attachments, pending work, and evidence handles.
 - [ ] Prove failed/cancelled login cannot execute a blocked operation or silently expand access.
-- [ ] Prove protected actions and private retrieval are denied server-side before authentication, even with a modified browser.
+- [x] Prove canonical private message submission is denied server-side before orchestration, even with a modified browser; action-time protected-capability acceptance remains a separate check below.
 - [x] Prove login does not replay an anonymous request and resets the anonymous installation namespace; hosted confirmation/handover evidence remains a rollout gate.
 - [ ] Prove sign-out/revocation prevents old private-context reuse.
 - [x] Define interrupted-request recovery through authoritative readback; never automatically resend a possibly executed write after reconnect or foreground resume.
 - [x] Prevent an assignment revision change from copying an active session to another deployment; hosted reassignment evidence remains a rollout gate.
-- [ ] Add a real customer-owned Supabase Auth/deployment-local broker canary before claiming authenticated standalone support.
+- [x] Add a real customer-owned Supabase Auth/deployment-local broker canary before claiming authenticated standalone support.
 - [ ] Regress existing customer-session and Shopify private-adapter paths when shared authentication code changes; keep OIDC readiness separate until proved.
 
 ### W4. Release And External Guide
 
-- [ ] Demonstrate generic knowledge/support and dealership packs on the same shell.
+- [x] Demonstrate generic knowledge/support and dealership packs on the same shell.
 - [ ] Verify desktop, narrow mobile, keyboard, accessibility, and safe-area layout.
 - [x] Document domain, installation, authentication policies/providers, the fresh-conversation login boundary, pack customization, and operator recovery.
-- [ ] Record exact deployment, asset versions, browser requests, and live results.
-- [ ] Verify per-app activation failures and shared frontend outage/recovery without falsely marking customer runtimes or other app checks successful.
+- [x] Record exact deployment, asset versions, browser requests, and live results.
+- [x] Verify per-app activation failures and shared frontend outage/recovery without falsely marking customer runtimes or other app checks successful.
 - [ ] Measure shared frontend load/resource use and record operational limits without introducing an unmeasured 100-app cap.
 - [x] Document web-first delivery and the later PWA/Capacitor path, including the work not covered by web readiness or commercial naming.
 - [x] Review the web implementation against the future common-renderer host constraints; no contradictory dependency was introduced by the shared web shell or typed host-capability boundary.
@@ -325,6 +325,64 @@ These continuity checks apply within the same verified owner. They do not requir
 - Hosted evidence still required: publish immutable images, reconcile the shared
   staging service, prove two real app hosts and a real Supabase broker, promote
   the same source revision to production, and regress dealership/Shopify paths.
+
+### 6.2 Hosted Evidence And Remaining Acceptance, 2026-10-14
+
+- Shared service `loomai-engage-web` is `ACTIVE`, one replica per environment,
+  on source `f305938c2f44592937b964897f722c94500120f8` and digest
+  `sha256:76f00f8781e5c8c0d66ac0fa9f461368996dbef304a9d3a20410aae457124209`.
+  Both Platform backends use source `c6274f3ec3f51c898069a8fd115ab2c842b29e23`.
+  The UI remains on its separately verified `18ac7b5f1...` image.
+- Dealership `northfield-demo` and generic `northfield-support` share the staging
+  shell and verified runtime `dep-f023c863`, version `ver-59379dc5`, release
+  `rel-a7c74618`, artifact `dsa-3c32e702`, runtime source `b41b60c1f...`.
+  The framework remains `0.8.32`; no framework binary release was made here.
+- Both app browser gates returned six sources and one read action. Reload
+  preserved messages/attachments with no request replay. Desktop and 390/320px
+  mobile checks passed without browser errors.
+- Genuine Supabase ES256 identity passed password sign-in, failed-login state
+  preservation, fresh authenticated ownership, foreign anonymous history 404,
+  active anonymous handover isolation, tampered-signature/origin/operator
+  rejection, real provider refresh, and logout. Explicit grants include the
+  seven customer conversation scopes required by handover, never admin scopes.
+- Both packs passed UI handover, human-pending message admission without AI,
+  real anonymous token renewal preserving owner/conversation/handover, and UI
+  cancellation returning to AI. The synthetic episodes were cancelled.
+- Private-entry canary `dep-ebf4c7c3` passed on release `rel-76611709`:
+  real sign-in, anonymous canonical message HTTP 401, disabled anonymous
+  bootstrap, foreign deployment token rejection using a registered origin,
+  and logout restoring the entry gate. It contained no private knowledge, so
+  this is authorization evidence, not answer-quality evidence.
+- Disabled installation returned 403, another app remained available, and an
+  unregistered origin was denied. A controlled shared-shell outage blocked
+  `APP_DELIVERY` while `ASSIGNMENT` and runtime liveness stayed valid. Reconcile
+  through `dtp-coolify-staging` restored the same immutable image. The
+  `*-behavior` profile is runtime-only and correctly rejects this service.
+- The production wildcard `*.apps.loomai.pro` resolves to `46.225.162.106`.
+  Production shared delivery is live; no production Northfield customer app
+  was created and no staging customer secrets/configuration were copied there.
+- Shopify private-adapter bootstrap returned its current typed contract without
+  exposing a runtime token. Full storefront/private-adapter query acceptance
+  remains distinct from this bootstrap check.
+- A bounded 40-request, four-concurrent static-shell sample had p95 169ms and
+  maximum 230ms, with no failures. This is not a user/app capacity guarantee.
+  Fresh container RAM/disk measurements remain unavailable because SSH is
+  blocked; do not mark the resource-capacity checkbox complete.
+- Retired the temporary private installation/consumer and services after proof,
+  retaining disabled configuration/binding history. Deleted the synthetic
+  Supabase account and private credential export. Staging is now 33 apps/five
+  databases, with no duplicate application names. Production is 17 apps/three
+  databases. Volumes were preserved; temporary management access was closed.
+- Evidence: `verification-support/standalone-ai-workspace/evidence/2026-10-14-live/`.
+
+Remaining acceptance is not silently declared complete: a real action-time
+protected capability/login challenge, explicit cancelled-sign-in browser proof,
+the provider revocation/expiry contract, full Shopify query regression, and
+full keyboard/accessibility/safe-area and container-resource/capacity measurements.
+Local browser contracts cover the
+structured challenge and magic-link transitions; password/provider and owner
+boundaries have real hosted evidence. A production customer installation is a
+separate provisioning decision, not implied by a healthy shared service.
 
 ## 7. Verification And Completion
 

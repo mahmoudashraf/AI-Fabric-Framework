@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-14T10:36:43.686Z",
+  "deploymentId": "dep-ebf4c7c3",
+  "installationStatus": "DISABLED",
+  "consumerUnbound": true,
+  "configurationHistoryPreserved": true,
+  "removedApplications": [
+    {
+      "uuid": "yq1tqyv6c5hn379ik5g3yff3",
+      "name": "ai-fabric-runtime-dep-ebf4c7c3"
+    },
+    {
+      "uuid": "p48zva29xjkg6h8kvvdz4fki",
+      "name": "ai-fabric-connector-dep-ebf4c7c3"
+    },
+    {
+      "uuid": "g14p1jagvqwu4nbul0pyyeqt",
+      "name": "northfield-basic-loomai-inbox"
+    }
+  ],
+  "removedDatabases": [
+    {
+      "uuid": "t4wex7lwd1x58e8hvzvii7vc",
+      "name": "ai-fabric-runtime-postgres-dep-ebf4c7c3"
+    },
+    {
+      "uuid": "h12u68e3oz0f90cb5w1dentt",
+      "name": "northfield-basic-inbox-postgres"
+    }
+  ],
+  "volumesDeleted": false
+}

@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-10-14T10:27:02.641Z",
+  "apps": [
+    {
+      "origin": "https://northfield-demo.apps.46.224.145.148.sslip.io",
+      "checks": {
+        "directOwnerHandoverRequest": true,
+        "humanPendingMessageDoesNotRunAi": true,
+        "realAnonymousRenewalPreservedHandoverAndConversation": true,
+        "explicitOwnerCancellationRestoredAi": true
+      },
+      "conversationId": "chat-f576f904-8c09-4d13-b623-f13189828a94"
+    },
+    {
+      "origin": "https://northfield-support.apps.46.224.145.148.sslip.io",
+      "checks": {
+        "directOwnerHandoverRequest": true,
+        "humanPendingMessageDoesNotRunAi": true,
+        "realAnonymousRenewalPreservedHandoverAndConversation": true,
+        "explicitOwnerCancellationRestoredAi": true
+      },
+      "conversationId": "chat-b15d5cff-8900-417d-8e38-04e427550f81"
+    }
+  ],
+  "errors": []
+}
