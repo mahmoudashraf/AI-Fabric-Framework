@@ -160,6 +160,21 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     }
 
     @Test
+    void multipleExactReservationMatchesFailClosedBeforeOtherEvidenceIsRead() {
+        Reservation held = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        AdmissionStore ambiguousStore = mock(AdmissionStore.class);
+        when(ambiguousStore.customerPrerequisiteReservations(customerContext)).thenReturn(List.of(held, held));
+        var ambiguousProvider = new DeploymentAdmissionCustomerPrerequisiteEvidenceProvider(ambiguousStore, json,
+            mapper, deployments, versions, targets, placement, Clock.fixed(NOW, ZoneOffset.UTC));
+        clearInvocations(deployments, versions, targets, placement);
+
+        assertThatThrownBy(() -> ambiguousProvider.resolve(customerContext))
+            .hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_AMBIGUOUS_OR_MISSING");
+
+        verifyNoInteractions(deployments, versions, targets, placement);
+    }
+
+    @Test
     void activeReservationCannotBeReusedAsPendingCustomerPrerequisiteEvidence() {
         Reservation held = scopedReserve(new Reserve("operation", "manifest1", customerContext));
         AdmissionContext admission = store.context("customer", "tenant", "deployment1", "manifest1");
