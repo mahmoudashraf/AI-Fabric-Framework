@@ -12,6 +12,22 @@
 
 The recording targets the deployed `conversation-handover-demo` real app. Its evidence frames are in `AI_FABRIC_FRAMEWORK_CONVERSATION_HANDOVER_DEMO-evidence/`.
 
+## AI Fabric Required-Email Intake Proof
+
+`AI_FABRIC_FRAMEWORK_REQUIRED_EMAIL_HANDOVER_DEMO.mp4` keeps the original
+framework video intact and adds a live proof of:
+
+- a natural-language handover request returning typed
+  `HANDOVER_INTAKE_REQUIRED` while control remains `AI_ACTIVE`;
+- required email and consent, with optional name and phone fields;
+- a separate consent requirement when the optional phone is supplied;
+- the validated contact projection reaching the application-owned operator
+  view before claim; and
+- the complete human claim, reply and explicit return-to-AI lifecycle.
+
+Its evidence frames are in
+`AI_FABRIC_FRAMEWORK_REQUIRED_EMAIL_HANDOVER_DEMO-evidence/`.
+
 ## LoomAI Dealership Proof
 
 `LOOMAI_DEALERSHIP_CONVERSATION_HANDOVER_DEMO.mp4` is a live side-by-side proof of:
@@ -33,6 +49,9 @@ The Playwright recorders live in `Platfrom/loomai-site/scripts/`:
 
 ```bash
 node scripts/record-ai-fabric-handover-live-demo.mjs
+
+APP_DEMO_OPERATOR_ACCESS_CODE=... \
+node scripts/record-ai-fabric-handover-intake-live-demo.mjs
 
 DEALERSHIP_DEMO_STAFF_USERNAME=... \
 DEALERSHIP_DEMO_STAFF_PASSWORD=... \

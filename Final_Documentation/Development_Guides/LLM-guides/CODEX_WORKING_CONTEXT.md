@@ -4392,3 +4392,108 @@ Critical fixes that made the gate pass:
   `71ee78c836904fbaffa01c6ff87ead74f6186cda554a9bbd5629e9ef7eca90bc`;
   the operator CIDR is absent and SSH is filtered. Production firewall
   `10918233` was untouched.
+
+## 2026-10-13 Seven Starred Platform Ideas Planning
+
+- Created seven detailed plans `010.35`-`010.41` and
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/PLATFORM_STARRED_IDEAS_EXECUTION_INDEX.md`.
+  The scope is product thinking and implementation planning only. No feature
+  implementation, dependency upgrade, deployment, or release was performed.
+- Source review baseline: private `db58acd9958b717666de712f44ab2882cfc99b8f`,
+  public framework `561659dc0a4e8872f83654ef8549ead3cc4acc32`; source consumes
+  AI Fabric `0.8.32`. `010.34` remains completed and hosted-verified.
+- Plan order: coding-assistant skill; standalone workspace; Platform authoring
+  assistant; startup context; outbound integrations; small persistent Lucene
+  profile; customer-hosted deployment bundle. Lucene measurement can begin
+  early alongside the first plans.
+- Code findings captured: dealership-only Platform pack registry/validator;
+  conditional authenticated broker support; draft updates lack an expected
+  edit fingerprint; startup context lacks a governed seed lifecycle; Smart
+  Brain already has signed durable webhook delivery; runtime/Coolify already
+  persist Lucene; current export schema is `loomai.deployment-export.v2` and
+  compiled artifacts/local resource loaders are packaging foundations.
+- Each plan separates existing code from proposed contracts and records file
+  targets, phases, authorization/state ownership, critical verification,
+  framework-release conditions, and completion criteria. New work reuses
+  completed Human Review, Conversation Handover, SSE, and Basic Inbox.
+
+## 2026-10-13 Standalone Workspace Authentication Planning
+
+- Updated `010.36` with entry-time and protected-capability sign-in, public /
+  login-required / mixed policies, generic customer-specific auth adapters,
+  provider options, typed authentication requirements, server enforcement,
+  and the corresponding phase/verification tasks.
+- User decision: no anonymous conversation preservation after login.
+  Successful sign-in establishes a new authenticated conversation and clears
+  the active anonymous transcript/attachments/evidence/pending work. It does
+  not link owners, transfer human handover, replay requests, or reuse action
+  confirmations. Failed login cannot grant protected access; same-owner
+  renewal and navigation still preserve session continuity.
+- Authentication profile code exists, but configured end-to-end provider/
+  broker and generic action-time login are still plan deliverables. No
+  product/runtime/framework code or deployment was changed in this update.
+
+## 2026-10-13 Standalone Workspace Delivery Decisions Confirmed
+
+- The user confirmed all twelve recommendations for `010.36`, explicitly
+  selecting one shared frontend service on production Coolify. Updated the
+  canonical plan and starred-ideas execution index; implementation remains
+  unstarted. No service, domain, dependency, or live configuration was changed.
+- Separate customer installations/domains and independently assigned runtimes
+  retain identity/data/action boundaries. Default app addresses are
+  `<app-name>.apps.loomai.pro`, with verified customer-owned domains optional.
+  **Create AI App** reuses existing workspace, template, assignment, and
+  managed-service workflows. Frontend health does not imply app readiness.
+- Public templates default to mixed public/protected interaction; internal
+  templates require login. Prove customer-owned Supabase Auth first using a
+  deployment-local adapter by default, with reviewed customer backends optional
+  and standards-based OIDC next. Preserve customer-session and Shopify paths.
+- Login starts a new authenticated conversation without anonymous transfer or
+  replay. Reviewed configuration/packs provide customization; arbitrary
+  customer JavaScript is excluded. Frontend, installation, and runtime releases
+  are separate; routine frontend updates do not redeploy runtimes.
+- The earlier 100-app example was illustrative, not a limit or benchmark.
+  Hosting implementation must measure resources/routing/TLS and verify exact
+  host bindings, cross-app cache/session isolation, and app-specific gates.
+
+## 2026-10-13 LoomAI Engage Naming And Mobile Portability Planning
+
+- User-confirmed product name: **LoomAI Engage**. Retain **AI Workspace** as
+  the technical reference; technical identifiers/routes and **Create AI App**
+  are unchanged. Updated `010.36` and the execution index.
+- Source review confirms a React/TypeScript/Vite web library, browser-script
+  installer and Platform-origin asset checks, browser `sessionStorage` session
+  credentials/state, foreground fetch-based handover streams, and DOM page
+  attachment. No existing native project or mobile readiness is claimed.
+- Recommended later delivery: PWA, then Capacitor with a reviewed local web
+  bundle. No second workspace UI/framework engine is expected, but native
+  bootstrap/origin policy, external PKCE login callbacks, secure credential
+  storage, suspension/replay, device layout, permissions, and store delivery
+  need explicit work and proof. Avoid production live-reload URLs and wildcard
+  origin exceptions. Preserve fresh authenticated conversations and no replay.
+- First web phases now include thin host capability boundaries, static app
+  build, mobile interaction constraints, and interrupted-write readback.
+  Optional M1-M3 mobile checks remain unchecked and separate from web release
+  completion. No product/native/framework implementation or deployment was
+  performed for this update.
+
+## 2026-10-14 Engage Common-Renderer Mobile Target Confirmed
+
+- User decision: include the common-renderer option as a future path only.
+  Build the current web product with mobile as an explicit target so its
+  architecture does not contradict later delivery; real-world mobile app
+  implementation/publication remains deferred.
+- Updated `010.36`, the execution index, and strategic context. Future first
+  native delivery is one Engage host with business selection/deep links,
+  bundled reviewed AI Workspace components/packs, remote business metadata/
+  configuration, and direct assigned-runtime traffic. No per-business native
+  binary or arbitrary hosted-page execution is required.
+- Current web phases specify reusable UI/configuration contracts, explicit
+  mount/unmount/state boundaries, and a portability review. Native search/
+  catalogue, SDK integration, secure persistence, association files, push,
+  signing, and store/device evidence remain later work. Unsupported components
+  require an explicit update/unavailable outcome; business visibility never
+  substitutes for authoritative access control.
+- No product/framework code, dependency, live configuration, or deployment
+  was changed for this documentation update. All web and mobile execution
+  checkboxes remain pending.

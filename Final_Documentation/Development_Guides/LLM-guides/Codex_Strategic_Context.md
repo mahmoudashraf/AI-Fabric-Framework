@@ -659,3 +659,59 @@ Current P0 cleanup items:
   must remain usable through a domain-neutral, bounded, responsive generic
   fallback; raw nested JSON and recognized credential fields are not acceptable
   default customer presentation. Presentation never changes action authority.
+- 2026-10-13 product-thinking plans: created proposed `010.35` through `010.41`
+  for the coding-assistant skill, standalone workspace, Platform configuration
+  assistant, deployment-owned startup context, outbound integrations, small
+  persistent Lucene profile, and customer-hosted deployment bundle. Canonical
+  sequence and code-reviewed boundaries are in
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/PLATFORM_STARRED_IDEAS_EXECUTION_INDEX.md`.
+  These are planning documents, not new implementation or release claims.
+  Reuse completed Human Review/Conversation Handover/Basic Inbox from `010.34`;
+  do not reopen that work. Keep workspace delivery, authoring assistance,
+  capability contributions, and hosting profiles in their existing product
+  layers. Start Lucene measurement early in parallel. General standalone
+  support needs a generic reviewed pack because the current Platform registry
+  accepts only the dealership pack. Outbound integrations extend existing
+  signed Smart Brain delivery without changing conversation-channel ownership.
+- 2026-10-13 standalone authentication refinement: `010.36` supports public,
+  login-required, and mixed public/protected interaction policies over the
+  existing connection modes. Provider integration uses a reviewed,
+  customer-scoped broker/adapter, with runtime/data/action authorization as
+  the boundary. The user explicitly excluded preserving an anonymous
+  conversation after login: sign-in starts a fresh authenticated conversation,
+  clears active anonymous context/pending work, and does not transfer human
+  handover or replay a blocked action. Same-owner renewal/navigation continuity
+  remains supported. This is a planning change only.
+- 2026-10-13 standalone delivery decisions approved: all twelve `010.36`
+  recommendations are confirmed, including one shared frontend service on
+  production Coolify with separate customer installations/domains and
+  independently assigned runtimes. Default `<app-name>.apps.loomai.pro`
+  addresses and optional verified customer domains are composed through
+  **Create AI App** using existing Platform primitives, not a new execution
+  type or central chat gateway. Public templates use mixed authentication;
+  internal templates require login. Prove customer-owned Supabase Auth with
+  a deployment-local adapter first; OIDC follows while customer-session and
+  Shopify paths remain supported. Frontend/installation/runtime versioning
+  and readiness are separate. Do not introduce an arbitrary 100-app cap or
+  claim measured capacity. Design is agreed; implementation and hosted proof
+  remain pending.
+- 2026-10-13 commercial naming confirmed: **LoomAI Engage** names the
+  user-facing app/experience product; **AI Workspace** remains its technical
+  interface/integration reference. LoomAI Platform remains the composition and
+  operations layer, and background Smart Brain is not relabeled as Engage.
+  `010.36` recommends web-first delivery with later PWA/Capacitor reuse, not a
+  second UI or a zero-change native conversion. Keep native host integration,
+  reviewed credentials/bootstrap, lifecycle, and store distribution explicit;
+  native origin shortcuts and silent write replay are prohibited. Mobile
+  portability preparation is part of the web design, while native publication
+  remains a separate unimplemented delivery decision.
+- 2026-10-14 Engage future mobile direction agreed: prefer one common-renderer
+  host app with remotely configured, independently scoped business experiences
+  and reviewed bundled generic/domain packs. The current web design must
+  preserve shared UI/configuration and isolated host/state boundaries, but
+  business discovery in the native host, device integration, binaries, links,
+  and store publication are future implementation work. Do not turn this
+  target into a web-release dependency, a second UI engine, arbitrary remote
+  code execution, a central chat gateway, or a cross-business identity bridge.
+  Dedicated business apps remain a possible later delivery form. `010.36`
+  records the scope split; implementation and native readiness remain unclaimed.
