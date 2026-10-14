@@ -56,7 +56,10 @@ try {
   runtimeToken = brokerBody.accessToken
   runtimeOrigin = new URL(broker.url()).origin
   assert.equal(brokerBody.subjectId, credentials.userId)
-  assert.deepEqual(brokerBody.grantedScopes, ['chat:query','chat:suggestions','chat:conversations'])
+  assert.deepEqual([...brokerBody.grantedScopes].sort(), [
+    'chat:query','chat:suggestions','chat:conversations','chat:messages',
+    'chat:handover:request','chat:handover:control','chat:handover:read',
+  ].sort())
   await page.locator('textarea').waitFor({state:'visible'})
   const authenticated = await state(page, 'authenticated:')
   assert.notEqual(authenticated.conversationId, anonymous.conversationId)

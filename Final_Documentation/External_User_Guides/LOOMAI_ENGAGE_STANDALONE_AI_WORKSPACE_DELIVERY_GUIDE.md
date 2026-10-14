@@ -124,7 +124,7 @@ AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ISSUER=https://<project>.supabase.co/auth/v1
 AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_JWK_SET_URI=https://<project>.supabase.co/auth/v1/.well-known/jwks.json
 AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_AUDIENCE=authenticated
 AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_ALLOWED_ORIGINS=https://<exact-app-host>
-AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES=chat:query,chat:suggestions,chat:conversations
+AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_GRANTED_SCOPES=chat:query,chat:suggestions,chat:conversations,chat:messages,chat:handover:request,chat:handover:control,chat:handover:read
 AI_FABRIC_RUNTIME_DEPLOYMENT_ID=<assigned-deployment-id>
 AI_FABRIC_RUNTIME_CUSTOMER_ID=<owning-customer-id>
 AI_FABRIC_RUNTIME_TENANT_ID=<owning-tenant-id>
@@ -134,7 +134,11 @@ The runtime validates issuer, JWK signature, audience, expiry, origin, and
 identity before issuing a short-lived runtime token. The browser cannot choose
 customer, tenant, deployment, or scopes; those remain deployment-owned. The
 runtime fails startup when an enabled external identity broker lacks any of the
-three ownership defaults.
+three ownership defaults. The example includes the four additional owner scopes
+required when conversation handover and canonical message routes are enabled.
+These are customer conversation permissions, not operator or administrator
+permissions. Installation readiness rejects an incomplete explicit grant;
+it never silently adds scopes to the broker configuration.
 
 A successful anonymous-to-authenticated sign-in starts a fresh,
 identity-scoped conversation. Anonymous messages, attachments, confirmations,

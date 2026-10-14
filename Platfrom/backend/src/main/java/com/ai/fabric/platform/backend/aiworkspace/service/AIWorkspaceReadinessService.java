@@ -149,6 +149,7 @@ public class AIWorkspaceReadinessService {
                 if (authenticationProfile != null) {
                     validateExternalIdentityBinding(authenticationProfile, assignment.securityConfig(), checks);
                 }
+                validateExternalIdentityScopes(assignment, checks);
             }
         }
 
@@ -164,6 +165,26 @@ public class AIWorkspaceReadinessService {
             assignment == null ? null : assignment.assignmentRevision(),
             List.copyOf(checks)
         );
+    }
+
+    private void validateExternalIdentityScopes(AIWorkspaceAssignmentService.Assignment assignment,
+                                                List<AIWorkspaceReadinessCheck> checks) {
+        java.util.Set<String> required = new java.util.LinkedHashSet<>(List.of(
+            "chat:query", "chat:suggestions", "chat:conversations"));
+        JsonNode behavior = readJson(assignment.version().getBehaviorConfigJson());
+        boolean selected = false;
+        for (JsonNode extension : behavior.path("executionExtensions")) {
+            if ("CONVERSATION_HANDOVER".equals(extension.asText())) selected = true;
+        }
+        if (selected && behavior.path("conversationHandover").path("enabled").asBoolean(false)) {
+            required.addAll(List.of("chat:messages", "chat:handover:request", "chat:handover:control", "chat:handover:read"));
+        }
+        java.util.Set<String> granted = java.util.Arrays.stream(
+                ManagedDeploymentProfileCatalog.externalIdentityGrantedScopes(assignment.securityConfig()).split(","))
+            .map(String::trim).collect(java.util.stream.Collectors.toSet());
+        check(granted.containsAll(required), checks, "EXTERNAL_IDENTITY_SCOPES",
+            "External identity scopes cover the enabled workspace conversation routes.",
+            "External identity scopes must include: " + String.join(",", required));
     }
 
     private void validateExternalIdentityBinding(

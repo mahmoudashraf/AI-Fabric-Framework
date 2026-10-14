@@ -58,6 +58,7 @@ class AIWorkspaceReadinessServiceTest {
             "northfield.apps.loomai.test", "https://northfield.apps.loomai.test", "PLATFORM_DEFAULT",
             "VERIFIED", "", "", null, null, null, Instant.now())));
         when(domains.deliveryAvailable(installation.getId())).thenReturn(true);
+
         when(secrets.isSecretPresent(any())).thenReturn(true);
 
         var matching = assignment(security("https://example.supabase.co/auth/v1"));
@@ -81,6 +82,19 @@ class AIWorkspaceReadinessServiceTest {
             assertThat(check.status()).isEqualTo("PASSED");
         });
         when(domains.deliveryAvailable(installation.getId())).thenReturn(true);
+
+        matching.version().setBehaviorConfigJson("""
+            {"executionExtensions":["CONVERSATION_HANDOVER"],"conversationHandover":{"enabled":true}}
+            """);
+        var incompleteScopes = service().evaluate(installation);
+        assertThat(incompleteScopes.ready()).isFalse();
+        assertThat(incompleteScopes.checks()).anySatisfy(check -> {
+            assertThat(check.code()).isEqualTo("EXTERNAL_IDENTITY_SCOPES");
+            assertThat(check.status()).isEqualTo("BLOCKED");
+        });
+        ((com.fasterxml.jackson.databind.node.ObjectNode) matching.securityConfig()).put(
+            "externalIdentityGrantedScopes", "chat:query,chat:suggestions,chat:conversations,chat:messages,chat:handover:request,chat:handover:control,chat:handover:read");
+        assertThat(service().evaluate(installation).ready()).isTrue();
 
         when(assignments.resolveTarget(consumer, "dep-1", "rel-1"))
             .thenReturn(assignment(security("https://other.supabase.co/auth/v1")));
