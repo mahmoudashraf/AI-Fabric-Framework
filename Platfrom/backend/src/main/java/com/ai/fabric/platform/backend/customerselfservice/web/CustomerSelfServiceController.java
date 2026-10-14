@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerDocumentStorageBindingContracts.*;
+
 @RestController
 @RequestMapping("/api/customer-self-service")
 @PreAuthorize("hasRole('CUSTOMER_ADMIN')")
@@ -18,16 +20,19 @@ public class CustomerSelfServiceController {
     private final CustomerOfferCodec codec;
     private final CustomerPlacementProbeService placementProbes;
     private final CustomerDeploymentBootstrapService bootstrap;
+    private final CustomerDocumentStorageBindingService documentStorageBindings;
 
     public CustomerSelfServiceController(CustomerSelfServiceCatalogueService catalogue,
                                          CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec,
                                          CustomerPlacementProbeService placementProbes,
-                                         CustomerDeploymentBootstrapService bootstrap) {
+                                         CustomerDeploymentBootstrapService bootstrap,
+                                         CustomerDocumentStorageBindingService documentStorageBindings) {
         this.catalogue = catalogue;
         this.entitlements = entitlements;
         this.codec = codec;
         this.placementProbes = placementProbes;
         this.bootstrap = bootstrap;
+        this.documentStorageBindings = documentStorageBindings;
     }
 
     @GetMapping("/catalogue")
@@ -41,6 +46,18 @@ public class CustomerSelfServiceController {
         @PathVariable String offerId, @RequestBody JsonNode body) {
         return bootstrap.bootstrap(offerId, decode(body,
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts.Request.class));
+    }
+
+    @PostMapping("/catalogue/{offerId}/deployments/{deploymentId}/document-storage-binding")
+    public Result bindDocumentStorage(@PathVariable String offerId, @PathVariable String deploymentId,
+                                      @jakarta.validation.Valid @RequestBody BindRequest request) {
+        return documentStorageBindings.bind(offerId, deploymentId, request);
+    }
+
+    @PostMapping("/catalogue/{offerId}/deployments/{deploymentId}/document-storage-binding/revoke")
+    public Result revokeDocumentStorage(@PathVariable String offerId, @PathVariable String deploymentId,
+                                        @jakarta.validation.Valid @RequestBody RevokeRequest request) {
+        return documentStorageBindings.revoke(offerId, deploymentId, request);
     }
 
     @PostMapping("/catalogue/{offerId}/targets/{targetProfileId}/placement-evidence")

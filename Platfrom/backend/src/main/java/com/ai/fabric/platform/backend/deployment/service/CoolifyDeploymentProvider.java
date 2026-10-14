@@ -6,6 +6,11 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
+import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService;
+import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationRemoteEvidenceProvider;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflightSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLogsSummary;
@@ -109,6 +114,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final ObjectMapper objectMapper;
     private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private PlatformManagedProductProvisioningService platformManagedProductProvisioningService;
+    private DeploymentRuntimeAuthorityService deploymentRuntimeAuthorityService;
+    private RuntimeRetirementTopologyPlanService runtimeRetirementTopologyPlanService;
+    private CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
+    private DeploymentRuntimeGenerationService deploymentRuntimeGenerationService;
+    private RuntimeGenerationCheckpointService runtimeGenerationCheckpointService;
+    private RuntimeGenerationRemoteEvidenceProvider runtimeGenerationRemoteEvidenceProvider;
 
     @Autowired
     public CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -145,6 +156,38 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Autowired(required = false)
     void setPlatformManagedProductProvisioningService(PlatformManagedProductProvisioningService platformManagedProductProvisioningService) {
         this.platformManagedProductProvisioningService = platformManagedProductProvisioningService;
+    }
+
+    @Autowired(required = false)
+    void setDeploymentRuntimeAuthorityService(DeploymentRuntimeAuthorityService deploymentRuntimeAuthorityService) {
+        this.deploymentRuntimeAuthorityService = deploymentRuntimeAuthorityService;
+    }
+
+    @Autowired(required = false)
+    void setRuntimeRetirementTopologyPlanService(RuntimeRetirementTopologyPlanService runtimeRetirementTopologyPlanService) {
+        this.runtimeRetirementTopologyPlanService = runtimeRetirementTopologyPlanService;
+    }
+
+    @Autowired(required = false)
+    void setCustomerOfferDeploymentRepository(CustomerOfferDeploymentRepository customerOfferDeploymentRepository) {
+        this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
+    }
+
+    @Autowired(required = false)
+    void setDeploymentRuntimeGenerationService(DeploymentRuntimeGenerationService deploymentRuntimeGenerationService) {
+        this.deploymentRuntimeGenerationService = deploymentRuntimeGenerationService;
+    }
+
+    @Autowired(required = false)
+    void setRuntimeGenerationCheckpointService(RuntimeGenerationCheckpointService runtimeGenerationCheckpointService) {
+        this.runtimeGenerationCheckpointService = runtimeGenerationCheckpointService;
+    }
+
+    @Autowired(required = false)
+    void setRuntimeGenerationRemoteEvidenceProviders(List<RuntimeGenerationRemoteEvidenceProvider> providers) {
+        if (providers == null || providers.isEmpty()) return;
+        if (providers.size() != 1) throw new IllegalStateException("Duplicate runtime generation remote evidence providers.");
+        this.runtimeGenerationRemoteEvidenceProvider = providers.getFirst();
     }
 
     CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -235,6 +278,18 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
         DeploymentTargetProfileEntity profile = requireActiveProfile(release.getTargetProfileId());
+        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime = resourceHandleRepository
+            .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+                deployment.getId(), profile.getId(), RESOURCE_KIND_APPLICATION
+            )
+            .filter(handle -> StringUtils.hasText(handle.getReleaseId())
+                && !release.getId().equals(handle.getReleaseId()))
+            .map(handle -> new RuntimeGenerationCheckpointService.PriorRuntime(
+                handle.getReleaseId(),
+                handle.getProviderResourceUuid(),
+                normalizeRuntimeBaseUrl(handle.getFqdn())
+            ))
+            .orElse(null);
         CoolifyConnection connection = tracked(
             progressTracker,
             "coolify_preflight",
@@ -369,7 +424,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             progressTracker,
             "record_coolify_runtime_handle_provisional",
             "Persist the Coolify runtime resource handle before mutable configuration begins.",
-            () -> upsertHandle(
+            () -> upsertRuntimeHandleProvisional(
                 deployment,
                 release,
                 profile,
@@ -622,6 +677,20 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             )
         );
 
+        List<CoolifyEnvVar> runtimeEnvironment = buildEnvironment(
+            deployment,
+            version,
+            release,
+            profile,
+            resourceScope,
+            source,
+            source.runtimePlan(),
+            SERVICE_ROLE_RUNTIME,
+            runtimeBaseUrl,
+            resolvedRuntimeConnectorBaseUrl,
+            connectorBaseUrl,
+            runtimeDatabaseBinding
+        );
         int runtimeEnvCount = tracked(
             progressTracker,
             "configure_coolify_runtime_environment",
@@ -629,20 +698,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             () -> coolifyApiClient.updateEnvironmentVariables(
                 connection,
                 runtimeApplication.uuid(),
-                buildEnvironment(
-                    deployment,
-                    version,
-                    release,
-                    profile,
-                    resourceScope,
-                    source,
-                    source.runtimePlan(),
-                    SERVICE_ROLE_RUNTIME,
-                    runtimeBaseUrl,
-                    resolvedRuntimeConnectorBaseUrl,
-                    connectorBaseUrl,
-                    runtimeDatabaseBinding
-                )
+                runtimeEnvironment
             )
         );
 
@@ -702,14 +758,145 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
 
+        RuntimeGenerationCheckpointService.PriorRuntime generationPriorRuntime =
+            runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
+        var remoteGenerationEvidence = quiesceRuntimeGenerationDependencies(
+            deployment,
+            release,
+            generationPriorRuntime,
+            connection,
+            connectorApplication,
+            vectorizationRunnerApplication,
+            resourceDefaults,
+            progressTracker
+        );
+        RuntimeGenerationCheckpointService.Checkpoint generationCheckpoint = prepareRuntimeGenerationReplacement(
+            deployment,
+            release,
+            generationPriorRuntime,
+            runtimeApplication,
+            runtimeBaseUrl,
+            runtimeEnvironment,
+            resourceDefaults,
+            remoteGenerationEvidence
+        );
+
         CoolifyActionResponse connectorDeployResponse = null;
         CoolifyApplicationSummary observedConnector = null;
+        CoolifyActionResponse vectorizationRunnerDeployResponse = null;
+        CoolifyApplicationSummary observedVectorizationRunner = null;
+
+        if (generationCheckpoint != null
+            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.FENCED) {
+            String stopEvidence = tracked(
+                progressTracker,
+                "stop_coolify_runtime_for_generation_transition",
+                "Stop and read back the previous runtime generation before adopting the replacement.",
+                () -> stopApplicationBeforeSingleWriterReplacement(
+                    connection,
+                    runtimeApplication,
+                    resourceDefaults,
+                    progressTracker
+                )
+            );
+            generationCheckpoint = runtimeGenerationCheckpointService.recordProviderStop(
+                release.getId(), runtimeGenerationCheckpointService.fingerprint(generationCheckpoint), stopEvidence
+            );
+        } else if (generationCheckpoint != null
+            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
+            String refreshedStopEvidence = tracked(
+                progressTracker,
+                "refresh_coolify_runtime_stop_evidence_for_generation_transition",
+                "Refresh authoritative provider stop evidence before adopting a resumed runtime replacement.",
+                () -> stopApplicationBeforeSingleWriterReplacement(
+                    connection,
+                    runtimeApplication,
+                    resourceDefaults,
+                    progressTracker
+                )
+            );
+            generationCheckpoint = runtimeGenerationCheckpointService.refreshProviderStop(
+                release.getId(), runtimeGenerationCheckpointService.fingerprint(generationCheckpoint),
+                refreshedStopEvidence
+            );
+        } else if (localLuceneRuntime && generationCheckpoint == null) {
+            tracked(
+                progressTracker,
+                "stop_coolify_runtime_before_single_writer_replacement",
+                "Stop the previous runtime before replacing a single-writer local Lucene process.",
+                () -> {
+                    stopApplicationBeforeSingleWriterReplacement(
+                        connection,
+                        runtimeApplication,
+                        resourceDefaults,
+                        progressTracker
+                    );
+                    return null;
+                }
+            );
+        }
+
+        CoolifyActionResponse runtimeDeployResponse = tracked(
+            progressTracker,
+            "trigger_coolify_runtime_deploy",
+            "Trigger Coolify deployment for the runtime application.",
+            () -> coolifyApiClient.start(connection, runtimeApplication.uuid(), true, true)
+        );
+
+        CoolifyApplicationSummary observedRuntime = tracked(
+            progressTracker,
+            "wait_for_coolify_runtime",
+            "Wait for Coolify to report the application running before Platform verification.",
+            () -> waitForApplicationReady(
+                connection,
+                runtimeApplication.uuid(),
+                resourceDefaults,
+                runtimeApplication,
+                runtimeDeployResponse,
+                progressTracker
+            )
+        );
+
+        if (generationCheckpoint != null
+            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
+            var transition = deploymentRuntimeGenerationService.adoptAfterProviderStop(
+                deployment,
+                release,
+                generationCheckpoint.drainReceipt(),
+                runtimeBaseUrl,
+                generationCheckpoint.nextTopologyFingerprint(),
+                generationCheckpoint.providerStopEvidenceReference()
+            );
+            generationCheckpoint = runtimeGenerationCheckpointService.recordAdopted(
+                release.getId(), runtimeGenerationCheckpointService.fingerprint(generationCheckpoint),
+                transition.transitionedAt()
+            );
+        }
+        if (generationCheckpoint != null
+            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.ADOPTED) {
+            RuntimeGenerationCheckpointService.PriorRuntime persistedPriorRuntime =
+                generationCheckpoint.priorRuntime();
+            tracked(
+                progressTracker,
+                "resume_remote_dependencies_after_generation_transition",
+                "Restart and verify remote dependencies after the replacement runtime becomes authoritative.",
+                () -> {
+                    resumeRuntimeGenerationDependencies(
+                        deployment,
+                        release,
+                        persistedPriorRuntime
+                    );
+                    return null;
+                }
+            );
+        }
+
         if (connectorApplication != null) {
             CoolifyApplicationSummary finalConnectorApplication = connectorApplication;
             connectorDeployResponse = tracked(
                 progressTracker,
                 "trigger_coolify_connector_deploy",
-                "Trigger Coolify deployment for the REST connector application.",
+                "Trigger Coolify deployment for the REST connector application after the runtime generation is active.",
                 () -> coolifyApiClient.start(connection, finalConnectorApplication.uuid(), true, true)
             );
             CoolifyActionResponse finalConnectorDeployResponse = connectorDeployResponse;
@@ -762,14 +949,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             }
         }
 
-        CoolifyActionResponse vectorizationRunnerDeployResponse = null;
-        CoolifyApplicationSummary observedVectorizationRunner = null;
         if (vectorizationRunnerApplication != null) {
             CoolifyApplicationSummary finalVectorizationRunnerApplication = vectorizationRunnerApplication;
             vectorizationRunnerDeployResponse = tracked(
                 progressTracker,
                 "trigger_coolify_vectorization_runner_deploy",
-                "Trigger Coolify deployment for the vectorization runner application.",
+                "Trigger Coolify deployment for the vectorization runner after the runtime generation is active.",
                 () -> coolifyApiClient.start(connection, finalVectorizationRunnerApplication.uuid(), true, true)
             );
             CoolifyActionResponse finalVectorizationRunnerDeployResponse = vectorizationRunnerDeployResponse;
@@ -787,44 +972,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 )
             );
         }
-
-        if (localLuceneRuntime) {
-            tracked(
-                progressTracker,
-                "stop_coolify_runtime_before_single_writer_replacement",
-                "Stop the previous runtime before replacing a single-writer local Lucene process.",
-                () -> {
-                    stopApplicationBeforeSingleWriterReplacement(
-                        connection,
-                        runtimeApplication,
-                        resourceDefaults,
-                        progressTracker
-                    );
-                    return null;
-                }
-            );
-        }
-
-        CoolifyActionResponse runtimeDeployResponse = tracked(
-            progressTracker,
-            "trigger_coolify_runtime_deploy",
-            "Trigger Coolify deployment for the runtime application.",
-            () -> coolifyApiClient.start(connection, runtimeApplication.uuid(), true, true)
-        );
-
-        CoolifyApplicationSummary observedRuntime = tracked(
-            progressTracker,
-            "wait_for_coolify_runtime",
-            "Wait for Coolify to report the application running before Platform verification.",
-            () -> waitForApplicationReady(
-                connection,
-                runtimeApplication.uuid(),
-                resourceDefaults,
-                runtimeApplication,
-                runtimeDeployResponse,
-                progressTracker
-            )
-        );
 
         CoolifyApplicationSummary finalObservedConnector = observedConnector;
         int finalConnectorEnvCount = connectorEnvCount;
@@ -981,7 +1128,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
     }
 
-    void stopApplicationBeforeSingleWriterReplacement(
+    String stopApplicationBeforeSingleWriterReplacement(
         CoolifyConnection connection,
         CoolifyApplicationSummary application,
         JsonNode resourceDefaults,
@@ -989,7 +1136,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     ) {
         CoolifyApplicationSummary current = observeCoolifyApplication(connection, application.uuid()).orElse(application);
         if (!applicationHasActiveContainer(current)) {
-            return;
+            if (!applicationStopped(current)) {
+                throw new IllegalStateException(
+                    "Coolify did not authoritatively report application " + application.uuid() + " stopped."
+                );
+            }
+            return providerStopEvidence(current, application.uuid());
         }
         // Coolify cleanup may prune the now-unused named volume before the replacement starts.
         coolifyApiClient.stop(connection, application.uuid(), false);
@@ -1025,6 +1177,154 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     + " to stop before single-writer replacement."
             );
         }
+        return providerStopEvidence(observed.get(), application.uuid());
+    }
+
+    private String providerStopEvidence(CoolifyApplicationSummary observed, String applicationUuid) {
+        String state = observed == null || observed.status() == null ? "unknown" : observed.status();
+        String payload = String.join("\n", "coolify", applicationUuid, state, Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
+        try {
+            String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return "coolify-stop:" + applicationUuid + ":" + digest;
+        } catch (Exception exception) { throw new IllegalStateException("Provider stop evidence could not be encoded.", exception); }
+    }
+
+    RuntimeGenerationCheckpointService.Checkpoint prepareRuntimeGenerationReplacement(
+        DeploymentEntity deployment,
+        DeploymentReleaseEntity release,
+        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime,
+        CoolifyApplicationSummary runtimeApplication,
+        String runtimeBaseUrl,
+        List<CoolifyEnvVar> runtimeEnvironment,
+        JsonNode resourceDefaults,
+        DeploymentRuntimeGenerationService.RemoteDependencyEvidence remoteEvidence
+    ) {
+        String nextTopologyFingerprint = environmentValue(
+            runtimeEnvironment, "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256"
+        );
+        if (nextTopologyFingerprint == null) return null;
+        if (!nextTopologyFingerprint.matches("[a-f0-9]{64}")) {
+            throw new IllegalStateException("RUNTIME_GENERATION_NEXT_TOPOLOGY_REQUIRED");
+        }
+        if (runtimeGenerationCheckpointService != null) {
+            var persisted = runtimeGenerationCheckpointService.read(release.getId());
+            if (persisted.isPresent()) {
+                var checkpoint = persisted.get();
+                if (!runtimeApplication.uuid().equals(checkpoint.priorRuntime().providerResourceUuid())
+                    || !runtimeBaseUrl.equals(checkpoint.priorRuntime().baseUrl())) {
+                    throw new IllegalStateException("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
+                }
+                if (checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.ADOPTED
+                    && deploymentRuntimeGenerationService == null) {
+                    throw new IllegalStateException("RUNTIME_GENERATION_COORDINATOR_REQUIRED");
+                }
+                return checkpoint;
+            }
+        }
+        if (previousRuntime == null) return null;
+        if (deploymentRuntimeGenerationService == null || runtimeGenerationCheckpointService == null) {
+            throw new IllegalStateException("RUNTIME_GENERATION_COORDINATOR_REQUIRED");
+        }
+        if (!runtimeApplication.uuid().equals(previousRuntime.providerResourceUuid())) {
+            throw new IllegalStateException("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
+        }
+        String previousBaseUrl = previousRuntime.baseUrl();
+        if (!runtimeBaseUrl.equals(previousBaseUrl)) {
+            throw new IllegalStateException("RUNTIME_GENERATION_ENDPOINT_CHANGED");
+        }
+        var receipt = deploymentRuntimeGenerationService.drainAndFence(
+            deployment,
+            release,
+            previousRuntime.releaseId(),
+            previousBaseUrl,
+            durationSeconds(resourceDefaults, "replacementDrainTimeoutSeconds", Duration.ofMinutes(5)),
+            durationSeconds(resourceDefaults, "replacementDrainPollSeconds", Duration.ofSeconds(2)),
+            remoteEvidence
+        );
+        return runtimeGenerationCheckpointService.recordFenced(
+            release.getId(),
+            previousRuntime,
+            receipt,
+            nextTopologyFingerprint
+        );
+    }
+
+    RuntimeGenerationCheckpointService.PriorRuntime runtimeGenerationPriorRuntime(
+        String releaseId,
+        RuntimeGenerationCheckpointService.PriorRuntime discovered
+    ) {
+        if (discovered != null || runtimeGenerationCheckpointService == null) return discovered;
+        return runtimeGenerationCheckpointService.read(releaseId)
+            .map(RuntimeGenerationCheckpointService.Checkpoint::priorRuntime)
+            .orElse(null);
+    }
+
+    DeploymentRuntimeGenerationService.RemoteDependencyEvidence quiesceRuntimeGenerationDependencies(
+        DeploymentEntity deployment,
+        DeploymentReleaseEntity release,
+        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime,
+        CoolifyConnection connection,
+        CoolifyApplicationSummary connectorApplication,
+        CoolifyApplicationSummary vectorizationRunnerApplication,
+        JsonNode resourceDefaults,
+        ProvisioningProgressTracker progressTracker
+    ) {
+        if (previousRuntime == null) return null;
+        Map<String, String> evidence = new java.util.TreeMap<>();
+        if (connectorApplication != null) {
+            evidence.put("CONNECTOR", tracked(
+                progressTracker,
+                "stop_coolify_connector_for_generation_transition",
+                "Stop and read back the connector before draining the previous runtime generation.",
+                () -> stopApplicationBeforeSingleWriterReplacement(
+                    connection, connectorApplication, resourceDefaults, progressTracker
+                )
+            ));
+        }
+        if (vectorizationRunnerApplication != null) {
+            evidence.put("VECTORIZATION_RUNNER", tracked(
+                progressTracker,
+                "stop_coolify_vectorization_runner_for_generation_transition",
+                "Stop and read back the vectorization runner before draining the previous runtime generation.",
+                () -> stopApplicationBeforeSingleWriterReplacement(
+                    connection, vectorizationRunnerApplication, resourceDefaults, progressTracker
+                )
+            ));
+        }
+        if (runtimeGenerationRemoteEvidenceProvider != null) {
+            var remote = runtimeGenerationRemoteEvidenceProvider.quiesce(
+                deployment, previousRuntime.releaseId(), release
+            );
+            if (remote == null || remote.readbacks() == null) {
+                throw new IllegalStateException("RUNTIME_GENERATION_REMOTE_DEPENDENCY_EVIDENCE_REQUIRED");
+            }
+            remote.readbacks().forEach((kind, reference) -> {
+                if (evidence.putIfAbsent(kind, reference) != null) {
+                    throw new IllegalStateException("RUNTIME_GENERATION_REMOTE_DEPENDENCY_EVIDENCE_DUPLICATE");
+                }
+            });
+        }
+        return new DeploymentRuntimeGenerationService.RemoteDependencyEvidence(evidence);
+    }
+
+    void resumeRuntimeGenerationDependencies(
+        DeploymentEntity deployment,
+        DeploymentReleaseEntity release,
+        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime
+    ) {
+        if (runtimeGenerationRemoteEvidenceProvider == null) return;
+        if (previousRuntime == null) {
+            throw new IllegalStateException("RUNTIME_GENERATION_PRIOR_RUNTIME_REQUIRED");
+        }
+        runtimeGenerationRemoteEvidenceProvider.resumeAfterAdoption(
+            deployment, previousRuntime.releaseId(), release
+        );
+    }
+
+    private String environmentValue(List<CoolifyEnvVar> environment, String key) {
+        if (environment == null) return null;
+        return environment.stream().filter(value -> key.equals(value.key())).map(CoolifyEnvVar::value).findFirst().orElse(null);
     }
 
     private boolean hasEnvironmentValue(RailwayServicePlanSummary plan, String key, String expectedValue) {
@@ -1771,6 +2071,53 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
     }
 
+    private DeploymentProviderResourceHandleEntity upsertRuntimeHandleProvisional(
+        DeploymentEntity deployment,
+        DeploymentReleaseEntity release,
+        DeploymentTargetProfileEntity profile,
+        CoolifyResourceScope scope,
+        CoolifyTargetProfileConfig config,
+        String resourceKind,
+        CoolifyApplicationSummary application,
+        CoolifyProvisioningSource source,
+        String serviceRole,
+        int envCount,
+        CoolifyActionResponse deployResponse
+    ) {
+        Optional<DeploymentProviderResourceHandleEntity> existing = resourceHandleRepository
+            .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+                deployment.getId(), profile.getId(), resourceKind
+            );
+        DeploymentProviderResourceHandleEntity preserved = preserveExistingRuntimeGenerationHandle(
+            existing, application
+        );
+        if (preserved != null) {
+            // Keep the prior release identity durable until the old generation is fenced,
+            // stopped and the replacement has adopted authority. The final handle write
+            // below advances it only after that sequence succeeds.
+            return preserved;
+        }
+        return upsertHandle(
+            deployment, release, profile, scope, config, resourceKind, application,
+            source, serviceRole, envCount, deployResponse
+        );
+    }
+
+    DeploymentProviderResourceHandleEntity preserveExistingRuntimeGenerationHandle(
+        Optional<DeploymentProviderResourceHandleEntity> existing,
+        CoolifyApplicationSummary application
+    ) {
+        if (existing == null || existing.isEmpty()) return null;
+        DeploymentProviderResourceHandleEntity handle = existing.get();
+        // Legacy/stale handles without a release identity are not generation authority.
+        // Their provider absence or scope replacement was already reconciled by the caller.
+        if (!StringUtils.hasText(handle.getReleaseId())) return null;
+        if (!application.uuid().equals(handle.getProviderResourceUuid())) {
+            throw new IllegalStateException("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
+        }
+        return handle;
+    }
+
     private DeploymentProviderResourceHandleEntity persistApplicationHandle(
         DeploymentProviderResourceHandleEntity handle,
         CoolifyApplicationSummary application,
@@ -2249,8 +2596,94 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD", runtimeDatabaseBinding.password(), true);
             putEnv(env, "PLATFORM_INTEGRATION_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
         }
+        mergeFrozenRuntimeAuthorityEnvironment(deployment, version, release, serviceRole, env);
+        if (SERVICE_ROLE_RUNTIME.equals(serviceRole)) {
+            boolean durableTargetStore = runtimeDatabaseBinding != null;
+            requireDurableRuntimeStoreForProductizedDeployment(deployment, durableTargetStore);
+            boolean attestedTarget = durableTargetStore && StringUtils.hasText(release.getRuntimeAuthoritySnapshotId());
+            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_ENABLED", Boolean.toString(attestedTarget));
+            putEnv(env, "LOOMAI_RUNTIME_TARGET_RETIREMENT_DEDICATED_STORE", Boolean.toString(attestedTarget));
+            if (attestedTarget) {
+                Map<String, String> runtimeEnvironment = new LinkedHashMap<>();
+                env.forEach((key, value) -> runtimeEnvironment.put(key, value.value()));
+                RuntimeRetirementTopologyPlanService planner = runtimeRetirementTopologyPlanService == null
+                    ? new RuntimeRetirementTopologyPlanService(objectMapper)
+                    : runtimeRetirementTopologyPlanService;
+                var topology = planner.plan(
+                    deployment,
+                    release,
+                    runtimeEnvironment,
+                    source != null && source.connectorPlan() != null,
+                    source != null && source.vectorizationRunnerPlan() != null
+                );
+                putEnv(env, "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_JSON", topology.json());
+                putEnv(env, "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", topology.sha256());
+            }
+        }
         putEnv(env, "PLATFORM_ENVIRONMENT_NAME", profile.getEnvironmentName());
         return withPreviewEnvironment(new ArrayList<>(env.values()));
+    }
+
+    void requireDurableRuntimeStoreForProductizedDeployment(DeploymentEntity deployment,
+                                                            boolean durableTargetStore) {
+        if (!durableTargetStore
+            && customerOfferDeploymentRepository != null
+            && customerOfferDeploymentRepository.existsById(deployment.getId())) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Productized Coolify runtimes require target-owned PostgreSQL for durable fencing and recovery."
+            );
+        }
+    }
+
+    void mergeFrozenRuntimeAuthorityEnvironment(DeploymentEntity deployment,
+                                                DeploymentVersionEntity version,
+                                                DeploymentReleaseEntity release,
+                                                String serviceRole,
+                                                LinkedHashMap<String, CoolifyEnvVar> env) {
+        boolean hasSnapshot = StringUtils.hasText(release.getRuntimeAuthoritySnapshotId());
+        boolean hasFingerprint = StringUtils.hasText(release.getRuntimeAuthorityFingerprint());
+        boolean authorityRequired = ManagedDeploymentProfileCatalog.publicRuntimeRequested(
+            readJson(version.getSecurityConfigJson())
+        ) || (customerOfferDeploymentRepository != null
+            && customerOfferDeploymentRepository.existsById(deployment.getId()));
+        if (hasSnapshot != hasFingerprint || (authorityRequired && !hasSnapshot)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Coolify provisioning requires complete frozen target authority evidence for this release."
+            );
+        }
+        if (!hasSnapshot) return;
+        if (deploymentRuntimeAuthorityService == null) {
+            throw new IllegalStateException("Runtime authority materializer is unavailable for Coolify provisioning.");
+        }
+        var plan = deploymentRuntimeAuthorityService.releaseEnvironmentPlanForProvisioning(
+            deployment,
+            version,
+            release
+        );
+        Map<String, String> values = SERVICE_ROLE_CONNECTOR.equals(serviceRole)
+            ? plan.connector()
+            : SERVICE_ROLE_RUNTIME.equals(serviceRole) ? plan.runtime() : Map.of();
+        values.forEach((key, value) -> {
+            String secretName = secretPlaceholderName(value);
+            putEnv(env, key, resolveAuthorityEnvironmentValue(secretName, value), secretName != null);
+        });
+    }
+
+    private String resolveAuthorityEnvironmentValue(String secretName, String value) {
+        if (secretName == null) return value;
+        if (platformSecretService == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Platform secret service is unavailable for target authority provisioning.");
+        }
+        String resolved = platformSecretService.resolveSecret(secretName);
+        if (!StringUtils.hasText(resolved)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Missing managed target authority secret required for Coolify provisioning."
+            );
+        }
+        return resolved;
     }
 
     private List<CoolifyEnvVar> withPreviewEnvironment(List<CoolifyEnvVar> envVars) {

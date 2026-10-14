@@ -22,6 +22,13 @@ public final class RuntimeTargetRetirementContracts {
         public boolean ingressBlocked() { return state != State.ACTIVE; }
     }
     public record CommandResult(Readback applied, Readback current, boolean replay) { }
+    public record GenerationTransition(Target previousTarget, Target nextTarget, String tenantId,
+                                       long expectedFenceEpoch, String previousTopologyFingerprint,
+                                       String nextTopologyFingerprint, String operationId,
+                                       String requestFingerprint, String providerStopEvidenceReference) { }
+    public record GenerationTransitionResult(Readback previous, Readback current,
+                                             String providerStopEvidenceReference,
+                                             Instant transitionedAt, boolean replay) { }
     public record Observation(String source, Long observedCount, boolean complete, List<String> blockers) { }
     public record Metric(Long count, boolean complete, List<Observation> observations) { }
     public record RemoteObligation(String dependencyKind, Target target, String topologyFingerprint, String requirement) { }

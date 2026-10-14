@@ -34,7 +34,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false, properties = {
-    "spring.flyway.target=120.15",
+    "spring.flyway.target=120.17",
     "spring.datasource.url=jdbc:h2:mem:r1-authority;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=10000",
     "spring.jpa.show-sql=false"
 })
@@ -48,6 +48,7 @@ class RuntimeAuthorityPersistenceIntegrationTest {
     @Autowired DeploymentRepository deployments;
     @Autowired DeploymentDraftRepository drafts;
     @Autowired DeploymentVersionRepository versions;
+    @Autowired DeploymentReleaseRepository releases;
     @Autowired DeploymentTargetProfileRepository targets;
     @Autowired RuntimeAuthorityRepository authorities;
     @Autowired RuntimeAuthoritySnapshotRepository snapshots;
@@ -134,6 +135,39 @@ class RuntimeAuthorityPersistenceIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM platform_secrets WHERE deployment_id=?", Integer.class, deploymentId)).isZero();
         assertThat(snapshots.findById(first.snapshotId())).isPresent();
         assertThat(authorities.findByDeploymentIdAndTargetProfileId(deploymentId, targetId).orElseThrow().getState()).isEqualTo("REVOKED");
+    }
+
+    @Test void releaseSnapshotReferenceAndFingerprintRoundTripWithForeignKeyProtection() {
+        var candidate = service.freezeCandidate(deploymentId, targetId, versionId, List.of("https://workspace.example.com"));
+        var release = new DeploymentReleaseEntity();
+        release.setId("release-" + UUID.randomUUID().toString().substring(0, 8));
+        release.setDeploymentId(deploymentId);
+        release.setDeploymentVersionId(versionId);
+        release.setStatus("APPLY_REQUESTED");
+        release.setVerificationStatus("PENDING");
+        release.setProvisioningStatus("QUEUED");
+        release.setProvisioningTarget("COOLIFY");
+        release.setTargetProfileId(targetId);
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setProvisioningDetailsJson("{}");
+        release.setCreatedAt(Instant.now());
+        release.setAppliedAt(Instant.now());
+        release.setUpdatedAt(Instant.now());
+        releases.saveAndFlush(release);
+
+        var frozen = service.freezeRelease(
+            deploymentId, targetId, release.getId(), candidate.snapshotId(), candidate.fingerprint()
+        );
+        release.setRuntimeAuthoritySnapshotId(frozen.snapshotId());
+        release.setRuntimeAuthorityFingerprint(frozen.fingerprint());
+        releases.saveAndFlush(release);
+
+        var stored = releases.findById(release.getId()).orElseThrow();
+        assertThat(stored.getRuntimeAuthoritySnapshotId()).isEqualTo(frozen.snapshotId());
+        assertThat(stored.getRuntimeAuthorityFingerprint()).isEqualTo(frozen.fingerprint());
+        assertThat(service.freezeRelease(
+            deploymentId, targetId, release.getId(), candidate.snapshotId(), candidate.fingerprint()
+        )).isEqualTo(frozen);
     }
 
     private RuntimeAuthorityBinding.Snapshot freeze() {

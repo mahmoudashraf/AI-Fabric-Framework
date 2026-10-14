@@ -1,0 +1,2 @@
+# Local live-AWS evidence can contain environment-specific fingerprints.
+*.json

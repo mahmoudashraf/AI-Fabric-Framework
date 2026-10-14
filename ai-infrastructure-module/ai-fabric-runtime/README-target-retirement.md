@@ -1,7 +1,7 @@
 # Private Runtime Target Retirement
 
-App-owned R3 drain service; framework 0.8.32 is read-only and unchanged. V12 was
-free when implemented; V10 was the highest runtime migration (V11 unclaimed).
+App-owned R3 drain service; framework 0.8.32 is read-only and unchanged. V12
+owns target retirement and V13 owns explicit same-target generation transition.
 
 ## Configuration
 Provider injects exact `LOOMAI_RUNTIME_TARGET_PROFILE_ID`,
@@ -51,6 +51,9 @@ All routes are POST under `/api/private/runtime-target-retirement`:
 - `/commands`: command below; persisted `applied`, actual `current`, and `replay`.
 - `/snapshots`: body `binding`; fresh persisted counts/evidence reference.
 - `/snapshots/{snapshotId}/readback`: same binding; saved evidence only while current fence matches.
+- `/generation-transitions`: adopt an exact replacement release after the old
+  generation is locally drained, authority-fenced, and provider stop/readback
+  evidence has been recorded by the control plane.
 
 ```json
 {
@@ -85,6 +88,20 @@ Require matching deployment/tenant and `runtime:target-retirement:read` or
 `runtime:target-retirement:write`; existing issuer/audience/expiry checks apply.
 Public tokens, bare keys, platform/end-user/contact identities and cross-scope
 commands fail. Responses are no-store.
+
+Generation transition is a separate write command. It binds the exact previous
+and next release on the same deployment/target/tenant, previous and next
+topology fingerprints, expected retirement fence, an idempotent operation and
+request fingerprint, and a bounded provider stop/readback reference. The old
+generation must already be `AUTHORITY_REVOKED`, with complete persisted local
+drain evidence and zero unsettled permits. The new runtime may expose only this
+private transition route while its environment identifies a not-yet-adopted
+release; every ordinary protected route continues to fail with
+`PERSISTED_RUNTIME_GENERATION_MISMATCH`. Successful adoption advances the
+fence, activates the new generation, retains runtime data and audit evidence,
+and causes old workers to fail on their next gate check. Exact retries replay
+the receipt; changed payloads, topology, target, tenant, operation or provider
+evidence fail closed. Startup variables alone never authorize adoption.
 
 ## Counts And Fencing
 Metrics expose real source observations; aggregate is null unless every local
@@ -123,8 +140,9 @@ not pretend it fetched/validated remote stores. Refresh counts after uncertain
 responses and explicitly read back status/snapshot.
 
 V12 stores identity/topology/fence, command receipts, snapshots and unsettled
-permits. No deployment/resource/session/source deletion, replay/movement, contact
-auth change or TTL shortening. Production/shared resources are outside this slice.
+permits. V13 stores immutable transition receipts and before/after fences. No
+deployment/resource/session/source deletion, replay/movement, contact auth
+change or TTL shortening. Production/shared resources are outside this slice.
 
 Tests: RuntimeTargetRetirementServiceTest, RuntimeTargetDrainInventoryTest,
 RuntimeRetirementSecurityAndIngressTest; shared RuntimeRetirementTestFixture.

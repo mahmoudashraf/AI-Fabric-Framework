@@ -113,10 +113,14 @@ class CustomerSelfServiceControllerTest {
         @Bean CustomerOfferCodec codec() { return CustomerOfferTestFixtures.codec(); }
         @Bean CustomerPlacementProbeService placementProbes() { return mock(CustomerPlacementProbeService.class); }
         @Bean CustomerDeploymentBootstrapService bootstrap() { return mock(CustomerDeploymentBootstrapService.class); }
+        @Bean CustomerDocumentStorageBindingService documentStorageBindings() {
+            return mock(CustomerDocumentStorageBindingService.class);
+        }
         @Bean CustomerSelfServiceController controller(CustomerSelfServiceCatalogueService catalogue,
             CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec, CustomerPlacementProbeService placementProbes,
-            CustomerDeploymentBootstrapService bootstrap) {
-            return new CustomerSelfServiceController(catalogue, entitlements, codec, placementProbes, bootstrap);
+            CustomerDeploymentBootstrapService bootstrap, CustomerDocumentStorageBindingService documentStorageBindings) {
+            return new CustomerSelfServiceController(catalogue, entitlements, codec, placementProbes, bootstrap,
+                documentStorageBindings);
         }
         @Bean CustomerSelfServiceExceptionHandler errors() { return new CustomerSelfServiceExceptionHandler(); }
         @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {

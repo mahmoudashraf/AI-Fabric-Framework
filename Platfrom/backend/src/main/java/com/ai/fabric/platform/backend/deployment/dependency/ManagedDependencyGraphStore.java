@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.fail;
@@ -26,6 +27,9 @@ public class ManagedDependencyGraphStore {
     public ManagedDependencyGraphEntity read(String id) {
         return repository.findById(id).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
             org.springframework.http.HttpStatus.NOT_FOUND, "Dependency graph not found."));
+    }
+    public Optional<ManagedDependencyGraphEntity> find(String deploymentId, String targetProfileId) {
+        return repository.findByDeploymentIdAndTargetProfileId(deploymentId, targetProfileId);
     }
     public void mutate(String id, String workerToken, BiConsumer<ManagedDependencyGraphEntity, ManagedDependencyState> action) {
         transaction.executeWithoutResult(status -> {

@@ -15,6 +15,6 @@ class DeploymentPromotionCommandPostgresIntegrationTest extends DeploymentPromot
         properties.add("spring.datasource.password", POSTGRES::getPassword);
         properties.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         properties.add("spring.flyway.locations", () -> "classpath:db/migration");
-        properties.add("spring.flyway.target", () -> "167");
+        properties.add("spring.flyway.target", () -> "latest");
     }
 }

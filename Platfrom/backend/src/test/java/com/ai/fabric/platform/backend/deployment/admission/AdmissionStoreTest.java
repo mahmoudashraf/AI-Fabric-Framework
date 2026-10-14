@@ -138,8 +138,15 @@ class AdmissionStoreTest extends AdmissionFixture {
     @Test
     void canonicalFingerprintIgnoresSetAndMapInsertionOrder() {
         var a = manifest("m", "d");
+        var reorderedCustomerReferences = new java.util.LinkedHashMap<
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite, String>();
+        a.customerPrerequisiteReferences().entrySet().stream()
+            .sorted(java.util.Map.Entry.<com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite, String>
+                comparingByKey().reversed())
+            .forEach(entry -> reorderedCustomerReferences.put(entry.getKey(), entry.getValue()));
         var b = new Manifest(a.id(), a.deploymentId(), a.versionId(), a.versionConfigHash(), a.targetProfileId(), a.bindingFingerprint(), a.topologyReference(),
-            a.demand(), new java.util.LinkedHashSet<>(List.of("identity", "dependency-topology", "storage")));
+            a.demand(), new java.util.LinkedHashSet<>(List.of("storage", "dependency-topology", "identity", "operating-policy",
+                "notifications", "immutable-artifacts", "approved-policy")), reorderedCustomerReferences);
         assertThat(json.fingerprint(a)).isEqualTo(json.fingerprint(b));
     }
     @Test

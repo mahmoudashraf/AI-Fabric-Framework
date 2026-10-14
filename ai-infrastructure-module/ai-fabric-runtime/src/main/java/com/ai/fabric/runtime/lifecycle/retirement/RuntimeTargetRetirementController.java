@@ -34,6 +34,12 @@ public class RuntimeTargetRetirementController {
         authorize(request, WRITE_SCOPE);
         return response(service.command(command));
     }
+    @PostMapping("/generation-transitions")
+    public ResponseEntity<GenerationTransitionResult> transition(@RequestBody GenerationTransition command,
+        HttpServletRequest request) {
+        authorize(request, WRITE_SCOPE);
+        return response(service.transition(command));
+    }
     @PostMapping("/status")
     public ResponseEntity<Readback> status(@RequestBody Target target, HttpServletRequest request) {
         authorize(request, READ_SCOPE);

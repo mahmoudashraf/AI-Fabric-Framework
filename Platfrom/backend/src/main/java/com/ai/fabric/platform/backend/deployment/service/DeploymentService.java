@@ -11,6 +11,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
@@ -65,6 +67,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -86,6 +89,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -133,6 +137,8 @@ public class DeploymentService {
     private final DeploymentBehaviorCatalogService deploymentBehaviorCatalogService;
     private final DeploymentSourceArtifactService deploymentSourceArtifactService;
     private final DeploymentSourceCapabilityManifestService sourceCapabilityManifestService;
+    private final DeploymentRuntimeAuthorityService runtimeAuthorityService;
+    private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
     private final ObjectMapper objectMapper;
 
     @Autowired
@@ -282,6 +288,8 @@ public class DeploymentService {
                              DeploymentBehaviorCatalogService deploymentBehaviorCatalogService,
                              DeploymentSourceArtifactService deploymentSourceArtifactService,
                              DeploymentSourceCapabilityManifestService sourceCapabilityManifestService,
+                             DeploymentRuntimeAuthorityService runtimeAuthorityService,
+                             CustomerOfferDeploymentRepository customerOfferDeploymentRepository,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
@@ -317,6 +325,8 @@ public class DeploymentService {
         this.deploymentBehaviorCatalogService = deploymentBehaviorCatalogService;
         this.deploymentSourceArtifactService = deploymentSourceArtifactService;
         this.sourceCapabilityManifestService = sourceCapabilityManifestService;
+        this.runtimeAuthorityService = runtimeAuthorityService;
+        this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -1668,6 +1678,23 @@ public class DeploymentService {
             if (documentBindingResolver == null) throw new IllegalStateException("Document binding resolver is required.");
             documentBindingResolver.freeze(deployment, version, release);
         }
+        RuntimeAuthorityBinding.Snapshot authorityCandidate = freezeRuntimeAuthorityCandidateIfRequired(
+            deployment,
+            version,
+            targetProfile
+        );
+        if (authorityCandidate != null) {
+            releaseRepository.saveAndFlush(release);
+            RuntimeAuthorityBinding.Snapshot authorityRelease = runtimeAuthorityService.freezeRelease(
+                deploymentId,
+                targetProfile.getId(),
+                release.getId(),
+                authorityCandidate.snapshotId(),
+                authorityCandidate.fingerprint()
+            );
+            release.setRuntimeAuthoritySnapshotId(authorityRelease.snapshotId());
+            release.setRuntimeAuthorityFingerprint(authorityRelease.fingerprint());
+        }
         releaseRepository.save(release);
 
         deployment.setStatus("APPLY_REQUESTED");
@@ -1688,6 +1715,36 @@ public class DeploymentService {
 
         scheduleApplyAfterCommit(deploymentId, versionId, release.getId());
         return toReleaseSummary(release);
+    }
+
+    private RuntimeAuthorityBinding.Snapshot freezeRuntimeAuthorityCandidateIfRequired(
+        DeploymentEntity deployment,
+        DeploymentVersionEntity version,
+        DeploymentTargetProfileEntity targetProfile
+    ) {
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
+        boolean productized = customerOfferDeploymentRepository.existsById(deployment.getId());
+        boolean authorityRequired = productized || ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        if (!authorityRequired) {
+            return null;
+        }
+
+        List<String> reviewedOrigins = Arrays.stream(securityConfig.path("corsAllowedOrigins").asText("").split(","))
+            .map(String::trim)
+            .filter(StringUtils::hasText)
+            .toList();
+        if (reviewedOrigins.isEmpty()) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Runtime authority requires reviewed exact HTTPS origins in published security corsAllowedOrigins."
+            );
+        }
+        return runtimeAuthorityService.freezeCandidate(
+            deployment.getId(),
+            targetProfile.getId(),
+            version.getId(),
+            reviewedOrigins
+        );
     }
 
     private void requireBehaviorReleaseSupport(DeploymentEntity deployment,

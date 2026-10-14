@@ -53,8 +53,17 @@ abstract class AdmissionFixture {
         return new CustomerGrant("customer", vector(capacity), Map.of(TARGET, vector(capacity)), NOW.plusSeconds(5000), "verified-owner", "payer", "keep-entitlement");
     }
     Manifest manifest(String id, String deployment) {
+        Map<com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite, String> customerReferences = Map.of(
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.APPROVED_POLICY, "approved-policy",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.IMMUTABLE_ARTIFACTS, "immutable-artifacts",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.STORAGE, "storage",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.IDENTITY, "identity",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.NOTIFICATIONS, "notifications",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.OPERATING_POLICY, "operating-policy"
+        );
         return new Manifest(id, deployment, "version", "config-hash", TARGET, "binding-fingerprint", "reviewed-topology-with-db-volume-index-inbox",
-            vector(1), Set.of("storage", "identity", "dependency-topology"));
+            vector(1), Set.of("approved-policy", "immutable-artifacts", "storage", "identity", "notifications", "operating-policy", "dependency-topology"),
+            customerReferences);
     }
     void approve(long capacity) {
         store.approvePolicy(policy(capacity), "operator", NOW); store.approveGrant(grant(capacity), "operator", NOW);

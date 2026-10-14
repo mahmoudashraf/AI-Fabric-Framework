@@ -19,6 +19,9 @@ public class ManagedDependencyState {
     public long effectiveConfigurationRevision = -1;
     public List<String> retiredOperatorSecretNames = new ArrayList<>();
     public String retirementFingerprint;
+    public String runtimeGenerationOperationKey;
+    public String runtimeGenerationState;
+    public List<String> runtimeGenerationStoppedSlots = new ArrayList<>();
 
     public static class Node {
         public String slot;

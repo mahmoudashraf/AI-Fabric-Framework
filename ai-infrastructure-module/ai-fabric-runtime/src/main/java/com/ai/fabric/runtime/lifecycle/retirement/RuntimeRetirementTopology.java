@@ -21,7 +21,7 @@ public class RuntimeRetirementTopology {
         SPECIALIST_CHAINS, SMART_BRAIN, ACTION_WEBHOOK, INDEXING, DOCUMENTS, SCHEDULER
     }
     public enum Presence { PRESENT, ABSENT }
-    public enum Dependency { CONNECTOR, HUMAN_INBOX }
+    public enum Dependency { CONNECTOR, HUMAN_INBOX, VECTORIZATION_RUNNER }
     public record Contract(String contractVersion, Target target, String tenantId,
                            Map<Feature, Presence> features, List<Dependency> remoteDependencies) { }
     public static final String VERSION = "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V1";

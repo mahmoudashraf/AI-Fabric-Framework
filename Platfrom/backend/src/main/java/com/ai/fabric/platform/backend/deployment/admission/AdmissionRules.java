@@ -106,6 +106,16 @@ final class AdmissionRules {
         required(manifest.versionConfigHash(), 255); required(manifest.targetProfileId(), 64);
         required(manifest.bindingFingerprint(), 64); required(manifest.topologyReference(), 255);
         manifest.prerequisiteReferences().forEach(ref -> required(ref, 255)); vector(manifest.demand());
+        if (manifest.customerPrerequisiteReferences() == null) {
+            throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_PREREQUISITE_MAP_INVALID");
+        }
+        manifest.customerPrerequisiteReferences().forEach((prerequisite, reference) -> {
+            if (prerequisite == null || prerequisite == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite.CAPACITY
+                || reference == null || !manifest.prerequisiteReferences().contains(reference)) {
+                throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_PREREQUISITE_MAP_INVALID");
+            }
+            required(reference, 255);
+        });
         if (manifest.demand().amounts().get(Dimension.ENVIRONMENTS) != 1
             || manifest.demand().amounts().get(Dimension.REPLICAS) < 1
             || manifest.demand().amounts().get(Dimension.CPU_MILLICORES) < 1

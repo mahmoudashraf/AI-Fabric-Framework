@@ -172,6 +172,39 @@ public class DeploymentRuntimeAuthorityService {
         return environment(requireReleaseUnchanged(deploymentId, targetProfileId, releaseId, expectedFingerprint).binding());
     }
 
+    /**
+     * Provisioning-worker readback for an authority snapshot that was synchronously frozen on the release.
+     * This deliberately accepts no browser identity, arbitrary snapshot id, origin, or secret override.
+     */
+    @Transactional
+    public EnvironmentPlan releaseEnvironmentPlanForProvisioning(DeploymentEntity deployment,
+                                                                  DeploymentVersionEntity version,
+                                                                  DeploymentReleaseEntity release) {
+        if (deployment == null || version == null || release == null
+            || !deployment.getId().equals(release.getDeploymentId())
+            || !version.getId().equals(release.getDeploymentVersionId())
+            || !deployment.getId().equals(version.getDeploymentId())
+            || release.getTargetProfileId() == null
+            || release.getRuntimeAuthoritySnapshotId() == null
+            || release.getRuntimeAuthorityFingerprint() == null) {
+            throw conflict("Release lacks complete frozen target authority evidence.");
+        }
+        RuntimeAuthorityEntity authority = authority(deployment, release.getTargetProfileId());
+        RuntimeAuthoritySnapshotEntity snapshot = snapshots.findById(release.getRuntimeAuthoritySnapshotId())
+            .orElseThrow(() -> conflict("Frozen release authority snapshot is unavailable."));
+        if (!release.getId().equals(snapshot.getReleaseId())
+            || !version.getId().equals(snapshot.getVersionId())
+            || !release.getRuntimeAuthorityFingerprint().equals(snapshot.getFingerprint())) {
+            throw conflict("Frozen release authority evidence does not match the exact release and version.");
+        }
+        return environment(checkedSnapshot(
+            deployment,
+            authority,
+            snapshot,
+            release.getRuntimeAuthorityFingerprint()
+        ).binding());
+    }
+
     @Transactional
     public Map<String, String> issueSystemHeaders(String deploymentId, String targetProfileId, String releaseId,
         String expectedFingerprint, String subjectId, String sessionId, List<String> grantedScopes, Duration ttl) {

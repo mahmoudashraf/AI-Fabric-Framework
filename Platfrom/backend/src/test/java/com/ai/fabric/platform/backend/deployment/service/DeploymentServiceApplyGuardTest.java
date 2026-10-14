@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -101,6 +103,8 @@ class DeploymentServiceApplyGuardTest {
             new DeploymentBehaviorCatalogService(objectMapper),
             sourceArtifactService,
             capabilityManifestService,
+            mock(DeploymentRuntimeAuthorityService.class),
+            mock(CustomerOfferDeploymentRepository.class),
             objectMapper
         );
 

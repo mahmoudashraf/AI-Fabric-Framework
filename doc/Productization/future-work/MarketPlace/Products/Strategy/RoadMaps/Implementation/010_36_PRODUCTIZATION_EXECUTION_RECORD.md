@@ -1,17 +1,21 @@
 # LoomAI Engage Productization Execution Record
 
-Date: 2026-10-14. Governing scope: section 10 of
+Date: 2026-10-15. Governing scope: section 10 of
 [010.36](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md).
 Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
-- P0: in progress. Final API/schema contracts and prerequisite hardening are
-  being implemented. Customer-owned S3 canary credentials are pending from the
-  owner; do not substitute managed storage or claim the storage gate passed.
-- P1-P5: not certified. Independent safety prerequisites may proceed; dependent
-  hosted provisioning remains gated on storage, identity, notification,
-  immutable dependency artifacts and measured capacity.
+- P0: source contract implemented and integrated; prerequisite acceptance is in
+  progress. The owner supplied the non-secret customer-owned S3 canary contract,
+  but the ignored credential entries are still placeholders. The
+  prefix-isolation/read-only live gate therefore still needs a passing sanitized
+  evidence record. Do not substitute managed storage or claim the storage gate
+  passed from fixture tests.
+- P1-P5: source foundations are integrated but not hosted-certified. Dependent
+  customer provisioning remains gated on live storage, identity, notification,
+  immutable dependency artifacts, measured capacity and fresh-customer
+  lifecycle evidence.
 - P6: not started. No editor extraction or customer layout change before the
   verified functional baseline. Preserve the frozen STAFF-001 through STAFF-039
   capability register and source snapshot.
@@ -62,16 +66,19 @@ complete dealership topology. No resources were removed or redeployed.
 - Shared vector provisioning derives distinct customer/tenant/deployment/target
   scopes. Registry updates no longer detach another target's active scope.
 - R3 target-only retirement, R5 dedicated dependency/operator lifecycle and R7
-  atomic admission/expiry ledgers exist as independently verified primitives.
-  Actual interlock/readback/initialization/notice adapters and orchestration are
-  still required. Missing adapters fail closed, not fake success.
+  atomic admission/expiry ledgers exist as integrated primitives. The apply path
+  now derives the release-bound runtime topology, coordinates connector/vector
+  runner and managed-dependency quiescence, and fails closed when required
+  readback evidence is absent. Hosted initialization, notice delivery, capacity
+  and recovery evidence remain required; source integration is not live proof.
 - Apply, release-bound consumer rebind and document-binding mutation now join
   the durable target-retirement fence. Existing staff UI has only functional
   contract wiring; no P6 layout/editor extraction has been performed.
-- Target-owned authority generation, immutable snapshots, credential revision
-  checks and explicit-key assertion signing are implemented as a tested service.
-  Actual provisioning, runtime administration and activation must still consume
-  those snapshots; this is not proof that live targets use isolated keys.
+- Target-owned authority generation, immutable release snapshots, credential
+  revision checks and explicit-key assertion signing are consumed by the
+  productized Coolify provisioning and runtime-generation administration path.
+  Missing or drifted authority fails closed. This is still not hosted proof that
+  every live target uses isolated current keys.
 - Invited owners have an explicit `CONFIGURATION_ONLY` bootstrap command. It
   locks the active entitlement, validates reviewed composition/name settings,
   reuses the template factory, and commits the association/receipt atomically.
@@ -84,6 +91,18 @@ complete dealership topology. No resources were removed or redeployed.
 - Document UI mutations capture their original deployment/target/release and
   invalidate only that scope after delayed completion. Target navigation does
   not pretend to cancel a server operation or display its result on a new scope.
+- Customer self-service exposes only the reviewed S3 document-binding slot. It
+  authorizes deployment/tenant/target ownership server-side, stores credentials
+  through the existing write-only binding boundary, returns redacted binding
+  evidence, provides idempotent bind/revoke commands and never deletes source
+  objects.
+- Same-target runtime replacement now uses an explicit private generation
+  transition. It drains and fences the old release, requires authoritative
+  remote-dependency and provider-stop readback, durably checkpoints the
+  `FENCED -> STOP_CONFIRMED -> ADOPTED` phases, adopts the exact new release and
+  resumes dependencies from the persisted prior-generation identity. The old
+  release handle remains authoritative until adoption; provider UUID rebinding,
+  missing prior identity and restart drift fail closed.
 
 ### Executed Checks
 
@@ -96,7 +115,8 @@ complete dealership topology. No resources were removed or redeployed.
   errors. The failure was a stale two-argument vector-summary mock. The errors
   stemmed from verifying a transactional mock through its Spring proxy and
   contaminating subsequent Mockito state. The fixtures were corrected; the
-  scoped repair run passed. A new clean full run is still required.
+  scoped repair run passed. The later clean full baselines below supersede this
+  intermediate result.
 - Independent agent checks: R3 34, R5 35, R7 68 tests passed, including
   PostgreSQL tests. These do not substitute for the integrated final suite.
 - R6 independent authorization checks: 58 passed; authority checks: 30 passed.
@@ -115,8 +135,20 @@ complete dealership topology. No resources were removed or redeployed.
   Its first integrated placement also reused a shared H2 fixture and duplicated
   document-plugin seeds. It now uses a dedicated test database. The failed full
   run was stopped; the clean corrected full backend run passed 1,301 tests in
-  211 suites, zero failures, errors or skips. This verifies the current source
-  checkpoint, not the remaining integration or hosted acceptance gates.
+  211 suites, zero failures, errors or skips.
+- After integrating authority snapshots, dependency evidence, document binding
+  and runtime generation, two production-schema PostgreSQL tests exposed stale
+  hard-coded Flyway target `167`. They now use the latest production migration,
+  while ordinary H2 tests retain the bounded test-migration target `120.17`.
+  The final clean backend run passed **1,353 tests**, with zero failures, errors
+  or skips. PostgreSQL contexts applied all **169** production migrations.
+- The deployment-local runtime run passed **300 tests**, with zero failures,
+  errors or skips. Runtime migrations applied through `V13`, including the
+  private generation-transition state.
+- The S3 verifier's offline suite passed **12 tests**, covering exact native-AWS
+  endpoint policy, separate principals, prefix isolation, bounded UTF-8 fixture
+  reads, unversioned state, non-mutating write/delete denial and sanitized
+  evidence. These tests validate the verifier, not the live bucket identities.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
   is not browser parity certification. `git diff --check` passed.
 
@@ -129,36 +161,64 @@ deployment, provider resource or assignment was changed by these checks.
 
 ### Remaining Before Admission
 
-Finish complete target authority/binding snapshots and remaining environment-
-specific callers; reconcile the runtime/platform drain contract; implement the
-real R3/R5/R6/R7 adapters and reviewed apply flow. Verify immutable
-dependency artifacts, real resource envelopes, notification/recovery evidence,
-S3 indexing and cross-target denial. Then complete the outstanding Engage auth,
-accessibility and capacity gates. P6 extraction and P7 fresh-customer hosted
-certification remain later gates. The canonical 40-task checklist stays open.
+Run the live customer-owned S3 isolation verifier after the private credentials
+are supplied, then bind and index the exact staging and production prefixes.
+Verify immutable dependency artifacts, actual staging/production placement,
+resource envelopes, notification/recovery evidence, repeated same-target runtime
+replacement, restart recovery, S3 indexing and cross-target denial. Complete the
+outstanding Engage auth, accessibility and capacity gates. P6 extraction and P7
+fresh-customer hosted certification remain later gates. The canonical 40-task
+checklist stays open.
 
-### Runtime Generation Reuse Blocker
+### Runtime Generation Source Resolution And Hosted Gate
 
-The current runtime drain singleton pins deployment/tenant/target/release and
-topology. A subsequent release using the same target database cannot silently
-adopt that singleton: it returns `PERSISTED_RUNTIME_GENERATION_MISMATCH` (or
-topology mismatch). This is a safe refusal, not a completed upgrade lifecycle.
-Before enabling the offer, implement an explicitly authorized, audited generation
-transition tied to provider-stop/readback evidence and the target fence. Preserve
-sessions and retained evidence, reject old worker generations, and prove same-
-target repeated release and restart behavior. Do not clear the singleton, erase
-evidence, accept the environment value alone, or disable retirement to hide it.
-Enabled framework indexing/recovery/Quartz fences and authoritative connector/
-inbox readbacks remain separately named blockers; S3 is not the only open gate.
+The runtime drain singleton still correctly pins deployment/tenant/target/release
+and topology; it is not cleared or overwritten from environment configuration.
+The source implementation now performs an explicitly authorized generation
+transition tied to the target authority snapshot, remote dependency quiescence,
+provider stop/readback and a durable release checkpoint. A restarted worker must
+refresh stop evidence before adoption, and the next generation must adopt an
+epoch greater than the fenced old generation. Provisional resource discovery no
+longer advances the durable old-release handle before this transition completes.
+
+The former code blocker is therefore resolved. Before enabling the offer, prove
+the same behavior on hosted Coolify with repeated same-target releases, a restart
+between each checkpoint phase, preserved sessions/evidence, rejected old workers,
+and authoritative connector/vector-runner/inbox readbacks. Enabled indexing,
+recovery and Quartz workers remain part of that live topology proof; S3 is not
+the only open gate.
 
 ### Owner S3 Inputs
 
-Awaited: private bucket/region/HTTPS endpoint, staging and production prefixes,
-separate prefix-limited read credentials, optional session-token expiry and
-versioning status. Native AWS canary example: `eu-west-2`, endpoint
-`https://s3.eu-west-2.amazonaws.com`, `dealership/staging/` and
-`dealership/production/`; these are suggested values, not provisioned resources.
-Keep Block Public Access enabled. Only list/read permissions are needed;
-versioned reads require `s3:GetObjectVersion`. Use UTF-8 text/configured JSON
-fixtures, not general PDF/Word uploads. Secret values belong only in the ignored
-private auth document and managed write-only bindings, never this ledger.
+The first live verifier run on 2026-10-14 failed closed before object
+inspection with sanitized code `ACCESS_DENIED`. Neither prefix-scoped identity
+can currently call the read-only bucket configuration operation
+`s3:GetBucketVersioning`. The verifier therefore cannot independently prove
+that versioning remains disabled before its non-mutating write/delete denial
+probes. Do not weaken or bypass this gate. Grant both canary identities
+`s3:GetBucketVersioning` on the exact bucket ARN only, retain all existing
+prefix/object restrictions, and rerun the live verifier. No object or bucket
+mutation occurred during the failed run.
+
+The reviewed native AWS canary contract now uses a private bucket in
+`eu-north-1`, endpoint `https://s3.eu-north-1.amazonaws.com`, exact prefixes
+`dealership/staging/` and `dealership/production/`, separate prefix-limited
+identities, Block Public Access, SSE-S3, HTTPS-only access, and explicitly
+disabled versioning. Each prefix contains three fictional UTF-8 policy files.
+The non-secret bucket identifier is captured in the verifier contract; all
+credential values remain outside this tracked ledger.
+
+As of 2026-10-15, the four canary credential variables in the ignored private
+handoff document remain placeholders. The live verifier was therefore not
+rerun in this source pass. Replace those placeholders with the two separate
+prefix-limited identities before the next live run; never copy their values into
+this tracked record or a deployment-readable public manifest.
+
+`verification-support/productization-01036/verify-s3-canary.mjs` validates the
+exact non-secret contract, actual unversioned state, separate principals,
+bounded list/head/get access, UTF-8 content fingerprints, cross-prefix denial,
+and non-mutating write/delete denial probes. Generated evidence is ignored and
+contains no principals, keys, object names, object contents, ETags or raw AWS
+errors. Fixture tests prove pass and fail-closed behavior but are not live AWS
+evidence. Secret values belong only in an ignored private source and managed
+write-only bindings, never this ledger.

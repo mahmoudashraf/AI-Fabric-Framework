@@ -213,6 +213,31 @@ class DeploymentRuntimeAuthorityServiceTest {
         assertThat(plan.runtime()).doesNotContainKey("OPENAI_API_KEY");
     }
 
+    @Test void provisioningMaterializesOnlyTheExactFrozenReleaseWithoutAmbientOperatorContext() {
+        var candidate = freeze("staging");
+        var release = new DeploymentReleaseEntity();
+        release.setId("release-stage");
+        release.setDeploymentId("dep-1");
+        release.setTargetProfileId("staging");
+        release.setDeploymentVersionId("version-1");
+        when(releases.findById(release.getId())).thenReturn(Optional.of(release));
+        var frozen = service.freezeRelease(
+            "dep-1", "staging", release.getId(), candidate.snapshotId(), candidate.fingerprint()
+        );
+        release.setRuntimeAuthoritySnapshotId(frozen.snapshotId());
+        release.setRuntimeAuthorityFingerprint(frozen.fingerprint());
+
+        var plan = service.releaseEnvironmentPlanForProvisioning(deployment, version, release);
+
+        assertThat(plan.runtime()).containsEntry("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", "dep-1");
+        assertThat(plan.runtime().values()).anySatisfy(value -> assertThat(value).startsWith("${secret:"));
+        assertThat(plan.runtime().values()).doesNotContainAnyElementsOf(secretValues());
+
+        release.setRuntimeAuthorityFingerprint("0".repeat(64));
+        assertThatThrownBy(() -> service.releaseEnvironmentPlanForProvisioning(deployment, version, release))
+            .hasMessageContaining("does not match");
+    }
+
     @Test void anonymousAndSignedInPrivateSessionWireClaimsArePreserved() throws Exception {
         var frozen = release("staging", "release-stage");
         var anonymous = service.issueBackendSessionHeaders("dep-1", "staging", "release-stage", frozen.fingerprint(),
@@ -230,11 +255,34 @@ class DeploymentRuntimeAuthorityServiceTest {
     @Test void missingContextInvalidOriginsStaleFingerprintAndUnprovisionedReleaseAreBlocked() {
         assertThatThrownBy(() -> service.freezeCandidate("dep-1", null, "version-1", List.of())).isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> service.freezeCandidate("dep-1", "staging", "version-1", List.of("https://*.example.com"))).hasMessageContaining("exact HTTPS");
+        assertThatThrownBy(() -> service.freezeCandidate("dep-1", "staging", "version-1", List.of("http://staging.example.com"))).hasMessageContaining("exact HTTPS");
+        assertThatThrownBy(() -> service.freezeCandidate("dep-1", "staging", "version-1", List.of("https://staging.example.com/path"))).hasMessageContaining("exact HTTPS");
         assertThatThrownBy(() -> service.freezeCandidate("dep-1", "staging", "version-1", List.of())).hasMessageContaining("reviewed exact target origins");
         var frozen = release("staging", "release-stage");
         assertThatThrownBy(() -> service.requireReleaseUnchanged("dep-1", "staging", "release-stage", "wrong-fingerprint")).hasMessageContaining("fingerprint");
         releases.findById("release-stage").orElseThrow().setProvisioningStatus("PROVISIONING");
         assertThatThrownBy(() -> headers(frozen)).hasMessageContaining("not provisioned");
+    }
+
+    @Test void releaseFreezeReplayReturnsTheSameExactTargetReleaseSnapshot() {
+        var candidate = service.freezeCandidate("dep-1", "staging", "version-1", List.of(
+            "https://z.example.com", "https://a.example.com", "https://a.example.com"
+        ));
+        assertThat(candidate.binding().allowedOrigins()).containsExactly("https://a.example.com", "https://z.example.com");
+        var release = new DeploymentReleaseEntity();
+        release.setId("release-replay");
+        release.setDeploymentId("dep-1");
+        release.setTargetProfileId("staging");
+        release.setDeploymentVersionId("version-1");
+        when(releases.findById(release.getId())).thenReturn(Optional.of(release));
+
+        var first = service.freezeRelease("dep-1", "staging", release.getId(), candidate.snapshotId(), candidate.fingerprint());
+        var replay = service.freezeRelease("dep-1", "staging", release.getId(), candidate.snapshotId(), candidate.fingerprint());
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(replay.releaseId()).isEqualTo(release.getId());
+        assertThat(replay.binding().targetProfileId()).isEqualTo("staging");
+        verify(snapshots, times(2)).save(any(RuntimeAuthoritySnapshotEntity.class));
     }
 
     @Test void distinctCustomerAndPunctuationSimilarDeploymentIdentitiesHaveDistinctAuthority() {

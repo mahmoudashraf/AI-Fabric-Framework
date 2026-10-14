@@ -1983,6 +1983,93 @@ public class PlatformManagedProductProvisioningService {
         }
     }
 
+    public String quiesceOwnedDependencyForRuntimeGeneration(CoolifyConnection connection, String graphId,
+            String serviceRef, String slot, String applicationUuid, OwnedDependencyCheckpoint checkpoint) {
+        if (!hasText(applicationUuid)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING");
+        }
+        String marker = "ManagedDependency:" + graphId + ":" + slot;
+        var app = coolifyApiClient.getApplication(connection, applicationUuid)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
+        requireOwnedDependencyResource(app.raw(), connection, serviceRef, marker);
+        if (ownedDependencyStopped(app)) return ownedDependencyGenerationEvidence(graphId, slot, applicationUuid, "STOPPED");
+        if (!ownedDependencyRunning(app)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_GENERATION_STATE_UNKNOWN");
+        }
+        checkpoint.guard();
+        coolifyApiClient.stop(connection, applicationUuid, false);
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        do {
+            checkpoint.guard();
+            var observed = coolifyApiClient.getApplication(connection, applicationUuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
+            requireOwnedDependencyResource(observed.raw(), connection, serviceRef, marker);
+            if (ownedDependencyStopped(observed)) {
+                return ownedDependencyGenerationEvidence(graphId, slot, applicationUuid, "STOPPED");
+            }
+            sleepOwnedDependencyPoll("DEPENDENCY_GENERATION_QUIESCE_INTERRUPTED");
+        } while (Instant.now().isBefore(deadline));
+        throw new ResponseStatusException(CONFLICT, "DEPENDENCY_GENERATION_QUIESCE_UNCONFIRMED");
+    }
+
+    public String resumeOwnedDependencyAfterRuntimeGeneration(CoolifyConnection connection, String graphId,
+            String serviceRef, String slot, String applicationUuid, OwnedDependencyCheckpoint checkpoint) {
+        if (!hasText(applicationUuid)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING");
+        }
+        String marker = "ManagedDependency:" + graphId + ":" + slot;
+        var app = coolifyApiClient.getApplication(connection, applicationUuid)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
+        requireOwnedDependencyResource(app.raw(), connection, serviceRef, marker);
+        if ("running:healthy".equalsIgnoreCase(app.status())) {
+            return ownedDependencyGenerationEvidence(graphId, slot, applicationUuid, "RUNNING");
+        }
+        if (!ownedDependencyStopped(app)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_GENERATION_STATE_UNKNOWN");
+        }
+        checkpoint.guard();
+        CoolifyActionResponse response = coolifyApiClient.start(connection, applicationUuid, true, true);
+        if (response == null || !hasText(response.deploymentUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        }
+        CoolifyApplicationSummary observed = awaitOwnedDependencyDeployment(
+            connection, applicationUuid, response.deploymentUuid()
+        );
+        requireOwnedDependencyResource(observed.raw(), connection, serviceRef, marker);
+        return ownedDependencyGenerationEvidence(graphId, slot, applicationUuid, "RUNNING");
+    }
+
+    private boolean ownedDependencyRunning(CoolifyApplicationSummary application) {
+        String state = upper(application == null ? null : application.status()).split(":", 2)[0];
+        return java.util.Set.of("RUNNING", "STARTING", "RESTARTING", "DEPLOYING").contains(state);
+    }
+
+    private boolean ownedDependencyStopped(CoolifyApplicationSummary application) {
+        String state = upper(application == null ? null : application.status()).split(":", 2)[0];
+        return java.util.Set.of("EXITED", "STOPPED", "INACTIVE", "OFFLINE").contains(state);
+    }
+
+    private void sleepOwnedDependencyPoll(String errorCode) {
+        try {
+            Thread.sleep(Math.max(250, productProvisioningProperties.pollInterval().toMillis()));
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(CONFLICT, errorCode);
+        }
+    }
+
+    private String ownedDependencyGenerationEvidence(String graphId, String slot, String applicationUuid, String state) {
+        try {
+            String material = String.join("\n", graphId, slot, applicationUuid, state);
+            String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(material.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return "managed-dependency-generation:" + graphId + ":" + slot + ":" + state.toLowerCase(java.util.Locale.ROOT)
+                + ":" + digest;
+        } catch (java.security.GeneralSecurityException error) {
+            throw new IllegalStateException("Dependency generation evidence could not be encoded.", error);
+        }
+    }
+
     private record ReconciledRailwayService(
         String projectId,
         String environmentId,

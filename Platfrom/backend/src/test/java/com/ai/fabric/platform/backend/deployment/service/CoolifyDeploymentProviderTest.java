@@ -1,5 +1,9 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
+import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationRemoteEvidenceProvider;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -23,10 +27,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +49,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -53,6 +60,78 @@ import static org.mockito.Mockito.when;
 class CoolifyDeploymentProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void productizedCoolifyReleaseFailsClosedWithoutFrozenTargetAuthority() {
+        var offers = mock(CustomerOfferDeploymentRepository.class);
+        when(offers.existsById("dep-123")).thenReturn(true);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setCustomerOfferDeploymentRepository(offers);
+
+        assertThatThrownBy(() -> provider.mergeFrozenRuntimeAuthorityEnvironment(
+            deployment(), version(), release(), "runtime", new LinkedHashMap<>()
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("frozen target authority");
+    }
+
+    @Test
+    void productizedCoolifyRuntimeRequiresTargetOwnedPostgres() {
+        var offers = mock(CustomerOfferDeploymentRepository.class);
+        when(offers.existsById("dep-123")).thenReturn(true);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setCustomerOfferDeploymentRepository(offers);
+
+        assertThatThrownBy(() -> provider.requireDurableRuntimeStoreForProductizedDeployment(
+            deployment(), false
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("target-owned PostgreSQL");
+
+        provider.requireDurableRuntimeStoreForProductizedDeployment(deployment(), true);
+    }
+
+    @Test
+    void exactReleaseAuthorityOverridesServicePlanAndResolvesManagedSecretsWithoutLeakingReferences() {
+        PlatformSecretService secrets = mock(PlatformSecretService.class);
+        when(secrets.resolveSecret("TARGET_KEY")).thenReturn("resolved-target-secret");
+        var authorities = mock(DeploymentRuntimeAuthorityService.class);
+        var release = release();
+        release.setRuntimeAuthoritySnapshotId("snapshot-1");
+        release.setRuntimeAuthorityFingerprint("a".repeat(64));
+        when(authorities.releaseEnvironmentPlanForProvisioning(any(), any(), eq(release))).thenReturn(
+            new RuntimeAuthorityBinding.EnvironmentPlan(
+                Map.of(
+                    "AI_FABRIC_RUNTIME_DEPLOYMENT_ID", "dep-123",
+                    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY", "${secret:TARGET_KEY}"
+                ),
+                Map.of("APP_ADMIN_API_KEY", "${secret:TARGET_KEY}")
+            )
+        );
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            mock(DeploymentTargetProfileRepository.class),
+            mock(DeploymentProviderResourceHandleRepository.class),
+            mock(DeploymentSourceArtifactService.class),
+            mock(RailwayProvisioningPlanService.class),
+            mock(CoolifyTargetProfileResolver.class),
+            mock(CoolifyApiClient.class),
+            secrets,
+            objectMapper
+        );
+        provider.setDeploymentRuntimeAuthorityService(authorities);
+        var environment = new LinkedHashMap<String, CoolifyEnvVar>();
+        environment.put("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", new CoolifyEnvVar(
+            "AI_FABRIC_RUNTIME_DEPLOYMENT_ID", "unsafe-service-value", false, true, false, false
+        ));
+
+        provider.mergeFrozenRuntimeAuthorityEnvironment(
+            deployment(), version(), release, "runtime", environment
+        );
+
+        assertThat(environment.get("AI_FABRIC_RUNTIME_DEPLOYMENT_ID").value()).isEqualTo("dep-123");
+        assertThat(environment.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY").value())
+            .isEqualTo("resolved-target-secret")
+            .doesNotContain("TARGET_KEY", "${secret:");
+        assertThat(environment.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY").shownOnce()).isTrue();
+    }
 
     @Test
     void rejectsExpectedProviderWebhookWithoutHttpsConnectorDomain() {
@@ -236,6 +315,139 @@ class CoolifyDeploymentProviderTest {
         );
 
         verify(coolifyApiClient, never()).stop(eq(connection), eq("runtime-uuid"), eq(false));
+    }
+
+    @Test
+    void quiescesConnectorAndVectorizationRunnerBeforeGenerationDrain() {
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        CoolifyDeploymentProvider provider = provider(coolifyApiClient);
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary connector = application("connector-uuid", "running:healthy");
+        CoolifyApplicationSummary runner = application("runner-uuid", "running:healthy");
+        when(coolifyApiClient.getApplication(connection, "connector-uuid"))
+            .thenReturn(Optional.of(connector), Optional.of(application("connector-uuid", "exited:unhealthy")));
+        when(coolifyApiClient.getApplication(connection, "runner-uuid"))
+            .thenReturn(Optional.of(runner), Optional.of(application("runner-uuid", "exited:unhealthy")));
+
+        var evidence = provider.quiesceRuntimeGenerationDependencies(
+            deployment(),
+            release(),
+            new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.PriorRuntime(
+                "release-old", "runtime-uuid", "https://runtime.example"
+            ),
+            connection,
+            connector,
+            runner,
+            objectMapper.createObjectNode(),
+            ProvisioningProgressTracker.noop()
+        );
+
+        assertThat(evidence.readbacks()).containsOnlyKeys("CONNECTOR", "VECTORIZATION_RUNNER");
+        assertThat(evidence.readbacks().values()).allMatch(value -> value.startsWith("coolify-stop:"));
+        verify(coolifyApiClient).stop(connection, "connector-uuid", false);
+        verify(coolifyApiClient).stop(connection, "runner-uuid", false);
+    }
+
+    @Test
+    void doesNotQuiesceDependenciesForInitialGeneration() {
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        CoolifyDeploymentProvider provider = provider(coolifyApiClient);
+
+        assertThat(provider.quiesceRuntimeGenerationDependencies(
+            deployment(), release(), null, connection(), application("connector-uuid", "running:healthy"),
+            application("runner-uuid", "running:healthy"), objectMapper.createObjectNode(),
+            ProvisioningProgressTracker.noop()
+        )).isNull();
+        verifyNoInteractions(coolifyApiClient);
+    }
+
+    @Test
+    void preservesPriorReleaseHandleUntilGenerationAdoptionCompletes() {
+        CoolifyDeploymentProvider provider = provider();
+        DeploymentProviderResourceHandleEntity prior = providerHandle("APPLICATION", "runtime-uuid");
+        prior.setReleaseId("release-old");
+
+        DeploymentProviderResourceHandleEntity preserved = provider.preserveExistingRuntimeGenerationHandle(
+            Optional.of(prior), application("runtime-uuid", "running:healthy")
+        );
+
+        assertThat(preserved).isSameAs(prior);
+        assertThat(preserved.getReleaseId()).isEqualTo("release-old");
+    }
+
+    @Test
+    void refusesToRebindPriorGenerationHandleToAReplacementResource() {
+        CoolifyDeploymentProvider provider = provider();
+        DeploymentProviderResourceHandleEntity prior = providerHandle("APPLICATION", "runtime-old");
+        prior.setReleaseId("release-old");
+
+        assertThatThrownBy(() -> provider.preserveExistingRuntimeGenerationHandle(
+            Optional.of(prior), application("runtime-new", "running:healthy")
+        )).hasMessage("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
+        assertThat(prior.getReleaseId()).isEqualTo("release-old");
+    }
+
+    @Test
+    void resumesRemoteDependenciesFromDurablePriorGenerationIdentity() {
+        RuntimeGenerationRemoteEvidenceProvider remote = mock(RuntimeGenerationRemoteEvidenceProvider.class);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setRuntimeGenerationRemoteEvidenceProviders(List.of(remote));
+        var deployment = deployment();
+        var release = release();
+        var prior = new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.PriorRuntime(
+            "release-old", "runtime-uuid", "https://runtime.example"
+        );
+
+        provider.resumeRuntimeGenerationDependencies(deployment, release, prior);
+
+        verify(remote).resumeAfterAdoption(deployment, "release-old", release);
+    }
+
+    @Test
+    void recoversPriorRuntimeFromDurableCheckpointWhenTheMutableHandleAlreadyMoved() {
+        var checkpoints = mock(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setRuntimeGenerationCheckpointService(checkpoints);
+        var prior = new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.PriorRuntime(
+            "release-old", "runtime-uuid", "https://runtime.example"
+        );
+        var checkpoint = new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Checkpoint(
+            com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED,
+            prior,
+            mock(com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService.DrainReceipt.class),
+            "c".repeat(64),
+            "coolify-stop:runtime-uuid:proof",
+            null
+        );
+        when(checkpoints.read("release-new")).thenReturn(Optional.of(checkpoint));
+
+        assertThat(provider.runtimeGenerationPriorRuntime("release-new", null)).isEqualTo(prior);
+        verify(checkpoints).read("release-new");
+    }
+
+    @Test
+    void discoveredPriorRuntimeDoesNotConsultAStaleCheckpoint() {
+        var checkpoints = mock(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setRuntimeGenerationCheckpointService(checkpoints);
+        var prior = new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.PriorRuntime(
+            "release-old", "runtime-uuid", "https://runtime.example"
+        );
+
+        assertThat(provider.runtimeGenerationPriorRuntime("release-new", prior)).isSameAs(prior);
+        verifyNoInteractions(checkpoints);
+    }
+
+    @Test
+    void refusesToHideMissingPriorGenerationWhenRemoteDependenciesExist() {
+        RuntimeGenerationRemoteEvidenceProvider remote = mock(RuntimeGenerationRemoteEvidenceProvider.class);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setRuntimeGenerationRemoteEvidenceProviders(List.of(remote));
+
+        assertThatThrownBy(() -> provider.resumeRuntimeGenerationDependencies(
+            deployment(), release(), null
+        )).hasMessage("RUNTIME_GENERATION_PRIOR_RUNTIME_REQUIRED");
+        verifyNoInteractions(remote);
     }
 
     @Test
@@ -1854,6 +2066,9 @@ class CoolifyDeploymentProviderTest {
             .filteredOn(env -> "PLATFORM_DEPLOYMENT_VERSION_ID".equals(env.key()))
             .extracting(CoolifyEnvVar::preview)
             .containsExactly(false, true);
+        InOrder dependencyStartOrder = inOrder(coolifyApiClient);
+        dependencyStartOrder.verify(coolifyApiClient).start(connection, "runtime-uuid", true, true);
+        dependencyStartOrder.verify(coolifyApiClient).start(connection, "connector-uuid", true, true);
         verifyNoInteractions(sourceArtifactService);
     }
 

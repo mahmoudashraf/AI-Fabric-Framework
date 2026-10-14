@@ -13,6 +13,72 @@ import org.springframework.web.server.ResponseStatusException;
 
 class RuntimeTargetRetirementServiceTest {
     @Test
+    void explicitlyTransitionsAStoppedFencedGenerationAndPreservesRuntimeData() {
+        var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
+        f.session("retained", "alice", "CLOSED", "{}");
+        f.service.status(TARGET);
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY));
+
+        var replacement = f.replacement("release-2");
+        GenerationTransition transition = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
+            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
+            "b".repeat(64), "coolify-readback:deployment-2:old-container-stopped");
+        GenerationTransitionResult applied = replacement.service().transition(transition);
+
+        assertThat(applied.replay()).isFalse();
+        assertThat(applied.previous().state()).isEqualTo(State.AUTHORITY_REVOKED);
+        assertThat(applied.current().target()).isEqualTo(replacement.target());
+        assertThat(applied.current().state()).isEqualTo(State.ACTIVE);
+        assertThat(applied.current().fenceEpoch()).isEqualTo(3);
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM chat_sessions WHERE id = 'retained'", Long.class)).isOne();
+        assertThat(replacement.service().transition(transition).replay()).isTrue();
+        assertThat(replacement.service().status(replacement.target()).state()).isEqualTo(State.ACTIVE);
+        assertThatThrownBy(() -> f.service.status(TARGET)).hasMessageContaining("PERSISTED_RUNTIME_GENERATION_MISMATCH");
+    }
+
+    @Test
+    void generationTransitionFailsClosedWithoutDrainFenceOrExactEvidence() {
+        var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
+        f.service.status(TARGET);
+        var replacement = f.replacement("release-2");
+        GenerationTransition unfenced = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 0,
+            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
+            "b".repeat(64), "coolify-readback:old-container-stopped");
+        assertThatThrownBy(() -> replacement.service().transition(unfenced))
+            .hasMessageContaining("GENERATION_TRANSITION_EVIDENCE_REQUIRED");
+
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY));
+        GenerationTransition wrongTopology = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
+            f.inventory.topologyFingerprint(), "c".repeat(64), "generation-2",
+            "b".repeat(64), "coolify-readback:old-container-stopped");
+        assertThatThrownBy(() -> replacement.service().transition(wrongTopology))
+            .hasMessageContaining("GENERATION_TRANSITION_NEXT_TOPOLOGY_MISMATCH");
+    }
+
+    @Test
+    void transitionReplayRejectsChangedPayloadAndDoesNotAdoptEnvironmentAlone() {
+        var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of());
+        f.service.status(TARGET);
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        f.service.command(f.command(2, 1, CommandType.FENCE_AUTHORITY));
+        var replacement = f.replacement("release-2");
+        GenerationTransition transition = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
+            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
+            "b".repeat(64), "coolify-readback:old-container-stopped");
+
+        assertThatThrownBy(() -> replacement.service().status(replacement.target()))
+            .hasMessageContaining("PERSISTED_RUNTIME_GENERATION_MISMATCH");
+        replacement.service().transition(transition);
+        GenerationTransition changed = new GenerationTransition(TARGET, replacement.target(), "tenant-1", 2,
+            f.inventory.topologyFingerprint(), replacement.inventory().topologyFingerprint(), "generation-2",
+            "d".repeat(64), "coolify-readback:different");
+        assertThatThrownBy(() -> replacement.service().transition(changed))
+            .hasMessageContaining("GENERATION_TRANSITION_COMMAND_REUSE");
+    }
+
+    @Test
     void drainSurvivesRestartAndExactCommandReplaysPersistedResult() {
         var f = new RuntimeRetirementTestFixture();
         Command command = f.command(1, 0, CommandType.BEGIN_DRAIN);

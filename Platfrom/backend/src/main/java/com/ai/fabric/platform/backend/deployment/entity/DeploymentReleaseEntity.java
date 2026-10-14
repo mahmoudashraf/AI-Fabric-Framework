@@ -58,6 +58,21 @@ public class DeploymentReleaseEntity {
     @Column(length = 64)
     private String promotionCandidateFingerprint;
 
+    @Column(name = "runtime_authority_snapshot_id", length = 64)
+    private String runtimeAuthoritySnapshotId;
+
+    @Column(name = "runtime_authority_fingerprint", length = 64)
+    private String runtimeAuthorityFingerprint;
+
+    @Column(name = "runtime_generation_transition_state", length = 32)
+    private String runtimeGenerationTransitionState;
+
+    @Column(name = "runtime_generation_transition_fingerprint", length = 64)
+    private String runtimeGenerationTransitionFingerprint;
+
+    @Column(name = "runtime_generation_transition_json", columnDefinition = "TEXT")
+    private String runtimeGenerationTransitionJson;
+
     @Column(name = "provider_resource_handle_id")
     private String providerResourceHandleId;
 
@@ -94,6 +109,16 @@ public class DeploymentReleaseEntity {
     public void setPromotionCandidateJson(String value) { promotionCandidateJson = value; }
     public String getPromotionCandidateFingerprint() { return promotionCandidateFingerprint; }
     public void setPromotionCandidateFingerprint(String value) { promotionCandidateFingerprint = value; }
+    public String getRuntimeAuthoritySnapshotId() { return runtimeAuthoritySnapshotId; }
+    public void setRuntimeAuthoritySnapshotId(String value) { runtimeAuthoritySnapshotId = value; }
+    public String getRuntimeAuthorityFingerprint() { return runtimeAuthorityFingerprint; }
+    public void setRuntimeAuthorityFingerprint(String value) { runtimeAuthorityFingerprint = value; }
+    public String getRuntimeGenerationTransitionState() { return runtimeGenerationTransitionState; }
+    public void setRuntimeGenerationTransitionState(String value) { runtimeGenerationTransitionState = value; }
+    public String getRuntimeGenerationTransitionFingerprint() { return runtimeGenerationTransitionFingerprint; }
+    public void setRuntimeGenerationTransitionFingerprint(String value) { runtimeGenerationTransitionFingerprint = value; }
+    public String getRuntimeGenerationTransitionJson() { return runtimeGenerationTransitionJson; }
+    public void setRuntimeGenerationTransitionJson(String value) { runtimeGenerationTransitionJson = value; }
 
     public void setId(String id) {
         this.id = id;

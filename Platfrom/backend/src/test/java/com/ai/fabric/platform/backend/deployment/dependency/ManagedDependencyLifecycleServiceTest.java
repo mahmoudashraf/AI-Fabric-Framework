@@ -200,4 +200,29 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(provisioned.status()).isEqualTo("PROVISIONED");
         assertThat(provisioned.effectiveConfigurationRevision()).isEqualTo(-1);
     }
+
+    @Test void runtimeGenerationQuiescesAndResumesOnlyTheManagedInbox() {
+        var ready = ready("staging");
+        when(provider.quiesceOwnedDependencyForRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
+            eq("inbox"), anyString(), any())).thenReturn("managed-dependency-generation:stopped");
+        when(provider.resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
+            eq("inbox"), anyString(), any())).thenReturn("managed-dependency-generation:running");
+
+        var evidence = lifecycle.quiesceForRuntimeGeneration(
+            "dep-1", "staging", "release-old", "release-new", "v1"
+        );
+        assertThat(evidence.readbacks()).containsEntry("HUMAN_INBOX", "managed-dependency-generation:stopped");
+        var quiesced = store.state(graphs.get(ready.graphId()));
+        assertThat(quiesced.runtimeGenerationState).isEqualTo("QUIESCED");
+        assertThat(quiesced.runtimeGenerationStoppedSlots).containsExactly("inbox");
+
+        lifecycle.resumeAfterRuntimeGeneration("dep-1", "staging", "release-old", "release-new", "v1");
+        var resumed = store.state(graphs.get(ready.graphId()));
+        assertThat(resumed.runtimeGenerationState).isEqualTo("RESUMED");
+        assertThat(resumed.runtimeGenerationStoppedSlots).isEmpty();
+        verify(provider).quiesceOwnedDependencyForRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
+            eq("inbox"), anyString(), any());
+        verify(provider).resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
+            eq("inbox"), anyString(), any());
+    }
 }

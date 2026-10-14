@@ -1,5 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite;
+
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
@@ -48,10 +51,30 @@ public final class AdmissionContracts {
     /** Reviewed full topology envelope: runtime, workers, DB/volumes, indexes and R5 dependencies. */
     public record Manifest(String id, String deploymentId, String versionId, String versionConfigHash,
                            String targetProfileId, String bindingFingerprint, String topologyReference,
-                           Vector demand, Set<String> prerequisiteReferences) {
-        public Manifest { prerequisiteReferences = prerequisiteReferences == null ? null : Collections.unmodifiableSet(new TreeSet<>(prerequisiteReferences)); }
+                           Vector demand, Set<String> prerequisiteReferences,
+                           Map<Prerequisite, String> customerPrerequisiteReferences) {
+        public Manifest {
+            prerequisiteReferences = prerequisiteReferences == null ? null : Collections.unmodifiableSet(new TreeSet<>(prerequisiteReferences));
+            customerPrerequisiteReferences = customerPrerequisiteReferences == null
+                ? Map.of()
+                : Map.copyOf(customerPrerequisiteReferences);
+        }
+        public Manifest(String id, String deploymentId, String versionId, String versionConfigHash,
+                        String targetProfileId, String bindingFingerprint, String topologyReference,
+                        Vector demand, Set<String> prerequisiteReferences) {
+            this(id, deploymentId, versionId, versionConfigHash, targetProfileId, bindingFingerprint,
+                topologyReference, demand, prerequisiteReferences, Map.of());
+        }
     }
-    public record Reserve(String operationKey, String manifestId) { }
+    /**
+     * Customer prerequisite scope is optional for staff-owned admission work, but is mandatory when the
+     * reservation is later used as R6 customer prerequisite evidence. The full context is fingerprinted into
+     * the durable reservation; no caller-supplied boolean can turn an ordinary reservation into customer proof.
+     */
+    public record Reserve(String operationKey, String manifestId,
+                          com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext customerContext) {
+        public Reserve(String operationKey, String manifestId) { this(operationKey, manifestId, null); }
+    }
     public record Fence(String reservationId, long revision, String generation) { }
     public record Reservation(String id, String customerId, String tenantId, String deploymentId,
                               String targetProfileId, Intent intent, String operationKey, String requestFingerprint,
@@ -62,7 +85,8 @@ public final class AdmissionContracts {
                               ExpiryState expiryState, String noticeCycle, Instant nextRetryAt, int attempts,
                               String workerToken, Instant drainDeadline, Instant recoveryUntil,
                               String retirementOperationId, String evidenceReference,
-                              String failureCode) {
+                              String failureCode, String customerContextFingerprint,
+                              Operation customerOperation, PrerequisiteReadback prerequisiteReadback) {
         public Fence fence() { return new Fence(id, revision, generation); }
         public boolean consumesCapacity() { return state != State.RELEASED; }
     }

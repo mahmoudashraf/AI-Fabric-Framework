@@ -79,7 +79,7 @@ public class DeploymentAdmissionService {
         required(command.operationKey(), 128); required(command.manifestId(), 64);
         Manifest manifest = store.reviewed("MANIFEST", command.manifestId(), Manifest.class);
         if (!deployment.getId().equals(manifest.deploymentId())) throw new AdmissionFailure(NOT_FOUND, "MANIFEST_NOT_FOUND");
-        String fingerprint = store.commandFingerprint(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest);
+        String fingerprint = store.commandFingerprint(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest, command);
         Reservation replay = store.replay(deployment.getCustomerId(), deploymentId, manifest.targetProfileId(), command, fingerprint);
         if (replay != null) return replay;
         AdmissionContext context = store.context(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest.id());

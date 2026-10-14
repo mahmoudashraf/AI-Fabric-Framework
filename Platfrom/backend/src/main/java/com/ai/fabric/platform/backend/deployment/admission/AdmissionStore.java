@@ -114,9 +114,13 @@ class AdmissionStore {
         if (!rows.get(0).requestFingerprint().equals(fingerprint)) throw new AdmissionFailure(CONFLICT, "OPERATION_KEY_REUSED");
         return rows.get(0);
     }
-    String commandFingerprint(String customer, String tenant, String deployment, Manifest manifest) {
-        return json.fingerprint(Map.of("customer", customer, "tenant", tenant, "deployment", deployment,
-            "manifestId", manifest.id(), "manifestFingerprint", json.fingerprint(manifest), "target", manifest.targetProfileId()));
+    String commandFingerprint(String customer, String tenant, String deployment, Manifest manifest, Reserve command) {
+        Map<String, Object> value = new java.util.TreeMap<>();
+        value.put("customer", customer); value.put("tenant", tenant); value.put("deployment", deployment);
+        value.put("manifestId", manifest.id()); value.put("manifestFingerprint", json.fingerprint(manifest));
+        value.put("target", manifest.targetProfileId());
+        if (command.customerContext() != null) value.put("customerContext", command.customerContext());
+        return json.fingerprint(value);
     }
     Reservation reserve(AdmissionContext checked, Reserve command, PrerequisiteReadback evidence, String actor, Instant now) {
         return reserve(checked, command, evidence, actor, now, () -> { });
@@ -125,7 +129,8 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             AdmissionContext current = context(checked.customerId(), checked.tenantId(), checked.deploymentId(), command.manifestId());
-            String fingerprint = commandFingerprint(current.customerId(), current.tenantId(), current.deploymentId(), current.manifest());
+            validateCustomerScope(current, command);
+            String fingerprint = commandFingerprint(current.customerId(), current.tenantId(), current.deploymentId(), current.manifest(), command);
             Reservation replay = replay(current.customerId(), current.deploymentId(), current.target().targetProfileId(), command, fingerprint);
             if (replay != null) return replay;
             if (!json.fingerprint(current).equals(json.fingerprint(checked))) throw new AdmissionFailure(CONFLICT, "ADMISSION_POLICY_CHANGED");
@@ -141,7 +146,9 @@ class AdmissionStore {
                 current.target().targetProfileId(), current.target().intent(), command.operationKey(), fingerprint, uuid(), 0,
                 State.RESERVED, current.manifest().demand(), current.policy().id(), current.manifest().id(), current.manifestFingerprint(),
                 current.manifest().bindingFingerprint(), now, now, now, now.plusSeconds(current.policy().lifecycle().inactivitySeconds()),
-                0, null, null, ExpiryState.CURRENT, uuid(), null, 0, null, null, null, null, evidence.evidenceReference(), null);
+                0, null, null, ExpiryState.CURRENT, uuid(), null, 0, null, null, null, null, evidence.evidenceReference(), null,
+                command.customerContext() == null ? null : json.fingerprint(command.customerContext()),
+                command.customerContext() == null ? null : command.customerContext().operation(), evidence);
             customerHeld.add(reservation); checkCustomer(current.grant(), customerHeld);
             jdbc.update("""
                 INSERT INTO deployment_capacity_reservations(id,customer_id,deployment_id,target_profile_id,operation_key,
@@ -153,6 +160,22 @@ class AdmissionStore {
             event(reservation, "RESERVED", actor, evidence.evidenceReference(), now);
             return reservation;
         });
+    }
+    private void validateCustomerScope(AdmissionContext current, Reserve command) {
+        var scope = command.customerContext();
+        if (scope == null) return;
+        Intent expectedIntent;
+        try { expectedIntent = Intent.valueOf(scope.intent().name()); }
+        catch (RuntimeException ex) { throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_SCOPE_INVALID"); }
+        if (scope.operation() == null || scope.limits() == null || scope.entitlementRevision() <= 0
+            || !current.customerId().equals(scope.customerId()) || !current.tenantId().equals(scope.tenantId())
+            || !current.deploymentId().equals(scope.deploymentId())
+            || !current.target().targetProfileId().equals(scope.targetProfileId()) || current.target().intent() != expectedIntent
+            || !command.operationKey().equals(scope.operationKey()) || scope.offerId() == null || scope.offerId().isBlank()
+            || scope.offerFingerprint() == null || scope.offerFingerprint().isBlank()
+            || scope.placementEvidenceId() == null || scope.placementEvidenceId().isBlank()) {
+            throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_SCOPE_INVALID");
+        }
     }
     private void checkCapacity(FleetPolicy policy, List<Reservation> held, Vector extra, String targetId) {
         var fleet = new ArrayList<>(held.stream().map(Reservation::demand).toList());
@@ -184,6 +207,25 @@ class AdmissionStore {
         if (rows.isEmpty()) throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
         return rows.get(0);
     }
+    List<Reservation> customerPrerequisiteReservations(
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context) {
+        return jdbc.query("""
+            SELECT customer_id,deployment_id,target_profile_id,operation_key,state,payload_json
+              FROM deployment_capacity_reservations
+             WHERE customer_id=? AND deployment_id=? AND target_profile_id=? AND operation_key=?
+             FOR UPDATE
+            """, (rs, row) -> {
+                Reservation reservation = json.read(rs.getString("payload_json"), Reservation.class);
+                if (!rs.getString("customer_id").equals(reservation.customerId())
+                    || !rs.getString("deployment_id").equals(reservation.deploymentId())
+                    || !rs.getString("target_profile_id").equals(reservation.targetProfileId())
+                    || !rs.getString("operation_key").equals(reservation.operationKey())
+                    || !rs.getString("state").equals(reservation.state().name())) {
+                    throw new AdmissionFailure(CONFLICT, "ADMISSION_RESERVATION_RECORD_MISMATCH");
+                }
+                return reservation;
+            }, context.customerId(), context.deploymentId(), context.targetProfileId(), context.operationKey());
+    }
     private Reservation fenced(Fence fence) {
         if (fence == null) throw new AdmissionFailure(BAD_REQUEST, "FENCE_REQUIRED");
         Reservation r = require(fence.reservationId());
@@ -203,16 +245,21 @@ class AdmissionStore {
                 || !r.manifestFingerprint().equals(current.manifestFingerprint())) throw new AdmissionFailure(CONFLICT, "RESERVATION_POLICY_CHANGED");
             localGuard.run(); now = effectiveTime(requestedAt);
             policy(current.policy(), now); grant(current.grant(), now); prerequisites(current, evidence, now);
-            return outcomeLocked(fence, State.PROVISIONING, evidence.evidenceReference(), actor, now);
+            return outcomeLocked(fence, State.PROVISIONING, evidence.evidenceReference(), evidence, actor, now);
         });
     }
     private Reservation outcomeLocked(Fence fence, State state, String evidence, String actor, Instant now) {
+        return outcomeLocked(fence, state, evidence, null, actor, now);
+    }
+    private Reservation outcomeLocked(Fence fence, State state, String evidence, PrerequisiteReadback prerequisiteReadback,
+                                      String actor, Instant now) {
         Reservation r = fenced(fence);
         if (r.state() == State.RELEASED || (state != State.OUTCOME_UNKNOWN && state != State.CLEANUP_FAILED
             && state != State.PROVISIONING)) throw new AdmissionFailure(CONFLICT, "RESERVATION_TRANSITION_FORBIDDEN");
         if (state == State.PROVISIONING && (r.state() != State.RESERVED || r.expiryState() != ExpiryState.CURRENT || !r.expiresAt().isAfter(now)))
             throw new AdmissionFailure(CONFLICT, "PROVISIONING_REQUIRES_CURRENT_RESERVATION");
         Mutation m = new Mutation(r); m.state = state; m.evidence = required(evidence, 255);
+        if (prerequisiteReadback != null) m.prerequisiteReadback = prerequisiteReadback;
         if (state == State.CLEANUP_FAILED) m.failure = "CLEANUP_FAILED";
         return save(r, m, state.name(), actor, now);
     }
@@ -416,19 +463,22 @@ class AdmissionStore {
         State state; ExpiryState expiryState; Instant lastActivity; Instant expires; int extensions;
         Instant keepUntil; String keepEntitlement; String noticeCycle; Instant nextRetry; int attempts;
         String worker; Instant drainDeadline; Instant recoveryUntil; String retirement; String evidence; String failure;
+        PrerequisiteReadback prerequisiteReadback;
         Mutation(Reservation r) {
             state = r.state(); expiryState = r.expiryState(); lastActivity = r.lastActivityAt(); expires = r.expiresAt();
             extensions = r.extensions(); keepUntil = r.keepUntil(); keepEntitlement = r.keepEntitlementReference();
             noticeCycle = r.noticeCycle(); nextRetry = r.nextRetryAt(); attempts = r.attempts(); worker = r.workerToken();
             drainDeadline = r.drainDeadline(); recoveryUntil = r.recoveryUntil();
             retirement = r.retirementOperationId(); evidence = r.evidenceReference(); failure = r.failureCode();
+            prerequisiteReadback = r.prerequisiteReadback();
         }
         Reservation build(Reservation r, Instant now) {
             return new Reservation(r.id(), r.customerId(), r.tenantId(), r.deploymentId(), r.targetProfileId(), r.intent(),
                 r.operationKey(), r.requestFingerprint(), r.generation(), Math.incrementExact(r.revision()), state, r.demand(),
                 r.policyId(), r.manifestId(), r.manifestFingerprint(), r.bindingFingerprint(), r.createdAt(), now, lastActivity,
                 expires, extensions, keepUntil, keepEntitlement, expiryState, noticeCycle, nextRetry, attempts, worker,
-                drainDeadline, recoveryUntil, retirement, evidence, failure);
+                drainDeadline, recoveryUntil, retirement, evidence, failure, r.customerContextFingerprint(),
+                r.customerOperation(), prerequisiteReadback);
         }
     }
 }
