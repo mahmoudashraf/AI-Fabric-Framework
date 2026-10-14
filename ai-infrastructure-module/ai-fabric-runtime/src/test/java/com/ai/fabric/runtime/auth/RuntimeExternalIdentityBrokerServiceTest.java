@@ -1,6 +1,15 @@
 package com.ai.fabric.runtime.auth;
 
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.ECDSASigner;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+import com.sun.net.httpserver.HttpServer;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -9,6 +18,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +31,38 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RuntimeExternalIdentityBrokerServiceTest {
+
+    @Test
+    void validatesEs256ProviderSignaturesAgainstTheJwkSetAndRejectsTampering() throws Exception {
+        var key = new ECKeyGenerator(Curve.P_256).keyID("provider-key").generate();
+        byte[] jwks = new JWKSet(key.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/jwks", exchange -> {
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, jwks.length);
+            exchange.getResponseBody().write(jwks);
+            exchange.close();
+        });
+        server.start();
+        try {
+            JwtDecoder decoder = RuntimeExternalIdentityBrokerService.createJwkDecoder(
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/jwks");
+            var jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID(key.getKeyID()).build(),
+                new JWTClaimsSet.Builder().subject("verified-user").issuer("https://provider.example/auth/v1")
+                    .audience("authenticated").issueTime(new Date())
+                    .expirationTime(Date.from(Instant.now().plusSeconds(60))).build());
+            jwt.sign(new ECDSASigner(key));
+            assertThat(decoder.decode(jwt.serialize()).getSubject()).isEqualTo("verified-user");
+
+            String[] parts = jwt.serialize().split("\\.");
+            char replacement = parts[2].charAt(0) == 'A' ? 'B' : 'A';
+            String tampered = parts[0] + "." + parts[1] + "." + replacement + parts[2].substring(1);
+            assertThatThrownBy(() -> decoder.decode(tampered))
+                .isInstanceOf(org.springframework.security.oauth2.jwt.JwtException.class);
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test
     void exchangesVerifiedExternalIdentityForDeploymentScopedRuntimeToken() {

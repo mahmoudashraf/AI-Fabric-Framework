@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -100,7 +101,7 @@ public class RuntimeExternalIdentityBrokerService {
             String jwkSetUri = required(config.getJwkSetUri(), "External identity JWK set URI is required.");
             requireHttps(issuer, "issuer");
             requireHttps(jwkSetUri, "JWK set URI");
-            NimbusJwtDecoder created = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+            NimbusJwtDecoder created = createJwkDecoder(jwkSetUri);
             OAuth2TokenValidator<Jwt> defaults = JwtValidators.createDefaultWithIssuer(issuer);
             OAuth2TokenValidator<Jwt> audience = jwt -> {
                 String expected = trim(config.getAudience());
@@ -114,6 +115,12 @@ public class RuntimeExternalIdentityBrokerService {
             decoder = created;
             return created;
         }
+    }
+
+    static NimbusJwtDecoder createJwkDecoder(String jwkSetUri) {
+        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
+            .jwsAlgorithms(algorithms -> algorithms.add(SignatureAlgorithm.ES256))
+            .build();
     }
 
     private RuntimeAuthProperties.ExternalIdentityBroker configuration() {
