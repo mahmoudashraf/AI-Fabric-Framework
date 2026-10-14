@@ -123,6 +123,21 @@ test('mixed-mode sign-in clears only anonymous installation state and never repl
   await page.close()
 })
 
+test('optional identity lookup preserves anonymous mixed-mode workspace without reloading', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('mixed.localhost'))
+  await page.locator('#installed-workspace').waitFor()
+  const lookup = await page.evaluate(async () => ({
+    token: await window.LoomAIWorkspaceHost.getIdentityAccessToken(),
+    installed: Boolean(document.getElementById('installed-workspace')),
+    identity: window.LoomAIWorkspaceHost.identity.status,
+  }))
+  assert.equal(lookup.token, null)
+  assert.equal(lookup.installed, true)
+  assert.equal(lookup.identity, 'anonymous')
+  await page.close()
+})
+
 test('magic-link callback clears anonymous state before mounting authenticated workspace', async () => {
   const context = await browser.newContext()
   await context.addInitScript(() => {

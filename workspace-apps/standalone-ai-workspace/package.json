@@ -10,7 +10,8 @@
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node --test tests/*.smoke.mjs",
-    "test:live": "node tests/standalone-live-gate.mjs"
+    "test:live": "node tests/standalone-live-gate.mjs",
+    "test:auth-live": "node tests/standalone-auth-live-gate.mjs"
   },
   "dependencies": {
     "express": "^5.1.0"

@@ -137,6 +137,7 @@ function installHostCapabilities(app: AppBootstrap) {
       ? { status: 'authenticated', subjectKey: session.user.id, displayName: session.user.email }
       : { status: 'anonymous' },
     async getIdentityAccessToken() {
+      if (!session) return null
       session = await ensureFreshSession(app, session)
       if (!session) {
         window.MaxMode?.destroy?.()

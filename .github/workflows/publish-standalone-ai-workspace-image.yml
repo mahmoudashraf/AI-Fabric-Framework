@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/publish-standalone-ai-workspace-image.yml"
       - "workspace-apps/standalone-ai-workspace/**"
+      - "!workspace-apps/standalone-ai-workspace/*.md"
   workflow_dispatch:
 
 permissions:
@@ -22,6 +23,35 @@ env:
   IMAGE_NAME: loomai-standalone-ai-workspace
 
 jobs:
+  changes:
+    name: Resolve frontend image scope
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.scope.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+            echo "image=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          image=false
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/publish-standalone-ai-workspace-image.yml|workspace-apps/standalone-ai-workspace/Dockerfile|workspace-apps/standalone-ai-workspace/server.mjs|workspace-apps/standalone-ai-workspace/index.html|workspace-apps/standalone-ai-workspace/package*.json|workspace-apps/standalone-ai-workspace/src/*|workspace-apps/standalone-ai-workspace/public/*|workspace-apps/standalone-ai-workspace/*config*)
+                image=true
+                ;;
+            esac
+          done < <(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
   verify:
     name: Verify standalone workspace
     runs-on: ubuntu-latest
@@ -51,7 +81,8 @@ jobs:
 
   publish:
     name: Publish standalone workspace image
-    needs: verify
+    needs: [changes, verify]
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
