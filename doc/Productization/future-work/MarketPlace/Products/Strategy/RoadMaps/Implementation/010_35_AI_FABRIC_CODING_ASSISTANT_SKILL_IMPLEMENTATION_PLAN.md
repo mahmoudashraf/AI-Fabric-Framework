@@ -1,9 +1,9 @@
 # 010.35 AI Fabric Coding Assistant Skill Implementation Plan
 
-- Status: planned; implementation not started.
+- Status: implemented and verified; public package pushed on 2026-10-14.
 - Created: 2026-10-13.
 - Execution priority: 1; no dependency on the other six ideas.
-- Source review: framework `561659dc`; private Platform `db58acd9`; AI Fabric `0.8.32`.
+- Source review: framework baseline `3c3be868`; implementation commit `2f8cda26`; private Platform `dd5674978`; AI Fabric `0.8.32`.
 - Owner: public AI Fabric framework repository. This private plan tracks the cross-product decision only.
 - Related: [execution index](PLATFORM_STARRED_IDEAS_EXECUTION_INDEX.md), [010.37 configuration assistant](010_37_PLATFORM_DEPLOYMENT_CONFIGURATION_ASSISTANT_IMPLEMENTATION_PLAN.md).
 
@@ -66,40 +66,40 @@ The package path is proposed, not present in the reviewed baseline. Tool-specifi
 
 ### S0. Curate Authoritative Sources
 
-- [ ] Inventory the released module/API names and current examples by capability.
-- [ ] Select one small, known-working example for indexing/RAG, actions, sessions, and execution.
-- [ ] Separate public rules from LoomAI/private conventions.
-- [ ] Document which instructions are normative and which examples demonstrate optional choices.
+- [x] Inventory the released module/API names and current examples by capability.
+- [x] Select one small, known-working example for indexing/RAG, actions, sessions, and execution.
+- [x] Separate public rules from LoomAI/private conventions.
+- [x] Document which instructions are normative and which examples demonstrate optional choices.
 
 Deliverable: a short reference inventory with working links and current artifact coordinates.
 
 ### S1. Author The Canonical Skill
 
-- [ ] Write the package and capability reference pages.
-- [ ] Teach inspection of `pom.xml`, configuration, and application ownership before edits.
-- [ ] Include current conversation-control use as an optional capability and distinguish Human Review from handover.
-- [ ] Require typed output/contracts, useful errors, and focused verification; prohibit hidden semantic fallbacks.
-- [ ] Describe explicit contract escalation instead of generating guessed endpoints or internal-service copies.
+- [x] Write the package and capability reference pages.
+- [x] Teach inspection of `pom.xml`, configuration, and application ownership before edits.
+- [x] Include current conversation-control use as an optional capability and distinguish Human Review from handover.
+- [x] Require typed output/contracts, useful errors, and focused verification; prohibit hidden semantic fallbacks.
+- [x] Describe explicit contract escalation instead of generating guessed endpoints or internal-service copies.
 
 Deliverable: an installable skill without private paths, secrets, or duplicated framework implementations.
 
 ### S2. Installation And Maintenance
 
-- [ ] Document installation for the intended coding assistants using their actual supported skill formats at implementation time.
-- [ ] Keep a single canonical source and verify packaged relative references.
-- [ ] Record the supported released artifact version and framework commit.
-- [ ] Add documentation link/package validation to the existing documentation workflow.
-- [ ] Assign review ownership for API changes that invalidate guidance.
+- [x] Document installation for Codex and project-scoped Cursor skill formats.
+- [x] Keep a single canonical source and verify packaged relative references.
+- [x] Record the supported released artifact version and framework commit.
+- [x] Add package, link, private-path, secret-shape, version, and BOM-artifact validation to `framework-verify.yml`.
+- [x] Keep review ownership with the public AI Fabric framework repository; framework API changes must update and revalidate the package.
 
 Do not introduce a runtime release just to publish skill prose. A skill correction may ship as a documentation change, with its supported artifact version stated accurately.
 
 ### S3. Demonstrate Useful Adoption
 
-- [ ] Use the skill in a clean consumer application with an empty Maven cache and released artifacts.
-- [ ] Implement one ingestion/retrieval path, one governed action, and one session lifecycle using supported APIs.
-- [ ] Run focused application checks and a real-provider smoke where credentials are available.
-- [ ] Include an unsupported request that the assistant correctly identifies as a contract gap.
-- [ ] Check generated code for accidental semantic keyword routing, internal API use, and private data exposure.
+- [x] Resolve and test the released framework from a fresh Maven cache through `examples/minimal-spring-boot` and `conversation-handover-demo`.
+- [x] Forward-test maintained consumers covering ingestion/retrieval, governed actions, and conversation lifecycle instead of creating a duplicate throwaway application.
+- [x] Run focused real-app checks for `ai-fabric-live-data-sync`, `conversation-handover-demo`, and `ai-fabric-account-resolver`; no live provider-quality claim was introduced by this documentation-only change.
+- [x] Encode unsupported-contract escalation directly in the canonical skill and verify that it prohibits guessed endpoints and copied internals.
+- [x] Validate the package for semantic keyword-routing guidance, internal/private paths, secret-shaped content, and release/BOM drift.
 
 ## 6. Verification And Exit Criteria
 
@@ -117,3 +117,24 @@ Capture prompts, generated diffs, commands, test results, and substantive failur
 ## 8. Framework Release And Tracking
 
 No framework binary change or release is required by this plan. A real reusable API defect discovered during adoption becomes a separately evidenced framework request with focused tests. Track implementation progress here, public package location/commit, consumer evidence, and supported release. Human in the Loop is an existing capability to explain, not an implementation prerequisite to recreate.
+
+## 9. Implementation Evidence
+
+Public implementation:
+
+- Repository: `Loom-AI-Labs/ai-fabric-framework`.
+- Commit: `2f8cda26` (`Add AI Fabric coding assistant skill`).
+- Canonical package: `skills/ai-fabric/`.
+- CI guard: `.github/scripts/validate-ai-fabric-skill.py`, invoked by `.github/workflows/framework-verify.yml`.
+
+Verification completed on 2026-10-14:
+
+- repository skill validator: passed for all six package documents against AI Fabric `0.8.32`;
+- Codex `quick_validate.py`: passed;
+- fresh-cache `examples/minimal-spring-boot clean test`: 2 tests passed;
+- fresh-cache `conversation-handover-demo clean test`: 8 tests passed;
+- focused real-app reactor (`smoke-support`, live data sync, conversation handover, account resolver): 52 tests passed;
+- `git diff --check`: passed;
+- public push to `main`: completed.
+
+No framework runtime code or Maven artifact changed, so no new AI Fabric binary release was created. The existing immutable `0.8.32` release remains the supported application baseline.
