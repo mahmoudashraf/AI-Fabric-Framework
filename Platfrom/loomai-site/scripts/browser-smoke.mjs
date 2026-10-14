@@ -1035,6 +1035,13 @@ try {
   }
   await page.getByText('Latest · AI Fabric 0.8.30', { exact: true }).waitFor()
   await page.getByText('The dealership, vehicles and provider contract are fictional demonstration data, not an Auto Trader production integration or endorsement.', { exact: false }).waitFor()
+  await page.getByRole('heading', { name: 'Start with a proven deployment shape. Make it yours.' }).waitFor()
+  await page.getByRole('heading', { name: 'Help buyers move from uncertainty to a confident next step.' }).waitFor()
+  await page.getByRole('button', { name: 'Play the Dealership AI Workspace demonstration on YouTube' }).waitFor()
+  const dealershipVideoId = await page.locator('[data-platform-product-video]').getAttribute('data-platform-product-video')
+  if (dealershipVideoId !== 'rNl_bcMiS4Y') {
+    throw new Error(`Platform product video uses the wrong YouTube id: ${dealershipVideoId}`)
+  }
 
   await page.goto(`${origin}/experiments`, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Governed actions' }).click()

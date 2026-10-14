@@ -1,0 +1,591 @@
+---
+import {
+  ArrowRight,
+  BadgeCheck,
+  Bot,
+  Building2,
+  CalendarCheck,
+  Database,
+  Headphones,
+  Palette,
+  Play,
+  Plug,
+  ShieldCheck,
+  Sparkles,
+  Users,
+} from '@lucide/astro'
+
+const dealershipVideoId = 'rNl_bcMiS4Y'
+---
+
+<section class="platform-products" id="platform-products" aria-labelledby="platform-products-title">
+  <div class="loom-container">
+    <div class="platform-products__heading">
+      <p class="loom-eyebrow">Platform products</p>
+      <h2 id="platform-products-title">Start with a proven deployment shape. Make it yours.</h2>
+      <p>
+        LoomAI products package a working customer journey, governed AI capabilities
+        and operating boundaries into a reusable deployment template. Each customer
+        still receives a dedicated deployment and a distinctly branded experience.
+      </p>
+    </div>
+
+    <article class="platform-product" aria-labelledby="dealership-product-title">
+      <div class="platform-product__intro">
+        <div class="platform-product__copy">
+          <div class="platform-product__label">
+            <Building2 size={19} stroke-width={1.7} aria-hidden="true" />
+            Dealership AI Workspace
+            <span>Product 01</span>
+          </div>
+          <h3 id="dealership-product-title">Help buyers move from uncertainty to a confident next step.</h3>
+          <p class="platform-product__lead">
+            Give dealership visitors one intelligent workspace for current stock,
+            comparisons, approved local policies, test-drive and callback requests,
+            and a seamless conversation with a real team member.
+          </p>
+
+          <ul class="platform-product__outcomes" aria-label="Dealership product outcomes">
+            <li>
+              <BadgeCheck size={20} stroke-width={1.7} aria-hidden="true" />
+              <span><strong>Build trust before capture</strong><small>Answer from current inventory and approved dealership knowledge.</small></span>
+            </li>
+            <li>
+              <Users size={20} stroke-width={1.7} aria-hidden="true" />
+              <span><strong>Keep the buyer's context</strong><small>Move between AI and dealership staff without restarting the journey.</small></span>
+            </li>
+            <li>
+              <CalendarCheck size={20} stroke-width={1.7} aria-hidden="true" />
+              <span><strong>Create better-qualified enquiries</strong><small>Collect confirmed next steps after the buyer has explored their options.</small></span>
+            </li>
+          </ul>
+
+          <div class="platform-product__actions">
+            <a class="loom-button loom-button--primary" href="/demos/dealership-ai">
+              Open the live experience
+              <ArrowRight size={16} aria-hidden="true" />
+            </a>
+            <a class="loom-button loom-button--secondary" href="/connect">
+              Discuss a dealership pilot
+            </a>
+          </div>
+        </div>
+
+        <figure class="platform-product__video">
+          <button
+            type="button"
+            class="platform-product__video-launcher"
+            data-platform-product-video={dealershipVideoId}
+            aria-label="Play the Dealership AI Workspace demonstration on YouTube"
+          >
+            <img
+              src="/assets/platform/dealership-ai-workspace-video-poster.jpg"
+              alt="Customer AI Workspace and dealership staff inbox shown side by side"
+              width="1280"
+              height="720"
+              loading="lazy"
+            />
+            <span class="platform-product__video-shade" aria-hidden="true"></span>
+            <span class="platform-product__video-play" aria-hidden="true">
+              <Play size={25} fill="currentColor" />
+            </span>
+            <span class="platform-product__video-copy">
+              <small>Live product walkthrough</small>
+              <strong>See AI and dealership staff share one buyer journey</strong>
+            </span>
+          </button>
+          <figcaption>
+            Northfield is a fictional dealership demonstration. The Auto Trader-shaped
+            stock feed is simulated; production access requires approved partner credentials.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ol class="platform-product__journey" aria-label="Dealership buyer journey">
+        <li>
+          <span><Sparkles size={21} stroke-width={1.65} aria-hidden="true" /></span>
+          <strong>Discover</strong>
+          <small>Search and compare current dealership stock in natural language.</small>
+        </li>
+        <li>
+          <span><ShieldCheck size={21} stroke-width={1.65} aria-hidden="true" /></span>
+          <strong>Understand</strong>
+          <small>Combine vehicle facts with approved delivery, warranty and test-drive terms.</small>
+        </li>
+        <li>
+          <span><Headphones size={21} stroke-width={1.65} aria-hidden="true" /></span>
+          <strong>Talk to the team</strong>
+          <small>Bring in a human while preserving the conversation and selected vehicles.</small>
+        </li>
+        <li>
+          <span><CalendarCheck size={21} stroke-width={1.65} aria-hidden="true" /></span>
+          <strong>Take the next step</strong>
+          <small>Create a confirmed callback or test-drive request with clear consent.</small>
+        </li>
+      </ol>
+    </article>
+
+    <div class="platform-product-flexibility">
+      <div class="platform-product-flexibility__copy">
+        <p class="loom-eyebrow">Reusable by design</p>
+        <h3>One product template. A distinct experience for every retailer.</h3>
+        <p>
+          The reusable journey stays tested while each dealership controls how it
+          looks, what knowledge it can use and which customer actions it can offer.
+        </p>
+      </div>
+
+      <div class="platform-product-flexibility__features">
+        <div>
+          <Palette size={23} stroke-width={1.6} aria-hidden="true" />
+          <span><strong>Fit the brand</strong><small>Name, colours, voice, launcher and workspace tools.</small></span>
+        </div>
+        <div>
+          <Plug size={23} stroke-width={1.6} aria-hidden="true" />
+          <span><strong>Extend the journey</strong><small>Add approved inventory, CRM, finance or service integrations.</small></span>
+        </div>
+        <div>
+          <Database size={23} stroke-width={1.6} aria-hidden="true" />
+          <span><strong>Keep customer boundaries clear</strong><small>Dedicated deployment, advertiser-scoped access and customer-owned outcomes.</small></span>
+        </div>
+      </div>
+
+      <div class="platform-product-flexibility__flow" aria-label="Template customization flow">
+        <span><Bot size={23} stroke-width={1.55} aria-hidden="true" /><small>Product template</small><strong>Trusted buying journey</strong></span>
+        <ArrowRight size={22} aria-hidden="true" />
+        <span><Palette size={23} stroke-width={1.55} aria-hidden="true" /><small>Retailer configuration</small><strong>Brand + capabilities</strong></span>
+        <ArrowRight size={22} aria-hidden="true" />
+        <span><Building2 size={23} stroke-width={1.55} aria-hidden="true" /><small>Dedicated deployment</small><strong>Customer AI Workspace</strong></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  document.querySelectorAll('[data-platform-product-video]').forEach((launcher) => {
+    launcher.addEventListener('click', () => {
+      const videoId = launcher.getAttribute('data-platform-product-video')
+      if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) return
+
+      const frame = document.createElement('iframe')
+      frame.className = 'platform-product__video-frame'
+      frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`
+      frame.title = 'Dealership AI Workspace demonstration'
+      frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+      frame.allowFullscreen = true
+      launcher.replaceWith(frame)
+    }, { once: true })
+  })
+</script>
+
+<style>
+  .platform-products {
+    background: #fff;
+    border-bottom: 1px solid var(--loom-border-default);
+    padding-block: clamp(4rem, 8vw, 7rem);
+  }
+
+  .platform-products__heading {
+    margin-bottom: 2.6rem;
+    max-width: 57rem;
+  }
+
+  .platform-products__heading h2 {
+    font-size: 3rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .platform-products__heading > p:last-child {
+    font-size: 1.05rem;
+    margin: 0;
+    max-width: 49rem;
+  }
+
+  .platform-product {
+    border-block: 1px solid var(--loom-border-accent);
+  }
+
+  .platform-product__intro {
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 5rem);
+    grid-template-columns: minmax(20rem, 0.88fr) minmax(32rem, 1.12fr);
+    padding-block: 2.5rem;
+  }
+
+  .platform-product__copy {
+    align-self: center;
+  }
+
+  .platform-product__label {
+    align-items: center;
+    color: var(--loom-blue-600);
+    display: flex;
+    font-size: 0.72rem;
+    font-weight: 760;
+    gap: 0.48rem;
+    margin-bottom: 1.1rem;
+    text-transform: uppercase;
+  }
+
+  .platform-product__label span {
+    border-left: 1px solid var(--loom-border-default);
+    color: var(--loom-text-muted);
+    margin-left: 0.25rem;
+    padding-left: 0.75rem;
+  }
+
+  .platform-product h3,
+  .platform-product-flexibility h3 {
+    font-size: 2rem;
+    line-height: 1.12;
+    margin-bottom: 0.9rem;
+  }
+
+  .platform-product__lead {
+    font-size: 1rem;
+    line-height: 1.62;
+    margin-bottom: 1.5rem;
+  }
+
+  .platform-product__outcomes {
+    list-style: none;
+    margin: 0 0 1.7rem;
+    padding: 0;
+  }
+
+  .platform-product__outcomes li {
+    align-items: flex-start;
+    border-top: 1px solid var(--loom-border-default);
+    display: flex;
+    gap: 0.75rem;
+    padding-block: 0.78rem;
+  }
+
+  .platform-product__outcomes svg {
+    color: #07865e;
+    flex: 0 0 auto;
+    margin-top: 0.08rem;
+  }
+
+  .platform-product__outcomes strong,
+  .platform-product__outcomes small {
+    display: block;
+  }
+
+  .platform-product__outcomes strong {
+    font-size: 0.82rem;
+    margin-bottom: 0.16rem;
+  }
+
+  .platform-product__outcomes small {
+    color: var(--loom-text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+
+  .platform-product__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .platform-product__video {
+    align-self: center;
+    margin: 0;
+    min-width: 0;
+  }
+
+  .platform-product__video-launcher,
+  :global(.platform-product__video-frame) {
+    aspect-ratio: 16 / 9;
+    border: 1px solid #8daee8;
+    border-radius: 0.5rem;
+    display: block;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .platform-product__video-launcher {
+    background: var(--loom-navy-950);
+    color: #fff;
+    cursor: pointer;
+    padding: 0;
+    position: relative;
+    text-align: left;
+  }
+
+  .platform-product__video-launcher:focus-visible {
+    outline: 3px solid var(--loom-blue-vivid);
+    outline-offset: 4px;
+  }
+
+  .platform-product__video-launcher img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  .platform-product__video-shade {
+    background: linear-gradient(0deg, rgb(5 26 61 / 82%) 0%, rgb(5 26 61 / 3%) 64%);
+    inset: 0;
+    position: absolute;
+  }
+
+  .platform-product__video-play {
+    align-items: center;
+    background: #fff;
+    border-radius: 50%;
+    bottom: 1.25rem;
+    color: var(--loom-blue-600);
+    display: flex;
+    height: 3.2rem;
+    justify-content: center;
+    left: 1.25rem;
+    position: absolute;
+    width: 3.2rem;
+  }
+
+  .platform-product__video-play svg {
+    margin-left: 0.16rem;
+  }
+
+  .platform-product__video-copy {
+    bottom: 1.3rem;
+    left: 5.2rem;
+    max-width: calc(100% - 6.5rem);
+    position: absolute;
+  }
+
+  .platform-product__video-copy small,
+  .platform-product__video-copy strong {
+    display: block;
+  }
+
+  .platform-product__video-copy small {
+    color: #a8d8ff;
+    font-size: 0.6rem;
+    font-weight: 760;
+    margin-bottom: 0.15rem;
+    text-transform: uppercase;
+  }
+
+  .platform-product__video-copy strong {
+    color: #fff;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .platform-product__video figcaption {
+    color: var(--loom-text-muted);
+    font-size: 0.65rem;
+    line-height: 1.5;
+    margin-top: 0.65rem;
+  }
+
+  .platform-product__journey {
+    border-top: 1px solid var(--loom-border-accent);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .platform-product__journey li {
+    min-height: 10rem;
+    padding: 1.35rem;
+  }
+
+  .platform-product__journey li + li {
+    border-left: 1px solid var(--loom-border-default);
+  }
+
+  .platform-product__journey li > span {
+    align-items: center;
+    background: #edf4ff;
+    border-radius: 0.4rem;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    height: 2.5rem;
+    justify-content: center;
+    margin-bottom: 0.8rem;
+    width: 2.5rem;
+  }
+
+  .platform-product__journey strong,
+  .platform-product__journey small {
+    display: block;
+  }
+
+  .platform-product__journey strong {
+    font-size: 0.84rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .platform-product__journey small {
+    color: var(--loom-text-secondary);
+    font-size: 0.68rem;
+    line-height: 1.5;
+  }
+
+  .platform-product-flexibility {
+    align-items: start;
+    display: grid;
+    gap: 2rem 3rem;
+    grid-template-columns: minmax(18rem, 0.85fr) minmax(28rem, 1.15fr);
+    padding-top: 4.5rem;
+  }
+
+  .platform-product-flexibility__copy > p:last-child {
+    font-size: 0.9rem;
+    margin: 0;
+    max-width: 32rem;
+  }
+
+  .platform-product-flexibility__features {
+    border-top: 1px solid var(--loom-border-default);
+  }
+
+  .platform-product-flexibility__features > div {
+    align-items: flex-start;
+    border-bottom: 1px solid var(--loom-border-default);
+    display: flex;
+    gap: 0.8rem;
+    padding-block: 0.95rem;
+  }
+
+  .platform-product-flexibility__features svg {
+    color: var(--loom-indigo-500);
+    flex: 0 0 auto;
+  }
+
+  .platform-product-flexibility__features strong,
+  .platform-product-flexibility__features small {
+    display: block;
+  }
+
+  .platform-product-flexibility__features strong {
+    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .platform-product-flexibility__features small {
+    color: var(--loom-text-secondary);
+    font-size: 0.69rem;
+    line-height: 1.45;
+  }
+
+  .platform-product-flexibility__flow {
+    align-items: center;
+    background: #f5f8ff;
+    border: 1px solid var(--loom-border-accent);
+    border-radius: 0.5rem;
+    display: grid;
+    gap: 1rem;
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    padding: 1.15rem 1.35rem;
+  }
+
+  .platform-product-flexibility__flow > span {
+    align-items: center;
+    display: grid;
+    gap: 0.12rem 0.7rem;
+    grid-template-columns: auto 1fr;
+  }
+
+  .platform-product-flexibility__flow > span svg {
+    color: var(--loom-blue-600);
+    grid-row: 1 / span 2;
+  }
+
+  .platform-product-flexibility__flow small {
+    color: var(--loom-text-muted);
+    font-size: 0.57rem;
+    text-transform: uppercase;
+  }
+
+  .platform-product-flexibility__flow strong {
+    font-size: 0.72rem;
+  }
+
+  .platform-product-flexibility__flow > svg {
+    color: var(--loom-blue-vivid);
+  }
+
+  @media (max-width: 68rem) {
+    .platform-product__intro,
+    .platform-product-flexibility {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-product__journey {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .platform-product__journey li:nth-child(3) {
+      border-left: 0;
+      border-top: 1px solid var(--loom-border-default);
+    }
+
+    .platform-product__journey li:nth-child(4) {
+      border-top: 1px solid var(--loom-border-default);
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .platform-products {
+      padding-block: 3.5rem;
+    }
+
+    .platform-products__heading h2,
+    .platform-product h3,
+    .platform-product-flexibility h3 {
+      font-size: 2rem;
+    }
+
+    .platform-product__intro {
+      gap: 2rem;
+      grid-template-columns: minmax(0, 1fr);
+      padding-block: 2rem;
+    }
+
+    .platform-product__actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .platform-product__journey {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-product__journey li + li,
+    .platform-product__journey li:nth-child(3),
+    .platform-product__journey li:nth-child(4) {
+      border-left: 0;
+      border-top: 1px solid var(--loom-border-default);
+    }
+
+    .platform-product__journey li {
+      min-height: 0;
+    }
+
+    .platform-product-flexibility {
+      grid-template-columns: minmax(0, 1fr);
+      padding-top: 3.5rem;
+    }
+
+    .platform-product-flexibility__flow {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-product-flexibility__flow > svg {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
+
+    .platform-product__video-copy strong {
+      font-size: 0.72rem;
+    }
+  }
+</style>

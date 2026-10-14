@@ -19,6 +19,7 @@ import {
   Store,
 } from '@lucide/astro'
 import type { Product } from '../data/types'
+import PlatformProductCatalog from './PlatformProductCatalog.astro'
 import PlatformSystemVisual from './PlatformSystemVisual.astro'
 
 type Props = {
@@ -278,6 +279,8 @@ const { product } = Astro.props
     </div>
   </div>
 </section>
+
+<PlatformProductCatalog />
 
 <style>
   .platform-hero {

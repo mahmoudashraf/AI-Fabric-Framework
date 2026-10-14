@@ -71,6 +71,7 @@ for (const required of [
   'sitemap.xml',
   'research/feed.xml',
   'assets/loom-woven-hero.png',
+  'assets/platform/dealership-ai-workspace-video-poster.jpg',
   'assets/demos/dealership/vehicle-01.webp',
   'assets/demos/dealership/vehicle-05.webp',
 ]) {
@@ -88,6 +89,21 @@ for (const route of ['demos/dealership-ai', 'demos/dealership-ai/vehicles/aster-
   }
   if (html.includes('/vendor/max-mode-widget') || html.includes('/vendor/dealership-experience')) {
     errors.push(`Dealership route /${route} still references a site-hosted workspace bundle`)
+  }
+}
+
+const platformProductHtml = readFileSync(
+  path.join(dist, 'products', 'loomai-platform', 'index.html'),
+  'utf8',
+)
+for (const expected of [
+  'Platform products',
+  'Dealership AI Workspace',
+  'data-platform-product-video="rNl_bcMiS4Y"',
+  '/assets/platform/dealership-ai-workspace-video-poster.jpg',
+]) {
+  if (!platformProductHtml.includes(expected)) {
+    errors.push(`LoomAI Platform product page is missing ${expected}`)
   }
 }
 
