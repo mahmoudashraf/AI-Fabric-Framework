@@ -150,6 +150,13 @@ public class AIWorkspaceDomainService {
     }
 
     @Transactional(readOnly = true)
+    public boolean deliveryAvailable(String installationEntityId) {
+        return repository.findByInstallationEntityIdOrderByHostname(installationEntityId).stream()
+            .filter(domain -> domain.getStatus() == AIWorkspaceDomainStatus.VERIFIED)
+            .anyMatch(domain -> verifier.verifyRoute(domain.getHostname()).verified());
+    }
+
+    @Transactional(readOnly = true)
     public AIWorkspaceDomainEntity resolveVerifiedOrigin(String origin) {
         String hostname;
         try {

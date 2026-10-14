@@ -127,6 +127,22 @@ class AIWorkspaceDomainServiceTest {
             .hasMessageContaining("already reserved");
     }
 
+    @Test
+    void deliveryAvailabilityTracksRouteHealthWithoutRevokingVerifiedOwnership() {
+        AIWorkspaceDomainEntity verified = domain("northfield.apps.loomai.test", "awi-1");
+        AIWorkspaceDomainEntity pending = domain("pending.apps.loomai.test", "awi-1");
+        pending.setStatus(AIWorkspaceDomainStatus.PENDING);
+        when(repository.findByInstallationEntityIdOrderByHostname("awi-1")).thenReturn(List.of(pending, verified));
+        when(verifier.verifyRoute(verified.getHostname()))
+            .thenReturn(new AIWorkspaceDomainVerifier.Verification(false, "Unavailable"))
+            .thenReturn(new AIWorkspaceDomainVerifier.Verification(true, null));
+
+        assertThat(service.deliveryAvailable("awi-1")).isFalse();
+        assertThat(verified.getStatus()).isEqualTo(AIWorkspaceDomainStatus.VERIFIED);
+        assertThat(service.deliveryAvailable("awi-1")).isTrue();
+        org.mockito.Mockito.verify(verifier, org.mockito.Mockito.never()).verifyRoute(pending.getHostname());
+    }
+
     private AIWorkspaceInstallationEntity installation(String id) {
         AIWorkspaceInstallationEntity installation = new AIWorkspaceInstallationEntity();
         installation.setId(id);

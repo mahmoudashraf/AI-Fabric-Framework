@@ -134,6 +134,9 @@ public class AIWorkspaceReadinessService {
             check(domains.stream().anyMatch(domain -> "VERIFIED".equals(domain.status())), checks,
                 "APP_DOMAIN", "At least one exact standalone app domain is verified.",
                 "No standalone app domain is verified.");
+            check(domainService.deliveryAvailable(installation.getId()), checks,
+                "APP_DELIVERY", "A verified standalone frontend route is currently available.",
+                "The standalone frontend route is currently unavailable.");
         }
 
         if (assignment != null) {

@@ -57,6 +57,7 @@ class AIWorkspaceReadinessServiceTest {
         when(domains.summaries(installation.getId())).thenReturn(List.of(new AIWorkspaceDomainSummary(
             "northfield.apps.loomai.test", "https://northfield.apps.loomai.test", "PLATFORM_DEFAULT",
             "VERIFIED", "", "", null, null, null, Instant.now())));
+        when(domains.deliveryAvailable(installation.getId())).thenReturn(true);
         when(secrets.isSecretPresent(any())).thenReturn(true);
 
         var matching = assignment(security("https://example.supabase.co/auth/v1"));
@@ -67,6 +68,19 @@ class AIWorkspaceReadinessServiceTest {
             assertThat(check.code()).isEqualTo("EXTERNAL_IDENTITY_BINDING");
             assertThat(check.status()).isEqualTo("PASSED");
         });
+
+        when(domains.deliveryAvailable(installation.getId())).thenReturn(false);
+        var deliveryFailure = service().evaluate(installation);
+        assertThat(deliveryFailure.ready()).isFalse();
+        assertThat(deliveryFailure.checks()).anySatisfy(check -> {
+            assertThat(check.code()).isEqualTo("APP_DELIVERY");
+            assertThat(check.status()).isEqualTo("BLOCKED");
+        });
+        assertThat(deliveryFailure.checks()).anySatisfy(check -> {
+            assertThat(check.code()).isEqualTo("ASSIGNMENT");
+            assertThat(check.status()).isEqualTo("PASSED");
+        });
+        when(domains.deliveryAvailable(installation.getId())).thenReturn(true);
 
         when(assignments.resolveTarget(consumer, "dep-1", "rel-1"))
             .thenReturn(assignment(security("https://other.supabase.co/auth/v1")));
