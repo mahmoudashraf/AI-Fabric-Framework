@@ -361,15 +361,22 @@ public class CoolifyApiClient {
         JsonNode existing = environmentInventory(connection, uuid);
         Map<EnvIdentity, List<CoolifyEnvRecord>> existingByIdentity = environmentRecords(existing, desired.keySet());
         List<CoolifyEnvVar> changed = new ArrayList<>();
+        Set<EnvIdentity> createPreviewRows = new java.util.HashSet<>();
         for (Map.Entry<EnvIdentity, CoolifyEnvVar> entry : desired.entrySet()) {
             List<CoolifyEnvRecord> records = existingByIdentity.getOrDefault(entry.getKey(), List.of());
             if (records.stream().anyMatch(record -> environmentMatches(record, entry.getValue()))) {
                 continue;
             }
-            if (entry.getValue().shownOnce()) {
+            String desiredValue = entry.getValue().value() == null ? "" : entry.getValue().value();
+            boolean replaceSecret = entry.getValue().shownOnce()
+                && records.stream().noneMatch(record -> Objects.equals(record.value(), desiredValue));
+            if (replaceSecret) {
                 for (CoolifyEnvRecord record : records) {
                     deleteEnvironmentVariable(connection, uuid, record.uuid());
                 }
+            }
+            if (entry.getKey().preview() && (records.isEmpty() || replaceSecret)) {
+                createPreviewRows.add(entry.getKey());
             }
             changed.add(entry.getValue());
         }
@@ -385,7 +392,11 @@ public class CoolifyApiClient {
             if (!envVar.preview()) {
                 continue;
             }
-            updateEnvironmentVariable(connection, uuid, envVar);
+            if (createPreviewRows.contains(new EnvIdentity(envVar.key().trim(), true))) {
+                requestJson(connection, "POST", "/applications/" + encodePath(uuid) + "/envs", envBody(envVar), true);
+            } else {
+                updateEnvironmentVariable(connection, uuid, envVar);
+            }
             updated++;
         }
         JsonNode reconciled = changed.isEmpty() ? existing : environmentInventory(connection, uuid);

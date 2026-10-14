@@ -350,6 +350,53 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void updateEnvironmentVariablesCreatesMissingAndRotatedPreviewSecretsThenBecomesANoop() throws Exception {
+        List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer server = reconcilingEnvironmentServer("""
+            [{"uuid":"old-preview","key":"SECRET","value":"old","is_preview":true,
+              "is_literal":true,"is_multiline":false,"is_shown_once":true,"is_buildtime":false,"is_runtime":true}]
+            """, requests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+            List<CoolifyEnvVar> desired = List.of(
+                new CoolifyEnvVar("SECRET", "new", true, true, false, true),
+                new CoolifyEnvVar("EMPTY", "", true, true, false, false)
+            );
+
+            assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isEqualTo(2);
+            assertThat(requests).containsExactly("GET", "DELETE old-preview", "POST SECRET", "POST EMPTY", "GET");
+            requests.clear();
+            assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isZero();
+            assertThat(requests).containsExactly("GET");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void updateEnvironmentVariablesUpdatesFlagsWithoutDeletingAnUnchangedSecretValue() throws Exception {
+        List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer server = reconcilingEnvironmentServer("""
+            [{"uuid":"preview","key":"SECRET","value":"  exact-value  ","is_preview":true,
+              "is_literal":false,"is_multiline":false,"is_shown_once":true,"is_buildtime":true,"is_runtime":false}]
+            """, requests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+            List<CoolifyEnvVar> desired = List.of(
+                new CoolifyEnvVar("SECRET", "  exact-value  ", true, true, false, true)
+            );
+
+            assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isEqualTo(1);
+            assertThat(requests).containsExactly("GET", "PATCH SECRET", "GET");
+            requests.clear();
+            assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isZero();
+            assertThat(requests).containsExactly("GET");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void updateEnvironmentVariablesReplacesOnlyStaleShownOnceSecretsBeforeUpsert() throws Exception {
         AtomicInteger deleteRequests = new AtomicInteger();
         AtomicReference<String> deletedPath = new AtomicReference<>();
@@ -804,6 +851,54 @@ class CoolifyApiClientTest {
             }
             writeRequests.incrementAndGet();
             sendJson(exchange, 201, "{}");
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer reconcilingEnvironmentServer(String initialRows, List<String> requests) throws IOException {
+        AtomicReference<JsonNode> rows = new AtomicReference<>(objectMapper.readTree(initialRows));
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            String method = exchange.getRequestMethod();
+            if ("GET".equals(method)) {
+                requests.add("GET");
+                sendJson(exchange, 200, rows.get().toString());
+                return;
+            }
+            if ("DELETE".equals(method)) {
+                String envUuid = exchange.getRequestURI().getPath().substring(exchange.getRequestURI().getPath().lastIndexOf('/') + 1);
+                requests.add("DELETE " + envUuid);
+                var retained = objectMapper.createArrayNode();
+                rows.get().forEach(row -> {
+                    if (!envUuid.equals(row.path("uuid").asText())) retained.add(row);
+                });
+                rows.set(retained);
+                sendJson(exchange, 200, "{}");
+                return;
+            }
+            JsonNode body = objectMapper.readTree(exchange.getRequestBody());
+            String key = body.path("key").asText();
+            requests.add(method + " " + key);
+            var retained = objectMapper.createArrayNode();
+            boolean found = false;
+            for (JsonNode row : rows.get()) {
+                if (key.equals(row.path("key").asText())
+                    && body.path("is_preview").asBoolean() == row.path("is_preview").asBoolean()) {
+                    found = true;
+                } else {
+                    retained.add(row);
+                }
+            }
+            if ("PATCH".equals(method) && !found) {
+                sendJson(exchange, 404, "{\"message\":\"Environment variable not found\"}");
+                return;
+            }
+            var saved = (com.fasterxml.jackson.databind.node.ObjectNode) body.deepCopy();
+            saved.put("uuid", "saved-" + key);
+            retained.add(saved);
+            rows.set(retained);
+            sendJson(exchange, 201, saved.toString());
         });
         server.start();
         return server;
