@@ -1,4 +1,5 @@
 import { getWidgetConfig } from "@/config";
+import { extractWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
 import type { RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
 import {
   apiFetchJson,
@@ -117,7 +118,7 @@ export async function postChatQuery(payload: any, options?: { idempotencyKey?: s
     throw new PublicRuntimeSessionInvalidatedError("conversation-access-denied");
   }
 
-  if (!response.ok) {
+  if (!response.ok && !extractWorkspaceAuthenticationRequirement(data)) {
     const message = data?.message || data?.error || response.statusText;
     throw new Error(`Chat query failed (${response.status}): ${message}`);
   }

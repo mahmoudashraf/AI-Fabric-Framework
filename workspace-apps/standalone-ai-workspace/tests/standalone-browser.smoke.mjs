@@ -123,6 +123,30 @@ test('mixed-mode sign-in clears only anonymous installation state and never repl
   await page.close()
 })
 
+test('cancelling mixed-mode sign-in preserves the anonymous workspace and executes no request', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('mixed.localhost'))
+  await page.locator('#installed-workspace').waitFor()
+  await page.evaluate(() => {
+    sessionStorage.setItem('loomai_workspace:awi_pub_mixed:conversation:anonymous', 'anonymous-conversation')
+    window.dispatchEvent(new CustomEvent('loomai:workspace-authentication-required'))
+  })
+  await page.getByRole('heading', { name: 'Sign in to continue' }).waitFor()
+  const providerRequestsBeforeCancel = requests.filter((entry) => entry.path.startsWith('/auth/v1/')).length
+  await page.locator('#auth-close').click()
+  await page.waitForFunction(() => !document.querySelector('#auth-dialog')?.hasAttribute('open'))
+  const state = await page.evaluate(() => ({
+    conversation: sessionStorage.getItem('loomai_workspace:awi_pub_mixed:conversation:anonymous'),
+    installed: Boolean(document.getElementById('installed-workspace')),
+    identity: window.LoomAIWorkspaceHost.identity.status,
+  }))
+  assert.equal(state.conversation, 'anonymous-conversation')
+  assert.equal(state.installed, true)
+  assert.equal(state.identity, 'anonymous')
+  assert.equal(requests.filter((entry) => entry.path.startsWith('/auth/v1/')).length, providerRequestsBeforeCancel)
+  await page.close()
+})
+
 test('optional identity lookup preserves anonymous mixed-mode workspace without reloading', async () => {
   const page = await browser.newPage()
   await page.goto(appUrl('mixed.localhost'))
@@ -178,6 +202,30 @@ test('logout removes authenticated and stale anonymous state before returning to
   assert.equal(state.anonymous, null)
   assert.equal(state.authenticated, null)
   await page.close()
+})
+
+test('a revoked expired provider session clears private state and restores the required login gate', async () => {
+  const context = await browser.newContext()
+  await context.addInitScript(() => {
+    sessionStorage.setItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase', JSON.stringify({
+      access_token: 'expired-access-token',
+      refresh_token: 'revoked-refresh-token',
+      expires_at: Math.floor(Date.now() / 1000) - 60,
+      user: { id: 'revoked-user', email: 'revoked@example.test' },
+    }))
+    sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:revoked-user', 'private-conversation')
+  })
+  const page = await context.newPage()
+  await page.goto(appUrl('secure.localhost'))
+  await page.getByRole('heading', { name: 'Sign in to continue' }).waitFor()
+  assert.equal(await page.locator('#installed-workspace').count(), 0)
+  const state = await page.evaluate(() => ({
+    provider: sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase'),
+    privateConversation: sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:revoked-user'),
+  }))
+  assert.equal(state.provider, null)
+  assert.equal(state.privateConversation, null)
+  await context.close()
 })
 
 function app(installationId, displayName, interactionPolicy, profileCode) {
@@ -242,6 +290,10 @@ function platformHandler(request, response) {
       expires_in: 3600,
       user: { id: 'user-verified-1', email: 'member@example.test' },
     })
+    return
+  }
+  if (request.url === '/auth/v1/token?grant_type=refresh_token' && request.method === 'POST') {
+    json(response, 401, { message: 'Refresh token revoked' })
     return
   }
   if (request.url === '/auth/v1/user') {

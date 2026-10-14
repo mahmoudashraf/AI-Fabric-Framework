@@ -16,6 +16,8 @@ import type { AttachedItem, ChatMessage, ChatResult, DebugData, Document, Result
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import { extractWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
+import { getWidgetConfig } from "@/config";
 import { resolveChatRequestSemantics } from "@/requestSemantics";
 
 function firstString(...values: unknown[]) {
@@ -269,6 +271,7 @@ export function useChatFlow({
         let resultType: ResultType | undefined;
         let messageDocs: Document[] | undefined;
 
+        const authenticationRequirement = extractWorkspaceAuthenticationRequirement(data);
         const customerAccountConnect = extractCustomerAccountConnectAction(data);
         const canonicalResult = canonicalChatResult(data);
 
@@ -367,6 +370,25 @@ export function useChatFlow({
         };
 
         setChatMessages((prev) => [...prev, aiMessage]);
+
+        if (authenticationRequirement) {
+          const authentication = getWidgetConfig().host?.authentication;
+          emitEvent("authentication:required", {
+            ...authenticationRequirement,
+            conversationId: data.conversationId || effectiveConversationId,
+          });
+          if (authentication?.interactionPolicy === "public-with-protected-capabilities"
+            && authentication.status === "anonymous"
+            && authentication.signInAvailable
+            && authentication.onSignIn) {
+            Promise.resolve(authentication.onSignIn()).catch((error) => {
+              emitEvent("error", {
+                source: "authentication-challenge",
+                message: error instanceof Error ? error.message : "Sign in could not be started.",
+              });
+            });
+          }
+        }
       } catch (error) {
         if (isPublicRuntimeSessionInvalidatedError(error)) {
           return;

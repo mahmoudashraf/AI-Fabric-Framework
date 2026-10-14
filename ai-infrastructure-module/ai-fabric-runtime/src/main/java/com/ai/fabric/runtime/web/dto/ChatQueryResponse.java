@@ -35,6 +35,8 @@ public class ChatQueryResponse {
     @Builder.Default
     private List<Object> suggestions = List.of();
     private String fallbackReason;
+    @Builder.Default
+    private Map<String, Object> authenticationRequirement = Map.of();
     private String providerRequestId;
     @Builder.Default
     private Map<String, Object> metadata = Map.of();

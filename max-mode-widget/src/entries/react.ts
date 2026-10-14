@@ -65,4 +65,11 @@ export {
   resolveActionPresentation,
 } from "@/actionPresentation";
 
+export {
+  extractWorkspaceAuthenticationRequirement,
+  WORKSPACE_AUTHENTICATION_REQUIREMENT_SCHEMA,
+} from "@/authenticationRequirement";
+
+export type { WorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
+
 // Style import path hint (actual import is '@loom-ai-labs/max-mode-widget/styles.css')

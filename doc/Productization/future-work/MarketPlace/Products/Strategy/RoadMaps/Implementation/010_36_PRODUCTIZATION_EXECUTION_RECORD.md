@@ -103,6 +103,12 @@ complete dealership topology. No resources were removed or redeployed.
   resumes dependencies from the persisted prior-generation identity. The old
   release handle remains authoritative until adoption; provider UUID rebinding,
   missing prior identity and restart drift fail closed.
+- Protected capabilities now cross the runtime/widget boundary through an exact
+  typed contract. The runtime translates only the framework
+  `ai-fabric-authentication-requirement-v1` record for an anonymous caller into
+  `loomai-workspace-authentication-requirement-v1`; the widget rejects naked
+  error codes and prose, emits the typed host event, opens mixed-mode sign-in
+  only when the host advertises it, and never replays the blocked operation.
 
 ### Executed Checks
 
@@ -145,6 +151,12 @@ complete dealership topology. No resources were removed or redeployed.
 - The deployment-local runtime run passed **300 tests**, with zero failures,
   errors or skips. Runtime migrations applied through `V13`, including the
   private generation-transition state.
+- After adding the protected-capability bridge, the complete deployment-local
+  runtime suite passed again: **305 tests**, zero failures, errors or skips. The
+  widget passed TypeScript, all three production
+  bundles and all five contract smokes. The standalone shell passed its unit
+  check and **9 browser scenarios**, including cancelled mixed-mode login with
+  no request execution and revoked/expired provider-session cleanup.
 - The S3 verifier's offline suite passed **12 tests**, covering exact native-AWS
   endpoint policy, separate principals, prefix isolation, bounded UTF-8 fixture
   reads, unversioned state, non-mutating write/delete denial and sanitized
@@ -166,7 +178,9 @@ are supplied, then bind and index the exact staging and production prefixes.
 Verify immutable dependency artifacts, actual staging/production placement,
 resource envelopes, notification/recovery evidence, repeated same-target runtime
 replacement, restart recovery, S3 indexing and cross-target denial. Complete the
-outstanding Engage auth, accessibility and capacity gates. P6 extraction and P7
+hosted real-provider Engage action-time auth, Shopify private-adapter,
+accessibility and capacity gates. The local typed-contract, cancellation,
+revocation and no-replay acceptance is closed. P6 extraction and P7
 fresh-customer hosted certification remain later gates. The canonical 40-task
 checklist stays open.
 

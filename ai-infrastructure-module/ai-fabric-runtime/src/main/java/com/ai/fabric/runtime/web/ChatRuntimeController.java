@@ -348,6 +348,7 @@ public class ChatRuntimeController {
             .actions(actions)
             .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
             .fallbackReason(fallbackReason)
+            .authenticationRequirement(WorkspaceAuthenticationRequirementSupport.resolve(result, identity))
             .providerRequestId(providerRequestId)
             .metadata(metadata)
             .message(answer)
