@@ -71,7 +71,8 @@ public class ShopifyStoreUninstallService {
             platformCustomerConsumerService.updateBinding(
                 consumer.getCustomerId(),
                 consumer.getConsumerId(),
-                new UpdatePlatformConsumerBindingRequest(null, resolvedReason)
+                new UpdatePlatformConsumerBindingRequest(null, null, null, resolvedReason,
+                    consumer.getBindingRevision(), "shopify-uninstall-" + java.util.UUID.randomUUID())
             );
             consumerUnbound = true;
         }

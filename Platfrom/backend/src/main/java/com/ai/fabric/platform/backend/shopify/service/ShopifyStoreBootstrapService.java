@@ -278,7 +278,8 @@ public class ShopifyStoreBootstrapService {
                 deployment.status(),
                 consumer.getLastBoundAt(),
                 consumer.getCreatedAt(),
-                consumer.getUpdatedAt()
+                consumer.getUpdatedAt(),
+                consumer.getBindingRevision()
             );
         } else {
             summary = platformCustomerConsumerService.updateBinding(
@@ -286,7 +287,11 @@ public class ShopifyStoreBootstrapService {
                 consumer.getConsumerId(),
                 new UpdatePlatformConsumerBindingRequest(
                     deployment.id(),
-                    "Bootstrap Shopify store binding to deployment " + deployment.id()
+                    null,
+                    null,
+                    "Bootstrap Shopify store binding to deployment " + deployment.id(),
+                    consumer.getBindingRevision(),
+                    "shopify-bootstrap-" + java.util.UUID.randomUUID()
                 )
             );
         }

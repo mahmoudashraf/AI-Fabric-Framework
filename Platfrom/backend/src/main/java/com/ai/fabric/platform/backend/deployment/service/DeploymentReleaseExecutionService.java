@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetSyncService;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -54,6 +55,9 @@ public class DeploymentReleaseExecutionService {
     private final Executor releaseExecutionExecutor;
     private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
+
+    @Autowired
+    private DeploymentDocumentBindingResolver documentBindingResolver;
 
     @Autowired
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
@@ -229,6 +233,11 @@ public class DeploymentReleaseExecutionService {
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
 
+        if (documentBindingResolver != null) documentBindingResolver.requireUnchanged(deployment, version, release);
+        else if (StringUtils.hasText(release.getDocumentBindingFingerprint())) {
+            throw new IllegalStateException("Document binding resolver is required.");
+        }
+
         ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
             deployment,
             version,
@@ -367,6 +376,11 @@ public class DeploymentReleaseExecutionService {
         release.setProvisioningTarget(provisioningResult.target());
         release.setProviderType(DeploymentProviderType.fromLegacyMode(provisioningResult.target()));
         JsonNode provisioningDetails = readJson(provisioningResult.detailsJson());
+        if (!(provisioningDetails instanceof ObjectNode endpointEvidence)) {
+            throw new IllegalStateException("Provisioning result must contain structured provider evidence.");
+        }
+        endpointEvidence.put("runtimeBaseUrl", provisioningResult.runtimeBaseUrl());
+        endpointEvidence.put("connectorBaseUrl", provisioningResult.connectorBaseUrl());
         String providerResourceHandleId = provisioningDetails.path("providerResourceHandleId").asText(null);
         if (StringUtils.hasText(providerResourceHandleId)) {
             release.setProviderResourceHandleId(providerResourceHandleId);
@@ -380,10 +394,10 @@ public class DeploymentReleaseExecutionService {
             deployment,
             version,
             release,
-            deploymentTenantScopedVectorService.build(deployment, providerConfig)
+            deploymentTenantScopedVectorService.build(deployment, providerConfig, release.getTargetProfileId())
         );
 
-        deploymentReleaseProgressService.mergeProvisioningDetails(releaseId, provisioningResult.detailsJson());
+        deploymentReleaseProgressService.mergeProvisioningDetails(releaseId, endpointEvidence.toString());
         deploymentReleaseProgressService.transition(
             releaseId,
             "VERIFYING",

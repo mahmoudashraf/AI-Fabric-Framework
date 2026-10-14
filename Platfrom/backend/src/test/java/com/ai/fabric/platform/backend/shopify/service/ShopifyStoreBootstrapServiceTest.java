@@ -79,7 +79,7 @@ class ShopifyStoreBootstrapServiceTest {
         PlatformCustomerEntity customer = customerEntity("cus-123");
         PlatformCustomerSummary customerSummary = new PlatformCustomerSummary("cus-123", "Shopify Store demo.myshopify.com", "shopify-store-demo", null, "ACTIVE", false, 0, 0, 0, Instant.now(), Instant.now(), List.of(), List.of());
         DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
-        PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
@@ -206,7 +206,7 @@ class ShopifyStoreBootstrapServiceTest {
         consumerEntity.setUpdatedAt(Instant.now());
 
         DeploymentSummary replacementDeployment = deploymentSummary("dep-456", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
-        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-456", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-456", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-456", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
@@ -291,7 +291,7 @@ class ShopifyStoreBootstrapServiceTest {
         consumerEntity.setUpdatedAt(Instant.now());
 
         DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
-        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
@@ -409,8 +409,8 @@ class ShopifyStoreBootstrapServiceTest {
         consumerEntity.setCreatedAt(Instant.now());
         consumerEntity.setUpdatedAt(Instant.now());
 
-        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", "Storefront consumer", "DISABLED", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
-        PlatformConsumerSummary activeConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", "Storefront consumer", "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", "Storefront consumer", "DISABLED", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
+        PlatformConsumerSummary activeConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", "Storefront consumer", "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
@@ -479,7 +479,7 @@ class ShopifyStoreBootstrapServiceTest {
         PlatformCustomerEntity customer = customerEntity("cus-123");
         PlatformCustomerSummary customerSummary = new PlatformCustomerSummary("cus-123", "Shopify Store demo.myshopify.com", "shopify-store-demo", null, "ACTIVE", false, 0, 0, 0, Instant.now(), Instant.now(), List.of(), List.of());
         DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
-        PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
@@ -578,7 +578,7 @@ class ShopifyStoreBootstrapServiceTest {
         PlatformCustomerEntity customer = customerEntity("cus-123");
         PlatformCustomerSummary customerSummary = new PlatformCustomerSummary("cus-123", "Shopify Store demo.myshopify.com", "shopify-store-demo", null, "ACTIVE", false, 0, 0, 0, Instant.now(), Instant.now(), List.of(), List.of());
         DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
-        PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now(), 0L);
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));

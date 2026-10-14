@@ -36,7 +36,12 @@ public class RuntimePrivateAssertionSigningService {
     }
 
     public String issueAssertion(RuntimePrivateAssertionClaims claims) {
-        if (!isConfigured()) {
+        return issueAssertionWithSigningKey(claims, signingKey());
+    }
+
+    /** Server-only explicit-key path; never resolves a global or environment fallback. */
+    public String issueAssertionWithSigningKey(RuntimePrivateAssertionClaims claims, String exactSigningKey) {
+        if (!StringUtils.hasText(exactSigningKey)) {
             throw new IllegalStateException("Runtime private assertion signing is not configured.");
         }
         validateClaims(claims);
@@ -84,7 +89,7 @@ public class RuntimePrivateAssertionSigningService {
             String payloadSegment = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(objectMapper.writeValueAsBytes(payload));
             String signatureSegment = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(sign(payloadSegment));
+                .encodeToString(sign(payloadSegment, exactSigningKey));
             return TOKEN_PREFIX + "." + payloadSegment + "." + signatureSegment;
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to issue runtime private assertion.", ex);
@@ -107,10 +112,10 @@ public class RuntimePrivateAssertionSigningService {
         }
     }
 
-    private byte[] sign(String payloadSegment) {
+    private byte[] sign(String payloadSegment, String exactSigningKey) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(signingKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(exactSigningKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return mac.doFinal(payloadSegment.getBytes(StandardCharsets.UTF_8));
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to sign runtime private assertion.", ex);

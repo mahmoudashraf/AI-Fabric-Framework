@@ -4613,3 +4613,264 @@ Critical fixes that made the gate pass:
   Remaining 010.36 acceptance checks are explicit in section 6.2; do not label
   the entire plan complete or the full Platform release gate green from these
   scoped checks alone.
+
+## 2026-10-14 Engage Production Self-Service Productization Planning
+
+- Added approved planning scope to 010.36 section 10, with unchecked P0-P6
+  execution tasks. A production Platform customer selects a published
+  Dealership Experience template with explicitly simulated Auto Trader,
+  provisions an entitled customer-staging target, and creates/configures a
+  production-delivered Engage app bound to that verified staging release.
+- Normal promotion reuses one deployment/version lineage, applies the reviewed
+  artifact to a production target, verifies its target-scoped dependencies and
+  rebuilt index, then explicitly activates the consumer assignment. No routine
+  cross-control-plane export/import, in-place Coolify move, or automatic
+  conversation/attachment/confirmation/human-queue migration is introduced.
+- Recorded source gaps: practical promotion activation/superseding assume fixed
+  profile IDs; its admin/operator authorization is not customer self-service;
+  generic Revisions Apply is only the underlying release operation. Customer
+  ownership/entitlement, stale-binding guards, target isolation, UI orchestration,
+  rollback/drain, and clean-room hosted acceptance remain new work.
+- All outstanding Engage checks remain required: real protected action-time
+  sign-in, explicit cancelled login, expiry/revocation semantics, full Shopify
+  private-query regression, complete accessibility/keyboard/safe-area coverage,
+  measured resource capacity, and the first production-owned customer app.
+- Simulator/provider sessions, data, index, effects, operator inbox, and token
+  boundaries must isolate customers and targets. Customer staging is not
+  disposable developer staging; physical placement and control-plane ownership
+  are independent. Real Auto Trader access/rights remain separate gates.
+- Updated execution index, strategic/operating context, and private handoff.
+  This request changes documentation only: no product/framework code, release,
+  live resource, customer assignment, or deployment was changed or verified.
+
+## 2026-10-14 Read-Only Staging Cleanup Inventory And Publishing Locations
+
+- Located four drafts under `Final_Documentation/External_User_Guides/Publishing/`:
+  AI Fabric Conversation Handover and LoomAI Dealership AI Workspace each have
+  a LinkedIn post and Medium article. The framework drafts still need a public
+  demo-video URL; dealership drafts already include the supplied YouTube link.
+- Fresh Coolify readback at `2026-10-14T13:02:11.516Z`: 33 staging applications
+  and five databases. Application groups: Platform five, dealership five,
+  ProdUS six, Shopify four, framework demos twelve plus one MCP reference server.
+  There are 31 `running:healthy` apps and two `running:unknown` frontends with
+  health checks disabled; both frontend roots returned HTTP 200. All DBs are
+  `running:healthy` and have current configured application consumers.
+- Sanitized full inventory, source/dependency evidence, purpose, and cleanup
+  assessment: `verification-support/staging-resource-audit/evidence/2026-10-14-cleanup-inventory.json`.
+  Interactive view is outside the repo in the managed Canvas directory as
+  `loomai-staging-cleanup-inventory.canvas.tsx`; TypeScript check passed.
+- Found 25 cached physical-resource handle rows for staging-placed profiles
+  whose UUIDs are absent from current Coolify app/DB inventory. They are
+  metadata-only reconciliation candidates, not 25 additional running services.
+  Preserve immutable release/audit history. Virtual document bindings and
+  production-placed customer-staging handles were excluded from this count.
+- Staging managed-service registry `mcp-execution-gateway` points to the
+  production host, while both ProdUS/Shopify staging runtime envs reference the
+  staging gateway. Review this discrepancy before considering gateway removal.
+- No database orphan is proven. Public demo retirement and an optional Partner
+  UI pause are scope decisions, not automatic cleanup. Historical route aliases
+  share existing containers. Embedded stores, preserved volumes/images, recent
+  query traffic, and container RAM/disk were not measured by this inventory.
+- Read-only audit only: no stop/delete/deploy, firewall change, source/runtime
+  behavior change, framework release, or live answer-quality gate was executed.
+
+## 2026-10-14 Medium Workflow Illustrations
+
+- Added exactly three workflow images to each Medium article in
+  `Final_Documentation/External_User_Guides/Publishing/`: framework application
+  boundaries, authority lifecycle, admission/turn-lease safety; dealership
+  control-plane/data-plane architecture, stock/document freshness, buyer-to-staff
+  journey. LinkedIn drafts remain unchanged.
+- Assets are under `Publishing/assets/medium-workflows/`, with six editable
+  SVGs, six 2880-pixel-wide PNG exports, a figure/publication README, and an
+  existing-Playwright renderer. This is code-authored technical artwork, not
+  image-model generation or new product functionality.
+- Each article has captions and descriptive alt text. Framework intake fields
+  are explicitly demo policy, not universal requirements. Dealership simulation
+  and absence of real Auto Trader access/endorsement/deal writes stay explicit.
+- Visual review completed; SVG parse/text containment/overlap gate passed all
+  six figures, article image counts are three each, local references and code
+  fences pass, and `git diff --check` passes. No article publication, website
+  deployment, framework release, or live product configuration changed.
+
+## 2026-10-14 Customer Portal Reuse And UI-Last Execution Decision
+
+- Updated 010.36 sections 10.7-10.11 after customer role/UI source review:
+  existing `CUSTOMER_ADMIN` customer ownership, broad current `AppShell`,
+  existing installation/document management, and admin/operator-only practical
+  promotion remain the foundations/gaps. Minimum customer surface is My
+  Deployments, My Engage Apps, conditional Inbox, and Account & Team.
+- Knowledge & Connections includes authorized own-source discovery, preview,
+  indexing, revision refresh, removal, and evidence. Preserve installed audience
+  policy, customer-owned S3-compatible text/JSON storage, no general PDF/Word
+  upload, and no implicit exposure of internal guides to anonymous visitors.
+- Staff and customer experiences will share extracted configuration sections,
+  current API/models/validation, and the existing configuration lifecycle.
+  AWS Console/Cloudscape are documented layout/design-system inspiration;
+  existing React/MUI remains the default. Official layout/navigation/details
+  references were checked; no AWS infrastructure/library migration is approved.
+- Revised execution to P0-P7: all P0-P5 functional/non-extraction work and
+  required checks precede P6 shared-editor extraction/customer layout. Keep
+  only minimal earlier existing-view wiring. P6 UI-only commits must not bundle
+  backend/schema changes, configuration rewrites, or deployment effects.
+- Record and verify a compatible pre-extraction baseline and UI-only rollback.
+  Rejection of the new UI must preserve backend functionality, accounts,
+  configuration, indexed knowledge, releases, apps/domains, and assignments.
+  Final simplified UI/visual review and full customer journey certify in P7.
+- Execution index, strategic/operating context, and private handoff reflect the
+  approved order. Documentation only; no code, deployment, release, resource,
+  or configuration was changed. All new implementation checkboxes remain open.
+- Documentation checks passed: P0-P7 order, 25 unchecked productization tasks,
+  nine local links, unique headings, balanced code fences, and scoped
+  `git diff --check`. No functional/release gate was run for this planning edit.
+
+## 2026-10-14 Staging-Only Placement And Bounded Lifecycle Planning
+
+- Tightened 010.36 section 10.2: customer-staging runtime and target-provisioned
+  dependencies belong on staging Coolify `46.224.145.148`, not production
+  Coolify `46.225.162.106`. Production Platform/Engage remain shared production
+  services and may manage/deliver an app bound to staging. External customer
+  storage and reviewed AI/vector providers remain external bindings.
+- Removed the option to place customer staging on production infrastructure.
+  Require actual target/server validation at admission/provision/apply/promotion
+  and explicit capacity failure instead of production fallback or hidden reuse.
+- Added section 10.2.1: measured customer/fleet quotas and atomic reservation,
+  one current staging resource set per logical deployment, update/retry reuse,
+  owned-resource reconciliation after failures/restarts, notified expiry with
+  authorized extensions, and post-promotion retirement after bounded drain.
+  Retained staging is explicit/entitled; immediate rollback cannot be promised
+  after staging retirement. Concrete quotas/durations are P0 deliverables, not
+  invented capacity or current policy claims.
+- Added P0/P1/P3/P5 verification for placement/quota/concurrency, resource reuse,
+  abandoned staging/production applies, expiry/session/human-work guards, and
+  database/index/volume reclamation. Shared/active resources and customer source
+  objects remain protected. Valid customer staging is excluded from developer
+  fixture cleanup but can retire through its authorized lifecycle policy.
+- Updated execution index, strategic/operating context, and private handoff.
+  Documentation only: no target profile, live resource, deployment, assignment,
+  cleanup job, or retention setting was changed. No resource deletion is
+  authorized by this planning update; implementation gates remain open.
+- Documentation checks passed: explicit physical placement/no earlier open
+  placement alternative, P0-P7 order, 29 unchecked productization tasks, nine
+  local links, unique headings, balanced code fences, and scoped diff checks.
+  No functional, capacity, cleanup, or hosted release gate ran for this edit.
+
+## 2026-10-14 Staff UI Capability Preservation And Promotion Checklist
+
+- Created `010_36_ADMIN_OPERATOR_UI_CAPABILITY_BASELINE_2026_10_14.md`: 39
+  capability groups across shell/auth/workspace, lifecycle/configuration,
+  customer/app/access, Marketplace/services, verification/POC/operations,
+  Shopify and conditional Human Review. Preserve current role differences,
+  inline controls, deep links and shared operational panels, not just sidebar.
+- Frozen source snapshot from `5206acd97423ee857b5a60c1fe370633bf3fd5a9`:
+  `verification-support/platform-ui-capability-baseline/2026-10-14-admin-operator-source-baseline.json`.
+  It contains 37 routes including root redirect, 34 navigation items, 20 scoped
+  paths, 1,577 selected source-declared controls, 323 exported API helpers /
+  functions (312 direct HTTP contracts), and hashes for 58 UI/policy source
+  files. Captured scopes have no tracked changes. No live parity is claimed.
+- Added TypeScript-AST capture/comparison and three focused tests. Captures
+  refuse overwrite; comparison flags routes, APIs/references/contracts,
+  navigation/scope and source changes for human review. All three tests and
+  self-comparison pass. Counts/hashes are not functional equivalence or a
+  guarantee every runtime/server-generated control is exercised.
+- Updated 010.36 section 10.10/P0/P5/P6 to preserve this register, capture a
+  separate verified pre-extraction baseline, and map STAFF-001 through STAFF-039
+  to retained/moved components and role-aware browser evidence. Staff parity
+  and UI-only rollback remain future implementation acceptance.
+- Added section 10.5.1 customer Production Readiness & Go-Live checklist:
+  exact candidate/target/ownership/placement/capacity, production bindings,
+  knowledge, app/TLS/auth/behavior/isolation, operations, simulation honesty.
+  Missing/stale/failed mandatory evidence blocks activation; manual attestation
+  cannot waive a security gate or old/latest-deployment aggregate score.
+- Post-activation closure separately tracks assignment readback, pinned-session/
+  human drain, entitled retention or staging retirement, callback/credential/
+  resource/database/index/volume reclamation, provider readback and loss of
+  staging rollback. Outstanding/failed cleanup is visible while production
+  remains usable. No second promotion engine or whole-fleet rebuild per customer.
+- Execution index, operating/strategic context and private handoff updated.
+  This request adds documentation and read-only verification-support tooling;
+  no product/runtime/UI feature, live configuration, resource, assignment,
+  deployment, framework release or customer cleanup was changed/performed.
+- Final checks: all 39 capability IDs are unique/sequential and all 36 routed
+  page surfaces are covered; frozen snapshot SHA-256 matches the register;
+  14 local document links, headings/fences and diff checks pass. P0-P7 still
+  has 34 unchecked productization tasks. Capture tests pass 3/3 and comparison
+  reports no removed routes/API references or changes in captured UI sources.
+  This is tooling/documentation proof only, not a hosted staff or promotion gate.
+
+## 2026-10-14 Productization Code Assessment And Plan Adaptation
+
+- Read-only code assessment found release execution overwrites deployment-level
+  runtime/active-version projections before verification; document administration
+  uses that URL and storage binding requires one deployment environment. Default
+  shared vector scopes are customer/tenant based. Release-bound installation
+  discovery is a foundation, not proof of fully target-aware administration.
+- Practical promotion selects latest verified if no version is specified;
+  activation input lacks expected binding revision and the reviewed consumer
+  mutation/entity/repository path has no atomic compare-and-set contract.
+  Existing verified-release/app binding guards remain useful and must be retained.
+- Whole-deployment deletion cleans lineage-wide state/history, so staging-only
+  retirement needs a separate target operation. Orphan scanning marks metadata
+  and is not completed expiry/drain/provider reclamation.
+- Found a direct plan/code contradiction: production mounted document bindings
+  are denied. Adapted section 10.4/R4 to S3-first customer-owned text/JSON for
+  both targets, with approved fixture placement outside the LoomAI document API.
+  Mounted non-production developer demos remain separate; no guard is relaxed.
+- Simulator and Basic Inbox currently configure accounts/bindings/operators
+  per instance. Adopted dedicated customer/target simulator/receiver/inbox
+  dependencies initially, with owned immutable provisioning and credential/
+  callback/database/operator lifecycle. No shared demo tenancy is assumed.
+- Provider discovery/promotion staff gates and invalid customer-scope listing
+  behavior require exact safe projections/permission/entitlement/fail-closed
+  correction. This source assessment is not proof of a live customer leak.
+- Added 010.36 section 10.12 R1-R7 contracts, owning services and exit proofs;
+  integrated them into P0/P1/P3/P5. P0 closes concrete schemas/APIs, permission
+  matrix, Platform/canary prerequisites, measured budgets/expiry/notice/recovery
+  policies and eight named verification packs before dependent P1 work.
+- First offer is invite-based explicitly simulated dealership/Engage; mixed auth
+  remains gated by actual supported identity/protected-capability proof. Scoped
+  public-only pilots do not silently downgrade broken mixed authentication.
+  Real Auto Trader, general PDF/Word, enterprise operator SSO and HA are excluded
+  unless separately implemented/proven. UI extraction stays final/reversible.
+- Execution index, strategic/operating context and private handoff updated.
+  Documentation only; no application/framework source, live profile/config,
+  resource, deployment, assignment, credential or cleanup was changed.
+  New implementation/hosted gates remain open; no functional gate ran here.
+- Validation passed: seven R1-R7 contracts, P0-P7 order, eight proposed evidence
+  packs, 40 unchecked productization tasks, 11 local links, unique headings,
+  balanced fences and scoped diff checks. Frozen staff snapshot SHA-256 is
+  unchanged. The review canvas is annotated as adopted into the plan and its
+  TypeScript check passes; original source findings remain implementation work.
+
+## 2026-10-14 010.36 Productization Source Checkpoint
+
+- Continued P0 while the owner prepares customer-owned AWS S3. Private bucket,
+  separate staging/production prefixes and prefix-limited read-only credentials
+  are required. Actual values belong only in the ignored private handoff's S3
+  template. No bucket, credential, provider resource or assignment was created.
+- Added active persisted owner enforcement, explicit target/release document
+  administration, target storage slots/revision snapshots, target vector scopes,
+  consumer binding CAS/command replay, exact promotion candidates and whole-
+  command idempotency. Customer bootstrap creates reviewed configuration only,
+  without automatic vectorization, publication or provider effects.
+- R3 retirement, R5 dedicated dependency/operator lifecycle, R6 closed-offer
+  authorization, R7 measured admission/expiry and target-owned authority source
+  primitives are implemented; parent adapters and hosted evidence remain open.
+  Concrete runtime drain API is `/api/private/runtime-target-retirement/*`.
+- Source verification: clean full backend 1,301 tests in 211 suites passed,
+  zero failures/errors/skips. Runtime Maven scope 85 passed. UI build, ten local
+  browser target-race scenarios and three frozen-baseline script tests passed.
+  The new factory fixture was isolated in its own H2 DB after a duplicate-seed
+  full-run failure. No test outcome is represented as hosted certification.
+- Named rollout blocker: a drain singleton pins release/topology; same-target
+  repeated releases need an authorized provider-fenced generation transition,
+  not record deletion or retirement disablement. Framework indexing/recovery/
+  Quartz fencing and connector/inbox authoritative readbacks also remain open.
+- Framework remains 0.8.32 with no public framework edits/releases. P6 editor/
+  customer-shell extraction has not started; the original 39-group staff
+  capability snapshot hash is unchanged. Canonical 40 acceptance tasks stay open.
+- Branch Platform-V11. Continue from
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_36_PRODUCTIZATION_EXECUTION_RECORD.md`.
+  Finish actual authority/binding, admission/apply and R3/R5/R6/R7 owning-service
+  wiring, generation reuse, measured policies/artifacts/notifications and S3
+  canaries before offer activation; then Engage gaps, P6 and fresh-customer P7.

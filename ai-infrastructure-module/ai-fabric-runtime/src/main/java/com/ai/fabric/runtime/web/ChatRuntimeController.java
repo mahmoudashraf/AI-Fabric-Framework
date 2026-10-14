@@ -5,6 +5,8 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
+import com.ai.fabric.runtime.lifecycle.retirement.RuntimeTargetRetirementService;
+import com.ai.fabric.runtime.lifecycle.retirement.RuntimeTargetRetirementContracts.TurnPermit;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.handover.ConversationHandoverContracts.CanonicalConversationSummary;
@@ -142,6 +144,13 @@ public class ChatRuntimeController {
     private final ObjectProvider<RuntimeConversationHandoverService> conversationHandoverServiceProvider;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
+    private RuntimeTargetRetirementService targetRetirementService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTargetRetirementService(RuntimeTargetRetirementService service) {
+        this.targetRetirementService = service;
+    }
+
     @Value("${ai.fabric.runtime.transient-file-url.allowed-hosts:}")
     private String transientFileUrlAllowedHosts;
 
@@ -238,20 +247,31 @@ public class ChatRuntimeController {
             context.setApprovedConversationSnapshot(controlledTurn.conversationSnapshot());
         }
         long contextBuildDurationMs = System.currentTimeMillis() - contextBuildStartTime;
-        long orchestrationStartTime = System.currentTimeMillis();
-        OrchestrationResult result = controlledTurn == null
-            ? orchestrator.orchestrate(request.getQuery(), context)
-            : orchestrator.orchestrate(new OrchestrationRequest(
-                request.getQuery(),
-                context,
-                null,
-                ConversationPersistencePolicy.READ_ONLY
-            ));
-        long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
-        long requestDurationMs = System.currentTimeMillis() - requestStartTime;
-        attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
+        TurnPermit retirementPermit = targetRetirementService == null ? null : targetRetirementService.beginTurn(
+            identity, conversationId, persistenceMode == QueryPersistenceMode.NEVER_PERSIST);
+        try {
+            if (targetRetirementService != null) {
+                context.setOrchestrationTurnGuard(targetRetirementService.guard(
+                    retirementPermit, controlledTurn == null ? null : controlledTurn.guard()));
+            }
+            long orchestrationStartTime = System.currentTimeMillis();
+            OrchestrationResult result = controlledTurn == null
+                ? orchestrator.orchestrate(request.getQuery(), context)
+                : orchestrator.orchestrate(new OrchestrationRequest(
+                    request.getQuery(),
+                    context,
+                    null,
+                    ConversationPersistencePolicy.READ_ONLY
+                ));
+            if (retirementPermit != null) targetRetirementService.verifyTurn(retirementPermit);
+            long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
+            long requestDurationMs = System.currentTimeMillis() - requestStartTime;
+            attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
 
-        return okWithAuthHeaders(toCanonicalChatResponse(request, conversationId, context, result, identity), identity, requestPath);
+            return okWithAuthHeaders(toCanonicalChatResponse(request, conversationId, context, result, identity), identity, requestPath);
+        } finally {
+            if (targetRetirementService != null) targetRetirementService.finishTurn(retirementPermit);
+        }
     }
 
     private void rejectLegacyQueryWhenConversationControlEnabled() {

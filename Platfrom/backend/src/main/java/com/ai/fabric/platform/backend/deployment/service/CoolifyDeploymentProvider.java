@@ -2202,6 +2202,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         putEnv(env, "PLATFORM_DEPLOYMENT_VERSION_ID", version.getId());
         putEnv(env, "PLATFORM_DEPLOYMENT_RELEASE_ID", release.getId());
         putEnv(env, "PLATFORM_TARGET_PROFILE_ID", profile.getId());
+        if (SERVICE_ROLE_RUNTIME.equals(serviceRole)) {
+            putEnv(env, "LOOMAI_RUNTIME_RELEASE_ID", release.getId());
+            putEnv(env, "LOOMAI_RUNTIME_TARGET_PROFILE_ID", profile.getId());
+        }
         putEnv(env, "PLATFORM_COOLIFY_SERVICE_ROLE", serviceRole);
         putEnv(env, "PLATFORM_COOLIFY_PROJECT_UUID", scope.projectUuid());
         putEnv(env, "PLATFORM_COOLIFY_PROJECT_NAME", scope.projectName());

@@ -32,6 +32,7 @@ import {
   createPlatformTenant,
   deletePlatformConsumer,
   fetchDeployments,
+  fetchDeploymentReleases,
   fetchPlatformConsumerBindingHistory,
   fetchPlatformCustomers,
   fetchPlatformTenantSharedVectorHandles,
@@ -75,6 +76,7 @@ type EditConsumerFormState = {
 
 type ConsumerBindingFormState = {
   deploymentId: string
+  releaseId: string
   reason: string
 }
 
@@ -150,8 +152,17 @@ export function CustomersPage() {
   const [bindingConsumer, setBindingConsumer] = useState<ConsumerContext | null>(null)
   const [consumerBindingForm, setConsumerBindingForm] = useState<ConsumerBindingFormState>({
     deploymentId: '',
+    releaseId: '',
     reason: '',
   })
+  const bindingOperationKey = useMemo(() => crypto.randomUUID(), [bindingConsumer, consumerBindingForm])
+  const bindingReleasesQuery = useQuery({
+    queryKey: ['deployment-releases', consumerBindingForm.deploymentId],
+    queryFn: () => fetchDeploymentReleases(consumerBindingForm.deploymentId),
+    enabled: bindingConsumer != null && !!consumerBindingForm.deploymentId,
+  })
+  const bindableReleases = (bindingReleasesQuery.data ?? []).filter((release) =>
+    release.status === 'APPLIED_VERIFIED' && release.verificationStatus === 'PASSED' && !!release.targetProfileId)
   const [historyConsumer, setHistoryConsumer] = useState<ConsumerContext | null>(null)
   const [editingTenant, setEditingTenant] = useState<PlatformTenantSummary | null>(null)
   const [editTenantForm, setEditTenantForm] = useState<TenantFormState>({ name: '', description: '' })
@@ -221,6 +232,7 @@ export function CustomersPage() {
     if (bindingConsumer) {
       setConsumerBindingForm({
         deploymentId: bindingConsumer.consumer.boundDeploymentId ?? '',
+        releaseId: bindingConsumer.consumer.boundReleaseId ?? '',
         reason: '',
       })
     }
@@ -356,7 +368,11 @@ export function CustomersPage() {
       }
       return updatePlatformConsumerBinding(bindingConsumer.customer.id, bindingConsumer.consumer.consumerId, {
         deploymentId: consumerBindingForm.deploymentId || undefined,
+        releaseId: consumerBindingForm.releaseId || undefined,
+        targetProfileId: bindableReleases.find((release) => release.id === consumerBindingForm.releaseId)?.targetProfileId || undefined,
         reason: consumerBindingForm.reason.trim() || undefined,
+        expectedBindingRevision: bindingConsumer.consumer.bindingRevision,
+        operationKey: bindingOperationKey,
       })
     },
     onSuccess: async (consumer) => {
@@ -1225,8 +1241,9 @@ export function CustomersPage() {
             <TextField
               select
               label="Deployment"
+              disabled={updateConsumerBindingMutation.isPending}
               value={consumerBindingForm.deploymentId}
-              onChange={(event) => setConsumerBindingForm((current) => ({ ...current, deploymentId: event.target.value }))}
+              onChange={(event) => setConsumerBindingForm((current) => ({ ...current, deploymentId: event.target.value, releaseId: '' }))}
               helperText="Select a deployment to bind, or choose Unbound to detach the consumer."
             >
               <MenuItem value="">Unbound</MenuItem>
@@ -1236,8 +1253,20 @@ export function CustomersPage() {
                 </MenuItem>
               )) : null}
             </TextField>
+            {consumerBindingForm.deploymentId ? (
+              <TextField select label="Verified release" value={consumerBindingForm.releaseId}
+                disabled={bindingReleasesQuery.isLoading || updateConsumerBindingMutation.isPending}
+                onChange={(event) => setConsumerBindingForm((current) => ({ ...current, releaseId: event.target.value }))}>
+                <MenuItem value="">Unversioned draft binding</MenuItem>
+                {bindableReleases.map((release) => (
+                  <MenuItem key={release.id} value={release.id}>{release.id} · {release.targetProfileId}</MenuItem>
+                ))}
+              </TextField>
+            ) : null}
+            {bindingReleasesQuery.error ? <Alert severity="error">{bindingReleasesQuery.error.message}</Alert> : null}
             <TextField
               label="Reason"
+              disabled={updateConsumerBindingMutation.isPending}
               multiline
               minRows={3}
               value={consumerBindingForm.reason}
@@ -1257,7 +1286,9 @@ export function CustomersPage() {
           <Button onClick={() => setBindingConsumer(null)} disabled={updateConsumerBindingMutation.isPending}>Cancel</Button>
           <Button
             variant="contained"
-            disabled={updateConsumerBindingMutation.isPending}
+            disabled={updateConsumerBindingMutation.isPending
+              || (!!consumerBindingForm.deploymentId && (bindingReleasesQuery.isLoading || bindingReleasesQuery.isError))
+              || (!!consumerBindingForm.releaseId && !bindableReleases.some((release) => release.id === consumerBindingForm.releaseId))}
             onClick={() => updateConsumerBindingMutation.mutate()}
           >
             {updateConsumerBindingMutation.isPending ? 'Saving…' : 'Save binding'}
@@ -1301,6 +1332,13 @@ export function CustomersPage() {
                         <Typography variant="body2" color="text.secondary">
                           {entry.reason || 'No reason provided.'}
                         </Typography>
+                        {entry.toBindingRevision != null ? (
+                          <Typography variant="caption" color="text.secondary">
+                            Revision {entry.fromBindingRevision} → {entry.toBindingRevision}
+                            {' · '}{entry.fromReleaseId || 'Unversioned'} → {entry.toReleaseId || 'Unversioned'}
+                            {' · '}{entry.toTargetProfileId || 'No target'}
+                          </Typography>
+                        ) : null}
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(entry.createdAt)} · {entry.actorId} ({entry.actorRole})
                         </Typography>

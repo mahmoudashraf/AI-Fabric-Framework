@@ -46,6 +46,18 @@ public class DeploymentReleaseEntity {
     @Column(name = "source_artifact_id")
     private String sourceArtifactId;
 
+    @Column(columnDefinition = "TEXT")
+    private String documentBindingSnapshotJson;
+
+    @Column(length = 64)
+    private String documentBindingFingerprint;
+
+    @Column(columnDefinition = "TEXT")
+    private String promotionCandidateJson;
+
+    @Column(length = 64)
+    private String promotionCandidateFingerprint;
+
     @Column(name = "provider_resource_handle_id")
     private String providerResourceHandleId;
 
@@ -73,6 +85,15 @@ public class DeploymentReleaseEntity {
     public String getId() {
         return id;
     }
+
+    public String getDocumentBindingSnapshotJson() { return documentBindingSnapshotJson; }
+    public void setDocumentBindingSnapshotJson(String value) { documentBindingSnapshotJson = value; }
+    public String getDocumentBindingFingerprint() { return documentBindingFingerprint; }
+    public void setDocumentBindingFingerprint(String value) { documentBindingFingerprint = value; }
+    public String getPromotionCandidateJson() { return promotionCandidateJson; }
+    public void setPromotionCandidateJson(String value) { promotionCandidateJson = value; }
+    public String getPromotionCandidateFingerprint() { return promotionCandidateFingerprint; }
+    public void setPromotionCandidateFingerprint(String value) { promotionCandidateFingerprint = value; }
 
     public void setId(String id) {
         this.id = id;

@@ -50,6 +50,9 @@ import java.util.UUID;
 
 @Service
 public class DeploymentReleaseVerificationService {
+
+    @Autowired
+    private DeploymentDocumentBindingResolver documentBindingResolver;
     private static final int JSON_PROBE_MAX_ATTEMPTS = 3;
 
     private final ObjectMapper objectMapper;
@@ -229,48 +232,74 @@ public class DeploymentReleaseVerificationService {
         if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
             verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
-            VerificationExpectations expectations = buildExpectations(deployment, version, release, artifacts);
-            boolean connectorVerificationRequired = connectorVerificationRequired(release, expectations);
-            addBooleanCheck(
-                checks,
-                "active_version_matches_release",
-                version.getId().equals(deployment.getActiveVersionId()),
-                "Deployment active version matches the applied release version."
-            );
-            addBooleanCheck(
-                checks,
-                "runtime_base_url_present",
-                hasText(deployment.getRuntimeBaseUrl()),
-                "Runtime base URL is populated."
-            );
-            if (connectorVerificationRequired) {
+            DeploymentEntity targetDeployment = null;
+            try {
+                if (!deployment.getId().equals(release.getDeploymentId())
+                    || !deployment.getId().equals(version.getDeploymentId())
+                    || !version.getId().equals(release.getDeploymentVersionId())
+                    || !hasText(release.getTargetProfileId())) {
+                    throw new IllegalStateException("Release candidate or target membership is inconsistent.");
+                }
+                if (documentBindingResolver != null) documentBindingResolver.requireUnchanged(deployment, version, release);
+                else if (hasText(release.getDocumentBindingFingerprint())) throw new IllegalStateException("Document binding resolver is required.");
+                targetDeployment = new DeploymentEntity();
+                org.springframework.beans.BeanUtils.copyProperties(deployment, targetDeployment);
+                DeploymentReleaseEndpointService endpoints = new DeploymentReleaseEndpointService(objectMapper);
+                targetDeployment.setRuntimeBaseUrl(endpoints.runtimeBaseUrl(release));
+                targetDeployment.setConnectorBaseUrl(endpoints.connectorBaseUrl(release));
+                if (deploymentTargetProfileService != null) {
+                    var target = deploymentTargetProfileService.requireActiveProfile(release.getTargetProfileId());
+                    targetDeployment.setEnvironmentName(target.getEnvironmentName());
+                }
+            } catch (RuntimeException error) {
+                targetDeployment = null;
+                addCheck(checks, "release_target_context", "FAILED",
+                    "Selected release target evidence is unavailable or inconsistent; reconcile it before verification.", null);
+            }
+            if (targetDeployment != null) {
+                VerificationExpectations expectations = buildExpectations(targetDeployment, version, release, artifacts);
+                boolean connectorVerificationRequired = connectorVerificationRequired(release, expectations);
                 addBooleanCheck(
                     checks,
-                    "connector_base_url_present",
-                    hasText(deployment.getConnectorBaseUrl()),
-                    "Connector base URL is populated."
+                    "release_candidate_matches_version",
+                    version.getId().equals(release.getDeploymentVersionId()),
+                    "Selected release references the immutable candidate version."
                 );
-            } else {
-                addSkippedCheck(
+                addBooleanCheck(
                     checks,
-                    "connector_base_url_present",
-                    "Connector base URL is not required for a runtime-only image deployment without actions."
+                    "runtime_base_url_present",
+                    hasText(targetDeployment.getRuntimeBaseUrl()),
+                    "Runtime base URL is populated."
                 );
+                if (connectorVerificationRequired) {
+                    addBooleanCheck(
+                        checks,
+                        "connector_base_url_present",
+                        hasText(targetDeployment.getConnectorBaseUrl()),
+                        "Connector base URL is populated."
+                    );
+                } else {
+                    addSkippedCheck(
+                        checks,
+                        "connector_base_url_present",
+                        "Connector base URL is not required for a runtime-only image deployment without actions."
+                    );
+                }
+                addBooleanCheck(
+                    checks,
+                    "provisioning_details_present",
+                    hasText(release.getProvisioningDetailsJson()),
+                    "Provisioning details were captured for this release."
+                );
+                addBooleanCheck(
+                    checks,
+                    "version_manifest_present",
+                    hasText(version.getManifestJson()),
+                    "Compiled manifest exists for the release version."
+                );
+                verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, targetDeployment);
+                verifyLiveEndpoints(checks, targetDeployment, release, expectations, connectorVerificationRequired);
             }
-            addBooleanCheck(
-                checks,
-                "provisioning_details_present",
-                hasText(release.getProvisioningDetailsJson()),
-                "Provisioning details were captured for this release."
-            );
-            addBooleanCheck(
-                checks,
-                "version_manifest_present",
-                hasText(version.getManifestJson()),
-                "Compiled manifest exists for the release version."
-            );
-            verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
-            verifyLiveEndpoints(checks, deployment, release, expectations, connectorVerificationRequired);
         }
 
         int passed = 0;

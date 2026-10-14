@@ -63,12 +63,14 @@ public class PlatformCustomerAccessService {
             return null;
         }
         PlatformUserEntity user = currentUser(principal);
-        if (user == null || !StringUtils.hasText(user.getCustomerId())) {
-            return null;
+        if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus())
+            || !PlatformRole.CUSTOMER_ADMIN.name().equals(user.getRole())
+            || !StringUtils.hasText(user.getCustomerId())) {
+            throw invalidCustomerScope();
         }
         PlatformCustomerEntity customer = platformCustomerRepository.findById(user.getCustomerId()).orElse(null);
-        if (customer == null) {
-            return null;
+        if (customer == null || !"ACTIVE".equalsIgnoreCase(customer.getStatus())) {
+            throw invalidCustomerScope();
         }
         return new CustomerScopeSummary(customer.getId(), customer.getName(), customer.getSlug(), customer.getStatus());
     }
@@ -92,9 +94,6 @@ public class PlatformCustomerAccessService {
     }
 
     private void requireCustomerScope(String customerId, String message) {
-        if (!StringUtils.hasText(customerId)) {
-            return;
-        }
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN) {
             return;
@@ -103,9 +102,13 @@ public class PlatformCustomerAccessService {
             throw new ResponseStatusException(FORBIDDEN, message);
         }
         CustomerScopeSummary scope = currentScope(principal);
-        if (scope == null || !customerId.trim().equals(scope.customerId())) {
+        if (!StringUtils.hasText(customerId) || !customerId.trim().equals(scope.customerId())) {
             throw new ResponseStatusException(FORBIDDEN, message);
         }
+    }
+
+    private ResponseStatusException invalidCustomerScope() {
+        return new ResponseStatusException(FORBIDDEN, "An active customer account and owner scope are required.");
     }
 
     private PlatformUserEntity currentUser(PlatformPrincipal principal) {

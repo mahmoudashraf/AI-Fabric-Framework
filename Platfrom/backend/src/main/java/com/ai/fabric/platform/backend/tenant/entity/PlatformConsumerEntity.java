@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Instant;
 
@@ -38,6 +39,13 @@ public class PlatformConsumerEntity {
 
     @Column(length = 64)
     private String boundTargetProfileId;
+
+    @Column(nullable = false)
+    private long bindingRevision;
+
+    @Version
+    @Column(nullable = false)
+    private long rowVersion;
 
     private Instant lastBoundAt;
 
@@ -122,6 +130,10 @@ public class PlatformConsumerEntity {
     public Instant getLastBoundAt() {
         return lastBoundAt;
     }
+
+    public long getBindingRevision() { return bindingRevision; }
+
+    public void setBindingRevision(long bindingRevision) { this.bindingRevision = bindingRevision; }
 
     public void setLastBoundAt(Instant lastBoundAt) {
         this.lastBoundAt = lastBoundAt;

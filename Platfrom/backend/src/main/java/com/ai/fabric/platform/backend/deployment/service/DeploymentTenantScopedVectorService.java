@@ -150,6 +150,10 @@ public class DeploymentTenantScopedVectorService {
         return withRegistry(baseSummary, registry);
     }
 
+    public DeploymentTenantScopedVectorSummary build(DeploymentEntity deployment, JsonNode providerConfig, String targetProfileId) {
+        return build(deployment, tenantScopedVectorHandleResolver.targetScopedProviderConfig(deployment, providerConfig, targetProfileId));
+    }
+
     private DeploymentTenantScopedVectorSummary pineconeSummary(DeploymentEntity deployment,
                                                                 JsonNode providerConfig,
                                                                 DeploymentTenantBindingSummary binding,

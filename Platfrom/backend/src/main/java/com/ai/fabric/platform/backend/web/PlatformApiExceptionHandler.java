@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.deployment.service.CoolifyApiException;
 import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningConfigurationException;
 import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -62,6 +63,14 @@ public class PlatformApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorBody(
             "DATA_INTEGRITY_VIOLATION",
             "The operation could not be completed because related platform records still exist."
+        ));
+    }
+
+    @ExceptionHandler(ConcurrencyFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleConcurrentModification(ConcurrencyFailureException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorBody(
+            "CONCURRENT_MODIFICATION",
+            "The resource changed during this operation. Read its current state before retrying."
         ));
     }
 

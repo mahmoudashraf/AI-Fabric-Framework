@@ -345,7 +345,9 @@ class PlatformVerificationSuiteServiceTest {
                     "verification/service-policy.json",
                     "What does the service policy cover?",
                     "S3_COMPATIBLE_OBJECT_STORAGE",
-                    true
+                    true,
+                    "dtp-documents",
+                    "rel-documents"
                 )
             )
         );

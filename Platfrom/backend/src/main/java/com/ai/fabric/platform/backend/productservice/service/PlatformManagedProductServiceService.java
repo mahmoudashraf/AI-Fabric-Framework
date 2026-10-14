@@ -27,6 +27,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class PlatformManagedProductServiceService {
 
     public static final String STANDALONE_AI_WORKSPACE_SERVICE = "STANDALONE_AI_WORKSPACE_SERVICE";
+    public static final String OWNED_DEPENDENCY_SERVICE = "OWNED_DEPENDENCY_SERVICE";
 
     private final PlatformManagedProductServiceRepository repository;
     private final ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
@@ -64,6 +65,9 @@ public class PlatformManagedProductServiceService {
     }
 
     public PlatformManagedProductServiceSummary createService(CreatePlatformManagedProductServiceRequest request) {
+        if (OWNED_DEPENDENCY_SERVICE.equals(normalizeEnum(request.serviceKind()))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_GRAPH_REQUIRED");
+        }
         String normalizedServiceRef = normalizeServiceRef(request.serviceRef());
         repository.findByServiceRefIgnoreCase(normalizedServiceRef).ifPresent(existing -> {
             throw new ResponseStatusException(CONFLICT, "Managed product service already exists: " + normalizedServiceRef);
@@ -111,8 +115,50 @@ public class PlatformManagedProductServiceService {
         return toSummary(entity);
     }
 
+    @org.springframework.transaction.annotation.Transactional
+    public PlatformManagedProductServiceEntity ensureOwnedDependency(String graphId, String deploymentId,
+            String targetProfileId, String serviceRef, String slot, String image, String fingerprint) {
+        PlatformManagedProductServiceEntity existing = repository.findByServiceRefIgnoreCase(serviceRef).orElse(null);
+        if (existing != null) {
+            JsonNode details = readDetails(existing.getDetailsJson());
+            if (!OWNED_DEPENDENCY_SERVICE.equals(existing.getServiceKind())
+                || !graphId.equals(details.path("dependencyGraphId").asText())
+                || !fingerprint.equals(details.path("specFingerprint").asText())
+                || !targetProfileId.equals(details.path("targetProfileId").asText())
+                || !deploymentId.equals(existing.getDeploymentId())) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_OWNERSHIP_CONFLICT");
+            }
+            return existing;
+        }
+        PlatformManagedProductServiceEntity entity = new PlatformManagedProductServiceEntity();
+        entity.setId(generateId("psv"));
+        entity.setServiceRef(serviceRef);
+        entity.setDisplayName(slot + " / " + graphId);
+        entity.setProductFamily("MANAGED_DEPENDENCY");
+        entity.setServiceKind(OWNED_DEPENDENCY_SERVICE);
+        entity.setDeploymentMode("DEDICATED_COOLIFY");
+        entity.setTenantMode("DEDICATED");
+        entity.setDeploymentId(deploymentId);
+        entity.setDesiredReplicas(1);
+        entity.setActualReplicas(0);
+        entity.setMinReplicas(1);
+        entity.setMaxReplicas(1);
+        entity.setStatus("CREATED");
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("dependencyGraphId", graphId);
+        details.put("specFingerprint", fingerprint);
+        details.put("targetProfileId", targetProfileId);
+        details.put("providerType", "COOLIFY");
+        details.put("imageRepository", image);
+        entity.setDetailsJson(details.toString());
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(entity.getCreatedAt());
+        return repository.save(entity);
+    }
+
     public PlatformManagedProductServiceSummary updateDesiredReplicas(String serviceRef, Integer desiredReplicas) {
         PlatformManagedProductServiceEntity service = requireService(serviceRef);
+        requireNotOwnedDependency(service);
         int min = service.getMinReplicas() != null && service.getMinReplicas() > 0 ? service.getMinReplicas() : 1;
         int max = service.getMaxReplicas() != null && service.getMaxReplicas() > 0 ? service.getMaxReplicas() : Math.max(min, 1);
         if (desiredReplicas == null || desiredReplicas < min || desiredReplicas > max) {
@@ -122,6 +168,12 @@ public class PlatformManagedProductServiceService {
         service.setUpdatedAt(Instant.now());
         repository.save(service);
         return toSummary(service);
+    }
+
+    public void requireNotOwnedDependency(PlatformManagedProductServiceEntity service) {
+        if (OWNED_DEPENDENCY_SERVICE.equals(service.getServiceKind())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_GRAPH_LIFECYCLE_REQUIRED");
+        }
     }
 
     public PlatformManagedProductServiceSummary updateShopifyBillingConfig(String serviceRef,

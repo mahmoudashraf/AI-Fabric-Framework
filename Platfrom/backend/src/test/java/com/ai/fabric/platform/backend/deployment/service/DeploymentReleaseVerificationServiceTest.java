@@ -346,7 +346,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVersionEntity version = version();
             DeploymentReleaseEntity release = releaseWithCoolifyVectorizationRunner();
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(run.getSummaryMessage()).isEqualTo("29 passed, 0 failed, 2 skipped");
@@ -568,7 +568,7 @@ class DeploymentReleaseVerificationServiceTest {
             version.setShellConfigJson(null);
             DeploymentReleaseEntity release = releaseWithVectorizationRunner();
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_knowledge_sources_match_expected")).isEqualTo("PASSED");
@@ -629,7 +629,7 @@ class DeploymentReleaseVerificationServiceTest {
             );
 
             String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment(runtimeBaseUrl, runtimeBaseUrl),
                 runtimeOnlyImageVersion(),
                 runtimeOnlyImageRelease(),
@@ -678,7 +678,7 @@ class DeploymentReleaseVerificationServiceTest {
             );
 
             String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment(runtimeBaseUrl, runtimeBaseUrl),
                 documentEnabledRuntimeOnlyVersion(),
                 runtimeOnlyImageRelease(),
@@ -723,7 +723,7 @@ class DeploymentReleaseVerificationServiceTest {
             );
 
             String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment(runtimeBaseUrl, runtimeBaseUrl),
                 documentEnabledRuntimeOnlyVersion(),
                 runtimeOnlyImageRelease(),
@@ -838,7 +838,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVersionEntity version = version();
             DeploymentReleaseEntity release = releaseWithVectorizationRunner();
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_indexing_overview_http_probe")).isEqualTo("PASSED");
@@ -1107,7 +1107,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVersionEntity version = version();
             DeploymentReleaseEntity release = releaseWithVectorizationRunner();
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_APPLY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_APPLY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(runtimeOverviewCalls.get()).isGreaterThanOrEqualTo(2);
@@ -1220,7 +1220,7 @@ class DeploymentReleaseVerificationServiceTest {
                     """
             );
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("FAILED");
 
@@ -1353,7 +1353,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVersionEntity version = version();
             DeploymentReleaseEntity release = release();
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_APPLY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_APPLY");
 
             assertThat(checkStatus(run, "connector_health_http_probe")).isEqualTo("PASSED");
             assertThat(connectorHealthCalls.get()).isGreaterThanOrEqualTo(2);
@@ -1621,7 +1621,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVersionEntity version = version();
             DeploymentReleaseEntity release = release();
 
-            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_APPLY");
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_APPLY");
 
             assertThat(checkStatus(run, "runtime_auth_overview_http_probe")).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_actions_overview_http_probe")).isEqualTo("PASSED");
@@ -1731,7 +1731,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version(),
                 release(),
@@ -1843,7 +1843,7 @@ class DeploymentReleaseVerificationServiceTest {
             release.setProviderType(DeploymentProviderType.COOLIFY);
             release.setTargetProfileId("dtp-coolify-staging");
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version(),
                 release,
@@ -1973,7 +1973,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity qdrantRun = service.verify(
+            DeploymentVerificationRunEntity qdrantRun = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version("""
                     {
@@ -1991,7 +1991,7 @@ class DeploymentReleaseVerificationServiceTest {
                 "PRE_APPLY"
             );
 
-            DeploymentVerificationRunEntity milvusRun = service.verify(
+            DeploymentVerificationRunEntity milvusRun = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version("""
                     {
@@ -2108,7 +2108,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version("""
                     {
@@ -2224,7 +2224,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version("""
                     {
@@ -2341,7 +2341,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version("""
                     {
@@ -2452,7 +2452,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version("""
                     {
@@ -2575,7 +2575,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version(),
                 release(),
@@ -2687,7 +2687,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version(),
                 release(),
@@ -2817,7 +2817,7 @@ class DeploymentReleaseVerificationServiceTest {
                 deploymentVectorizationVerificationService
             );
 
-            DeploymentVerificationRunEntity run = service.verify(
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
                 deployment("https://runtime.example", "https://connector.example"),
                 version(),
                 release(),
@@ -3656,6 +3656,50 @@ class DeploymentReleaseVerificationServiceTest {
             }
             """);
         return version;
+    }
+
+    private DeploymentVerificationRunEntity verifyWithTargetEvidence(
+        DeploymentReleaseVerificationService service,
+        DeploymentEntity deployment,
+        DeploymentVersionEntity version,
+        DeploymentReleaseEntity release,
+        String verificationType
+    ) throws Exception {
+        String summaryRuntimeUrl = deployment.getRuntimeBaseUrl();
+        String summaryConnectorUrl = deployment.getConnectorBaseUrl();
+        String summaryVersion = deployment.getActiveVersionId();
+        if (!"PRE_APPLY".equalsIgnoreCase(verificationType)) {
+            var evidence = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(release.getProvisioningDetailsJson());
+            evidence.put("runtimeBaseUrl", deployment.getRuntimeBaseUrl());
+            evidence.put("connectorBaseUrl", deployment.getConnectorBaseUrl());
+            release.setProvisioningDetailsJson(evidence.toString());
+            release.setTargetProfileId("dtp-coolify-staging");
+            deployment.setRuntimeBaseUrl("http://127.0.0.1:1");
+            deployment.setConnectorBaseUrl("http://127.0.0.1:1");
+            deployment.setActiveVersionId("summary-points-to-another-version");
+        }
+        try {
+            return service.verify(deployment, version, release, verificationType);
+        } finally {
+            deployment.setRuntimeBaseUrl(summaryRuntimeUrl);
+            deployment.setConnectorBaseUrl(summaryConnectorUrl);
+            deployment.setActiveVersionId(summaryVersion);
+        }
+    }
+
+    @Test
+    void missingReleaseEndpointEvidenceDoesNotProbeTheDeploymentSummary() throws Exception {
+        DeploymentArtifactService artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(any())).thenReturn(artifactBundle());
+        var service = releaseVerificationService(mock(PlatformSecretService.class), artifacts);
+        var release = release();
+        release.setTargetProfileId("dtp-coolify-staging");
+        var deployment = deployment("https://wrong-production-summary.example", null);
+        var result = service.verify(deployment, version(), release, "POST_APPLY");
+        assertThat(result.getStatus()).isEqualTo("FAILED");
+        JsonNode checks = objectMapper.readTree(result.getChecksJson());
+        assertThat(checks.size()).isEqualTo(1);
+        assertThat(checks.get(0).path("name").asText()).isEqualTo("release_target_context");
     }
 
     private DeploymentReleaseEntity release() {

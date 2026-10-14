@@ -45,6 +45,7 @@ public class DeploymentDocumentStorageBindingService {
     private final PlatformSecretService secretService;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
+    private final com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
 
     public DeploymentDocumentStorageBindingService(
         DeploymentRepository deploymentRepository,
@@ -53,7 +54,8 @@ public class DeploymentDocumentStorageBindingService {
         DeploymentProviderResourceHandleRepository handleRepository,
         PlatformSecretService secretService,
         PlatformAuditService auditService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates
     ) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
@@ -62,6 +64,7 @@ public class DeploymentDocumentStorageBindingService {
         this.secretService = secretService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
+        this.retirementGates = retirementGates;
     }
 
     public List<DocumentStorageBindingSummary> list(String deploymentId) {
@@ -81,11 +84,7 @@ public class DeploymentDocumentStorageBindingService {
         DeploymentTargetProfileEntity profile = targetProfileRepository.findById(required(request.targetProfileId(), "targetProfileId"))
             .filter(DeploymentTargetProfileEntity::isActive)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Active deployment target profile was not found."));
-        if (StringUtils.hasText(deployment.getEnvironmentName())
-            && StringUtils.hasText(profile.getEnvironmentName())
-            && !deployment.getEnvironmentName().equalsIgnoreCase(profile.getEnvironmentName())) {
-            throw badRequest("Document storage binding target environment must match the deployment environment.");
-        }
+        retirementGates.requireAvailableForMutation(deployment.getId(), profile.getId());
         String connectorType = required(request.connectorType(), "connectorType").toUpperCase(Locale.ROOT);
         if (!S3_CONNECTOR.equals(connectorType) && !MOUNTED_CONNECTOR.equals(connectorType)) {
             throw badRequest("Unsupported document storage connector type.");
@@ -177,6 +176,8 @@ public class DeploymentDocumentStorageBindingService {
         handle.setProviderResourceUuid("external-document-storage:" + deployment.getId() + ":" + profile.getId());
         handle.setStatus("CONFIGURED");
         handle.setLastObservedStatus("NOT_PREFLIGHTED");
+        safe.put("bindingRevision", readJson(handle.getMetadataJson()).path("bindingRevision").asLong(0) + 1);
+        safe.put("bindingSlot", DeploymentDocumentBindingResolver.DOCUMENT_STORAGE_SLOT);
         handle.setMetadataJson(writeJson(safe));
         handle.setUpdatedAt(now);
         handleRepository.save(handle);
@@ -194,6 +195,7 @@ public class DeploymentDocumentStorageBindingService {
     public void remove(String deploymentId, String bindingRef) {
         DeploymentEntity deployment = requireDeployment(deploymentId, true);
         DeploymentProviderResourceHandleEntity handle = requireBinding(deployment, bindingRef);
+        retirementGates.requireAvailableForMutation(deployment.getId(), handle.getTargetProfileId());
         String key = secretKey(deployment.getId(), handle.getTargetProfileId());
         for (String suffix : List.of(
             "ENDPOINT", "REGION", "BUCKET", "PREFIX", "ACCESS_KEY", "SECRET_KEY", "SESSION_TOKEN", "MOUNTED_ROOT"
@@ -243,7 +245,8 @@ public class DeploymentDocumentStorageBindingService {
     }
 
     private DeploymentEntity requireDeployment(String deploymentId, boolean edit) {
-        DeploymentEntity deployment = deploymentRepository.findById(required(deploymentId, "deploymentId"))
+        String id = required(deploymentId, "deploymentId");
+        DeploymentEntity deployment = (edit ? deploymentRepository.findByIdForUpdate(id) : deploymentRepository.findById(id))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment was not found."));
         return edit
             ? deploymentAccessService.requireDeploymentAdminAccess(deployment)

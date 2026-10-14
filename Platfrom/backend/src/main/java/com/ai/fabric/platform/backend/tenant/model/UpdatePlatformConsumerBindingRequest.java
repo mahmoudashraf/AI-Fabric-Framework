@@ -6,9 +6,8 @@ public record UpdatePlatformConsumerBindingRequest(
     @Size(max = 64) String deploymentId,
     @Size(max = 64) String releaseId,
     @Size(max = 64) String targetProfileId,
-    @Size(max = 1000) String reason
+    @Size(max = 1000) String reason,
+    Long expectedBindingRevision,
+    @Size(max = 128) String operationKey
 ) {
-    public UpdatePlatformConsumerBindingRequest(String deploymentId, String reason) {
-        this(deploymentId, null, null, reason);
-    }
 }

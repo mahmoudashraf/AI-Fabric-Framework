@@ -26,6 +26,8 @@ public class TenantScopedVectorResourceEntity {
 
     private String deploymentReleaseId;
 
+    private String targetProfileId;
+
     @Column(nullable = false)
     private String vendor;
 
@@ -111,6 +113,9 @@ public class TenantScopedVectorResourceEntity {
     public String getDeploymentReleaseId() {
         return deploymentReleaseId;
     }
+
+    public String getTargetProfileId() { return targetProfileId; }
+    public void setTargetProfileId(String value) { targetProfileId = value; }
 
     public void setDeploymentReleaseId(String deploymentReleaseId) {
         this.deploymentReleaseId = deploymentReleaseId;

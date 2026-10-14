@@ -303,6 +303,8 @@ export function VerificationOpsPage() {
   const [behaviorSourceArtifactId, setBehaviorSourceArtifactId] = useState('')
   const [keepBehaviorDeployment, setKeepBehaviorDeployment] = useState(true)
   const [documentDeploymentId, setDocumentDeploymentId] = useState('')
+  const [documentTargetProfileId, setDocumentTargetProfileId] = useState('')
+  const [documentReleaseId, setDocumentReleaseId] = useState('')
   const [documentDatasetId, setDocumentDatasetId] = useState('document-knowledge')
   const [documentTextObjectReference, setDocumentTextObjectReference] = useState('')
   const [documentTextRetrievalQuery, setDocumentTextRetrievalQuery] = useState('')
@@ -426,6 +428,8 @@ export function VerificationOpsPage() {
     || (behaviorTargetProfileId.length > 0 && behaviorSourceArtifactId.length > 0)
   const documentKnowledgeInputsReady = !documentKnowledgeSuiteSelected || (
     documentDeploymentId.trim().length > 0
+    && documentTargetProfileId.trim().length > 0
+    && documentReleaseId.trim().length > 0
     && documentDatasetId.trim().length > 0
     && documentTextObjectReference.trim().toLowerCase().endsWith('.txt')
     && documentTextRetrievalQuery.trim().length > 0
@@ -608,6 +612,8 @@ export function VerificationOpsPage() {
         ...(documentKnowledgeSuiteSelected ? {
           documentKnowledgeExpectations: {
             deploymentId: documentDeploymentId.trim(),
+            targetProfileId: documentTargetProfileId.trim(),
+            releaseId: documentReleaseId.trim(),
             datasetId: documentDatasetId.trim(),
             textObjectReference: documentTextObjectReference.trim(),
             textRetrievalQuery: documentTextRetrievalQuery.trim(),
@@ -1117,6 +1123,14 @@ export function VerificationOpsPage() {
                       value={documentDeploymentId}
                       onChange={(event) => setDocumentDeploymentId(event.target.value)}
                     />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Target profile ID" value={documentTargetProfileId}
+                      onChange={(event) => setDocumentTargetProfileId(event.target.value)} />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Release ID" value={documentReleaseId}
+                      onChange={(event) => setDocumentReleaseId(event.target.value)} />
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <TextField

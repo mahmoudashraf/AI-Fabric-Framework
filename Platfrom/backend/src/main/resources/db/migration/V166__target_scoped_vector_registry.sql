@@ -1,0 +1,2 @@
+ALTER TABLE platform_tenant_scoped_vector_resources ADD COLUMN target_profile_id VARCHAR(64);
+CREATE INDEX ix_tenant_vector_target ON platform_tenant_scoped_vector_resources (deployment_id, target_profile_id);

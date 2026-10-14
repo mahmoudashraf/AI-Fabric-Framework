@@ -12,6 +12,13 @@ public record PlatformConsumerBindingHistorySummary(
     String reason,
     String actorId,
     String actorRole,
-    Instant createdAt
+    Instant createdAt,
+    String fromReleaseId,
+    String toReleaseId,
+    String fromTargetProfileId,
+    String toTargetProfileId,
+    Long fromBindingRevision,
+    Long toBindingRevision,
+    String operationKey
 ) {
 }

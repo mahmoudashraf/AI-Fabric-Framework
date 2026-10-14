@@ -279,7 +279,7 @@ class PlatformCustomerTenantIntegrationTest {
         platformCustomerConsumerService.updateBinding(
             customerA.id(),
             "move-guard-consumer",
-            new UpdatePlatformConsumerBindingRequest(null, "Unbind before migration.")
+            new UpdatePlatformConsumerBindingRequest(null, null, null, "Unbind before migration.", 0L, "unbind-before-migration")
         );
 
         DeploymentOverviewSummary rebound = deploymentService.updateDeploymentTenantBinding(

@@ -1,0 +1,2 @@
+ALTER TABLE platform_deployment_releases ADD COLUMN document_binding_snapshot_json TEXT;
+ALTER TABLE platform_deployment_releases ADD COLUMN document_binding_fingerprint VARCHAR(64);

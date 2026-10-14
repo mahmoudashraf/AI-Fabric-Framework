@@ -134,6 +134,12 @@ public class DeploymentService {
     private final DeploymentSourceArtifactService deploymentSourceArtifactService;
     private final DeploymentSourceCapabilityManifestService sourceCapabilityManifestService;
     private final ObjectMapper objectMapper;
+
+    @Autowired
+    private DeploymentDocumentBindingResolver documentBindingResolver;
+
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
     private VectorizationPlanRepository vectorizationPlanRepository;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
@@ -753,6 +759,15 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentSummary createDeployment(CreateDeploymentRequest request) {
+        return createDeployment(request, true);
+    }
+
+    @Transactional
+    public DeploymentSummary createDeploymentConfiguration(CreateDeploymentRequest request) {
+        return createDeployment(request, false);
+    }
+
+    private DeploymentSummary createDeployment(CreateDeploymentRequest request, boolean seedVectorizationPlan) {
         requirePlatformAdminForExplicitBindingRequest(request.customerId(), request.tenantId());
         DeploymentBehaviorType behaviorType = DeploymentBehaviorType.require(request.behaviorType());
         DeploymentTemplateSummary template = templates.stream()
@@ -793,7 +808,9 @@ public class DeploymentService {
         deployment.setActiveDraftId(draft.getId());
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
-        seedManagedVectorizationPlanIfNeeded(deployment, template, vectorProvisioningMode, now);
+        if (seedVectorizationPlan) {
+            seedManagedVectorizationPlanIfNeeded(deployment, template, vectorProvisioningMode, now);
+        }
         deploymentAssignmentService.grantCreatorAccessIfNeeded(deployment);
         platformAuditService.record(
             "DEPLOYMENT_CREATED",
@@ -1616,6 +1633,8 @@ public class DeploymentService {
             });
         deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
         DeploymentTargetProfileEntity targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
+        if (retirementGates == null) throw new IllegalStateException("Target retirement interlock is required.");
+        retirementGates.requireAvailableForMutation(deploymentId, targetProfile.getId());
         requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);
         deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
             deployment,
@@ -1645,6 +1664,10 @@ public class DeploymentService {
         release.setCreatedAt(now);
         release.setAppliedAt(now);
         release.setUpdatedAt(now);
+        if (requiresDocumentKnowledge(version)) {
+            if (documentBindingResolver == null) throw new IllegalStateException("Document binding resolver is required.");
+            documentBindingResolver.freeze(deployment, version, release);
+        }
         releaseRepository.save(release);
 
         deployment.setStatus("APPLY_REQUESTED");

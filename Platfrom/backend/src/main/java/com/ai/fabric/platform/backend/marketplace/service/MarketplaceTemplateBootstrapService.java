@@ -66,6 +66,16 @@ public class MarketplaceTemplateBootstrapService {
 
     @Transactional
     public DeploymentSummary bootstrap(String pluginIdOrSlug, CreateMarketplaceTemplateBootstrapRequest request) {
+        return bootstrap(pluginIdOrSlug, request, false);
+    }
+
+    @Transactional
+    public DeploymentSummary bootstrapConfiguration(String pluginIdOrSlug, CreateMarketplaceTemplateBootstrapRequest request) {
+        return bootstrap(pluginIdOrSlug, request, true);
+    }
+
+    private DeploymentSummary bootstrap(String pluginIdOrSlug, CreateMarketplaceTemplateBootstrapRequest request,
+                                        boolean configurationOnly) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(pluginIdOrSlug);
         MarketplacePluginVersionEntity version = resolveVersion(plugin, request.pluginVersion());
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
@@ -95,8 +105,7 @@ public class MarketplaceTemplateBootstrapService {
             ? parsed.contributions().templateDeploymentBehaviorType()
             : "CONVERSATIONAL";
 
-        DeploymentSummary deployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest(
+        CreateDeploymentRequest deploymentRequest = new CreateDeploymentRequest(
                 request.name(),
                 request.environment(),
                 deploymentTemplateId,
@@ -105,8 +114,10 @@ public class MarketplaceTemplateBootstrapService {
                 request.customerId(),
                 request.tenantId(),
                 behaviorType
-            )
-        );
+            );
+        DeploymentSummary deployment = configurationOnly
+            ? deploymentService.createDeploymentConfiguration(deploymentRequest)
+            : deploymentService.createDeployment(deploymentRequest);
 
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
         JsonNode securityConfig = deploymentMarketplaceDraftCompilerService.compileTemplateSecurityBaseline(

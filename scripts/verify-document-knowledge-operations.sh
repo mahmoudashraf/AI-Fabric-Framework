@@ -13,6 +13,8 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 
 DOCUMENT_DEPLOYMENT_ID="${DOCUMENT_DEPLOYMENT_ID:-}"
+DOCUMENT_TARGET_PROFILE_ID="${DOCUMENT_TARGET_PROFILE_ID:-}"
+DOCUMENT_RELEASE_ID="${DOCUMENT_RELEASE_ID:-}"
 DOCUMENT_DATASET_ID="${DOCUMENT_DATASET_ID:-document-knowledge}"
 DOCUMENT_TEXT_OBJECT_REFERENCE="${DOCUMENT_TEXT_OBJECT_REFERENCE:-}"
 DOCUMENT_TEXT_RETRIEVAL_QUERY="${DOCUMENT_TEXT_RETRIEVAL_QUERY:-}"
@@ -478,6 +480,11 @@ require_cmd python3
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 require_value PLATFORM_BASE_URL
 require_value DOCUMENT_DEPLOYMENT_ID
+require_value DOCUMENT_TARGET_PROFILE_ID
+require_value DOCUMENT_RELEASE_ID
+for identifier in DOCUMENT_DEPLOYMENT_ID DOCUMENT_TARGET_PROFILE_ID DOCUMENT_RELEASE_ID; do
+  [[ "${!identifier}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$ ]] || fail "Invalid target context identifier: ${identifier}"
+done
 require_value DOCUMENT_DATASET_ID
 require_value DOCUMENT_TEXT_OBJECT_REFERENCE
 require_value DOCUMENT_TEXT_RETRIEVAL_QUERY
@@ -500,12 +507,13 @@ RUN_ID="$(date -u +%Y%m%d%H%M%S)-$$"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 platform_login
-DOCUMENT_API_BASE="${PLATFORM_BASE_URL}/api/deployments/${DOCUMENT_DEPLOYMENT_ID}/document-knowledge"
+DOCUMENT_TARGET_BASE="${PLATFORM_BASE_URL}/api/deployments/${DOCUMENT_DEPLOYMENT_ID}/targets/${DOCUMENT_TARGET_PROFILE_ID}/releases/${DOCUMENT_RELEASE_ID}"
+DOCUMENT_API_BASE="${DOCUMENT_TARGET_BASE}/document-knowledge"
 
-platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${DOCUMENT_DEPLOYMENT_ID}/workspace" ""
-assert_status_any "Document deployment workspace" 200
-json_assert "Document capability workspace projection" \
-  'assert data.get("documentKnowledgeConfigured") is True\nassert data.get("documentKnowledgeLive") is True'
+platform_http GET "${DOCUMENT_TARGET_BASE}/context" ""
+assert_status_any "Document target release context" 200
+json_assert "Document target capability projection" \
+  'assert data.get("documentDatasetIds")\nassert data.get("releaseId")\nassert data.get("targetProfileId")'
 
 platform_http GET "${DOCUMENT_API_BASE}/connector" ""
 assert_status_any "Document source connector status" 200

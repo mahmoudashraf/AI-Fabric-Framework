@@ -4,8 +4,11 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerBindingHisto
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PlatformConsumerBindingHistoryRepository extends JpaRepository<PlatformConsumerBindingHistoryEntity, String> {
 
     List<PlatformConsumerBindingHistoryEntity> findByConsumerEntityIdOrderByCreatedAtDesc(String consumerEntityId);
+
+    Optional<PlatformConsumerBindingHistoryEntity> findByConsumerEntityIdAndOperationKey(String consumerEntityId, String operationKey);
 }

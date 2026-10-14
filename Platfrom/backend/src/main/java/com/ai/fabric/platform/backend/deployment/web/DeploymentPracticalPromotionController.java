@@ -28,24 +28,28 @@ public class DeploymentPracticalPromotionController {
     }
 
     @PostMapping("/plan")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public DeploymentPracticalPromotionSummary plan(@PathVariable String deploymentId,
                                                     @Valid @RequestBody(required = false) DeploymentPracticalPromotionRequest request) {
         return promotionService.planPromotion(deploymentId, request);
     }
 
     @PostMapping("/production-apply")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public DeploymentPracticalPromotionSummary requestProductionApply(@PathVariable String deploymentId,
                                                                       @Valid @RequestBody(required = false) DeploymentPracticalPromotionRequest request) {
         return promotionService.requestProductionPromotion(deploymentId, request);
     }
 
     @PostMapping("/activate-production-consumer")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public DeploymentPracticalPromotionSummary activateProductionConsumer(@PathVariable String deploymentId,
                                                                          @Valid @RequestBody DeploymentPracticalPromotionActivationRequest request) {
         return promotionService.activateProductionConsumer(deploymentId, request);
     }
 
     @PostMapping("/rollback-production-consumer")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
     public DeploymentPracticalPromotionSummary rollbackProductionConsumer(@PathVariable String deploymentId,
                                                                          @Valid @RequestBody DeploymentPracticalPromotionRollbackRequest request) {
         return promotionService.rollbackProductionConsumer(deploymentId, request);

@@ -120,6 +120,7 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary reconcile(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
         if (requiresCoolifyLifecycle(service)) {
             return reconcileCoolify(service);
         }
@@ -177,6 +178,7 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary reconcile(String serviceRef, String targetProfileId) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
         String normalizedTargetProfileId = trimToNull(targetProfileId);
         if (hasText(normalizedTargetProfileId)) {
             ObjectNode details = mutableDetails(service);
@@ -239,6 +241,7 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary restart(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
         if (requiresCoolifyLifecycle(service)) {
             return restartCoolify(service);
         }
@@ -319,6 +322,7 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceEntity refreshRailwayBindingFromWorkspace(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
         if (isCoolifyManaged(service)) {
             return service;
         }
@@ -397,6 +401,7 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
         if (requiresCoolifyLifecycle(service)) {
             return forceRecreateCoolify(service);
         }
@@ -437,6 +442,7 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary decommission(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
         long dependentStores = shopifyStoreConnectionRepository.countByProductServiceId(service.getId());
         if (dependentStores > 0) {
             throw new ResponseStatusException(
@@ -1700,6 +1706,281 @@ public class PlatformManagedProductProvisioningService {
 
     private static String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    /** Generic immutable-service extension; checkpoints must commit before remote creation. */
+    public interface OwnedDependencyCheckpoint {
+        void guard();
+        void creating(String kind);
+        void created(String kind, String uuid);
+        void volume(String mountPath, String uuid);
+    }
+
+    public record OwnedDependencyResources(String applicationUuid, String databaseUuid,
+                                          boolean applicationCreateIntent, boolean databaseCreateIntent,
+                                          Map<String, String> volumes) {}
+    public record OwnedDependencyResult(String applicationUuid, String databaseUuid, String baseUrl) {}
+
+    public CoolifyConnection ownedDependencyConnection(String targetProfileId, String environmentIntent) {
+        ensureCoolifySupportAvailable();
+        DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_TARGET_MISSING"));
+        if (!profile.isActive() || profile.getProviderType() != com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType.COOLIFY
+            || !environmentIntent.equals(profile.getEnvironmentName())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_TARGET_INVALID");
+        }
+        CoolifyConnection connection = coolifyTargetProfileResolver.requireConnection(profile);
+        CoolifyTargetProfileConfig config = connection.config();
+        String expectedIp = switch (environmentIntent) {
+            case "staging" -> "46.224.145.148";
+            case "production" -> "46.225.162.106";
+            default -> throw new ResponseStatusException(CONFLICT, "DEPENDENCY_ENVIRONMENT_UNSUPPORTED");
+        };
+        // Read actual placement. A profile name is not server evidence.
+        JsonNode server = coolifyApiClient.getServer(connection, config.serverUuid());
+        if (!expectedIp.equals(server.path("ip").asText()) || !config.serverUuid().equals(server.path("uuid").asText())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_SERVER_PLACEMENT_CONFLICT");
+        }
+        CoolifyDestinationPlacement placement = coolifyApiClient.resolveDestinationPlacement(
+            connection, config.serverUuid(), config.destinationUuid())
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DESTINATION_UNVERIFIED"));
+        if (!config.serverUuid().equals(placement.serverUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DESTINATION_CONFLICT");
+        }
+        if (!hasText(config.projectUuid()) || !hasText(config.environmentUuid()) || !config.forceHttps()
+            || !hasText(config.defaultPublicDomainSuffix()) || config.autogenerateDomain()) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_TRUSTED_TLS_DOMAIN_REQUIRED");
+        }
+        return connection;
+    }
+
+    public OwnedDependencyResult reconcileOwnedDependency(CoolifyConnection connection, String graphId,
+            String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
+            OwnedDependencyCheckpoint checkpoint) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
+        }
+        var config = connection.config();
+        String marker = "ManagedDependency:" + graphId + ":" + spec.slot();
+        String dbUuid = resources.databaseUuid();
+        if (spec.database() != null) {
+            String name = serviceRef + "-db";
+            CoolifyDatabaseSummary db = null;
+            if (hasText(dbUuid)) {
+                db = coolifyApiClient.getDatabase(connection, dbUuid)
+                    .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_MISSING"));
+            } else if (resources.databaseCreateIntent()) {
+                var matches = coolifyApiClient.listDatabases(connection).stream()
+                    .filter(value -> name.equals(value.name()) && marker.equals(value.raw().path("description").asText())).toList();
+                if (matches.size() != 1) throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_CREATE_UNCERTAIN");
+                db = matches.get(0);
+                dbUuid = db.uuid();
+                checkpoint.created("DATABASE", dbUuid);
+            }
+            if (db == null) {
+                checkpoint.guard();
+                checkpoint.creating("DATABASE");
+                List<CoolifyEnvVar> values = environment.apply(null);
+                String password = values.stream().filter(v -> "__DATABASE_PASSWORD".equals(v.key()))
+                    .map(CoolifyEnvVar::value).findFirst().orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_SECRET_MISSING"));
+                dbUuid = coolifyApiClient.createPostgresDatabase(connection, new CoolifyCreatePostgresDatabaseRequest(
+                    config.projectUuid(), config.serverUuid(), config.environmentName(), config.environmentUuid(),
+                    config.destinationUuid(), name, marker, spec.database().image(), "dependency", password, "dependency", false, false));
+                checkpoint.created("DATABASE", dbUuid);
+                db = coolifyApiClient.getDatabase(connection, dbUuid)
+                    .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_READBACK_MISSING"));
+            }
+            requireOwnedDependencyResource(db.raw(), connection, name, marker);
+            if (!spec.database().image().equals(db.raw().path("image").asText())
+                || !"dependency".equals(db.postgresUser()) || !"dependency".equals(db.postgresDatabase())
+                || db.raw().path("is_public").asBoolean(true)) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_SPEC_DRIFT");
+            }
+            checkpoint.guard();
+            coolifyApiClient.startDatabase(connection, dbUuid);
+            awaitOwnedDatabase(connection, dbUuid);
+        }
+        String suffix = config.defaultPublicDomainSuffix().replaceFirst("^\\.", "");
+        String domain = "https://" + serviceRef + "." + suffix;
+        var image = ownedDependencyImage(spec.image());
+        var request = new CoolifyCreateDockerImageApplicationRequest(config.projectUuid(), config.serverUuid(),
+            config.environmentName(), config.environmentUuid(), image.repository(), image.hashTag(), Integer.toString(spec.port()),
+            config.destinationUuid(), serviceRef, marker, domain, true, spec.healthPath(), Integer.toString(spec.port()),
+            new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                spec.capacity().memoryMiB() + "M", null, null,
+                java.math.BigDecimal.valueOf(spec.capacity().milliCpu(), 3).toPlainString(), null),
+            false, true, false);
+        CoolifyApplicationSummary app = null;
+        String appUuid = resources.applicationUuid();
+        if (hasText(appUuid)) {
+            app = coolifyApiClient.getApplication(connection, appUuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
+        } else if (resources.applicationCreateIntent()) {
+            var matches = coolifyApiClient.listApplications(connection).stream()
+                .filter(value -> serviceRef.equals(value.name()) && marker.equals(value.raw().path("description").asText())).toList();
+            if (matches.size() != 1) throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_CREATE_UNCERTAIN");
+            app = matches.get(0);
+            appUuid = app.uuid();
+            checkpoint.created("APPLICATION", appUuid);
+        }
+        if (app == null) {
+            checkpoint.guard();
+            checkpoint.creating("APPLICATION");
+            appUuid = coolifyApiClient.createDockerImageApplication(connection, request);
+            checkpoint.created("APPLICATION", appUuid);
+            app = coolifyApiClient.getApplication(connection, appUuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_READBACK_MISSING"));
+        }
+        requireOwnedDependencyResource(app.raw(), connection, serviceRef, marker);
+        if (!image.repository().equals(app.imageRepository()) || !image.hashTag().equals(app.imageTag()) || !domain.equals(app.fqdn())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_SPEC_DRIFT");
+        }
+        for (var volume : spec.volumes()) {
+            checkpoint.guard();
+            var storage = coolifyApiClient.reconcilePersistentVolumeStorage(connection, appUuid,
+                serviceRef + "-" + Integer.toHexString(volume.mountPath().hashCode()), volume.mountPath());
+            if (!hasText(storage.uuid()) || !storage.name().startsWith(serviceRef + "-")) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+            }
+            checkpoint.volume(volume.mountPath(), storage.uuid());
+        }
+        checkpoint.guard();
+        coolifyApiClient.updateEnvironmentVariables(connection, appUuid, environment.apply(dbUuid).stream()
+            .filter(v -> !"__DATABASE_PASSWORD".equals(v.key())).toList());
+        CoolifyActionResponse response = coolifyApiClient.start(connection, appUuid, true, true);
+        if (response == null || !hasText(response.deploymentUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        }
+        CoolifyApplicationSummary observed = awaitOwnedDependencyDeployment(connection, appUuid, response.deploymentUuid());
+        requireOwnedDependencyResource(observed.raw(), connection, serviceRef, marker);
+        if (!"running:healthy".equalsIgnoreCase(observed.status()) || !image.repository().equals(observed.imageRepository())
+            || !image.hashTag().equals(observed.imageTag())
+            || !domain.equals(observed.fqdn())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_HEALTH_READBACK_REQUIRED");
+        }
+        return new OwnedDependencyResult(appUuid, dbUuid, domain);
+    }
+
+    private record OwnedDependencyImage(String repository, String hashTag) {}
+    private OwnedDependencyImage ownedDependencyImage(String reference) {
+        com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.immutableImage(reference);
+        int boundary = reference.lastIndexOf("@sha256:");
+        // Coolify's Docker Image API stores digests as sha256-<hex> in the image tag/hash field.
+        return new OwnedDependencyImage(reference.substring(0, boundary), "sha256-" + reference.substring(boundary + 8));
+    }
+
+    public void retireOwnedDependency(CoolifyConnection connection, String graphId, String serviceRef,
+            String slot, OwnedDependencyResources resources, OwnedDependencyCheckpoint checkpoint) {
+        String marker = "ManagedDependency:" + graphId + ":" + slot;
+        if (resources.applicationCreateIntent() && !hasText(resources.applicationUuid())
+            || resources.databaseCreateIntent() && !hasText(resources.databaseUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_CREATE_UNCERTAIN_RECONCILE_REQUIRED");
+        }
+        if (hasText(resources.applicationUuid())) {
+            var app = coolifyApiClient.getApplication(connection, resources.applicationUuid());
+            if (app.isPresent()) {
+                requireOwnedDependencyResource(app.get().raw(), connection, serviceRef, marker);
+                var storages = coolifyApiClient.listApplicationStorages(connection, resources.applicationUuid());
+                if (storages.size() != resources.volumes().size() || storages.stream().anyMatch(s ->
+                    !s.uuid().equals(resources.volumes().get(s.mountPath())) || !"persistent".equals(s.type())
+                        || hasText(s.hostPath()) || !s.name().equals(serviceRef + "-" + Integer.toHexString(s.mountPath().hashCode())))) {
+                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+                }
+                checkpoint.guard();
+                coolifyApiClient.delete(connection, resources.applicationUuid(), true, true, true, false);
+                awaitCoolifyApplicationDeletion(connection, resources.applicationUuid());
+            }
+        }
+        if (hasText(resources.databaseUuid())) {
+            var db = coolifyApiClient.getDatabase(connection, resources.databaseUuid());
+            if (db.isPresent()) {
+                requireOwnedDependencyResource(db.get().raw(), connection, serviceRef + "-db", marker);
+                checkpoint.guard();
+                coolifyApiClient.deleteDatabase(connection, resources.databaseUuid(), true, true, true, false);
+                if (coolifyApiClient.getDatabase(connection, resources.databaseUuid()).isPresent()) {
+                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_DELETION_UNCONFIRMED");
+                }
+            }
+        }
+    }
+
+    private void requireOwnedDependencyResource(JsonNode raw, CoolifyConnection connection, String name, String marker) {
+        var config = connection.config();
+        if (!name.equals(raw.path("name").asText()) || !marker.equals(raw.path("description").asText())
+            || !config.serverUuid().equals(firstNonBlank(raw.path("server_uuid").asText(null), raw.at("/destination/server/uuid").asText(null)))
+            || !config.environmentUuid().equals(firstNonBlank(raw.path("environment_uuid").asText(null), raw.at("/environment/uuid").asText(null)))
+            || !config.projectUuid().equals(firstNonBlank(raw.path("project_uuid").asText(null), raw.at("/environment/project/uuid").asText(null)))
+            || !config.destinationUuid().equals(firstNonBlank(raw.path("destination_uuid").asText(null), raw.at("/destination/uuid").asText(null)))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_PROVIDER_OWNERSHIP_CONFLICT");
+        }
+    }
+
+    private void awaitOwnedDatabase(CoolifyConnection connection, String uuid) {
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        do {
+            var db = coolifyApiClient.getDatabase(connection, uuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_MISSING"));
+            if ("running:healthy".equalsIgnoreCase(db.status())) return;
+            try {
+                Thread.sleep(Math.max(250, productProvisioningProperties.pollInterval().toMillis()));
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_WAIT_INTERRUPTED");
+            }
+        } while (Instant.now().isBefore(deadline));
+        throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_NOT_READY");
+    }
+
+    private CoolifyApplicationSummary awaitOwnedDependencyDeployment(CoolifyConnection connection, String uuid, String deploymentUuid) {
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        do {
+            var application = coolifyApiClient.getApplication(connection, uuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_READBACK_MISSING"));
+            var deployment = coolifyApiClient.getDeployment(connection, deploymentUuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED"));
+            if (!uuid.equals(deployment.applicationUuid()) || !deploymentUuid.equals(deployment.deploymentUuid())) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_OWNERSHIP_CONFLICT");
+            }
+            if (coolifyDeploymentFailed(deployment)) throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_FAILED");
+            if (coolifyDeploymentFinished(deployment) && "running:healthy".equalsIgnoreCase(application.status())) return application;
+            try {
+                Thread.sleep(Math.max(250, productProvisioningProperties.pollInterval().toMillis()));
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_WAIT_INTERRUPTED");
+            }
+        } while (Instant.now().isBefore(deadline));
+        throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_NOT_READY");
+    }
+
+    public String ownedDependencyDatabaseJdbc(CoolifyConnection connection, String databaseUuid) {
+        var database = coolifyApiClient.getDatabase(connection, databaseUuid)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_MISSING"));
+        try {
+            java.net.URI uri = java.net.URI.create(database.raw().path("internal_db_url").asText());
+            if (!"postgresql".equals(uri.getScheme()) || !hasText(uri.getHost()) || uri.getPort() < 1
+                || !"/dependency".equals(uri.getPath())) throw new IllegalArgumentException();
+            return "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + "/dependency";
+        } catch (RuntimeException error) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_ADDRESS_UNVERIFIED");
+        }
+    }
+
+    public void disableOwnedDependency(CoolifyConnection connection, String graphId, String serviceRef,
+            String slot, String applicationUuid, OwnedDependencyCheckpoint checkpoint) {
+        if (!hasText(applicationUuid)) return;
+        var app = coolifyApiClient.getApplication(connection, applicationUuid)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
+        requireOwnedDependencyResource(app.raw(), connection, serviceRef, "ManagedDependency:" + graphId + ":" + slot);
+        checkpoint.guard();
+        coolifyApiClient.stop(connection, applicationUuid, false);
+        var readback = coolifyApiClient.getApplication(connection, applicationUuid)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DISABLE_UNCONFIRMED"));
+        String state = upper(readback.status()).split(":", 2)[0];
+        if (!java.util.Set.of("EXITED", "STOPPED").contains(state)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DISABLE_UNCONFIRMED");
+        }
     }
 
     private record ReconciledRailwayService(

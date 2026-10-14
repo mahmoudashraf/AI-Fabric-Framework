@@ -79,13 +79,14 @@ class DeploymentDocumentStorageBindingServiceTest {
     }
 
     @Test
-    void bindingMustMatchTheDeploymentTargetEnvironment() {
+    void stagingLineageCanConfigureIndependentProductionS3Binding() {
         Fixture fixture = fixture("staging", "production");
 
-        assertThatThrownBy(() -> fixture.service().upsert("dep-docs", s3Request("profile-staging")))
-            .isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("target environment must match");
-        verify(fixture.handleRepository(), never()).save(any());
+        var result = fixture.service().upsert("dep-docs", s3Request("profile-staging"));
+        assertThat(result.targetProfileId()).isEqualTo("profile-staging");
+        assertThat(result.safeMetadata().path("bindingRevision").asLong()).isEqualTo(1);
+        assertThat(fixture.deployment().getEnvironmentName()).isEqualTo("staging");
+        verify(fixture.handleRepository()).save(any());
     }
 
     @Test
@@ -224,6 +225,7 @@ class DeploymentDocumentStorageBindingServiceTest {
         profile.setNetworkPolicyJson(networkPolicy);
 
         when(deploymentRepository.findById("dep-docs")).thenReturn(Optional.of(deployment));
+        when(deploymentRepository.findByIdForUpdate("dep-docs")).thenReturn(Optional.of(deployment));
         when(accessService.requireDeploymentAdminAccess(deployment)).thenReturn(deployment);
         when(profileRepository.findById("profile-staging")).thenReturn(Optional.of(profile));
         when(handleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
@@ -239,7 +241,8 @@ class DeploymentDocumentStorageBindingServiceTest {
                 handleRepository,
                 secretService,
                 auditService,
-                objectMapper
+                objectMapper,
+                mock(com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService.class)
             ),
             deployment,
             handleRepository,

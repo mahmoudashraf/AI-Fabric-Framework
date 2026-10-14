@@ -1,0 +1,92 @@
+package com.ai.fabric.platform.backend.deployment.admission;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.Set;
+import java.util.Collections;
+import java.util.TreeSet;
+
+/** Control-plane contracts. Quantities are integral in the named units, never browser estimates. */
+public final class AdmissionContracts {
+    private AdmissionContracts() { }
+
+    public enum Dimension {
+        ENVIRONMENTS, REPLICAS, CPU_MILLICORES, MEMORY_BYTES, DISK_BYTES,
+        DATABASES, INDEXES, INDEX_BYTES, DEPENDENCIES, CONCURRENT_APPLIES, CONCURRENT_BUILDS,
+        API_REQUESTS_PER_WINDOW, PROVIDER_TOKENS_PER_WINDOW, PROVIDER_SPEND_MICROS_PER_WINDOW
+    }
+    public enum Intent { CUSTOMER_STAGING, CUSTOMER_PRODUCTION }
+    public enum State { RESERVED, PROVISIONING, ACTIVE, OUTCOME_UNKNOWN, CLEANUP_FAILED, RELEASED }
+    public enum Activity { CONFIGURATION_WRITE, ACCEPTED_SESSION, ACCEPTED_ACTION, HUMAN_WORK }
+    public enum ExpiryState { CURRENT, NOTICE_PENDING, NOTICE_FAILED, NOTIFIED, CLAIMED, BLOCKED, HANDED_OFF, RELEASED }
+    public enum NoticeChannel { CONSOLE, OWNER_EMAIL }
+
+    public record Vector(Map<Dimension, Long> amounts) {
+        public Vector { amounts = amounts == null ? null : Map.copyOf(amounts); }
+    }
+    /** Baseline includes existing non-ledger Platform/demo/build load; headroom protects overlap/recovery. */
+    public record Budget(Vector measured, Vector baseline, Vector headroom, String measurementReference,
+                         Instant measuredAt, Instant validUntil) { }
+    public record Placement(String serverUuid, String destinationUuid, String ip) { }
+    public record TargetBudget(String targetProfileId, Intent intent, Placement placement,
+                               String profileFingerprint, Budget budget) { }
+    public record LifecyclePolicy(long inactivitySeconds, long noticeLeadSeconds, long extensionSeconds,
+                                  int maxExtensions, long maxLifetimeSeconds, long maxKeepSeconds,
+                                  long drainSeconds, long recoverySeconds, long retrySeconds,
+                                  int maxAttempts, long readbackMaxAgeSeconds, long budgetWindowSeconds,
+                                  String policyReference, String noticeTransportReference) { }
+    public record FleetPolicy(String id, Budget fleet, Map<String, TargetBudget> targets,
+                              LifecyclePolicy lifecycle, String restoreEvidenceReference,
+                              String privacyEvidenceReference, String supportReference) {
+        public FleetPolicy { targets = targets == null ? null : Map.copyOf(targets); }
+    }
+    public record CustomerGrant(String customerId, Vector fleetLimit, Map<String, Vector> targetLimits,
+                                Instant validUntil, String ownerContactEvidenceReference,
+                                String payerReference, String keepStagingEntitlementReference) {
+        public CustomerGrant { targetLimits = targetLimits == null ? null : Map.copyOf(targetLimits); }
+    }
+    /** Reviewed full topology envelope: runtime, workers, DB/volumes, indexes and R5 dependencies. */
+    public record Manifest(String id, String deploymentId, String versionId, String versionConfigHash,
+                           String targetProfileId, String bindingFingerprint, String topologyReference,
+                           Vector demand, Set<String> prerequisiteReferences) {
+        public Manifest { prerequisiteReferences = prerequisiteReferences == null ? null : Collections.unmodifiableSet(new TreeSet<>(prerequisiteReferences)); }
+    }
+    public record Reserve(String operationKey, String manifestId) { }
+    public record Fence(String reservationId, long revision, String generation) { }
+    public record Reservation(String id, String customerId, String tenantId, String deploymentId,
+                              String targetProfileId, Intent intent, String operationKey, String requestFingerprint,
+                              String generation, long revision, State state, Vector demand, String policyId,
+                              String manifestId, String manifestFingerprint, String bindingFingerprint,
+                              Instant createdAt, Instant updatedAt, Instant lastActivityAt, Instant expiresAt,
+                              int extensions, Instant keepUntil, String keepEntitlementReference,
+                              ExpiryState expiryState, String noticeCycle, Instant nextRetryAt, int attempts,
+                              String workerToken, Instant drainDeadline, Instant recoveryUntil,
+                              String retirementOperationId, String evidenceReference,
+                              String failureCode) {
+        public Fence fence() { return new Fence(id, revision, generation); }
+        public boolean consumesCapacity() { return state != State.RELEASED; }
+    }
+    public record AdmissionContext(String customerId, String tenantId, String deploymentId,
+                                   FleetPolicy policy, CustomerGrant grant, Manifest manifest,
+                                   String manifestFingerprint, TargetBudget target) { }
+    public record PrerequisiteReadback(Instant observedAt, Instant validUntil, String evidenceReference,
+                                       Placement placement, String profileFingerprint,
+                                       String manifestFingerprint, String bindingFingerprint,
+                                       Set<String> verifiedPrerequisiteReferences,
+                                       String restoreEvidenceReference, String privacyEvidenceReference,
+                                       String ownerContactEvidenceReference, String noticeTransportReference) { }
+    public record NoticeWork(Fence fence, String noticeCycle, NoticeChannel channel,
+                             String deliveryKey, Instant expiresAt, String transportReference) { }
+    public record NoticeDelivery(String deliveryKey, String evidenceReference, Instant deliveredAt) { }
+    /** A claim authorizes planning/draining only, not deletion. Main/R3 must supply real drain/inventory. */
+    public record ExpiryWork(Fence fence, String workerToken, String noticeCycle, Instant expiresAt,
+                             Instant drainDeadline, Instant recoveryUntil, String reason) { }
+    public record ReadbackContext(Reservation reservation, FleetPolicy policy, String workerToken) { }
+    public record ResourceReadback(String reservationId, String generation, long expectedRevision,
+                                   String workerToken, String manifestFingerprint, String bindingFingerprint,
+                                   Placement placement, Instant observedAt, String evidenceReference,
+                                   boolean inventoryComplete, boolean outcomeSettled, boolean resourcesAbsent,
+                                   boolean ingressBlocked, boolean retentionVerified,
+                                   boolean assignmentsVerified, long assignmentCount, Long sessions,
+                                   Long confirmations, Long humanWork, Long backgroundWork) { }
+}

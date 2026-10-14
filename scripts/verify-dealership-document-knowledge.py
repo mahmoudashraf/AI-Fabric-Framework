@@ -213,17 +213,24 @@ def main() -> int:
     api_key = secret("PLATFORM_API_KEY")
     api_key_header = os.environ.get("PLATFORM_API_KEY_HEADER", "X-PLATFORM-API-KEY").strip()
     deployment_id = required("DOCUMENT_DEPLOYMENT_ID")
+    target_profile_id = required("DOCUMENT_TARGET_PROFILE_ID")
+    release_id = required("DOCUMENT_RELEASE_ID")
     dataset_id = os.environ.get("DOCUMENT_DATASET_ID", "document-knowledge").strip()
     prefix = os.environ.get("DOCUMENT_OBJECT_PREFIX", "").strip().strip("/")
     report_path = os.environ.get("DOCUMENT_REPORT_PATH", "").strip()
 
     client = PlatformClient(platform_base_url, api_key_header, api_key)
     encoded_deployment = urllib.parse.quote(deployment_id, safe="")
-    api_base = f"/api/deployments/{encoded_deployment}/document-knowledge"
+    target_base = (
+        f"/api/deployments/{encoded_deployment}"
+        f"/targets/{urllib.parse.quote(target_profile_id, safe='')}"
+        f"/releases/{urllib.parse.quote(release_id, safe='')}"
+    )
+    api_base = f"{target_base}/document-knowledge"
 
-    workspace = client.request("GET", f"/api/deployments/{encoded_deployment}/workspace")
-    if not workspace.get("documentKnowledgeConfigured") or not workspace.get("documentKnowledgeLive"):
-        raise VerificationFailure("Document Knowledge is not configured and live for the deployment")
+    context = client.request("GET", f"{target_base}/context")
+    if dataset_id not in context.get("documentDatasetIds", []):
+        raise VerificationFailure("Document Knowledge is not enabled for the selected target release")
     connector = client.request("GET", f"{api_base}/connector")
     if not connector.get("ready"):
         raise VerificationFailure(f"Document connector is not ready: {connector.get('errorCode')}")

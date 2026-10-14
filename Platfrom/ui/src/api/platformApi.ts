@@ -2788,10 +2788,12 @@ export type DeploymentProviderResourceOrphanScanSummary = {
 }
 
 export type DeploymentPracticalPromotionRequest = {
-  versionId?: string
-  stagingTargetProfileId?: string
-  productionTargetProfileId?: string
-  sourceArtifactId?: string
+  consumerId: string
+  expectedBindingRevision: number
+  stagingReleaseId: string
+  productionTargetProfileId: string
+  candidateFingerprint?: string
+  operationKey?: string
 }
 
 export type DeploymentPracticalPromotionActivationRequest = {
@@ -2799,6 +2801,8 @@ export type DeploymentPracticalPromotionActivationRequest = {
   consumerId: string
   markStagingSuperseded?: boolean
   reason?: string
+  expectedBindingRevision: number
+  operationKey: string
 }
 
 export type DeploymentPracticalPromotionRollbackRequest = {
@@ -2807,6 +2811,8 @@ export type DeploymentPracticalPromotionRollbackRequest = {
   rollbackReleaseId: string
   rollbackTargetProfileId?: string
   reason?: string
+  expectedBindingRevision: number
+  operationKey: string
 }
 
 export type DeploymentPracticalPromotionSummary = {
@@ -2822,6 +2828,7 @@ export type DeploymentPracticalPromotionSummary = {
   productionReleaseStatus: string | null
   consumer: PlatformConsumerSummary | null
   resources: DeploymentProviderResourceLifecycleSummary[]
+  candidateFingerprint: string | null
 }
 
 export type DeploymentSecretUsageItemSummary = {
@@ -4223,6 +4230,7 @@ export type PlatformConsumerSummary = {
   boundReleaseId: string | null
   boundReleaseStatus: string | null
   boundTargetProfileId: string | null
+  bindingRevision: number
   lastBoundAt: string | null
   createdAt: string
   updatedAt: string
@@ -4239,6 +4247,13 @@ export type PlatformConsumerBindingHistorySummary = {
   actorId: string
   actorRole: string
   createdAt: string
+  fromReleaseId: string | null
+  toReleaseId: string | null
+  fromTargetProfileId: string | null
+  toTargetProfileId: string | null
+  fromBindingRevision: number | null
+  toBindingRevision: number | null
+  operationKey: string | null
 }
 
 export type PlatformCustomerSummary = {
@@ -5607,34 +5622,65 @@ export function deleteDocumentStorageBinding(deploymentId: string, bindingRef: s
   )
 }
 
-export function fetchDocumentConnectorStatus(deploymentId: string) {
+export type DeploymentTargetReference = {
+  deploymentId: string
+  targetProfileId: string
+  releaseId: string
+}
+
+export type DeploymentTargetContextSummary = DeploymentTargetReference & {
+  versionId: string
+  environmentName: string
+  releaseStatus: string
+  configHash: string
+  runtimeBaseUrl: string
+  connectorBaseUrl: string | null
+  documentDatasetIds: string[]
+}
+
+export function fetchDeploymentTargetContext(target: DeploymentTargetReference) {
+  return request<DeploymentTargetContextSummary>(`${targetReleasePath(target)}/context`)
+}
+
+function targetReleasePath(target: DeploymentTargetReference) {
+  if (!target.deploymentId || !target.targetProfileId || !target.releaseId) {
+    throw new Error('Select a target release before administering documents.')
+  }
+  return `/api/deployments/${encodeURIComponent(target.deploymentId)}/targets/${encodeURIComponent(target.targetProfileId)}/releases/${encodeURIComponent(target.releaseId)}`
+}
+
+function documentOperationsPath(target: DeploymentTargetReference) {
+  return `${targetReleasePath(target)}/document-knowledge`
+}
+
+export function fetchDocumentConnectorStatus(target: DeploymentTargetReference) {
   return request<DocumentConnectorStatus>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/connector`,
+    `${documentOperationsPath(target)}/connector`,
   )
 }
 
 export function discoverDocumentSources(
-  deploymentId: string,
+  target: DeploymentTargetReference,
   payload: { datasetId: string; cursor?: string; limit?: number },
 ) {
   return request<DocumentDiscoveryResult>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/discover`,
+    `${documentOperationsPath(target)}/discover`,
     { method: 'POST', body: JSON.stringify(payload) },
   )
 }
 
-export function fetchDocumentSources(deploymentId: string) {
+export function fetchDocumentSources(target: DeploymentTargetReference) {
   return request<DocumentSourceSummary[]>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources`,
+    `${documentOperationsPath(target)}/sources`,
   )
 }
 
 export function registerDocumentSource(
-  deploymentId: string,
+  target: DeploymentTargetReference,
   payload: { datasetId: string; objectReference: string; visibility?: string; metadata?: Record<string, unknown> },
 ) {
   return request<DocumentSourceSummary>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources`,
+    `${documentOperationsPath(target)}/sources`,
     {
       method: 'POST',
       headers: { 'Idempotency-Key': crypto.randomUUID() },
@@ -5643,25 +5689,25 @@ export function registerDocumentSource(
   )
 }
 
-export function fetchDocumentSourceDetail(deploymentId: string, sourceId: string) {
+export function fetchDocumentSourceDetail(target: DeploymentTargetReference, sourceId: string) {
   return request<DocumentSourceDetail>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}`,
+    `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}`,
   )
 }
 
-export function previewDocumentSource(deploymentId: string, sourceId: string) {
+export function previewDocumentSource(target: DeploymentTargetReference, sourceId: string) {
   return request<DocumentPreviewResult>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}/preview`,
+    `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}/preview`,
   )
 }
 
 function documentCommand(
-  deploymentId: string,
+  target: DeploymentTargetReference,
   sourceId: string,
   operation: 'refresh' | 'index' | 'reconcile',
 ) {
   return request<DocumentOperationResult>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}/${operation}`,
+    `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}/${operation}`,
     {
       method: 'POST',
       headers: { 'Idempotency-Key': crypto.randomUUID() },
@@ -5670,44 +5716,44 @@ function documentCommand(
   )
 }
 
-export function refreshDocumentSource(deploymentId: string, sourceId: string) {
-  return documentCommand(deploymentId, sourceId, 'refresh')
+export function refreshDocumentSource(target: DeploymentTargetReference, sourceId: string) {
+  return documentCommand(target, sourceId, 'refresh')
 }
 
-export function indexDocumentSource(deploymentId: string, sourceId: string) {
-  return documentCommand(deploymentId, sourceId, 'index')
+export function indexDocumentSource(target: DeploymentTargetReference, sourceId: string) {
+  return documentCommand(target, sourceId, 'index')
 }
 
-export function reconcileDocumentSource(deploymentId: string, sourceId: string) {
-  return documentCommand(deploymentId, sourceId, 'reconcile')
+export function reconcileDocumentSource(target: DeploymentTargetReference, sourceId: string) {
+  return documentCommand(target, sourceId, 'reconcile')
 }
 
-export function removeDocumentIndex(deploymentId: string, sourceId: string) {
+export function removeDocumentIndex(target: DeploymentTargetReference, sourceId: string) {
   return request<DocumentOperationResult>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}`,
+    `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}`,
     { method: 'DELETE', headers: { 'Idempotency-Key': crypto.randomUUID() } },
   )
 }
 
 export function verifyDocumentRetrieval(
-  deploymentId: string,
+  target: DeploymentTargetReference,
   payload: { query: string; limit?: number },
 ) {
   return request<DocumentRetrievalProof>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retrieval-proof`,
+    `${documentOperationsPath(target)}/retrieval-proof`,
     { method: 'POST', body: JSON.stringify(payload) },
   )
 }
 
-export function fetchDocumentRetentionStatus(deploymentId: string) {
+export function fetchDocumentRetentionStatus(target: DeploymentTargetReference) {
   return request<DocumentRetentionStatus>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retention`,
+    `${documentOperationsPath(target)}/retention`,
   )
 }
 
-export function cleanupDocumentRetention(deploymentId: string) {
+export function cleanupDocumentRetention(target: DeploymentTargetReference) {
   return request<DocumentRetentionCleanupResult>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retention/cleanup`,
+    `${documentOperationsPath(target)}/retention/cleanup`,
     { method: 'POST', body: '{}' },
   )
 }
@@ -5904,7 +5950,7 @@ export function markDeploymentProviderResourceLifecycleStatus(
 
 export function planDeploymentPracticalPromotion(
   deploymentId: string,
-  payload: DeploymentPracticalPromotionRequest = {},
+  payload: DeploymentPracticalPromotionRequest,
 ) {
   return request<DeploymentPracticalPromotionSummary>(
     `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/plan`,
@@ -5917,7 +5963,7 @@ export function planDeploymentPracticalPromotion(
 
 export function requestDeploymentPracticalProductionApply(
   deploymentId: string,
-  payload: DeploymentPracticalPromotionRequest = {},
+  payload: DeploymentPracticalPromotionRequest,
 ) {
   return request<DeploymentPracticalPromotionSummary>(
     `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/production-apply`,
@@ -6490,6 +6536,8 @@ export function updatePlatformConsumerBinding(customerId: string, consumerId: st
   releaseId?: string
   targetProfileId?: string
   reason?: string
+  expectedBindingRevision: number
+  operationKey: string
 }) {
   return request<PlatformConsumerSummary>(
     `/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}/binding`,
@@ -6703,6 +6751,8 @@ export function dispatchPlatformVerificationSuiteRun(
     }
     documentKnowledgeExpectations?: {
       deploymentId: string
+      targetProfileId: string
+      releaseId: string
       datasetId: string
       textObjectReference: string
       textRetrievalQuery: string

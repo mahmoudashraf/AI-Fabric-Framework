@@ -2,6 +2,9 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -10,6 +13,35 @@ import java.util.UUID;
 
 @Service
 public class TenantScopedVectorHandleResolver {
+
+    public JsonNode targetScopedProviderConfig(DeploymentEntity deployment, JsonNode providerConfig, String targetProfileId) {
+        if (!ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerConfig)) return providerConfig;
+        if (!StringUtils.hasText(deployment.getCustomerId()) || !StringUtils.hasText(deployment.getTenantId())
+            || !StringUtils.hasText(deployment.getId()) || !StringUtils.hasText(targetProfileId)) {
+            throw new IllegalStateException("Shared vector storage requires explicit customer, tenant, deployment and target scope.");
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        var identity = mapper.createObjectNode().put("customer", deployment.getCustomerId()).put("tenant", deployment.getTenantId())
+            .put("deployment", deployment.getId()).put("target", targetProfileId);
+        String scope = DeploymentEvidenceFingerprint.hash(mapper, identity);
+        ObjectNode bound = (ObjectNode) providerConfig.deepCopy();
+        switch (ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)) {
+            case "pinecone" -> bound.put("pineconeNamespacePrefix", boundedBase(resolvePineconeNamespacePrefix(deployment, providerConfig)) + "--" + scope);
+            case "qdrant" -> bound.put("qdrantCollectionPrefix", boundedBase(resolveQdrantCollectionPrefix(deployment, providerConfig)) + scope + "__");
+            case "milvus" -> bound.put("milvusCollectionPrefix", boundedBase(resolveMilvusCollectionPrefix(deployment, providerConfig)) + scope + "__");
+            case "weaviate" -> {
+                bound.put("weaviateClassPrefix", boundedBase(resolveWeaviateClassPrefix(deployment, providerConfig)) + "Scope" + scope);
+                bound.put("weaviateTenantName", "scope-" + scope);
+            }
+            default -> throw new IllegalStateException("Selected vector backend does not support reviewed target-scoped shared storage.");
+        }
+        return bound;
+    }
+
+    private String boundedBase(String value) {
+        if (value.length() > 120) throw new IllegalStateException("Reviewed shared vector prefix is too long for target scope.");
+        return value;
+    }
 
     public String resolvePineconeNamespacePrefix(DeploymentEntity deployment, JsonNode providerConfig) {
         String namespacePrefix = ManagedDeploymentProfileCatalog.pineconeNamespacePrefix(providerConfig);

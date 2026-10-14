@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerReposito
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,9 +42,6 @@ import java.util.Set;
 
 @Service
 public class DeploymentPracticalPromotionService {
-
-    static final String DEFAULT_CUSTOMER_STAGING_TARGET_PROFILE_ID = "dtp-coolify-prod-staging";
-    static final String DEFAULT_PRODUCTION_TARGET_PROFILE_ID = "dtp-coolify-production";
 
     private static final String APPLIED_VERIFIED = "APPLIED_VERIFIED";
     private static final String PASSED = "PASSED";
@@ -83,6 +81,10 @@ public class DeploymentPracticalPromotionService {
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    private final DeploymentPromotionCandidateService candidates;
+    private final DeploymentPromotionCommandService commands;
+    private final DeploymentTargetContextService targets;
+    private final CustomerSelfServicePromotionBoundary customerBoundary;
 
     public DeploymentPracticalPromotionService(DeploymentRepository deploymentRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
@@ -94,7 +96,11 @@ public class DeploymentPracticalPromotionService {
                                                DeploymentService deploymentService,
                                                PlatformCustomerConsumerService platformCustomerConsumerService,
                                                PlatformAuditService platformAuditService,
-                                               ObjectMapper objectMapper) {
+                                               ObjectMapper objectMapper,
+                                               DeploymentPromotionCandidateService candidates,
+                                               DeploymentPromotionCommandService commands,
+                                               DeploymentTargetContextService targets,
+                                               CustomerSelfServicePromotionBoundary customerBoundary) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
@@ -106,12 +112,19 @@ public class DeploymentPracticalPromotionService {
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.candidates = candidates;
+        this.commands = commands;
+        this.targets = targets;
+        this.customerBoundary = customerBoundary;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public DeploymentPracticalPromotionSummary planPromotion(String deploymentId,
                                                              DeploymentPracticalPromotionRequest request) {
         PromotionContext context = requirePromotionContext(deploymentId, request);
+        customerBoundary.require(context.deployment(), context.productionTargetProfileId(), null,
+            context.stagingRelease().getSourceArtifactId(),
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.PROMOTION_PLAN, request.operationKey());
         return summary(
             "READY",
             "Verified customer staging release is ready for production promotion.",
@@ -125,17 +138,33 @@ public class DeploymentPracticalPromotionService {
     @Transactional
     public DeploymentPracticalPromotionSummary requestProductionPromotion(String deploymentId,
                                                                           DeploymentPracticalPromotionRequest request) {
+        DeploymentEntity deployment = requireOperatorDeployment(deploymentId);
+        if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Promotion request is required.");
+        return commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "PRODUCTION_APPLY",
+            request.operationKey(), request.expectedBindingRevision(), request,
+            consumer -> requestProductionPromotionOnce(deploymentId, request));
+    }
+
+    private DeploymentPracticalPromotionSummary requestProductionPromotionOnce(String deploymentId,
+                                                                               DeploymentPracticalPromotionRequest request) {
         PromotionContext context = requirePromotionContext(deploymentId, request);
-        String sourceArtifactId = normalizeOptional(request == null ? null : request.sourceArtifactId());
-        if (sourceArtifactId == null) {
-            sourceArtifactId = normalizeOptional(context.stagingRelease().getSourceArtifactId());
+        customerBoundary.require(context.deployment(), context.productionTargetProfileId(), null,
+            context.stagingRelease().getSourceArtifactId(),
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.PROMOTION_APPLY, request.operationKey());
+        if (!context.candidateFingerprint().equals(request.candidateFingerprint())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Promotion candidate changed; review a fresh plan.");
         }
         DeploymentReleaseSummary productionRelease = deploymentService.applyVersionForTrustedCaller(
             context.deployment().getId(),
             context.version().getId(),
             context.productionTargetProfileId(),
-            sourceArtifactId
+            context.stagingRelease().getSourceArtifactId()
         );
+        DeploymentReleaseEntity queuedRelease = deploymentReleaseRepository.findById(productionRelease.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Queued promotion release evidence is missing."));
+        queuedRelease.setPromotionCandidateJson(context.candidate().toString());
+        queuedRelease.setPromotionCandidateFingerprint(context.candidateFingerprint());
+        deploymentReleaseRepository.save(queuedRelease);
         platformAuditService.record(
             "DEPLOYMENT_PRACTICAL_PRODUCTION_PROMOTION_REQUESTED",
             "DEPLOYMENT",
@@ -162,17 +191,35 @@ public class DeploymentPracticalPromotionService {
     public DeploymentPracticalPromotionSummary activateProductionConsumer(String deploymentId,
                                                                           DeploymentPracticalPromotionActivationRequest request) {
         DeploymentEntity deployment = requireOperatorDeployment(deploymentId);
+        if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Activation request is required.");
+        return commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "ACTIVATE",
+            request.operationKey(), request.expectedBindingRevision(), request,
+            consumer -> activateProductionConsumerOnce(deployment, request, consumer));
+    }
+
+    private DeploymentPracticalPromotionSummary activateProductionConsumerOnce(DeploymentEntity deployment,
+                                                                                DeploymentPracticalPromotionActivationRequest request,
+                                                                                PlatformConsumerEntity consumer) {
         String productionReleaseId = requireText(request == null ? null : request.productionReleaseId(), "productionReleaseId");
         String consumerId = requireText(request == null ? null : request.consumerId(), "consumerId");
         DeploymentReleaseEntity productionRelease = requireVerifiedReleaseForDeployment(deployment.getId(), productionReleaseId);
-        if (!DEFAULT_PRODUCTION_TARGET_PROFILE_ID.equals(productionRelease.getTargetProfileId())) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Production activation requires release target profile " + DEFAULT_PRODUCTION_TARGET_PROFILE_ID + "."
-            );
+        customerBoundary.require(deployment, productionRelease.getTargetProfileId(), productionReleaseId,
+            productionRelease.getSourceArtifactId(),
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ACTIVATE, request.operationKey());
+        DeploymentTargetProfileEntity productionTarget = requireEnvironmentTarget(productionRelease.getTargetProfileId(), "production");
+        JsonNode frozen = readJson(productionRelease.getPromotionCandidateJson());
+        String stagingReleaseId = frozen.path("stagingReleaseId").asText();
+        PromotionContext context = requirePromotionContext(deployment.getId(), new DeploymentPracticalPromotionRequest(
+            consumer.getConsumerId(), request.expectedBindingRevision(), stagingReleaseId,
+            productionRelease.getTargetProfileId(), null, null));
+        if (!context.candidateFingerprint().equals(productionRelease.getPromotionCandidateFingerprint())
+            || !context.candidateFingerprint().equals(DeploymentEvidenceFingerprint.hash(objectMapper, frozen))
+            || !context.version().getId().equals(productionRelease.getDeploymentVersionId())
+            || !context.stagingRelease().getSourceArtifactId().equals(productionRelease.getSourceArtifactId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Production release does not match the frozen promotion candidate.");
         }
-
-        PlatformConsumerEntity consumer = requireCustomerConsumer(deployment.getCustomerId(), consumerId);
+        targets.resolve(deployment.getId(), productionRelease.getTargetProfileId(), productionRelease.getId(), true);
+        candidates.requireFreshVerification(deployment, context.version(), productionRelease, productionTarget);
         String previousDeploymentId = consumer.getBoundDeploymentId();
         String previousReleaseId = consumer.getBoundReleaseId();
         PlatformConsumerSummary updatedConsumer = platformCustomerConsumerService.updateBindingForTrustedPromotion(
@@ -181,20 +228,22 @@ public class DeploymentPracticalPromotionService {
             deployment.getId(),
             productionRelease.getId(),
             productionRelease.getTargetProfileId(),
-            reason(request == null ? null : request.reason(), "production_promotion_activation")
+            reason(request == null ? null : request.reason(), "production_promotion_activation"),
+            request.expectedBindingRevision(),
+            bindingOperationKey("activate", request.operationKey())
         );
 
         List<DeploymentProviderResourceLifecycleSummary> lifecycleChanges = new ArrayList<>();
         lifecycleChanges.addAll(markHandlesByRelease(productionRelease.getId(), "ACTIVE", "Production consumer activated."));
         if (StringUtils.hasText(previousReleaseId) && !productionRelease.getId().equals(previousReleaseId)) {
-            lifecycleChanges.addAll(markHandlesByRelease(previousReleaseId, "ROLLBACK_RESERVED", "Previous production release kept for rollback."));
+            lifecycleChanges.addAll(markHandlesByRelease(previousReleaseId, "ROLLBACK_RESERVED", "Previous bound release retained for controlled recovery."));
         } else if (StringUtils.hasText(previousDeploymentId) && !deployment.getId().equals(previousDeploymentId)) {
             lifecycleChanges.addAll(markHandlesForDeployment(previousDeploymentId, "ROLLBACK_RESERVED", "Previous deployment kept for rollback."));
         }
         if (request != null && request.markStagingSuperseded()) {
             lifecycleChanges.addAll(markHandlesForDeploymentAndTarget(
                 deployment.getId(),
-                DEFAULT_CUSTOMER_STAGING_TARGET_PROFILE_ID,
+                context.stagingTargetProfileId(),
                 "SUPERSEDED",
                 "Customer staging release superseded by production activation."
             ));
@@ -217,14 +266,15 @@ public class DeploymentPracticalPromotionService {
             "Production consumer now resolves the verified production release.",
             deployment.getId(),
             productionRelease.getDeploymentVersionId(),
-            DEFAULT_CUSTOMER_STAGING_TARGET_PROFILE_ID,
+            context.stagingTargetProfileId(),
             productionRelease.getTargetProfileId(),
             null,
             null,
             productionRelease.getId(),
             productionRelease.getStatus(),
             updatedConsumer,
-            lifecycleChanges
+            lifecycleChanges,
+            context.candidateFingerprint()
         );
     }
 
@@ -232,6 +282,15 @@ public class DeploymentPracticalPromotionService {
     public DeploymentPracticalPromotionSummary rollbackProductionConsumer(String deploymentId,
                                                                           DeploymentPracticalPromotionRollbackRequest request) {
         DeploymentEntity deployment = requireOperatorDeployment(deploymentId);
+        if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rollback request is required.");
+        return commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "ROLLBACK",
+            request.operationKey(), request.expectedBindingRevision(), request,
+            consumer -> rollbackProductionConsumerOnce(deployment, request, consumer));
+    }
+
+    private DeploymentPracticalPromotionSummary rollbackProductionConsumerOnce(DeploymentEntity deployment,
+                                                                               DeploymentPracticalPromotionRollbackRequest request,
+                                                                               PlatformConsumerEntity consumer) {
         String consumerId = requireText(request == null ? null : request.consumerId(), "consumerId");
         String rollbackDeploymentId = requireText(request == null ? null : request.rollbackDeploymentId(), "rollbackDeploymentId");
         String rollbackReleaseId = requireText(request == null ? null : request.rollbackReleaseId(), "rollbackReleaseId");
@@ -240,12 +299,19 @@ public class DeploymentPracticalPromotionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rollback deployment belongs to a different customer.");
         }
         DeploymentReleaseEntity rollbackRelease = requireVerifiedReleaseForDeployment(rollbackDeployment.getId(), rollbackReleaseId);
+        customerBoundary.require(rollbackDeployment, rollbackRelease.getTargetProfileId(), rollbackReleaseId,
+            rollbackRelease.getSourceArtifactId(),
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ROLLBACK, request.operationKey());
         String requestedTargetProfileId = normalizeOptional(request == null ? null : request.rollbackTargetProfileId());
         if (requestedTargetProfileId != null && !requestedTargetProfileId.equals(rollbackRelease.getTargetProfileId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rollback release target profile does not match request.");
         }
 
-        PlatformConsumerEntity consumer = requireCustomerConsumer(deployment.getCustomerId(), consumerId);
+        var target = requireActiveTargetProfile(rollbackRelease.getTargetProfileId());
+        targets.resolve(rollbackDeployment.getId(), target.getId(), rollbackRelease.getId(), true);
+        var version = deploymentVersionRepository.findById(rollbackRelease.getDeploymentVersionId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Rollback version evidence is missing."));
+        candidates.requireFreshVerification(rollbackDeployment, version, rollbackRelease, target);
         String currentReleaseId = consumer.getBoundReleaseId();
         PlatformConsumerSummary updatedConsumer = platformCustomerConsumerService.updateBindingForTrustedPromotion(
             rollbackDeployment.getCustomerId(),
@@ -253,7 +319,9 @@ public class DeploymentPracticalPromotionService {
             rollbackDeployment.getId(),
             rollbackRelease.getId(),
             rollbackRelease.getTargetProfileId(),
-            reason(request == null ? null : request.reason(), "production_assignment_rollback")
+            reason(request == null ? null : request.reason(), "production_assignment_rollback"),
+            request.expectedBindingRevision(),
+            bindingOperationKey("rollback", request.operationKey())
         );
         List<DeploymentProviderResourceLifecycleSummary> lifecycleChanges = new ArrayList<>();
         lifecycleChanges.addAll(markHandlesByRelease(rollbackRelease.getId(), "ACTIVE", "Rollback release reactivated."));
@@ -277,14 +345,15 @@ public class DeploymentPracticalPromotionService {
             "Production consumer now resolves the verified rollback release.",
             rollbackDeployment.getId(),
             rollbackRelease.getDeploymentVersionId(),
-            DEFAULT_CUSTOMER_STAGING_TARGET_PROFILE_ID,
+            null,
             rollbackRelease.getTargetProfileId(),
             null,
             null,
             rollbackRelease.getId(),
             rollbackRelease.getStatus(),
             updatedConsumer,
-            lifecycleChanges
+            lifecycleChanges,
+            rollbackRelease.getPromotionCandidateFingerprint()
         );
     }
 
@@ -328,44 +397,39 @@ public class DeploymentPracticalPromotionService {
 
     private PromotionContext requirePromotionContext(String deploymentId, DeploymentPracticalPromotionRequest request) {
         DeploymentEntity deployment = requireOperatorDeployment(deploymentId);
-        String stagingTargetProfileId = normalizeOptional(request == null ? null : request.stagingTargetProfileId());
-        if (stagingTargetProfileId == null) {
-            stagingTargetProfileId = DEFAULT_CUSTOMER_STAGING_TARGET_PROFILE_ID;
+        if (request == null || request.expectedBindingRevision() == null || request.expectedBindingRevision() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An exact consumer-bound promotion request is required.");
         }
-        String productionTargetProfileId = normalizeOptional(request == null ? null : request.productionTargetProfileId());
-        if (productionTargetProfileId == null) {
-            productionTargetProfileId = DEFAULT_PRODUCTION_TARGET_PROFILE_ID;
+        PlatformConsumerEntity consumer = requireCustomerConsumer(deployment.getCustomerId(), requireText(request.consumerId(), "consumerId"));
+        if (!"ACTIVE".equals(consumer.getStatus()) || consumer.getBindingRevision() != request.expectedBindingRevision()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Consumer binding changed; review a fresh promotion plan.");
         }
+        DeploymentReleaseEntity stagingRelease = requireVerifiedReleaseForDeployment(deploymentId, requireText(request.stagingReleaseId(), "stagingReleaseId"));
+        String stagingTargetProfileId = requireText(stagingRelease.getTargetProfileId(), "stagingTargetProfileId");
+        String productionTargetProfileId = requireText(request.productionTargetProfileId(), "productionTargetProfileId");
         if (stagingTargetProfileId.equals(productionTargetProfileId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Staging and production target profiles must be different.");
         }
-        DeploymentTargetProfileEntity stagingTargetProfile = requireActiveTargetProfile(stagingTargetProfileId);
-        DeploymentTargetProfileEntity productionTargetProfile = requireActiveTargetProfile(productionTargetProfileId);
+        DeploymentTargetProfileEntity stagingTargetProfile = requireEnvironmentTarget(stagingTargetProfileId, "staging");
+        DeploymentTargetProfileEntity productionTargetProfile = requireEnvironmentTarget(productionTargetProfileId, "production");
         if (stagingTargetProfile.getProviderType() != productionTargetProfile.getProviderType()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Staging and production target profiles must use the same provider type.");
         }
 
-        String requestedVersionId = normalizeOptional(request == null ? null : request.versionId());
-        DeploymentReleaseEntity stagingRelease = requestedVersionId == null
-            ? latestVerifiedReleaseForTarget(deployment.getId(), stagingTargetProfileId)
-            : latestVerifiedReleaseForTargetAndVersion(deployment.getId(), requestedVersionId, stagingTargetProfileId);
-        if (stagingRelease == null) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "No verified customer staging release exists for target profile " + stagingTargetProfileId + "."
-            );
-        }
         DeploymentVersionEntity version = deploymentVersionRepository.findById(stagingRelease.getDeploymentVersionId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Version not found: " + stagingRelease.getDeploymentVersionId()));
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Version does not belong to deployment.");
         }
+        ObjectNode candidate = candidates.resolve(deployment, version, stagingRelease, productionTargetProfile, consumer);
         return new PromotionContext(
             deployment,
             version,
             stagingRelease,
             stagingTargetProfileId,
-            productionTargetProfileId
+            productionTargetProfileId,
+            candidate,
+            candidates.fingerprint(candidate)
         );
     }
 
@@ -385,24 +449,17 @@ public class DeploymentPracticalPromotionService {
         return profile;
     }
 
-    private DeploymentReleaseEntity latestVerifiedReleaseForTarget(String deploymentId, String targetProfileId) {
-        return deploymentReleaseRepository.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deploymentId, targetProfileId)
-            .stream()
-            .filter(this::verifiedRelease)
-            .findFirst()
-            .orElse(null);
+    private DeploymentTargetProfileEntity requireEnvironmentTarget(String id, String environment) {
+        var profile = requireActiveTargetProfile(id);
+        if (!environment.equalsIgnoreCase(profile.getEnvironmentName())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Promotion target environment does not match " + environment + ".");
+        }
+        return profile;
     }
 
-    private DeploymentReleaseEntity latestVerifiedReleaseForTargetAndVersion(String deploymentId,
-                                                                             String versionId,
-                                                                             String targetProfileId) {
-        return deploymentReleaseRepository.findTopByDeploymentIdAndDeploymentVersionIdAndTargetProfileIdOrderByCreatedAtDesc(
-                deploymentId,
-                versionId,
-                targetProfileId
-            )
-            .filter(this::verifiedRelease)
-            .orElse(null);
+    private String bindingOperationKey(String kind, String key) {
+        var input = objectMapper.createObjectNode().put("kind", kind).put("key", key);
+        return "promotion:" + DeploymentEvidenceFingerprint.hash(objectMapper, input);
     }
 
     private DeploymentReleaseEntity requireVerifiedReleaseForDeployment(String deploymentId, String releaseId) {
@@ -433,6 +490,7 @@ public class DeploymentPracticalPromotionService {
                                                                                   String reason) {
         return resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc(releaseId)
             .stream()
+            .filter(this::providerLifecycleResource)
             .map(handle -> markHandle(handle, status, reason))
             .toList();
     }
@@ -442,6 +500,7 @@ public class DeploymentPracticalPromotionService {
                                                                                       String reason) {
         return resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId)
             .stream()
+            .filter(this::providerLifecycleResource)
             .map(handle -> markHandle(handle, status, reason))
             .toList();
     }
@@ -452,6 +511,7 @@ public class DeploymentPracticalPromotionService {
                                                                                                String reason) {
         return resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(deploymentId, targetProfileId)
             .stream()
+            .filter(this::providerLifecycleResource)
             .map(handle -> markHandle(handle, status, reason))
             .toList();
     }
@@ -461,10 +521,17 @@ public class DeploymentPracticalPromotionService {
                                                                  String reason) {
         String normalizedStatus = normalizeLifecycleStatus(status);
         String previousStatus = handle.getStatus();
+        if (Set.of("DELETED", "RETIRED", "DELETE_REQUESTED").contains(normalized(previousStatus))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Promotion cannot reactivate a retired or deleting resource.");
+        }
         handle.setStatus(normalizedStatus);
         handle.setUpdatedAt(Instant.now());
         resourceHandleRepository.save(handle);
         return lifecycleSummary(handle, previousStatus, normalizedStatus, "LIFECYCLE_STATUS_UPDATED", reason);
+    }
+
+    private boolean providerLifecycleResource(DeploymentProviderResourceHandleEntity handle) {
+        return !DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind());
     }
 
     private String normalizeLifecycleStatus(String status) {
@@ -549,7 +616,8 @@ public class DeploymentPracticalPromotionService {
             productionReleaseId,
             productionReleaseStatus,
             null,
-            resources
+            resources,
+            context.candidateFingerprint()
         );
     }
 
@@ -595,7 +663,9 @@ public class DeploymentPracticalPromotionService {
         DeploymentVersionEntity version,
         DeploymentReleaseEntity stagingRelease,
         String stagingTargetProfileId,
-        String productionTargetProfileId
+        String productionTargetProfileId,
+        ObjectNode candidate,
+        String candidateFingerprint
     ) {
     }
 }

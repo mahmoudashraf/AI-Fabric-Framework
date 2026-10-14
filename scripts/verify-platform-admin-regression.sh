@@ -394,7 +394,7 @@ cleanup() {
     platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}" "${payload}" || true
   fi
   if [[ -n "${TEMP_CONSUMER_ID}" && -n "${TEMP_CONSUMER_CUSTOMER_ID}" ]]; then
-    platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" '{"deploymentId":null,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh"}' || true
+    consumer_binding_command '' 'Best-effort cleanup from verify-platform-admin-regression.sh' || true
     platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}" || true
   fi
   if [[ -n "${TEMP_CONSUMER_DEPLOYMENT_ID}" ]]; then
@@ -406,6 +406,28 @@ cleanup() {
     platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/secrets/deployment-overrides/${TEMP_OVERRIDE_SECRET_NAME}" || true
   fi
   rm -rf "${TMP_DIR}"
+}
+
+consumer_binding_command() {
+  local deployment_id="$1"
+  local reason="$2"
+  platform_http GET "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers"
+  [[ "${HTTP_STATUS}" == "200" ]] || return 1
+  local payload
+  payload="$(JSON_BODY="${HTTP_BODY}" CONSUMER_ID="${TEMP_CONSUMER_ID}" DEPLOYMENT_ID="${deployment_id}" BINDING_REASON="${reason}" python3 - <<'PY'
+import json
+import os
+import uuid
+consumer = next(item for item in json.loads(os.environ['JSON_BODY']) if item['consumerId'] == os.environ['CONSUMER_ID'])
+print(json.dumps({
+    'deploymentId': os.environ['DEPLOYMENT_ID'] or None,
+    'reason': os.environ['BINDING_REASON'],
+    'expectedBindingRevision': consumer['bindingRevision'],
+    'operationKey': str(uuid.uuid4())
+}))
+PY
+  )" || return 1
+  platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" "${payload}"
 }
 
 build_create_deployment_payload() {
@@ -741,7 +763,9 @@ import os
 
 payload = {
     "deploymentId": os.environ["DEPLOYMENT_ID"],
-    "reason": "Rebind consumer to the replacement deployment during live regression."
+    "reason": "Rebind consumer to the replacement deployment during live regression.",
+    "expectedBindingRevision": 0,
+    "operationKey": "live-regression-rebind"
 }
 print(json.dumps(payload))
 PY
@@ -761,7 +785,7 @@ PY
   json_assert "consumer binding history" $'items = data or []\nassert isinstance(items, list)\nassert len(items) >= 2, items\nassert any((item or {}).get("toDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'" for item in items), items\nassert any((item or {}).get("toDeploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'" for item in items), items\nprint("ok")'
   pass "platform GET /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/history"
 
-  platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" '{"deploymentId":null,"reason":"Unbind consumer after live regression."}'
+  consumer_binding_command '' 'Unbind consumer after live regression.'
   assert_status 200 "unbind consumer smoke"
   json_assert "unbind consumer smoke" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") in (None, "")\nprint("ok")'
   pass "platform PUT /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding -> unbound"

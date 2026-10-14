@@ -3,8 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -47,9 +46,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     private static final String INDEX_SCOPE = "documents:index";
     private static final String DELETE_SCOPE = "documents:delete-index";
 
-    private final DeploymentRepository deploymentRepository;
-    private final DeploymentVersionRepository versionRepository;
-    private final DeploymentAccessService accessService;
+    private final DeploymentTargetContextService targetContextService;
     private final PlatformSecretService secretService;
     private final RuntimePrivateAssertionSigningService assertionSigningService;
     private final PlatformAuditService auditService;
@@ -58,18 +55,14 @@ public class DeploymentDocumentKnowledgeOperationsService {
 
     @Autowired
     public DeploymentDocumentKnowledgeOperationsService(
-        DeploymentRepository deploymentRepository,
-        DeploymentVersionRepository versionRepository,
-        DeploymentAccessService accessService,
+        DeploymentTargetContextService targetContextService,
         PlatformSecretService secretService,
         RuntimePrivateAssertionSigningService assertionSigningService,
         PlatformAuditService auditService,
         ObjectMapper objectMapper
     ) {
         this(
-            deploymentRepository,
-            versionRepository,
-            accessService,
+            targetContextService,
             secretService,
             assertionSigningService,
             auditService,
@@ -79,18 +72,14 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
 
     DeploymentDocumentKnowledgeOperationsService(
-        DeploymentRepository deploymentRepository,
-        DeploymentVersionRepository versionRepository,
-        DeploymentAccessService accessService,
+        DeploymentTargetContextService targetContextService,
         PlatformSecretService secretService,
         RuntimePrivateAssertionSigningService assertionSigningService,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
         HttpClient httpClient
     ) {
-        this.deploymentRepository = deploymentRepository;
-        this.versionRepository = versionRepository;
-        this.accessService = accessService;
+        this.targetContextService = targetContextService;
         this.secretService = secretService;
         this.assertionSigningService = assertionSigningService;
         this.auditService = auditService;
@@ -98,38 +87,38 @@ public class DeploymentDocumentKnowledgeOperationsService {
         this.httpClient = httpClient;
     }
 
-    public RuntimeResponse connectorStatus(String deploymentId) {
-        return send(requireAccess(deploymentId, false), "GET", "/api/documents/source-connector/status", null, null, READ_SCOPE);
+    public RuntimeResponse connectorStatus(DeploymentTargetReference target) {
+        return send(requireAccess(target, false), "GET", "/api/documents/source-connector/status", null, null, READ_SCOPE);
     }
 
-    public RuntimeResponse discover(String deploymentId, JsonNode body) {
+    public RuntimeResponse discover(DeploymentTargetReference target, JsonNode body) {
         JsonNode safe = boundedBody(body, Set.of("datasetId", "cursor", "limit"));
-        return send(requireAccess(deploymentId, false), "POST", "/api/documents/sources/discover", safe, null, READ_SCOPE);
+        return send(requireAccess(target, false), "POST", "/api/documents/sources/discover", safe, null, READ_SCOPE);
     }
 
-    public RuntimeResponse list(String deploymentId) {
-        return send(requireAccess(deploymentId, false), "GET", "/api/documents/sources", null, null, READ_SCOPE);
+    public RuntimeResponse list(DeploymentTargetReference target) {
+        return send(requireAccess(target, false), "GET", "/api/documents/sources", null, null, READ_SCOPE);
     }
 
-    public RuntimeResponse detail(String deploymentId, String sourceId) {
-        return send(requireAccess(deploymentId, false), "GET", sourcePath(sourceId), null, null, READ_SCOPE);
+    public RuntimeResponse detail(DeploymentTargetReference target, String sourceId) {
+        return send(requireAccess(target, false), "GET", sourcePath(sourceId), null, null, READ_SCOPE);
     }
 
-    public RuntimeResponse preview(String deploymentId, String sourceId) {
-        return send(requireAccess(deploymentId, false), "GET", sourcePath(sourceId) + "/preview", null, null, READ_SCOPE);
+    public RuntimeResponse preview(DeploymentTargetReference target, String sourceId) {
+        return send(requireAccess(target, false), "GET", sourcePath(sourceId) + "/preview", null, null, READ_SCOPE);
     }
 
-    public RuntimeResponse retrievalProof(String deploymentId, JsonNode body) {
+    public RuntimeResponse retrievalProof(DeploymentTargetReference target, JsonNode body) {
         JsonNode safe = boundedBody(body, Set.of("query", "limit"));
-        return send(requireAccess(deploymentId, false), "POST", "/api/documents/retrieval-proof", safe, null, READ_SCOPE);
+        return send(requireAccess(target, false), "POST", "/api/documents/retrieval-proof", safe, null, READ_SCOPE);
     }
 
-    public RuntimeResponse retentionStatus(String deploymentId) {
-        return send(requireAccess(deploymentId, false), "GET", "/api/documents/retention", null, null, READ_SCOPE);
+    public RuntimeResponse retentionStatus(DeploymentTargetReference target) {
+        return send(requireAccess(target, false), "GET", "/api/documents/retention", null, null, READ_SCOPE);
     }
 
-    public RuntimeResponse cleanupRetention(String deploymentId) {
-        OperationAccess access = requireAccess(deploymentId, true);
+    public RuntimeResponse cleanupRetention(DeploymentTargetReference target) {
+        OperationAccess access = requireAccess(target, true);
         RuntimeResponse response = send(
             access,
             "POST",
@@ -144,8 +133,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return response;
     }
 
-    public RuntimeResponse register(String deploymentId, JsonNode body, String idempotencyKey) {
-        OperationAccess access = requireAccess(deploymentId, true);
+    public RuntimeResponse register(DeploymentTargetReference target, JsonNode body, String idempotencyKey) {
+        OperationAccess access = requireAccess(target, true);
         JsonNode safe = boundedBody(body, Set.of("datasetId", "objectReference", "visibility", "metadata"));
         String key = idempotencyKey(idempotencyKey, "document-register");
         RuntimeResponse response = send(access, "POST", "/api/documents/sources", safe, key, REGISTER_SCOPE);
@@ -153,20 +142,20 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return response;
     }
 
-    public RuntimeResponse refresh(String deploymentId, String sourceId, String idempotencyKey) {
-        return command(deploymentId, sourceId, "refresh", idempotencyKey, INDEX_SCOPE, "DOCUMENT_SOURCE_REFRESH_REQUESTED");
+    public RuntimeResponse refresh(DeploymentTargetReference target, String sourceId, String idempotencyKey) {
+        return command(target, sourceId, "refresh", idempotencyKey, INDEX_SCOPE, "DOCUMENT_SOURCE_REFRESH_REQUESTED");
     }
 
-    public RuntimeResponse index(String deploymentId, String sourceId, String idempotencyKey) {
-        return command(deploymentId, sourceId, "index", idempotencyKey, INDEX_SCOPE, "DOCUMENT_SOURCE_INDEX_REQUESTED");
+    public RuntimeResponse index(DeploymentTargetReference target, String sourceId, String idempotencyKey) {
+        return command(target, sourceId, "index", idempotencyKey, INDEX_SCOPE, "DOCUMENT_SOURCE_INDEX_REQUESTED");
     }
 
-    public RuntimeResponse reconcile(String deploymentId, String sourceId, String idempotencyKey) {
-        return command(deploymentId, sourceId, "reconcile", idempotencyKey, INDEX_SCOPE, "DOCUMENT_SOURCE_RECONCILED");
+    public RuntimeResponse reconcile(DeploymentTargetReference target, String sourceId, String idempotencyKey) {
+        return command(target, sourceId, "reconcile", idempotencyKey, INDEX_SCOPE, "DOCUMENT_SOURCE_RECONCILED");
     }
 
-    public RuntimeResponse removeIndex(String deploymentId, String sourceId, String idempotencyKey) {
-        OperationAccess access = requireAccess(deploymentId, true);
+    public RuntimeResponse removeIndex(DeploymentTargetReference target, String sourceId, String idempotencyKey) {
+        OperationAccess access = requireAccess(target, true);
         String key = idempotencyKey(idempotencyKey, "document-delete-index");
         RuntimeResponse response = send(access, "DELETE", sourcePath(sourceId), null, key, DELETE_SCOPE);
         auditSuccess("DOCUMENT_INDEX_REMOVAL_REQUESTED", access, response, Map.of(
@@ -177,13 +166,13 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return response;
     }
 
-    private RuntimeResponse command(String deploymentId,
+    private RuntimeResponse command(DeploymentTargetReference target,
                                     String sourceId,
                                     String operation,
                                     String idempotencyKey,
                                     String scope,
                                     String auditAction) {
-        OperationAccess access = requireAccess(deploymentId, true);
+        OperationAccess access = requireAccess(target, true);
         String key = idempotencyKey(idempotencyKey, "document-" + operation);
         RuntimeResponse response = send(
             access,
@@ -197,35 +186,25 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return response;
     }
 
-    private OperationAccess requireAccess(String deploymentId, boolean mutate) {
-        DeploymentEntity deployment = deploymentRepository.findById(required(deploymentId, "deploymentId", 64))
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
-        if (mutate) {
-            accessService.requireDeploymentOperatorAccess(deployment);
-        } else {
-            accessService.requireDeploymentAccess(deployment);
-        }
+    private OperationAccess requireAccess(DeploymentTargetReference target, boolean mutate) {
+        if (target == null) throw new ResponseStatusException(BAD_REQUEST, "Explicit target and release context is required.");
+        DeploymentTargetContextService.Context context = targetContextService.resolve(
+            target.deploymentId(), target.targetProfileId(), target.releaseId(), mutate
+        );
+        DeploymentEntity deployment = context.deployment();
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null) {
             throw new ResponseStatusException(NOT_FOUND, "Deployment not found.");
         }
-        if (!StringUtils.hasText(deployment.getActiveVersionId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Apply a document-enabled deployment version first.");
-        }
-        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
-            .filter(value -> deployment.getId().equals(value.getDeploymentId()))
-            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "The active deployment version is unavailable."));
+        DeploymentVersionEntity version = context.version();
         if (!claimsDocumentCapability(version)) {
-            throw new ResponseStatusException(BAD_REQUEST, "The active deployment version does not claim Document Knowledge Operations.");
-        }
-        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
-            throw new ResponseStatusException(BAD_REQUEST, "The deployment runtime URL is unavailable.");
+            throw new ResponseStatusException(BAD_REQUEST, "The selected release version does not claim Document Knowledge Operations.");
         }
         if (!StringUtils.hasText(secretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
             || !assertionSigningService.isConfigured()) {
             throw new ResponseStatusException(BAD_REQUEST, "Secure private-runtime document administration is not configured.");
         }
-        return new OperationAccess(deployment, principal);
+        return new OperationAccess(context, principal);
     }
 
     private boolean claimsDocumentCapability(DeploymentVersionEntity version) {
@@ -248,7 +227,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
                                  String idempotencyKey,
                                  String scope) {
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(runtimeUri(access.deployment().getRuntimeBaseUrl(), path))
+            HttpRequest.Builder builder = HttpRequest.newBuilder(runtimeUri(access.context().runtimeBaseUrl(), path))
                 .timeout(RUNTIME_TIMEOUT)
                 .header("Accept", "application/json");
             runtimeHeaders(access, List.of(scope)).forEach(builder::header);
@@ -343,6 +322,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         details.forEach(safe::put);
         safe.put("actorId", access.principal().actorId());
         safe.put("runtimeStatus", response.statusCode());
+        safe.put("targetProfileId", access.context().target().getId());
+        safe.put("releaseId", access.context().release().getId());
         auditService.record(action, "DEPLOYMENT", access.deployment().getId(), safe);
     }
 
@@ -412,7 +393,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         }
     }
 
-    private record OperationAccess(DeploymentEntity deployment, PlatformPrincipal principal) {
+    private record OperationAccess(DeploymentTargetContextService.Context context, PlatformPrincipal principal) {
+        DeploymentEntity deployment() { return context.deployment(); }
     }
 
     public record RuntimeResponse(int statusCode, JsonNode body) {

@@ -26,6 +26,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -301,7 +302,8 @@ class DeploymentReleaseExecutionServiceTest {
         when(releaseRepository.findById("rel-123")).thenReturn(Optional.of(release));
         when(releaseRepository.save(any(DeploymentReleaseEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(tenantSummary);
+        release.setTargetProfileId("target-stage");
+        when(deploymentTenantScopedVectorService.build(any(), any(), eq("target-stage"))).thenReturn(tenantSummary);
 
         ProvisioningResult provisioningResult = new ProvisioningResult(
             "RUNNING",

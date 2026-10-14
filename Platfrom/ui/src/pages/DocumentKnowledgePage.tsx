@@ -42,13 +42,15 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
   deleteDocumentStorageBinding,
   cleanupDocumentRetention,
   discoverDocumentSources,
   fetchDeploymentDraft,
+  fetchDeploymentReleases,
+  fetchDeploymentTargetContext,
   fetchDeploymentMarketplaceInstalls,
   fetchDeploymentTargetProfiles,
   fetchDocumentConnectorStatus,
@@ -67,6 +69,7 @@ import {
   upsertDocumentStorageBinding,
   verifyDocumentRetrieval,
   type DeploymentMarketplaceInstallSummary,
+  type DeploymentTargetReference,
   type DiscoveredDocumentSource,
   type DocumentSourceSummary,
   type UpsertDocumentStorageBindingRequest,
@@ -170,18 +173,60 @@ function configWithBinding(config: unknown, bindingRef: string): Record<string, 
   return { ...asRecord(config), documentStorageBindingRef: bindingRef }
 }
 
+function sameTarget(target: DeploymentTargetReference | undefined, current: DeploymentTargetReference): boolean {
+  return target?.deploymentId === current.deploymentId
+    && target?.targetProfileId === current.targetProfileId
+    && target?.releaseId === current.releaseId
+}
+
 export function DocumentKnowledgePage() {
   const queryClient = useQueryClient()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
+  const [useTargetBindingSlot, setUseTargetBindingSlot] = useState(false)
   const [bindingForm, setBindingForm] = useState<BindingForm>(emptyBindingForm)
   const [selectedSourceId, setSelectedSourceId] = useState('')
-  const [discoveryCursor, setDiscoveryCursor] = useState<string | undefined>()
+  const [selectedReleaseId, setSelectedReleaseId] = useState('')
+  const releasesQuery = useQuery({
+    queryKey: ['deployment-releases', selectedDeploymentId],
+    queryFn: () => fetchDeploymentReleases(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const availableReleases = (releasesQuery.data ?? []).filter((release) =>
+    release.targetProfileId && release.provisioningStatus === 'ACTIVE'
+    && ['VERIFYING', 'APPLIED_VERIFIED', 'APPLIED_VERIFICATION_FAILED'].includes(release.status))
+  const selectedRelease = availableReleases.find((release) => release.id === selectedReleaseId)
+  const targetReference = {
+    deploymentId: selectedDeploymentId,
+    targetProfileId: selectedRelease?.targetProfileId ?? '',
+    releaseId: selectedRelease?.id ?? '',
+  }
+  const targetQuery = useQuery({
+    queryKey: ['deployment-target-context', selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId],
+    queryFn: () => fetchDeploymentTargetContext(targetReference),
+    enabled: !!selectedRelease,
+    retry: false,
+  })
+  useEffect(() => {
+    setSelectedReleaseId('')
+  }, [selectedDeploymentId])
+  useEffect(() => {
+    setSelectedSourceId('')
+  }, [selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId])
   const [retrievalQuery, setRetrievalQuery] = useState('Summarize the approved document evidence.')
-  const [removeSource, setRemoveSource] = useState<DocumentSourceSummary | null>(null)
-  const [registrationSource, setRegistrationSource] = useState<DiscoveredDocumentSource | null>(null)
+  const [removalSelection, setRemovalSelection] = useState<{
+    target: DeploymentTargetReference; source: DocumentSourceSummary
+  } | null>(null)
+  const [registrationSelection, setRegistrationSelection] = useState<{
+    target: DeploymentTargetReference; source: DiscoveredDocumentSource
+  } | null>(null)
+  const removeSource = sameTarget(removalSelection?.target, targetReference) ? removalSelection?.source : null
+  const registrationSource = sameTarget(registrationSelection?.target, targetReference) ? registrationSelection?.source : null
   const [registrationCategory, setRegistrationCategory] = useState('')
   const [registrationVisibility, setRegistrationVisibility] = useState('tenant')
   const [registrationApproved, setRegistrationApproved] = useState(false)
+  // Completion callbacks may run after a different target or dialog has been selected.
+  const currentSelection = useRef({ target: targetReference, registrationSelection, removalSelection })
+  currentSelection.current = { target: targetReference, registrationSelection, removalSelection }
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -208,41 +253,35 @@ export function DocumentKnowledgePage() {
     () => documentDataset(draftQuery.data?.marketplaceDatasetConfig),
     [draftQuery.data?.marketplaceDatasetConfig],
   )
-  const datasetId = typeof dataset?.datasetId === 'string' ? dataset.datasetId : 'document-knowledge'
+  const datasetId = targetQuery.data?.documentDatasetIds[0]
+    ?? (typeof dataset?.datasetId === 'string' ? dataset.datasetId : 'document-knowledge')
   const install = useMemo(
     () => documentInstall(installsQuery.data ?? [], dataset),
     [dataset, installsQuery.data],
   )
   const publicAudiencePackage = install != null && PUBLIC_AUDIENCE_DOCUMENT_PLUGIN_IDS.has(install.pluginId)
-  const matchingProfiles = useMemo(() => (
-    (profilesQuery.data ?? []).filter((profile) => (
-      profile.active
-      && (!selectedDeploymentSummary?.environment
-        || !profile.environmentName
-        || profile.environmentName.toLowerCase() === selectedDeploymentSummary.environment.toLowerCase())
-    ))
-  ), [profilesQuery.data, selectedDeploymentSummary?.environment])
-
+  const configuredBindingRef = asRecord(install?.config).documentStorageBindingRef
   useEffect(() => {
-    if (!bindingForm.targetProfileId && matchingProfiles.length > 0) {
-      setBindingForm((current) => ({ ...current, targetProfileId: matchingProfiles[0].id }))
-    }
-  }, [bindingForm.targetProfileId, matchingProfiles])
+    setUseTargetBindingSlot(configuredBindingRef === 'slot:document-storage')
+  }, [selectedDeploymentId, install?.id, configuredBindingRef])
+  const matchingProfiles = useMemo(() => (
+    (profilesQuery.data ?? []).filter((profile) => profile.active)
+  ), [profilesQuery.data])
 
   const documentConfigured = workspace?.documentKnowledgeConfigured ?? dataset != null
-  const documentLive = workspace?.documentKnowledgeLive ?? false
+  const documentLive = !!selectedRelease && !!targetQuery.data?.documentDatasetIds.length
   const canAdmin = workspace?.access.canAdmin ?? false
   const canOperate = workspace?.access.canOperate ?? false
 
   const connectorQuery = useQuery({
-    queryKey: ['document-connector-status', selectedDeploymentId],
-    queryFn: () => fetchDocumentConnectorStatus(selectedDeploymentId),
+    queryKey: ['document-connector-status', selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId],
+    queryFn: () => fetchDocumentConnectorStatus(targetReference),
     enabled: selectedDeploymentId.length > 0 && documentLive,
     retry: false,
   })
   const sourcesQuery = useQuery({
-    queryKey: ['document-sources', selectedDeploymentId],
-    queryFn: () => fetchDocumentSources(selectedDeploymentId),
+    queryKey: ['document-sources', selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId],
+    queryFn: () => fetchDocumentSources(targetReference),
     enabled: selectedDeploymentId.length > 0 && documentLive,
     refetchInterval: (query) => {
       const sources = query.state.data as DocumentSourceSummary[] | undefined
@@ -252,126 +291,158 @@ export function DocumentKnowledgePage() {
     },
   })
   const retentionQuery = useQuery({
-    queryKey: ['document-retention-status', selectedDeploymentId],
-    queryFn: () => fetchDocumentRetentionStatus(selectedDeploymentId),
+    queryKey: ['document-retention-status', selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId],
+    queryFn: () => fetchDocumentRetentionStatus(targetReference),
     enabled: selectedDeploymentId.length > 0 && documentLive,
     retry: false,
   })
   const detailQuery = useQuery({
-    queryKey: ['document-source-detail', selectedDeploymentId, selectedSourceId],
-    queryFn: () => fetchDocumentSourceDetail(selectedDeploymentId, selectedSourceId),
+    queryKey: ['document-source-detail', selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId, selectedSourceId],
+    queryFn: () => fetchDocumentSourceDetail(targetReference, selectedSourceId),
     enabled: selectedDeploymentId.length > 0 && selectedSourceId.length > 0 && documentLive,
     refetchInterval: 4_000,
   })
 
-  const invalidateDocumentState = async () => {
+  const invalidateDocumentState = async (target: DeploymentTargetReference) => {
+    const scope = [target.deploymentId, target.targetProfileId, target.releaseId]
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['document-sources', selectedDeploymentId] }),
-      queryClient.invalidateQueries({ queryKey: ['document-source-detail', selectedDeploymentId] }),
-      queryClient.invalidateQueries({ queryKey: ['document-connector-status', selectedDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['document-sources', ...scope] }),
+      queryClient.invalidateQueries({ queryKey: ['document-source-detail', ...scope] }),
+      queryClient.invalidateQueries({ queryKey: ['document-connector-status', ...scope] }),
     ])
   }
 
   const saveBindingMutation = useMutation({
-    mutationFn: async () => {
-      const payload: UpsertDocumentStorageBindingRequest = bindingForm.connectorType === 'MOUNTED_FOLDER'
+    mutationFn: async (input: {
+      deploymentId: string; form: BindingForm; useTargetBindingSlot: boolean
+      install: DeploymentMarketplaceInstallSummary | null
+    }) => {
+      const { deploymentId, form, install, useTargetBindingSlot } = input
+      const payload: UpsertDocumentStorageBindingRequest = form.connectorType === 'MOUNTED_FOLDER'
         ? {
-            targetProfileId: bindingForm.targetProfileId,
+            targetProfileId: form.targetProfileId,
             connectorType: 'MOUNTED_FOLDER',
             mountedRoot: '/app/document-sources',
           }
         : {
-            targetProfileId: bindingForm.targetProfileId,
+            targetProfileId: form.targetProfileId,
             connectorType: 'S3_COMPATIBLE_OBJECT_STORAGE',
-            endpoint: bindingForm.endpoint,
-            region: bindingForm.region,
-            bucket: bindingForm.bucket,
-            prefix: bindingForm.prefix,
-            accessKey: bindingForm.accessKey,
-            secretKey: bindingForm.secretKey,
-            sessionToken: bindingForm.sessionToken || undefined,
-            pathStyleAccess: bindingForm.pathStyleAccess,
-            objectVersioningAvailable: bindingForm.objectVersioningAvailable,
-            allowInsecureEndpoint: bindingForm.allowInsecureEndpoint,
+            endpoint: form.endpoint,
+            region: form.region,
+            bucket: form.bucket,
+            prefix: form.prefix,
+            accessKey: form.accessKey,
+            secretKey: form.secretKey,
+            sessionToken: form.sessionToken || undefined,
+            pathStyleAccess: form.pathStyleAccess,
+            objectVersioningAvailable: form.objectVersioningAvailable,
+            allowInsecureEndpoint: form.allowInsecureEndpoint,
           }
-      const binding = await upsertDocumentStorageBinding(selectedDeploymentId, payload)
-      if (install) {
-        await updateDeploymentMarketplaceInstall(selectedDeploymentId, install.id, {
-          config: configWithBinding(install.config, binding.bindingRef),
+      const binding = await upsertDocumentStorageBinding(deploymentId, payload)
+      const compositionBindingRef = useTargetBindingSlot ? 'slot:document-storage' : binding.bindingRef
+      if (install && asRecord(install.config).documentStorageBindingRef !== compositionBindingRef) {
+        await updateDeploymentMarketplaceInstall(deploymentId, install.id, {
+          config: configWithBinding(install.config, compositionBindingRef),
         })
-        await resolveDeploymentMarketplaceInstall(selectedDeploymentId, install.id)
+        await resolveDeploymentMarketplaceInstall(deploymentId, install.id)
       }
       return binding
     },
-    onSuccess: async () => {
-      setBindingForm((current) => ({ ...current, accessKey: '', secretKey: '', sessionToken: '' }))
+    onSuccess: async (_, input) => {
+      if (currentSelection.current.target.deploymentId === input.deploymentId) {
+        setBindingForm((current) => current === input.form
+          ? { ...current, accessKey: '', secretKey: '', sessionToken: '' }
+          : current)
+      }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['document-storage-bindings', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-marketplace-installs', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['document-storage-bindings', input.deploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-marketplace-installs', input.deploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-draft', input.deploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', input.deploymentId] }),
       ])
     },
   })
 
   const deleteBindingMutation = useMutation({
-    mutationFn: (bindingRef: string) => deleteDocumentStorageBinding(selectedDeploymentId, bindingRef),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-storage-bindings', selectedDeploymentId] }),
+    mutationFn: (input: { deploymentId: string; bindingRef: string }) => deleteDocumentStorageBinding(input.deploymentId, input.bindingRef),
+    onSuccess: (_, input) => queryClient.invalidateQueries({ queryKey: ['document-storage-bindings', input.deploymentId] }),
   })
   const discoveryMutation = useMutation({
-    mutationFn: (cursor?: string) => discoverDocumentSources(selectedDeploymentId, {
-      datasetId,
-      cursor,
+    mutationFn: (input: { target: DeploymentTargetReference; datasetId: string; cursor?: string }) => discoverDocumentSources(input.target, {
+      datasetId: input.datasetId,
+      cursor: input.cursor,
       limit: 50,
     }),
-    onSuccess: (result) => setDiscoveryCursor(result.nextCursor ?? undefined),
   })
   const registerMutation = useMutation({
-    mutationFn: (input: { objectReference: string; sourceCategory: string; visibility: string }) => registerDocumentSource(selectedDeploymentId, {
-      datasetId,
+    mutationFn: (input: {
+      target: DeploymentTargetReference; datasetId: string; publicAudiencePackage: boolean
+      selection: NonNullable<typeof registrationSelection>
+      objectReference: string; sourceCategory: string; visibility: string
+    }) => registerDocumentSource(input.target, {
+      datasetId: input.datasetId,
       objectReference: input.objectReference,
       visibility: input.visibility,
       metadata: {
         sourceCategory: input.sourceCategory,
-        ...(publicAudiencePackage ? { publicationStatus: 'PUBLIC_APPROVED' } : {}),
+        ...(input.publicAudiencePackage ? { publicationStatus: 'PUBLIC_APPROVED' } : {}),
       },
     }),
-    onSuccess: async (source) => {
-      setSelectedSourceId(source.sourceId)
-      setRegistrationSource(null)
-      setRegistrationCategory('')
-      setRegistrationVisibility('tenant')
-      setRegistrationApproved(false)
-      await invalidateDocumentState()
+    onSuccess: async (source, input) => {
+      if (sameTarget(input.target, currentSelection.current.target)
+        && currentSelection.current.registrationSelection === input.selection) {
+        setSelectedSourceId(source.sourceId)
+        setRegistrationSelection(null)
+        setRegistrationCategory('')
+        setRegistrationVisibility('tenant')
+        setRegistrationApproved(false)
+      }
+      await invalidateDocumentState(input.target)
     },
   })
   const previewMutation = useMutation({
-    mutationFn: (sourceId: string) => previewDocumentSource(selectedDeploymentId, sourceId),
+    mutationFn: (input: { target: DeploymentTargetReference; sourceId: string }) => previewDocumentSource(input.target, input.sourceId),
   })
   const commandMutation = useMutation({
-    mutationFn: ({ sourceId, command }: { sourceId: string; command: 'refresh' | 'index' | 'reconcile' }) => {
-      if (command === 'refresh') return refreshDocumentSource(selectedDeploymentId, sourceId)
-      if (command === 'index') return indexDocumentSource(selectedDeploymentId, sourceId)
-      return reconcileDocumentSource(selectedDeploymentId, sourceId)
+    mutationFn: ({ target, sourceId, command }: { target: DeploymentTargetReference; sourceId: string; command: 'refresh' | 'index' | 'reconcile' }) => {
+      if (command === 'refresh') return refreshDocumentSource(target, sourceId)
+      if (command === 'index') return indexDocumentSource(target, sourceId)
+      return reconcileDocumentSource(target, sourceId)
     },
-    onSuccess: invalidateDocumentState,
+    onSuccess: (_, input) => invalidateDocumentState(input.target),
   })
   const removeMutation = useMutation({
-    mutationFn: (sourceId: string) => removeDocumentIndex(selectedDeploymentId, sourceId),
-    onSuccess: async () => {
-      setRemoveSource(null)
-      await invalidateDocumentState()
+    mutationFn: (input: { target: DeploymentTargetReference; sourceId: string; selection: NonNullable<typeof removalSelection> }) => removeDocumentIndex(input.target, input.sourceId),
+    onSuccess: async (_, input) => {
+      if (sameTarget(input.target, currentSelection.current.target)
+        && currentSelection.current.removalSelection === input.selection) {
+        setRemovalSelection(null)
+      }
+      await invalidateDocumentState(input.target)
     },
   })
   const retrievalMutation = useMutation({
-    mutationFn: () => verifyDocumentRetrieval(selectedDeploymentId, { query: retrievalQuery, limit: 8 }),
+    mutationFn: (input: { target: DeploymentTargetReference; query: string }) => verifyDocumentRetrieval(input.target, { query: input.query, limit: 8 }),
   })
   const retentionMutation = useMutation({
-    mutationFn: () => cleanupDocumentRetention(selectedDeploymentId),
-    onSuccess: () => queryClient.invalidateQueries({
-      queryKey: ['document-retention-status', selectedDeploymentId],
+    mutationFn: (input: { target: DeploymentTargetReference }) => cleanupDocumentRetention(input.target),
+    onSuccess: (_, input) => queryClient.invalidateQueries({
+      queryKey: ['document-retention-status', input.target.deploymentId, input.target.targetProfileId, input.target.releaseId],
     }),
   })
+
+  const bindingSaveCurrent = saveBindingMutation.variables?.deploymentId === selectedDeploymentId
+    && saveBindingMutation.variables.form.targetProfileId === bindingForm.targetProfileId
+  const discoveryCurrent = documentLive && sameTarget(discoveryMutation.variables?.target, targetReference)
+  const discoveryCursor = discoveryCurrent ? discoveryMutation.data?.nextCursor : undefined
+  const registrationCurrent = sameTarget(registerMutation.variables?.target, targetReference)
+    && registerMutation.variables?.selection === registrationSelection
+  const previewCurrent = documentLive && sameTarget(previewMutation.variables?.target, targetReference)
+    && previewMutation.variables?.sourceId === selectedSourceId
+  const commandCurrent = documentLive && sameTarget(commandMutation.variables?.target, targetReference)
+    && commandMutation.variables?.sourceId === selectedSourceId
+  const retrievalCurrent = documentLive && sameTarget(retrievalMutation.variables?.target, targetReference)
+  const retentionCurrent = documentLive && sameTarget(retentionMutation.variables?.target, targetReference)
 
   if (!selectedDeploymentId) {
     return <Alert severity="info">Select a deployment to open Document Knowledge.</Alert>
@@ -407,9 +478,25 @@ export function DocumentKnowledgePage() {
         </Stack>
       </Stack>
 
+      <TextField select fullWidth size="small" label="Target release" value={selectedReleaseId}
+        onChange={(event) => {
+          setSelectedReleaseId(event.target.value)
+          setSelectedSourceId('')
+          setRegistrationSelection(null)
+          setRemovalSelection(null)
+        }}>
+        <MenuItem value="">Select a provisioned target release</MenuItem>
+        {availableReleases.map((release) => (
+          <MenuItem key={release.id} value={release.id}>
+            {release.targetProfileId} · {release.id} · {release.status}
+          </MenuItem>
+        ))}
+      </TextField>
+      {targetQuery.error ? <Alert severity="error">{errorText(targetQuery.error)}</Alert> : null}
+
       {!documentLive ? (
         <Alert severity="warning">
-          Configure the target-scoped source binding, publish the draft, and apply a verified runtime before using document operations.
+          Select an explicitly provisioned target release before using document operations.
         </Alert>
       ) : null}
 
@@ -431,6 +518,11 @@ export function DocumentKnowledgePage() {
               <ToggleButton value="MOUNTED_FOLDER"><FolderOpenRoundedIcon sx={{ mr: 1 }} />Mounted demo</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
+          <FormControlLabel
+            control={<Checkbox checked={useTargetBindingSlot} onChange={(event) => setUseTargetBindingSlot(event.target.checked)}
+              disabled={!canAdmin || saveBindingMutation.isPending} />}
+            label="Use target-scoped document storage slot"
+          />
 
           {bindingForm.connectorType === 'MOUNTED_FOLDER' ? (
             <Alert severity="warning">Demo / small data only. The read-only mount path is fixed at /app/document-sources.</Alert>
@@ -491,14 +583,14 @@ export function DocumentKnowledgePage() {
             ) : null}
           </Grid>
 
-          {saveBindingMutation.isError ? <Alert severity="error">{errorText(saveBindingMutation.error)}</Alert> : null}
-          {saveBindingMutation.isSuccess ? <Alert severity="success">Binding saved and the DATA install draft was resolved.</Alert> : null}
+          {bindingSaveCurrent && saveBindingMutation.isError ? <Alert severity="error">{errorText(saveBindingMutation.error)}</Alert> : null}
+          {bindingSaveCurrent && saveBindingMutation.isSuccess ? <Alert severity="success">Storage binding saved.</Alert> : null}
           {!install ? <Alert severity="warning">The Document Knowledge DATA install is missing; binding configuration cannot be compiled into the deployment draft.</Alert> : null}
           <Stack direction="row" justifyContent="flex-end">
             <Button
               variant="contained" startIcon={<SaveRoundedIcon />}
               disabled={!canAdmin || !bindingForm.targetProfileId || saveBindingMutation.isPending}
-              onClick={() => saveBindingMutation.mutate()}
+              onClick={() => saveBindingMutation.mutate({ deploymentId: selectedDeploymentId, form: bindingForm, install, useTargetBindingSlot })}
             >
               Save binding
             </Button>
@@ -520,7 +612,7 @@ export function DocumentKnowledgePage() {
                     disabled={!canAdmin || deleteBindingMutation.isPending}
                     onClick={() => {
                       if (globalThis.confirm('Remove this binding and its managed credentials? Customer source objects will not be changed.')) {
-                        deleteBindingMutation.mutate(binding.bindingRef)
+                        deleteBindingMutation.mutate({ deploymentId: selectedDeploymentId, bindingRef: binding.bindingRef })
                       }
                     }}
                   ><DeleteOutlineRoundedIcon /></IconButton>
@@ -553,14 +645,14 @@ export function DocumentKnowledgePage() {
             <Button
               variant="outlined" startIcon={<SearchRoundedIcon />}
               disabled={!documentLive || !connectorQuery.data?.ready || discoveryMutation.isPending}
-              onClick={() => discoveryMutation.mutate(undefined)}
+              onClick={() => discoveryMutation.mutate({ target: targetReference, datasetId })}
             >Discover sources</Button>
             {discoveryCursor ? (
-              <Button variant="text" onClick={() => discoveryMutation.mutate(discoveryCursor)}>Next page</Button>
+              <Button variant="text" disabled={discoveryMutation.isPending} onClick={() => discoveryMutation.mutate({ target: targetReference, datasetId, cursor: discoveryCursor })}>Next page</Button>
             ) : null}
           </Stack>
-          {discoveryMutation.isError ? <Alert severity="error">{errorText(discoveryMutation.error)}</Alert> : null}
-          {discoveryMutation.data ? (
+          {discoveryCurrent && discoveryMutation.isError ? <Alert severity="error">{errorText(discoveryMutation.error)}</Alert> : null}
+          {discoveryCurrent && discoveryMutation.data ? (
             <TableContainer>
               <Table size="small">
                 <TableHead><TableRow><TableCell>Source</TableCell><TableCell>Type</TableCell><TableCell>Size</TableCell><TableCell>Modified</TableCell><TableCell>Status</TableCell><TableCell align="right">Action</TableCell></TableRow></TableHead>
@@ -577,11 +669,10 @@ export function DocumentKnowledgePage() {
                           size="small" startIcon={<DescriptionRoundedIcon />}
                           disabled={!!source.registeredSourceId || !canOperate || registerMutation.isPending}
                           onClick={() => {
-                            setRegistrationSource(source)
+                            setRegistrationSelection({ target: targetReference, source })
                             setRegistrationCategory('')
                             setRegistrationVisibility('tenant')
                             setRegistrationApproved(false)
-                            registerMutation.reset()
                           }}
                         >Register</Button>
                       </TableCell>
@@ -611,7 +702,7 @@ export function DocumentKnowledgePage() {
                 {(sourcesQuery.data ?? []).map((source) => (
                   <TableRow
                     hover key={source.sourceId} selected={source.sourceId === selectedSourceId}
-                    onClick={() => { setSelectedSourceId(source.sourceId); previewMutation.reset() }}
+                    onClick={() => setSelectedSourceId(source.sourceId)}
                     sx={{ cursor: 'pointer' }}
                   >
                     <TableCell>{source.displayName}</TableCell>
@@ -642,18 +733,19 @@ export function DocumentKnowledgePage() {
                   </Stack>
                 </Box>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button size="small" variant="outlined" startIcon={<PreviewRoundedIcon />} disabled={previewMutation.isPending} onClick={() => previewMutation.mutate(selectedSource.sourceId)}>Preview</Button>
-                  <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} disabled={!canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ sourceId: selectedSource.sourceId, command: 'index' })}>Index</Button>
-                  <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} disabled={!canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ sourceId: selectedSource.sourceId, command: 'refresh' })}>Refresh revision</Button>
-                  <Button size="small" variant="outlined" startIcon={<FactCheckRoundedIcon />} disabled={!canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ sourceId: selectedSource.sourceId, command: 'reconcile' })}>Reconcile</Button>
-                  <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} disabled={!canOperate || removeMutation.isPending} onClick={() => setRemoveSource(selectedSource)}>Remove index</Button>
+                  <Button size="small" variant="outlined" startIcon={<PreviewRoundedIcon />} disabled={!documentLive || previewMutation.isPending} onClick={() => previewMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId })}>Preview</Button>
+                  <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'index' })}>Index</Button>
+                  <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'refresh' })}>Refresh revision</Button>
+                  <Button size="small" variant="outlined" startIcon={<FactCheckRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'reconcile' })}>Reconcile</Button>
+                  <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} disabled={!documentLive || !canOperate || removeMutation.isPending} onClick={() => setRemovalSelection({ target: targetReference, source: selectedSource })}>Remove index</Button>
                 </Stack>
               </Stack>
               {selectedSource.failureCode ? <Alert severity="error">{selectedSource.failureCode}: {selectedSource.failureMessage}</Alert> : null}
-              {commandMutation.isError ? <Alert severity="error">{errorText(commandMutation.error)}</Alert> : null}
-              {commandMutation.data ? <Alert severity="success">Operation: {commandMutation.data.outcome}</Alert> : null}
+              {commandCurrent && commandMutation.isError ? <Alert severity="error">{errorText(commandMutation.error)}</Alert> : null}
+              {commandCurrent && commandMutation.data ? <Alert severity="success">Operation: {commandMutation.data.outcome}</Alert> : null}
 
-              {previewMutation.data ? (
+              {previewCurrent && previewMutation.isError ? <Alert severity="error">{errorText(previewMutation.error)}</Alert> : null}
+              {previewCurrent && previewMutation.data ? (
                 <Stack spacing={1.5}>
                   <Typography variant="subtitle2">Bounded preview · {previewMutation.data.chunkCount} chunks · {previewMutation.data.totalContentLength} characters</Typography>
                   {previewMutation.data.chunks.map((chunk) => (
@@ -697,10 +789,10 @@ export function DocumentKnowledgePage() {
           </Box>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
             <TextField fullWidth size="small" label="Proof query" value={retrievalQuery} onChange={(event) => setRetrievalQuery(event.target.value)} />
-            <Button variant="contained" startIcon={<SearchRoundedIcon />} disabled={!documentLive || !retrievalQuery.trim() || retrievalMutation.isPending} onClick={() => retrievalMutation.mutate()}>Verify</Button>
+            <Button variant="contained" startIcon={<SearchRoundedIcon />} disabled={!documentLive || !retrievalQuery.trim() || retrievalMutation.isPending} onClick={() => retrievalMutation.mutate({ target: targetReference, query: retrievalQuery })}>Verify</Button>
           </Stack>
-          {retrievalMutation.isError ? <Alert severity="error">{errorText(retrievalMutation.error)}</Alert> : null}
-          {retrievalMutation.data ? (
+          {retrievalCurrent && retrievalMutation.isError ? <Alert severity="error">{errorText(retrievalMutation.error)}</Alert> : null}
+          {retrievalCurrent && retrievalMutation.data ? (
             <Stack spacing={1.5}>
               <Alert severity={retrievalMutation.data.evidenceCount > 0 ? 'success' : 'warning'}>
                 {retrievalMutation.data.evidenceCount} active evidence result{retrievalMutation.data.evidenceCount === 1 ? '' : 's'} in {retrievalMutation.data.processingTimeMs} ms.
@@ -729,13 +821,13 @@ export function DocumentKnowledgePage() {
               variant="outlined"
               startIcon={<DeleteSweepRoundedIcon />}
               disabled={!documentLive || !canOperate || retentionMutation.isPending}
-              onClick={() => retentionMutation.mutate()}
+              onClick={() => retentionMutation.mutate({ target: targetReference })}
             >
               Run cleanup
             </Button>
           </Stack>
           {retentionQuery.isError ? <Alert severity="error">{errorText(retentionQuery.error)}</Alert> : null}
-          {retentionMutation.isError ? <Alert severity="error">{errorText(retentionMutation.error)}</Alert> : null}
+          {retentionCurrent && retentionMutation.isError ? <Alert severity="error">{errorText(retentionMutation.error)}</Alert> : null}
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Chip label={`Manifest evidence ${retentionQuery.data?.evidenceRetention ?? '—'}`} variant="outlined" />
             <Chip label={`Idempotency evidence ${retentionQuery.data?.commandRetention ?? '—'}`} variant="outlined" />
@@ -745,7 +837,7 @@ export function DocumentKnowledgePage() {
               color={retentionQuery.data?.lastCleanup ? 'success' : 'default'}
             />
           </Stack>
-          {retentionMutation.data ? (
+          {retentionCurrent && retentionMutation.data ? (
             <Alert severity="success">
               Removed {retentionMutation.data.manifestsDeleted} expired manifests, {retentionMutation.data.workDeleted} work records, and {retentionMutation.data.commandsDeleted} command records. Customer files changed: no.
             </Alert>
@@ -755,7 +847,7 @@ export function DocumentKnowledgePage() {
 
       <Dialog
         open={registrationSource != null}
-        onClose={() => !registerMutation.isPending && setRegistrationSource(null)}
+        onClose={() => !registerMutation.isPending && setRegistrationSelection(null)}
         maxWidth="sm"
         fullWidth
       >
@@ -809,11 +901,11 @@ export function DocumentKnowledgePage() {
                 ? 'I confirm this file is approved for anonymous public answers.'
                 : 'I confirm this source and audience are approved for indexing.'}
             />
-            {registerMutation.isError ? <Alert severity="error">{errorText(registerMutation.error)}</Alert> : null}
+            {registrationCurrent && registerMutation.isError ? <Alert severity="error">{errorText(registerMutation.error)}</Alert> : null}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button disabled={registerMutation.isPending} onClick={() => setRegistrationSource(null)}>Cancel</Button>
+          <Button disabled={registerMutation.isPending} onClick={() => setRegistrationSelection(null)}>Cancel</Button>
           <Button
             variant="contained"
             startIcon={<DescriptionRoundedIcon />}
@@ -823,7 +915,11 @@ export function DocumentKnowledgePage() {
               || !registrationCategory.trim()
               || !registrationApproved
             }
-            onClick={() => registrationSource && registerMutation.mutate({
+            onClick={() => registrationSource && registrationSelection && registerMutation.mutate({
+              target: registrationSelection.target,
+              datasetId,
+              publicAudiencePackage,
+              selection: registrationSelection,
               objectReference: registrationSource.objectReference,
               sourceCategory: registrationCategory.trim(),
               visibility: registrationVisibility,
@@ -834,7 +930,7 @@ export function DocumentKnowledgePage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={removeSource != null} onClose={() => setRemoveSource(null)} maxWidth="sm" fullWidth>
+      <Dialog open={removeSource != null} onClose={() => setRemovalSelection(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Remove indexed document evidence?</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mt: 1 }}>
@@ -842,8 +938,8 @@ export function DocumentKnowledgePage() {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRemoveSource(null)}>Cancel</Button>
-          <Button color="error" variant="contained" startIcon={<DeleteOutlineRoundedIcon />} disabled={removeMutation.isPending} onClick={() => removeSource && removeMutation.mutate(removeSource.sourceId)}>Remove index</Button>
+          <Button onClick={() => setRemovalSelection(null)}>Cancel</Button>
+          <Button color="error" variant="contained" startIcon={<DeleteOutlineRoundedIcon />} disabled={removeMutation.isPending} onClick={() => removeSource && removalSelection && removeMutation.mutate({ target: removalSelection.target, sourceId: removeSource.sourceId, selection: removalSelection })}>Remove index</Button>
         </DialogActions>
       </Dialog>
     </Stack>

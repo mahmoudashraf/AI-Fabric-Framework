@@ -7,6 +7,8 @@ public record DeploymentPracticalPromotionRollbackRequest(
     @Size(max = 64) String rollbackDeploymentId,
     @Size(max = 64) String rollbackReleaseId,
     @Size(max = 64) String rollbackTargetProfileId,
-    @Size(max = 1000) String reason
+    @Size(max = 1000) String reason,
+    Long expectedBindingRevision,
+    @Size(max = 128) String operationKey
 ) {
 }

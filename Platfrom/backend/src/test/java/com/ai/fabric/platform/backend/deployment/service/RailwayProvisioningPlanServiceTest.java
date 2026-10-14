@@ -2058,6 +2058,7 @@ class RailwayProvisioningPlanServiceTest {
         binding.setDeploymentId("dep-123");
         binding.setTargetProfileId("profile-docs");
         binding.setResourceKind(DeploymentDocumentStorageBindingService.RESOURCE_KIND);
+        binding.setStatus("CONFIGURED");
         binding.setMetadataJson("""
             {
               "connectorType": "S3_COMPATIBLE_OBJECT_STORAGE",
@@ -2140,8 +2141,8 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv.values()).noneMatch(value -> value.contains("actual-secret-value"));
 
         assertThatThrownBy(() -> service.buildPlan(deployment(), documentVersion, null, "profile-other"))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("not configured for target profile profile-other");
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("ownership, target or lifecycle");
     }
 
     @Test

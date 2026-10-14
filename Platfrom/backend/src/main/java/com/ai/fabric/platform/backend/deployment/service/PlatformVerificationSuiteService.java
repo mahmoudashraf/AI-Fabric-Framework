@@ -391,6 +391,8 @@ public class PlatformVerificationSuiteService {
         Map<String, String> environment = expectations.toEnvironmentOverrides();
         for (String required : List.of(
             "DOCUMENT_DEPLOYMENT_ID",
+            "DOCUMENT_TARGET_PROFILE_ID",
+            "DOCUMENT_RELEASE_ID",
             "DOCUMENT_DATASET_ID",
             "DOCUMENT_TEXT_OBJECT_REFERENCE",
             "DOCUMENT_TEXT_RETRIEVAL_QUERY",
@@ -403,6 +405,11 @@ public class PlatformVerificationSuiteService {
         }
         if (!environment.get("DOCUMENT_DEPLOYMENT_ID").matches("[A-Za-z0-9][A-Za-z0-9._-]{1,63}")) {
             throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification deploymentId is invalid.");
+        }
+        for (String key : List.of("DOCUMENT_TARGET_PROFILE_ID", "DOCUMENT_RELEASE_ID")) {
+            if (!environment.get(key).matches("[A-Za-z0-9][A-Za-z0-9._-]{1,63}")) {
+                throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification target/release identity is invalid.");
+            }
         }
         if (!environment.get("DOCUMENT_DATASET_ID").matches("[A-Za-z0-9][A-Za-z0-9._-]{1,127}")) {
             throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification datasetId is invalid.");

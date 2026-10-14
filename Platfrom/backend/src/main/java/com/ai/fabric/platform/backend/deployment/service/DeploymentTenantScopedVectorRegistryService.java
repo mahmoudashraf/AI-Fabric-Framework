@@ -57,7 +57,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                                    DeploymentVersionEntity version,
                                    DeploymentReleaseEntity release,
                                    DeploymentTenantScopedVectorSummary summary) {
-        List<TenantScopedVectorResourceEntity> deploymentRecords = repository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
+        List<TenantScopedVectorResourceEntity> deploymentRecords = repository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())
+            .stream().filter(record -> release == null || java.util.Objects.equals(record.getTargetProfileId(), release.getTargetProfileId())).toList();
         Instant now = Instant.now();
 
         if (summary == null || !summary.sharedStorage() || !"READY".equalsIgnoreCase(summary.status())) {
@@ -603,6 +604,7 @@ public class DeploymentTenantScopedVectorRegistryService {
         changed |= setIfDifferent(entity.getDeploymentId(), deployment.getId(), entity::setDeploymentId);
         changed |= setIfDifferent(entity.getDeploymentVersionId(), version == null ? null : version.getId(), entity::setDeploymentVersionId);
         changed |= setIfDifferent(entity.getDeploymentReleaseId(), release == null ? null : release.getId(), entity::setDeploymentReleaseId);
+        changed |= setIfDifferent(entity.getTargetProfileId(), release == null ? null : release.getTargetProfileId(), entity::setTargetProfileId);
         changed |= setIfDifferent(entity.getVendor(), vendorFor(summary.vectorStrategy()), entity::setVendor);
         changed |= setIfDifferent(entity.getVectorStrategy(), summary.vectorStrategy(), entity::setVectorStrategy);
         changed |= setIfDifferent(entity.getVectorProvisioningMode(), summary.vectorProvisioningMode(), entity::setVectorProvisioningMode);

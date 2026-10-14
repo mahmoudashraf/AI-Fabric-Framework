@@ -251,6 +251,9 @@ public class RailwayProvisioningPlanService {
         JsonNode providerConfig = providerConfigOverride != null && providerConfigOverride.isObject()
             ? providerConfigOverride
             : readJson(version.getProviderConfigJson());
+        if (StringUtils.hasText(targetProfileId)) {
+            providerConfig = tenantScopedVectorHandleResolver.targetScopedProviderConfig(deployment, providerConfig, targetProfileId);
+        }
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
@@ -296,6 +299,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", deployment.getId()));
+        addOptionalEnv(runtimeEnv, "LOOMAI_RUNTIME_TARGET_PROFILE_ID", targetProfileId);
         addOptionalEnv(runtimeEnv, "AI_FABRIC_RUNTIME_CUSTOMER_ID", deployment.getCustomerId());
         addOptionalEnv(runtimeEnv, "AI_FABRIC_RUNTIME_TENANT_ID", deployment.getTenantId());
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -921,16 +925,9 @@ public class RailwayProvisioningPlanService {
             }
         }
 
-        DeploymentProviderResourceHandleEntity binding = deploymentProviderResourceHandleRepository.findById(bindingRef)
-            .filter(handle -> deployment.getId().equals(handle.getDeploymentId()))
-            .filter(handle -> DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind()))
-            .orElseThrow(() -> new IllegalStateException("Document storage binding is missing for this deployment."));
-        if (StringUtils.hasText(targetProfileId)
-            && !targetProfileId.trim().equals(binding.getTargetProfileId())) {
-            throw new IllegalStateException(
-                "Document storage binding is not configured for target profile " + targetProfileId.trim() + "."
-            );
-        }
+        DeploymentProviderResourceHandleEntity binding = new DeploymentDocumentBindingResolver(
+            deploymentProviderResourceHandleRepository, null, objectMapper
+        ).resolve(deployment.getId(), targetProfileId, bindingRef);
         JsonNode safeBinding = readJson(binding.getMetadataJson());
         if (!connectorType.equalsIgnoreCase(safeBinding.path("connectorType").asText(""))) {
             throw new IllegalStateException("Document storage connector type does not match its binding.");
@@ -948,7 +945,7 @@ public class RailwayProvisioningPlanService {
             writeJson(datasetHandleRefs)
         ));
         runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_CONNECTOR_TYPE", connectorType));
-        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_BINDING_REF", bindingRef));
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_BINDING_REF", binding.getId()));
 
         addDocumentPolicyEnv(runtimeEnv, policy);
         if (DeploymentDocumentStorageBindingService.S3_CONNECTOR.equals(connectorType)) {

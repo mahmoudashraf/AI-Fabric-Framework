@@ -6,6 +6,8 @@ public record DeploymentPracticalPromotionActivationRequest(
     @Size(max = 64) String productionReleaseId,
     @Size(max = 128) String consumerId,
     boolean markStagingSuperseded,
-    @Size(max = 1000) String reason
+    @Size(max = 1000) String reason,
+    Long expectedBindingRevision,
+    @Size(max = 128) String operationKey
 ) {
 }

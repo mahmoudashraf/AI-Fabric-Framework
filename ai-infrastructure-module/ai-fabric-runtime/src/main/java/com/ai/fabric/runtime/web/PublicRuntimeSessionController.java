@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.web;
 
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
+import com.ai.fabric.runtime.lifecycle.retirement.RuntimeTargetRetirementService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapRequest;
 import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapResponse;
@@ -28,6 +29,12 @@ public class PublicRuntimeSessionController {
 
     private final RuntimePublicTokenService runtimePublicTokenService;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> deploymentShellConfigServiceProvider;
+    private RuntimeTargetRetirementService targetRetirementService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTargetRetirementService(RuntimeTargetRetirementService service) {
+        this.targetRetirementService = service;
+    }
 
     public PublicRuntimeSessionController(RuntimePublicTokenService runtimePublicTokenService,
                                           ObjectProvider<RuntimeDeploymentShellConfigService> deploymentShellConfigServiceProvider) {
@@ -42,6 +49,7 @@ public class PublicRuntimeSessionController {
     ) {
         runtimePublicTokenService.authorizeAnonymousBootstrap(servletRequest);
         rejectUnexpectedFields(request, "bootstrap");
+        if (targetRetirementService != null) targetRetirementService.requireNewSessionAllowed();
         return sessionResponse(runtimePublicTokenService.issueAnonymousToken());
     }
 

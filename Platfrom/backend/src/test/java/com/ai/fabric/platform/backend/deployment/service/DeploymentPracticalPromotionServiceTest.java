@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromotionCommandRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,11 +56,15 @@ class DeploymentPracticalPromotionServiceTest {
         when(fixture.deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(fixture.targetProfileRepository.findById("dtp-coolify-prod-staging")).thenReturn(Optional.of(targetProfile("dtp-coolify-prod-staging", "staging")));
         when(fixture.targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(targetProfile("dtp-coolify-production", "production")));
-        when(fixture.releaseRepository.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deployment.getId(), "dtp-coolify-prod-staging"))
-            .thenReturn(List.of(stagingRelease));
+        when(fixture.releaseRepository.findById(stagingRelease.getId())).thenReturn(Optional.of(stagingRelease));
         when(fixture.versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        var consumer = consumer("customer-production", deployment.getCustomerId(), deployment.getId(), stagingRelease.getId());
+        consumer.setBoundTargetProfileId(stagingRelease.getTargetProfileId());
+        when(fixture.consumerRepository.findByCustomerIdAndConsumerIdIgnoreCase(deployment.getCustomerId(), consumer.getConsumerId()))
+            .thenReturn(Optional.of(consumer));
 
-        var summary = fixture.service.planPromotion(deployment.getId(), new DeploymentPracticalPromotionRequest(null, null, null, null));
+        var summary = fixture.service.planPromotion(deployment.getId(), new DeploymentPracticalPromotionRequest(
+            consumer.getConsumerId(), 0L, stagingRelease.getId(), "dtp-coolify-production", null, null));
 
         assertThat(summary.status()).isEqualTo("READY");
         assertThat(summary.versionId()).isEqualTo(version.getId());
@@ -82,10 +88,12 @@ class DeploymentPracticalPromotionServiceTest {
         when(fixture.deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
         when(fixture.deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(fixture.releaseRepository.findById(failedRelease.getId())).thenReturn(Optional.of(failedRelease));
+        when(fixture.consumerRepository.findBindingForUpdate(deployment.getCustomerId(), "customer-production"))
+            .thenReturn(Optional.of(consumer("customer-production", deployment.getCustomerId(), deployment.getId(), "rel-staging")));
 
         assertThatThrownBy(() -> fixture.service.activateProductionConsumer(
             deployment.getId(),
-            new DeploymentPracticalPromotionActivationRequest(failedRelease.getId(), "customer-production", false, "activate")
+            new DeploymentPracticalPromotionActivationRequest(failedRelease.getId(), "customer-production", false, "activate", 0L, "activate-operation")
         ))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Release must be verified");
@@ -103,9 +111,16 @@ class DeploymentPracticalPromotionServiceTest {
             "APPLIED_VERIFIED",
             "PASSED"
         );
-        PlatformConsumerEntity consumer = consumer("customer-production", deployment.getCustomerId(), deployment.getId(), "rel-old");
+        PlatformConsumerEntity consumer = consumer("customer-production", deployment.getCustomerId(), deployment.getId(), "rel-staging");
+        consumer.setBoundTargetProfileId("dtp-coolify-prod-staging");
+        productionRelease.setPromotionCandidateJson("{\"stagingReleaseId\":\"rel-staging\"}");
+        productionRelease.setPromotionCandidateFingerprint(DeploymentEvidenceFingerprint.hash(new ObjectMapper(),
+            new ObjectMapper().createObjectNode().put("stagingReleaseId", "rel-staging")));
+        var staging = release("rel-staging", deployment.getId(), "ver-1", "dtp-coolify-prod-staging", "APPLIED_VERIFIED", "PASSED");
         DeploymentProviderResourceHandleEntity productionHandle = handle("h-prod", deployment.getId(), productionRelease.getId(), "dtp-coolify-production", "ACTIVE");
-        DeploymentProviderResourceHandleEntity previousHandle = handle("h-old", deployment.getId(), "rel-old", "dtp-coolify-production", "ACTIVE");
+        DeploymentProviderResourceHandleEntity previousHandle = handle("h-old", deployment.getId(), "rel-staging", "dtp-coolify-prod-staging", "ACTIVE");
+        DeploymentProviderResourceHandleEntity sourceBinding = handle("h-source", deployment.getId(), null, "dtp-coolify-prod-staging", "CONFIGURED");
+        sourceBinding.setResourceKind(DeploymentDocumentStorageBindingService.RESOURCE_KIND);
         PlatformConsumerSummary updatedConsumer = new PlatformConsumerSummary(
             consumer.getConsumerId(),
             consumer.getCustomerId(),
@@ -121,13 +136,22 @@ class DeploymentPracticalPromotionServiceTest {
             productionRelease.getTargetProfileId(),
             Instant.now(),
             Instant.now(),
-            Instant.now()
+            Instant.now(),
+            1L
         );
 
         when(fixture.deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
         when(fixture.deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(fixture.releaseRepository.findById(productionRelease.getId())).thenReturn(Optional.of(productionRelease));
+        when(fixture.releaseRepository.findById(staging.getId())).thenReturn(Optional.of(staging));
+        when(fixture.versionRepository.findById("ver-1")).thenReturn(Optional.of(version("ver-1", deployment.getId())));
+        when(fixture.targetProfileRepository.findById("dtp-coolify-prod-staging"))
+            .thenReturn(Optional.of(targetProfile("dtp-coolify-prod-staging", "staging")));
+        when(fixture.targetProfileRepository.findById("dtp-coolify-production"))
+            .thenReturn(Optional.of(targetProfile("dtp-coolify-production", "production")));
         when(fixture.consumerRepository.findByCustomerIdAndConsumerIdIgnoreCase(deployment.getCustomerId(), consumer.getConsumerId()))
+            .thenReturn(Optional.of(consumer));
+        when(fixture.consumerRepository.findBindingForUpdate(deployment.getCustomerId(), consumer.getConsumerId()))
             .thenReturn(Optional.of(consumer));
         when(fixture.consumerService.updateBindingForTrustedPromotion(
             eq(deployment.getCustomerId()),
@@ -135,29 +159,37 @@ class DeploymentPracticalPromotionServiceTest {
             eq(deployment.getId()),
             eq(productionRelease.getId()),
             eq(productionRelease.getTargetProfileId()),
-            eq("activate")
+            eq("activate"),
+            eq(0L),
+            anyString()
         )).thenReturn(updatedConsumer);
         when(fixture.resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc(productionRelease.getId())).thenReturn(List.of(productionHandle));
-        when(fixture.resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc("rel-old")).thenReturn(List.of(previousHandle));
+        when(fixture.resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc("rel-staging")).thenReturn(List.of(previousHandle));
+        when(fixture.resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
+            deployment.getId(), "dtp-coolify-prod-staging")).thenReturn(List.of(previousHandle, sourceBinding));
         when(fixture.resourceHandleRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         var summary = fixture.service.activateProductionConsumer(
             deployment.getId(),
-            new DeploymentPracticalPromotionActivationRequest(productionRelease.getId(), consumer.getConsumerId(), false, "activate")
+            new DeploymentPracticalPromotionActivationRequest(productionRelease.getId(), consumer.getConsumerId(), true, "activate", 0L, "activate-operation")
         );
 
         assertThat(summary.status()).isEqualTo("PRODUCTION_CONSUMER_ACTIVATED");
         assertThat(summary.consumer().boundReleaseId()).isEqualTo(productionRelease.getId());
         assertThat(summary.resources()).extracting("status").contains("ACTIVE", "ROLLBACK_RESERVED");
         assertThat(productionHandle.getStatus()).isEqualTo("ACTIVE");
-        assertThat(previousHandle.getStatus()).isEqualTo("ROLLBACK_RESERVED");
+        assertThat(previousHandle.getStatus()).isEqualTo("SUPERSEDED");
+        assertThat(sourceBinding.getStatus()).isEqualTo("CONFIGURED");
         verify(fixture.consumerService).updateBindingForTrustedPromotion(
             deployment.getCustomerId(),
             consumer.getConsumerId(),
             deployment.getId(),
             productionRelease.getId(),
             productionRelease.getTargetProfileId(),
-            "activate"
+            "activate",
+            0L,
+            "promotion:" + DeploymentEvidenceFingerprint.hash(new ObjectMapper(), new ObjectMapper().createObjectNode()
+                .put("kind", "activate").put("key", "activate-operation"))
         );
     }
 
@@ -172,6 +204,12 @@ class DeploymentPracticalPromotionServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformCustomerConsumerService consumerService = mock(PlatformCustomerConsumerService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        var candidates = mock(DeploymentPromotionCandidateService.class);
+        var candidate = mapper.createObjectNode().put("stagingReleaseId", "rel-staging");
+        when(candidates.resolve(any(), any(), any(), any(), any())).thenReturn(candidate);
+        when(candidates.fingerprint(any())).thenReturn(DeploymentEvidenceFingerprint.hash(mapper, candidate));
+        var commands = new DeploymentPromotionCommandService(mock(DeploymentPromotionCommandRepository.class), consumerRepository, mapper);
         DeploymentPracticalPromotionService service = new DeploymentPracticalPromotionService(
             deploymentRepository,
             versionRepository,
@@ -183,7 +221,11 @@ class DeploymentPracticalPromotionServiceTest {
             deploymentService,
             consumerService,
             auditService,
-            new ObjectMapper()
+            mapper,
+            candidates,
+            commands,
+            mock(DeploymentTargetContextService.class),
+            mock(CustomerSelfServicePromotionBoundary.class)
         );
         return new TestFixture(
             service,
@@ -237,6 +279,7 @@ class DeploymentPracticalPromotionServiceTest {
         release.setVerificationStatus(verificationStatus);
         release.setProvisioningStatus("ACTIVE");
         release.setProvisioningTarget("COOLIFY");
+        release.setSourceArtifactId("artifact-1");
         release.setProvisioningDetailsJson("{\"runtimeBaseUrl\":\"https://runtime.example\"}");
         release.setCreatedAt(Instant.now());
         release.setAppliedAt(Instant.now());

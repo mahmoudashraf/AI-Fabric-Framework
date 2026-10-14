@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
@@ -20,12 +22,16 @@ import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerRequest
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerBindingHistoryRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Collections;
@@ -55,6 +61,9 @@ public class PlatformCustomerConsumerService {
     private final PlatformCustomerAccessService platformCustomerAccessService;
     private final PlatformAuditService platformAuditService;
     private final AIWorkspaceBindingGuard aiWorkspaceBindingGuard;
+    private final ObjectMapper objectMapper;
+    private final com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
+    private final DeploymentTargetProfileRepository targetProfiles;
 
     public PlatformCustomerConsumerService(PlatformConsumerRepository consumerRepository,
                                            PlatformConsumerBindingHistoryRepository bindingHistoryRepository,
@@ -63,7 +72,10 @@ public class PlatformCustomerConsumerService {
                                            DeploymentReleaseRepository deploymentReleaseRepository,
                                            PlatformCustomerAccessService platformCustomerAccessService,
                                            PlatformAuditService platformAuditService,
-                                           AIWorkspaceBindingGuard aiWorkspaceBindingGuard) {
+                                           AIWorkspaceBindingGuard aiWorkspaceBindingGuard,
+                                           ObjectMapper objectMapper,
+                                           com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates,
+                                           DeploymentTargetProfileRepository targetProfiles) {
         this.consumerRepository = consumerRepository;
         this.bindingHistoryRepository = bindingHistoryRepository;
         this.customerRepository = customerRepository;
@@ -72,6 +84,9 @@ public class PlatformCustomerConsumerService {
         this.platformCustomerAccessService = platformCustomerAccessService;
         this.platformAuditService = platformAuditService;
         this.aiWorkspaceBindingGuard = aiWorkspaceBindingGuard;
+        this.objectMapper = objectMapper;
+        this.retirementGates = retirementGates;
+        this.targetProfiles = targetProfiles;
     }
 
     @Transactional(readOnly = true)
@@ -163,14 +178,18 @@ public class PlatformCustomerConsumerService {
     public PlatformConsumerSummary updateBinding(String customerId,
                                                  String consumerId,
                                                  UpdatePlatformConsumerBindingRequest request) {
-        PlatformConsumerEntity consumer = requireManagedConsumer(customerId, consumerId);
+        PlatformCustomerEntity customer = requireActiveCustomer(customerId);
+        platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
+        PlatformConsumerEntity consumer = requireBindingConsumer(customer.getId(), consumerId);
         return updateBindingInternal(
             consumer,
             normalizeOptionalId(request.deploymentId()),
             normalizeOptionalId(request.releaseId()),
             normalizeOptionalId(request.targetProfileId()),
             normalizeDescription(request.reason()),
-            true
+            true,
+            request.expectedBindingRevision(),
+            request.operationKey()
         );
     }
 
@@ -180,15 +199,23 @@ public class PlatformCustomerConsumerService {
                                                                     String deploymentId,
                                                                     String releaseId,
                                                                     String targetProfileId,
-                                                                    String reason) {
-        PlatformConsumerEntity consumer = requireTrustedConsumer(customerId, consumerId);
+                                                                    String reason,
+                                                                    Long expectedBindingRevision,
+                                                                    String operationKey) {
+        requireActiveCustomer(customerId);
+        PlatformConsumerEntity consumer = requireBindingConsumer(customerId, consumerId);
+        if (!ACTIVE.equalsIgnoreCase(consumer.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Consumer is disabled: " + consumerId);
+        }
         return updateBindingInternal(
             consumer,
             normalizeOptionalId(deploymentId),
             normalizeOptionalId(releaseId),
             normalizeOptionalId(targetProfileId),
             normalizeDescription(reason),
-            true
+            true,
+            expectedBindingRevision,
+            operationKey
         );
     }
 
@@ -308,15 +335,10 @@ public class PlatformCustomerConsumerService {
         return consumer;
     }
 
-    private PlatformConsumerEntity requireTrustedConsumer(String customerId, String consumerId) {
-        PlatformCustomerEntity customer = requireActiveCustomer(customerId);
+    private PlatformConsumerEntity requireBindingConsumer(String customerId, String consumerId) {
         String normalizedConsumerId = normalizeConsumerId(consumerId);
-        PlatformConsumerEntity consumer = consumerRepository.findByCustomerIdAndConsumerIdIgnoreCase(customer.getId(), normalizedConsumerId)
+        return consumerRepository.findBindingForUpdate(customerId, normalizedConsumerId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Consumer not found: " + normalizedConsumerId));
-        if (!ACTIVE.equalsIgnoreCase(consumer.getStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Consumer is disabled: " + normalizedConsumerId);
-        }
-        return consumer;
     }
 
     private PlatformCustomerEntity requireCustomer(String customerId) {
@@ -349,7 +371,31 @@ public class PlatformCustomerConsumerService {
                                                           String nextReleaseId,
                                                           String requestedTargetProfileId,
                                                           String reason,
-                                                          boolean requireVerifiedRelease) {
+                                                          boolean requireVerifiedRelease,
+                                                          Long expectedBindingRevision,
+                                                          String operationKey) {
+        if (expectedBindingRevision == null || expectedBindingRevision < 0) {
+            throw new ResponseStatusException(BAD_REQUEST, "expectedBindingRevision is required and must not be negative.");
+        }
+        if (!StringUtils.hasText(operationKey) || !operationKey.matches("[A-Za-z0-9._:-]{1,128}")) {
+            throw new ResponseStatusException(BAD_REQUEST, "A bounded operationKey is required.");
+        }
+        String fingerprint = bindingFingerprint(nextDeploymentId, nextReleaseId, requestedTargetProfileId,
+            reason, expectedBindingRevision);
+        var previousOperation = bindingHistoryRepository.findByConsumerEntityIdAndOperationKey(consumer.getId(), operationKey);
+        if (previousOperation.isPresent()) {
+            if (!fingerprint.equals(previousOperation.get().getRequestFingerprint())) {
+                throw new ResponseStatusException(CONFLICT, "operationKey was already used for a different binding command.");
+            }
+            try {
+                return objectMapper.readValue(previousOperation.get().getResultJson(), PlatformConsumerSummary.class);
+            } catch (Exception error) {
+                throw new ResponseStatusException(CONFLICT, "Stored binding operation result requires reconciliation.");
+            }
+        }
+        if (consumer.getBindingRevision() != expectedBindingRevision) {
+            throw new ResponseStatusException(CONFLICT, "Consumer binding revision changed; read the current assignment before retrying.");
+        }
         if (nextDeploymentId == null && (nextReleaseId != null || requestedTargetProfileId != null)) {
             throw new ResponseStatusException(BAD_REQUEST, "deploymentId is required when binding a release or target profile.");
         }
@@ -366,29 +412,47 @@ public class PlatformCustomerConsumerService {
             }
         }
 
-        if (sameBinding(consumer, nextDeploymentId, nextReleaseId, nextTargetProfileId)) {
-            return summarizeConsumer(consumer);
+        boolean changed = !sameBinding(consumer, nextDeploymentId, nextReleaseId, nextTargetProfileId);
+        if (changed && nextDeploymentId != null && StringUtils.hasText(nextTargetProfileId)) {
+            retirementGates.requireAvailableForMutation(nextDeploymentId, nextTargetProfileId);
         }
-
-        aiWorkspaceBindingGuard.validateRebind(consumer, nextDeploymentId, nextReleaseId);
-
+        if (changed) aiWorkspaceBindingGuard.validateRebind(consumer, nextDeploymentId, nextReleaseId);
         String previousDeploymentId = consumer.getBoundDeploymentId();
+        String previousReleaseId = consumer.getBoundReleaseId();
+        String previousTargetProfileId = consumer.getBoundTargetProfileId();
+        long previousRevision = consumer.getBindingRevision();
         Instant now = Instant.now();
-        consumer.setBoundDeploymentId(nextDeploymentId);
-        consumer.setBoundReleaseId(nextReleaseId);
-        consumer.setBoundTargetProfileId(nextTargetProfileId);
-        if (nextDeploymentId != null) {
-            consumer.setLastBoundAt(now);
+        if (changed) {
+            consumer.setBoundDeploymentId(nextDeploymentId);
+            consumer.setBoundReleaseId(nextReleaseId);
+            consumer.setBoundTargetProfileId(nextTargetProfileId);
+            consumer.setBindingRevision(previousRevision + 1);
+            if (nextDeploymentId != null) consumer.setLastBoundAt(now);
+            consumer.setUpdatedAt(now);
+            consumerRepository.saveAndFlush(consumer);
         }
-        consumer.setUpdatedAt(now);
-        consumerRepository.saveAndFlush(consumer);
-        recordBindingHistory(
+        PlatformConsumerSummary result = summarizeConsumer(consumer);
+        PlatformConsumerBindingHistoryEntity history = recordBindingHistory(
             consumer,
             previousDeploymentId,
             nextDeploymentId,
             reason,
             now
         );
+        history.setFromReleaseId(previousReleaseId);
+        history.setToReleaseId(consumer.getBoundReleaseId());
+        history.setFromTargetProfileId(previousTargetProfileId);
+        history.setToTargetProfileId(consumer.getBoundTargetProfileId());
+        history.setFromBindingRevision(previousRevision);
+        history.setToBindingRevision(consumer.getBindingRevision());
+        history.setOperationKey(operationKey);
+        history.setRequestFingerprint(fingerprint);
+        try {
+            history.setResultJson(objectMapper.writeValueAsString(result));
+        } catch (Exception error) {
+            throw new IllegalStateException("Unable to persist binding command result.", error);
+        }
+        bindingHistoryRepository.saveAndFlush(history);
 
         platformAuditService.record(
             "CUSTOMER_CONSUMER_BINDING_UPDATED",
@@ -401,10 +465,15 @@ public class PlatformCustomerConsumerService {
                 "toDeploymentId", nextDeploymentId,
                 "toReleaseId", nextReleaseId,
                 "toTargetProfileId", nextTargetProfileId,
+                "fromReleaseId", previousReleaseId,
+                "fromTargetProfileId", previousTargetProfileId,
+                "fromBindingRevision", previousRevision,
+                "toBindingRevision", consumer.getBindingRevision(),
+                "operationKey", operationKey,
                 "reason", reason
             )
         );
-        return summarizeConsumer(consumer);
+        return result;
     }
 
     private DeploymentReleaseEntity requireBindableRelease(String deploymentId,
@@ -453,10 +522,15 @@ public class PlatformCustomerConsumerService {
             ? Collections.emptyMap()
             : deploymentReleaseRepository.findAllById(releaseIds).stream()
                 .collect(Collectors.toMap(DeploymentReleaseEntity::getId, release -> release, (left, right) -> left, LinkedHashMap::new));
+        var targetIds = releasesById.values().stream().map(DeploymentReleaseEntity::getTargetProfileId)
+            .filter(StringUtils::hasText).distinct().toList();
+        Map<String, DeploymentTargetProfileEntity> profilesById = targetProfiles.findAllById(targetIds).stream()
+            .collect(Collectors.toMap(DeploymentTargetProfileEntity::getId, profile -> profile));
         return consumers.stream()
             .map(consumer -> {
                 DeploymentEntity deployment = deploymentsById.get(consumer.getBoundDeploymentId());
                 DeploymentReleaseEntity release = releasesById.get(consumer.getBoundReleaseId());
+                DeploymentTargetProfileEntity profile = release == null ? null : profilesById.get(release.getTargetProfileId());
                 return new PlatformConsumerSummary(
                     consumer.getConsumerId(),
                     consumer.getCustomerId(),
@@ -465,7 +539,8 @@ public class PlatformCustomerConsumerService {
                     consumer.getStatus(),
                     consumer.getBoundDeploymentId(),
                     deployment == null ? null : deployment.getName(),
-                    deployment == null ? null : deployment.getEnvironmentName(),
+                    release == null ? (deployment == null ? null : deployment.getEnvironmentName())
+                        : profile == null ? null : profile.getEnvironmentName(),
                     deployment == null ? null : deployment.getStatus(),
                     consumer.getBoundReleaseId(),
                     release == null ? null : release.getStatus(),
@@ -474,7 +549,8 @@ public class PlatformCustomerConsumerService {
                         : release == null ? null : release.getTargetProfileId(),
                     consumer.getLastBoundAt(),
                     consumer.getCreatedAt(),
-                    consumer.getUpdatedAt()
+                    consumer.getUpdatedAt(),
+                    consumer.getBindingRevision()
                 );
             })
             .toList();
@@ -512,12 +588,19 @@ public class PlatformCustomerConsumerService {
                 entry.getReason(),
                 entry.getActorId(),
                 entry.getActorRole(),
-                entry.getCreatedAt()
+                entry.getCreatedAt(),
+                entry.getFromReleaseId(),
+                entry.getToReleaseId(),
+                entry.getFromTargetProfileId(),
+                entry.getToTargetProfileId(),
+                entry.getFromBindingRevision(),
+                entry.getToBindingRevision(),
+                entry.getOperationKey()
             ))
             .toList();
     }
 
-    private void recordBindingHistory(PlatformConsumerEntity consumer,
+    private PlatformConsumerBindingHistoryEntity recordBindingHistory(PlatformConsumerEntity consumer,
                                       String fromDeploymentId,
                                       String toDeploymentId,
                                       String reason,
@@ -535,6 +618,21 @@ public class PlatformCustomerConsumerService {
         entry.setActorRole(principal == null ? "SYSTEM" : principal.role().name());
         entry.setCreatedAt(createdAt);
         bindingHistoryRepository.save(entry);
+        return entry;
+    }
+
+    private String bindingFingerprint(String deploymentId, String releaseId, String targetId, String reason, long revision) {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        try {
+            String payload = objectMapper.writeValueAsString(java.util.Arrays.asList(
+                deploymentId, releaseId, targetId, reason, revision,
+                principal == null ? "system" : principal.actorId(),
+                principal == null ? "SYSTEM" : principal.role().name()
+            ));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception error) {
+            throw new IllegalStateException("Unable to fingerprint binding command.", error);
+        }
     }
 
     private String deploymentName(DeploymentEntity deployment) {

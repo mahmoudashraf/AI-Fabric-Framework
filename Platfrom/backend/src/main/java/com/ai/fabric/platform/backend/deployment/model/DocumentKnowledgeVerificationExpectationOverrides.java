@@ -11,11 +11,15 @@ public record DocumentKnowledgeVerificationExpectationOverrides(
     String jsonObjectReference,
     String jsonRetrievalQuery,
     String expectedConnectorType,
-    boolean cleanupIndex
+    boolean cleanupIndex,
+    String targetProfileId,
+    String releaseId
 ) {
     public Map<String, String> toEnvironmentOverrides() {
         Map<String, String> result = new LinkedHashMap<>();
         put(result, "DOCUMENT_DEPLOYMENT_ID", deploymentId);
+        put(result, "DOCUMENT_TARGET_PROFILE_ID", targetProfileId);
+        put(result, "DOCUMENT_RELEASE_ID", releaseId);
         put(result, "DOCUMENT_DATASET_ID", datasetId);
         put(result, "DOCUMENT_TEXT_OBJECT_REFERENCE", textObjectReference);
         put(result, "DOCUMENT_TEXT_RETRIEVAL_QUERY", textRetrievalQuery);

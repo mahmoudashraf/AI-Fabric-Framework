@@ -17,7 +17,8 @@ public record PlatformConsumerSummary(
     String boundTargetProfileId,
     Instant lastBoundAt,
     Instant createdAt,
-    Instant updatedAt
+    Instant updatedAt,
+    long bindingRevision
 ) {
     public PlatformConsumerSummary(String consumerId,
                                    String customerId,
@@ -30,7 +31,8 @@ public record PlatformConsumerSummary(
                                    String boundDeploymentStatus,
                                    Instant lastBoundAt,
                                    Instant createdAt,
-                                   Instant updatedAt) {
+                                   Instant updatedAt,
+                                   long bindingRevision) {
         this(
             consumerId,
             customerId,
@@ -46,7 +48,8 @@ public record PlatformConsumerSummary(
             null,
             lastBoundAt,
             createdAt,
-            updatedAt
+            updatedAt,
+            bindingRevision
         );
     }
 }

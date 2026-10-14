@@ -3,8 +3,9 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
@@ -39,9 +40,8 @@ import static org.mockito.Mockito.when;
 
 class DeploymentDocumentKnowledgeOperationsServiceTest {
 
-    private final DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
-    private final DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
-    private final DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+    private final DeploymentTargetContextService targetContextService = mock(DeploymentTargetContextService.class);
+    private final DeploymentTargetReference target = new DeploymentTargetReference("dep-1", "target-1", "rel-1");
     private final PlatformSecretService secretService = mock(PlatformSecretService.class);
     private final RuntimePrivateAssertionSigningService assertionSigningService =
         mock(RuntimePrivateAssertionSigningService.class);
@@ -61,7 +61,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(202, "{\"operation\":\"INDEX_SUBMITTED\"}"))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
 
-        var result = service().index("dep-1", "source / one", "index-request-1");
+        var result = service().index(target, "source / one", "index-request-1");
 
         assertThat(result.statusCode()).isEqualTo(202);
         ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
@@ -91,7 +91,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(200, "{\"status\":\"READY\"}"))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
 
-        service().connectorStatus("dep-1");
+        service().connectorStatus(target);
 
         ArgumentCaptor<RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims> claims =
             ArgumentCaptor.forClass(RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims.class);
@@ -107,7 +107,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(200, "{\"manifestsDeleted\":2,\"customerSourceObjectsDeleted\":false}"))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
 
-        var result = service().cleanupRetention("dep-1");
+        var result = service().cleanupRetention(target);
 
         assertThat(result.statusCode()).isEqualTo(200);
         ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
@@ -126,7 +126,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         configureDocumentDeployment();
 
         assertThatThrownBy(() -> service().register(
-            "dep-1",
+            target,
             objectMapper.readTree("""
                 {"datasetId":"document-knowledge","objectReference":"safe.txt","content":"raw bytes"}
                 """),
@@ -146,22 +146,19 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(200, oversized))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
 
-        assertThatThrownBy(() -> service().list("dep-1"))
+        assertThatThrownBy(() -> service().list(target))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("response exceeded the Platform boundary");
     }
 
     @Test
     void activeVersionWithoutDocumentDatasetFailsClosed() throws Exception {
-        authenticate();
-        DeploymentEntity deployment = deployment();
-        when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment));
-        when(accessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+        configureDocumentDeployment();
         DeploymentVersionEntity version = documentVersion();
         version.setMarketplaceDatasetConfigJson("{\"datasets\":[]}");
-        when(versionRepository.findById("ver-1")).thenReturn(Optional.of(version));
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", false)).thenReturn(context(version));
 
-        assertThatThrownBy(() -> service().list("dep-1"))
+        assertThatThrownBy(() -> service().list(target))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("does not claim Document Knowledge Operations");
 
@@ -170,9 +167,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
     private DeploymentDocumentKnowledgeOperationsService service() {
         return new DeploymentDocumentKnowledgeOperationsService(
-            deploymentRepository,
-            versionRepository,
-            accessService,
+            targetContextService,
             secretService,
             assertionSigningService,
             auditService,
@@ -183,15 +178,20 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
     private void configureDocumentDeployment() {
         authenticate();
-        DeploymentEntity deployment = deployment();
-        when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment));
-        when(accessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
-        when(accessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
-        when(versionRepository.findById("ver-1")).thenReturn(Optional.of(documentVersion()));
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", false)).thenReturn(context(documentVersion()));
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(documentVersion()));
         when(secretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
             .thenReturn("private-runtime-key");
         when(assertionSigningService.isConfigured()).thenReturn(true);
         when(assertionSigningService.toAuthorizationHeaderValue(any())).thenReturn("Bearer signed-assertion");
+    }
+
+    private DeploymentTargetContextService.Context context(DeploymentVersionEntity version) {
+        DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
+        profile.setId("target-1");
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-1");
+        return new DeploymentTargetContextService.Context(deployment(), profile, release, version, "https://runtime.example", null);
     }
 
     private DeploymentEntity deployment() {
@@ -199,7 +199,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         deployment.setId("dep-1");
         deployment.setCustomerId("customer-1");
         deployment.setTenantId("tenant-1");
-        deployment.setRuntimeBaseUrl("https://runtime.example");
+        deployment.setRuntimeBaseUrl("https://wrong-global-runtime.example");
         deployment.setActiveVersionId("ver-1");
         return deployment;
     }

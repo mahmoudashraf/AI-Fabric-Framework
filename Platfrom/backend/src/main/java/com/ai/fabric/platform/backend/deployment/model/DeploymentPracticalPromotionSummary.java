@@ -16,6 +16,7 @@ public record DeploymentPracticalPromotionSummary(
     String productionReleaseId,
     String productionReleaseStatus,
     PlatformConsumerSummary consumer,
-    List<DeploymentProviderResourceLifecycleSummary> resources
+    List<DeploymentProviderResourceLifecycleSummary> resources,
+    String candidateFingerprint
 ) {
 }

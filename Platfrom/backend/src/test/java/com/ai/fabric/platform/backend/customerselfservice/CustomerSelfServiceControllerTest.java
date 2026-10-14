@@ -1,0 +1,126 @@
+package com.ai.fabric.platform.backend.customerselfservice;
+
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
+import com.ai.fabric.platform.backend.customerselfservice.service.*;
+import com.ai.fabric.platform.backend.customerselfservice.web.*;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.context.web.WebAppConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+
+import java.util.List;
+
+import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
+
+@SpringJUnitConfig(CustomerSelfServiceControllerTest.Config.class)
+@WebAppConfiguration
+class CustomerSelfServiceControllerTest {
+    @Autowired WebApplicationContext context;
+    @Autowired CustomerOfferEntitlementService entitlements;
+    @Autowired CustomerSelfServiceCatalogueService catalogue;
+    @Autowired CustomerDeploymentBootstrapService bootstrap;
+    private MockMvc mvc;
+
+    @BeforeEach void setup() {
+        reset(entitlements, catalogue, bootstrap);
+        mvc = webAppContextSetup(context).apply(springSecurity()).build();
+    }
+
+    @Test void realMethodSecurityAllowsOwnerCatalogueButDeniesStaffAndPublicIdentities() throws Exception {
+        mvc.perform(as(get("/api/customer-self-service/catalogue"), PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isOk());
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT, PlatformRole.PLATFORM_ADMIN)) {
+            mvc.perform(as(get("/api/customer-self-service/catalogue"), role)).andExpect(status().isForbidden());
+        }
+        mvc.perform(get("/api/customer-self-service/catalogue")).andExpect(status().isForbidden());
+    }
+
+    @Test void grantRevokeRoutesAreAdminOnlyAndCannotBeReachedThroughCustomerOrOperatorRoles() throws Exception {
+        for (PlatformRole role : List.of(PlatformRole.CUSTOMER_ADMIN, PlatformRole.PLATFORM_OPERATOR)) {
+            mvc.perform(as(post("/api/customer-self-service/staff/entitlements/grant/revoke").contentType("application/json")
+                .content("{\"expectedRevision\":2,\"operationKey\":\"key\",\"reason\":\"revoke\"}"), role))
+                .andExpect(status().isForbidden());
+            mvc.perform(as(post("/api/customer-self-service/staff/targets/staging-target/placement-evidence").contentType("application/json")
+                .content("{\"intent\":\"CUSTOMER_STAGING\"}"), role)).andExpect(status().isForbidden());
+        }
+        mvc.perform(as(get("/api/customer-self-service/staff/customers/customer/entitlements"), PlatformRole.PLATFORM_ADMIN))
+            .andExpect(status().isOk());
+        verify(entitlements, never()).revoke(anyString(), any());
+    }
+
+    @Test void browserScopeSecretAndUnknownFieldsAreRejectedBeforeTheService() throws Exception {
+        mvc.perform(as(post("/api/customer-self-service/invitations/grant/accept").contentType("application/json")
+            .content("{\"expectedRevision\":1,\"operationKey\":\"key\",\"reason\":\"accept\",\"customerId\":\"foreign\",\"vault\":\"GLOBAL_SECRET\"}"),
+            PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("INVALID_CONTRACT"));
+        verify(entitlements, never()).accept(anyString(), any());
+        mvc.perform(as(post("/api/customer-self-service/staff/offers").contentType("application/json").content("null"),
+            PlatformRole.PLATFORM_ADMIN)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("INVALID_CONTRACT"));
+        verify(entitlements, never()).publish(any());
+    }
+
+    @Test void typedPrerequisiteAndEntitlementErrorsArePreservedWithoutProviderDetail() throws Exception {
+        when(catalogue.offer("offer")).thenThrow(CustomerSelfServiceException.conflict(STORAGE_REQUIRED));
+        mvc.perform(as(get("/api/customer-self-service/catalogue/offer"), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("STORAGE_REQUIRED"));
+        when(catalogue.offer("guessed")).thenThrow(CustomerSelfServiceException.deny(ENTITLEMENT_REQUIRED));
+        mvc.perform(as(get("/api/customer-self-service/catalogue/guessed"), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.errorCode").value("ENTITLEMENT_REQUIRED"));
+    }
+
+    @Test void configurationBootstrapRejectsRawProviderAndCustomerFields() throws Exception {
+        mvc.perform(as(post("/api/customer-self-service/catalogue/offer/deployments").contentType("application/json")
+            .content("{\"targetProfileId\":\"staging-target\",\"name\":\"My deployment\",\"expectedEntitlementRevision\":2,\"operationKey\":\"create\"}"),
+            PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isOk());
+        verify(bootstrap).bootstrap(eq("offer"), any());
+        clearInvocations(bootstrap);
+        mvc.perform(as(post("/api/customer-self-service/catalogue/offer/deployments").contentType("application/json")
+            .content("{\"targetProfileId\":\"staging-target\",\"name\":\"My deployment\",\"expectedEntitlementRevision\":2,\"operationKey\":\"create\",\"customerId\":\"other\",\"sourceRepository\":\"unapproved\"}"),
+            PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
+        verifyNoInteractions(bootstrap);
+        mvc.perform(as(post("/api/customer-self-service/catalogue/offer/deployments").contentType("application/json")
+            .content("{}"), PlatformRole.PUBLIC_API_CLIENT)).andExpect(status().isForbidden());
+    }
+
+    private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder request, PlatformRole role) {
+        return request.with(authentication(new UsernamePasswordAuthenticationToken(new PlatformPrincipal("test-actor", role, "Test", "SESSION"),
+            null, List.of(new SimpleGrantedAuthority(role.authority())))));
+    }
+
+    @org.springframework.boot.test.context.TestConfiguration @EnableWebMvc @EnableWebSecurity @EnableMethodSecurity
+    static class Config {
+        @Bean CustomerOfferEntitlementService entitlements() { return mock(CustomerOfferEntitlementService.class); }
+        @Bean CustomerSelfServiceCatalogueService catalogue() { return mock(CustomerSelfServiceCatalogueService.class); }
+        @Bean CustomerOfferCodec codec() { return CustomerOfferTestFixtures.codec(); }
+        @Bean CustomerPlacementProbeService placementProbes() { return mock(CustomerPlacementProbeService.class); }
+        @Bean CustomerDeploymentBootstrapService bootstrap() { return mock(CustomerDeploymentBootstrapService.class); }
+        @Bean CustomerSelfServiceController controller(CustomerSelfServiceCatalogueService catalogue,
+            CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec, CustomerPlacementProbeService placementProbes,
+            CustomerDeploymentBootstrapService bootstrap) {
+            return new CustomerSelfServiceController(catalogue, entitlements, codec, placementProbes, bootstrap);
+        }
+        @Bean CustomerSelfServiceExceptionHandler errors() { return new CustomerSelfServiceExceptionHandler(); }
+        @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {
+            return http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(requests -> requests.anyRequest().authenticated()).build();
+        }
+    }
+}

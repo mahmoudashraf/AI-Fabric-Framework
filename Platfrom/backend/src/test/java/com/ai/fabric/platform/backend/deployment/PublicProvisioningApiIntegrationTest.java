@@ -405,7 +405,11 @@ class PublicProvisioningApiIntegrationTest {
             "storefront-main",
             new UpdatePlatformConsumerBindingRequest(
                 secondDeployment,
-                "Cut over consumer to the replacement deployment."
+                null,
+                null,
+                "Cut over consumer to the replacement deployment.",
+                0L,
+                "replace-deployment"
             )
         );
 
