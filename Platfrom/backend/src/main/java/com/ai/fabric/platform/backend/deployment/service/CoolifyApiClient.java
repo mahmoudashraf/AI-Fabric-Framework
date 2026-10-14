@@ -361,7 +361,6 @@ public class CoolifyApiClient {
         JsonNode existing = environmentInventory(connection, uuid);
         Map<EnvIdentity, List<CoolifyEnvRecord>> existingByIdentity = environmentRecords(existing, desired.keySet());
         List<CoolifyEnvVar> changed = new ArrayList<>();
-        Set<EnvIdentity> createPreviewRows = new java.util.HashSet<>();
         for (Map.Entry<EnvIdentity, CoolifyEnvVar> entry : desired.entrySet()) {
             List<CoolifyEnvRecord> records = existingByIdentity.getOrDefault(entry.getKey(), List.of());
             if (records.stream().anyMatch(record -> environmentMatches(record, entry.getValue()))) {
@@ -375,9 +374,6 @@ public class CoolifyApiClient {
                     deleteEnvironmentVariable(connection, uuid, record.uuid());
                 }
             }
-            if (entry.getKey().preview() && (records.isEmpty() || replaceSecret)) {
-                createPreviewRows.add(entry.getKey());
-            }
             changed.add(entry.getValue());
         }
 
@@ -388,11 +384,18 @@ public class CoolifyApiClient {
         if (!bulkEnvVars.isEmpty()) {
             updated += updateEnvironmentVariablesBulk(connection, uuid, bulkEnvVars);
         }
+        Map<EnvIdentity, List<CoolifyEnvRecord>> previewInventory = changed.isEmpty()
+            ? existingByIdentity
+            : environmentRecords(environmentInventory(connection, uuid), desired.keySet());
         for (CoolifyEnvVar envVar : changed) {
             if (!envVar.preview()) {
                 continue;
             }
-            if (createPreviewRows.contains(new EnvIdentity(envVar.key().trim(), true))) {
+            List<CoolifyEnvRecord> records = previewInventory.getOrDefault(new EnvIdentity(envVar.key().trim(), true), List.of());
+            if (records.stream().anyMatch(record -> environmentMatches(record, envVar))) {
+                continue;
+            }
+            if (records.isEmpty()) {
                 requestJson(connection, "POST", "/applications/" + encodePath(uuid) + "/envs", envBody(envVar), true);
             } else {
                 updateEnvironmentVariable(connection, uuid, envVar);

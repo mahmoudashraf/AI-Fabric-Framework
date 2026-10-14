@@ -364,7 +364,7 @@ class CoolifyApiClientTest {
             );
 
             assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isEqualTo(2);
-            assertThat(requests).containsExactly("GET", "DELETE old-preview", "POST SECRET", "POST EMPTY", "GET");
+            assertThat(requests).containsExactly("GET", "DELETE old-preview", "GET", "POST SECRET", "POST EMPTY", "GET");
             requests.clear();
             assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isZero();
             assertThat(requests).containsExactly("GET");
@@ -387,7 +387,27 @@ class CoolifyApiClientTest {
             );
 
             assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isEqualTo(1);
-            assertThat(requests).containsExactly("GET", "PATCH SECRET", "GET");
+            assertThat(requests).containsExactly("GET", "GET", "PATCH SECRET", "GET");
+            requests.clear();
+            assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isZero();
+            assertThat(requests).containsExactly("GET");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void updateEnvironmentVariablesReconcilesPreviewRowsAutomaticallyCreatedByBulkUpdate() throws Exception {
+        List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer server = reconcilingEnvironmentServer("[]", requests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+            List<CoolifyEnvVar> desired = List.of(
+                new CoolifyEnvVar("NEW_KEY", "runtime-value", false, true, false, false),
+                new CoolifyEnvVar("NEW_KEY", "preview-value", true, true, false, false)
+            );
+            assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isEqualTo(2);
+            assertThat(requests).containsExactly("GET", "PATCH BULK", "GET", "PATCH NEW_KEY", "GET");
             requests.clear();
             assertThat(client.updateEnvironmentVariables(connection(server), "app-uuid", desired)).isZero();
             assertThat(requests).containsExactly("GET");
@@ -776,7 +796,8 @@ class CoolifyApiClientTest {
         });
         server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
             if ("GET".equals(exchange.getRequestMethod())) {
-                String value = bulkRequests.get() == 0 && previewRequests.get() == 0 ? "ver-old" : "ver-new";
+                String runtimeValue = bulkRequests.get() == 0 ? "ver-old" : "ver-new";
+                String previewValue = previewRequests.get() == 0 ? "ver-old" : "ver-new";
                 sendJson(exchange, 200, """
                     [
                       {
@@ -804,7 +825,7 @@ class CoolifyApiClientTest {
                         "updated_at": "2026-05-06T20:00:01.000000Z"
                       }
                     ]
-                    """.formatted(value, value));
+                    """.formatted(runtimeValue, previewValue));
                 return;
             }
             if (!"PATCH".equals(exchange.getRequestMethod())) {
@@ -859,6 +880,23 @@ class CoolifyApiClientTest {
     private HttpServer reconcilingEnvironmentServer(String initialRows, List<String> requests) throws IOException {
         AtomicReference<JsonNode> rows = new AtomicReference<>(objectMapper.readTree(initialRows));
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs/bulk", exchange -> {
+            requests.add("PATCH BULK");
+            JsonNode body = objectMapper.readTree(exchange.getRequestBody());
+            var savedRows = objectMapper.createArrayNode();
+            rows.get().forEach(savedRows::add);
+            for (JsonNode item : body.path("data")) {
+                var standard = (com.fasterxml.jackson.databind.node.ObjectNode) item.deepCopy();
+                standard.put("uuid", "saved-" + item.path("key").asText());
+                savedRows.add(standard);
+                var preview = standard.deepCopy();
+                preview.put("uuid", standard.path("uuid").asText() + "-preview");
+                preview.put("is_preview", true);
+                savedRows.add(preview);
+            }
+            rows.set(savedRows);
+            sendJson(exchange, 201, body.path("data").toString());
+        });
         server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
             String method = exchange.getRequestMethod();
             if ("GET".equals(method)) {
