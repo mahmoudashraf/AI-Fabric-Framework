@@ -34,8 +34,8 @@ declare global {
       standalone: true
       identity: { status: 'anonymous' | 'authenticated'; subjectKey?: string; displayName?: string }
       getIdentityAccessToken(): Promise<string | null>
-      requestSignIn(): void
-      signOut(): Promise<void>
+      requestSignIn?(): void
+      signOut?(): Promise<void>
     }
     MaxMode?: { destroy?(): void }
   }
@@ -145,8 +145,10 @@ function installHostCapabilities(app: AppBootstrap) {
       }
       return session?.access_token || null
     },
-    requestSignIn() { openSignIn() },
-    async signOut() { await signOut(app) },
+    ...(app.authentication.profileCode !== 'none' ? {
+      requestSignIn() { openSignIn() },
+      async signOut() { await signOut(app) },
+    } : {}),
   }
 }
 
