@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainType;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceDomainRepository;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
+import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
@@ -81,12 +82,14 @@ class AIWorkspaceDomainRouteServiceTest {
             domains, services, profiles, resolver, coolify,
             new PlatformAIWorkspaceProperties(Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
                 "apps.loomai.test", "https://workspace.loomai.test"),
+            provisioningProperties(),
             audit, objectMapper);
 
         routeService.reconcileRequired();
 
         ArgumentCaptor<String> routes = ArgumentCaptor.forClass(String.class);
         verify(coolify).updateApplicationDomains(eq(connection), eq("app-1"), routes.capture());
+        verify(coolify).start(connection, "app-1", true, true);
         assertThat(routes.getValue()).isEqualTo(String.join(",",
             "https://workspace.loomai.test",
             "https://northfield.apps.loomai.test",
@@ -114,6 +117,7 @@ class AIWorkspaceDomainRouteServiceTest {
         fixture.routeService().reconcileRequired();
 
         verify(fixture.coolify(), never()).updateApplicationDomains(any(), any(), any());
+        verify(fixture.coolify(), never()).start(any(), any(), any(Boolean.class), any(Boolean.class));
         assertThat(fixture.service().getBaseUrl()).isEqualTo("https://workspace.loomai.test");
     }
 
@@ -163,6 +167,7 @@ class AIWorkspaceDomainRouteServiceTest {
             domains, services, profiles, resolver, coolify,
             new PlatformAIWorkspaceProperties(Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
                 "apps.loomai.test", "https://workspace.loomai.test"),
+            provisioningProperties(),
             audit, objectMapper);
         return new Fixture(routeService, domains, coolify, audit, service);
     }
@@ -185,5 +190,12 @@ class AIWorkspaceDomainRouteServiceTest {
         domain.setStatus(status);
         domain.setVerificationToken("token");
         return domain;
+    }
+
+    private PlatformProductProvisioningProperties provisioningProperties() {
+        PlatformProductProvisioningProperties properties = mock(PlatformProductProvisioningProperties.class);
+        when(properties.pollInterval()).thenReturn(Duration.ofMillis(1));
+        when(properties.requestTimeout()).thenReturn(Duration.ofSeconds(1));
+        return properties;
     }
 }

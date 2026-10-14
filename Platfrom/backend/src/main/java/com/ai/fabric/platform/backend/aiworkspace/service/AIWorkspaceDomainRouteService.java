@@ -5,8 +5,13 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainType;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceDomainRepository;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
+import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyActionResponse;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationSummary;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -16,12 +21,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -40,15 +47,18 @@ public class AIWorkspaceDomainRouteService {
     private final CoolifyTargetProfileResolver targetProfileResolver;
     private final CoolifyApiClient coolifyApiClient;
     private final PlatformAIWorkspaceProperties properties;
+    private final PlatformProductProvisioningProperties provisioningProperties;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public AIWorkspaceDomainRouteService(AIWorkspaceDomainRepository domainRepository,
                                          PlatformManagedProductServiceRepository serviceRepository,
                                          DeploymentTargetProfileRepository targetProfileRepository,
                                          CoolifyTargetProfileResolver targetProfileResolver,
                                          CoolifyApiClient coolifyApiClient,
                                          PlatformAIWorkspaceProperties properties,
+                                         PlatformProductProvisioningProperties provisioningProperties,
                                          PlatformAuditService auditService,
                                          ObjectMapper objectMapper) {
         this.domainRepository = domainRepository;
@@ -57,6 +67,7 @@ public class AIWorkspaceDomainRouteService {
         this.targetProfileResolver = targetProfileResolver;
         this.coolifyApiClient = coolifyApiClient;
         this.properties = properties;
+        this.provisioningProperties = provisioningProperties;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
     }
@@ -121,6 +132,11 @@ public class AIWorkspaceDomainRouteService {
         boolean changed = !sameDomains(application.fqdn(), domains);
         if (changed) {
             coolifyApiClient.updateApplicationDomains(connection, applicationUuid, domains);
+            awaitRouteDeployment(
+                connection,
+                applicationUuid,
+                coolifyApiClient.start(connection, applicationUuid, true, true)
+            );
         }
         service.setBaseUrl(canonicalBaseUrl(service.getBaseUrl(), reconciled));
         details.put("coolifyFqdn", domains);
@@ -142,6 +158,61 @@ public class AIWorkspaceDomainRouteService {
                 "coolifyUpdated", changed
             )
         );
+    }
+
+    private void awaitRouteDeployment(CoolifyConnection connection,
+                                      String applicationUuid,
+                                      CoolifyActionResponse response) {
+        String deploymentUuid = response == null ? null : text(response.deploymentUuid());
+        Duration timeout = provisioningProperties.requestTimeout();
+        Duration pollInterval = provisioningProperties.pollInterval();
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            CoolifyDeploymentSummary deployment = deploymentUuid == null
+                ? null
+                : coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+            CoolifyApplicationSummary application = coolifyApiClient.getApplication(connection, applicationUuid).orElse(null);
+            if (deploymentFailed(deployment)) {
+                throw conflict("Standalone AI Workspace route deployment failed: " + deploymentUuid);
+            }
+            boolean deploymentReady = deploymentUuid == null || deploymentFinished(deployment);
+            if (deploymentReady && applicationReady(application)) return;
+            try {
+                Thread.sleep(Math.max(pollInterval.toMillis(), 250L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while applying standalone AI Workspace routes.", ex);
+            }
+        }
+        throw conflict("Timed out applying standalone AI Workspace routes: " + applicationUuid);
+    }
+
+    private boolean deploymentFinished(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) return false;
+        String status = normalized(deployment.status());
+        return status.equals("FINISHED") || status.equals("SUCCESS") || status.equals("SUCCEEDED")
+            || status.equals("COMPLETED") || text(deployment.finishedAt()) != null && !deploymentFailed(deployment);
+    }
+
+    private boolean deploymentFailed(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) return false;
+        String status = normalized(deployment.status());
+        return status.contains("FAILED") || status.contains("ERROR")
+            || status.contains("CANCELLED") || status.contains("CANCELED");
+    }
+
+    private boolean applicationReady(CoolifyApplicationSummary application) {
+        if (application == null) return false;
+        String status = normalized(application.status());
+        return status.startsWith("RUNNING") && !status.contains("UNHEALTHY");
+    }
+
+    private String normalized(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String text(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void recordFailure(PlatformManagedProductServiceEntity service, RuntimeException ex) {
