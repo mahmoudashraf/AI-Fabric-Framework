@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -174,6 +175,88 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileTemplateProviderVersionTransitionReplacesOnlyTemplateOwnedFields() {
+        MarketplacePluginEntity plugin = new MarketplacePluginEntity();
+        plugin.setId("mkp-template-vector-provider");
+        plugin.setPluginType("TEMPLATE");
+        MarketplacePluginVersionEntity currentVersion = templateProviderVersion(
+            "mkv-template-vector-provider-v1-0-0",
+            "1.0.0",
+            """
+                "vectorStrategy": "qdrant",
+                "vectorProvisioningMode": "PLATFORM_MANAGED",
+                "vectorStoragePosture": "DEDICATED",
+                "qdrantCloudProviderId": "aws"
+                """
+        );
+        MarketplacePluginVersionEntity targetVersion = templateProviderVersion(
+            "mkv-template-vector-provider-v1-1-0",
+            "1.1.0",
+            """
+                "vectorStrategy": "milvus",
+                "vectorProvisioningMode": "PLATFORM_MANAGED",
+                "vectorStoragePosture": "DEDICATED",
+                "zillizCloudProjectId": "project-reviewed",
+                "milvusPort": 443,
+                "milvusSecure": true
+                """
+        );
+        ObjectNode existing = objectMapper.createObjectNode();
+        existing.put("vectorStrategy", "qdrant");
+        existing.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        existing.put("vectorStoragePosture", "DEDICATED");
+        existing.put("qdrantCloudProviderId", "aws");
+        existing.put("openaiModel", "reviewed-model");
+
+        ObjectNode compiled = compilerService.compileTemplateProviderVersionTransition(
+            plugin,
+            currentVersion,
+            targetVersion,
+            existing
+        );
+
+        assertThat(compiled.path("vectorStrategy").asText()).isEqualTo("milvus");
+        assertThat(compiled.path("zillizCloudProjectId").asText()).isEqualTo("project-reviewed");
+        assertThat(compiled.path("milvusPort").asInt()).isEqualTo(443);
+        assertThat(compiled.path("milvusSecure").asBoolean()).isTrue();
+        assertThat(compiled.has("qdrantCloudProviderId")).isFalse();
+        assertThat(compiled.path("openaiModel").asText()).isEqualTo("reviewed-model");
+    }
+
+    @Test
+    void compileTemplateProviderVersionTransitionRejectsRetiredIdentityFields() {
+        MarketplacePluginEntity plugin = new MarketplacePluginEntity();
+        plugin.setId("mkp-template-vector-provider");
+        plugin.setPluginType("TEMPLATE");
+        MarketplacePluginVersionEntity currentVersion = templateProviderVersion(
+            "mkv-template-vector-provider-v1-0-0",
+            "1.0.0",
+            """
+                "vectorStrategy": "qdrant",
+                "vectorProvisioningMode": "PLATFORM_MANAGED",
+                "vectorStoragePosture": "DEDICATED"
+                """
+        );
+        MarketplacePluginVersionEntity targetVersion = templateWithoutProviderVersion(
+            "mkv-template-vector-provider-v2-0-0",
+            "2.0.0"
+        );
+        ObjectNode existing = objectMapper.createObjectNode();
+        existing.put("vectorStrategy", "qdrant");
+        existing.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        existing.put("vectorStoragePosture", "DEDICATED");
+        existing.put("generationModel", "customer-model");
+
+        assertThatThrownBy(() -> compilerService.compileTemplateProviderVersionTransition(
+            plugin,
+            currentVersion,
+            targetVersion,
+            existing
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("must continue declaring provider identity fields: vectorStrategy, vectorProvisioningMode, vectorStoragePosture");
+    }
+
+    @Test
     void resolvesReviewedHttpConnectionFieldsToManagedEnvironmentPlaceholders() throws Exception {
         ObjectNode connector = (ObjectNode) objectMapper.readTree("""
             {
@@ -288,6 +371,53 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
               }
             }
             """.formatted(securityFields));
+        return version;
+    }
+
+    private MarketplacePluginVersionEntity templateProviderVersion(String id,
+                                                                    String versionNumber,
+                                                                    String providerFields) {
+        MarketplacePluginVersionEntity version = version();
+        version.setId(id);
+        version.setPluginId("mkp-template-vector-provider");
+        version.setVersion(versionNumber);
+        version.setManifestJson("""
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {
+                "template": {
+                  "templateId": "custom-start-from-scratch",
+                  "providerConfig": {
+                    %s
+                  }
+                }
+              }
+            }
+            """.formatted(providerFields));
+        return version;
+    }
+
+    private MarketplacePluginVersionEntity templateWithoutProviderVersion(String id, String versionNumber) {
+        MarketplacePluginVersionEntity version = version();
+        version.setId(id);
+        version.setPluginId("mkp-template-vector-provider");
+        version.setVersion(versionNumber);
+        version.setManifestJson("""
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {
+                "template": {"templateId": "custom-start-from-scratch"}
+              }
+            }
+            """);
         return version;
     }
 

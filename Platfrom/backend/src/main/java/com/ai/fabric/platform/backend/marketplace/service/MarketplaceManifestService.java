@@ -78,6 +78,55 @@ public class MarketplaceManifestService {
         "corsAllowCredentials",
         "publicRuntimeBootstrapEnabled"
     );
+    private static final Set<String> TEMPLATE_PROVIDER_STRING_FIELDS = Set.of(
+        "vectorStrategy",
+        "vectorProvisioningMode",
+        "vectorStoragePosture",
+        "qdrantHost",
+        "qdrantCloudAccountId",
+        "qdrantCloudProviderId",
+        "qdrantCloudRegionId",
+        "qdrantCloudPackageId",
+        "pineconeCloud",
+        "pineconeRegion",
+        "pineconeMetric",
+        "weaviateScheme",
+        "weaviateHost",
+        "milvusHost",
+        "milvusDatabaseName",
+        "zillizCloudProjectId",
+        "zillizCloudRegionId",
+        "zillizCloudClusterPlan",
+        "zillizCloudCuType"
+    );
+    private static final Set<String> TEMPLATE_PROVIDER_INTEGER_FIELDS = Set.of(
+        "qdrantPort",
+        "qdrantGrpcPort",
+        "qdrantTimeout",
+        "pineconeDimensions",
+        "weaviatePort",
+        "weaviateTimeout",
+        "milvusPort",
+        "milvusTimeout",
+        "zillizCloudCuSize"
+    );
+    private static final Set<String> TEMPLATE_PROVIDER_BOOLEAN_FIELDS = Set.of(
+        "qdrantPreferGrpc",
+        "qdrantManagedCollectionsEnabled",
+        "pineconeManagedIndexEnabled",
+        "pineconeDeletionProtectionEnabled",
+        "weaviateConsistencyLevelStrong",
+        "weaviateNativeMultiTenancyEnabled",
+        "milvusSecure",
+        "milvusFlushOnWrite"
+    );
+    private static final Set<String> TEMPLATE_PROVIDER_FIELDS = java.util.stream.Stream.of(
+        TEMPLATE_PROVIDER_STRING_FIELDS,
+        TEMPLATE_PROVIDER_INTEGER_FIELDS,
+        TEMPLATE_PROVIDER_BOOLEAN_FIELDS
+    ).flatMap(Set::stream).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    private static final int MAX_TEMPLATE_PROVIDER_FIELDS = 40;
+    private static final int MAX_TEMPLATE_PROVIDER_JSON_CHARS = 8_192;
     private static final Set<String> TEMPLATE_INSTALL_DEFAULT_FIELDS = Set.of("config", "secretRefs");
     private static final int MAX_TEMPLATE_INSTALL_DEFAULTS = 32;
     private static final int MAX_TEMPLATE_INSTALL_DEFAULT_FIELDS = 64;
@@ -558,6 +607,7 @@ public class MarketplaceManifestService {
         String curatedModuleId = template.path("curatedModuleId").asText("").trim();
         JsonNode shell = template.path("shell");
         validateTemplateSecurityContribution(plugin, version, template.path("security"));
+        validateTemplateProviderConfigContribution(plugin, version, template.path("providerConfig"));
         validateEntityContribution(plugin, version, template.path("entityConfig"));
         TemplateBehaviorContribution behavior = parseTemplateBehaviorContribution(
             plugin,
@@ -827,6 +877,71 @@ public class MarketplaceManifestService {
                 version,
                 "template security contribution declares unsupported authzMode: " + authzMode
             );
+        }
+    }
+
+    private void validateTemplateProviderConfigContribution(MarketplacePluginEntity plugin,
+                                                            MarketplacePluginVersionEntity version,
+                                                            JsonNode providerConfig) {
+        if (providerConfig.isMissingNode() || providerConfig.isNull()) {
+            return;
+        }
+        if (!providerConfig.isObject() || providerConfig.size() > MAX_TEMPLATE_PROVIDER_FIELDS
+            || providerConfig.toString().length() > MAX_TEMPLATE_PROVIDER_JSON_CHARS) {
+            throw invalid(plugin, version, "template providerConfig must be a bounded object.");
+        }
+        rejectUnknownFields(plugin, version, providerConfig, TEMPLATE_PROVIDER_FIELDS,
+            "template providerConfig contribution");
+        providerConfig.fields().forEachRemaining(entry -> {
+            String field = entry.getKey();
+            JsonNode value = entry.getValue();
+            if (TEMPLATE_PROVIDER_STRING_FIELDS.contains(field)) {
+                if (!value.isTextual() || !StringUtils.hasText(value.asText()) || value.asText().length() > 255) {
+                    throw invalid(plugin, version,
+                        "template providerConfig " + field + " must be a bounded non-blank string.");
+                }
+            } else if (TEMPLATE_PROVIDER_INTEGER_FIELDS.contains(field)) {
+                if (!value.isIntegralNumber() || !value.canConvertToInt() || value.asInt() <= 0) {
+                    throw invalid(plugin, version,
+                        "template providerConfig " + field + " must be a positive integer.");
+                }
+            } else if (TEMPLATE_PROVIDER_BOOLEAN_FIELDS.contains(field) && !value.isBoolean()) {
+                throw invalid(plugin, version,
+                    "template providerConfig " + field + " must be a boolean.");
+            }
+        });
+
+        String vectorStrategy = providerConfig.path("vectorStrategy").asText("").trim().toLowerCase(Locale.ROOT);
+        if (StringUtils.hasText(vectorStrategy)
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STRATEGIES.contains(vectorStrategy)) {
+            throw invalid(plugin, version,
+                "template providerConfig declares unsupported vectorStrategy: " + vectorStrategy);
+        }
+        String provisioningMode = providerConfig.path("vectorProvisioningMode").asText("").trim().toUpperCase(Locale.ROOT);
+        if (StringUtils.hasText(provisioningMode)
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_PROVISIONING_MODES.contains(provisioningMode)) {
+            throw invalid(plugin, version,
+                "template providerConfig declares unsupported vectorProvisioningMode: " + provisioningMode);
+        }
+        String storagePosture = providerConfig.path("vectorStoragePosture").asText("").trim().toUpperCase(Locale.ROOT);
+        if (StringUtils.hasText(storagePosture)
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STORAGE_POSTURES.contains(storagePosture)) {
+            throw invalid(plugin, version,
+                "template providerConfig declares unsupported vectorStoragePosture: " + storagePosture);
+        }
+        if (StringUtils.hasText(providerConfig.path("qdrantHost").asText())) {
+            if (!"qdrant".equals(vectorStrategy)
+                || !StringUtils.hasText(provisioningMode)
+                || !StringUtils.hasText(storagePosture)) {
+                throw invalid(plugin, version,
+                    "template providerConfig qdrantHost requires explicit qdrant vectorStrategy, "
+                        + "vectorProvisioningMode, and vectorStoragePosture.");
+            }
+            if (ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(provisioningMode)
+                && ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_DEDICATED.equals(storagePosture)) {
+                throw invalid(plugin, version,
+                    "template providerConfig cannot supply qdrantHost for PLATFORM_MANAGED DEDICATED storage.");
+            }
         }
     }
 

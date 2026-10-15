@@ -164,6 +164,8 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("milvusSecure").asBoolean()).isTrue();
         assertThat(providerConfig.path("milvusPort").asInt()).isEqualTo(443);
         assertThat(providerConfig.path("zillizCloudClusterPlan").asText()).isEqualTo("Serverless");
+        assertThat(providerConfig.has("zillizCloudCuType")).isFalse();
+        assertThat(providerConfig.has("zillizCloudCuSize")).isFalse();
         assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(768);
     }
 
@@ -220,6 +222,8 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("milvusSecure").asBoolean()).isTrue();
         assertThat(providerConfig.path("milvusPort").asInt()).isEqualTo(443);
         assertThat(providerConfig.path("zillizCloudClusterPlan").asText()).isEqualTo("Serverless");
+        assertThat(providerConfig.has("zillizCloudCuType")).isFalse();
+        assertThat(providerConfig.has("zillizCloudCuSize")).isFalse();
         assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
     }
 

@@ -43,6 +43,12 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 @Service
 public class DeploymentMarketplaceDraftCompilerService {
 
+    private static final List<String> REQUIRED_TEMPLATE_PROVIDER_IDENTITY_FIELDS = List.of(
+        "vectorStrategy",
+        "vectorProvisioningMode",
+        "vectorStoragePosture"
+    );
+
     private static final String MARKETPLACE_MANAGED_FIELD = "marketplaceManaged";
     private static final String MARKETPLACE_PLUGIN_ID_FIELD = "marketplacePluginId";
     private static final String MARKETPLACE_INSTALL_ID_FIELD = "marketplaceInstallId";
@@ -824,6 +830,68 @@ public class DeploymentMarketplaceDraftCompilerService {
         return securityRoot;
     }
 
+    public ObjectNode compileTemplateProviderBaseline(MarketplacePluginEntity plugin,
+                                                      MarketplacePluginVersionEntity version,
+                                                      JsonNode existingProviderConfig) {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            marketplaceManifestService.parseAndValidate(plugin, version);
+        if (!"TEMPLATE".equals(parsed.pluginType())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not a template plugin: " + plugin.getId());
+        }
+        ObjectNode providerRoot = normalizeProviderRoot(existingProviderConfig);
+        JsonNode templateProvider = parsed.manifest().path("contributions").path("template").path("providerConfig");
+        if (templateProvider.isObject()) {
+            templateProvider.fields().forEachRemaining(entry ->
+                providerRoot.set(entry.getKey(), entry.getValue().deepCopy()));
+        }
+        return providerRoot;
+    }
+
+    /**
+     * Replaces only provider fields owned by the reviewed template versions. Customer-owned provider settings
+     * outside those manifests remain unchanged.
+     */
+    public ObjectNode compileTemplateProviderVersionTransition(MarketplacePluginEntity plugin,
+                                                               MarketplacePluginVersionEntity currentVersion,
+                                                               MarketplacePluginVersionEntity targetVersion,
+                                                               JsonNode existingProviderConfig) {
+        MarketplaceManifestService.ParsedMarketplaceManifest current =
+            marketplaceManifestService.parseAndValidate(plugin, currentVersion);
+        MarketplaceManifestService.ParsedMarketplaceManifest target =
+            marketplaceManifestService.parseAndValidate(plugin, targetVersion);
+        if (!"TEMPLATE".equals(current.pluginType()) || !"TEMPLATE".equals(target.pluginType())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not a template plugin: " + plugin.getId());
+        }
+
+        ObjectNode providerRoot = normalizeProviderRoot(existingProviderConfig);
+        JsonNode currentProvider = current.manifest().path("contributions").path("template").path("providerConfig");
+        JsonNode targetProvider = target.manifest().path("contributions").path("template").path("providerConfig");
+        if (currentProvider.isObject()) {
+            List<String> missingIdentityFields = REQUIRED_TEMPLATE_PROVIDER_IDENTITY_FIELDS.stream()
+                .filter(field -> currentProvider.has(field) && !targetProvider.has(field))
+                .toList();
+            if (!missingIdentityFields.isEmpty()) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Template provider transition must continue declaring provider identity fields: "
+                        + String.join(", ", missingIdentityFields) + "."
+                );
+            }
+        }
+        if (currentProvider.isObject()) {
+            currentProvider.fieldNames().forEachRemaining(field -> {
+                if (!targetProvider.has(field)) {
+                    providerRoot.remove(field);
+                }
+            });
+        }
+        if (targetProvider.isObject()) {
+            targetProvider.fields().forEachRemaining(entry ->
+                providerRoot.set(entry.getKey(), entry.getValue().deepCopy()));
+        }
+        return providerRoot;
+    }
+
     /**
      * Applies a reviewed template security transition without disturbing fields that neither template version owns.
      * A field removed by the target manifest is cleared only when the previous manifest contributed that field.
@@ -873,6 +941,46 @@ public class DeploymentMarketplaceDraftCompilerService {
                 null,
                 null,
                 null,
+                security,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
+    /**
+     * Applies all reviewed template-owned provider and security changes in one draft update.
+     */
+    @Transactional
+    public DeploymentDraftResponse transitionTemplateBaselinesForTrustedCaller(
+        String deploymentId,
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity currentVersion,
+        MarketplacePluginVersionEntity targetVersion
+    ) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId);
+        ObjectNode provider = compileTemplateProviderVersionTransition(
+            plugin,
+            currentVersion,
+            targetVersion,
+            draft.providerConfig()
+        );
+        ObjectNode security = compileTemplateSecurityVersionTransition(
+            plugin,
+            currentVersion,
+            targetVersion,
+            draft.securityConfig()
+        );
+        return deploymentService.updateDraftForTrustedCaller(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                null,
+                null,
+                null,
+                provider,
                 security,
                 null,
                 null,

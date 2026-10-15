@@ -120,6 +120,11 @@ public class MarketplaceTemplateBootstrapService {
             : deploymentService.createDeployment(deploymentRequest);
 
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = deploymentMarketplaceDraftCompilerService.compileTemplateProviderBaseline(
+            plugin,
+            version,
+            draft.providerConfig()
+        );
         JsonNode securityConfig = deploymentMarketplaceDraftCompilerService.compileTemplateSecurityBaseline(
             plugin,
             version,
@@ -131,7 +136,7 @@ public class MarketplaceTemplateBootstrapService {
                 null,
                 null,
                 null,
-                null,
+                providerConfig,
                 securityConfig,
                 null,
                 null,

@@ -19,6 +19,97 @@ class MarketplaceManifestServiceTest {
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
     @Test
+    void templateProviderBaselineAllowsOnlyBoundedNonSecretVectorSettings() throws Exception {
+        String valid = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {"template": {
+                "templateId": "dev-openai-milvus",
+                "providerConfig": {
+                  "vectorStrategy": "milvus",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "vectorStoragePosture": "DEDICATED",
+                  "zillizCloudProjectId": "project-reviewed",
+                  "zillizCloudRegionId": "aws-eu-central-1",
+                  "zillizCloudClusterPlan": "Serverless",
+                  "milvusPort": 443,
+                  "milvusSecure": true,
+                  "milvusFlushOnWrite": false
+                }
+              }}
+            }
+            """;
+
+        assertThat(service.parseAndValidate(templatePlugin(), templateVersion(valid)).pluginType())
+            .isEqualTo("TEMPLATE");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace("\"milvusSecure\": true", "\"milvusToken\": \"literal-secret\"")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("unsupported field");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace("\"milvusPort\": 443", "\"milvusPort\": \"443\"")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("positive integer");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace("\"milvusPort\": 443", "\"milvusPort\": 443.75")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("positive integer");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace("\"vectorStrategy\": \"milvus\"", "\"vectorStrategy\": \"unknown\"")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("unsupported vectorStrategy");
+
+        String qdrant = valid
+            .replace("\"vectorStrategy\": \"milvus\"", "\"vectorStrategy\": \"qdrant\"")
+            .replace("\"vectorStoragePosture\": \"DEDICATED\"", "\"vectorStoragePosture\": \"SHARED\"")
+            .replace("\"zillizCloudProjectId\": \"project-reviewed\",", "\"qdrantCloudAccountId\": \"account-reviewed\",")
+            .replace("\"zillizCloudRegionId\": \"aws-eu-central-1\",", "\"qdrantCloudProviderId\": \"aws\",\n                  \"qdrantCloudRegionId\": \"eu-west-1\",\n                  \"qdrantCloudPackageId\": \"package-reviewed\",\n                  \"qdrantHost\": \"https://reviewed.example\",")
+            .replace("\"zillizCloudClusterPlan\": \"Serverless\",", "\"qdrantTimeout\": 30,")
+            .replace("\"milvusPort\": 443,", "\"qdrantPort\": 6333,")
+            .replace("\"milvusSecure\": true,", "\"qdrantPreferGrpc\": false,")
+            .replace("\"milvusFlushOnWrite\": false", "\"qdrantManagedCollectionsEnabled\": true");
+        assertThat(service.parseAndValidate(templatePlugin(), templateVersion(qdrant)).pluginType())
+            .isEqualTo("TEMPLATE");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            qdrant.replace("\"vectorStoragePosture\": \"SHARED\"", "\"vectorStoragePosture\": \"DEDICATED\"")
+        ))).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("cannot supply qdrantHost for PLATFORM_MANAGED DEDICATED storage");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            withoutTemplateProviderField(qdrant, "vectorStoragePosture")
+        ))).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("qdrantHost requires explicit qdrant vectorStrategy");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            withoutTemplateProviderField(qdrant, "vectorProvisioningMode")
+        ))).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("qdrantHost requires explicit qdrant vectorStrategy");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            withoutTemplateProviderField(qdrant, "vectorStrategy")
+        ))).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("qdrantHost requires explicit qdrant vectorStrategy");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace(
+                "\"zillizCloudClusterPlan\": \"Serverless\",",
+                "\"zillizCloudClusterPlan\": \"Serverless\",\n                  \"zillizCloudClusterNameOverride\": \"shared-name\","
+            )
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("unsupported field");
+    }
+
+    private String withoutTemplateProviderField(String manifest, String field) throws Exception {
+        ObjectNode root = (ObjectNode) objectMapper.readTree(manifest);
+        ((ObjectNode) root.path("contributions").path("template").path("providerConfig")).remove(field);
+        return objectMapper.writeValueAsString(root);
+    }
+
+    @Test
     void templateInstallDefaultsAreLimitedToPinnedPluginsAndDeploymentSecretNames() {
         String valid = """
             {

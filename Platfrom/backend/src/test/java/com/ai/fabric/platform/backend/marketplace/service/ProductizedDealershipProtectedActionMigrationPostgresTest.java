@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.List;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
@@ -27,11 +28,12 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
     private final MarketplaceManifestService manifests = new MarketplaceManifestService(mapper);
 
     @Test
-    void publishesProtectedTestDriveAndDisablesProductionHostedCustomerStaging() throws Exception {
+    void publishesProtectedTestDriveDurableDealershipTemplateAndDisablesProductionHostedCustomerStaging()
+        throws Exception {
         Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("183"))
+            .target(MigrationVersion.fromVersion("184"))
             .load()
             .migrate();
 
@@ -66,6 +68,61 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
                 .path("contributions").path("template");
             assertThat(refreshedContribution.path("requiredPluginRefs"))
                 .isEqualTo(contribution.path("requiredPluginRefs"));
+
+            Seed durableTemplate = seed(connection, "mkv-template-simulated-dealership-experience-v1-4");
+            manifests.parseAndValidate(plugin(durableTemplate), version(durableTemplate));
+            assertThat(durableTemplate.version()).isEqualTo("1.4.0");
+            JsonNode durableManifest = mapper.readTree(durableTemplate.manifestJson());
+            assertThat(durableManifest.path("compatibility").path("supportedDeploymentTargets"))
+                .extracting(JsonNode::asText)
+                .containsExactly("dev-openai-milvus");
+            JsonNode durableContribution = durableManifest.path("contributions").path("template");
+            assertThat(durableContribution.path("templateId").asText()).isEqualTo("dev-openai-milvus");
+            assertThat(durableContribution.path("providerConfig").path("vectorStrategy").asText())
+                .isEqualTo("milvus");
+            assertThat(durableContribution.path("providerConfig").path("vectorProvisioningMode").asText())
+                .isEqualTo("PLATFORM_MANAGED");
+            assertThat(durableContribution.path("providerConfig").path("vectorStoragePosture").asText())
+                .isEqualTo("DEDICATED");
+            assertThat(durableContribution.path("requiredPluginRefs"))
+                .extracting(JsonNode::asText)
+                .containsExactly(
+                    "mkp-data-simulated-dealership-stock-v1@1.1.0",
+                    "mkp-action-simulated-dealership-discovery-v1@1.1.0",
+                    "mkp-action-dealership-engagement-v1@1.2.0",
+                    "mkp-data-dealership-knowledge-v1@1.0.0",
+                    "mkp-action-conversation-handover@1.1.0",
+                    "mkp-integration-basic-loomai-inbox@1.2.0"
+                )
+                .doesNotContain(
+                    "mkp-data-simulated-dealership-stock-v1@1.0.0",
+                    "mkp-action-simulated-dealership-discovery-v1@1.0.0",
+                    "mkp-action-dealership-engagement-v1@1.1.0",
+                    "mkp-action-conversation-handover@1.0.0",
+                    "mkp-integration-basic-loomai-inbox@1.1.0"
+                );
+            JsonNode durableDefaults = durableContribution.path("requiredPluginInstallDefaults");
+            assertThat(durableDefaults.has("mkp-data-simulated-dealership-stock-v1@1.1.0")).isTrue();
+            assertThat(durableDefaults.has("mkp-action-dealership-engagement-v1@1.2.0")).isTrue();
+            assertThat(durableDefaults.has("mkp-integration-basic-loomai-inbox@1.2.0")).isTrue();
+            assertThat(durableDefaults.has("mkp-data-simulated-dealership-stock-v1@1.0.0")).isFalse();
+            assertThat(durableDefaults.has("mkp-action-dealership-engagement-v1@1.1.0")).isFalse();
+            assertThat(durableDefaults.has("mkp-integration-basic-loomai-inbox@1.1.0")).isFalse();
+
+            for (String versionId : List.of(
+                "mkv-data-simulated-dealership-stock-v1-1",
+                "mkv-action-simulated-dealership-discovery-v1-1",
+                "mkv-action-dealership-engagement-v1-2",
+                "mkv-action-conversation-handover-v1-1",
+                "mkv-integration-basic-loomai-inbox-v1-2"
+            )) {
+                Seed compatibleDependency = seed(connection, versionId);
+                manifests.parseAndValidate(plugin(compatibleDependency), version(compatibleDependency));
+                assertThat(mapper.readTree(compatibleDependency.manifestJson())
+                    .path("compatibility").path("supportedDeploymentTargets"))
+                    .extracting(JsonNode::asText)
+                    .containsExactly("custom-start-from-scratch", "dev-openai-milvus");
+            }
 
             try (PreparedStatement statement = connection.prepareStatement(
                 "select active from deployment_target_profiles where id = 'dtp-coolify-prod-staging'")) {

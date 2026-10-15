@@ -327,7 +327,7 @@ public class DeploymentMarketplaceInstallService {
         marketplaceEntitlementService.ensureEntitlement(install, parsed);
         if ("TEMPLATE".equals(parsed.pluginType())
             && !currentVersion.getId().equals(version.getId())) {
-            deploymentMarketplaceDraftCompilerService.transitionTemplateSecurityForTrustedCaller(
+            deploymentMarketplaceDraftCompilerService.transitionTemplateBaselinesForTrustedCaller(
                 deployment.getId(),
                 plugin,
                 currentVersion,

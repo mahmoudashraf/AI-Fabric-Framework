@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
@@ -54,6 +55,10 @@ class MarketplaceTemplateBootstrapServiceTest {
                     "config": {"scopeId": "${MANAGED_SCOPE_ID}"},
                     "secretRefs": {"providerKey": "MANAGED_PROVIDER_KEY"}
                   }
+                },
+                "providerConfig": {
+                  "vectorStrategy": "milvus",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED"
                 }
               }}
             }
@@ -77,8 +82,14 @@ class MarketplaceTemplateBootstrapServiceTest {
         when(deployments.createDeploymentConfiguration(any())).thenReturn(deployment);
         DeploymentDraftResponse draft = mock(DeploymentDraftResponse.class);
         when(draft.id()).thenReturn("draft");
+        when(draft.providerConfig()).thenReturn(mapper.createObjectNode());
         when(draft.securityConfig()).thenReturn(mapper.createObjectNode());
         when(deployments.getActiveDraftForDeployment("deployment")).thenReturn(draft);
+        var providerBaseline = mapper.createObjectNode()
+            .put("vectorStrategy", "milvus")
+            .put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        when(compiler.compileTemplateProviderBaseline(eq(plugin), eq(version), any()))
+            .thenReturn(providerBaseline);
         when(compiler.compileTemplateSecurityBaseline(eq(plugin), eq(version), any()))
             .thenReturn(mapper.createObjectNode());
         DeploymentEntity entity = new DeploymentEntity();
@@ -99,6 +110,9 @@ class MarketplaceTemplateBootstrapServiceTest {
         assertThat(request.getValue().pluginVersion()).isEqualTo("1.2.3");
         assertThat(request.getValue().config().path("scopeId").asText()).isEqualTo("${MANAGED_SCOPE_ID}");
         assertThat(request.getValue().secretRefs().path("providerKey").asText()).isEqualTo("MANAGED_PROVIDER_KEY");
+        var draftUpdate = ArgumentCaptor.forClass(UpdateDeploymentDraftRequest.class);
+        verify(deployments).updateDraft(eq("draft"), draftUpdate.capture());
+        assertThat(draftUpdate.getValue().providerConfig()).isEqualTo(providerBaseline);
         verify(compiler).syncDeploymentDraftForTrustedTemplateBootstrap("deployment");
     }
 }

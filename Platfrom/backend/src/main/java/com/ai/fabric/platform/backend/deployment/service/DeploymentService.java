@@ -2361,9 +2361,6 @@ public class DeploymentService {
                 root.put("zillizCloudProjectId", "");
                 root.put("zillizCloudRegionId", "");
                 root.put("zillizCloudClusterPlan", "Serverless");
-                root.put("zillizCloudCuType", "");
-                root.put("zillizCloudCuSize", 0);
-                root.put("zillizCloudClusterNameOverride", "");
             }
         }
     }
