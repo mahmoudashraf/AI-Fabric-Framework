@@ -96,4 +96,27 @@ class ManagedDependencySpecValidatorTest {
                 ))));
         assertThatThrownBy(() -> validator.validate(traversal)).hasMessageContaining("RUNTIME_BINDING_INVALID");
     }
+
+    @Test void targetSecretRuntimeBindingMustUseAReviewedAuthorityPurposeWithoutAServiceReference() {
+        var topology = ManagedDependencyFixtures.topology();
+        assertThatNoException().isThrownBy(() -> validator.validate(topology));
+        assertThat(topology.runtimeEnvironment()).anySatisfy(binding -> {
+            assertThat(binding.name()).isEqualTo("MANAGED_INBOX_CALLBACK_SIGNING_SECRET");
+            assertThat(binding.value().kind()).isEqualTo(ManagedDependencySpec.ValueKind.TARGET_SECRET);
+            assertThat(binding.value().reference()).isEqualTo("conversation-handover-callback-signing");
+        });
+
+        var invalid = new ManagedDependencySpec.RuntimeEnvironmentBinding(
+            ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+            "MANAGED_INVALID_TARGET_SECRET",
+            new ManagedDependencySpec.Value(
+                ManagedDependencySpec.ValueKind.TARGET_SECRET,
+                "conversation-handover-callback-signing",
+                "inbox"
+            )
+        );
+        var spec = new ManagedDependencySpec(topology.schemaVersion(), topology.services(),
+            java.util.stream.Stream.concat(topology.runtimeEnvironment().stream(), java.util.stream.Stream.of(invalid)).toList());
+        assertThatThrownBy(() -> validator.validate(spec)).hasMessageContaining("RUNTIME_BINDING_INVALID");
+    }
 }

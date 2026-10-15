@@ -495,9 +495,11 @@ public class ManagedDependencyLifecycleService {
         Map<String, String> connector = new TreeMap<>();
         for (var binding : spec.runtimeEnvironment()) {
             var value = binding.value();
-            var owned = node(state, value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL
-                || value.kind() == ManagedDependencySpec.ValueKind.SERVICE_HOST
-                ? value.reference() : value.serviceSlot());
+            var owned = value.kind() == ManagedDependencySpec.ValueKind.TARGET_SECRET
+                ? null
+                : node(state, value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL
+                    || value.kind() == ManagedDependencySpec.ValueKind.SERVICE_HOST
+                    ? value.reference() : value.serviceSlot());
             String resolved = switch (value.kind()) {
                 case SERVICE_URL -> owned.baseUrl == null ? plannedPublicUrl(owned, connection) : owned.baseUrl;
                 case SERVICE_URL_PATH -> joinServiceUrl(
@@ -506,6 +508,7 @@ public class ManagedDependencyLifecycleService {
                 );
                 case SERVICE_HOST -> serviceHost(owned.baseUrl == null ? plannedPublicUrl(owned, connection) : owned.baseUrl);
                 case SERVICE_SECRET -> "${secret:" + owned.secrets.get(value.reference()) + "}";
+                case TARGET_SECRET -> "${secret:" + state.targetSecretReferences.get(value.reference()) + "}";
                 case ACCOUNT_ID -> owned.accountId;
                 case BINDING_ID -> owned.bindingId;
                 default -> throw conflict("DEPENDENCY_RUNTIME_BINDING_INVALID");

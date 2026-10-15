@@ -73,7 +73,8 @@ class ManagedDependencyLifecycleServiceTest {
             "reservation-" + ((ManagedDependencyPrerequisites.Scope)i.getArgument(0)).graphId(), "c".repeat(64),
             i.getArgument(2) == ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND
                 ? Map.of("inbox", "https://connector.example.test/inbox/callback") : Map.of(),
-            List.of("https://app.example.test"), Map.of(), Map.of()));
+            List.of("https://app.example.test"), Map.of(),
+            Map.of("conversation-handover-callback-signing", "TARGET_CALLBACK_SECRET")));
         when(secrets.isSecretPresent(anyString())).thenAnswer(i -> keys.containsKey(i.getArgument(0)));
         when(secrets.resolveSecret(anyString())).thenAnswer(i -> keys.get(i.getArgument(0)));
         when(secrets.upsertManagedSecret(anyString(), anyString(), anyMap())).thenAnswer(i -> {
@@ -214,6 +215,7 @@ class ManagedDependencyLifecycleServiceTest {
             .containsEntry("MANAGED_RECEIVER_ACTION_URL", "https://dep-" + pending.graphId().substring(4)
                 + "-receiver.example.test/api/internal/actions/execute")
             .containsEntry("MANAGED_INBOX_BASE_URL", "https://dep-" + pending.graphId().substring(4) + "-inbox.example.test")
+            .containsEntry("MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:TARGET_CALLBACK_SECRET}")
             .containsEntry("MANAGED_SIMULATOR_ACCOUNT_ID", store.state(graphs.get(pending.graphId())).nodes.getFirst().accountId);
         assertThat(runtimeEnvironment.connector().get("MANAGED_SIMULATOR_API_KEY"))
             .startsWith("${secret:MANAGED_DEP_").endsWith("}");

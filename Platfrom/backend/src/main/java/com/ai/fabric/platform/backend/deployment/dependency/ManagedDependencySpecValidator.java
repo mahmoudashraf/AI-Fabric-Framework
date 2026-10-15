@@ -102,6 +102,8 @@ public class ManagedDependencySpecValidator {
                         .noneMatch(service -> service.secretPurposes().contains(value.reference()))) {
                     fail("RUNTIME_BINDING_INVALID");
                 }
+            } else if (value.kind() == ManagedDependencySpec.ValueKind.TARGET_SECRET) {
+                if (!token(value.reference()) || value.serviceSlot() != null) fail("RUNTIME_BINDING_INVALID");
             } else if (value.kind() == ManagedDependencySpec.ValueKind.ACCOUNT_ID
                 || value.kind() == ManagedDependencySpec.ValueKind.BINDING_ID) {
                 if (!available.contains(value.serviceSlot()) || value.reference() != null) fail("RUNTIME_BINDING_INVALID");

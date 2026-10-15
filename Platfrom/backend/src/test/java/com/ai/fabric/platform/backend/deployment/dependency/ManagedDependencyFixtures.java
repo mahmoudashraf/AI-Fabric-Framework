@@ -57,6 +57,8 @@ public final class ManagedDependencyFixtures {
                     new Value(ValueKind.SERVICE_URL_PATH, "/api/internal/actions/execute", "receiver")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_INBOX_BASE_URL",
                     new Value(ValueKind.SERVICE_URL, "inbox")),
+                new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_INBOX_CALLBACK_SIGNING_SECRET",
+                    new Value(ValueKind.TARGET_SECRET, "conversation-handover-callback-signing")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_INBOX_API_KEY",
                     new Value(ValueKind.SERVICE_SECRET, "api", "inbox"))
             ));
