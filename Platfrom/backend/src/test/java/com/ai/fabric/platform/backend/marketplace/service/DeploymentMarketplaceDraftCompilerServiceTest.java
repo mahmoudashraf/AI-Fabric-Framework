@@ -61,6 +61,30 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void templateExecutionDefaultsSurviveAnUnrelatedPendingDependency() throws Exception {
+        ObjectNode behavior = (ObjectNode) objectMapper.readTree("""
+            {
+              "executionExtensions": [],
+              "marketplaceRequirements": {
+                "unresolvedRequiredPluginRefs": ["unrelated-document-storage@1.0.0"]
+              }
+            }
+            """);
+
+        compilerService.mergeTemplateExecutionExtensionDefaults(
+            behavior,
+            new LinkedHashSet<>(java.util.List.of("GOVERNED_RESOLVER", "CONVERSATION_HANDOVER"))
+        );
+
+        assertThat(behavior.path("executionExtensions"))
+            .extracting(value -> value.asText())
+            .containsExactly("GOVERNED_RESOLVER", "CONVERSATION_HANDOVER");
+        assertThat(behavior.path("marketplaceRequirements").path("unresolvedRequiredPluginRefs"))
+            .extracting(value -> value.asText())
+            .containsExactly("unrelated-document-storage@1.0.0");
+    }
+
+    @Test
     void compileTemplateSecurityBaselineAppliesOnlyReviewedNonSecretRuntimePolicy() {
         MarketplacePluginEntity plugin = new MarketplacePluginEntity();
         plugin.setId("mkp-template-conversation-handover");

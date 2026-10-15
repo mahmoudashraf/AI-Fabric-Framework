@@ -412,12 +412,6 @@ public class DeploymentMarketplaceDraftCompilerService {
         ObjectNode behaviorRoot,
         List<DeploymentMarketplacePluginInstallEntity> installs
     ) {
-        JsonNode unresolved = behaviorRoot.path(MARKETPLACE_REQUIREMENTS_FIELD)
-            .path(UNRESOLVED_REQUIRED_PLUGIN_REFS_FIELD);
-        if (unresolved.isArray() && !unresolved.isEmpty()) {
-            return;
-        }
-
         LinkedHashSet<String> defaults = new LinkedHashSet<>();
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             if (!isEnabledForCompilation(install.getStatus())) {
@@ -449,6 +443,13 @@ public class DeploymentMarketplaceDraftCompilerService {
             return;
         }
 
+        mergeTemplateExecutionExtensionDefaults(behaviorRoot, defaults);
+    }
+
+    void mergeTemplateExecutionExtensionDefaults(ObjectNode behaviorRoot, Set<String> defaults) {
+        // A pending, unrelated template dependency must not erase the template's reviewed
+        // execution intent. Extension-specific composition validation below remains fail-closed
+        // when the action or integration required by an enabled extension is actually absent.
         ArrayNode selected = ensureArray(behaviorRoot, "executionExtensions");
         LinkedHashSet<String> existing = new LinkedHashSet<>();
         selected.forEach(value -> existing.add(value.asText("")));
