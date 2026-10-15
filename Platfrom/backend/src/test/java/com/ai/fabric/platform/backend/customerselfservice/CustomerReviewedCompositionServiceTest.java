@@ -61,7 +61,7 @@ class CustomerReviewedCompositionServiceTest {
             List.of(new ArtifactPin(artifact.getId(), service.artifactFingerprint(artifact))),
             List.of(new TargetPermission(staging.getId(), TargetIntent.CUSTOMER_STAGING, service.profileFingerprint(staging)),
                 new TargetPermission(production.getId(), TargetIntent.CUSTOMER_PRODUCTION, service.profileFingerprint(production))),
-            base.operations(), base.settings(), base.bindingSlots(), base.documentAudiences(), base.admissionPrerequisites(), base.limits(),
+            base.operations(), base.settings(), base.bindingSlots(), base.documentAudiences(), base.admissionPrerequisites(), base.limits(), base.topology(),
             base.approvedPolicyRef(), base.operatingPolicyRef(), base.identityPolicyRef(), base.storagePolicyRef());
     }
 
@@ -95,6 +95,19 @@ class CustomerReviewedCompositionServiceTest {
         assertThatThrownBy(() -> service.validate(old)).isInstanceOf(CustomerSelfServiceException.class);
         var missingLimits = codec.read(json.replace("\"activeStagingTargets\":1", "\"activeStagingTargets\":0"), Definition.class);
         assertThatThrownBy(() -> service.validate(missingLimits)).isInstanceOf(CustomerSelfServiceException.class);
+    }
+
+    @Test void reviewedTopologyIsMandatoryAndCannotExceedTheReviewedCeilings() {
+        var oversized = copyWithTopology(new ReviewedTopology(1, definition.limits().cpuMillis() + 1,
+            definition.topology().memoryMiB(), definition.topology().diskMiB(),
+            definition.topology().databases(), definition.topology().indexes(),
+            definition.topology().dependencies(), definition.topology().concurrentApplies()));
+        assertThatThrownBy(() -> service.validate(oversized)).isInstanceOf(CustomerSelfServiceException.class);
+
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) codec.tree(codec.write(definition));
+        json.remove("topology");
+        var missing = codec.read(json.toString(), Definition.class);
+        assertThatThrownBy(() -> service.validate(missing)).isInstanceOf(CustomerSelfServiceException.class);
     }
 
     @Test void hashesSurviveStructuredFieldOrderingAndSerializationRestart() {
@@ -139,7 +152,15 @@ class CustomerReviewedCompositionServiceTest {
             definition.template(), List.of(pin), definition.artifacts(), definition.targets(), definition.operations(),
             definition.settings(), List.of(new BindingSlot("document-storage", BindingKind.CUSTOMER_S3,
                 Set.of("reviewed-s3"), pin.pluginId(), field)), definition.documentAudiences(),
-            definition.admissionPrerequisites(), definition.limits(), definition.approvedPolicyRef(),
+            definition.admissionPrerequisites(), definition.limits(), definition.topology(), definition.approvedPolicyRef(),
+            definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
+    }
+
+    private Definition copyWithTopology(ReviewedTopology topology) {
+        return new Definition(definition.schemaVersion(), definition.name(), definition.templateId(),
+            definition.template(), definition.plugins(), definition.artifacts(), definition.targets(), definition.operations(),
+            definition.settings(), definition.bindingSlots(), definition.documentAudiences(),
+            definition.admissionPrerequisites(), definition.limits(), topology, definition.approvedPolicyRef(),
             definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
     }
 

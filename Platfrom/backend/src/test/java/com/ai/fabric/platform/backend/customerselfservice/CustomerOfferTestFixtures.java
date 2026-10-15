@@ -30,6 +30,7 @@ final class CustomerOfferTestFixtures {
             Set.of(DocumentAudience.PUBLIC), EnumSet.allOf(Prerequisite.class),
             // Fictional unit-test policy values, not live measurements or admission defaults.
             new ReviewedLimits("test-measurement", 1, 1, 1000, 1024, 2048, 1, 1, 3, 1, 24, 24, 24),
+            new ReviewedTopology(1, 750, 768, 1536, 1, 1, 2, 1),
             "test-reviewed-policy", "test-operating-policy", "test-identity-policy", "test-storage-policy");
     }
 

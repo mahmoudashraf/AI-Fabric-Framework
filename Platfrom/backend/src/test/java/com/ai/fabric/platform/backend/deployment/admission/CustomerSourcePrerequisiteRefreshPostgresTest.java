@@ -103,8 +103,9 @@ class CustomerSourcePrerequisiteRefreshPostgresTest extends AdmissionFixture {
         approve(3);
         store.approveManifest(manifest("manifest", "deployment"), "staff", NOW);
         var limits = new CustomerOfferContracts.ReviewedLimits("measurement-proof", 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1);
+        var topology = new CustomerOfferContracts.ReviewedTopology(1, 1, 1, 1, 1, 1, 1, 1);
         var admitted = new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment", null, TARGET,
-            TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, "placement", Operation.APPLY, "apply", limits);
+            TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, "placement", Operation.APPLY, "apply", limits, topology);
         var admission = context("manifest");
         allocation = store.reserve(admission, new Reserve("apply", "manifest", admitted), evidence(admission, NOW), "owner", NOW);
         var deployment = new DeploymentEntity();
@@ -118,7 +119,7 @@ class CustomerSourcePrerequisiteRefreshPostgresTest extends AdmissionFixture {
         var runtime = new DeploymentTargetContextService.Context(deployment, profile, release, version,
             "https://runtime.example", "https://connector.example");
         sourceContext = new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment", "release", TARGET,
-            TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, null, Operation.SOURCE_DISCOVER, null, limits);
+            TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, null, Operation.SOURCE_DISCOVER, null, limits, topology);
         var scope = new CustomerSourcePrerequisiteEvidence.Scope("customer", "tenant", "deployment", TARGET, "release",
             TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, allocation.id(), allocation.generation(),
             allocation.manifestFingerprint(), allocation.bindingFingerprint(), "version", "config-hash", "profile",

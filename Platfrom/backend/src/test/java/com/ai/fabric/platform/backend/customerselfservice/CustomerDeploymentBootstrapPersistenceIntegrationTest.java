@@ -336,7 +336,7 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
             List.of(new TargetPermission(stagingId, TargetIntent.CUSTOMER_STAGING, composition.profileFingerprint(staging)),
                 new TargetPermission(productionId, TargetIntent.CUSTOMER_PRODUCTION, composition.profileFingerprint(production))),
             base.operations(), base.settings(), base.bindingSlots(), base.documentAudiences(), base.admissionPrerequisites(),
-            base.limits(), base.approvedPolicyRef(), base.operatingPolicyRef(), base.identityPolicyRef(), base.storagePolicyRef());
+            base.limits(), base.topology(), base.approvedPolicyRef(), base.operatingPolicyRef(), base.identityPolicyRef(), base.storagePolicyRef());
         composition.validate(definition);
         offerFingerprint = codec.hash(definition);
         offers.saveAndFlush(new CustomerOfferEntity(offerId, codec.write(definition), offerFingerprint, "test-review", "admin", now));

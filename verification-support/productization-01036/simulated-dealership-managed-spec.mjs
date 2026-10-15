@@ -36,6 +36,26 @@ export const DEPENDENCY_IMAGES = Object.freeze({
   }),
 });
 
+function addCapacity(left, right) {
+  return {
+    milliCpu: left.milliCpu + right.milliCpu,
+    memoryMiB: left.memoryMiB + right.memoryMiB,
+    diskMiB: left.diskMiB + right.diskMiB,
+    resources: left.resources + right.resources,
+  };
+}
+
+export function reviewedManagedDependencyCapacity() {
+  return REVIEWED_TEMPLATE.services.reduce((total, service) => {
+    let serviceTotal = addCapacity(total, service.capacity);
+    if (service.database) serviceTotal = addCapacity(serviceTotal, service.database.capacity);
+    for (const volume of service.volumes ?? []) {
+      serviceTotal = addCapacity(serviceTotal, volume.capacity);
+    }
+    return serviceTotal;
+  }, {milliCpu: 0, memoryMiB: 0, diskMiB: 0, resources: 0});
+}
+
 function serviceArtifact(slot, artifacts) {
   const artifact = artifacts[slot];
   if (!artifact?.id || !artifact?.image || !artifact?.commit) {

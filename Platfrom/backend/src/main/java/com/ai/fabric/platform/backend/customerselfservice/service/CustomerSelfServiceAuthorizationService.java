@@ -167,7 +167,7 @@ public class CustomerSelfServiceAuthorizationService {
         AdmissionContext context = new AdmissionContext(customerId, request.tenantId(), request.deploymentId(),
             request.releaseId(), target.targetProfileId(), target.intent(), offer.getId(), offer.getFingerprint(),
             entitlement.getRevision(), placementEvidence == null ? null : placementEvidence.getId(),
-            request.operation(), request.operationKey(), definition.limits());
+            request.operation(), request.operationKey(), definition.limits(), definition.topology());
         if (evidenceMode == EvidenceMode.REQUIRED) requirePrerequisites(context, requiredPrerequisites(definition, row));
         return new Authorization(context, definition);
     }

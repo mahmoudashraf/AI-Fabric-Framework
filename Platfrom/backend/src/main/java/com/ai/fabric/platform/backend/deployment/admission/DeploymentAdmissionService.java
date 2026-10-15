@@ -204,7 +204,7 @@ public class DeploymentAdmissionService {
         try { intent = Intent.valueOf(scope.intent().name()); }
         catch (RuntimeException ex) { throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_SCOPE_INVALID"); }
         TargetBudget target = store.context(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), manifest.id()).target();
-        if (scope.operation() == null || scope.limits() == null || scope.entitlementRevision() <= 0
+        if (scope.operation() == null || scope.limits() == null || scope.topology() == null || scope.entitlementRevision() <= 0
             || !deployment.getCustomerId().equals(scope.customerId()) || !deployment.getTenantId().equals(scope.tenantId())
             || !deployment.getId().equals(scope.deploymentId()) || !manifest.targetProfileId().equals(scope.targetProfileId())
             || target.intent() != intent || !command.operationKey().equals(scope.operationKey())

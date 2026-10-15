@@ -6,6 +6,9 @@ import {
   buildOfferDefinition,
   hash,
   profileFingerprint,
+  REVIEWED_LIMITS,
+  REVIEWED_TOPOLOGY,
+  reviewedTopologyCapacity,
   RUNTIME_IMAGE_DIGEST,
   RUNTIME_SOURCE_COMMIT,
   workspaceProfile,
@@ -20,7 +23,22 @@ const target = (id, environmentName) => ({
   id, active: true, providerType: "COOLIFY", environmentName, sourceStrategy: "IMAGE_SOURCE",
   credentialRefId: `credential-${environmentName}`,
   providerConfig: {serverUuid: `server-${environmentName}`, destinationUuid: `destination-${environmentName}`},
-  networkPolicy: {publicHttps: true}, resourceDefaults: {sourceStrategy: "IMAGE_SOURCE"},
+  networkPolicy: {publicHttps: true},
+  resourceDefaults: {
+    sourceStrategy: "IMAGE_SOURCE",
+    runtimeLimitsCpus: "1.0", runtimeLimitsMemory: "1g", runtimeLimitsMemorySwap: "1g",
+    runtimeLimitsMemoryReservation: "512m", runtimeJavaOpts: "-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m",
+    connectorLimitsCpus: "0.5", connectorLimitsMemory: "768m", connectorLimitsMemorySwap: "768m",
+    connectorLimitsMemoryReservation: "384m", connectorJavaOpts: "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m",
+    vectorizationRunnerLimitsCpus: "0.5", vectorizationRunnerLimitsMemory: "768m",
+    vectorizationRunnerLimitsMemorySwap: "768m", vectorizationRunnerLimitsMemoryReservation: "384m",
+    vectorizationRunnerJavaOpts: "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m",
+    runtimeDatabaseMode: "COOLIFY_POSTGRES", runtimeDatabaseCpuMillicores: 250,
+    runtimeDatabaseMemoryMiB: 512, runtimeDatabaseDiskMiB: 2048,
+    runtimeLimitsCpuSet: id.includes("staging") ? "7" : "3",
+    connectorLimitsCpuSet: id.includes("staging") ? "6" : "2",
+    vectorizationRunnerLimitsCpuSet: id.includes("staging") ? "5" : "1",
+  },
 });
 const artifact = {
   id: "runtime-artifact", artifactRole: "RUNTIME", artifactType: "DOCKER_IMAGE",
@@ -72,6 +90,25 @@ test("workspace profile IDs use the backend normalized enum representation", () 
   })}`);
 });
 
+test("reviewed offer capacity covers the complete enforced topology", () => {
+  assert.deepEqual(reviewedTopologyCapacity(), {
+    milliCpu: 3750,
+    memoryMiB: 5888,
+    diskMiB: 16384,
+    dependencies: 4,
+    databases: 2,
+    indexes: 2,
+  });
+  assert.equal(REVIEWED_LIMITS.cpuMillis >= reviewedTopologyCapacity().milliCpu, true);
+  assert.equal(REVIEWED_LIMITS.memoryMiB >= reviewedTopologyCapacity().memoryMiB, true);
+  assert.equal(REVIEWED_LIMITS.diskMiB, reviewedTopologyCapacity().diskMiB);
+  assert.equal(REVIEWED_LIMITS.dependencies, reviewedTopologyCapacity().dependencies);
+  assert.deepEqual(REVIEWED_TOPOLOGY, {
+    replicas: 1, cpuMillis: 3750, memoryMiB: 5888, diskMiB: 16384,
+    databases: 2, indexes: 2, dependencies: 4, concurrentApplies: 1,
+  });
+});
+
 test("offer pins exact template dependencies, runtime, targets and reviewed workspace profiles", () => {
   const pluginVersions = [
     version("data", "1.0.0", "data-v1"),
@@ -97,10 +134,26 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
   assert.equal(definition.operations.includes("INBOX_OPERATOR_ENROLL"), true);
   assert.equal(definition.operations.includes("INBOX_OPERATOR_DELIVER"), true);
   assert.equal(definition.bindingSlots[0].pluginId, "mkp-data-dealership-knowledge-v1");
+  assert.deepEqual(definition.topology, REVIEWED_TOPOLOGY);
   assert.deepEqual(definition.bindingSlots[1], {
     id: "inbox", kind: "INBOX_OPERATOR", supportedProfileIds: ["managed-basic-inbox-keys-v1"],
   });
   assert.equal(definition.settings.filter(({type}) => type === "CHOICE").every(({allowedValues}) => allowedValues.length > 0), true);
+});
+
+test("offer refuses a target whose enforced worker capacity drifted", () => {
+  const pluginVersions = [version("data", "1.0.0", "data-v1")];
+  const template = {
+    ...version("mkp-template-simulated-dealership-experience-v1", "1.4.0", "template-v1-4"),
+    contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
+  };
+  const staging = target("dtp-coolify-staging-behavior", "staging");
+  staging.resourceDefaults.connectorLimitsCpus = "2.0";
+
+  assert.throws(() => buildOfferDefinition({
+    template, pluginVersions, artifact,
+    targets: [staging, target("dtp-coolify-production-behavior", "production")], auth,
+  }), /drifted capacity fields: connectorLimitsCpus/);
 });
 
 test("offer rejects incomplete required plugin pinning", () => {

@@ -726,6 +726,25 @@ class CoolifyDeploymentProviderTest {
             mock(VectorizationRunnerProvisioningService.class);
 
         DeploymentTargetProfileEntity profile = profile();
+        profile.setResourceDefaultsJson("""
+            {
+              "runtimeLimitsMemory": "1g",
+              "runtimeLimitsCpus": "1.0",
+              "runtimeLimitsCpuSet": "7",
+              "connectorLimitsMemory": "768m",
+              "connectorLimitsMemorySwap": "768m",
+              "connectorLimitsMemoryReservation": "384m",
+              "connectorLimitsCpus": "0.5",
+              "connectorLimitsCpuSet": "6",
+              "connectorJavaOpts": "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m",
+              "vectorizationRunnerLimitsMemory": "768m",
+              "vectorizationRunnerLimitsMemorySwap": "768m",
+              "vectorizationRunnerLimitsMemoryReservation": "384m",
+              "vectorizationRunnerLimitsCpus": "0.5",
+              "vectorizationRunnerLimitsCpuSet": "5",
+              "vectorizationRunnerJavaOpts": "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m"
+            }
+            """);
         DeploymentSourceArtifactEntity artifact = artifact();
         CoolifyConnection connection = connection();
         CoolifyApplicationSummary runtimeApplication = new CoolifyApplicationSummary(
@@ -829,6 +848,16 @@ class CoolifyDeploymentProviderTest {
         assertThat(requests.getAllValues())
             .extracting(CoolifyCreateDockerImageApplicationRequest::portsExposes)
             .containsExactly("8097", "8082", "8099");
+        assertThat(requests.getAllValues())
+            .extracting(CoolifyCreateDockerImageApplicationRequest::runtimeSettings)
+            .containsExactly(
+                new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                    "1g", null, null, "1.0", "7"),
+                new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                    "768m", "768m", "384m", "0.5", "6"),
+                new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                    "768m", "768m", "384m", "0.5", "5")
+            );
         verify(coolifyApiClient, never()).createPublicApplication(eq(connection), any());
 
         ArgumentCaptor<List<CoolifyEnvVar>> runtimeEnvironment = ArgumentCaptor.forClass(List.class);
@@ -849,6 +878,10 @@ class CoolifyDeploymentProviderTest {
             .isEqualTo("connector");
         assertThat(envByKey(runnerEnvironment.getValue()).get("PLATFORM_COOLIFY_SERVICE_ROLE").value())
             .isEqualTo("vectorization-runner");
+        assertThat(envByKey(connectorEnvironment.getValue()).get("JAVA_OPTS").value())
+            .isEqualTo("-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m");
+        assertThat(envByKey(runnerEnvironment.getValue()).get("JAVA_OPTS").value())
+            .isEqualTo("-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m");
         verify(vectorizationRunnerProvisioningService).ensureManagedRegistration(any());
     }
 

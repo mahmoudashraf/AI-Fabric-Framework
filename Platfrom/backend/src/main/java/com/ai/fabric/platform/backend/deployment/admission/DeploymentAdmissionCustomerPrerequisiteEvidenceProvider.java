@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerPlaceme
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.PrerequisiteEvidence;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedLimits;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedTopology;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerPrerequisiteEvidenceProvider;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerTargetPlacementService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
@@ -97,7 +98,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
             targets.findById(requested.targetProfileId()).orElseThrow(() -> unavailable("CUSTOMER_TARGET_PROFILE_MISSING")),
             requested.intent(), requested.placementEvidenceId());
         validatePlacementEvidence(requested, current.target(), placementEvidence, now);
-        validateReviewedLimits(requested.limits(), current);
+        validateReviewedLimits(requested.limits(), requested.topology(), current);
 
         PrerequisiteReadback readback = reservation.prerequisiteReadback();
         if (!current.manifest().prerequisiteReferences().equals(readback.verifiedPrerequisiteReferences())) {
@@ -163,7 +164,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         validateReleaseVersion(allocation.release(), current);
         validateDeploymentAndVersion(requested, current);
         validateTarget(current.target());
-        validateReviewedLimits(requested.limits(), current);
+        validateReviewedLimits(requested.limits(), requested.topology(), current);
         var runtime = targetContexts.resolve(requested.deploymentId(), requested.targetProfileId(), requested.releaseId(), false);
         validateSourceReleaseLifecycle(allocation, runtime.release());
         if (!allocation.release().versionId().equals(runtime.version().getId())
@@ -330,10 +331,19 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         }
     }
 
-    private void validateReviewedLimits(ReviewedLimits limits, AdmissionContext current) {
-        if (limits == null || !limits.measuredPolicyRef().equals(current.policy().fleet().measurementReference()))
+    private void validateReviewedLimits(ReviewedLimits limits, ReviewedTopology topology, AdmissionContext current) {
+        if (limits == null || topology == null
+            || !limits.measuredPolicyRef().equals(current.policy().fleet().measurementReference()))
             throw unavailable("CUSTOMER_REVIEWED_LIMITS_CHANGED");
         Vector demand = current.manifest().demand();
+        requireAtLeast(demand, Dimension.REPLICAS, topology.replicas());
+        requireAtLeast(demand, Dimension.CPU_MILLICORES, topology.cpuMillis());
+        requireAtLeast(demand, Dimension.MEMORY_BYTES, mib(topology.memoryMiB()));
+        requireAtLeast(demand, Dimension.DISK_BYTES, mib(topology.diskMiB()));
+        requireAtLeast(demand, Dimension.DATABASES, topology.databases());
+        requireAtLeast(demand, Dimension.INDEXES, topology.indexes());
+        requireAtLeast(demand, Dimension.DEPENDENCIES, topology.dependencies());
+        requireAtLeast(demand, Dimension.CONCURRENT_APPLIES, topology.concurrentApplies());
         requireAtMost(demand, Dimension.REPLICAS, limits.replicas());
         requireAtMost(demand, Dimension.CPU_MILLICORES, limits.cpuMillis());
         requireAtMost(demand, Dimension.MEMORY_BYTES, mib(limits.memoryMiB()));
@@ -349,6 +359,11 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         if (actual == null || actual < 0 || actual > reviewedLimit) throw unavailable("CUSTOMER_REVIEWED_LIMITS_CHANGED");
     }
 
+    private void requireAtLeast(Vector demand, Dimension dimension, long reviewedMinimum) {
+        Long actual = demand == null || demand.amounts() == null ? null : demand.amounts().get(dimension);
+        if (actual == null || actual < reviewedMinimum) throw unavailable("CUSTOMER_REVIEWED_TOPOLOGY_INCOMPLETE");
+    }
+
     private long mib(long value) {
         try { return Math.multiplyExact(value, 1024L * 1024L); }
         catch (ArithmeticException ex) { throw unavailable("CUSTOMER_REVIEWED_LIMITS_CHANGED"); }
@@ -362,7 +377,9 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
             || blank(requested.placementEvidenceId()) || requested.operation() == null
             || (!isReadOnlySourceOperation(requested.operation()) && blank(requested.operationKey()))
             || (isSourceOperation(requested.operation()) && blank(requested.releaseId()))
-            || requested.limits() == null) throw unavailable("CUSTOMER_PREREQUISITE_CONTEXT_INVALID");
+            || requested.limits() == null || requested.topology() == null) {
+            throw unavailable("CUSTOMER_PREREQUISITE_CONTEXT_INVALID");
+        }
     }
 
     private boolean isSourceOperation(

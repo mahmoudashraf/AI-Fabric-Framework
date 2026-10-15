@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.admission;
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerPlacementEvidenceEntity;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedLimits;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedTopology;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerTargetPlacementService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
@@ -84,13 +85,13 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             "environment", "customer-staging", "sourceStrategy", "IMAGE_SOURCE", "credentialReference", "",
             "providerConfig", mapper.readTree(targetProfile.getProviderConfigJson()),
             "networkPolicy", mapper.readTree("{}"), "resourceDefaults", mapper.readTree("{}")));
-        Budget budget = new Budget(vector(4), vector(0), vector(0), "measurement-proof",
+        Budget budget = new Budget(capacity(4), vector(0), vector(0), "measurement-proof",
             NOW.minusSeconds(1), NOW.plusSeconds(10_000));
         reviewedPolicy = new FleetPolicy("policy1", budget,
             Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_STAGING, STAGING, reviewedProfileFingerprint, budget)),
             policy(4).lifecycle(), "restore-proof", "privacy-proof", "support-owner");
         store.approvePolicy(reviewedPolicy, "operator", NOW);
-        store.approveGrant(grant(4), "operator", NOW);
+        store.approveGrant(customerGrant(4), "operator", NOW);
         store.approveManifest(manifest("manifest1", "deployment1"), "operator", NOW);
 
         DeploymentEntity deployment = new DeploymentEntity();
@@ -125,6 +126,18 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         assertThat(evidence.evidenceReference()).contains(first.id(), first.generation());
         verify(placement).requireEvidenceById(targetProfile, TargetIntent.CUSTOMER_STAGING, "placement-proof");
         verify(placement, never()).probeAndRecord(any(), any());
+    }
+
+    @Test
+    void manifestMustCoverTheCompleteReviewedOfferTopology() {
+        var incomplete = context("customer", "tenant", "deployment1", TARGET,
+            TargetIntent.CUSTOMER_STAGING, Operation.APPLY, "incomplete-topology",
+            "offer-fingerprint", limits("measurement-proof"), topology(2));
+        AdmissionContext admission = store.context("customer", "tenant", "deployment1", "manifest1");
+        store.reserve(admission, new Reserve("incomplete-topology", "manifest1", incomplete),
+            evidence(admission, NOW), "owner", NOW);
+
+        assertRejected(incomplete, "CUSTOMER_REVIEWED_TOPOLOGY_INCOMPLETE");
     }
 
     @Test
@@ -540,11 +553,11 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             "environment", "customer-staging", "sourceStrategy", "IMAGE_SOURCE", "credentialReference", "",
             "providerConfig", mapper.readTree(targetProfile.getProviderConfigJson()),
             "networkPolicy", mapper.readTree("{}"), "resourceDefaults", mapper.readTree("{}")));
-        Budget budget = new Budget(vector(4), vector(0), vector(0), "measurement-proof", NOW.minusSeconds(1), NOW.plusSeconds(10_000));
+        Budget budget = new Budget(capacity(4), vector(0), vector(0), "measurement-proof", NOW.minusSeconds(1), NOW.plusSeconds(10_000));
         reviewedPolicy = new FleetPolicy("policy1", budget,
             Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_STAGING, STAGING, profileFingerprint, budget)),
             policy(4).lifecycle(), "restore-proof", "privacy-proof", "support-owner");
-        store.approvePolicy(reviewedPolicy, "operator", NOW); store.approveGrant(grant(4), "operator", NOW);
+        store.approvePolicy(reviewedPolicy, "operator", NOW); store.approveGrant(customerGrant(4), "operator", NOW);
         store.approveManifest(manifest("manifest1", "deployment1"), "operator", NOW);
         provider = providerAt(NOW);
     }
@@ -606,9 +619,16 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context(
         String customer, String tenant, String deployment, String target, TargetIntent intent, Operation operation,
         String operationKey, String offerFingerprint, ReviewedLimits limits) {
+        return context(customer, tenant, deployment, target, intent, operation, operationKey,
+            offerFingerprint, limits, topology(1));
+    }
+
+    private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context(
+        String customer, String tenant, String deployment, String target, TargetIntent intent, Operation operation,
+        String operationKey, String offerFingerprint, ReviewedLimits limits, ReviewedTopology topology) {
         return new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
             customer, tenant, deployment, null, target, intent, "offer", offerFingerprint, 2,
-            "placement-proof", operation, operationKey, limits);
+            "placement-proof", operation, operationKey, limits, topology);
     }
 
     private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext sourceContext(
@@ -616,11 +636,34 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         return new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
             "customer", "tenant", "deployment1", releaseId, TARGET, TargetIntent.CUSTOMER_STAGING,
             "offer", offerFingerprint, entitlementRevision, "placement-proof", operation, operationKey,
-            limits("measurement-proof"));
+            limits("measurement-proof"), topology(1));
     }
 
     private ReviewedLimits limits(String measurementReference) {
         return new ReviewedLimits(measurementReference, 1, 1, 4, 1, 1, 1, 1, 1, 1, 24, 24, 24);
+    }
+
+    private ReviewedTopology topology(long cpuMillis) {
+        return new ReviewedTopology(1, cpuMillis, 1, 1, 1, 1, 1, 1);
+    }
+
+    private Vector capacity(long units) {
+        return with(with(vector(units), Dimension.MEMORY_BYTES, units * 1024L * 1024L),
+            Dimension.DISK_BYTES, units * 1024L * 1024L);
+    }
+
+    private CustomerGrant customerGrant(long units) {
+        Vector capacity = capacity(units);
+        return new CustomerGrant("customer", capacity, Map.of(TARGET, capacity), NOW.plusSeconds(5000),
+            "verified-owner", "payer", "keep-entitlement");
+    }
+
+    @Override
+    Manifest manifest(String id, String deployment) {
+        Manifest base = super.manifest(id, deployment);
+        return new Manifest(base.id(), base.deploymentId(), base.versionId(), base.versionConfigHash(),
+            base.targetProfileId(), base.bindingFingerprint(), base.topologyReference(), capacity(1),
+            base.prerequisiteReferences(), base.customerPrerequisiteReferences());
     }
 
     private void assertRejected(

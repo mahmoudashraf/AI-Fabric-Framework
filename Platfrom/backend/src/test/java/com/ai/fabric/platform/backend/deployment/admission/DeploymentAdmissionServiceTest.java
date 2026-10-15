@@ -122,11 +122,13 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
         adapters.registerSingleton("readback", source);
         var limits = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedLimits(
             "measurement", 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1);
+        var topology = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedTopology(
+            1, 1, 1, 1, 0, 0, 0, 1);
         var customerContext = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
             "customer", "tenant", "deployment1", null, TARGET,
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
             "offer", "offer-fingerprint", 1, "placement-proof",
-            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY, "customer-op", limits);
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY, "customer-op", limits, topology);
 
         Reservation reservation = service.reserveCustomer("deployment1", "version",
             new Reserve("customer-op", "manifest1", customerContext));
@@ -136,6 +138,23 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
             .isEqualTo(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY);
         assertThatThrownBy(() -> service.reserveCustomer("deployment1", "another-version",
             new Reserve("another-op", "manifest1", customerContext))).hasMessageContaining("REVIEWED_VERSION_CHANGED");
+    }
+
+    @Test
+    void customerReservationRejectsAContextWithoutTheReviewedTopology() throws Exception {
+        approveLiveInputs();
+        var limits = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedLimits(
+            "measurement", 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1);
+        var incomplete = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
+            "customer", "tenant", "deployment1", null, TARGET,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
+            "offer", "offer-fingerprint", 1, "placement-proof",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
+            "missing-topology", limits, null);
+
+        assertThatThrownBy(() -> service.reserveCustomer("deployment1", "version",
+            new Reserve("missing-topology", "manifest1", incomplete)))
+            .hasMessageContaining("CUSTOMER_ADMISSION_SCOPE_INVALID");
     }
     @Test
     void targetConfigDriftAndPublishedVersionDriftDeny() throws Exception {

@@ -122,3 +122,29 @@ node verification-support/productization-01036/publish-simulated-dealership-pack
 The command is convergent: it reuses only exact digest/commit/role artifacts,
 promotes them to `production`, and refuses to replace a different active
 topology. Sanitized evidence is written under the ignored `evidence/` folder.
+
+## Reviewed customer offer
+
+`publish-simulated-dealership-offer.mjs` publishes the immutable v5 customer
+offer only after reading both target profiles and confirming the complete
+reviewed runtime envelope: runtime, connector, vectorization runner, runtime
+PostgreSQL capacity and distinct CPU assignments. Missing or drifted target
+settings fail before offer publication.
+
+The offer stores two separate capacity contracts. `topology` is the exact
+minimum full-deployment demand that every admission manifest must cover;
+`limits` is the reviewed maximum ceiling. Both include the platform-managed
+services, two databases, two vector indexes and persistent storage. Customer
+commands cannot supply or reduce either contract.
+
+```bash
+PLATFORM_BASE_URL=https://api.loomai.pro \
+PLATFORM_ADMIN_API_KEY='<private>' \
+ENGAGE_SUPABASE_PROJECT_URL='<reviewed-project-url>' \
+ENGAGE_SUPABASE_PUBLISHABLE_KEY='<public-anon-key>' \
+CUSTOMER_OFFER_REVIEW_REFERENCE='<review-ticket-or-commit>' \
+node verification-support/productization-01036/publish-simulated-dealership-offer.mjs
+```
+
+The script probes current staging and production placement, pins the exact
+runtime artifact and Marketplace versions, and writes only sanitized evidence.

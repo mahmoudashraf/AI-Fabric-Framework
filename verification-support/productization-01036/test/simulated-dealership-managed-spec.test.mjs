@@ -5,6 +5,7 @@ import {
   buildManagedDependencySpec,
   DEPENDENCY_IMAGES,
   POSTGRES_IMAGE,
+  reviewedManagedDependencyCapacity,
 } from "../simulated-dealership-managed-spec.mjs";
 import {
   comparableJson,
@@ -25,6 +26,15 @@ test("builds the exact three-service reviewed topology", () => {
   assert.equal(spec.services[1].volumes[0].mountPath, "/app/data");
   assert.equal(spec.services[1].contract, "BASIC_INBOX_KEYS_V1");
   assert.equal(spec.services[2].database.image, POSTGRES_IMAGE);
+});
+
+test("reviewed capacity includes services, database and persistent volumes", () => {
+  assert.deepEqual(reviewedManagedDependencyCapacity(), {
+    milliCpu: 1500,
+    memoryMiB: 2816,
+    diskMiB: 14336,
+    resources: 4,
+  });
 });
 
 test("keeps all managed template placeholders server-owned and distinct", () => {

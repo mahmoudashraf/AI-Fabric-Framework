@@ -60,6 +60,7 @@ public class CustomerReviewedCompositionService {
         unique(definition.artifacts(), ArtifactPin::artifactId);
         unique(definition.settings(), SettingRule::setting);
         unique(definition.bindingSlots(), BindingSlot::id);
+        requireTopologyWithinLimits(definition.topology(), definition.limits());
         if (!definition.targets().stream().map(TargetPermission::intent).collect(java.util.stream.Collectors.toSet())
             .containsAll(Set.of(TargetIntent.CUSTOMER_STAGING, TargetIntent.CUSTOMER_PRODUCTION))) throw invalid();
 
@@ -169,6 +170,20 @@ public class CustomerReviewedCompositionService {
                 DOCUMENT_AUDIENCE -> true;
             default -> false;
         };
+    }
+
+    private void requireTopologyWithinLimits(ReviewedTopology topology, ReviewedLimits limits) {
+        if (topology == null || limits == null
+            || topology.replicas() > limits.replicas()
+            || topology.cpuMillis() > limits.cpuMillis()
+            || topology.memoryMiB() > limits.memoryMiB()
+            || topology.diskMiB() > limits.diskMiB()
+            || topology.databases() > limits.databases()
+            || topology.indexes() > limits.indexes()
+            || topology.dependencies() > limits.dependencies()
+            || topology.concurrentApplies() > limits.concurrentApplies()) {
+            throw invalid();
+        }
     }
 
     private <T, K> void unique(List<T> items, Function<T, K> key) {

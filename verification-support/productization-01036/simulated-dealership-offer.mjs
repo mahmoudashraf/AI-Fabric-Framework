@@ -1,6 +1,8 @@
 import {createHash} from "node:crypto";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v4";
+import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
+
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v5";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
 export const TEMPLATE_VERSION = "1.4.0";
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
@@ -9,16 +11,57 @@ export const RUNTIME_SOURCE_COMMIT = "980fc9d75bfea761d07808f86af9e0386e90ab66";
 export const STAGING_TARGET_ID = "dtp-coolify-staging-behavior";
 export const PRODUCTION_TARGET_ID = "dtp-coolify-production-behavior";
 
+export const REVIEWED_PLATFORM_CAPACITY = Object.freeze({
+  runtime: Object.freeze({milliCpu: 1000, memoryMiB: 1024, diskMiB: 0}),
+  connector: Object.freeze({milliCpu: 500, memoryMiB: 768, diskMiB: 0}),
+  vectorizationRunner: Object.freeze({milliCpu: 500, memoryMiB: 768, diskMiB: 0}),
+  runtimeDatabase: Object.freeze({milliCpu: 250, memoryMiB: 512, diskMiB: 2048}),
+});
+
+function sumCapacity(capacities) {
+  return capacities.reduce((total, capacity) => ({
+    milliCpu: total.milliCpu + capacity.milliCpu,
+    memoryMiB: total.memoryMiB + capacity.memoryMiB,
+    diskMiB: total.diskMiB + capacity.diskMiB,
+  }), {milliCpu: 0, memoryMiB: 0, diskMiB: 0});
+}
+
+export function reviewedTopologyCapacity() {
+  const managed = reviewedManagedDependencyCapacity();
+  const platform = sumCapacity(Object.values(REVIEWED_PLATFORM_CAPACITY));
+  return Object.freeze({
+    milliCpu: platform.milliCpu + managed.milliCpu,
+    memoryMiB: platform.memoryMiB + managed.memoryMiB,
+    diskMiB: platform.diskMiB + managed.diskMiB,
+    dependencies: managed.resources,
+    databases: 2,
+    indexes: 2,
+  });
+}
+
+const REVIEWED_CAPACITY = reviewedTopologyCapacity();
+
+export const REVIEWED_TOPOLOGY = Object.freeze({
+  replicas: 1,
+  cpuMillis: REVIEWED_CAPACITY.milliCpu,
+  memoryMiB: REVIEWED_CAPACITY.memoryMiB,
+  diskMiB: REVIEWED_CAPACITY.diskMiB,
+  databases: REVIEWED_CAPACITY.databases,
+  indexes: REVIEWED_CAPACITY.indexes,
+  dependencies: REVIEWED_CAPACITY.dependencies,
+  concurrentApplies: 1,
+});
+
 export const REVIEWED_LIMITS = Object.freeze({
-  measuredPolicyRef: "01036-dealership-capacity-2026-10-15",
+  measuredPolicyRef: "01036-dealership-capacity-2026-10-15-v2",
   activeStagingTargets: 1,
   replicas: 1,
-  cpuMillis: 3000,
-  memoryMiB: 4096,
-  diskMiB: 16384,
-  databases: 2,
-  indexes: 2,
-  dependencies: 3,
+  cpuMillis: 4000,
+  memoryMiB: 6144,
+  diskMiB: REVIEWED_CAPACITY.diskMiB,
+  databases: REVIEWED_CAPACITY.databases,
+  indexes: REVIEWED_CAPACITY.indexes,
+  dependencies: REVIEWED_CAPACITY.dependencies,
   concurrentApplies: 1,
   stagingExpiryHours: 24,
   maxExtensionHours: 24,
@@ -122,6 +165,45 @@ function pluginPin(version) {
   return {pluginId: version.pluginId, versionId: version.id, manifestSha256: hash(version.manifest)};
 }
 
+const REVIEWED_RESOURCE_DEFAULTS = Object.freeze({
+  runtimeLimitsCpus: "1.0",
+  runtimeLimitsMemory: "1g",
+  runtimeLimitsMemorySwap: "1g",
+  runtimeLimitsMemoryReservation: "512m",
+  runtimeJavaOpts: "-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m",
+  connectorLimitsCpus: "0.5",
+  connectorLimitsMemory: "768m",
+  connectorLimitsMemorySwap: "768m",
+  connectorLimitsMemoryReservation: "384m",
+  connectorJavaOpts: "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m",
+  vectorizationRunnerLimitsCpus: "0.5",
+  vectorizationRunnerLimitsMemory: "768m",
+  vectorizationRunnerLimitsMemorySwap: "768m",
+  vectorizationRunnerLimitsMemoryReservation: "384m",
+  vectorizationRunnerJavaOpts: "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m",
+  runtimeDatabaseMode: "COOLIFY_POSTGRES",
+  runtimeDatabaseCpuMillicores: 250,
+  runtimeDatabaseMemoryMiB: 512,
+  runtimeDatabaseDiskMiB: 2048,
+});
+
+const REVIEWED_CPUSETS = Object.freeze({
+  [STAGING_TARGET_ID]: Object.freeze({runtimeLimitsCpuSet: "7", connectorLimitsCpuSet: "6", vectorizationRunnerLimitsCpuSet: "5"}),
+  [PRODUCTION_TARGET_ID]: Object.freeze({runtimeLimitsCpuSet: "3", connectorLimitsCpuSet: "2", vectorizationRunnerLimitsCpuSet: "1"}),
+});
+
+function requireReviewedTarget(target, targetId) {
+  if (!target?.active || target.providerType !== "COOLIFY" || target.sourceStrategy !== "IMAGE_SOURCE") {
+    throw new Error(`Reviewed target ${targetId} is not an active immutable Coolify image target.`);
+  }
+  const required = {...REVIEWED_RESOURCE_DEFAULTS, ...REVIEWED_CPUSETS[targetId]};
+  const actual = target.resourceDefaults ?? {};
+  const drifted = Object.entries(required).filter(([key, value]) => String(actual[key]) !== String(value));
+  if (drifted.length > 0) {
+    throw new Error(`Reviewed target ${targetId} has missing or drifted capacity fields: ${drifted.map(([key]) => key).join(", ")}.`);
+  }
+}
+
 export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
   const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
   const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));
@@ -137,7 +219,8 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
   const targetById = new Map(targets.map((target) => [target.id, target]));
   const staging = targetById.get(STAGING_TARGET_ID);
   const production = targetById.get(PRODUCTION_TARGET_ID);
-  if (!staging?.active || !production?.active) throw new Error("Both reviewed target profiles must be active.");
+  requireReviewedTarget(staging, STAGING_TARGET_ID);
+  requireReviewedTarget(production, PRODUCTION_TARGET_ID);
   const workspace = workspaceProfile(auth);
   return {
     schemaVersion: "1",
@@ -190,6 +273,7 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
       "NOTIFICATIONS", "OPERATING_POLICY",
     ],
     limits: REVIEWED_LIMITS,
+    topology: REVIEWED_TOPOLOGY,
     approvedPolicyRef: "01036-simulated-dealership-offer-review-2026-10-15",
     operatingPolicyRef: "01036-customer-staging-lifecycle-v1",
     identityPolicyRef: "01036-supabase-mixed-auth-v1",

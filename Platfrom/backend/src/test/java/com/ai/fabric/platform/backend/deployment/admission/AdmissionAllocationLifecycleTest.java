@@ -113,7 +113,8 @@ class AdmissionAllocationLifecycleTest extends AdmissionFixture {
     private CustomerOfferContracts.AdmissionContext scope(Operation operation, String key, String releaseId) {
         return new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment", releaseId, PROD,
             CustomerOfferContracts.TargetIntent.CUSTOMER_PRODUCTION, "offer", "offer-fingerprint", 1, "placement",
-            operation, key, new CustomerOfferContracts.ReviewedLimits("measurement-proof", 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1));
+            operation, key, new CustomerOfferContracts.ReviewedLimits("measurement-proof", 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1),
+            new CustomerOfferContracts.ReviewedTopology(1, 1, 1, 1, 1, 1, 1, 1));
     }
 
     private ReleaseBinding bindRelease(String id) {

@@ -133,7 +133,7 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
         var grant = new CustomerOfferEntitlementEntity(); grant.setId("grant-" + suffix); grant.setRevision(2);
         var approved = new Authorization(new AdmissionContext(customerId, tenantId, deploymentId, null,
             "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", "fingerprint", 2, "placement",
-            Operation.VERSION_PUBLISH, "reject-publish", null), null);
+            Operation.VERSION_PUBLISH, "reject-publish", null, null), null);
         when(entitlements.requireCustomerActor()).thenReturn(
             new CustomerOfferEntitlementService.CustomerActor(customerId, "owner"));
         when(entitlements.requireEntitlement(customerId, "offer", "owner", true)).thenReturn(grant);

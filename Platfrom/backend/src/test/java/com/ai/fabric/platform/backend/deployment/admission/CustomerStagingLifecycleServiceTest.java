@@ -28,12 +28,14 @@ class CustomerStagingLifecycleServiceTest extends AdmissionFixture {
         when(entitlements.requireCustomerActor()).thenReturn(new CustomerOfferEntitlementService.CustomerActor("customer", "owner"));
         when(admissions.status("deployment1", allocation.id())).thenAnswer(call -> store.require(allocation.id()));
         var limits = new ReviewedLimits("measurement-proof", 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        var topology = new ReviewedTopology(1, 1, 1, 1, 1, 1, 1, 1);
         var definition = mock(Definition.class); when(definition.limits()).thenReturn(limits);
+        when(definition.topology()).thenReturn(topology);
         when(authorization.prepareAdmission(eq("customer"), any())).thenAnswer(call -> {
             AuthorizationRequest request = call.getArgument(1);
             var scope = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
                 "customer", "tenant", "deployment1", request.releaseId(), TARGET, TargetIntent.CUSTOMER_STAGING,
-                "offer", "offer-fingerprint", 1, "placement-proof", request.operation(), request.operationKey(), limits);
+                "offer", "offer-fingerprint", 1, "placement-proof", request.operation(), request.operationKey(), limits, topology);
             return new Authorization(scope, definition);
         });
         when(admissions.reserveCustomer(eq("deployment1"), eq("version"), any())).thenAnswer(call -> {

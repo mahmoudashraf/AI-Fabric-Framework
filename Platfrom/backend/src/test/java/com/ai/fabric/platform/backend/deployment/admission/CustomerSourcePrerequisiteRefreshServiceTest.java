@@ -57,7 +57,7 @@ class CustomerSourcePrerequisiteRefreshServiceTest extends AdmissionFixture {
         when(associations.findById("deployment")).thenReturn(Optional.of(new CustomerOfferDeploymentEntity(
             "deployment", "customer", "tenant", "offer", "offer-hash", 2, "bootstrap", NOW)));
         context = new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment", "release", "target",
-            TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, null, Operation.SOURCE_DISCOVER, null, null);
+            TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, null, Operation.SOURCE_DISCOVER, null, null, null);
         when(authorization.prepareSourcePrerequisiteRefresh(eq("customer"), any())).thenAnswer(call -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
             return new Authorization(context, null);

@@ -68,7 +68,7 @@ class CustomerDeploymentBootstrapServiceTest {
         var definition = CustomerOfferTestFixtures.definition();
         approved = new Authorization(new AdmissionContext("customer", null, null, null, "staging-target",
             TargetIntent.CUSTOMER_STAGING, "offer", codec.hash(definition), 2, "placement-proof",
-            Operation.BOOTSTRAP_CONFIGURATION, request.operationKey(), definition.limits()), definition);
+            Operation.BOOTSTRAP_CONFIGURATION, request.operationKey(), definition.limits(), definition.topology()), definition);
         when(authorization.authorize(eq("customer"), any())).thenReturn(approved);
         version = new MarketplacePluginVersionEntity();
         version.setId("template-v1"); version.setPluginId("template-plugin");

@@ -56,7 +56,8 @@ class CustomerAdmissionReservationServiceTest {
         when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
         var context = new AdmissionContext("customer", "tenant", "deployment", null, "staging-target",
             TargetIntent.CUSTOMER_STAGING, "offer", "offer-fingerprint", 2, "placement-proof",
-            Operation.APPLY, "operation", CustomerOfferTestFixtures.definition().limits());
+            Operation.APPLY, "operation", CustomerOfferTestFixtures.definition().limits(),
+            CustomerOfferTestFixtures.definition().topology());
         prepared = new Authorization(context, CustomerOfferTestFixtures.definition());
         when(authorization.prepareAdmission(eq("customer"), any())).thenReturn(prepared);
         var version = new DeploymentVersionEntity();

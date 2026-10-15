@@ -164,7 +164,7 @@ class CustomerSelfServiceAuthorizationServiceTest {
         grant.setStatus(EntitlementStatus.ACTIVE);
         var limited = new Definition(definition.schemaVersion(), definition.name(), definition.templateId(), definition.template(),
             definition.plugins(), definition.artifacts(), definition.targets(), Set.of(Operation.READ), definition.settings(),
-            definition.bindingSlots(), definition.documentAudiences(), definition.admissionPrerequisites(), definition.limits(),
+            definition.bindingSlots(), definition.documentAudiences(), definition.admissionPrerequisites(), definition.limits(), definition.topology(),
             definition.approvedPolicyRef(), definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
         offer = new CustomerOfferEntity("offer", codec.write(limited), codec.hash(limited), "review", "admin", Instant.now());
         when(offers.findById("offer")).thenReturn(Optional.of(offer));

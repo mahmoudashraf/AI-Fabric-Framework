@@ -69,7 +69,7 @@ class CustomerDocumentStorageBindingServiceTest {
         var definition = CustomerOfferTestFixtures.definition();
         approved = new Authorization(new AdmissionContext("customer", "tenant", "deployment", null,
             "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", codec.hash(definition), 2,
-            "placement", Operation.BINDING_REPLACE, "bind-key", definition.limits()), definition);
+            "placement", Operation.BINDING_REPLACE, "bind-key", definition.limits(), definition.topology()), definition);
         when(authorization.authorize(eq("customer"), any())).thenReturn(approved);
     }
 
@@ -199,11 +199,11 @@ class CustomerDocumentStorageBindingServiceTest {
             base.plugins(), base.artifacts(), base.targets(), base.operations(), base.settings(),
             List.of(new BindingSlot("document-storage", BindingKind.CUSTOMER_S3, Set.of("reviewed-s3"),
                 "knowledge-plugin", "documentStorageBindingRef")),
-            base.documentAudiences(), base.admissionPrerequisites(), base.limits(), base.approvedPolicyRef(),
+            base.documentAudiences(), base.admissionPrerequisites(), base.limits(), base.topology(), base.approvedPolicyRef(),
             base.operatingPolicyRef(), base.identityPolicyRef(), base.storagePolicyRef());
         approved = new Authorization(new AdmissionContext("customer", "tenant", "deployment", null,
             "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", codec.hash(mapped), 2,
-            "placement", operation, operationKey, mapped.limits()), mapped);
+            "placement", operation, operationKey, mapped.limits(), mapped.topology()), mapped);
         when(authorization.authorize(eq("customer"), any())).thenReturn(approved);
     }
 

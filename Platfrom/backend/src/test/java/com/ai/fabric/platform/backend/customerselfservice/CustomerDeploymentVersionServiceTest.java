@@ -63,7 +63,8 @@ class CustomerDeploymentVersionServiceTest {
         when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
         approved = new Authorization(new AdmissionContext("customer", "tenant", "deployment", null,
             "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", "fingerprint", 2, "placement",
-            Operation.VERSION_PUBLISH, request.operationKey(), CustomerOfferTestFixtures.definition().limits()),
+            Operation.VERSION_PUBLISH, request.operationKey(), CustomerOfferTestFixtures.definition().limits(),
+            CustomerOfferTestFixtures.definition().topology()),
             CustomerOfferTestFixtures.definition());
         when(authorization.authorize(eq("customer"), any())).thenReturn(approved);
         DeploymentDraftResponse draft = mock(DeploymentDraftResponse.class);

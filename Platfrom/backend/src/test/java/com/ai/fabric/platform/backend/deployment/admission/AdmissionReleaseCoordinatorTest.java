@@ -44,7 +44,8 @@ class AdmissionReleaseCoordinatorTest extends AdmissionFixture {
         var c = context("manifest");
         var scope = new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment1", null, TARGET,
             CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING, "offer", "offer-fingerprint", 1, "placement-proof",
-            CustomerOfferContracts.Operation.APPLY, "apply", new CustomerOfferContracts.ReviewedLimits("measurement-proof", 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
+            CustomerOfferContracts.Operation.APPLY, "apply", new CustomerOfferContracts.ReviewedLimits("measurement-proof", 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+            new CustomerOfferContracts.ReviewedTopology(1, 1, 1, 1, 1, 1, 1, 1));
         store.reserve(c, new Reserve("apply", "manifest", scope), evidence(c, NOW), "customer", NOW);
         new TransactionTemplate(new DataSourceTransactionManager(dataSource)).executeWithoutResult(tx -> coordinator.bind(deployment, version, release));
     }

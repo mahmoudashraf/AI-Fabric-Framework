@@ -64,6 +64,11 @@ public final class CustomerOfferContracts {
                                  @PositiveOrZero int dependencies, @Positive int concurrentApplies,
                                  @Positive int stagingExpiryHours, @Positive int maxExtensionHours,
                                  @Positive int recoveryWindowHours) { }
+    /** Exact minimum full-topology demand reviewed for one target of this offer. */
+    public record ReviewedTopology(@Positive int replicas, @Positive long cpuMillis,
+                                   @Positive long memoryMiB, @Positive long diskMiB,
+                                   @PositiveOrZero int databases, @PositiveOrZero int indexes,
+                                   @PositiveOrZero int dependencies, @Positive int concurrentApplies) { }
     public record Definition(@NotBlank String schemaVersion, @NotBlank String name,
                              @NotBlank String templateId, @NotNull @Valid PluginPin template,
                              @NotNull @Valid List<PluginPin> plugins,
@@ -74,7 +79,7 @@ public final class CustomerOfferContracts {
                              @NotNull @Valid List<BindingSlot> bindingSlots,
                              @NotNull Set<DocumentAudience> documentAudiences,
                              @NotNull Set<Prerequisite> admissionPrerequisites,
-                             @NotNull @Valid ReviewedLimits limits,
+                             @NotNull @Valid ReviewedLimits limits, @NotNull @Valid ReviewedTopology topology,
                              @NotBlank String approvedPolicyRef, @NotBlank String operatingPolicyRef,
                              @NotBlank String identityPolicyRef, @NotBlank String storagePolicyRef) {
         public Definition {
@@ -112,7 +117,7 @@ public final class CustomerOfferContracts {
     public record AdmissionContext(String customerId, String tenantId, String deploymentId, String releaseId,
                                    String targetProfileId, TargetIntent intent, String offerId,
                                    String offerFingerprint, long entitlementRevision, String placementEvidenceId, Operation operation,
-                                   String operationKey, ReviewedLimits limits) { }
+                                   String operationKey, ReviewedLimits limits, ReviewedTopology topology) { }
     public record PrerequisiteEvidence(AdmissionContext context, Set<Prerequisite> passed,
                                        Instant checkedAt, Instant expiresAt,
                                        String evidenceReference, String capacityReservationId) {
