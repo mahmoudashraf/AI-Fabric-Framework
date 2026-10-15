@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileE
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionDatabaseCapacityVerifier;
 import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService;
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationRemoteEvidenceProvider;
@@ -117,6 +118,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private DeploymentRuntimeAuthorityService deploymentRuntimeAuthorityService;
     private RuntimeRetirementTopologyPlanService runtimeRetirementTopologyPlanService;
     private CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
+    private CustomerAdmissionDatabaseCapacityVerifier customerAdmissionDatabaseCapacityVerifier;
     private DeploymentRuntimeGenerationService deploymentRuntimeGenerationService;
     private RuntimeGenerationCheckpointService runtimeGenerationCheckpointService;
     private RuntimeGenerationRemoteEvidenceProvider runtimeGenerationRemoteEvidenceProvider;
@@ -171,6 +173,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Autowired(required = false)
     void setCustomerOfferDeploymentRepository(CustomerOfferDeploymentRepository customerOfferDeploymentRepository) {
         this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
+    }
+
+    @Autowired(required = false)
+    void setCustomerAdmissionDatabaseCapacityVerifier(
+        CustomerAdmissionDatabaseCapacityVerifier customerAdmissionDatabaseCapacityVerifier) {
+        this.customerAdmissionDatabaseCapacityVerifier = customerAdmissionDatabaseCapacityVerifier;
     }
 
     @Autowired(required = false)
@@ -1834,7 +1842,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
             if (observed.isPresent()) {
                 coolifyApiClient.updatePostgresDatabase(connection, uuid, request);
-                return coolifyApiClient.getDatabase(connection, uuid).orElse(observed.get());
+                return requireDatabaseCapacity(
+                    freshDatabaseReadback(connection, uuid, observed.get(), request), request);
             }
         }
 
@@ -1851,13 +1860,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         CoolifyDatabaseSummary namedDatabase = namedDatabases.isEmpty() ? null : namedDatabases.getFirst();
         if (namedDatabase != null) {
             coolifyApiClient.updatePostgresDatabase(connection, namedDatabase.uuid(), request);
-            return coolifyApiClient.getDatabase(connection, namedDatabase.uuid()).orElse(namedDatabase);
+            return requireDatabaseCapacity(
+                freshDatabaseReadback(connection, namedDatabase.uuid(), namedDatabase, request), request);
         }
 
         try {
             String uuid = coolifyApiClient.createPostgresDatabase(connection, request);
-            CoolifyDatabaseSummary database = coolifyApiClient.getDatabase(connection, uuid)
-                .orElse(new CoolifyDatabaseSummary(
+            Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
+            CoolifyDatabaseSummary database = observed.orElseGet(() -> new CoolifyDatabaseSummary(
                     uuid,
                     request.name(),
                     "CREATED",
@@ -1870,6 +1880,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                         .put("postgres_user", request.postgresUser())
                         .put("postgres_db", request.postgresDatabase())
                 ));
+            if (request.runtimeSettings() != null && observed.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "RUNTIME_DATABASE_CAPACITY_READBACK_MISSING");
+            }
+            requireDatabaseCapacity(database, request);
             coolifyApiClient.startDatabase(connection, uuid);
             return database;
         } catch (CoolifyApiException ex) {
@@ -1888,8 +1902,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     ex
                 );
             }
-            return conflictingDatabases.getFirst();
+            return requireDatabaseCapacity(conflictingDatabases.getFirst(), request);
         }
+    }
+
+    private CoolifyDatabaseSummary freshDatabaseReadback(CoolifyConnection connection, String uuid,
+                                                          CoolifyDatabaseSummary legacyFallback,
+                                                          CoolifyCreatePostgresDatabaseRequest request) {
+        Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
+        if (request.runtimeSettings() != null && observed.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "RUNTIME_DATABASE_CAPACITY_READBACK_MISSING");
+        }
+        return observed.orElse(legacyFallback);
+    }
+
+    private CoolifyDatabaseSummary requireDatabaseCapacity(CoolifyDatabaseSummary database,
+                                                            CoolifyCreatePostgresDatabaseRequest request) {
+        CoolifyDatabaseCapacity.requireReadback(
+            database,
+            request.runtimeSettings(),
+            "RUNTIME_DATABASE_CAPACITY_DRIFT"
+        );
+        return database;
     }
 
     private CoolifyCreatePostgresDatabaseRequest runtimePostgresDatabaseRequest(CoolifyConnection connection,
@@ -1915,6 +1949,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         String prefix = text(resourceDefaults, "runtimeDatabaseNamePrefix", "ai-fabric-runtime-postgres");
         String resourceName = normalizeName(prefix + "-" + deployment.getId());
+        CoolifyDatabaseRuntimeSettings databaseCapacity = runtimeDatabaseCapacity(
+            deployment,
+            profile,
+            resourceDefaults
+        );
         return new CoolifyCreatePostgresDatabaseRequest(
             scope.projectUuid(),
             connection.config().serverUuid(),
@@ -1928,8 +1967,33 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             password,
             databaseName,
             booleanValue(resourceDefaults, "runtimeDatabasePublic", false),
-            false
+            false,
+            databaseCapacity
         );
+    }
+
+    CoolifyDatabaseRuntimeSettings runtimeDatabaseCapacity(DeploymentEntity deployment,
+                                                            DeploymentTargetProfileEntity profile,
+                                                            JsonNode resourceDefaults) {
+        boolean productizedCustomerDeployment = customerOfferDeploymentRepository != null
+            && customerOfferDeploymentRepository.existsById(deployment.getId());
+        CoolifyDatabaseRuntimeSettings databaseCapacity = CoolifyDatabaseCapacity.fromTargetDefaults(
+            resourceDefaults, productizedCustomerDeployment);
+        if (productizedCustomerDeployment) {
+            if (customerAdmissionDatabaseCapacityVerifier == null) {
+                throw new ResponseStatusException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "CUSTOMER_RUNTIME_DATABASE_ADMISSION_VERIFIER_REQUIRED"
+                );
+            }
+            customerAdmissionDatabaseCapacityVerifier.requireCovered(
+                deployment.getId(),
+                profile.getId(),
+                CoolifyDatabaseCapacity.cpuMillicores(databaseCapacity),
+                CoolifyDatabaseCapacity.memoryBytes(databaseCapacity)
+            );
+        }
+        return databaseCapacity;
     }
 
     private DeploymentProviderResourceHandleEntity upsertDatabaseHandle(DeploymentEntity deployment,

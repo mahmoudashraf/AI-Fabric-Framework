@@ -97,4 +97,27 @@ class OwnedManagedDependencyProvisioningTest {
         when(api.getDatabase(connection, "db")).thenReturn(Optional.of(new CoolifyDatabaseSummary("db", "name", "running:healthy", "postgresql", "dependency", "dependency", mapper.createObjectNode())));
         assertThatThrownBy(() -> service.ownedDependencyDatabaseJdbc(connection, "db")).hasMessageContaining("ADDRESS_UNVERIFIED");
     }
+
+    @Test void databaseCreationUsesReviewedCapacityAndRejectsProviderDrift() {
+        var spec = ManagedDependencyFixtures.http("receiver", true);
+        ObjectNode databaseRaw = raw("dep-service-db", "ManagedDependency:graph:receiver")
+            .put("image", spec.database().image())
+            .put("is_public", false)
+            .put("limits_memory", "256M")
+            .put("limits_cpus", "0.250");
+        var database = new CoolifyDatabaseSummary("db", "dep-service-db", "running:healthy", "postgresql",
+            "dependency", "dependency", databaseRaw);
+        when(api.createPostgresDatabase(eq(connection), any())).thenReturn("db");
+        when(api.getDatabase(connection, "db")).thenReturn(Optional.of(database));
+
+        assertThatThrownBy(() -> service.reconcileOwnedDependency(connection, "graph", "dep-service", spec,
+            empty(false), ignored -> List.of(new CoolifyEnvVar("__DATABASE_PASSWORD", "private", false, true, false, true)),
+            checkpoint)).hasMessageContaining("DEPENDENCY_DATABASE_SPEC_DRIFT");
+
+        var request = ArgumentCaptor.forClass(CoolifyCreatePostgresDatabaseRequest.class);
+        verify(api).createPostgresDatabase(eq(connection), request.capture());
+        assertThat(request.getValue().runtimeSettings().limitsMemory()).isEqualTo("512M");
+        assertThat(request.getValue().runtimeSettings().limitsCpus()).isEqualTo("0.250");
+        verify(api, never()).startDatabase(any(), anyString());
+    }
 }

@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionDatabaseCapacityVerifier;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
@@ -63,6 +64,27 @@ import static org.mockito.Mockito.when;
 class CoolifyDeploymentProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void productizedRuntimeDatabaseRequiresProfileCapacityCoveredByAdmission() throws Exception {
+        var offers = mock(CustomerOfferDeploymentRepository.class);
+        var admission = mock(CustomerAdmissionDatabaseCapacityVerifier.class);
+        when(offers.existsById("dep-123")).thenReturn(true);
+        CoolifyDeploymentProvider provider = provider();
+        provider.setCustomerOfferDeploymentRepository(offers);
+        provider.setCustomerAdmissionDatabaseCapacityVerifier(admission);
+        DeploymentTargetProfileEntity profile = profile();
+
+        assertThatThrownBy(() -> provider.runtimeDatabaseCapacity(
+            deployment(), profile, objectMapper.readTree("{}")))
+            .hasMessageContaining("RUNTIME_DATABASE_CAPACITY_INVALID");
+
+        var settings = provider.runtimeDatabaseCapacity(deployment(), profile, objectMapper.readTree(
+            "{\"runtimeDatabaseCpuMillicores\":250,\"runtimeDatabaseMemoryMiB\":512}"));
+        assertThat(settings.limitsCpus()).isEqualTo("0.250");
+        assertThat(settings.limitsMemory()).isEqualTo("512M");
+        verify(admission).requireCovered("dep-123", profile.getId(), 250, 512L * 1024 * 1024);
+    }
 
     @Test
     void productizedCoolifyReleaseFailsClosedWithoutFrozenTargetAuthority() {
@@ -1167,7 +1189,9 @@ class CoolifyDeploymentProviderTest {
               "runtimeDatabaseUsername": "runtime_user",
               "runtimeDatabaseImage": "postgres:16-alpine",
               "runtimeDatabasePort": "5432",
-              "runtimeDatabasePublic": false
+              "runtimeDatabasePublic": false,
+              "runtimeDatabaseCpuMillicores": 250,
+              "runtimeDatabaseMemoryMiB": 512
             }
             """);
         DeploymentSourceArtifactEntity artifact = artifact();
@@ -1208,7 +1232,7 @@ class CoolifyDeploymentProviderTest {
             "postgresql",
             "runtime_user",
             "runtime_chat",
-            objectMapper.readTree("{\"uuid\":\"db-uuid\",\"name\":\"ai-fabric-runtime-postgres-dep-123\",\"status\":\"running\"}")
+            objectMapper.readTree("{\"uuid\":\"db-uuid\",\"name\":\"ai-fabric-runtime-postgres-dep-123\",\"status\":\"running\",\"limits_memory\":\"512m\",\"limits_cpus\":\"0.25\"}")
         );
 
         when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
@@ -1278,6 +1302,8 @@ class CoolifyDeploymentProviderTest {
         assertThat(databaseRequest.getValue().postgresUser()).isEqualTo("runtime_user");
         assertThat(databaseRequest.getValue().postgresDatabase()).isEqualTo("runtime_chat");
         assertThat(databaseRequest.getValue().isPublic()).isFalse();
+        assertThat(databaseRequest.getValue().runtimeSettings().limitsMemory()).isEqualTo("512M");
+        assertThat(databaseRequest.getValue().runtimeSettings().limitsCpus()).isEqualTo("0.250");
 
         ArgumentCaptor<List<CoolifyEnvVar>> envCaptor = ArgumentCaptor.forClass(List.class);
         verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), envCaptor.capture());

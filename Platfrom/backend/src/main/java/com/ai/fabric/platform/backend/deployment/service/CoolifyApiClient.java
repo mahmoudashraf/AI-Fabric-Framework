@@ -977,6 +977,7 @@ public class CoolifyApiClient {
         put(body, "postgres_password", request.postgresPassword());
         put(body, "postgres_db", request.postgresDatabase());
         body.put("is_public", request.isPublic());
+        writeDatabaseRuntimeSettings(body, request.runtimeSettings());
         body.put("instant_deploy", request.instantDeploy());
         return body;
     }
@@ -990,6 +991,7 @@ public class CoolifyApiClient {
         put(body, "postgres_password", request.postgresPassword());
         put(body, "postgres_db", request.postgresDatabase());
         body.put("is_public", request.isPublic());
+        writeDatabaseRuntimeSettings(body, request.runtimeSettings());
         return body;
     }
 
@@ -1274,6 +1276,17 @@ public class CoolifyApiClient {
         put(body, "health_check_timeout", settings.healthCheckTimeoutSeconds());
         put(body, "health_check_retries", settings.healthCheckRetries());
         put(body, "health_check_start_period", settings.healthCheckStartPeriodSeconds());
+        put(body, "limits_memory", settings.limitsMemory());
+        put(body, "limits_memory_swap", settings.limitsMemorySwap());
+        put(body, "limits_memory_reservation", settings.limitsMemoryReservation());
+        put(body, "limits_cpus", settings.limitsCpus());
+        put(body, "limits_cpuset", settings.limitsCpuSet());
+    }
+
+    private void writeDatabaseRuntimeSettings(ObjectNode body, CoolifyDatabaseRuntimeSettings settings) {
+        if (settings == null) {
+            return;
+        }
         put(body, "limits_memory", settings.limitsMemory());
         put(body, "limits_memory_swap", settings.limitsMemorySwap());
         put(body, "limits_memory_reservation", settings.limitsMemoryReservation());

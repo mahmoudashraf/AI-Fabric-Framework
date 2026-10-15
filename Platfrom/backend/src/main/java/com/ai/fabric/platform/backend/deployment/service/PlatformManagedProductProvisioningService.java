@@ -1765,6 +1765,10 @@ public class PlatformManagedProductProvisioningService {
         String marker = "ManagedDependency:" + graphId + ":" + spec.slot();
         String dbUuid = resources.databaseUuid();
         if (spec.database() != null) {
+            CoolifyDatabaseRuntimeSettings databaseCapacity = CoolifyDatabaseCapacity.of(
+                spec.database().capacity().milliCpu(),
+                spec.database().capacity().memoryMiB()
+            );
             String name = serviceRef + "-db";
             CoolifyDatabaseSummary db = null;
             if (hasText(dbUuid)) {
@@ -1786,7 +1790,8 @@ public class PlatformManagedProductProvisioningService {
                     .map(CoolifyEnvVar::value).findFirst().orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_SECRET_MISSING"));
                 dbUuid = coolifyApiClient.createPostgresDatabase(connection, new CoolifyCreatePostgresDatabaseRequest(
                     config.projectUuid(), config.serverUuid(), config.environmentName(), config.environmentUuid(),
-                    config.destinationUuid(), name, marker, spec.database().image(), "dependency", password, "dependency", false, false));
+                    config.destinationUuid(), name, marker, spec.database().image(), "dependency", password, "dependency",
+                    false, false, databaseCapacity));
                 checkpoint.created("DATABASE", dbUuid);
                 db = coolifyApiClient.getDatabase(connection, dbUuid)
                     .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_READBACK_MISSING"));
@@ -1797,6 +1802,7 @@ public class PlatformManagedProductProvisioningService {
                 || db.raw().path("is_public").asBoolean(true)) {
                 throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_SPEC_DRIFT");
             }
+            CoolifyDatabaseCapacity.requireReadback(db, databaseCapacity, "DEPENDENCY_DATABASE_SPEC_DRIFT");
             checkpoint.guard();
             coolifyApiClient.startDatabase(connection, dbUuid);
             awaitOwnedDatabase(connection, dbUuid);

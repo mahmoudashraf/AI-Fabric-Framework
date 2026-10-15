@@ -223,7 +223,8 @@ class CoolifyApiClientTest {
                     "pg-password",
                     "runtime_chat",
                     false,
-                    false
+                    false,
+                    new CoolifyDatabaseRuntimeSettings("512M", "768M", "256M", "0.250", "3")
                 )
             );
 
@@ -241,6 +242,34 @@ class CoolifyApiClientTest {
             assertThat(body.path("postgres_db").asText()).isEqualTo("runtime_chat");
             assertThat(body.path("is_public").asBoolean()).isFalse();
             assertThat(body.path("instant_deploy").asBoolean()).isFalse();
+            assertThat(body.path("limits_memory").asText()).isEqualTo("512M");
+            assertThat(body.path("limits_memory_swap").asText()).isEqualTo("768M");
+            assertThat(body.path("limits_memory_reservation").asText()).isEqualTo("256M");
+            assertThat(body.path("limits_cpus").asText()).isEqualTo("0.250");
+            assertThat(body.path("limits_cpuset").asText()).isEqualTo("3");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void updatePostgresDatabaseSendsRuntimeLimits() throws Exception {
+        AtomicReference<String> observedBody = new AtomicReference<>();
+        HttpServer server = updatePostgresDatabaseServer(observedBody);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+            client.updatePostgresDatabase(connection(server), "database-uuid",
+                new CoolifyCreatePostgresDatabaseRequest(
+                    "project", "server", "production", "environment", "destination", "database",
+                    "Managed database", "postgres:16-alpine", "runtime_user", "private", "runtime_chat",
+                    false, false, new CoolifyDatabaseRuntimeSettings("512M", null, null, "0.250", null)
+                ));
+
+            JsonNode body = objectMapper.readTree(observedBody.get());
+            assertThat(body.path("limits_memory").asText()).isEqualTo("512M");
+            assertThat(body.path("limits_cpus").asText()).isEqualTo("0.250");
+            assertThat(body.has("project_uuid")).isFalse();
+            assertThat(body.has("postgres_password")).isTrue();
         } finally {
             server.stop(0);
         }
@@ -793,6 +822,21 @@ class CoolifyApiClientTest {
             }
             observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             sendJson(exchange, 201, "{\"uuid\":\"database-uuid\"}");
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer updatePostgresDatabaseServer(AtomicReference<String> observedBody) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/databases/database-uuid", exchange -> {
+            if (!"PATCH".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            sendJson(exchange, 200, "{\"uuid\":\"database-uuid\"}");
         });
         server.start();
         return server;

@@ -201,6 +201,13 @@ class AdmissionStore {
         return jdbc.query("SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' ORDER BY id",
             (rs, row) -> json.read(rs.getString(1), Reservation.class));
     }
+    List<Reservation> held(String deploymentId, String targetProfileId) {
+        return jdbc.query("""
+                SELECT payload_json FROM deployment_capacity_reservations
+                 WHERE state<>'RELEASED' AND deployment_id=? AND target_profile_id=? ORDER BY id
+                """,
+            (rs, row) -> json.read(rs.getString(1), Reservation.class), deploymentId, targetProfileId);
+    }
     List<Reservation> lifecycleBatch(int requestedSize) {
         return locked(() -> {
             int size = Math.max(1, Math.min(requestedSize, 256));
