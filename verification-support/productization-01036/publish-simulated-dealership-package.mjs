@@ -57,6 +57,18 @@ export function validateManagedDependencySpec(spec) {
   return spec;
 }
 
+export function comparableJson(value) {
+  if (Array.isArray(value)) {
+    return value.map(comparableJson);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value)
+      .filter(([, nested]) => nested !== null)
+      .map(([key, nested]) => [key, comparableJson(nested)]));
+  }
+  return value;
+}
+
 function normalizedBaseUrl(value) {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("PLATFORM_BASE_URL must use HTTPS.");
@@ -187,7 +199,11 @@ export async function publishSimulatedDealershipPackage({baseUrl, apiKey, review
     });
     created = true;
   }
-  assert.deepEqual(current.spec, spec, "The active immutable topology differs from the reviewed package.");
+  assert.deepEqual(
+    comparableJson(current.spec),
+    comparableJson(spec),
+    "The active immutable topology differs from the reviewed package.",
+  );
   assert.equal(current.publication.specId, SPEC_ID);
 
   const evidence = {

@@ -6,7 +6,10 @@ import {
   DEPENDENCY_IMAGES,
   POSTGRES_IMAGE,
 } from "../simulated-dealership-managed-spec.mjs";
-import {validateManagedDependencySpec} from "../publish-simulated-dealership-package.mjs";
+import {
+  comparableJson,
+  validateManagedDependencySpec,
+} from "../publish-simulated-dealership-package.mjs";
 
 const artifacts = Object.fromEntries(Object.entries(DEPENDENCY_IMAGES).map(([slot, artifact]) => [slot, {
   id: `artifact-${slot}`,
@@ -57,4 +60,21 @@ test("pins every service and database to immutable image digests", () => {
     assert.match(service.sourceCommit, /^[a-f0-9]{40}$/);
     if (service.database) assert.match(service.database.image, /@sha256:[a-f0-9]{64}$/);
   }
+});
+
+test("ignores only server-materialized optional null fields during topology readback", () => {
+  const reviewed = {
+    value: {kind: "SERVICE_URL", reference: "inbox"},
+    enabled: true,
+  };
+  const readback = {
+    value: {kind: "SERVICE_URL", reference: "inbox", serviceSlot: null},
+    enabled: true,
+  };
+
+  assert.deepEqual(comparableJson(readback), comparableJson(reviewed));
+  assert.notDeepEqual(
+    comparableJson({...readback, enabled: false}),
+    comparableJson(reviewed),
+  );
 });
