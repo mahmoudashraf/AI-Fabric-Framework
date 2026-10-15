@@ -251,6 +251,11 @@ complete dealership topology. No resources were removed or redeployed.
   missing or no longer present. Services that require runtime callback hosts
   now wait for the runtime-bound reconciliation phase instead of trying to
   start during foundation provisioning with an empty host allowlist.
+- The final integrated Platform backend gate passed **1,476 tests**, with zero
+  failures, errors or skips. PostgreSQL contexts applied all production
+  migrations through `V176`, including explicit source-artifact roles and the
+  target-scoped Basic Inbox binding. The managed package verifier passed all
+  **16** scenarios, and the exact three-service Java topology contract passed.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
