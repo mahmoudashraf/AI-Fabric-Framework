@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "loomai-simulated-dealership-package-publication-evidence-v1",
+  "checkedAt": "2026-10-15T11:54:47.727Z",
+  "platformBaseUrl": "https://api.loomai.pro",
+  "templateVersionId": "mkv-template-simulated-dealership-experience-v1-1",
+  "specId": "mds-simulated-dealership-experience-v1-1",
+  "specFingerprint": "c16a1ceacab41a4893b3f56e1f1df99d819d16c4d64415966e225fde440011df",
+  "reviewReference": "59cd4d19dff5f9073869e21c447e548d20b6f003",
+  "publicationCreated": true,
+  "artifactPromotionChannel": "production",
+  "artifacts": {
+    "simulator": {
+      "id": "dsa-387c7fee",
+      "imageRepository": "ghcr.io/mahmoudashraf/loomai-external-vehicle-provider-simulator",
+      "imageDigest": "sha256:6db239c5c4663dee79719e9716ff6429e1f76fbcfd4efc662d5d39e577e52725",
+      "gitCommitSha": "fda8085d0c345e62f750f9041b8fd0760598651c",
+      "artifactRole": "MANAGED_DEPENDENCY",
+      "promotionChannel": "production",
+      "promotedAt": "2026-10-15T11:54:47.191010552Z"
+    },
+    "inbox": {
+      "id": "dsa-176da82d",
+      "imageRepository": "ghcr.io/mahmoudashraf/loomai-basic-inbox-service",
+      "imageDigest": "sha256:10f830dc1e4b1bb5e24722c663b40dac83b07793ab944f3978ac8a6c21e23788",
+      "gitCommitSha": "fda8085d0c345e62f750f9041b8fd0760598651c",
+      "artifactRole": "MANAGED_DEPENDENCY",
+      "promotionChannel": "production",
+      "promotedAt": "2026-10-15T11:54:47.356966538Z"
+    },
+    "receiver": {
+      "id": "dsa-bd8e82ec",
+      "imageRepository": "ghcr.io/mahmoudashraf/loomai-dealership-demo-backend",
+      "imageDigest": "sha256:84ab2be0c963671d67db1791dfb75187124f059adad1831f6e4985c20b46aa0d",
+      "gitCommitSha": "fda8085d0c345e62f750f9041b8fd0760598651c",
+      "artifactRole": "MANAGED_DEPENDENCY",
+      "promotionChannel": "production",
+      "promotedAt": "2026-10-15T11:54:47.513368102Z"
+    }
+  },
+  "runtimeBindingNames": [
+    "MANAGED_INBOX_API_KEY",
+    "MANAGED_INBOX_BASE_URL",
+    "MANAGED_INBOX_BINDING_ID",
+    "MANAGED_INBOX_CALLBACK_SIGNING_SECRET",
+    "MANAGED_INBOX_CONSOLE_URL",
+    "MANAGED_INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET",
+    "MANAGED_RECEIVER_ACTION_URL",
+    "MANAGED_RECEIVER_API_KEY",
+    "MANAGED_SIMULATOR_ACCOUNT_ID",
+    "MANAGED_SIMULATOR_BASE_URL",
+    "MANAGED_SIMULATOR_HOST",
+    "MANAGED_SIMULATOR_NOTIFICATION_SECRET",
+    "MANAGED_SIMULATOR_PROVIDER_KEY",
+    "MANAGED_SIMULATOR_PROVIDER_SECRET"
+  ],
+  "secretsRecorded": false
+}

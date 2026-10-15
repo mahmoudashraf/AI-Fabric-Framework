@@ -256,6 +256,23 @@ complete dealership topology. No resources were removed or redeployed.
   migrations through `V176`, including explicit source-artifact roles and the
   target-scoped Basic Inbox binding. The managed package verifier passed all
   **16** scenarios, and the exact three-service Java topology contract passed.
+- Production Platform backend app `sbdv2pkkqrbsy9m59034hb5j` was updated from
+  immutable image tag `c9942fc859a47a94841a02d9c192061a8b524ad5` to reviewed
+  implementation tag `321698b19c4222fbf1880e462726d6990b1bb72a`. Coolify
+  deployment `yuhlxx1t0ph335c8jmhpus9s` finished successfully on 2026-10-15;
+  the app reports `running:healthy` and `https://api.loomai.pro/actuator/health`
+  reports `UP` for liveness and readiness. The later source commit
+  `59cd4d19dff5f9073869e21c447e548d20b6f003` changes only this verification
+  ledger and remains the package review reference, not a distinct runtime image.
+- The production package publisher registered and production-promoted the exact
+  reviewed simulator, receiver and Basic Inbox dependency images, published
+  `mds-simulated-dealership-experience-v1-1` for template version
+  `mkv-template-simulated-dealership-experience-v1-1`, and read back the same
+  immutable topology. The resulting fingerprint is
+  `c16a1ceacab41a4893b3f56e1f1df99d819d16c4d64415966e225fde440011df`.
+  Sanitized evidence is recorded at
+  `verification-support/productization-01036/evidence/managed-package-publication-2026-10-15T11-54-46-672Z.json`;
+  no secret value is present in it.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
@@ -264,9 +281,11 @@ complete dealership topology. No resources were removed or redeployed.
 Logs reside under `/private/tmp/01036-*`; copy final sanitized evidence to the
 verification-support directory after the integrated gate passes. Source baseline
 started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; verified source foundations
-are committed and pushed on `Platform-V11` through `c9942fc85`. That branch is
-not yet a hosted release and has not passed the remaining live safety gates. No
-live deployment, provider resource or assignment was changed by these checks.
+are committed and pushed on `Platform-V11` through `59cd4d19d`. The Platform
+backend and reviewed package metadata are now hosted, but the customer offer has
+not passed the remaining live safety gates and is not externally admissible.
+No customer deployment, provider resource or consumer assignment was created or
+changed by the package-publication check.
 
 ### Remaining Before Admission
 
@@ -277,9 +296,9 @@ resource envelopes, notification/recovery evidence, repeated same-target runtime
 replacement, restart recovery, S3 indexing and cross-target denial. Complete the
 hosted real-provider Engage action-time auth, Shopify private-adapter,
 accessibility and capacity gates. The local typed-contract, cancellation,
-revocation and no-replay acceptance is closed. Redeploy the hosted Platform and
-customer runtime from the `0.8.33`-aligned private source and prove live version/
-digest readback before counting that upgrade as hosted evidence. P6 extraction and P7
+revocation and no-replay acceptance is closed. The hosted Platform backend and
+dependency package publication are closed; customer runtime deployment and exact
+live version/digest readback remain open. P6 extraction and P7
 fresh-customer hosted certification remain later gates. The canonical 40-task
 checklist stays open.
 
