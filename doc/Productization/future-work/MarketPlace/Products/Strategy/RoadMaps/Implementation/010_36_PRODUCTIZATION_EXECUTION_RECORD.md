@@ -111,6 +111,19 @@ complete dealership topology. No resources were removed or redeployed.
   `loomai-workspace-authentication-requirement-v1`; the widget rejects naked
   error codes and prose, emits the typed host event, opens mixed-mode sign-in
   only when the host advertises it, and never replays the blocked operation.
+- The reviewed fictional dealership customer package is now represented by four
+  published Marketplace versions: `mkp-data-simulated-dealership-stock-v1`,
+  `mkp-action-simulated-dealership-discovery-v1`,
+  `mkp-action-dealership-engagement-v1` and
+  `mkp-template-simulated-dealership-experience-v1`, all at `1.0.0`. The
+  template composes deployment-local synchronized stock, customer-owned S3
+  documents, governed engagement writes, conversation handover and Basic Inbox.
+  It deliberately leaves customer document storage unresolved. The reserved
+  real Auto Trader package IDs remain unpublished.
+- Managed dependency release planning can bind a reviewed deployment-target
+  authority secret independently of service-owned credentials. Managed action
+  routes compile reviewed service URL/path and secret-header bindings, validate
+  HTTP methods and normalize bounded success-status contracts.
 
 ### Executed Checks
 
@@ -204,6 +217,21 @@ complete dealership topology. No resources were removed or redeployed.
   contract smokes, including structured authentication, credential broker and
   browser-level private adapter behavior. The standalone shell again passed
   its server test and all **20** browser scenarios after the framework upgrade.
+- The immutable dependency-image workflow completed successfully from source
+  commit `fda8085d0c345e62f750f9041b8fd0760598651c`. It published the simulator
+  at digest `sha256:6db239c5c4663dee79719e9716ff6429e1f76fbcfd4efc662d5d39e577e52725`,
+  dealership receiver at digest
+  `sha256:84ab2be0c963671d67db1791dfb75187124f059adad1831f6e4985c20b46aa0d`,
+  and Basic Inbox at digest
+  `sha256:10f830dc1e4b1bb5e24722c663b40dac83b07793ab944f3978ac8a6c21e23788`.
+  Workflow evidence is GitHub Actions run `38723313627`. These artifacts still
+  require reviewed Platform registration and hosted readback.
+- The simulated dealership package migration was applied from an empty database
+  through all **174 production migrations** on PostgreSQL 16. Its four manifests
+  parsed successfully; discovery and engagement routes compiled with their exact
+  deployment-local projection, managed URL/header and normalized success-status
+  shapes. Focused Marketplace and managed-dependency tests and backend packaging
+  passed. This is source and migration evidence, not hosted provisioning proof.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
@@ -212,9 +240,9 @@ complete dealership topology. No resources were removed or redeployed.
 Logs reside under `/private/tmp/01036-*`; copy final sanitized evidence to the
 verification-support directory after the integrated gate passes. Source baseline
 started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; verified source foundations
-are saved as a local checkpoint on `Platform-V11`. That checkpoint is not a
-release and is not pushed/deployed before the remaining safety gates. No live
-deployment, provider resource or assignment was changed by these checks.
+are committed and pushed on `Platform-V11` through `c9942fc85`. That branch is
+not yet a hosted release and has not passed the remaining live safety gates. No
+live deployment, provider resource or assignment was changed by these checks.
 
 ### Remaining Before Admission
 
