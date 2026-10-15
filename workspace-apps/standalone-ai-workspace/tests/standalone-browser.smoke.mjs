@@ -105,7 +105,7 @@ test('mixed-mode sign-in clears only anonymous installation state and never repl
   await page.evaluate(() => {
     sessionStorage.setItem('loomai_workspace:awi_pub_mixed:conversation:anonymous', 'remove-me')
     sessionStorage.setItem('loomai_workspace:awi_pub_app_two:conversation:anonymous', 'keep-me')
-    window.dispatchEvent(new CustomEvent('loomai:workspace-authentication-required'))
+    window.LoomAIWorkspaceHost.requestSignIn()
   })
   await page.getByRole('heading', { name: 'Sign in to continue' }).waitFor()
   const requestCountBeforeLogin = requests.filter((entry) => entry.path.startsWith('/api/chat')).length
@@ -129,7 +129,7 @@ test('cancelling mixed-mode sign-in preserves the anonymous workspace and execut
   await page.locator('#installed-workspace').waitFor()
   await page.evaluate(() => {
     sessionStorage.setItem('loomai_workspace:awi_pub_mixed:conversation:anonymous', 'anonymous-conversation')
-    window.dispatchEvent(new CustomEvent('loomai:workspace-authentication-required'))
+    window.LoomAIWorkspaceHost.requestSignIn()
   })
   await page.getByRole('heading', { name: 'Sign in to continue' }).waitFor()
   const providerRequestsBeforeCancel = requests.filter((entry) => entry.path.startsWith('/auth/v1/')).length
@@ -162,23 +162,104 @@ test('optional identity lookup preserves anonymous mixed-mode workspace without 
   await page.close()
 })
 
+test('authentication challenge consumes only the canonical top-level requirement projection', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('mixed.localhost'))
+  await page.locator('#installed-workspace').waitFor()
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('loomai:workspace-authentication-required', { detail: {
+      installationId: 'awi_pub_mixed',
+      interactionPolicy: 'public-with-protected-capabilities',
+      authenticationRequirement: {},
+      metadata: { authenticationRequirement: {
+        schemaVersion: 'loomai-workspace-authentication-requirement-v1',
+        reasonCode: 'AUTHENTICATION_REQUIRED',
+        retryPolicy: 'EXPLICIT_NEW_REQUEST',
+      } },
+    } }))
+  })
+  await page.waitForTimeout(50)
+  assert.equal(await page.locator('#auth-dialog').getAttribute('open'), null)
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('loomai:workspace-authentication-required', { detail: {
+      authenticationRequirement: {
+        schemaVersion: 'loomai-workspace-authentication-requirement-v1',
+        reasonCode: 'AUTHENTICATION_REQUIRED',
+        retryPolicy: 'EXPLICIT_NEW_REQUEST',
+      },
+    } }))
+  })
+  await page.locator('#auth-dialog[open]').waitFor()
+  await page.close()
+})
+
 test('magic-link callback clears anonymous state before mounting authenticated workspace', async () => {
   const context = await browser.newContext()
   await context.addInitScript(() => {
     sessionStorage.setItem('loomai_workspace:awi_pub_mixed:conversation:anonymous', 'remove-me')
     sessionStorage.setItem('loomai_workspace:awi_pub_app_two:conversation:anonymous', 'keep-me')
+    localStorage.setItem('loomai_engage_magic_link:mixed.localhost:awi_pub_mixed:supabase', JSON.stringify({
+      attemptId: 'verified-attempt',
+      createdAt: Date.now(),
+    }))
   })
   const page = await context.newPage()
-  await page.goto(`${appUrl('mixed.localhost')}#access_token=magic-access-token&refresh_token=magic-refresh-token&expires_in=3600`)
+  await page.goto(`${appUrl('mixed.localhost')}?loomai_auth_attempt=verified-attempt#access_token=magic-access-token&refresh_token=magic-refresh-token&expires_in=3600`)
   await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
   const state = await page.evaluate(() => ({
     anonymous: sessionStorage.getItem('loomai_workspace:awi_pub_mixed:conversation:anonymous'),
     otherInstallation: sessionStorage.getItem('loomai_workspace:awi_pub_app_two:conversation:anonymous'),
     fragment: location.hash,
+    search: location.search,
+    pendingAttempt: localStorage.getItem('loomai_engage_magic_link:mixed.localhost:awi_pub_mixed:supabase'),
   }))
   assert.equal(state.anonymous, null)
   assert.equal(state.otherInstallation, 'keep-me')
   assert.equal(state.fragment, '')
+  assert.equal(state.search, '')
+  assert.equal(state.pendingAttempt, null)
+  await context.close()
+})
+
+test('unsolicited magic-link token callback is rejected without creating an authenticated workspace', async () => {
+  const page = await browser.newPage()
+  await page.goto(`${appUrl('mixed.localhost')}?loomai_auth_attempt=unsolicited#access_token=magic-access-token&refresh_token=magic-refresh-token&expires_in=3600`)
+  await page.getByRole('heading', { name: 'Sign in to continue' }).waitFor()
+  const state = await page.evaluate(() => ({
+    identity: window.LoomAIWorkspaceHost?.identity.status,
+    fragment: location.hash,
+    search: location.search,
+    providerSession: sessionStorage.getItem('loomai_engage_identity:mixed.localhost:awi_pub_mixed:supabase'),
+  }))
+  assert.equal(state.identity, 'anonymous')
+  assert.equal(state.fragment, '')
+  assert.equal(state.search, '')
+  assert.equal(state.providerSession, null)
+  await page.close()
+})
+
+test('a consumed magic-link callback nonce cannot be replayed', async () => {
+  const context = await browser.newContext()
+  const first = await context.newPage()
+  await first.goto(appUrl('mixed.localhost'))
+  await first.evaluate(() => {
+    localStorage.setItem('loomai_engage_magic_link:mixed.localhost:awi_pub_mixed:supabase', JSON.stringify({
+      attemptId: 'single-use-attempt',
+      createdAt: Date.now(),
+    }))
+  })
+  const callback = `${appUrl('mixed.localhost')}?loomai_auth_attempt=single-use-attempt#access_token=magic-access-token&refresh_token=magic-refresh-token&expires_in=3600`
+  await first.goto(callback)
+  await first.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+  await first.close()
+
+  const replay = await context.newPage()
+  await replay.goto(callback)
+  await replay.locator('#auth-dialog[open]').waitFor()
+  assert.equal(await replay.locator('#installed-workspace').getAttribute('data-identity'), 'anonymous')
+  assert.equal(await replay.evaluate(() => sessionStorage.getItem('loomai_engage_identity:mixed.localhost:awi_pub_mixed:supabase')), null)
+  assert.equal(await replay.evaluate(() => location.hash), '')
+  assert.equal(await replay.evaluate(() => location.search), '')
   await context.close()
 })
 
@@ -228,6 +309,208 @@ test('a revoked expired provider session clears private state and restores the r
   await context.close()
 })
 
+test('failed mixed-mode login retains anonymous state and never sends a chat request', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('mixed.localhost'))
+  await page.locator('#installed-workspace').waitFor()
+  await page.evaluate(() => {
+    sessionStorage.setItem('loomai_workspace:awi_pub_mixed:conversation:anonymous', 'anonymous-state')
+    window.LoomAIWorkspaceHost.requestSignIn()
+  })
+  const before = requests.filter((entry) => entry.path.startsWith('/api/chat')).length
+  await page.getByLabel('Email').fill('member@example.test')
+  await page.getByLabel('Password').fill('invalid-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.locator('#auth-error:not(.hidden)').waitFor()
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_mixed:conversation:anonymous')), 'anonymous-state')
+  assert.equal(await page.locator('#installed-workspace').getAttribute('data-identity'), 'anonymous')
+  assert.equal(requests.filter((entry) => entry.path.startsWith('/api/chat')).length, before)
+  await page.close()
+})
+
+test('cancelling an in-flight login fences its delayed successful response', async () => {
+  const page = await browser.newPage()
+  let release
+  let received = false
+  const deferred = new Promise((resolve) => { release = resolve })
+  await page.route('**/auth/v1/token?grant_type=password', async (route) => {
+    const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, apikey, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+    if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204, headers }); return }
+    received = true
+    await deferred
+    await route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify({
+      access_token: 'late-token', refresh_token: 'late-refresh', expires_in: 300,
+      user: { id: 'late-user', email: 'late@example.test' },
+    }) }).catch(() => {})
+  })
+  await page.goto(appUrl('mixed.localhost'))
+  await page.locator('#installed-workspace').waitFor()
+  await page.evaluate(() => window.LoomAIWorkspaceHost.requestSignIn())
+  await page.getByLabel('Email').fill('member@example.test')
+  await page.getByLabel('Password').fill('verified-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  const deadline = Date.now() + 5_000
+  while (!received && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.equal(received, true)
+  await page.locator('#auth-close').click()
+  release()
+  await page.waitForTimeout(100)
+  assert.equal(await page.evaluate(() => window.LoomAIWorkspaceHost.identity.status), 'anonymous')
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:mixed.localhost:awi_pub_mixed:supabase')), null)
+  assert.equal(await page.locator('#auth-password').inputValue(), '')
+  await page.close()
+})
+
+test('same-owner refresh rotates provider tokens without losing private workspace state', async () => {
+  const context = await browser.newContext()
+  await context.addInitScript(() => {
+    sessionStorage.setItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase', JSON.stringify({
+      access_token: 'expired-access-token', refresh_token: 'verified-refresh-token', expires_at: Math.floor(Date.now() / 1000) - 1,
+      user: { id: 'user-verified-1' },
+    }))
+    sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'owned-conversation-confirmation-attachments')
+  })
+  const page = await context.newPage()
+  await page.goto(appUrl('secure.localhost'))
+  await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+  const result = await page.evaluate(async () => ({
+    token: await window.LoomAIWorkspaceHost.getIdentityAccessToken(),
+    state: sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1'),
+  }))
+  assert.equal(result.token, 'refreshed-access-token')
+  assert.equal(result.state, 'owned-conversation-confirmation-attachments')
+  await context.close()
+})
+
+test('expiry without refresh proof clears private state and never reuses the old credential', async () => {
+  const context = await browser.newContext()
+  await context.addInitScript(() => {
+    sessionStorage.setItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase', JSON.stringify({
+      access_token: 'expired-access-token', expires_at: Math.floor(Date.now() / 1000) - 1, user: { id: 'expired-user' },
+    }))
+    sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:expired-user', 'private-state')
+  })
+  const page = await context.newPage()
+  await page.goto(appUrl('secure.localhost'))
+  await page.locator('#auth-dialog[open]').waitFor()
+  assert.equal(await page.locator('#installed-workspace').count(), 0)
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:expired-user')), null)
+  await context.close()
+})
+
+test('a refreshed credential for another owner is denied instead of inheriting the conversation', async () => {
+  const context = await browser.newContext()
+  await context.addInitScript(() => {
+    sessionStorage.setItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase', JSON.stringify({
+      access_token: 'expired-access-token', refresh_token: 'other-account-refresh', expires_at: Math.floor(Date.now() / 1000) - 1,
+      user: { id: 'user-verified-1' },
+    }))
+    sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'owner-one-state')
+  })
+  const page = await context.newPage()
+  await page.goto(appUrl('secure.localhost'))
+  await page.locator('#auth-dialog[open]').waitFor()
+  assert.equal(await page.locator('#installed-workspace').count(), 0)
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1')), null)
+  await context.close()
+})
+
+test('an explicit account switch clears previous-owner state and does not replay the request', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('mixed.localhost'))
+  await page.locator('#installed-workspace').waitFor()
+  await page.evaluate(() => window.LoomAIWorkspaceHost.requestSignIn())
+  await page.getByLabel('Email').fill('member@example.test')
+  await page.getByLabel('Password').fill('verified-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+  await page.evaluate(() => {
+    sessionStorage.setItem('loomai_workspace:awi_pub_mixed:conversation:authenticated:user-verified-1', 'old-owner-state')
+    sessionStorage.setItem('loomai_workspace:awi_pub_app_two:conversation:authenticated:user-verified-1', 'other-installation-state')
+    window.LoomAIWorkspaceHost.requestSignIn()
+  })
+  const before = requests.filter((entry) => entry.path.startsWith('/api/chat')).length
+  await page.getByLabel('Email').fill('other@example.test')
+  await page.getByLabel('Password').fill('verified-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.waitForFunction(() => window.LoomAIWorkspaceHost?.identity?.subjectKey === 'user-other')
+  const result = await page.evaluate(() => ({
+    previous: sessionStorage.getItem('loomai_workspace:awi_pub_mixed:conversation:authenticated:user-verified-1'),
+    otherInstallation: sessionStorage.getItem('loomai_workspace:awi_pub_app_two:conversation:authenticated:user-verified-1'),
+  }))
+  assert.equal(result.previous, null)
+  assert.equal(result.otherInstallation, 'other-installation-state')
+  assert.equal(requests.filter((entry) => entry.path.startsWith('/api/chat')).length, before)
+  await page.close()
+})
+
+test('failed provider logout clears local authority but reports revocation as unconfirmed', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('secure.localhost'))
+  await page.getByLabel('Email').fill('member@example.test')
+  await page.getByLabel('Password').fill('verified-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+  await page.route('**/auth/v1/logout?scope=local', (route) => route.fulfill({
+    status: route.request().method() === 'OPTIONS' ? 204 : 503,
+    headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, apikey, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' },
+  }))
+  const failure = await page.evaluate(async () => {
+    sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'private-state')
+    try { await window.LoomAIWorkspaceHost.signOut(); return null } catch (error) { return error.message }
+  })
+  assert.match(failure, /provider logout could not be confirmed/)
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1')), null)
+  assert.equal(await page.evaluate(() => typeof window.LoomAIWorkspaceHost), 'undefined')
+  await page.close()
+})
+
+test('slow provider logout revokes local authority immediately and fails within the bounded timeout', async () => {
+  const page = await browser.newPage()
+  await page.goto(appUrl('secure.localhost'))
+  await page.getByLabel('Email').fill('member@example.test')
+  await page.getByLabel('Password').fill('verified-password')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+  await page.route('**/auth/v1/logout?scope=local', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 10_000))
+    try {
+      await route.fulfill({
+        status: 204,
+        headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, apikey, Authorization', 'Access-Control-Allow-Methods': 'POST, OPTIONS' },
+      })
+    } catch {
+      // The browser is expected to abort the provider request first.
+    }
+  })
+  const immediate = await page.evaluate(() => {
+    sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'private-state')
+    window.__widgetDestroyed = false
+    window.MaxMode = { destroy() { window.__widgetDestroyed = true } }
+    window.__boundedLogoutFailure = null
+    window.LoomAIWorkspaceHost.signOut().catch((error) => { window.__boundedLogoutFailure = error.message })
+    return {
+      widgetDestroyed: window.__widgetDestroyed,
+      hostRemoved: typeof window.LoomAIWorkspaceHost === 'undefined',
+      providerCredentialRemoved: sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase') === null,
+      privateStateRemoved: sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1') === null,
+    }
+  })
+  assert.deepEqual(immediate, {
+    widgetDestroyed: true,
+    hostRemoved: true,
+    providerCredentialRemoved: true,
+    privateStateRemoved: true,
+  })
+  await page.waitForFunction(() => typeof window.LoomAIWorkspaceHost === 'undefined')
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1')), null)
+  await page.waitForFunction(() => typeof window.__boundedLogoutFailure === 'string', undefined, { timeout: 7_000 })
+  assert.match(await page.evaluate(() => window.__boundedLogoutFailure), /provider logout could not be confirmed/)
+  await page.close()
+})
+
 function app(installationId, displayName, interactionPolicy, profileCode) {
   return { installationId, displayName, interactionPolicy, profileCode }
 }
@@ -236,7 +519,7 @@ function appUrl(hostname) {
   return `http://${hostname}:${shellPort}/`
 }
 
-function platformHandler(request, response) {
+async function platformHandler(request, response) {
   const origin = request.headers.origin || ''
   const hostname = origin ? new URL(origin).hostname : ''
   requests.push({ method: request.method, path: request.url || '', origin })
@@ -284,15 +567,29 @@ function platformHandler(request, response) {
     return
   }
   if (request.url === '/auth/v1/token?grant_type=password' && request.method === 'POST') {
+    const body = await bodyJson(request)
+    if (body.password === 'invalid-password') {
+      json(response, 401, { message: 'Sign in failed.' })
+      return
+    }
+    const switching = body.email === 'other@example.test'
     json(response, 200, {
-      access_token: 'verified-access-token',
-      refresh_token: 'verified-refresh-token',
-      expires_in: 3600,
-      user: { id: 'user-verified-1', email: 'member@example.test' },
+      access_token: switching ? 'other-access-token' : 'verified-access-token',
+      refresh_token: switching ? 'other-refresh-token' : 'verified-refresh-token',
+      expires_in: 300,
+      user: { id: switching ? 'user-other' : 'user-verified-1', email: switching ? 'other@example.test' : 'member@example.test' },
     })
     return
   }
   if (request.url === '/auth/v1/token?grant_type=refresh_token' && request.method === 'POST') {
+    const body = await bodyJson(request)
+    if (body.refresh_token === 'verified-refresh-token' || body.refresh_token === 'other-account-refresh') {
+      json(response, 200, {
+        access_token: 'refreshed-access-token', refresh_token: 'rotated-refresh-token', expires_in: 300,
+        user: { id: body.refresh_token === 'other-account-refresh' ? 'user-other' : 'user-verified-1', email: 'member@example.test' },
+      })
+      return
+    }
     json(response, 401, { message: 'Refresh token revoked' })
     return
   }
@@ -300,11 +597,17 @@ function platformHandler(request, response) {
     json(response, 200, { id: 'user-verified-1', email: 'member@example.test' })
     return
   }
-  if (request.url === '/auth/v1/logout' && request.method === 'POST') {
+  if (request.url === '/auth/v1/logout?scope=local' && request.method === 'POST') {
     response.writeHead(204).end()
     return
   }
   json(response, 404, { message: 'Not found' })
+}
+
+async function bodyJson(request) {
+  let body = ''
+  for await (const chunk of request) body += chunk
+  return JSON.parse(body || '{}')
 }
 
 function json(response, status, value) {

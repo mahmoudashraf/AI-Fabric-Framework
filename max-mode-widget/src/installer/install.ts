@@ -6,6 +6,7 @@ import type {
   AIWorkspaceHostCapabilities,
   WorkspaceRuntimeRoutes,
 } from "./types";
+import { credentialBrokerTokenSupplier } from "./credentialBroker";
 
 const INSTALLER_VERSION = "1.0.0";
 const MANIFEST_SCHEMA = "loomai-ai-workspace-installation-v2";
@@ -113,6 +114,11 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
         showCloseButton: manifest.delivery.closeAllowed,
       },
     };
+    const currentIdentity = validateHostCapabilities(window.LoomAIWorkspaceHost)?.identity;
+    if ((currentIdentity?.status || "anonymous") !== (hostCapabilities?.identity?.status || "anonymous")
+      || currentIdentity?.subjectKey !== hostCapabilities?.identity?.subjectKey) {
+      throw new Error("Workspace identity changed during initialization; start a new conversation.");
+    }
     state.activeController = await registration.mount({
       installationId,
       manifestRevision: manifest.manifestRevision,
@@ -175,7 +181,7 @@ async function connectionWidgetConfig(
 ) {
   if (connection.mode === "public-runtime-anonymous") {
     const tokenSupplier = connection.credentialBroker
-      ? credentialBrokerTokenSupplier(connection.credentialBroker, manifest, false)
+      ? installationCredentialBrokerTokenSupplier(connection.credentialBroker, manifest, false)
       : undefined;
     return {
       integrationMode: connection.mode,
@@ -191,7 +197,7 @@ async function connectionWidgetConfig(
     };
   }
   if (connection.mode === "public-runtime-authenticated") {
-    const tokenSupplier = credentialBrokerTokenSupplier(connection.credentialBroker, manifest, true);
+    const tokenSupplier = installationCredentialBrokerTokenSupplier(connection.credentialBroker, manifest, true);
     return {
       integrationMode: connection.mode,
       apiConfig: directRuntimeApiConfig(connection.runtimeBaseUrl, connection.routes, {
@@ -234,64 +240,15 @@ function directRuntimeApiConfig(
   };
 }
 
-function credentialBrokerTokenSupplier(
+function installationCredentialBrokerTokenSupplier(
   broker: import("./types").WorkspaceCredentialBroker,
   manifest: AIWorkspaceInstallationManifest,
   required: boolean,
 ) {
-  let cached: { token: string; expiresAt: number; assignmentRevision: string } | null = null;
-  let pending: Promise<string> | null = null;
-  return async () => {
-    const host = validateHostCapabilities(window.LoomAIWorkspaceHost);
-    const externalToken = await host?.getIdentityAccessToken?.();
-    if (!externalToken) {
-      if (required) {
-        emit("authentication-required", {
-          installationId: manifest.installationId,
-          interactionPolicy: manifest.authentication.interactionPolicy,
-        });
-        throw new Error("Authentication is required before this workspace can connect.");
-      }
-      return null;
-    }
-    const now = Date.now();
-    if (cached && cached.expiresAt - now > 30_000 && cached.assignmentRevision === manifest.assignmentRevision) {
-      return cached.token;
-    }
-    if (pending) return pending;
-    pending = (async () => {
-      const response = await fetch(normalizeHttpsUrl(broker.url, "credential broker URL"), {
-        method: "POST",
-        credentials: broker.credentials,
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          [broker.externalAuthorizationHeader]: `Bearer ${externalToken}`,
-        },
-        body: JSON.stringify({
-          schemaVersion: "loomai-workspace-runtime-token-request-v1",
-        }),
-      });
-      if (!response.ok) throw new Error(`Credential broker returned HTTP ${response.status}.`);
-      const result = await response.json() as Record<string, unknown>;
-      if (result.schemaVersion !== "loomai-workspace-runtime-token-v1"
-        || typeof result.accessToken !== "string" || result.accessToken.length < 20
-        || result.tokenType !== "Bearer" || typeof result.expiresAt !== "string") {
-        throw new Error("Credential broker returned an invalid token contract.");
-      }
-      const expiresAt = Date.parse(result.expiresAt);
-      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-        throw new Error("Credential broker token is already expired.");
-      }
-      cached = { token: result.accessToken, expiresAt, assignmentRevision: manifest.assignmentRevision };
-      return cached.token;
-    })();
-    try {
-      return await pending;
-    } finally {
-      pending = null;
-    }
-  };
+  return credentialBrokerTokenSupplier({ ...broker, url: normalizeHttpsUrl(broker.url, "credential broker URL") },
+    manifest, required, () => validateHostCapabilities(window.LoomAIWorkspaceHost), () => emit("authentication-required", {
+      installationId: manifest.installationId, interactionPolicy: manifest.authentication.interactionPolicy,
+    }));
 }
 
 async function bootstrapPrivateAdapter(

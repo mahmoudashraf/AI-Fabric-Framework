@@ -2,6 +2,7 @@ import {
   getWidgetConfig,
   getWidgetStorageKey,
 } from "@/config";
+import { extractWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
 
 type PublicRuntimeTokenState = {
   token?: string;
@@ -498,8 +499,11 @@ async function performFetch(path: string, init?: RequestInit, baseUrl?: string):
 
   const mode = getWidgetConfig().integrationMode ?? "backend-mediated-private-runtime";
   if (response.status === 401 && mode === "public-runtime-anonymous") {
-    invalidatePublicRuntimeSession("unauthorized");
-    throw new PublicRuntimeSessionInvalidatedError("unauthorized");
+    const body = await response.clone().json().catch(() => null);
+    if (!extractWorkspaceAuthenticationRequirement(body)) {
+      invalidatePublicRuntimeSession("unauthorized");
+      throw new PublicRuntimeSessionInvalidatedError("unauthorized");
+    }
   }
 
   return response;

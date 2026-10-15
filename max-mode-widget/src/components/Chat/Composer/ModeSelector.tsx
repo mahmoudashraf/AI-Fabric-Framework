@@ -116,13 +116,6 @@ export function ModeSelector({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectableModes = collapseModeChoices(availableModes);
-  if (selectableModes.length <= 1) {
-    return null;
-  }
-
-  const currentGroup = MODES.find((m) => m.key === currentMode)?.group;
-  const active = selectableModes.find((m) => m.group === currentGroup) || selectableModes[0];
-  const ActiveIcon = active.icon;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -135,6 +128,14 @@ export function ModeSelector({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
+
+  if (selectableModes.length <= 1) {
+    return null;
+  }
+
+  const currentGroup = MODES.find((m) => m.key === currentMode)?.group;
+  const active = selectableModes.find((m) => m.group === currentGroup) || selectableModes[0];
+  const ActiveIcon = active.icon;
 
   return (
     <div ref={containerRef} className="relative">

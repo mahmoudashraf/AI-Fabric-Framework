@@ -16,7 +16,7 @@ import type { AttachedItem, ChatMessage, ChatResult, DebugData, Document, Result
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
-import { extractWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
+import { extractWorkspaceAuthenticationRequirement, dispatchWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
 import { getWidgetConfig } from "@/config";
 import { resolveChatRequestSemantics } from "@/requestSemantics";
 
@@ -373,21 +373,8 @@ export function useChatFlow({
 
         if (authenticationRequirement) {
           const authentication = getWidgetConfig().host?.authentication;
-          emitEvent("authentication:required", {
-            ...authenticationRequirement,
-            conversationId: data.conversationId || effectiveConversationId,
-          });
-          if (authentication?.interactionPolicy === "public-with-protected-capabilities"
-            && authentication.status === "anonymous"
-            && authentication.signInAvailable
-            && authentication.onSignIn) {
-            Promise.resolve(authentication.onSignIn()).catch((error) => {
-              emitEvent("error", {
-                source: "authentication-challenge",
-                message: error instanceof Error ? error.message : "Sign in could not be started.",
-              });
-            });
-          }
+          void dispatchWorkspaceAuthenticationRequirement(authenticationRequirement, authentication,
+            data.conversationId || effectiveConversationId, emitEvent);
         }
       } catch (error) {
         if (isPublicRuntimeSessionInvalidatedError(error)) {
