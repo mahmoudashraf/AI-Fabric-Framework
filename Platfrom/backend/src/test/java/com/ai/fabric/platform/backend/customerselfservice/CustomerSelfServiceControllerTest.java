@@ -40,10 +40,11 @@ class CustomerSelfServiceControllerTest {
     @Autowired CustomerOfferEntitlementService entitlements;
     @Autowired CustomerSelfServiceCatalogueService catalogue;
     @Autowired CustomerDeploymentBootstrapService bootstrap;
+    @Autowired CustomerAdmissionReservationService reservations;
     private MockMvc mvc;
 
     @BeforeEach void setup() {
-        reset(entitlements, catalogue, bootstrap);
+        reset(entitlements, catalogue, bootstrap, reservations);
         mvc = webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -101,6 +102,26 @@ class CustomerSelfServiceControllerTest {
             .content("{}"), PlatformRole.PUBLIC_API_CLIENT)).andExpect(status().isForbidden());
     }
 
+    @Test void customerAdmissionReservationRoutesAreOwnerOnlyAndStrictlyTyped() throws Exception {
+        String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/admission-reservations";
+        String request = "{\"targetProfileId\":\"staging-target\",\"manifestId\":\"manifest\",\"versionId\":\"version\","
+            + "\"operation\":\"APPLY\",\"operationKey\":\"operation\"}";
+        mvc.perform(as(post(route).contentType("application/json").content(request), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk());
+        verify(reservations).reserve(eq("offer"), eq("deployment"), any());
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(as(post(route).contentType("application/json").content(request), role)).andExpect(status().isForbidden());
+        }
+        clearInvocations(reservations);
+        mvc.perform(as(post(route).contentType("application/json")
+            .content("{\"targetProfileId\":\"staging-target\",\"manifestId\":\"manifest\",\"versionId\":\"version\","
+                + "\"operation\":\"APPLY\",\"operationKey\":\"operation\",\"cpuMillis\":999999}"),
+            PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
+        verifyNoInteractions(reservations);
+        mvc.perform(as(get(route + "/reservation"), PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isOk());
+        verify(reservations).status("offer", "deployment", "reservation");
+    }
+
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder request, PlatformRole role) {
         return request.with(authentication(new UsernamePasswordAuthenticationToken(new PlatformPrincipal("test-actor", role, "Test", "SESSION"),
             null, List.of(new SimpleGrantedAuthority(role.authority())))));
@@ -116,6 +137,7 @@ class CustomerSelfServiceControllerTest {
         @Bean CustomerDocumentStorageBindingService documentStorageBindings() {
             return mock(CustomerDocumentStorageBindingService.class);
         }
+        @Bean CustomerAdmissionReservationService reservations() { return mock(CustomerAdmissionReservationService.class); }
         @Bean CustomerSelfServiceController controller(CustomerSelfServiceCatalogueService catalogue,
             CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec, CustomerPlacementProbeService placementProbes,
             CustomerDeploymentBootstrapService bootstrap, CustomerDocumentStorageBindingService documentStorageBindings) {
@@ -123,6 +145,10 @@ class CustomerSelfServiceControllerTest {
                 documentStorageBindings);
         }
         @Bean CustomerSelfServiceExceptionHandler errors() { return new CustomerSelfServiceExceptionHandler(); }
+        @Bean CustomerAdmissionReservationController admissionReservationController(CustomerAdmissionReservationService reservations,
+                                                                                      CustomerOfferCodec codec) {
+            return new CustomerAdmissionReservationController(reservations, codec);
+        }
         @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {
             return http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(requests -> requests.anyRequest().authenticated()).build();
         }

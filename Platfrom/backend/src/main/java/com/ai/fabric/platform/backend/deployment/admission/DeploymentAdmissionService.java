@@ -74,11 +74,26 @@ public class DeploymentAdmissionService {
         store.approveManifest(manifest, actor(), Instant.now());
     }
     public Reservation reserve(String deploymentId, Reserve command) {
+        return reserve(deploymentId, null, command, false);
+    }
+    /** Reserve against the exact customer authorization context prepared before admission evidence exists. */
+    public Reservation reserveCustomer(String deploymentId, String expectedVersionId, Reserve command) {
+        required(expectedVersionId, 64);
+        if (command == null || command.customerContext() == null) {
+            throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_CONTEXT_REQUIRED");
+        }
+        return reserve(deploymentId, expectedVersionId, command, true);
+    }
+    private Reservation reserve(String deploymentId, String expectedVersionId, Reserve command, boolean customerScoped) {
         DeploymentEntity deployment = authorize(deploymentId, true);
         if (command == null) throw new AdmissionFailure(BAD_REQUEST, "ADMISSION_COMMAND_REQUIRED");
         required(command.operationKey(), 128); required(command.manifestId(), 64);
         Manifest manifest = store.reviewed("MANIFEST", command.manifestId(), Manifest.class);
         if (!deployment.getId().equals(manifest.deploymentId())) throw new AdmissionFailure(NOT_FOUND, "MANIFEST_NOT_FOUND");
+        if (expectedVersionId != null && !expectedVersionId.equals(manifest.versionId())) {
+            throw new AdmissionFailure(CONFLICT, "REVIEWED_VERSION_CHANGED");
+        }
+        if (customerScoped) validateCustomerScope(deployment, manifest, command);
         String fingerprint = store.commandFingerprint(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest, command);
         Reservation replay = store.replay(deployment.getCustomerId(), deploymentId, manifest.targetProfileId(), command, fingerprint);
         if (replay != null) return replay;
@@ -182,6 +197,22 @@ public class DeploymentAdmissionService {
         var version = versions.findById(manifest.versionId()).orElseThrow(() -> new AdmissionFailure(NOT_FOUND, "VERSION_NOT_FOUND"));
         if (!deployment.getId().equals(version.getDeploymentId()) || !manifest.versionConfigHash().equals(version.getConfigHash())
             || !"PUBLISHED".equalsIgnoreCase(version.getStatus())) throw new AdmissionFailure(CONFLICT, "REVIEWED_VERSION_CHANGED");
+    }
+    private void validateCustomerScope(DeploymentEntity deployment, Manifest manifest, Reserve command) {
+        var scope = command.customerContext();
+        Intent intent;
+        try { intent = Intent.valueOf(scope.intent().name()); }
+        catch (RuntimeException ex) { throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_SCOPE_INVALID"); }
+        TargetBudget target = store.context(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), manifest.id()).target();
+        if (scope.operation() == null || scope.limits() == null || scope.entitlementRevision() <= 0
+            || !deployment.getCustomerId().equals(scope.customerId()) || !deployment.getTenantId().equals(scope.tenantId())
+            || !deployment.getId().equals(scope.deploymentId()) || !manifest.targetProfileId().equals(scope.targetProfileId())
+            || target.intent() != intent || !command.operationKey().equals(scope.operationKey())
+            || scope.offerId() == null || scope.offerId().isBlank()
+            || scope.offerFingerprint() == null || scope.offerFingerprint().isBlank()
+            || scope.placementEvidenceId() == null || scope.placementEvidenceId().isBlank()) {
+            throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_SCOPE_INVALID");
+        }
     }
     private void validateTarget(TargetBudget target) {
         var profile = targets.findById(target.targetProfileId()).orElseThrow(() -> new AdmissionFailure(NOT_FOUND, "TARGET_NOT_FOUND"));

@@ -64,6 +64,20 @@ public class CustomerSelfServiceAuthorizationService {
     /** Join the owning command transaction so revoke cannot race the persisted mutation. */
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization authorize(String customerId, AuthorizationRequest request) {
+        return authorize(customerId, request, true);
+    }
+
+    /**
+     * Validate the exact customer command before its admission reservation exists. This is intentionally
+     * limited to operations whose permission row requires admission evidence; every other authorization
+     * check remains identical to the owning command path.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Authorization prepareAdmission(String customerId, AuthorizationRequest request) {
+        return authorize(customerId, request, false);
+    }
+
+    private Authorization authorize(String customerId, AuthorizationRequest request, boolean requireAdmissionEvidence) {
         if (request == null || request.operation() == null || blank(request.targetProfileId())
             || blank(request.offerId())) throw invalid();
         var principal = PlatformSecurityContext.currentPrincipal();
@@ -81,6 +95,7 @@ public class CustomerSelfServiceAuthorizationService {
         var definition = entitlements.definition(offer);
         if (!definition.operations().contains(request.operation())) throw deny(OPERATION_FORBIDDEN);
         PermissionRow row = CustomerPermissionMatrix.row(request.operation());
+        if (!requireAdmissionEvidence && !row.admissionEvidenceRequired()) throw deny(OPERATION_FORBIDDEN);
         if (!row.settings().containsAll(request.changedSettings()) || !definition.settings().stream()
             .map(SettingRule::setting).collect(java.util.stream.Collectors.toSet()).containsAll(request.changedSettings())) {
             throw deny(SETTING_FORBIDDEN);
@@ -141,7 +156,7 @@ public class CustomerSelfServiceAuthorizationService {
         AdmissionContext context = new AdmissionContext(customerId, request.tenantId(), request.deploymentId(),
             request.releaseId(), target.targetProfileId(), target.intent(), offer.getId(), offer.getFingerprint(),
             entitlement.getRevision(), placementEvidence.getId(), request.operation(), request.operationKey(), definition.limits());
-        requirePrerequisites(context, requiredPrerequisites(definition, row));
+        if (requireAdmissionEvidence) requirePrerequisites(context, requiredPrerequisites(definition, row));
         return new Authorization(context, definition);
     }
 

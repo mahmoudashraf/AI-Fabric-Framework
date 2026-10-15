@@ -115,6 +115,29 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
         assertThat(service.status("deployment1", r.id()).consumesCapacity()).isTrue();
     }
     @Test
+    void customerReservationPersistsTheExactPreparedContextAndReviewedVersion() throws Exception {
+        approveLiveInputs();
+        AdmissionEvidenceSource source = mock(AdmissionEvidenceSource.class);
+        when(source.read(any())).thenAnswer(invocation -> evidence(invocation.getArgument(0), Instant.now()));
+        adapters.registerSingleton("readback", source);
+        var limits = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedLimits(
+            "measurement", 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1);
+        var customerContext = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
+            "customer", "tenant", "deployment1", null, TARGET,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
+            "offer", "offer-fingerprint", 1, "placement-proof",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY, "customer-op", limits);
+
+        Reservation reservation = service.reserveCustomer("deployment1", "version",
+            new Reserve("customer-op", "manifest1", customerContext));
+
+        assertThat(reservation.customerContextFingerprint()).isNotBlank();
+        assertThat(reservation.customerOperation())
+            .isEqualTo(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY);
+        assertThatThrownBy(() -> service.reserveCustomer("deployment1", "another-version",
+            new Reserve("another-op", "manifest1", customerContext))).hasMessageContaining("REVIEWED_VERSION_CHANGED");
+    }
+    @Test
     void targetConfigDriftAndPublishedVersionDriftDeny() throws Exception {
         approveLiveInputs();
         DeploymentTargetProfileEntity profile = targets.findById(TARGET).orElseThrow();

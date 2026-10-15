@@ -186,6 +186,25 @@ class CustomerSelfServiceAuthorizationServiceTest {
         when(providers.orderedStream()).thenAnswer(call -> Stream.of(provider, provider)); assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
     }
 
+    @Test void admissionPreparationKeepsEveryAuthorizationCheckButDoesNotRequireItsFutureReservation() {
+        when(providers.orderedStream()).thenAnswer(call -> Stream.empty());
+        var prepared = service.prepareAdmission("customer", request(Operation.APPLY));
+        assertThat(prepared.context().operation()).isEqualTo(Operation.APPLY);
+        assertThat(prepared.context().customerId()).isEqualTo("customer");
+        verifyNoInteractions(provider);
+        assertDenied(PREREQUISITE_EVIDENCE_REQUIRED, Operation.APPLY);
+
+        deployment.setCustomerId("other");
+        assertCode(RESOURCE_SCOPE_MISMATCH,
+            () -> service.prepareAdmission("customer", request(Operation.APPLY)));
+    }
+
+    @Test void admissionPreparationCannotBeUsedForOperationsWithoutAdmissionEvidence() {
+        assertCode(OPERATION_FORBIDDEN,
+            () -> service.prepareAdmission("customer", request(Operation.DRAFT_EDIT)));
+        verifyNoInteractions(provider);
+    }
+
     @Test void missingStaleAndMismatchedPlacementEvidenceNeverTriggersAProbeUnderCommandLocks() {
         for (var code : List.of(PLACEMENT_EVIDENCE_REQUIRED, PLACEMENT_EVIDENCE_STALE, PLACEMENT_DENIED)) {
             doThrow(conflict(code)).when(placement).requireFreshEvidence(any(), any());
