@@ -17,9 +17,11 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   claim the storage gate passed from fixture tests.
 - P1-P5: source foundations are integrated. The immutable three-service managed
   dependency package is published and read back on both hosted control planes,
-  but end-to-end customer provisioning is not hosted-certified. It remains
-  gated on live storage, identity, notification, measured capacity and
-  fresh-customer lifecycle evidence.
+  and the customer-safe admission reservation plus staff-only reviewed-record
+  boundaries are deployed on both Platform backends. End-to-end customer
+  provisioning is not hosted-certified. It remains gated on live storage,
+  identity, notification, measured capacity and fresh-customer lifecycle
+  evidence.
 - P6: not started. No editor extraction or customer layout change before the
   verified functional baseline. Preserve the frozen STAFF-001 through STAFF-039
   capability register and source snapshot.
@@ -272,15 +274,30 @@ complete dealership topology. No resources were removed or redeployed.
   gate passed **63 tests**. A fresh complete Platform backend run then passed
   **1,485 tests**, with zero failures, errors or skips (`BUILD SUCCESS`,
   6m43s). No framework or UI change was required.
-- Production Platform backend app `sbdv2pkkqrbsy9m59034hb5j` was updated from
-  immutable image tag `c9942fc859a47a94841a02d9c192061a8b524ad5` to reviewed
-  implementation tag `321698b19c4222fbf1880e462726d6990b1bb72a`. Coolify
-  deployment `yuhlxx1t0ph335c8jmhpus9s` finished successfully on 2026-10-15;
-  the app reports `running:healthy` and `https://api.loomai.pro/actuator/health`
-  reports `UP` for liveness and readiness. The later source commit
-  `59cd4d19dff5f9073869e21c447e548d20b6f003` changes only this verification
-  ledger, and `b7dd66595e06b1ed4e921c0828d5664d6f2de9fe` changes only the publication
-  verifier's readback comparison. Neither is a distinct runtime image.
+- GitHub Actions run `38736048226` published the reviewed Platform backend from
+  exact source `294f771ebadb60b5c8f43d0ea6abf63415b9efff` as
+  `ghcr.io/mahmoudashraf/loomai-platform-backend:294f771ebadb60b5c8f43d0ea6abf63415b9efff`,
+  digest
+  `sha256:468f5fa69bad1b86ec1c9d9ceeaa6b3f15eaf1f974c4dee736dd3fae72863d1a`.
+  The workflow's UI job was correctly skipped because this source did not
+  change the UI.
+- Staging Platform backend app `aa3dylvh4stfeg0ersfzdjjm` replaced the prior
+  image with that exact tag through Coolify deployment
+  `kmqjlhqspzdwe1nbbfq3ifvu`. The deployment finished, the application reports
+  `running:healthy`, and both liveness and readiness return HTTP `200` / `UP`.
+  An authenticated core-service readback still resolves the production backend
+  and console identities as `RUNNING_HEALTHY`. The customer admission route
+  rejects a Platform administrator with HTTP `403`; the staff manifest-review
+  route reaches its controller and rejects an empty manifest with HTTP `412` /
+  `PRECONDITION_FAILED`. No customer or reviewed admission record was created.
+- Production Platform backend app `sbdv2pkkqrbsy9m59034hb5j` then replaced the
+  prior image with the same immutable tag through Coolify deployment
+  `kni9ojxnk1q3cv85mtfy6qg9`. The deployment finished and the app reports
+  `running:healthy`. Canonical `api.loomai.pro` liveness and readiness return
+  HTTP `200` / `UP`; authenticated core-service readback returns the exact
+  image tag and `RUNNING_HEALTHY`. The same authorization probes return HTTP
+  `403` for the customer route under Platform-admin authority and HTTP `412` /
+  `PRECONDITION_FAILED` for an empty staff manifest. No business data changed.
 - The production package publisher registered and production-promoted the exact
   reviewed simulator, receiver and Basic Inbox dependency images, published
   `mds-simulated-dealership-experience-v1-1` for template version
@@ -290,9 +307,7 @@ complete dealership topology. No resources were removed or redeployed.
   Sanitized evidence is recorded at
   `verification-support/productization-01036/evidence/managed-package-publication-2026-10-15T11-54-46-672Z.json`;
   no secret value is present in it.
-- Staging Platform backend app `aa3dylvh4stfeg0ersfzdjjm` runs the same reviewed
-  image tag `321698b19c4222fbf1880e462726d6990b1bb72a` and reports
-  `running:healthy`. Its convergent package publication/readback produced
+- The convergent staging package publication/readback produced
   template `mkv-template-simulated-dealership-experience-v1-1`, topology
   `mds-simulated-dealership-experience-v1-1`, all three exact dependency image
   digests and all 14 runtime bindings. The staging topology fingerprint is
@@ -306,9 +321,13 @@ complete dealership topology. No resources were removed or redeployed.
   it did not replace or damage the healthy container and is not counted as a
   successful release.
 - Production Coolify port `8000` again times out from the operator network after
-  the temporary Hetzner firewall allowances were removed. Production Platform
-  readback remains available through its authenticated API and reports backend
-  and console `RUNNING_HEALTHY`.
+  the temporary `/32` allowance was removed. Hetzner firewalls `10915120` and
+  `10918233` exactly match their pre-run rule snapshots, with hashes
+  `c687cf36b5b6b0a4cba4e3d0d888c71e4839a9064afd23baf9c061094f5c31fd`
+  and `88f06be9d7d1127fce6cfda4e008480094d70b2f21e79289f0ccf2d1300bc648`;
+  the operator CIDR has zero matches. Production Platform readback remains
+  available through its authenticated API and reports backend and console
+  `RUNNING_HEALTHY`.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
@@ -317,7 +336,7 @@ complete dealership topology. No resources were removed or redeployed.
 Logs reside under `/private/tmp/01036-*`; copy final sanitized evidence to the
 verification-support directory after the integrated gate passes. Source baseline
 started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; verified source foundations
-are committed on `Platform-V11` through `4530ef792`. The Platform
+are committed on `Platform-V11` through `294f771eb`. The Platform
 backend and reviewed package metadata are now hosted, but the customer offer has
 not passed the remaining live safety gates and is not externally admissible.
 No customer deployment, provider resource or consumer assignment was created or
