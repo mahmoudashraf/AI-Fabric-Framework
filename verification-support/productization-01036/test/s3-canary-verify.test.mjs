@@ -33,7 +33,18 @@ function run(mode = 'strict', overrides = {}) {
   const log = path.join(temporary, 'aws-calls.jsonl');
   const result = spawnSync(process.execPath, [verifier, '--aws-cli', fakeAws, '--output', output], {
     encoding: 'utf8',
-    env: { ...cleanProcessEnvironment, ...fixtureEnvironment, ...overrides, FAKE_AWS_MODE: mode, FAKE_AWS_LOG: log },
+    env: {
+      ...cleanProcessEnvironment,
+      AWS_ENDPOINT_URL: 'https://unreviewed.invalid',
+      AWS_ENDPOINT_URL_S3: 'https://unreviewed-s3.invalid',
+      AWS_ENDPOINT_URL_STS: 'https://unreviewed-sts.invalid',
+      AWS_REGION: 'us-east-1',
+      AWS_DEFAULT_REGION: 'us-west-1',
+      ...fixtureEnvironment,
+      ...overrides,
+      FAKE_AWS_MODE: mode,
+      FAKE_AWS_LOG: log,
+    },
   });
   return {
     temporary,
@@ -79,6 +90,21 @@ test('passes strict read-only, prefix-isolated identities and emits sanitized ev
     assert.ok(operations.includes('put-object'));
     assert.ok(operations.includes('delete-object'));
     assert.ok(execution.calls.every((call) => call.canaryEnvironmentVariableCount === 0));
+    assert.ok(execution.calls.every((call) => call.endpointOverrideCount === 0));
+    const remoteCalls = execution.calls.filter(({ args }) => args.includes('--region'));
+    assert.ok(remoteCalls.every((call) => call.effectiveRegion === 'eu-north-1'));
+    assert.ok(remoteCalls.every((call) => call.effectiveDefaultRegion === 'eu-north-1'));
+  } finally {
+    cleanup(execution);
+  }
+});
+
+test('scrubs inherited AWS endpoint routing before STS and S3 verification', () => {
+  const execution = run();
+  try {
+    assert.equal(execution.result.status, 0, execution.result.stderr);
+    assert.ok(execution.calls.length > 0);
+    assert.ok(execution.calls.every((call) => call.endpointOverrideCount === 0));
   } finally {
     cleanup(execution);
   }

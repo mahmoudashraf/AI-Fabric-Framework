@@ -18,6 +18,17 @@ const EXPECTED = Object.freeze({
 });
 const MAX_OBJECTS = 100;
 const MAX_OBJECT_BYTES = 1_048_576;
+const AWS_CLI_TIMEOUT_MS = 30_000;
+const AWS_CREDENTIAL_SOURCE_NAMES = Object.freeze([
+  'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_SECURITY_TOKEN',
+  'AWS_PROFILE', 'AWS_DEFAULT_PROFILE', 'AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE',
+  'AWS_ROLE_ARN', 'AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
+  'AWS_CONTAINER_CREDENTIALS_FULL_URI', 'AWS_CONTAINER_AUTHORIZATION_TOKEN',
+]);
+const AWS_ROUTING_OVERRIDE_NAMES = Object.freeze([
+  'AWS_REGION', 'AWS_DEFAULT_REGION', 'AWS_USE_FIPS_ENDPOINT', 'AWS_USE_DUALSTACK_ENDPOINT',
+  'AWS_S3_USE_ARN_REGION',
+]);
 
 class VerificationError extends Error {
   constructor(code, message) {
@@ -165,39 +176,33 @@ function assertExactContract(config) {
   }
 }
 
-function credentialEnvironment(scope) {
-  const environment = { ...process.env };
+function scrubAwsEnvironment(environment) {
   for (const name of Object.keys(environment)) {
-    if (name.startsWith('S3_CANARY_')) delete environment[name];
+    if (name.startsWith('S3_CANARY_') || name === 'AWS_ENDPOINT_URL'
+      || name.startsWith('AWS_ENDPOINT_URL_')) delete environment[name];
   }
-  for (const name of [
-    'AWS_PROFILE', 'AWS_DEFAULT_PROFILE', 'AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE',
-    'AWS_ROLE_ARN', 'AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
-    'AWS_CONTAINER_CREDENTIALS_FULL_URI', 'AWS_CONTAINER_AUTHORIZATION_TOKEN', 'AWS_SECURITY_TOKEN',
-  ]) delete environment[name];
-  environment.AWS_ACCESS_KEY_ID = scope.accessKeyId;
-  environment.AWS_SECRET_ACCESS_KEY = scope.secretAccessKey;
-  if (scope.sessionToken) environment.AWS_SESSION_TOKEN = scope.sessionToken;
-  else delete environment.AWS_SESSION_TOKEN;
+  for (const name of [...AWS_CREDENTIAL_SOURCE_NAMES, ...AWS_ROUTING_OVERRIDE_NAMES]) {
+    delete environment[name];
+  }
   environment.AWS_EC2_METADATA_DISABLED = 'true';
   environment.AWS_PAGER = '';
   environment.AWS_CLI_AUTO_PROMPT = 'off';
   return environment;
 }
 
-function prerequisiteEnvironment() {
-  const environment = { ...process.env, AWS_PAGER: '', AWS_CLI_AUTO_PROMPT: 'off' };
-  for (const name of Object.keys(environment)) {
-    if (name.startsWith('S3_CANARY_')) delete environment[name];
-  }
-  for (const name of [
-    'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_SECURITY_TOKEN',
-    'AWS_PROFILE', 'AWS_DEFAULT_PROFILE', 'AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE',
-    'AWS_ROLE_ARN', 'AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
-    'AWS_CONTAINER_CREDENTIALS_FULL_URI', 'AWS_CONTAINER_AUTHORIZATION_TOKEN',
-  ]) delete environment[name];
-  environment.AWS_EC2_METADATA_DISABLED = 'true';
+function credentialEnvironment(scope, config) {
+  const environment = { ...process.env };
+  scrubAwsEnvironment(environment);
+  environment.AWS_ACCESS_KEY_ID = scope.accessKeyId;
+  environment.AWS_SECRET_ACCESS_KEY = scope.secretAccessKey;
+  if (scope.sessionToken) environment.AWS_SESSION_TOKEN = scope.sessionToken;
+  environment.AWS_REGION = config.region;
+  environment.AWS_DEFAULT_REGION = config.region;
   return environment;
+}
+
+function prerequisiteEnvironment() {
+  return scrubAwsEnvironment({ ...process.env });
 }
 
 function classifyAwsError(stderr) {
@@ -215,10 +220,14 @@ function invokeAws(context, scope, operation, service, args, options = {}) {
   if (service === 's3api') globalArgs.push('--endpoint-url', context.config.endpoint);
   const result = spawnSync(context.awsCli, [...globalArgs, service, ...args, '--output', 'json'], {
     encoding: 'utf8',
-    env: credentialEnvironment(scope),
+    env: credentialEnvironment(scope, context.config),
     maxBuffer: 8 * 1024 * 1024,
+    timeout: AWS_CLI_TIMEOUT_MS,
   });
   if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new VerificationError('AWS_CLI_TIMEOUT', `${operation} exceeded the bounded AWS CLI timeout.`);
+    }
     throw new VerificationError('AWS_CLI_UNAVAILABLE', 'AWS CLI could not be executed.');
   }
   if (result.status !== 0) {
@@ -241,7 +250,9 @@ function assertAwsDenied(result, code, operation) {
 
 function checkAwsCli(awsCli) {
   const environment = prerequisiteEnvironment();
-  const result = spawnSync(awsCli, ['--version'], { encoding: 'utf8', env: environment });
+  const result = spawnSync(awsCli, ['--version'], {
+    encoding: 'utf8', env: environment, timeout: AWS_CLI_TIMEOUT_MS,
+  });
   if (result.error || result.status !== 0) {
     throw new VerificationError('AWS_CLI_UNAVAILABLE', 'AWS CLI is required and was not found or could not run.');
   }
@@ -253,7 +264,7 @@ function checkAwsCli(awsCli) {
 
   const supportsIfMatch = (command) => {
     const skeleton = spawnSync(awsCli, ['s3api', command, '--generate-cli-skeleton', 'input'], {
-      encoding: 'utf8', env: environment, maxBuffer: 1024 * 1024,
+      encoding: 'utf8', env: environment, maxBuffer: 1024 * 1024, timeout: AWS_CLI_TIMEOUT_MS,
     });
     if (skeleton.error || skeleton.status !== 0) {
       throw new VerificationError(

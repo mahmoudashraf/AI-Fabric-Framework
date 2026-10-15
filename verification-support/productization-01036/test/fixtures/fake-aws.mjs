@@ -19,6 +19,10 @@ if (process.env.FAKE_AWS_LOG) {
     scope,
     args,
     canaryEnvironmentVariableCount: Object.keys(process.env).filter((name) => name.startsWith('S3_CANARY_')).length,
+    endpointOverrideCount: Object.keys(process.env)
+      .filter((name) => name === 'AWS_ENDPOINT_URL' || name.startsWith('AWS_ENDPOINT_URL_')).length,
+    effectiveRegion: process.env.AWS_REGION || null,
+    effectiveDefaultRegion: process.env.AWS_DEFAULT_REGION || null,
   })}\n`);
 }
 

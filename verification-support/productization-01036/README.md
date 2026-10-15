@@ -57,7 +57,10 @@ the evidence destination. The default is an ignored timestamped file under
 non-symlink file with no group or other permissions. Credentials may instead be
 supplied directly through the process environment, and are removed before every
 AWS CLI child process except for the one exact staging or production identity
-being verified.
+being verified. Inherited AWS profiles, role/container credential sources,
+endpoint override variables and region overrides are scrubbed; remote calls use
+the reviewed `eu-north-1` region and the exact S3 endpoint from this contract.
+Every AWS CLI invocation also has a bounded 30-second process timeout.
 
 The identities need these read operations for the canary:
 
