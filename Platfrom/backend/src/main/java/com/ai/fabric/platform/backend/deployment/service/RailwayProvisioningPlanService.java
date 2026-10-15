@@ -2205,6 +2205,9 @@ public class RailwayProvisioningPlanService {
                 "Conversation Handover requires a valid deployment secret reference for " + field + "."
             );
         }
+        if (secretName.startsWith("MANAGED_")) {
+            return "${" + secretName + "}";
+        }
         return "${secret:" + secretName + "}";
     }
 
@@ -2329,7 +2332,7 @@ public class RailwayProvisioningPlanService {
         }
         if (node.isTextual()) {
             java.util.regex.Matcher matcher = DEPLOYMENT_SECRET_PLACEHOLDER_PATTERN.matcher(node.asText());
-            if (matcher.matches()) {
+            if (matcher.matches() && !matcher.group(1).startsWith("MANAGED_")) {
                 refs.add(matcher.group(1));
             }
             return;

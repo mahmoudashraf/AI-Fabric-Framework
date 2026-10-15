@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisioningProperties;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyLifecycleService;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRuntimeEnvironmentResolver;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -2304,7 +2306,83 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
-    void buildPlanInjectsManagedSecretsReferencedByConnectorRouting() {
+    void buildPlanResolvesManagedConversationChannelBindingsWithoutTreatingThemAsPlatformSecrets() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123", "ver-123", "v1", "hash-123",
+                "https://platform.example/actions.yml", "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml", "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        ManagedDependencyRuntimeEnvironmentResolver resolver = mock(ManagedDependencyRuntimeEnvironmentResolver.class);
+        when(resolver.resolve("dep-123", "dtp-staging", "ver-123", "a".repeat(64))).thenReturn(
+            new ManagedDependencyLifecycleService.RuntimeEnvironmentProjection(
+                Map.of("MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}"),
+                Map.of(
+                    "MANAGED_INBOX_BASE_URL", "https://owned-inbox.example",
+                    "MANAGED_INBOX_API_KEY", "${secret:owned-inbox-api}",
+                    "MANAGED_INBOX_WEBHOOK_SIGNING_SECRET", "${secret:owned-inbox-webhook}"
+                )
+            )
+        );
+        ReflectionTestUtils.setField(service, "managedDependencyRuntimeEnvironmentResolver", resolver);
+        DeploymentVersionEntity handoverVersion = version();
+        handoverVersion.setBehaviorConfigJson("""
+            {
+              "schemaVersion": "loomai-deployment-behavior-v1",
+              "type": "CONVERSATIONAL",
+              "contractVersion": 1,
+              "executionExtensions": ["CONVERSATION_HANDOVER"],
+              "conversationHandover": {
+                "enabled": true,
+                "channelBindingId": "basic-loomai-inbox",
+                "intake": {"anonymousAllowed": true, "fields": []},
+                "channel": {
+                  "providerBaseUrl": "${MANAGED_INBOX_BASE_URL}",
+                  "providerApiKeySecretRef": "MANAGED_INBOX_API_KEY",
+                  "runtimeCallbackSigningSecretRef": "MANAGED_INBOX_CALLBACK_SIGNING_SECRET",
+                  "providerWebhookSigningSecretRef": "MANAGED_INBOX_WEBHOOK_SIGNING_SECRET"
+                }
+              }
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(
+            deployment(), handoverVersion, null, "dtp-staging", "a".repeat(64)
+        );
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}")
+            .containsEntry(
+                "LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET",
+                "${MANAGED_INBOX_CALLBACK_SIGNING_SECRET}"
+            );
+        assertThat(connectorEnv)
+            .containsEntry("MANAGED_INBOX_BASE_URL", "https://owned-inbox.example")
+            .containsEntry("MANAGED_INBOX_API_KEY", "${secret:owned-inbox-api}")
+            .containsEntry("MANAGED_INBOX_WEBHOOK_SIGNING_SECRET", "${secret:owned-inbox-webhook}")
+            .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_BASE_URL", "${MANAGED_INBOX_BASE_URL}")
+            .containsEntry("REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_API_KEY", "${MANAGED_INBOX_API_KEY}")
+            .containsEntry(
+                "REST_CONNECTOR_CONVERSATION_CHANNEL_PROVIDER_WEBHOOK_SIGNING_SECRET",
+                "${MANAGED_INBOX_WEBHOOK_SIGNING_SECRET}"
+            );
+    }
+
+    @Test
+    void buildPlanUsesOwnedManagedBindingInsteadOfResolvingManagedPlaceholderAsPlatformSecret() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
             new DeploymentArtifactBundleSummary(
@@ -2327,6 +2405,14 @@ class RailwayProvisioningPlanServiceTest {
             mock(PlatformSecretService.class),
             new ObjectMapper()
         );
+        ManagedDependencyRuntimeEnvironmentResolver resolver = mock(ManagedDependencyRuntimeEnvironmentResolver.class);
+        when(resolver.resolve("dep-123", "dtp-staging", "ver-123", "a".repeat(64))).thenReturn(
+            new ManagedDependencyLifecycleService.RuntimeEnvironmentProjection(
+                Map.of(),
+                Map.of("MANAGED_CUSTOMER_BACKEND_API_KEY", "${secret:owned-customer-backend-key}")
+            )
+        );
+        ReflectionTestUtils.setField(service, "managedDependencyRuntimeEnvironmentResolver", resolver);
         DeploymentVersionEntity version = version();
         version.setRoutingConfigJson(
             """
@@ -2346,13 +2432,15 @@ class RailwayProvisioningPlanServiceTest {
                 """
         );
 
-        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        RailwayProvisioningPlanSummary plan = service.buildPlan(
+            deployment(), version, null, "dtp-staging", "a".repeat(64)
+        );
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(connectorEnv)
             .containsEntry(
                 "MANAGED_CUSTOMER_BACKEND_API_KEY",
-                "${secret:MANAGED_CUSTOMER_BACKEND_API_KEY}"
+                "${secret:owned-customer-backend-key}"
             );
     }
 
