@@ -103,7 +103,8 @@ class MarketplaceManifestServiceTest {
                 "route": {
                   "managedUrlField": "receiverActionUrl",
                   "managedHeaderSecretRefFields": {"X-Customer-Receiver-Key": "receiverApiKey"},
-                  "method": "POST"
+                  "method": "POST",
+                  "response": {"successHttpStatus": [200, 202]}
                 }
               }]}
             }
@@ -119,6 +120,9 @@ class MarketplaceManifestServiceTest {
         assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(
             manifest.replace("\"method\": \"POST\"", "\"method\": \"CONNECT\"")
         ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("method is unsupported");
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(
+            manifest.replace("[200, 202]", "[99]")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("valid HTTP status codes");
     }
 
     @Test

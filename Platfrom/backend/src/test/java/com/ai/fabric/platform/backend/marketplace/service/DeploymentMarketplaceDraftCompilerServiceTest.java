@@ -399,6 +399,8 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
                   "X-Customer-Receiver-Key": "receiverApiKey"
                 },
                 "method": "POST",
+                "idempotencyHeader": "Idempotency-Key",
+                "response": {"successHttpStatus": [200]},
                 "request": {"body": {"actionId": "{{actionId}}"}}
               }
             }
@@ -415,6 +417,9 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
             .isEqualTo("${MANAGED_RECEIVER_API_KEY}");
         assertThat(compiled.path("route").has("managedUrlField")).isFalse();
         assertThat(compiled.path("route").has("managedHeaderSecretRefFields")).isFalse();
+        assertThat(compiled.path("route").path("response").has("successHttpStatus")).isFalse();
+        assertThat(compiled.path("route").path("response").path("success-http-status").path(0).asInt())
+            .isEqualTo(200);
 
         install.setConfigJson("{\"receiverActionUrl\":\"https://customer-controlled.example/action\"}");
         assertThatThrownBy(() -> compilerService.compileActionContribution(action, install, plugin(), version()))

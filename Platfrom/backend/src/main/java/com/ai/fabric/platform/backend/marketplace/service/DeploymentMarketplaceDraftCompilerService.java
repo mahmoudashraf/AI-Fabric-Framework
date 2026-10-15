@@ -1254,6 +1254,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         JsonNode responseEntry = route.path("response");
         if (responseEntry instanceof ObjectNode response) {
+            rename(response, "successHttpStatus", "success-http-status");
             JsonNode pinnedTargetsEntry = response.remove("pinnedTargetsFromCollection");
             if (pinnedTargetsEntry instanceof ObjectNode pinnedTargets) {
                 ObjectNode compiledPinnedTargets = pinnedTargets.deepCopy();

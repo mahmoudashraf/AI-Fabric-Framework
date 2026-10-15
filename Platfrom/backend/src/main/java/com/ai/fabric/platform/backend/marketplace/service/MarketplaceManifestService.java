@@ -1366,6 +1366,17 @@ public class MarketplaceManifestService {
         if (!response.isObject()) {
             throw invalid(plugin, version, prefix + " must be an object.");
         }
+        JsonNode successHttpStatus = response.path("successHttpStatus");
+        if (!successHttpStatus.isMissingNode() && !successHttpStatus.isNull()) {
+            if (!successHttpStatus.isArray() || successHttpStatus.isEmpty() || successHttpStatus.size() > 20) {
+                throw invalid(plugin, version, prefix + ".successHttpStatus must contain 1 to 20 HTTP status codes.");
+            }
+            for (JsonNode status : successHttpStatus) {
+                if (!status.isIntegralNumber() || status.asInt() < 100 || status.asInt() > 599) {
+                    throw invalid(plugin, version, prefix + ".successHttpStatus must contain valid HTTP status codes.");
+                }
+            }
+        }
         JsonNode filters = response.path("collection-filters");
         if (!filters.isMissingNode() && !filters.isNull()) {
             if (!filters.isArray() || filters.isEmpty() || filters.size() > 10) {
