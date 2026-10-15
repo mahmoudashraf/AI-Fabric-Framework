@@ -8,16 +8,18 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 - P0: source contract implemented and integrated; prerequisite acceptance is in
   progress. The owner supplied the non-secret customer-owned S3 canary contract,
-  and separate staging/production credentials are present in the ignored private
-  handoff. The live verifier was rerun, but AWS denied the bucket-versioning
-  read required to prove the storage posture. The prefix-isolation/read-only
-  live gate therefore still needs a passing sanitized evidence record. Do not
-  substitute managed storage or claim the storage gate passed from fixture
-  tests.
-- P1-P5: source foundations are integrated but not hosted-certified. Dependent
-  customer provisioning remains gated on live storage, identity, notification,
-  immutable dependency artifacts, measured capacity and fresh-customer
-  lifecycle evidence.
+  but the four credential fields in the current ignored private handoff contain
+  `<pending>` placeholders. Historical sanitized evidence shows the previously
+  supplied identities were denied the `s3:GetBucketVersioning` read required to
+  prove the storage posture. The prefix-isolation/read-only live gate therefore
+  needs restored private credentials, the narrow bucket permission correction,
+  and a passing sanitized evidence record. Do not substitute managed storage or
+  claim the storage gate passed from fixture tests.
+- P1-P5: source foundations are integrated. The immutable three-service managed
+  dependency package is published and read back on both hosted control planes,
+  but end-to-end customer provisioning is not hosted-certified. It remains
+  gated on live storage, identity, notification, measured capacity and
+  fresh-customer lifecycle evidence.
 - P6: not started. No editor extraction or customer layout change before the
   verified functional baseline. Preserve the frozen STAFF-001 through STAFF-039
   capability register and source snapshot.
@@ -67,6 +69,13 @@ complete dealership topology. No resources were removed or redeployed.
   repeating lifecycle updates. No client source-artifact override is accepted.
 - Shared vector provisioning derives distinct customer/tenant/deployment/target
   scopes. Registry updates no longer detach another target's active scope.
+- Customer admission now has a customer-safe preparation/reservation/readback
+  boundary backed by the existing durable R7 ledger. The customer supplies only
+  reviewed target, manifest, version/release and operation identity; measured
+  demand, provider placement, policy and prerequisite evidence remain
+  staff-owned. Unknown capacity fields, foreign scope, unreviewed versions and
+  staff-origin reservations fail closed, and ordinary apply/promotion commands
+  still require the resulting admission evidence before provisioning.
 - R3 target-only retirement, R5 dedicated dependency/operator lifecycle and R7
   atomic admission/expiry ledgers exist as integrated primitives. The apply path
   now derives the release-bound runtime topology, coordinates connector/vector
@@ -246,7 +255,9 @@ complete dealership topology. No resources were removed or redeployed.
   exact 14 connector bindings, including the target-scoped Inbox binding, and
   distinct target-authority versus Inbox-owned
   callback secrets. Existing publication is read back and compared rather than
-  replaced. The combined verifier suite passed **16 tests** with no failures.
+  replaced. The latest combined verifier suite passed **17 tests** with no
+  failures, including representational normalization of server-materialized
+  optional `null` fields without ignoring real topology changes.
 - Managed runtime binding projection fails closed if a target-owned secret is
   missing or no longer present. Services that require runtime callback hosts
   now wait for the runtime-bound reconciliation phase instead of trying to
@@ -255,7 +266,12 @@ complete dealership topology. No resources were removed or redeployed.
   failures, errors or skips. PostgreSQL contexts applied all production
   migrations through `V176`, including explicit source-artifact roles and the
   target-scoped Basic Inbox binding. The managed package verifier passed all
-  **16** scenarios, and the exact three-service Java topology contract passed.
+  **17** scenarios, and the exact three-service Java topology contract passed.
+- After adding customer admission reservation and staff-only reviewed
+  policy/grant/manifest publication APIs, the focused admission/authorization
+  gate passed **63 tests**. A fresh complete Platform backend run then passed
+  **1,485 tests**, with zero failures, errors or skips (`BUILD SUCCESS`,
+  6m43s). No framework or UI change was required.
 - Production Platform backend app `sbdv2pkkqrbsy9m59034hb5j` was updated from
   immutable image tag `c9942fc859a47a94841a02d9c192061a8b524ad5` to reviewed
   implementation tag `321698b19c4222fbf1880e462726d6990b1bb72a`. Coolify
@@ -263,7 +279,8 @@ complete dealership topology. No resources were removed or redeployed.
   the app reports `running:healthy` and `https://api.loomai.pro/actuator/health`
   reports `UP` for liveness and readiness. The later source commit
   `59cd4d19dff5f9073869e21c447e548d20b6f003` changes only this verification
-  ledger and remains the package review reference, not a distinct runtime image.
+  ledger, and `b7dd66595e06b1ed4e921c0828d5664d6f2de9fe` changes only the publication
+  verifier's readback comparison. Neither is a distinct runtime image.
 - The production package publisher registered and production-promoted the exact
   reviewed simulator, receiver and Basic Inbox dependency images, published
   `mds-simulated-dealership-experience-v1-1` for template version
@@ -273,6 +290,25 @@ complete dealership topology. No resources were removed or redeployed.
   Sanitized evidence is recorded at
   `verification-support/productization-01036/evidence/managed-package-publication-2026-10-15T11-54-46-672Z.json`;
   no secret value is present in it.
+- Staging Platform backend app `aa3dylvh4stfeg0ersfzdjjm` runs the same reviewed
+  image tag `321698b19c4222fbf1880e462726d6990b1bb72a` and reports
+  `running:healthy`. Its convergent package publication/readback produced
+  template `mkv-template-simulated-dealership-experience-v1-1`, topology
+  `mds-simulated-dealership-experience-v1-1`, all three exact dependency image
+  digests and all 14 runtime bindings. The staging topology fingerprint is
+  `63c9878e1e4d29a5a65d198b7e6195f810d8a170811e401a233699349fcf9262`.
+- Staging's operator readback initially used retired default UUIDs for Platform
+  backend and console. Runtime environment bindings now select production
+  resources `sbdv2pkkqrbsy9m59034hb5j` and `a6fz2ncuzzulg6lrzzwrjshu`; after
+  restart, both resolve as `RUNNING_HEALTHY` with their exact current image
+  tags. A later forced same-image deployment overlapped that completed restart
+  and failed when its temporary container disappeared before health inspection;
+  it did not replace or damage the healthy container and is not counted as a
+  successful release.
+- Production Coolify port `8000` again times out from the operator network after
+  the temporary Hetzner firewall allowances were removed. Production Platform
+  readback remains available through its authenticated API and reports backend
+  and console `RUNNING_HEALTHY`.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
@@ -281,7 +317,7 @@ complete dealership topology. No resources were removed or redeployed.
 Logs reside under `/private/tmp/01036-*`; copy final sanitized evidence to the
 verification-support directory after the integrated gate passes. Source baseline
 started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; verified source foundations
-are committed and pushed on `Platform-V11` through `59cd4d19d`. The Platform
+are committed on `Platform-V11` through `4530ef792`. The Platform
 backend and reviewed package metadata are now hosted, but the customer offer has
 not passed the remaining live safety gates and is not externally admissible.
 No customer deployment, provider resource or consumer assignment was created or
@@ -289,8 +325,10 @@ changed by the package-publication check.
 
 ### Remaining Before Admission
 
-Run the live customer-owned S3 isolation verifier after the private credentials
-are supplied, then bind and index the exact staging and production prefixes.
+Restore the four private S3 credential values, grant both canary identities
+`s3:GetBucketVersioning` on the exact bucket, and run the live customer-owned S3
+isolation verifier. Then bind and index the exact staging and production
+prefixes.
 Verify immutable dependency artifacts, actual staging/production placement,
 resource envelopes, notification/recovery evidence, repeated same-target runtime
 replacement, restart recovery, S3 indexing and cross-target denial. Complete the
@@ -340,14 +378,15 @@ disabled versioning. Each prefix contains three fictional UTF-8 policy files.
 The non-secret bucket identifier is captured in the verifier contract; all
 credential values remain outside this tracked ledger.
 
-As of 2026-10-15, the four canary credential values are present in the ignored
-root private handoff and were consumed without printing or copying them into
-tracked files. The live verifier was rerun and failed at the bucket-versioning
-read described above. Sanitized evidence is recorded at
+Earlier on 2026-10-15, four canary credential values were consumed without
+printing or copying them into tracked files. The live verifier failed at the
+bucket-versioning read described above. Sanitized evidence is recorded at
 `verification-support/productization-01036/evidence/s3-canary-2026-10-15T01-46-39-446Z.json`.
-The next run requires only the narrowly scoped bucket permission correction;
-credential values must remain private and must never be copied into this ledger
-or a deployment-readable public manifest.
+The current ignored handoff now contains `<pending>` placeholders rather than
+the values, so the next run requires both restoring the credentials and the
+narrowly scoped bucket permission correction. Credential values must remain
+private and must never be copied into this ledger or a deployment-readable
+public manifest.
 
 `verification-support/productization-01036/verify-s3-canary.mjs` validates the
 exact non-secret contract, actual unversioned state, separate principals,
