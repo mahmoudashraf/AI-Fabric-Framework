@@ -228,6 +228,16 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
             "http://inbox.example.test",
             "Conversation channel provider base URL"
         )).hasMessageContaining("must be an HTTPS URL");
+
+        assertThatNoException().isThrownBy(() -> compilerService.requireBindingIdOrManagedReference(
+            "${MANAGED_INBOX_BINDING_ID}"
+        ));
+        assertThatNoException().isThrownBy(() -> compilerService.requireBindingIdOrManagedReference(
+            "basic-loomai-inbox"
+        ));
+        assertThatThrownBy(() -> compilerService.requireBindingIdOrManagedReference(
+            "customer supplied value"
+        )).hasMessageContaining("lower-kebab-case");
     }
 
     private MarketplacePluginVersionEntity templateSecurityVersion(String id,

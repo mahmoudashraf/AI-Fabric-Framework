@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentSourceArtifactRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.model.PromoteDeploymentSourceArtifactRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -88,6 +89,8 @@ public class DeploymentSourceArtifactService {
         artifact.setId("dsa-" + UUID.randomUUID().toString().substring(0, 8));
         artifact.setServiceName(requireText(request.serviceName(), "serviceName"));
         artifact.setArtifactType(artifactType);
+        artifact.setArtifactRole((request.artifactRole() == null
+            ? DeploymentSourceArtifactRole.RUNTIME : request.artifactRole()).name());
         artifact.setImageRepository(requireText(request.imageRepository(), "imageRepository"));
         artifact.setImageTag(requireText(request.imageTag(), "imageTag"));
         String imageDigest = trimToNull(request.imageDigest());
@@ -121,6 +124,7 @@ public class DeploymentSourceArtifactService {
             Map.of(
                 "serviceName", artifact.getServiceName(),
                 "artifactType", artifact.getArtifactType(),
+                "artifactRole", artifact.getArtifactRole(),
                 "promotionChannel", artifact.getPromotionChannel() == null ? "" : artifact.getPromotionChannel()
             )
         );
@@ -136,21 +140,24 @@ public class DeploymentSourceArtifactService {
                 "Source artifact promotion requires an immutable imageDigest."
             );
         }
-        JsonNode manifest = capabilityManifestService.read(artifact.getCapabilityManifestJson());
-        DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
-            capabilityManifestService.normalize(manifest);
-        if (!StringUtils.hasText(artifact.getCapabilityManifestHash())
-            || !artifact.getCapabilityManifestHash().equals(normalized.hash())) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Source artifact promotion requires a valid content-hashed capability manifest."
-            );
-        }
-        if (manifest.path("supportedBehaviorTypes").isEmpty()) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Source artifact promotion requires at least one supported behavior type."
-            );
+        boolean runtime = DeploymentSourceArtifactRole.RUNTIME.name().equals(artifact.getArtifactRole());
+        if (runtime) {
+            JsonNode manifest = capabilityManifestService.read(artifact.getCapabilityManifestJson());
+            DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
+                capabilityManifestService.normalize(manifest);
+            if (!StringUtils.hasText(artifact.getCapabilityManifestHash())
+                || !artifact.getCapabilityManifestHash().equals(normalized.hash())) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Source artifact promotion requires a valid content-hashed capability manifest."
+                );
+            }
+            if (manifest.path("supportedBehaviorTypes").isEmpty()) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Source artifact promotion requires at least one supported behavior type."
+                );
+            }
         }
         String promotionChannel = normalizePromotionChannel(request == null ? null : request.promotionChannel());
         artifact.setPromotionChannel(promotionChannel);
@@ -160,7 +167,8 @@ public class DeploymentSourceArtifactService {
             "DEPLOYMENT_SOURCE_ARTIFACT_PROMOTED",
             "DEPLOYMENT_SOURCE_ARTIFACT",
             artifact.getId(),
-            Map.of("serviceName", artifact.getServiceName(), "promotionChannel", promotionChannel)
+            Map.of("serviceName", artifact.getServiceName(),
+                "artifactRole", artifact.getArtifactRole(), "promotionChannel", promotionChannel)
         );
         return toSummary(artifact);
     }
@@ -170,6 +178,7 @@ public class DeploymentSourceArtifactService {
             artifact.getId(),
             artifact.getServiceName(),
             artifact.getArtifactType(),
+            artifact.getArtifactRole(),
             artifact.getImageRepository(),
             artifact.getImageTag(),
             artifact.getImageDigest(),

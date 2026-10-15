@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.dependency;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
@@ -23,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 /** Publishes one immutable, reviewed dependency topology for an exact template version. */
 @Service
@@ -55,6 +57,33 @@ public class ManagedDependencySpecPublishingService {
     public record PublicationRequest(String specId, ManagedDependencySpec spec, String reviewReference) { }
     public record PublicationSummary(String specId, String templateVersionId, String fingerprint,
                                      String reviewReference, Instant reviewedAt) { }
+    public record PublicationDetails(PublicationSummary publication, ManagedDependencySpec spec) { }
+
+    @Transactional(readOnly = true)
+    public PublicationDetails current(String templateVersionId) {
+        staff.requireStaffAdmin();
+        if (!identifier(templateVersionId)) {
+            throw conflict("DEPENDENCY_SPEC_PUBLICATION_INVALID");
+        }
+        var active = specs.findByTemplateVersionIdAndActiveTrue(templateVersionId);
+        if (active.isEmpty()) {
+            throw new ResponseStatusException(NOT_FOUND, "DEPENDENCY_SPEC_MISSING");
+        }
+        if (active.size() != 1) {
+            throw conflict("DEPENDENCY_SPEC_INTEGRITY_INVALID");
+        }
+        var entity = active.getFirst();
+        try {
+            var spec = mapper.readValue(entity.getSpecJson(), ManagedDependencySpec.class);
+            validator.validate(spec);
+            if (!entity.getFingerprint().equals(validator.fingerprint(spec))) {
+                throw conflict("DEPENDENCY_SPEC_DRIFT");
+            }
+            return new PublicationDetails(summary(entity), spec);
+        } catch (JsonProcessingException error) {
+            throw conflict("DEPENDENCY_SPEC_INVALID");
+        }
+    }
 
     @Transactional
     public PublicationSummary publish(String templateVersionId, PublicationRequest request) {
@@ -96,8 +125,7 @@ public class ManagedDependencySpecPublishingService {
         audit.record("MANAGED_DEPENDENCY_SPEC_REVIEWED", "MARKETPLACE_TEMPLATE_VERSION", templateVersionId,
             Map.of("specId", entity.getId(), "fingerprint", fingerprint,
                 "reviewReference", entity.getReviewReference()));
-        return new PublicationSummary(entity.getId(), templateVersionId, fingerprint,
-            entity.getReviewReference(), reviewedAt);
+        return summary(entity);
     }
 
     private void validateArtifact(ManagedDependencySpec.Service service) {
@@ -105,10 +133,12 @@ public class ManagedDependencySpecPublishingService {
             .orElseThrow(() -> conflict("DEPENDENCY_ARTIFACT_MISSING"));
         String immutableImage = artifact.getImageRepository() == null || artifact.getImageDigest() == null
             ? null : artifact.getImageRepository() + "@" + artifact.getImageDigest();
-        if (!"DOCKER_IMAGE".equals(artifact.getArtifactType()) || artifact.getPromotedAt() == null
+        if (!"DOCKER_IMAGE".equals(artifact.getArtifactType())
+            || !DeploymentSourceArtifactRole.MANAGED_DEPENDENCY.name().equals(artifact.getArtifactRole())
+            || artifact.getPromotedAt() == null
             || !service.image().equals(immutableImage)
             || artifact.getGitCommitSha() == null || !service.sourceCommit().equals(artifact.getGitCommitSha())
-            || artifact.getCapabilityManifestHash() == null || artifact.getCapabilityManifestHash().isBlank()) {
+            || artifact.getPromotionChannel() == null || artifact.getPromotionChannel().isBlank()) {
             throw conflict("DEPENDENCY_ARTIFACT_NOT_IMMUTABLE");
         }
     }
@@ -178,6 +208,11 @@ public class ManagedDependencySpecPublishingService {
         } catch (JsonProcessingException error) {
             throw new IllegalStateException("Dependency specification cannot be serialized.", error);
         }
+    }
+
+    private PublicationSummary summary(ManagedDependencySpecEntity entity) {
+        return new PublicationSummary(entity.getId(), entity.getTemplateVersionId(), entity.getFingerprint(),
+            entity.getReviewReference(), entity.getReviewedAt());
     }
 
     private boolean identifier(String value) {

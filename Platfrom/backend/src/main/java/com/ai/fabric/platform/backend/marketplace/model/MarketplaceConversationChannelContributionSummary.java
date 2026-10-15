@@ -6,6 +6,7 @@ import java.util.List;
 public record MarketplaceConversationChannelContributionSummary(
     String contractVersion,
     String bindingId,
+    String bindingIdField,
     String adapterImplementationId,
     String adapterVersion,
     List<String> compatibleBehaviorTypes,

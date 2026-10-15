@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifact
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
@@ -154,9 +155,10 @@ class ProductionManagedDependencyPrerequisitesTest {
     void artifactMustMatchPromotedDigestCommitChannelAndManifestHash() throws Exception {
         DeploymentSourceArtifactEntity artifact = new DeploymentSourceArtifactEntity();
         artifact.setId("artifact-service"); artifact.setArtifactType("DOCKER_IMAGE");
+        artifact.setArtifactRole(DeploymentSourceArtifactRole.MANAGED_DEPENDENCY.name());
         artifact.setImageRepository("registry.example.test/service");
         artifact.setImageDigest("sha256:" + "1".repeat(64)); artifact.setGitCommitSha("2".repeat(40));
-        artifact.setPromotionChannel("staging"); artifact.setPromotedAt(Instant.now());
+        artifact.setPromotionChannel("production"); artifact.setPromotedAt(Instant.now());
         var candidate = mapper.readTree("""
             {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.33",
              "supportedBehaviorTypes":["CONVERSATIONAL"],"supportedActivationSources":[],"supportedChannelBindings":[],
@@ -168,7 +170,21 @@ class ProductionManagedDependencyPrerequisitesTest {
         artifact.setCapabilityManifestHash(normalized.hash());
         when(artifacts.findById("artifact-service")).thenReturn(Optional.of(artifact));
 
+        // A production-reviewed dependency is valid in both customer staging and production.
         prerequisites.validateArtifact(scope, spec.services().getFirst());
+        artifact.setPromotionChannel("staging");
+        prerequisites.validateArtifact(scope, spec.services().getFirst());
+
+        var productionEvidence = new ManagedDependencyAdmissionLedger.Evidence("reservation", "generation", 2,
+            AdmissionContracts.Intent.CUSTOMER_PRODUCTION, "manifest", "a".repeat(64), scope.bindingFingerprint(),
+            new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence",
+            Instant.now().plusSeconds(300));
+        when(admission.require(any(), any())).thenReturn(productionEvidence);
+        assertThatThrownBy(() -> prerequisites.validateArtifact(scope, spec.services().getFirst()))
+            .hasMessageContaining("DEPENDENCY_ARTIFACT_PROVENANCE_INVALID");
+        artifact.setPromotionChannel("production");
+        prerequisites.validateArtifact(scope, spec.services().getFirst());
+
         artifact.setGitCommitSha("3".repeat(40));
         assertThatThrownBy(() -> prerequisites.validateArtifact(scope, spec.services().getFirst()))
             .hasMessageContaining("DEPENDENCY_ARTIFACT_PROVENANCE_INVALID");

@@ -1086,6 +1086,10 @@ public class DeploymentMarketplaceDraftCompilerService {
             "provider base URL"
         );
         requireHttpsUrlOrManagedReference(providerBaseUrl, "Conversation channel provider base URL");
+        String bindingId = hasText(contribution.bindingIdField())
+            ? requiredInstallValue(installConfig, contribution.bindingIdField(), "binding ID")
+            : contribution.bindingId();
+        requireBindingIdOrManagedReference(bindingId);
         String providerApiKeySecretRef = requiredSecretRef(
             installSecretRefs,
             contribution.providerApiKeySecretRefField()
@@ -1105,10 +1109,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         handover.put("contractVersion", "LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1");
         handover.put("enabled", true);
         handover.put("actionId", "request_conversation_handover");
-        handover.put("channelBindingId", contribution.bindingId());
+        handover.put("channelBindingId", bindingId);
         ObjectNode channel = handover.putObject("channel");
         channel.put("contractVersion", contribution.contractVersion());
-        channel.put("bindingId", contribution.bindingId());
+        channel.put("bindingId", bindingId);
         channel.put("adapterImplementationId", contribution.adapterImplementationId());
         channel.put("adapterVersion", contribution.adapterVersion());
         channel.set("capabilities", toStringArray(contribution.capabilities()));
@@ -1207,6 +1211,18 @@ public class DeploymentMarketplaceDraftCompilerService {
             throw new ResponseStatusException(
                 CONFLICT,
                 label + " must be an HTTPS URL without embedded credentials or an exact managed environment reference."
+            );
+        }
+    }
+
+    void requireBindingIdOrManagedReference(String value) {
+        if (value != null && value.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}")) {
+            return;
+        }
+        if (value == null || !value.matches("^[a-z][a-z0-9-]{1,79}$")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Conversation channel binding ID must be lower-kebab-case or an exact managed environment reference."
             );
         }
     }

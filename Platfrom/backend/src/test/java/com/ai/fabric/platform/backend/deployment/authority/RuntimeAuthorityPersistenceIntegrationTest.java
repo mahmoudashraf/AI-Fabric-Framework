@@ -34,7 +34,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DataJpaTest(showSql = false, properties = {
-    "spring.flyway.target=120.21",
+    "spring.flyway.target=120.22",
     "spring.datasource.url=jdbc:h2:mem:r1-authority;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=10000",
     "spring.jpa.show-sql=false"
 })

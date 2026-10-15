@@ -1219,6 +1219,35 @@ class MarketplaceManifestServiceTest {
             .hasMessageContaining("unique reviewed V1 fields");
     }
 
+    @Test
+    void conversationChannelMayResolveBindingIdFromAReviewedInstallField() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validConversationChannelManifest());
+        ObjectNode channel = (ObjectNode) manifest.path("contributions").path("conversationChannel");
+        channel.remove("bindingId");
+        channel.put("bindingIdField", "bindingId");
+        ((com.fasterxml.jackson.databind.node.ArrayNode) manifest.path("installForm"))
+            .addObject()
+            .put("id", "bindingId")
+            .put("type", "text")
+            .put("required", true);
+
+        var parsed = service.parseAndValidate(
+            integrationPlugin(),
+            integrationVersion(objectMapper.writeValueAsString(manifest))
+        );
+
+        assertThat(parsed.contributions().conversationChannel().bindingId()).isBlank();
+        assertThat(parsed.contributions().conversationChannel().bindingIdField()).isEqualTo("bindingId");
+
+        channel.put("bindingId", "basic-loomai-inbox");
+        assertThatThrownBy(() -> service.parseAndValidate(
+            integrationPlugin(),
+            integrationVersion(objectMapper.writeValueAsString(manifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("exactly one fixed bindingId or reviewed bindingIdField");
+    }
+
     private MarketplacePluginEntity actionPlugin() {
         MarketplacePluginEntity plugin = new MarketplacePluginEntity();
         plugin.setId("mkp-action-test");

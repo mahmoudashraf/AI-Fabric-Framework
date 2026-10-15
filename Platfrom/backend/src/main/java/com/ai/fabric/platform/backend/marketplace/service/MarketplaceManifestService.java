@@ -305,6 +305,7 @@ public class MarketplaceManifestService {
     private static final Set<String> CONVERSATION_CHANNEL_FIELDS = Set.of(
         "contractVersion",
         "bindingId",
+        "bindingIdField",
         "adapterImplementationId",
         "adapterVersion",
         "compatibleBehaviorTypes",
@@ -953,12 +954,17 @@ public class MarketplaceManifestService {
         rejectUnknownFields(plugin, version, channel, CONVERSATION_CHANNEL_FIELDS, "conversationChannel");
         String contractVersion = channel.path("contractVersion").asText("").trim();
         String bindingId = channel.path("bindingId").asText("").trim();
+        String bindingIdField = optionalManifestFieldRef(plugin, version, channel, "bindingIdField");
         String adapterId = channel.path("adapterImplementationId").asText("").trim();
         String adapterVersion = channel.path("adapterVersion").asText("").trim();
         if (!CONVERSATION_CHANNEL_CONTRACT_VERSION.equals(contractVersion)) {
             throw invalid(plugin, version, "conversationChannel contractVersion is unsupported.");
         }
-        if (!bindingId.matches("^[a-z][a-z0-9-]{1,79}$")) {
+        if (StringUtils.hasText(bindingId) == StringUtils.hasText(bindingIdField)) {
+            throw invalid(plugin, version,
+                "conversationChannel must declare exactly one fixed bindingId or reviewed bindingIdField.");
+        }
+        if (StringUtils.hasText(bindingId) && !bindingId.matches("^[a-z][a-z0-9-]{1,79}$")) {
             throw invalid(plugin, version, "conversationChannel bindingId must be stable lower-kebab-case.");
         }
         if (!REVIEWED_CONVERSATION_CHANNEL_ADAPTERS
@@ -995,6 +1001,7 @@ public class MarketplaceManifestService {
             new MarketplaceConversationChannelContributionSummary(
                 contractVersion,
                 bindingId,
+                bindingIdField,
                 adapterId,
                 adapterVersion,
                 compatibleBehaviorTypes,
@@ -1128,6 +1135,9 @@ public class MarketplaceManifestService {
                 (left, right) -> left
             ));
         requireInstallField(plugin, version, fields, channel.providerBaseUrlField(), "url");
+        if (StringUtils.hasText(channel.bindingIdField())) {
+            requireInstallField(plugin, version, fields, channel.bindingIdField(), "text");
+        }
         requireInstallField(plugin, version, fields, channel.providerApiKeySecretRefField(), "secretRef");
         requireInstallField(plugin, version, fields, channel.runtimeCallbackSigningSecretRefField(), "secretRef");
         requireInstallField(plugin, version, fields, channel.providerWebhookSigningSecretRefField(), "secretRef");

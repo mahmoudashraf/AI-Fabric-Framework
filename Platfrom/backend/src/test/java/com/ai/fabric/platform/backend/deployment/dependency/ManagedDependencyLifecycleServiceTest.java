@@ -82,6 +82,7 @@ class ManagedDependencyLifecycleServiceTest {
             assertThat(((Map<?, ?>)i.getArgument(2)).containsKey("deploymentId")).isTrue(); keys.put(name, i.getArgument(1)); return null;
         });
         when(secrets.clearManagedSecret(anyString(), anyMap())).thenAnswer(i -> { keys.remove(i.getArgument(0)); return null; });
+        keys.put("TARGET_CALLBACK_SECRET", "target-callback-secret-that-is-at-least-32-chars");
         when(products.requireService(anyString())).thenReturn(new PlatformManagedProductServiceEntity());
         var config = new CoolifyTargetProfileConfig("https://coolify.example.test", "project", "staging", "environment", "server", "destination",
             "example.test", null, 1, 10, false, true, "8080", "/actuator/health", "8080");
@@ -229,6 +230,49 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(lifecycle.bindings("dep-1", "staging", enrolled.specFingerprint(), enrolled.bindingFingerprint()))
             .hasSize(3);
         assertThat(enrolled.effectiveConfigurationRevision()).isEqualTo(enrolled.configurationRevision());
+    }
+
+    @Test void callbackHostConsumersWaitForRuntimeBoundReconciliation() {
+        var original = ManagedDependencyFixtures.topology();
+        var simulator = original.services().getFirst();
+        var environment = new TreeMap<>(simulator.environment());
+        environment.put("SIMULATOR_ALLOWED_WEBHOOK_HOSTS",
+            new ManagedDependencySpec.Value(ManagedDependencySpec.ValueKind.CALLBACK_HOSTS, null));
+        var runtimeBoundSimulator = new ManagedDependencySpec.Service(
+            simulator.slot(), simulator.contract(), simulator.image(), simulator.sourceArtifactId(),
+            simulator.sourceCommit(), simulator.port(), simulator.healthPath(), simulator.capacity(),
+            simulator.secretPurposes(), environment, simulator.database(), simulator.volumes(),
+            simulator.dependsOn(), simulator.initializationContract());
+        var topology = new ManagedDependencySpec(original.schemaVersion(),
+            List.of(runtimeBoundSimulator, original.services().get(1), original.services().get(2)),
+            original.runtimeEnvironment());
+        var reviewed = new ManagedDependencySpecEntity();
+        reviewed.setId("spec1");
+        reviewed.setActive(true);
+        reviewed.setReviewedAt(Instant.now());
+        reviewed.setReviewedBy("reviewer");
+        reviewed.setSpecJson(store.json(topology));
+        reviewed.setFingerprint(validator.fingerprint(topology));
+        when(specRepository.findById("spec1")).thenReturn(Optional.of(reviewed));
+
+        submit("staging");
+        lifecycle.provision("dep-1", "staging", "resources-only");
+
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), contains("simulator"),
+            any(), any(), any(), any());
+    }
+
+    @Test void runtimeEnvironmentFailsClosedWhenTargetOwnedSecretIsLost() {
+        submit("staging");
+        var pending = lifecycle.provision("dep-1", "staging", "resources-only");
+        var graph = graphs.get(pending.graphId());
+        var state = store.state(graph);
+        state.targetSecretReferences.remove("conversation-handover-callback-signing");
+        graph.setStateJson(store.json(state));
+
+        assertThatThrownBy(() -> lifecycle.runtimeEnvironment(
+            "dep-1", "staging", "v1", pending.bindingFingerprint()))
+            .hasMessageContaining("DEPENDENCY_TARGET_SECRET_MISSING");
     }
 
     @Test void runtimeGenerationQuiescesAndResumesOnlyTheManagedInbox() {

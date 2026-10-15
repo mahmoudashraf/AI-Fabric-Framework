@@ -90,3 +90,33 @@ Run fixture tests without AWS access:
 ```bash
 node --test verification-support/productization-01036/test/*.test.mjs
 ```
+
+## Reviewed simulated-dealership dependency package
+
+`publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
+digests as `MANAGED_DEPENDENCY` source artifacts, promotes them through the
+production review channel, and publishes one immutable dependency topology for
+`mkv-template-simulated-dealership-experience-v1-1`. A production-reviewed
+artifact is valid in customer staging and production; a staging-only artifact
+is never accepted for production.
+
+The topology owns one simulator, one engagement receiver with PostgreSQL, and
+one Basic Inbox with persistent deployment-local storage per customer target.
+It emits the 14 exact
+server-owned connector bindings used by the template. The target authority
+callback-signing secret remains distinct from the Inbox-owned webhook-signing
+secret. The script does not accept or emit dependency credentials.
+
+Run only against a Platform backend that includes the managed-artifact role and
+readback contract:
+
+```bash
+PLATFORM_BASE_URL=https://api.loomai.pro \
+PLATFORM_ADMIN_API_KEY='<private>' \
+MANAGED_DEPENDENCY_REVIEW_REFERENCE='<review-ticket-or-commit>' \
+node verification-support/productization-01036/publish-simulated-dealership-package.mjs
+```
+
+The command is convergent: it reuses only exact digest/commit/role artifacts,
+promotes them to `production`, and refuses to replace a different active
+topology. Sanitized evidence is written under the ignored `evidence/` folder.

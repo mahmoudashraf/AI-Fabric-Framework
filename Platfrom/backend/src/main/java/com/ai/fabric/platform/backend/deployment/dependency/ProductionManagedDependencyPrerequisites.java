@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBindi
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthoritySnapshotRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
@@ -108,26 +109,18 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             .orElseThrow(() -> conflict("DEPENDENCY_ARTIFACT_MISSING"));
         String expectedImage = artifact.getImageRepository() + "@" + artifact.getImageDigest();
         var evidence = admission.require(requirement(scope, graphs.spec(graph(scope))), graph(scope).getReservationRef());
-        String expectedChannel = evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION ? "production" : "staging";
+        boolean productionIntent = evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION;
+        boolean acceptedChannel = "production".equals(artifact.getPromotionChannel())
+            || !productionIntent && "staging".equals(artifact.getPromotionChannel());
         if (!"DOCKER_IMAGE".equalsIgnoreCase(artifact.getArtifactType())
+            || !DeploymentSourceArtifactRole.MANAGED_DEPENDENCY.name().equals(artifact.getArtifactRole())
             || artifact.getPromotedAt() == null
             || artifact.getImageRepository() == null || artifact.getImageRepository().isBlank()
             || artifact.getImageDigest() == null || !artifact.getImageDigest().matches("sha256:[a-f0-9]{64}")
             || !expectedImage.equals(service.image())
             || !Objects.equals(artifact.getGitCommitSha(), service.sourceCommit())
-            || !expectedChannel.equals(artifact.getPromotionChannel())) {
+            || !acceptedChannel) {
             fail("DEPENDENCY_ARTIFACT_PROVENANCE_INVALID");
-        }
-        try {
-            var normalized = capabilityManifests.normalize(
-                capabilityManifests.read(artifact.getCapabilityManifestJson()));
-            if (artifact.getCapabilityManifestHash() == null
-                || !artifact.getCapabilityManifestHash().equals(normalized.hash())
-                || normalized.manifest().path("supportedBehaviorTypes").isEmpty()) {
-                fail("DEPENDENCY_ARTIFACT_MANIFEST_INVALID");
-            }
-        } catch (ResponseStatusException error) {
-            fail("DEPENDENCY_ARTIFACT_MANIFEST_INVALID");
         }
     }
 

@@ -217,21 +217,40 @@ complete dealership topology. No resources were removed or redeployed.
   contract smokes, including structured authentication, credential broker and
   browser-level private adapter behavior. The standalone shell again passed
   its server test and all **20** browser scenarios after the framework upgrade.
-- The immutable dependency-image workflow completed successfully from source
-  commit `fda8085d0c345e62f750f9041b8fd0760598651c`. It published the simulator
+- The latest immutable dependency-image workflow completed successfully from
+  source commit `fda8085d0c345e62f750f9041b8fd0760598651c`. It published the simulator
   at digest `sha256:6db239c5c4663dee79719e9716ff6429e1f76fbcfd4efc662d5d39e577e52725`,
   dealership receiver at digest
   `sha256:84ab2be0c963671d67db1791dfb75187124f059adad1831f6e4985c20b46aa0d`,
   and Basic Inbox at digest
   `sha256:10f830dc1e4b1bb5e24722c663b40dac83b07793ab944f3978ac8a6c21e23788`.
-  Workflow evidence is GitHub Actions run `38723313627`. These artifacts still
-  require reviewed Platform registration and hosted readback.
+  All three registry indexes were read back directly. Workflow evidence is
+  GitHub Actions run `38723313627`. Reviewed Platform registration and hosted
+  topology publication remain separate gates.
 - The simulated dealership package migration was applied from an empty database
   through all **174 production migrations** on PostgreSQL 16. Its four manifests
   parsed successfully; discovery and engagement routes compiled with their exact
   deployment-local projection, managed URL/header and normalized success-status
   shapes. Focused Marketplace and managed-dependency tests and backend packaging
   passed. This is source and migration evidence, not hosted provisioning proof.
+- Source artifacts now carry an explicit `RUNTIME` or `MANAGED_DEPENDENCY` role.
+  Runtime releases and behavior-readiness checks reject dependency images;
+  managed topology publication and hosted dependency prerequisites reject
+  runtime images. Dependency images do not fabricate runtime capability
+  manifests. A production-promoted dependency image is accepted in customer
+  staging and production, while staging-only provenance remains blocked from
+  production. Migration `V175` backfills all historical artifacts as runtime.
+- The reviewed simulated-dealership topology is encoded in a convergent
+  publication verifier. It pins the three dependency images above, PostgreSQL
+  16 by immutable digest, per-target simulator/receiver/Inbox resources, the
+  exact 14 connector bindings, including the target-scoped Inbox binding, and
+  distinct target-authority versus Inbox-owned
+  callback secrets. Existing publication is read back and compared rather than
+  replaced. The combined verifier suite passed **16 tests** with no failures.
+- Managed runtime binding projection fails closed if a target-owned secret is
+  missing or no longer present. Services that require runtime callback hosts
+  now wait for the runtime-bound reconciliation phase instead of trying to
+  start during foundation provisioning with an empty host allowlist.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison

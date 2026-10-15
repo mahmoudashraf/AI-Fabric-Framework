@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.dependency;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,12 @@ public class ManagedDependencySpecController {
 
     public ManagedDependencySpecController(ManagedDependencySpecPublishingService publishing) {
         this.publishing = publishing;
+    }
+
+    @GetMapping
+    public ManagedDependencySpecPublishingService.PublicationDetails current(
+            @PathVariable String templateVersionId) {
+        return publishing.current(templateVersionId);
     }
 
     @PostMapping

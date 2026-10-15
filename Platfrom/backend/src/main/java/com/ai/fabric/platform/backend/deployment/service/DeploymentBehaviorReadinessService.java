@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentBehaviorReadin
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -206,6 +207,9 @@ public class DeploymentBehaviorReadinessService implements DeploymentBehaviorRea
         String environment = normalizedEnvironment(targetProfile.getEnvironmentName(), deployment.getEnvironmentName());
         DeploymentSourceArtifactEntity artifact = sourceArtifactRepository.findById(sourceArtifactId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Source artifact not found: " + sourceArtifactId));
+        if (!DeploymentSourceArtifactRole.RUNTIME.name().equals(artifact.getArtifactRole())) {
+            throw new ResponseStatusException(CONFLICT, "Behavior readiness requires a RUNTIME source artifact.");
+        }
         requireImmutablePromotedArtifact(artifact, version, behaviorType, verificationPackIds, environment);
         DeploymentVerificationRunEntity verification = requirePassedVerificationRun(release);
         Instant now = Instant.now();

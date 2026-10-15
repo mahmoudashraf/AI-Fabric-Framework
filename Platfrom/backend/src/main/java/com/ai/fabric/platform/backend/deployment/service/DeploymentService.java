@@ -37,6 +37,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnect
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
@@ -362,6 +363,7 @@ public class DeploymentService {
             deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig);
         return deploymentSourceArtifactService.list(null).stream()
             .filter(artifact -> artifact.promotedAt() != null)
+            .filter(artifact -> DeploymentSourceArtifactRole.RUNTIME.name().equals(artifact.artifactRole()))
             .filter(artifact -> sourceArtifactSupports(artifact, version, requirements))
             .toList();
     }
@@ -1774,6 +1776,7 @@ public class DeploymentService {
                 return;
             }
             var conversationalArtifact = deploymentSourceArtifactService.require(sourceArtifactId);
+            requireRuntimeArtifact(conversationalArtifact);
             JsonNode conversationalManifest = sourceCapabilityManifestService.read(
                 conversationalArtifact.getCapabilityManifestJson()
             );
@@ -1811,6 +1814,7 @@ public class DeploymentService {
         }
 
         var artifact = deploymentSourceArtifactService.require(sourceArtifactId);
+        requireRuntimeArtifact(artifact);
         if (artifact.getPromotedAt() == null || !StringUtils.hasText(artifact.getPromotionChannel())) {
             throw new ResponseStatusException(CONFLICT, "Source artifact must be reviewed and promoted before apply.");
         }
@@ -1851,6 +1855,12 @@ public class DeploymentService {
         }
         if (customerBackendIngestionRequired) {
             sourceCapabilityManifestService.requireCustomerBackendIngestionSupport(manifest);
+        }
+    }
+
+    private void requireRuntimeArtifact(com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity artifact) {
+        if (!DeploymentSourceArtifactRole.RUNTIME.name().equals(artifact.getArtifactRole())) {
+            throw new ResponseStatusException(CONFLICT, "Deployment releases require a RUNTIME source artifact.");
         }
     }
 

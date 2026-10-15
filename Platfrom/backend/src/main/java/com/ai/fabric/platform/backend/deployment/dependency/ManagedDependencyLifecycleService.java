@@ -495,6 +495,12 @@ public class ManagedDependencyLifecycleService {
         Map<String, String> connector = new TreeMap<>();
         for (var binding : spec.runtimeEnvironment()) {
             var value = binding.value();
+            if (value.kind() == ManagedDependencySpec.ValueKind.TARGET_SECRET) {
+                String secretReference = state.targetSecretReferences.get(value.reference());
+                if (secretReference == null || secretReference.isBlank() || !secrets.isSecretPresent(secretReference)) {
+                    fail("DEPENDENCY_TARGET_SECRET_MISSING");
+                }
+            }
             var owned = value.kind() == ManagedDependencySpec.ValueKind.TARGET_SECRET
                 ? null
                 : node(state, value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL
@@ -741,6 +747,7 @@ public class ManagedDependencyLifecycleService {
     private boolean foundationService(ManagedDependencySpec.Service service, ManagedDependencySpec spec) {
         boolean runtimeBound = service.environment().values().stream().anyMatch(value ->
             value.kind() == ManagedDependencySpec.ValueKind.CALLBACK_URL
+                || value.kind() == ManagedDependencySpec.ValueKind.CALLBACK_HOSTS
                 || value.kind() == ManagedDependencySpec.ValueKind.TARGET_VALUE
                 && ("runtime-base-url".equals(value.reference()) || "connector-base-url".equals(value.reference())));
         if (runtimeBound) return false;

@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
@@ -79,6 +80,27 @@ class ManagedDependencySpecPublishingServiceTest {
             && "admin@example.test".equals(entity.getReviewedBy())));
         verify(audit).record(eq("MANAGED_DEPENDENCY_SPEC_REVIEWED"),
             eq("MARKETPLACE_TEMPLATE_VERSION"), eq("template-version-1"), anyMap());
+    }
+
+    @Test
+    void readsBackAndRevalidatesTheExactPublishedTopology() throws Exception {
+        var topology = ManagedDependencyFixtures.topology();
+        var entity = new ManagedDependencySpecEntity();
+        entity.setId("dependency-spec-1");
+        entity.setTemplateVersionId("template-version-1");
+        entity.setSpecJson(new ObjectMapper().findAndRegisterModules().writeValueAsString(topology));
+        entity.setFingerprint(validator.fingerprint(topology));
+        entity.setReviewReference("review-123");
+        entity.setReviewedBy("admin@example.test");
+        entity.setReviewedAt(Instant.now());
+        entity.setActive(true);
+        when(specs.findByTemplateVersionIdAndActiveTrue("template-version-1")).thenReturn(List.of(entity));
+
+        var current = service.current("template-version-1");
+
+        assertThat(current.publication().specId()).isEqualTo("dependency-spec-1");
+        assertThat(current.spec()).isEqualTo(topology);
+        verify(staff).requireStaffAdmin();
     }
 
     @Test
@@ -158,11 +180,13 @@ class ManagedDependencySpecPublishingServiceTest {
         var artifact = new DeploymentSourceArtifactEntity();
         artifact.setId(dependency.sourceArtifactId());
         artifact.setArtifactType("DOCKER_IMAGE");
+        artifact.setArtifactRole(DeploymentSourceArtifactRole.MANAGED_DEPENDENCY.name());
         int separator = dependency.image().indexOf("@sha256:");
         artifact.setImageRepository(dependency.image().substring(0, separator));
         artifact.setImageDigest(dependency.image().substring(separator + 1));
         artifact.setGitCommitSha(dependency.sourceCommit());
         artifact.setCapabilityManifestHash("manifest-hash");
+        artifact.setPromotionChannel("staging");
         artifact.setPromotedAt(Instant.now());
         return artifact;
     }

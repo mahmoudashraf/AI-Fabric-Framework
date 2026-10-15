@@ -12,6 +12,7 @@ public record CreateDeploymentSourceArtifactRequest(
     String buildRunId,
     String sbomRef,
     String promotionChannel,
+    DeploymentSourceArtifactRole artifactRole,
     JsonNode capabilityManifest
 ) {
     public CreateDeploymentSourceArtifactRequest(String serviceName,
@@ -24,6 +25,6 @@ public record CreateDeploymentSourceArtifactRequest(
                                                  String sbomRef,
                                                  String promotionChannel) {
         this(serviceName, artifactType, imageRepository, imageTag, imageDigest, gitCommitSha,
-            buildRunId, sbomRef, promotionChannel, null);
+            buildRunId, sbomRef, promotionChannel, DeploymentSourceArtifactRole.RUNTIME, null);
     }
 }

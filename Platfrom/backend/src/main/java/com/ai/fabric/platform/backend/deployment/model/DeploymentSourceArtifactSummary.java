@@ -8,6 +8,7 @@ public record DeploymentSourceArtifactSummary(
     String id,
     String serviceName,
     String artifactType,
+    String artifactRole,
     String imageRepository,
     String imageTag,
     String imageDigest,

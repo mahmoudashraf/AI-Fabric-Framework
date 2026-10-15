@@ -21,6 +21,9 @@ public class DeploymentSourceArtifactEntity {
     @Column(name = "artifact_type", nullable = false, length = 64)
     private String artifactType;
 
+    @Column(name = "artifact_role", nullable = false, length = 64)
+    private String artifactRole = "RUNTIME";
+
     @Column(name = "image_repository", length = 512)
     private String imageRepository;
 
@@ -76,6 +79,14 @@ public class DeploymentSourceArtifactEntity {
 
     public void setArtifactType(String artifactType) {
         this.artifactType = artifactType;
+    }
+
+    public String getArtifactRole() {
+        return artifactRole == null ? "RUNTIME" : artifactRole;
+    }
+
+    public void setArtifactRole(String artifactRole) {
+        this.artifactRole = artifactRole;
     }
 
     public String getImageRepository() {
