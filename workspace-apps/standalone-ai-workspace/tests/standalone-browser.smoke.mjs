@@ -398,6 +398,103 @@ test('expiry without refresh proof clears private state and never reuses the old
   await context.close()
 })
 
+test('concurrent provider refresh remains single-flight and preserves the same owner', async () => {
+  const context = await browser.newContext()
+  await context.addInitScript(() => {
+    sessionStorage.setItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase', JSON.stringify({
+      access_token: 'current-access-token', refresh_token: 'verified-refresh-token', expires_at: Math.floor(Date.now() / 1000) + 300,
+      user: { id: 'user-verified-1' },
+    }))
+  })
+  const page = await context.newPage()
+  let complete
+  let refreshes = 0
+  const deferred = new Promise((resolve) => { complete = resolve })
+  await page.route('**/auth/v1/token?grant_type=refresh_token', async (route) => {
+    if (route.request().method() === 'OPTIONS') { await route.continue(); return }
+    refreshes++
+    await deferred
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({
+      access_token: 'refreshed-access-token', refresh_token: 'rotated-refresh-token', expires_in: 300,
+      user: { id: 'user-verified-1' },
+    }) })
+  })
+  try {
+    await page.goto(appUrl('secure.localhost'))
+    await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+    await page.clock.setSystemTime(new Date(Date.now() + 280_000))
+    const requested = page.waitForRequest((request) => request.url().includes('grant_type=refresh_token') && request.method() === 'POST')
+    const tokens = page.evaluate(() => Promise.all([
+      window.LoomAIWorkspaceHost.getIdentityAccessToken(), window.LoomAIWorkspaceHost.getIdentityAccessToken(),
+    ]))
+    await requested
+    complete()
+    assert.deepEqual(await tokens, ['refreshed-access-token', 'refreshed-access-token'])
+    assert.equal(refreshes, 1)
+    assert.equal(await page.evaluate(() => window.LoomAIWorkspaceHost.identity.subjectKey), 'user-verified-1')
+  } finally {
+    complete()
+    await context.close()
+  }
+})
+
+for (const stalledOperation of ['refresh', 'identity']) {
+  test(`a stalled ${stalledOperation} request expires the refresh deadline and allows fresh sign-in`, async () => {
+    const context = await browser.newContext()
+    await context.addInitScript(() => {
+      if (sessionStorage.getItem('refresh-timeout-fixture')) return
+      sessionStorage.setItem('refresh-timeout-fixture', 'seeded')
+      sessionStorage.setItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase', JSON.stringify({
+        access_token: 'expired-access-token', refresh_token: 'verified-refresh-token', expires_at: Math.floor(Date.now() / 1000) - 1,
+        user: { id: 'user-verified-1' },
+      }))
+      sessionStorage.setItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1', 'old-private-state')
+    })
+    const page = await context.newPage()
+    let release
+    let stalledRequests = 0
+    const deferred = new Promise((resolve) => { release = resolve })
+    const pattern = stalledOperation === 'refresh' ? '**/auth/v1/token?grant_type=refresh_token' : '**/auth/v1/user'
+    if (stalledOperation === 'identity') {
+      await page.route('**/auth/v1/token?grant_type=refresh_token', async (route) => {
+        if (route.request().method() === 'OPTIONS') { await route.continue(); return }
+        await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({
+          access_token: 'refreshed-access-token', refresh_token: 'rotated-refresh-token', expires_in: 300,
+        }) })
+      })
+    }
+    await page.route(pattern, async (route) => {
+      if (route.request().method() === 'OPTIONS') { await route.continue(); return }
+      stalledRequests++
+      await deferred
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({
+        access_token: 'late-access-token', refresh_token: 'late-refresh-token', expires_in: 300,
+        id: 'user-verified-1', user: { id: 'user-verified-1' },
+      }) }).catch(() => {})
+    })
+    try {
+      const began = Date.now()
+      await page.goto(appUrl('secure.localhost'))
+      await page.locator('#auth-dialog[open]').waitFor({ timeout: 7_000 })
+      assert(Date.now() - began < 7_000, 'Provider refresh exceeded its deadline')
+      assert.equal(stalledRequests, 1)
+      assert.equal(await page.locator('#installed-workspace').count(), 0)
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_engage_identity:secure.localhost:awi_pub_secure:supabase')), null)
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('loomai_workspace:awi_pub_secure:conversation:authenticated:user-verified-1')), null)
+      release()
+      await page.unroute(pattern)
+      await page.getByLabel('Email').fill('other@example.test')
+      await page.getByLabel('Password').fill('verified-password')
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.waitForFunction(() => window.LoomAIWorkspaceHost?.identity.subjectKey === 'user-other')
+      assert.equal(await page.evaluate(() => Object.keys(sessionStorage).some((key) => key.includes('authenticated:user-verified-1'))), false)
+    } finally {
+      release()
+      await context.close()
+    }
+  })
+}
+
 test('a refreshed credential for another owner is denied instead of inheriting the conversation', async () => {
   const context = await browser.newContext()
   await context.addInitScript(() => {

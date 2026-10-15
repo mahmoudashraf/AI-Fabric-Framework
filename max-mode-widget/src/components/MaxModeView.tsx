@@ -29,7 +29,7 @@ export function MaxModeView({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-white dark:bg-gray-950"
+      className="max-mode-viewport z-[100] bg-white dark:bg-gray-950"
     >
       <MaxModeHeader
         onClose={onClose}

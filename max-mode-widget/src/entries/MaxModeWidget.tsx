@@ -20,6 +20,7 @@ import { MaxModeProvider, type SharedAttachment } from "@/context";
 import { MaxModePage } from "@/components/MaxModePage";
 import { ToastContainer } from "@/ui/toast-container";
 import { applyThemeToElement } from "@/theme";
+import { bindWidgetViewport } from "@/viewport";
 
 // Import widget styles
 import "@/styles/index.css";
@@ -77,6 +78,9 @@ export function MaxModeWidget({
 
   // Theme container ref
   const containerRef = React.useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (containerRef.current) return bindWidgetViewport(containerRef.current);
+  }, []);
   useEffect(() => {
     if (containerRef.current) {
       applyThemeToElement(containerRef.current, theme);

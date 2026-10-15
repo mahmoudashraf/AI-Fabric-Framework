@@ -76,8 +76,10 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
           title={launcherLabel}
           style={{
             position: "fixed",
-            bottom: "24px",
-            [isRight ? "right" : "left"]: "24px",
+            bottom: "calc(var(--max-mode-viewport-bottom, 0px) + max(24px, env(safe-area-inset-bottom, 0px)))",
+            [isRight ? "right" : "left"]: isRight
+              ? "calc(var(--max-mode-viewport-right, 0px) + max(24px, env(safe-area-inset-right, 0px)))"
+              : "calc(var(--max-mode-viewport-left, 0px) + max(24px, env(safe-area-inset-left, 0px)))",
             minWidth: launcherVariant === "pill" ? "auto" : "60px",
             width: launcherVariant === "pill" ? "auto" : "60px",
             height: "60px",

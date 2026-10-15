@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Headphones, Loader2, UserRound, X } from "lucide-react";
 
 import type { MaxModeHandoverIntakeFieldConfig } from "@/config";
@@ -38,6 +38,24 @@ export function ConversationHandoverDialog({
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [consents, setConsents] = useState<Record<string, boolean>>({});
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    let previous = dialog.ownerDocument.activeElement;
+    while (previous?.shadowRoot?.activeElement) previous = previous.shadowRoot.activeElement;
+    dialog.showModal();
+    const initial = dialog.querySelector<HTMLElement>("input:not([disabled]), select:not([disabled]), textarea:not([disabled])")
+      ?? dialog.querySelector<HTMLElement>("button:not([disabled])");
+    (initial ?? dialog).focus({ preventScroll: true });
+    return () => {
+      dialog.close();
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -56,31 +74,57 @@ export function ConversationHandoverDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-gray-950/45 p-3 backdrop-blur-sm sm:items-center">
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      aria-modal="true"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onOpenChange(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const dialog = event.currentTarget;
+        const controls = Array.from(dialog.querySelectorAll<HTMLElement>("button, input, select, textarea, a[href], [tabindex]"))
+          .filter((element) => element.tabIndex >= 0 && !element.matches(":disabled, [hidden]") && element.getClientRects().length > 0);
+        const active = (dialog.getRootNode() as Document | ShadowRoot).activeElement;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (!first) {
+          event.preventDefault();
+          dialog.focus();
+        } else if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (active === last || active === dialog || !dialog.contains(active))) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+      className="max-mode-viewport max-mode-handover-modal m-0 max-h-none max-w-none items-end justify-center border-0 bg-transparent p-3 text-left text-gray-950 outline-none pointer-events-auto sm:items-center dark:text-white"
+    >
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="conversation-handover-title"
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-950"
+        className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-950"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
               <Headphones className="h-5 w-5" />
             </span>
             <div>
-              <h2 id="conversation-handover-title" className="text-base font-bold text-gray-950 dark:text-white">
+              <h2 id={titleId} className="text-base font-bold text-gray-950 dark:text-white">
                 {dialogTitle(state)}
               </h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Your current conversation and context stay together.</p>
+              <p id={descriptionId} className="text-xs text-gray-500 dark:text-gray-400">Your current conversation and context stay together.</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close human support panel">
+          <Button variant="ghost" size="icon" disabled={busy} onClick={() => onOpenChange(false)} aria-label="Close human support panel">
             <X className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto p-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto p-5">
           {state === "AI_ACTIVE" && (
             <>
               <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
@@ -174,7 +218,7 @@ export function ConversationHandoverDialog({
           )}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
 

@@ -37,6 +37,7 @@ export function MaxModeHeader({
           variant="outline"
           onClick={onOpenHandover}
           disabled={handoverBusy}
+          aria-label={handoverState === "AI_ACTIVE" ? "Talk to a person" : handoverState === "HUMAN_ACTIVE" ? "Human support" : "Connecting to a person"}
           className={`h-9 rounded-full border px-3 text-xs font-bold shadow-lg ${handoverState === "AI_ACTIVE" ? "border-gray-200 bg-white text-gray-800 hover:bg-gray-50" : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}
         >
           {handoverBusy || handoverState === "HUMAN_PENDING" || handoverState === "AI_RESUME_PENDING"

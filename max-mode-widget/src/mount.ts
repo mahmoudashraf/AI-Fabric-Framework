@@ -10,6 +10,7 @@ import ReactDOM from "react-dom/client";
 import { setWidgetConfig, getWidgetConfig, type MaxModeWidgetConfig } from "./config";
 import { buildThemeCSS } from "./theme";
 import { WidgetShell } from "./entries/WidgetShell";
+import { bindWidgetViewport } from "./viewport";
 
 const WIDGET_CONTAINER_ID = "max-mode-widget-container";
 const SHADOW_HOST_ID = "max-mode-widget-shadow-host";
@@ -19,6 +20,7 @@ let _shadowRoot: ShadowRoot | null = null;
 let _isOpen = false;
 let _currentConfig: MaxModeWidgetConfig | null = null;
 let _widgetStyleText = "";
+let _releaseViewport: (() => void) | null = null;
 
 export function mountWidget(config: MaxModeWidgetConfig): void {
   // Prevent double mount
@@ -34,8 +36,9 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   const host = document.createElement("div");
   host.id = SHADOW_HOST_ID;
   host.style.cssText =
-    "display:block !important;position:fixed;z-index:2147483647;top:0;left:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;";
+    "display:block !important;position:fixed;z-index:2147483647;top:var(--max-mode-viewport-top,0px);left:var(--max-mode-viewport-left,0px);width:var(--max-mode-viewport-width,100vw);height:var(--max-mode-viewport-height,100dvh);pointer-events:none;overflow:visible;";
   document.body.appendChild(host);
+  _releaseViewport = bindWidgetViewport(host);
 
   _shadowRoot = host.attachShadow({ mode: "open" });
 
@@ -107,6 +110,8 @@ export function destroyWidget(): void {
     _root.unmount();
     _root = null;
   }
+  _releaseViewport?.();
+  _releaseViewport = null;
   const host = document.getElementById(SHADOW_HOST_ID);
   if (host) host.remove();
   _shadowRoot = null;

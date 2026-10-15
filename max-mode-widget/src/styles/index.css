@@ -35,6 +35,31 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Fit visible controls to the viewport, including keyboard and device insets. */
+.max-mode-viewport {
+  position: fixed;
+  top: calc(var(--max-mode-viewport-top, 0px) + env(safe-area-inset-top, 0px));
+  left: calc(var(--max-mode-viewport-left, 0px) + env(safe-area-inset-left, 0px));
+  width: calc(var(--max-mode-viewport-width, 100vw) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  height: calc(var(--max-mode-viewport-height, 100dvh) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  right: auto;
+  bottom: auto;
+  contain: layout;
+}
+
+.max-mode-companion-dock {
+  bottom: calc(var(--max-mode-viewport-bottom, 0px) + max(1rem, env(safe-area-inset-bottom, 0px)));
+  left: calc(var(--max-mode-viewport-left, 0px) + var(--max-mode-viewport-width, 100vw) / 2);
+  width: min(78rem, calc(var(--max-mode-viewport-width, 100vw) - 1rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+}
+
+.max-mode-handover-modal { font-family: var(--mxw-font-family, Inter, system-ui, sans-serif); }
+.max-mode-handover-modal[open] { display: flex; }
+.max-mode-handover-modal::backdrop {
+  background: rgb(3 7 18 / 0.45);
+  backdrop-filter: blur(4px);
+}
+
 /* Scrollbar styling scoped to widget */
 .max-mode-widget-root *::-webkit-scrollbar {
   width: 6px;

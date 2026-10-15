@@ -377,23 +377,34 @@ async function ensureFreshSession(app: AppBootstrap, value: AuthSession | null):
   const generation = authenticationGeneration
   const promise = (async () => {
     const auth = supabaseConfig(app)
-    const response = await fetch(`${auth.projectUrl}/auth/v1/token?grant_type=refresh_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: auth.publishableKey },
-      body: JSON.stringify({ refresh_token: value.refresh_token }),
-    })
-    if (generation !== authenticationGeneration) return null
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403 || response.status === 400) return invalidate()
-      throw new Error('Identity refresh could not be confirmed.')
+    const request = new AbortController()
+    const timeout = window.setTimeout(() => request.abort(), PROVIDER_REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(`${auth.projectUrl}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: auth.publishableKey },
+        body: JSON.stringify({ refresh_token: value.refresh_token }),
+        signal: request.signal,
+      })
+      if (generation !== authenticationGeneration) return null
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403 || response.status === 400) return invalidate()
+        throw new Error('Identity refresh could not be confirmed.')
+      }
+      const refreshed = await response.json() as AuthSession
+      if (!refreshed.user?.id) refreshed.user = await fetchSupabaseUser(app, refreshed.access_token, request.signal)
+      if (generation !== authenticationGeneration) return null
+      if (refreshed.user?.id !== value.user?.id) return invalidate()
+      try { validateSession(refreshed) } catch { return invalidate() }
+      storeSession(app, refreshed)
+      return refreshed
+    } catch (error) {
+      if (generation !== authenticationGeneration) return null
+      if (request.signal.aborted) return invalidate()
+      throw error
+    } finally {
+      window.clearTimeout(timeout)
     }
-    const refreshed = await response.json() as AuthSession
-    if (!refreshed.user?.id) refreshed.user = await fetchSupabaseUser(app, refreshed.access_token)
-    if (generation !== authenticationGeneration) return null
-    if (refreshed.user?.id !== value.user?.id) return invalidate()
-    try { validateSession(refreshed) } catch { return invalidate() }
-    storeSession(app, refreshed)
-    return refreshed
   })()
   refreshInFlight = { token: value.access_token, promise }
   try { return await promise }
@@ -408,10 +419,11 @@ function validateSession(value: AuthSession) {
     || value.expires_at! <= Math.floor(Date.now() / 1000)) throw new Error('The identity provider returned an incomplete or expired session.')
 }
 
-async function fetchSupabaseUser(app: AppBootstrap, accessToken: string) {
+async function fetchSupabaseUser(app: AppBootstrap, accessToken: string, signal?: AbortSignal) {
   const auth = supabaseConfig(app)
   const response = await fetch(`${auth.projectUrl}/auth/v1/user`, {
     headers: { apikey: auth.publishableKey, Authorization: `Bearer ${accessToken}` },
+    signal,
   })
   if (!response.ok) throw new Error('The signed-in identity could not be verified.')
   return response.json() as Promise<{ id?: string; email?: string }>

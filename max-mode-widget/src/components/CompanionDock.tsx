@@ -75,7 +75,7 @@ export function CompanionDock({
   return (
     <section
       aria-label={controller.assistantLabel}
-      className="fixed bottom-4 left-1/2 z-[2147483645] w-[min(78rem,calc(100vw-1rem))] -translate-x-1/2 pointer-events-auto text-gray-950 dark:text-gray-100"
+      className="max-mode-companion-dock fixed z-[2147483645] -translate-x-1/2 pointer-events-auto text-gray-950 dark:text-gray-100"
     >
       {expanded && (
         <div className="mb-0 overflow-hidden rounded-t-[1.35rem] border border-blue-200/80 bg-white/98 shadow-[0_24px_72px_rgba(15,23,42,0.18)] ring-1 ring-white/80 dark:border-gray-700 dark:bg-gray-950">
@@ -99,6 +99,7 @@ export function CompanionDock({
                   size="sm"
                   onClick={controller.openHandover}
                   disabled={controller.isHandoverBusy}
+                  aria-label={controller.conversationControlState === "AI_ACTIVE" ? "Talk to a person" : "Human support"}
                   className="rounded-full border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
                 >
                   {controller.conversationControlState === "HUMAN_ACTIVE" ? <UserRound className="mr-1.5 h-4 w-4" /> : <Headphones className="mr-1.5 h-4 w-4" />}

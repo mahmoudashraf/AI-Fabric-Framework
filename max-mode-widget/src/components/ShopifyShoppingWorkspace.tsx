@@ -302,7 +302,7 @@ export function ShopifyShoppingWorkspace({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] overflow-hidden bg-[#f7f8fc] font-sans text-slate-950"
+      className="max-mode-viewport z-[100] overflow-hidden bg-[#f7f8fc] font-sans text-slate-950"
     >
       <style>{SHOPIFY_SCROLLBAR_STYLE}</style>
       <div className="hidden h-full min-h-0 grid-rows-[72px_minmax(0,1fr)] md:grid">
