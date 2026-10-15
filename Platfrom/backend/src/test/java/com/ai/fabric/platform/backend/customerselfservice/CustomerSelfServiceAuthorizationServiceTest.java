@@ -202,13 +202,16 @@ class CustomerSelfServiceAuthorizationServiceTest {
         }
     }
 
-    @Test void consumerBoundaryRequiresExactOwnedBoundTargetReleaseAndChecksActualProfileValues() {
+    @Test void consumerBoundaryRequiresExactOwnedBoundTargetAndAllowsConfigurationBeforeRelease() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
         var consumer = new PlatformConsumerEntity();
         consumer.setId("consumer"); consumer.setCustomerId("customer"); consumer.setStatus("ACTIVE");
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of()));
-        consumer.setBoundDeploymentId("deployment"); consumer.setBoundTargetProfileId("staging-target"); consumer.setBoundReleaseId("release");
+        consumer.setBoundDeploymentId("deployment"); consumer.setBoundTargetProfileId("staging-target");
         when(consumers.findById("consumer")).thenReturn(Optional.of(consumer));
+        boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of(Setting.APP_TITLE,
+            com.fasterxml.jackson.databind.node.TextNode.valueOf("Approved app")));
+        consumer.setBoundReleaseId("release");
         var release = new DeploymentReleaseEntity(); release.setId("release"); release.setDeploymentId("deployment");
         release.setTargetProfileId("staging-target"); release.setSourceArtifactId("runtime-artifact");
         when(releases.findById("release")).thenReturn(Optional.of(release));

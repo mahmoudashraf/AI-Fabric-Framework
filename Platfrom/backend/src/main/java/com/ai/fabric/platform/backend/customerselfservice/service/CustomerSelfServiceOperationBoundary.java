@@ -83,7 +83,6 @@ public class CustomerSelfServiceOperationBoundary {
         var result = require(deployment, consumer.getBoundTargetProfileId(), consumer.getBoundReleaseId(),
             operation, operationKey, values, null, null, null);
         if (result != null) {
-            if (consumer.getBoundReleaseId() == null || consumer.getBoundReleaseId().isBlank()) throw deny(RESOURCE_SCOPE_MISMATCH);
             authorization.requireOwnedConsumer(result, consumer.getId());
         }
         return result;

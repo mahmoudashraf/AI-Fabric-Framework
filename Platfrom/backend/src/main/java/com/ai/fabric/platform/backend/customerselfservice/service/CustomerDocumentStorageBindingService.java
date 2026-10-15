@@ -71,6 +71,7 @@ public class CustomerDocumentStorageBindingService {
         if (request == null) throw invalid();
         entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor();
+        var deployment = lockOwnedDeployment(deploymentId, actor.customerId());
         var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
         String actorId = PlatformSecurityContext.currentPrincipal().actorId();
         String fingerprint = codec.hash(Map.of("command", BIND_COMMAND, "offerId", offerId,
@@ -79,7 +80,6 @@ public class CustomerDocumentStorageBindingService {
         if (replay != null) return replay;
         if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
 
-        var deployment = deployments.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REPLACE,
             request.operationKey(), Set.of(), request.bindingSlotId(), request.selectedProfileId(), null));
@@ -106,6 +106,7 @@ public class CustomerDocumentStorageBindingService {
         if (request == null) throw invalid();
         entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor();
+        var deployment = lockOwnedDeployment(deploymentId, actor.customerId());
         var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
         String actorId = PlatformSecurityContext.currentPrincipal().actorId();
         String fingerprint = codec.hash(Map.of("command", REVOKE_COMMAND, "offerId", offerId,
@@ -114,7 +115,6 @@ public class CustomerDocumentStorageBindingService {
         if (replay != null) return replay;
         if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
 
-        var deployment = deployments.findById(deploymentId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REVOKE,
             request.operationKey(), Set.of(), request.bindingSlotId(), null, null));
@@ -144,6 +144,12 @@ public class CustomerDocumentStorageBindingService {
             throw deny(BINDING_SLOT_FORBIDDEN);
         }
         return slot;
+    }
+
+    private DeploymentEntity lockOwnedDeployment(String deploymentId, String customerId) {
+        return deployments.findByIdForUpdate(deploymentId)
+            .filter(candidate -> customerId.equals(candidate.getCustomerId()))
+            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
     }
 
     private void requireMappedInstall(String deploymentId, BindingSlot slot) {

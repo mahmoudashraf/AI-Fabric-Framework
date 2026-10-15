@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.tenant.service;
 
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceBindingGuard;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceDeploymentSecurityProjectionService;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -61,6 +62,7 @@ public class PlatformCustomerConsumerService {
     private final PlatformCustomerAccessService platformCustomerAccessService;
     private final PlatformAuditService platformAuditService;
     private final AIWorkspaceBindingGuard aiWorkspaceBindingGuard;
+    private final AIWorkspaceDeploymentSecurityProjectionService aiWorkspaceSecurityProjection;
     private final ObjectMapper objectMapper;
     private final com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
     private final DeploymentTargetProfileRepository targetProfiles;
@@ -73,6 +75,7 @@ public class PlatformCustomerConsumerService {
                                            PlatformCustomerAccessService platformCustomerAccessService,
                                            PlatformAuditService platformAuditService,
                                            AIWorkspaceBindingGuard aiWorkspaceBindingGuard,
+                                           AIWorkspaceDeploymentSecurityProjectionService aiWorkspaceSecurityProjection,
                                            ObjectMapper objectMapper,
                                            com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates,
                                            DeploymentTargetProfileRepository targetProfiles) {
@@ -84,6 +87,7 @@ public class PlatformCustomerConsumerService {
         this.platformCustomerAccessService = platformCustomerAccessService;
         this.platformAuditService = platformAuditService;
         this.aiWorkspaceBindingGuard = aiWorkspaceBindingGuard;
+        this.aiWorkspaceSecurityProjection = aiWorkspaceSecurityProjection;
         this.objectMapper = objectMapper;
         this.retirementGates = retirementGates;
         this.targetProfiles = targetProfiles;
@@ -453,6 +457,11 @@ public class PlatformCustomerConsumerService {
             throw new IllegalStateException("Unable to persist binding command result.", error);
         }
         bindingHistoryRepository.saveAndFlush(history);
+
+        if (changed && !java.util.Objects.equals(previousDeploymentId, nextDeploymentId)) {
+            aiWorkspaceSecurityProjection.synchronizeBindingChange(
+                consumer.getId(), previousDeploymentId, nextDeploymentId);
+        }
 
         platformAuditService.record(
             "CUSTOMER_CONSUMER_BINDING_UPDATED",

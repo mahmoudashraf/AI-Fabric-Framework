@@ -64,6 +64,9 @@ public class CustomerDeploymentVersionService {
         validate(offerId, deploymentId, request);
         entitlements.requireOperationKey(request.operationKey());
         var actor = entitlements.requireCustomerActor();
+        var deployment = deployments.findByIdForUpdate(deploymentId)
+            .filter(candidate -> actor.customerId().equals(candidate.getCustomerId()))
+            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         var grant = entitlements.requireEntitlement(actor.customerId(), offerId, actor.userId(), true);
         String actorId = PlatformSecurityContext.currentPrincipal().actorId();
         String fingerprint = codec.hash(Map.of("command", COMMAND, "offerId", offerId,
@@ -76,9 +79,6 @@ public class CustomerDeploymentVersionService {
             return codec.read(previous.getResultJson(), PublishResult.class);
         }
         if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
-        var deployment = deployments.findById(deploymentId)
-            .filter(candidate -> actor.customerId().equals(candidate.getCustomerId()))
-            .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.VERSION_PUBLISH,
             request.operationKey(), Set.of(), null, null, null));

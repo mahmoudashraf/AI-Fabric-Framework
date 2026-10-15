@@ -1354,12 +1354,16 @@ public class DeploymentService {
 
     @Transactional
     DeploymentVersionSummary publishDraftInternal(String draftId, boolean skipAccessCheck) {
-        DeploymentDraftEntity draft = draftRepository.findById(draftId)
+        String deploymentId = draftRepository.findDeploymentIdById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = skipAccessCheck
-            ? deploymentRepository.findById(draft.getDeploymentId())
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
-            : getDeploymentForEditorAction(draft.getDeploymentId());
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        if (!skipAccessCheck) {
+            deployment = deploymentAccessService.requireDeploymentEditorAccess(deployment);
+            assertDeletionNotPending(deployment, "edit");
+        }
+        DeploymentDraftEntity draft = draftRepository.findByIdForUpdate(draftId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
         assertReviewedOfferUsesDedicatedDraftPath(deployment, skipAccessCheck);
         assertNotArchived(deployment, "publish draft");
         assertActiveEditableDraft(deployment, draft, "be published");

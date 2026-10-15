@@ -60,7 +60,7 @@ class CustomerDeploymentVersionServiceTest {
         when(entitlements.requireEntitlement("customer", "offer", "owner", true)).thenReturn(grant);
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("deployment"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
-        when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
+        when(deployments.findByIdForUpdate("deployment")).thenReturn(Optional.of(deployment));
         approved = new Authorization(new AdmissionContext("customer", "tenant", "deployment", null,
             "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", "fingerprint", 2, "placement",
             Operation.VERSION_PUBLISH, request.operationKey(), CustomerOfferTestFixtures.definition().limits(),
@@ -84,6 +84,9 @@ class CustomerDeploymentVersionServiceTest {
         PublishResult result = service.publish("offer", "deployment", request);
 
         assertThat(result).isEqualTo(new PublishResult("deployment", "version", "v1", "config", "staging-target", 2));
+        var order = inOrder(deployments, entitlements);
+        order.verify(deployments).findByIdForUpdate("deployment");
+        order.verify(entitlements).requireEntitlement("customer", "offer", "owner", true);
         var authorizationRequest = ArgumentCaptor.forClass(AuthorizationRequest.class);
         verify(authorization).authorize(eq("customer"), authorizationRequest.capture());
         assertThat(authorizationRequest.getValue()).isEqualTo(new AuthorizationRequest("offer", "staging-target",
@@ -102,7 +105,8 @@ class CustomerDeploymentVersionServiceTest {
                 "PUBLISH_VERSION", "owner@test.invalid", codec.write(stored), Instant.now())));
 
         assertThat(service.publish("offer", "deployment", request)).isEqualTo(stored);
-        verifyNoInteractions(authorization, deployments, versions, deploymentService, boundary, audit);
+        verifyNoInteractions(authorization, versions, deploymentService, boundary, audit);
+        verify(deployments).findByIdForUpdate("deployment");
         verify(commands, never()).saveAndFlush(any());
     }
 
@@ -121,7 +125,7 @@ class CustomerDeploymentVersionServiceTest {
         grant.setRevision(3);
         assertCode(REVISION_CONFLICT, () -> service.publish("offer", "deployment", request));
         grant.setRevision(2);
-        deployments.findById("deployment").orElseThrow().setCustomerId("foreign");
+        deployments.findByIdForUpdate("deployment").orElseThrow().setCustomerId("foreign");
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.publish("offer", "deployment", request));
         verify(deploymentService, never()).publishDraftForTrustedCaller(anyString());
     }

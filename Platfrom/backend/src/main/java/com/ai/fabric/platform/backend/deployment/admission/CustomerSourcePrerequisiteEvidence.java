@@ -4,13 +4,17 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Set;
 
 /** A recurring source probe never changes the original admission authorization or capacity allocation. */
 record CustomerSourcePrerequisiteEvidence(String id, Scope scope, String placementEvidenceId,
     Set<Prerequisite> passed, String connectorProofDigest, Instant checkedAt, Instant expiresAt) {
     CustomerSourcePrerequisiteEvidence {
-        passed = passed == null ? Set.of() : Set.copyOf(passed);
+        passed = passed == null || passed.isEmpty()
+            ? Set.of()
+            : Collections.unmodifiableSet(EnumSet.copyOf(passed));
     }
 
     record Scope(String customerId, String tenantId, String deploymentId, String targetProfileId, String releaseId,

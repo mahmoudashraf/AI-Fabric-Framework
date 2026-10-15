@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
@@ -58,6 +59,7 @@ public class AIWorkspaceInstallationService {
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
     private final CustomerSelfServiceOperationBoundary offerBoundary;
+    private final AIWorkspaceDeploymentSecurityProjectionService deploymentSecurityProjection;
 
     public AIWorkspaceInstallationService(AIWorkspaceInstallationRepository repository,
                                           PlatformCustomerRepository customerRepository,
@@ -72,7 +74,8 @@ public class AIWorkspaceInstallationService {
                                           AIWorkspaceAssetCatalogService assetCatalogService,
                                           PlatformAuditService auditService,
                                           ObjectMapper objectMapper,
-                                          CustomerSelfServiceOperationBoundary offerBoundary) {
+                                          CustomerSelfServiceOperationBoundary offerBoundary,
+                                          AIWorkspaceDeploymentSecurityProjectionService deploymentSecurityProjection) {
         this.repository = repository;
         this.customerRepository = customerRepository;
         this.consumerRepository = consumerRepository;
@@ -87,6 +90,7 @@ public class AIWorkspaceInstallationService {
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.offerBoundary = offerBoundary;
+        this.deploymentSecurityProjection = deploymentSecurityProjection;
     }
 
     @Transactional(readOnly = true)
@@ -126,6 +130,7 @@ public class AIWorkspaceInstallationService {
             request.connectionConfiguration(), request.allowedOrigins(), request.configuration(),
             request.deliveryMode(), request.appSlug(), request.customDomains(), request.interactionPolicy(),
             request.authProfileCode(), request.authProfileVersion(), request.authConfiguration(), null);
+        deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
         authorizeConfiguration(consumer, input, operationKey);
         Instant now = Instant.now();
         AIWorkspaceInstallationEntity entity = new AIWorkspaceInstallationEntity();
@@ -140,6 +145,7 @@ public class AIWorkspaceInstallationService {
         entity.setUpdatedAt(now);
         repository.saveAndFlush(entity);
         synchronizeDomains(entity, input);
+        deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_CREATED", entity, Map.of("consumerId", consumer.getConsumerId()));
         return summary(entity);
     }
@@ -163,6 +169,8 @@ public class AIWorkspaceInstallationService {
         if (request.rowVersion() != null && request.rowVersion() != entity.getRowVersion()) {
             throw new ResponseStatusException(CONFLICT, "AI Workspace installation was changed by another operator.");
         }
+        PlatformConsumerEntity previousConsumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
         PlatformConsumerEntity consumer = requireConsumer(customerId, request.consumerId());
         ValidatedInput input = validateInput(
             request.displayName(), request.experiencePackCode(), request.experiencePackVersion(),
@@ -170,15 +178,26 @@ public class AIWorkspaceInstallationService {
             request.connectionConfiguration(), request.allowedOrigins(), request.configuration(),
             request.deliveryMode(), request.appSlug(), request.customDomains(), request.interactionPolicy(),
             request.authProfileCode(), request.authProfileVersion(), request.authConfiguration(), entity.getId());
-        authorizeMutation(entity, operationKey);
+        deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(previousConsumer, consumer));
+        authorizeMutation(entity, previousConsumer, operationKey);
         authorizeConfiguration(consumer, input, operationKey);
         authorizeRemovedDomains(entity, input.origins(), operationKey);
         entity.setConsumerEntityId(consumer.getId());
         entity.setDisplayName(input.displayName());
+        if (entity.getStatus() == AIWorkspaceInstallationStatus.DISABLED) {
+            entity.setStatus(AIWorkspaceInstallationStatus.DRAFT);
+            entity.setDisabledAt(null);
+        }
         apply(entity, input);
         entity.setUpdatedAt(Instant.now());
         repository.saveAndFlush(entity);
         synchronizeDomains(entity, input);
+        deploymentSecurityProjection.synchronizeForConsumer(consumer);
+        if (!previousConsumer.getId().equals(consumer.getId())
+            && StringUtils.hasText(previousConsumer.getBoundDeploymentId())
+            && !java.util.Objects.equals(previousConsumer.getBoundDeploymentId(), consumer.getBoundDeploymentId())) {
+            deploymentSecurityProjection.synchronizeDeployment(previousConsumer.getBoundDeploymentId());
+        }
         audit("AI_WORKSPACE_INSTALLATION_UPDATED", entity, Map.of("consumerId", consumer.getConsumerId()));
         return summary(entity);
     }
@@ -194,6 +213,7 @@ public class AIWorkspaceInstallationService {
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
         PlatformConsumerEntity consumer = consumerRepository.findById(entity.getConsumerEntityId())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
         authorizeConfiguration(consumer, storedInput(entity), operationKey);
         AIWorkspaceReadinessSummary readiness = readinessService.evaluate(entity);
         if (!readiness.ready()) {
@@ -210,6 +230,7 @@ public class AIWorkspaceInstallationService {
         entity.setDisabledAt(null);
         entity.setUpdatedAt(now);
         repository.saveAndFlush(entity);
+        deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_ACTIVATED", entity, Map.of("assignmentRevision", readiness.assignmentRevision()));
         return summary(entity);
     }
@@ -223,12 +244,16 @@ public class AIWorkspaceInstallationService {
     public AIWorkspaceInstallationSummary disable(String customerId, String installationId, String operationKey) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
-        authorizeMutation(entity, operationKey);
+        PlatformConsumerEntity consumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
+        authorizeMutation(entity, consumer, operationKey);
         Instant now = Instant.now();
         entity.setStatus(AIWorkspaceInstallationStatus.DISABLED);
         entity.setDisabledAt(now);
         entity.setUpdatedAt(now);
         repository.saveAndFlush(entity);
+        deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_DISABLED", entity, Map.of());
         return summary(entity);
     }
@@ -242,11 +267,16 @@ public class AIWorkspaceInstallationService {
     public void deleteDraft(String customerId, String installationId, String operationKey) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
-        authorizeMutation(entity, operationKey);
+        PlatformConsumerEntity consumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        deploymentSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
+        authorizeMutation(entity, consumer, operationKey);
         if (entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT) {
             throw new ResponseStatusException(CONFLICT, "Only unused draft AI Workspace installations can be deleted.");
         }
         repository.delete(entity);
+        repository.flush();
+        deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_DELETED", entity, Map.of());
     }
 
@@ -280,9 +310,12 @@ public class AIWorkspaceInstallationService {
         return result;
     }
 
-    private void authorizeMutation(AIWorkspaceInstallationEntity entity, String operationKey) {
-        var consumer = consumerRepository.findById(entity.getConsumerEntityId())
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+    private void authorizeMutation(AIWorkspaceInstallationEntity entity,
+                                   PlatformConsumerEntity consumer,
+                                   String operationKey) {
+        if (!entity.getConsumerEntityId().equals(consumer.getId())) {
+            throw new ResponseStatusException(CONFLICT, "Installation consumer requires reconciliation.");
+        }
         offerBoundary.requireConsumer(consumer, Operation.APP_CONFIGURE, operationKey, Map.of());
     }
 

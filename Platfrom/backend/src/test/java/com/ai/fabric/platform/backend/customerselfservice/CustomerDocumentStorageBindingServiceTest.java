@@ -65,7 +65,7 @@ class CustomerDocumentStorageBindingServiceTest {
         deployment.setId("deployment");
         deployment.setCustomerId("customer");
         deployment.setTenantId("tenant");
-        when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
+        when(deployments.findByIdForUpdate("deployment")).thenReturn(Optional.of(deployment));
         var definition = CustomerOfferTestFixtures.definition();
         approved = new Authorization(new AdmissionContext("customer", "tenant", "deployment", null,
             "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", codec.hash(definition), 2,
@@ -84,6 +84,9 @@ class CustomerDocumentStorageBindingServiceTest {
 
         assertThat(result.status()).isEqualTo("CONFIGURED");
         assertThat(result.binding()).isEqualTo(summary);
+        var order = inOrder(deployments, entitlements);
+        order.verify(deployments).findByIdForUpdate("deployment");
+        order.verify(entitlements).requireEntitlement("customer", "offer", "owner", true);
         var auth = ArgumentCaptor.forClass(AuthorizationRequest.class);
         verify(authorization).authorize(eq("customer"), auth.capture());
         assertThat(auth.getValue()).isEqualTo(new AuthorizationRequest("offer", "staging-target", "deployment",
@@ -111,7 +114,8 @@ class CustomerDocumentStorageBindingServiceTest {
         grant.setRevision(3);
 
         assertThat(service.bind("offer", "deployment", request)).isEqualTo(stored);
-        verifyNoInteractions(authorization, deployments, bindings, audit);
+        verifyNoInteractions(authorization, bindings, audit);
+        verify(deployments).findByIdForUpdate("deployment");
     }
 
     @Test void sameOperationKeyWithChangedCredentialsIsRejectedWithoutWriting() {
@@ -124,7 +128,8 @@ class CustomerDocumentStorageBindingServiceTest {
 
         assertThatThrownBy(() -> service.bind("offer", "deployment", request))
             .hasMessageContaining(OPERATION_KEY_CONFLICT.name());
-        verifyNoInteractions(authorization, deployments, bindings, audit);
+        verifyNoInteractions(authorization, bindings, audit);
+        verify(deployments).findByIdForUpdate("deployment");
     }
 
     @Test void revokeRemovesOnlyTheExactTargetBindingAndPreservesSourceObjects() {
@@ -138,6 +143,9 @@ class CustomerDocumentStorageBindingServiceTest {
 
         assertThat(result.status()).isEqualTo("REVOKED");
         assertThat(result.binding()).isNull();
+        var order = inOrder(deployments, entitlements);
+        order.verify(deployments).findByIdForUpdate("deployment");
+        order.verify(entitlements).requireEntitlement("customer", "offer", "owner", true);
         verify(bindings).remove("deployment", "binding", "revoke-key", "document-storage");
         verify(bindings, never()).remove(eq("deployment"), eq("production-binding"), any(), any());
         verify(audit).record(eq("CUSTOMER_DOCUMENT_STORAGE_REVOKED"), eq("DEPLOYMENT"), eq("deployment"),

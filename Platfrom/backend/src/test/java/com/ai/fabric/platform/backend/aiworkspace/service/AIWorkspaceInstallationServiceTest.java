@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -64,6 +65,8 @@ class AIWorkspaceInstallationServiceTest {
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final CustomerSelfServiceOperationBoundary offerBoundary = mock(CustomerSelfServiceOperationBoundary.class);
+    private final AIWorkspaceDeploymentSecurityProjectionService deploymentSecurityProjection =
+        mock(AIWorkspaceDeploymentSecurityProjectionService.class);
 
     @ParameterizedTest
     @EnumSource(value = Operation.class, names = {"APP_CONFIGURE", "AUTH_CONFIGURE", "DOMAIN_CONFIGURE"})
@@ -153,6 +156,11 @@ class AIWorkspaceInstallationServiceTest {
         verify(repository, times(2)).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getCustomerId()).isEqualTo("customer-1");
         assertThat(saved.getValue().getConnectionConfigurationJson()).isEqualTo("{}");
+        verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+        var authorizationOrder = inOrder(deploymentSecurityProjection, offerBoundary);
+        authorizationOrder.verify(deploymentSecurityProjection).lockDeploymentsForConsumers(List.of(consumer));
+        authorizationOrder.verify(offerBoundary).requireConsumer(
+            eq(consumer), eq(Operation.APP_CONFIGURE), isNull(), any());
         verify(access).requireCustomerManagementAccess("customer-1");
         verify(audit).record(any(), any(), any(), any());
     }
@@ -185,11 +193,66 @@ class AIWorkspaceInstallationServiceTest {
             ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("Disable");
     }
 
+    @Test
+    void editingDisabledInstallationReturnsItToDraftAndProjectsItsOrigins() throws Exception {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        PlatformConsumerEntity consumer = consumer();
+        when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
+        when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "northfield-web"))
+            .thenReturn(Optional.of(consumer));
+        AIWorkspaceInstallationEntity disabled = configuredInstallation();
+        disabled.setStatus(AIWorkspaceInstallationStatus.DISABLED);
+        disabled.setDisabledAt(Instant.now());
+        when(repository.findByCustomerIdAndInstallationId("customer-1", disabled.getInstallationId()))
+            .thenReturn(Optional.of(disabled));
+        when(repository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
+        when(domains.synchronize(any(), any(), any(), any(), any())).thenAnswer(call -> call.getArgument(4));
+        when(domains.summaries(any())).thenReturn(List.of());
+        when(readiness.evaluate(any())).thenAnswer(call -> notReady(call.getArgument(0)));
+        when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
+
+        var result = service().update("customer-1", disabled.getInstallationId(),
+            new UpdateAIWorkspaceInstallationRequest(
+                "northfield-web", "Northfield", "dealership", "1.1.0",
+                "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
+                objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration(),
+                "embedded", null, List.of(), "public", "none", "1.0.0",
+                objectMapper.createObjectNode(), 0L
+            ), "workspace-edit");
+
+        assertThat(result.status()).isEqualTo("DRAFT");
+        assertThat(disabled.getDisabledAt()).isNull();
+        verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+    }
+
+    @Test
+    void activatingReadyInstallationRestoresDeploymentOriginProjection() throws Exception {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        PlatformConsumerEntity consumer = consumer();
+        when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
+        AIWorkspaceInstallationEntity installation = configuredInstallation();
+        installation.setStatus(AIWorkspaceInstallationStatus.DISABLED);
+        when(repository.findByCustomerIdAndInstallationId("customer-1", installation.getInstallationId()))
+            .thenReturn(Optional.of(installation));
+        when(repository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        when(readiness.evaluate(installation)).thenReturn(new AIWorkspaceReadinessSummary(
+            true, installation.getInstallationId(), installation.getConnectionMode().manifestValue(),
+            consumer.getConsumerId(), "deployment-1", "release-1", "https://runtime.example", "assignment-1", List.of()));
+        when(domains.summaries(any())).thenReturn(List.of());
+        when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
+
+        var result = service().activate("customer-1", installation.getInstallationId(), "workspace-activate");
+
+        assertThat(result.status()).isEqualTo("ACTIVE");
+        verify(deploymentSecurityProjection).synchronizeForConsumer(consumer);
+    }
+
     private AIWorkspaceInstallationService service() {
         return new AIWorkspaceInstallationService(
             repository, customers, consumers, access, packs, profiles, authenticationProfiles, validator,
             domains, readiness, assets, audit, objectMapper,
-            offerBoundary
+            offerBoundary, deploymentSecurityProjection
         );
     }
 
@@ -221,6 +284,25 @@ class AIWorkspaceInstallationServiceTest {
         installation.setConnectionMode(AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS);
         installation.setCreatedAt(Instant.now());
         installation.setUpdatedAt(Instant.now());
+        return installation;
+    }
+
+    private AIWorkspaceInstallationEntity configuredInstallation() throws Exception {
+        AIWorkspaceInstallationEntity installation = installation();
+        installation.setStatus(AIWorkspaceInstallationStatus.DRAFT);
+        installation.setExperiencePackCode("dealership");
+        installation.setExperiencePackVersion("1.1.0");
+        installation.setConnectionProfileCode("runtime-anonymous-direct");
+        installation.setConnectionProfileVersion("1.0.0");
+        installation.setDeliveryMode(com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode.EMBEDDED);
+        installation.setInteractionPolicy(
+            com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy.PUBLIC);
+        installation.setAuthProfileCode("none");
+        installation.setAuthProfileVersion("1.0.0");
+        installation.setAuthConfigurationJson("{}");
+        installation.setConnectionConfigurationJson("{}");
+        installation.setAllowedOriginsJson("[\"https://dealer.example\"]");
+        installation.setConfigurationJson(objectMapper.writeValueAsString(dealershipConfiguration()));
         return installation;
     }
 

@@ -24,4 +24,9 @@ public interface AIWorkspaceInstallationRepository extends JpaRepository<AIWorks
         String consumerEntityId,
         Collection<AIWorkspaceInstallationStatus> statuses
     );
+
+    List<AIWorkspaceInstallationEntity> findByConsumerEntityIdInAndStatusIn(
+        Collection<String> consumerEntityIds,
+        Collection<AIWorkspaceInstallationStatus> statuses
+    );
 }
