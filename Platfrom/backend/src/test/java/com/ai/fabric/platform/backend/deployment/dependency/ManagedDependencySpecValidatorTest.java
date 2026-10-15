@@ -48,4 +48,16 @@ class ManagedDependencySpecValidatorTest {
         assertThatThrownBy(() -> ManagedDependencyLifecycleService.https("http://production.example.test/callback"))
             .hasMessageContaining("DEPENDENCY_TRUSTED_HTTPS_REQUIRED");
     }
+
+    @Test void serviceHostIsAllowedOnlyForAReviewedDependencyService() {
+        var spec = ManagedDependencyFixtures.topology();
+        validator.validate(spec);
+
+        var invalid = new ManagedDependencySpec(spec.schemaVersion(), spec.services(),
+            List.of(new ManagedDependencySpec.RuntimeEnvironmentBinding(
+                ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "UNTRUSTED_HOST",
+                new ManagedDependencySpec.Value(ManagedDependencySpec.ValueKind.SERVICE_HOST, "missing"))));
+        assertThatThrownBy(() -> validator.validate(invalid)).hasMessageContaining("RUNTIME_BINDING_INVALID");
+    }
 }

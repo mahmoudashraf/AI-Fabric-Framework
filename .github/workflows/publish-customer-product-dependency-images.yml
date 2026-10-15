@@ -1,0 +1,161 @@
+name: Publish Customer Product Dependency Images
+
+on:
+  push:
+    branches:
+      - Platform-V11
+    paths:
+      - ".github/workflows/publish-customer-product-dependency-images.yml"
+      - "verification-support/external-vehicle-provider-simulator/**"
+      - "product-demos/autotrader-dealership-demo/backend/**"
+      - "product-services/basic-loomai-inbox-service/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: customer-product-dependency-images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  changes:
+    name: Resolve affected dependency images
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.scope.outputs.matrix }}
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve build scope
+        id: scope
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          simulator=false
+          dealership=false
+          inbox=false
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+            simulator=true
+            dealership=true
+            inbox=true
+          else
+            while IFS= read -r path; do
+              case "$path" in
+                .github/workflows/publish-customer-product-dependency-images.yml)
+                  simulator=true
+                  dealership=true
+                  inbox=true
+                  ;;
+                verification-support/external-vehicle-provider-simulator/*)
+                  simulator=true
+                  ;;
+                product-demos/autotrader-dealership-demo/backend/*)
+                  dealership=true
+                  ;;
+                product-services/basic-loomai-inbox-service/*)
+                  inbox=true
+                  ;;
+              esac
+            done < <(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")
+          fi
+
+          matrix="$(jq -cn \
+            --argjson simulator "$simulator" \
+            --argjson dealership "$dealership" \
+            --argjson inbox "$inbox" \
+            '{include: [
+              {enabled: $simulator, name: "external-vehicle-provider-simulator", image: "loomai-external-vehicle-provider-simulator", dockerfile: "verification-support/external-vehicle-provider-simulator/deploy/container/Dockerfile", pom: "verification-support/external-vehicle-provider-simulator/pom.xml", cache: "external-vehicle-provider-simulator"},
+              {enabled: $dealership, name: "dealership-demo-backend", image: "loomai-dealership-demo-backend", dockerfile: "product-demos/autotrader-dealership-demo/backend/Dockerfile", pom: "product-demos/autotrader-dealership-demo/backend/pom.xml", cache: "dealership-demo-backend"},
+              {enabled: $inbox, name: "basic-loomai-inbox-service", image: "loomai-basic-inbox-service", dockerfile: "product-services/basic-loomai-inbox-service/deploy/container/Dockerfile", pom: "product-services/basic-loomai-inbox-service/pom.xml", cache: "basic-loomai-inbox-service"}
+            ] | map(select(.enabled) | del(.enabled))}')"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run focused service tests
+        run: mvn -B -ntp -f "${{ matrix.pom }}" test
+
+  publish:
+    name: Publish ${{ matrix.name }} image
+    needs: [changes, verify]
+    if: needs.changes.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Capture build time
+        id: build
+        shell: bash
+        run: echo "time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish immutable image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.build.outputs.time }}
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+
+      - name: Record immutable image identity
+        shell: bash
+        run: |
+          {
+            echo "## ${{ matrix.name }} image"
+            echo
+            echo "- Image: \`${REGISTRY}/${{ github.repository_owner }}/${{ matrix.image }}:${GITHUB_SHA}\`"
+            echo "- Digest: \`${{ steps.image.outputs.digest }}\`"
+            echo "- Source: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

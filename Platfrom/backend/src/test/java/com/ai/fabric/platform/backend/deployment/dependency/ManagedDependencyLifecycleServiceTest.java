@@ -210,6 +210,7 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(runtimeEnvironment.runtime()).isEmpty();
         assertThat(runtimeEnvironment.connector())
             .containsEntry("MANAGED_SIMULATOR_BASE_URL", "https://dep-" + pending.graphId().substring(4) + "-simulator.example.test")
+            .containsEntry("MANAGED_SIMULATOR_HOST", "dep-" + pending.graphId().substring(4) + "-simulator.example.test")
             .containsEntry("MANAGED_INBOX_BASE_URL", "https://dep-" + pending.graphId().substring(4) + "-inbox.example.test")
             .containsEntry("MANAGED_SIMULATOR_ACCOUNT_ID", store.state(graphs.get(pending.graphId())).nodes.getFirst().accountId);
         assertThat(runtimeEnvironment.connector().get("MANAGED_SIMULATOR_API_KEY"))

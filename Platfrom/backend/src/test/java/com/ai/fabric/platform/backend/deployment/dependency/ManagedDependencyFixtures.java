@@ -47,6 +47,8 @@ public final class ManagedDependencyFixtures {
             List.of(
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_SIMULATOR_BASE_URL",
                     new Value(ValueKind.SERVICE_URL, "simulator")),
+                new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_SIMULATOR_HOST",
+                    new Value(ValueKind.SERVICE_HOST, "simulator")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_SIMULATOR_API_KEY",
                     new Value(ValueKind.SERVICE_SECRET, "api", "simulator")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_SIMULATOR_ACCOUNT_ID",

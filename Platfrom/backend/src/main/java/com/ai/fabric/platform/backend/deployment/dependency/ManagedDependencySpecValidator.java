@@ -82,7 +82,8 @@ public class ManagedDependencySpecValidator {
                 fail("RUNTIME_BINDING_INVALID");
             }
             var value = binding.value();
-            if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL) {
+            if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL
+                || value.kind() == ManagedDependencySpec.ValueKind.SERVICE_HOST) {
                 if (!available.contains(value.reference()) || value.serviceSlot() != null) fail("RUNTIME_BINDING_INVALID");
             } else if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_SECRET) {
                 if (!available.contains(value.serviceSlot()) || value.reference() == null
