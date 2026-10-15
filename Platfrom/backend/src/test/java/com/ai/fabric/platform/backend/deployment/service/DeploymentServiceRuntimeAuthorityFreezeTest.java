@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
@@ -54,6 +55,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     private final DeploymentRuntimeAuthorityService authorities = mock(DeploymentRuntimeAuthorityService.class);
     private final CustomerOfferDeploymentRepository offerDeployments = mock(CustomerOfferDeploymentRepository.class);
     private final TargetRetirementGateService retirement = mock(TargetRetirementGateService.class);
+    private final AdmissionReleaseCoordinator admission = mock(AdmissionReleaseCoordinator.class);
     private final DeploymentAccessService access = mock(DeploymentAccessService.class);
     private final DeploymentReleaseRecoveryService recovery = mock(DeploymentReleaseRecoveryService.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -99,6 +101,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
 
         service = service();
         ReflectionTestUtils.setField(service, "retirementGates", retirement);
+        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
         ReflectionTestUtils.setField(service, "offerBoundary",
             mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class));
     }
@@ -136,6 +139,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             deployment.getId(), target.getId(), release.getValue().getId(),
             candidate.snapshotId(), candidate.fingerprint()
         );
+        verify(admission).bind(deployment, version, release.getValue());
         verify(access).requireDeploymentOperatorAccess(deployment);
         var order = inOrder(authorities, releases, execution);
         order.verify(authorities).freezeCandidateForAuthorizedApply(anyString(), anyString(), anyString(), any());

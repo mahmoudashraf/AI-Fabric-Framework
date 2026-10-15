@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -13,6 +14,7 @@ public class AdmissionPromotionRetirementScheduler {
     private final AdmissionStore store;
     private final Clock clock;
 
+    @Autowired
     public AdmissionPromotionRetirementScheduler(AdmissionStore store) {
         this(store, Clock.systemUTC());
     }

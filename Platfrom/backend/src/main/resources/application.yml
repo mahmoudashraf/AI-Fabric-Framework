@@ -147,10 +147,14 @@ platform:
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
   deployment:
     admission:
+      release:
+        worker-enabled: ${PLATFORM_ADMISSION_RELEASE_WORKER_ENABLED:false}
+        initial-delay: ${PLATFORM_ADMISSION_RELEASE_INITIAL_DELAY:PT30S}
+        poll-delay: ${PLATFORM_ADMISSION_RELEASE_POLL_DELAY:PT30S}
       lifecycle:
         worker-enabled: ${PLATFORM_ADMISSION_LIFECYCLE_WORKER_ENABLED:false}
-        initial-delay: ${PLATFORM_ADMISSION_LIFECYCLE_INITIAL_DELAY:30s}
-        poll-delay: ${PLATFORM_ADMISSION_LIFECYCLE_POLL_DELAY:30s}
+        initial-delay: ${PLATFORM_ADMISSION_LIFECYCLE_INITIAL_DELAY:PT30S}
+        poll-delay: ${PLATFORM_ADMISSION_LIFECYCLE_POLL_DELAY:PT30S}
         batch-size: ${PLATFORM_ADMISSION_LIFECYCLE_BATCH_SIZE:32}
         notice-transport-reference: ${PLATFORM_ADMISSION_NOTICE_TRANSPORT_REFERENCE:loomai-admission-console-smtp-v1}
         console-enabled: ${PLATFORM_ADMISSION_CONSOLE_NOTICES_ENABLED:false}

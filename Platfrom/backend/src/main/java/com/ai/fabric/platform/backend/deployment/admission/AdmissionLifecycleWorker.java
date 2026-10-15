@@ -54,8 +54,8 @@ final class AdmissionLifecycleWorker {
         this.clock = clock;
     }
 
-    @Scheduled(initialDelayString = "${platform.deployment.admission.lifecycle.initial-delay:30s}",
-        fixedDelayString = "${platform.deployment.admission.lifecycle.poll-delay:30s}")
+    @Scheduled(initialDelayString = "${platform.deployment.admission.lifecycle.initial-delay:PT30S}",
+        fixedDelayString = "${platform.deployment.admission.lifecycle.poll-delay:PT30S}")
     void reconcile() {
         store.lifecycleBatch(properties.batchSize()).forEach(this::reconcileSafely);
     }

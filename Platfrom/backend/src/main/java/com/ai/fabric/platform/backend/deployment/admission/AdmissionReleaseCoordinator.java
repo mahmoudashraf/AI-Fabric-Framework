@@ -8,7 +8,6 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,8 +92,6 @@ public class AdmissionReleaseCoordinator {
         }
     }
 
-    @Scheduled(initialDelayString = "${platform.deployment.admission.release.initial-delay:30s}",
-        fixedDelayString = "${platform.deployment.admission.release.poll-delay:30s}")
     void reconcile() {
         for (String releaseId : store.unsettledReleases(32)) {
             try { observe(releaseId); }
