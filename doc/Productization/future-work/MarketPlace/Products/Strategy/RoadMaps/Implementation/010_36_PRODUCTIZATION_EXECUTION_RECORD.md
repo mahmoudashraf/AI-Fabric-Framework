@@ -7,14 +7,12 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 ## Execution Gates
 
 - P0: source contract implemented and integrated; prerequisite acceptance is in
-  progress. The owner supplied the non-secret customer-owned S3 canary contract,
-  but the four credential fields in the current ignored private handoff contain
-  `<pending>` placeholders. Historical sanitized evidence shows the previously
-  supplied identities were denied the `s3:GetBucketVersioning` read required to
-  prove the storage posture. The prefix-isolation/read-only live gate therefore
-  needs restored private credentials, the narrow bucket permission correction,
-  and a passing sanitized evidence record. Do not substitute managed storage or
-  claim the storage gate passed from fixture tests.
+  progress. The customer-owned S3 canary contract and separate private
+  credentials were recovered from the owner-only private auth handoff. The live
+  storage verifier now passes the exact bucket posture, identity separation,
+  prefix isolation, bounded object reads and write/delete denial. Other P0
+  capacity, lifecycle, notification and operating prerequisites remain open;
+  do not substitute this storage result for complete offer admission.
 - P1-P5: source foundations are integrated. The immutable three-service managed
   dependency package is published and read back on both hosted control planes,
   and the customer-safe admission reservation plus staff-only reviewed-record
@@ -195,6 +193,13 @@ complete dealership topology. No resources were removed or redeployed.
   reads, unversioned state, non-mutating write/delete denial and sanitized
   evidence, including rejection of credential files with group/other access.
   These tests validate the verifier, not the live bucket identities.
+- The live S3 verifier later passed with evidence level
+  `LIVE_AWS_READ_AND_NON_MUTATING_PERMISSION_PROBES`. It observed the exact
+  `eu-north-1` native endpoint, unversioned state, separate staging/production
+  principals, three UTF-8 text objects per prefix, denied cross-prefix
+  list/head/get, and denied put/delete with the sampled objects unchanged.
+  Sanitized evidence is tracked at
+  `verification-support/productization-01036/evidence/s3-canary-2026-10-15T12-51-55-413Z.json`.
 - AI Fabric `0.8.33` was released from framework commit `b1a0ac2c`, tag
   `ai-fabric-framework-v0.8.33`. Its Maven Central workflow completed
   successfully and Central serves the BOM, core, execution, starter, source and
@@ -344,10 +349,10 @@ changed by the package-publication check.
 
 ### Remaining Before Admission
 
-Restore the four private S3 credential values, grant both canary identities
-`s3:GetBucketVersioning` on the exact bucket, and run the live customer-owned S3
-isolation verifier. Then bind and index the exact staging and production
-prefixes.
+Bind and index the exact verified staging and production S3 prefixes through
+their target-scoped write-only secret bindings. Prove independent indexing,
+citation retrieval, refresh/removal and cross-target denial without adding a
+source upload or write path.
 Verify immutable dependency artifacts, actual staging/production placement,
 resource envelopes, notification/recovery evidence, repeated same-target runtime
 replacement, restart recovery, S3 indexing and cross-target denial. Complete the
@@ -381,13 +386,13 @@ the only open gate.
 
 The first live verifier run on 2026-10-14 failed closed before object
 inspection with sanitized code `ACCESS_DENIED`. Neither prefix-scoped identity
-can currently call the read-only bucket configuration operation
+could then call the read-only bucket configuration operation
 `s3:GetBucketVersioning`. The verifier therefore cannot independently prove
 that versioning remains disabled before its non-mutating write/delete denial
-probes. Do not weaken or bypass this gate. Grant both canary identities
-`s3:GetBucketVersioning` on the exact bucket ARN only, retain all existing
-prefix/object restrictions, and rerun the live verifier. No object or bucket
-mutation occurred during the failed run.
+probes. The identities were subsequently granted only
+`s3:GetBucketVersioning` on the exact bucket ARN while retaining the existing
+prefix/object restrictions. No object or bucket mutation occurred during the
+failed run.
 
 The reviewed native AWS canary contract now uses a private bucket in
 `eu-north-1`, endpoint `https://s3.eu-north-1.amazonaws.com`, exact prefixes
@@ -401,11 +406,11 @@ Earlier on 2026-10-15, four canary credential values were consumed without
 printing or copying them into tracked files. The live verifier failed at the
 bucket-versioning read described above. Sanitized evidence is recorded at
 `verification-support/productization-01036/evidence/s3-canary-2026-10-15T01-46-39-446Z.json`.
-The current ignored handoff now contains `<pending>` placeholders rather than
-the values, so the next run requires both restoring the credentials and the
-narrowly scoped bucket permission correction. Credential values must remain
-private and must never be copied into this ledger or a deployment-readable
-public manifest.
+The owner-only private auth handoff contains the corrected separate identities.
+The rerun passed at `2026-10-15T12:51:55.413Z`; its tracked sanitized evidence
+is the passing record linked above. Credential values remain private and were
+not copied into this ledger, process output, or a deployment-readable public
+manifest.
 
 `verification-support/productization-01036/verify-s3-canary.mjs` validates the
 exact non-secret contract, actual unversioned state, separate principals,

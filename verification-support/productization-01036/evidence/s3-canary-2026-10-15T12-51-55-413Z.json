@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-15T12:51:55.413Z",
+  "status": "PASS",
+  "evidenceLevel": "LIVE_AWS_READ_AND_NON_MUTATING_PERMISSION_PROBES",
+  "tool": {
+    "name": "loomai-01036-s3-canary",
+    "awsCli": {
+      "version": "2.38.1",
+      "conditionalPutIfMatch": true,
+      "conditionalDeleteIfMatch": true
+    }
+  },
+  "contract": {
+    "bucketFingerprint": "e612e842004134dbb9aa342c39d8155b4260ad07a5c20aab223820ba96727a6f",
+    "region": "eu-north-1",
+    "endpoint": "https://s3.eu-north-1.amazonaws.com",
+    "pathStyleAccess": false,
+    "objectVersioningAvailable": false,
+    "stagingPrefixFingerprint": "ed9a720b3d65093e255a4b447111863c327ea6a35ca98f5d026210f7b7ec5838",
+    "productionPrefixFingerprint": "434d427af89ab0945d14d06bc173a1336838186798114954c51cb02b02757ae2"
+  },
+  "versioning": {
+    "expectedEnabled": false,
+    "observedStatus": "UNVERSIONED"
+  },
+  "identitySeparation": {
+    "stagingPrincipalFingerprint": "26ebd277d7aea9f5385d907273e4466b74763267c6ff48322b9a4a5402a0aaae",
+    "productionPrincipalFingerprint": "eb6bcc6cf1969a3a9051fde6c7895634199b0f4efc2412cd88ff3cc5f059c0b7",
+    "separate": true
+  },
+  "scopes": {
+    "staging": {
+      "prefixFingerprint": "ed9a720b3d65093e255a4b447111863c327ea6a35ca98f5d026210f7b7ec5838",
+      "listedObjectCount": 3,
+      "utf8TextObjectCount": 3,
+      "manifestFingerprint": "5a4e3044959b0bae2fa7ee0993162a793cd1bec47e9460f7241c7ab8f8df06e8",
+      "objects": [
+        {
+          "objectKeyFingerprint": "47af021838fd621bac1053e7da74cccdb628111fcc6099f2e8d90437633515bd",
+          "metadataFingerprint": "9171945830c33fd9a6083e73a7a88c8c3a121b68704a3b1bee5475349a7b7cf1",
+          "contentSha256": "c135fb9d6ab898d1edabd8e56efc6fe3c97326c711baf8e10a27a02894ff8925",
+          "bytes": 290,
+          "mediaType": "text/plain; charset=utf-8"
+        },
+        {
+          "objectKeyFingerprint": "5a33b56f7a12ea42fe2c2b6889cdae3aa525aa2525c540c189a0bb6e024c9c96",
+          "metadataFingerprint": "29d7709674995edb30582e3d088f0f9952800ed73849941ff17cc3c8f59e3acc",
+          "contentSha256": "151bfae2cf1c78813cde80798f38d846eafe5bfe6e32db3aa5ddb9acebfd4499",
+          "bytes": 327,
+          "mediaType": "text/plain; charset=utf-8"
+        },
+        {
+          "objectKeyFingerprint": "a00d0951dfab148cdd9a9f2da5bc54d3f29f8bd4b016cb39f3bd4b54cfbeec54",
+          "metadataFingerprint": "426083d35196a2fcf9b107e2d6123a222198c847a54647b5d563d9c87ccc86f5",
+          "contentSha256": "f72c9708a1fc25c1e487ac987a3cad3862d6c2c4e3cb3fcb03a12abc7ec0ba7a",
+          "bytes": 298,
+          "mediaType": "text/plain; charset=utf-8"
+        }
+      ],
+      "crossPrefix": {
+        "list": "ACCESS_DENIED",
+        "head": "ACCESS_DENIED",
+        "get": "ACCESS_DENIED"
+      },
+      "mutationDenial": {
+        "put": "ACCESS_DENIED",
+        "delete": "ACCESS_DENIED",
+        "objectUnchanged": true
+      }
+    },
+    "production": {
+      "prefixFingerprint": "434d427af89ab0945d14d06bc173a1336838186798114954c51cb02b02757ae2",
+      "listedObjectCount": 3,
+      "utf8TextObjectCount": 3,
+      "manifestFingerprint": "dd2410b592b3feb7f55e5f9768d6204e1b7f916aba37770006c48248480f5cf9",
+      "objects": [
+        {
+          "objectKeyFingerprint": "6e2611ff8c28463fcae7a43eeefdbdb7163e7956721345e7eb4c70fc64fe1105",
+          "metadataFingerprint": "1ce12eddee4ac075598b5d83d71855db8ec810741f8d1ff2b70ab855426abc4f",
+          "contentSha256": "8fa12ec8f8637d3fa10641674816a6196118f306f1c34ef5fae01dd1b6bfce14",
+          "bytes": 330,
+          "mediaType": "text/plain; charset=utf-8"
+        },
+        {
+          "objectKeyFingerprint": "c3e1c48ec9e2edfa0c7a5a7b985322c4cc27bde0255e7e0d0807810d80489c43",
+          "metadataFingerprint": "c059966ba4b9ca3c8183a05408fed52c009457d22f799c8e5ab8601b9de26c6f",
+          "contentSha256": "d79699eeadcf18adbfa403fe4346b86ffa4111dc6dda0056c0dab19a66ff6c6a",
+          "bytes": 301,
+          "mediaType": "text/plain; charset=utf-8"
+        },
+        {
+          "objectKeyFingerprint": "d30060b2fcbdce3ad384e03a09f8a6b339ca3863eefca2bb80807b5fba7f23ce",
+          "metadataFingerprint": "ff3dcdc845070ddae9407dab06910a29eab00f62475d249b3b15eceedf54e2eb",
+          "contentSha256": "7b79a4d84af009c5c0677c3341210ed298568525f0d8d30f206dc62f43052fc1",
+          "bytes": 293,
+          "mediaType": "text/plain; charset=utf-8"
+        }
+      ],
+      "crossPrefix": {
+        "list": "ACCESS_DENIED",
+        "head": "ACCESS_DENIED",
+        "get": "ACCESS_DENIED"
+      },
+      "mutationDenial": {
+        "put": "ACCESS_DENIED",
+        "delete": "ACCESS_DENIED",
+        "objectUnchanged": true
+      }
+    }
+  }
+}
