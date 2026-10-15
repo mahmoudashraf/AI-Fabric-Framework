@@ -872,6 +872,8 @@ public class MarketplaceManifestService {
                 }
                 if (sourceProjectionPresent) {
                     validateSourceProjectionActionRoute(plugin, version, actionId.trim(), route, sourceProjection);
+                } else if (StringUtils.hasText(managedUrlField)) {
+                    validateManagedActionRoute(plugin, version, actionId.trim(), route);
                 } else if (StringUtils.hasText(route.path("connectionProfileRef").asText(""))) {
                     validateProviderActionRoute(plugin, version, actionId.trim(), route);
                 }
@@ -1294,10 +1296,6 @@ public class MarketplaceManifestService {
             prefix + "protectedResourceBindingRef"
         );
         requireRelativePath(plugin, version, route.path("path").asText(""), prefix + "path");
-        String method = normalizeUppercaseValue(route.path("method").asText(""));
-        if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE").contains(method)) {
-            throw invalid(plugin, version, prefix + "method is unsupported.");
-        }
         requireCapabilityArray(
             plugin,
             version,
@@ -1311,6 +1309,33 @@ public class MarketplaceManifestService {
             route.path("path").asText(""),
             prefix
         );
+        validateHttpActionRouteShape(plugin, version, route, prefix);
+    }
+
+    private void validateManagedActionRoute(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            String actionId,
+                                            JsonNode route) {
+        String prefix = "action '" + actionId + "' managed route ";
+        for (String unsupported : List.of(
+            "connectionProfileRef", "protectedResourceBindingRef", "requiredCapabilityGrants",
+            "trustedResourcePlacements"
+        )) {
+            if (route.has(unsupported) && !route.path(unsupported).isNull()) {
+                throw invalid(plugin, version, prefix + "must not declare " + unsupported + ".");
+            }
+        }
+        validateHttpActionRouteShape(plugin, version, route, prefix);
+    }
+
+    private void validateHttpActionRouteShape(MarketplacePluginEntity plugin,
+                                              MarketplacePluginVersionEntity version,
+                                              JsonNode route,
+                                              String prefix) {
+        String method = normalizeUppercaseValue(route.path("method").asText(""));
+        if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE").contains(method)) {
+            throw invalid(plugin, version, prefix + "method is unsupported.");
+        }
         if (StringUtils.hasText(route.path("idempotencyHeader").asText(""))) {
             requireHttpHeaderName(
                 plugin,

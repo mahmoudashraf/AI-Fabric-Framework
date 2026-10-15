@@ -116,6 +116,9 @@ class MarketplaceManifestServiceTest {
         assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(
             manifest.replace("\"type\": \"secretRef\"", "\"type\": \"text\"")
         ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("managed header field");
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(
+            manifest.replace("\"method\": \"POST\"", "\"method\": \"CONNECT\"")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("method is unsupported");
     }
 
     @Test
