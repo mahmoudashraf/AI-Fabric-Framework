@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
+import { mkdir } from 'node:fs/promises'
 import http from 'node:http'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from 'playwright'
 
@@ -22,6 +24,7 @@ const installations = new Map([
   ['app-two.localhost', app('awi_pub_app_two', 'App Two', 'public', 'none')],
   ['secure.localhost', app('awi_pub_secure', 'Secure App', 'login-required', 'supabase')],
   ['mixed.localhost', app('awi_pub_mixed', 'Mixed App', 'public-with-protected-capabilities', 'supabase')],
+  ['magic.localhost', app('awi_pub_magic', 'Magic Link App', 'public-with-protected-capabilities', 'supabase', ['magic-link'])],
 ])
 
 let platformServer
@@ -97,6 +100,54 @@ test('login-required policy blocks installation until Supabase identity succeeds
   assert.equal(await page.locator('#installed-workspace').getAttribute('data-identity'), 'authenticated')
   await page.close()
 })
+
+for (const width of [320, 390]) {
+  test(`sign-in controls remain reachable at ${width}px with a keyboard-reduced viewport and safe areas`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true })
+    try {
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 28, bottom: 20, left: 20, right: 18 } })
+      await page.addInitScript(({ width }) => {
+        const viewport = Object.assign(new EventTarget(), {
+          height: 740, width, offsetTop: 0, offsetLeft: 0,
+        })
+        Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+        window.__setAuthViewport = (values) => {
+          Object.assign(viewport, values)
+          viewport.dispatchEvent(new Event('resize'))
+          viewport.dispatchEvent(new Event('scroll'))
+        }
+      }, { width })
+      await page.goto(appUrl('secure.localhost'))
+      await page.locator('#auth-dialog[open]').waitFor()
+      await page.evaluate(() => window.__setAuthViewport({ height: 280, offsetTop: 96 }))
+      await page.getByLabel('Email').fill('member@example.test')
+      await assertAuthControlReachable(page, '#auth-email')
+      assert.equal(await page.getByLabel('Email').evaluate((input) => getComputedStyle(input).fontSize), '16px')
+
+      await page.keyboard.press('Tab')
+      await page.getByLabel('Password').fill('verified-password')
+      await assertAuthControlReachable(page, '#auth-password')
+      await page.evaluate(() => window.__setAuthViewport({ height: 260, offsetTop: 160 }))
+      await assertAuthControlReachable(page, '#auth-password')
+      await page.keyboard.press('Tab')
+      await assertAuthControlReachable(page, '#password-sign-in')
+      assert(await page.locator('#auth-dialog').evaluate((dialog) => dialog.scrollHeight > dialog.clientHeight))
+
+      if (process.env.WORKSPACE_BROWSER_SCREENSHOT_DIR) {
+        await mkdir(process.env.WORKSPACE_BROWSER_SCREENSHOT_DIR, { recursive: true })
+        await page.screenshot({
+          path: resolve(process.env.WORKSPACE_BROWSER_SCREENSHOT_DIR, `auth-keyboard-${width}.png`),
+          clip: { x: 0, y: 160, width, height: 260 },
+        })
+      }
+      await page.keyboard.press('Enter')
+      await page.locator('#installed-workspace[data-identity="authenticated"]').waitFor()
+    } finally {
+      await page.close()
+    }
+  })
+}
 
 test('mixed-mode sign-in clears only anonymous installation state and never replays a request', async () => {
   const page = await browser.newPage()
@@ -191,6 +242,35 @@ test('authentication challenge consumes only the canonical top-level requirement
   })
   await page.locator('#auth-dialog[open]').waitFor()
   await page.close()
+})
+
+test('magic-link initiation sends the nonce-bound callback through the GoTrue redirect_to query', async () => {
+  const page = await browser.newPage()
+  try {
+    await page.goto(`${appUrl('magic.localhost')}account/access?source=workspace#discard-this-fragment`)
+    await page.locator('#installed-workspace').waitFor()
+    await page.evaluate(() => window.LoomAIWorkspaceHost.requestSignIn())
+    await page.getByLabel('Email').fill('member@example.test')
+    const requestPromise = page.waitForRequest((request) => request.method() === 'POST'
+      && new URL(request.url()).pathname === '/auth/v1/otp')
+    await page.getByRole('button', { name: 'Email me a sign-in link', exact: true }).click()
+    const request = await requestPromise
+    const requestUrl = new URL(request.url())
+    assert.deepEqual([...requestUrl.searchParams.keys()], ['redirect_to'])
+    assert.deepEqual(request.postDataJSON(), { email: 'member@example.test', create_user: false })
+    const callback = new URL(requestUrl.searchParams.get('redirect_to'))
+    assert.equal(callback.origin, new URL(appUrl('magic.localhost')).origin)
+    assert.equal(callback.pathname, '/account/access')
+    assert.equal(callback.searchParams.get('source'), 'workspace')
+    assert.equal(callback.hash, '')
+    const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('loomai_engage_magic_link:magic.localhost:awi_pub_magic:supabase')))
+    assert.equal(callback.searchParams.get('loomai_auth_attempt'), pending.attemptId)
+    assert.match(pending.attemptId, /^[a-f0-9-]{36}$/)
+    await page.waitForFunction(() => !document.querySelector('#auth-dialog').open)
+    assert.equal(await page.evaluate(() => window.LoomAIWorkspaceHost.identity.status), 'anonymous')
+  } finally {
+    await page.close()
+  }
 })
 
 test('magic-link callback clears anonymous state before mounting authenticated workspace', async () => {
@@ -608,8 +688,26 @@ test('slow provider logout revokes local authority immediately and fails within 
   await page.close()
 })
 
-function app(installationId, displayName, interactionPolicy, profileCode) {
-  return { installationId, displayName, interactionPolicy, profileCode }
+async function assertAuthControlReachable(page, selector) {
+  await page.waitForFunction((selector) => {
+    const control = document.querySelector(selector)
+    const dialog = document.querySelector('#auth-dialog')
+    const bounds = dialog.getBoundingClientRect()
+    const field = control.getBoundingClientRect()
+    const viewport = window.visualViewport
+    return document.activeElement === control
+      && bounds.top >= viewport.offsetTop + 28 - 1
+      && bounds.bottom <= viewport.offsetTop + viewport.height - 20 + 1
+      && bounds.left >= viewport.offsetLeft + 20 - 1
+      && bounds.right <= viewport.offsetLeft + viewport.width - 18 + 1
+      && bounds.left >= 0 && bounds.right <= window.innerWidth + 1
+      && field.top >= bounds.top - 1 && field.bottom <= bounds.bottom + 1
+      && field.left >= bounds.left - 1 && field.right <= bounds.right + 1
+  }, selector)
+}
+
+function app(installationId, displayName, interactionPolicy, profileCode, methods = ['email-password']) {
+  return { installationId, displayName, interactionPolicy, profileCode, methods }
 }
 
 function appUrl(hostname) {
@@ -646,7 +744,7 @@ async function platformHandler(request, response) {
           ? {
               projectUrl: `http://127.0.0.1:${platformPort}`,
               publishableKey: 'public-test-key',
-              methods: ['email-password'],
+              methods: binding.methods,
             }
           : {},
       },
@@ -692,6 +790,10 @@ async function platformHandler(request, response) {
   }
   if (request.url === '/auth/v1/user') {
     json(response, 200, { id: 'user-verified-1', email: 'member@example.test' })
+    return
+  }
+  if (new URL(request.url, 'http://localhost').pathname === '/auth/v1/otp' && request.method === 'POST') {
+    json(response, 200, {})
     return
   }
   if (request.url === '/auth/v1/logout?scope=local' && request.method === 'POST') {

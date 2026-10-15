@@ -67,6 +67,10 @@ const PROVIDER_REQUEST_TIMEOUT_MS = 5_000
 const MAGIC_LINK_ATTEMPT_TTL_MS = 15 * 60 * 1_000
 const AUTHENTICATION_REQUIREMENT_SCHEMA = 'loomai-workspace-authentication-requirement-v1'
 
+window.visualViewport?.addEventListener('resize', updateAuthDialogViewport)
+window.visualViewport?.addEventListener('scroll', updateAuthDialogViewport)
+window.addEventListener('resize', updateAuthDialogViewport)
+authDialog.addEventListener('focusin', () => requestAnimationFrame(keepAuthDialogFocusVisible))
 retryButton.addEventListener('click', () => void start())
 authClose.addEventListener('click', () => authDialog.close())
 authDialog.addEventListener('close', cancelLogin)
@@ -195,7 +199,26 @@ function openSignIn(closable = true) {
   if (!bootstrap || bootstrap.authentication.profileCode !== 'supabase') return
   authClose.classList.toggle('hidden', !closable && bootstrap.interactionPolicy === 'login-required')
   clearAuthError()
+  updateAuthDialogViewport()
   if (!authDialog.open) authDialog.showModal()
+}
+
+function updateAuthDialogViewport() {
+  const viewport = window.visualViewport
+  authDialog.style.setProperty('--auth-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
+  authDialog.style.setProperty('--auth-viewport-width', `${viewport?.width ?? window.innerWidth}px`)
+  authDialog.style.setProperty('--auth-viewport-top', `${viewport?.offsetTop ?? 0}px`)
+  authDialog.style.setProperty('--auth-viewport-left', `${viewport?.offsetLeft ?? 0}px`)
+  requestAnimationFrame(keepAuthDialogFocusVisible)
+}
+
+function keepAuthDialogFocusVisible() {
+  const focused = document.activeElement
+  if (!authDialog.open || !(focused instanceof HTMLElement) || !authDialog.contains(focused)) return
+  const bounds = authDialog.getBoundingClientRect()
+  const control = focused.getBoundingClientRect()
+  if (control.top < bounds.top + 12) authDialog.scrollTop -= bounds.top + 12 - control.top
+  else if (control.bottom > bounds.bottom - 12) authDialog.scrollTop += control.bottom - bounds.bottom + 12
 }
 
 async function signInWithPassword() {
@@ -252,10 +275,12 @@ async function sendMagicLink() {
   setAuthBusy(true)
   clearAuthError()
   try {
-    const response = await fetch(`${auth.projectUrl}/auth/v1/otp`, {
+    const endpoint = new URL(`${auth.projectUrl}/auth/v1/otp`)
+    endpoint.searchParams.set('redirect_to', redirect.toString())
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: auth.publishableKey },
-      body: JSON.stringify({ email: authEmail.value.trim(), create_user: false, options: { email_redirect_to: redirect.toString() } }),
+      body: JSON.stringify({ email: authEmail.value.trim(), create_user: false }),
       signal: request.signal,
     })
     if (request.signal.aborted || generation !== authenticationGeneration) return

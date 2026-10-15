@@ -65,16 +65,33 @@ h2 { font-size: 26px; }
 #retry-button { margin-top: 22px; }
 
 dialog {
-  width: min(460px, calc(100vw - 32px));
+  --auth-space-top: max(12px, env(safe-area-inset-top, 0px));
+  --auth-space-right: max(16px, env(safe-area-inset-right, 0px));
+  --auth-space-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  --auth-space-left: max(16px, env(safe-area-inset-left, 0px));
+  --auth-available-height: max(0px, calc(var(--auth-viewport-height, 100dvh) - var(--auth-space-top) - var(--auth-space-bottom)));
+  --auth-available-width: max(0px, calc(var(--auth-viewport-width, 100vw) - var(--auth-space-left) - var(--auth-space-right)));
+  position: fixed;
+  inset: auto;
+  top: calc(var(--auth-viewport-top, 0px) + var(--auth-space-top) + var(--auth-available-height) / 2);
+  left: calc(var(--auth-viewport-left, 0px) + var(--auth-space-left) + var(--auth-available-width) / 2);
+  transform: translate(-50%, -50%);
+  width: min(460px, var(--auth-available-width));
+  max-width: var(--auth-available-width);
+  max-height: var(--auth-available-height);
+  margin: 0;
   border: 0;
   border-radius: 8px;
   padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 12px;
   box-shadow: 0 24px 80px rgba(7, 25, 57, 0.24);
 }
 dialog::backdrop { background: rgba(7, 17, 38, 0.52); backdrop-filter: blur(5px); }
 #auth-form { position: relative; display: grid; gap: 18px; padding: 32px; }
 #auth-form label { display: grid; gap: 7px; font-size: 13px; font-weight: 750; color: #253858; }
-#auth-form input { min-height: 46px; border: 1px solid #b9c9e8; border-radius: 6px; padding: 0 13px; font: inherit; }
+#auth-form input { min-width: 0; width: 100%; min-height: 46px; border: 1px solid #b9c9e8; border-radius: 6px; padding: 0 13px; font: inherit; font-size: 16px; }
 #auth-form input:focus { outline: 2px solid #74a2ff; outline-offset: 1px; }
 .icon-button { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; font-size: 26px; cursor: pointer; }
 .auth-actions { display: grid; gap: 10px; }
