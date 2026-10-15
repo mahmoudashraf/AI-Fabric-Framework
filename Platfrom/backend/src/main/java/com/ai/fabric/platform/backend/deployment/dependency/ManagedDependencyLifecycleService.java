@@ -404,6 +404,7 @@ public class ManagedDependencyLifecycleService {
                 case ORIGINS -> String.join(",", state.origins);
                 case PUBLIC_URL -> "https://" + node.serviceRef + "." + connection.config().defaultPublicDomainSuffix().replaceFirst("^\\.", "");
                 case SERVICE_URL -> node(state, value.reference()).baseUrl;
+                case SERVICE_URL_PATH -> joinServiceUrl(node(state, value.serviceSlot()).baseUrl, value.reference());
                 case SERVICE_HOST -> serviceHost(node(state, value.reference()).baseUrl);
                 case DATABASE_JDBC -> provisioning.ownedDependencyDatabaseJdbc(connection, databaseUuid);
                 case DATABASE_USERNAME -> "dependency";
@@ -499,6 +500,10 @@ public class ManagedDependencyLifecycleService {
                 ? value.reference() : value.serviceSlot());
             String resolved = switch (value.kind()) {
                 case SERVICE_URL -> owned.baseUrl == null ? plannedPublicUrl(owned, connection) : owned.baseUrl;
+                case SERVICE_URL_PATH -> joinServiceUrl(
+                    owned.baseUrl == null ? plannedPublicUrl(owned, connection) : owned.baseUrl,
+                    value.reference()
+                );
                 case SERVICE_HOST -> serviceHost(owned.baseUrl == null ? plannedPublicUrl(owned, connection) : owned.baseUrl);
                 case SERVICE_SECRET -> "${secret:" + owned.secrets.get(value.reference()) + "}";
                 case ACCOUNT_ID -> owned.accountId;
@@ -510,6 +515,13 @@ public class ManagedDependencyLifecycleService {
                 .put(binding.name(), resolved);
         }
         return new RuntimeEnvironmentProjection(runtime, connector);
+    }
+
+    private String joinServiceUrl(String baseUrl, String relativePath) {
+        if (baseUrl == null || baseUrl.isBlank() || relativePath == null || !relativePath.startsWith("/")) {
+            fail("DEPENDENCY_SERVICE_URL_PATH_INVALID");
+        }
+        return baseUrl.replaceFirst("/+$", "") + relativePath;
     }
 
     private String serviceHost(String baseUrl) {

@@ -386,6 +386,43 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileActionContributionResolvesManagedReceiverUrlAndSecretHeader() throws Exception {
+        JsonNode action = objectMapper.readTree("""
+            {
+              "actionId": "create_request",
+              "adapterType": "connector-http",
+              "readOnly": false,
+              "confirmationRequired": true,
+              "route": {
+                "managedUrlField": "receiverActionUrl",
+                "managedHeaderSecretRefFields": {
+                  "X-Customer-Receiver-Key": "receiverApiKey"
+                },
+                "method": "POST",
+                "request": {"body": {"actionId": "{{actionId}}"}}
+              }
+            }
+            """);
+        DeploymentMarketplacePluginInstallEntity install = install();
+        install.setConfigJson("{\"receiverActionUrl\":\"${MANAGED_RECEIVER_ACTION_URL}\"}");
+        install.setSecretRefsJson("{\"receiverApiKey\":\"MANAGED_RECEIVER_API_KEY\"}");
+
+        ObjectNode compiled = compilerService.compileActionContribution(action, install, plugin(), version());
+
+        assertThat(compiled.path("route").path("url").asText())
+            .isEqualTo("${MANAGED_RECEIVER_ACTION_URL}");
+        assertThat(compiled.path("route").path("headers").path("X-Customer-Receiver-Key").asText())
+            .isEqualTo("${MANAGED_RECEIVER_API_KEY}");
+        assertThat(compiled.path("route").has("managedUrlField")).isFalse();
+        assertThat(compiled.path("route").has("managedHeaderSecretRefFields")).isFalse();
+
+        install.setConfigJson("{\"receiverActionUrl\":\"https://customer-controlled.example/action\"}");
+        assertThatThrownBy(() -> compilerService.compileActionContribution(action, install, plugin(), version()))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("requires a managed environment placeholder");
+    }
+
+    @Test
     void compileActionContributionPreservesMcpExecutionMetadata() throws Exception {
         JsonNode action = objectMapper.readTree("""
             {

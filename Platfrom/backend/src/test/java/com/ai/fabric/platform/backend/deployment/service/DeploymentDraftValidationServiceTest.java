@@ -611,6 +611,33 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsExactManagedActionReceiverUrl() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {"actions":[{"name":"create_request","description":"Create request","accessMode":"WRITE_ONLY","requiresConfirmation":true}]}
+                """,
+            """
+                {"ai-config":{"vector-dimensions":512},"ai-entities":{}}
+                """,
+            """
+                {
+                  "connector":{"inbound-auth":{"allow-unauthenticated":false,"api-key":{"enabled":true,"header":"X-AIFABRIC-API-KEY","value":"${CONNECTOR_API_KEY}"}}},
+                  "actions":{"create_request":{"url":"${MANAGED_RECEIVER_ACTION_URL}","method":"POST"}}
+                }
+                """,
+            """
+                {"llmProvider":"openai","embeddingProvider":"openai","vectorStrategy":"lucene","runtimeProfile":"runtime-dev","connectorProfile":"connector-hosted"}
+                """,
+            """
+                {"authzMode":"ALLOW_VERIFIED","adminApiKeyEnabled":true,"connectorApiKeyEnabled":true}
+                """
+        );
+
+        assertThat(service(null).validate(draft).issues()).extracting("code")
+            .doesNotContain("ROUTE_URL_INVALID");
+    }
+
+    @Test
     void validateRejectsSharedIndexKnowledgeSourceDeclaredByAdapterOrTypeOnDedicatedProvider() {
         DeploymentDraftEntity draft = draft(
             """

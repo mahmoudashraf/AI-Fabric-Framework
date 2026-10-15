@@ -83,6 +83,42 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void actionMayResolveReviewedReceiverEndpointAndSecretHeaderFromInstallFields() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "installForm": [
+                {"id": "receiverActionUrl", "label": "Receiver action URL", "type": "url", "required": true},
+                {"id": "receiverApiKey", "label": "Receiver API key", "type": "secretRef", "required": true}
+              ],
+              "permissions": {"contributesActions": true, "requiresExternalHttpExecution": true, "requiresDeploymentSecrets": true},
+              "contributions": {"actions": [{
+                "actionId": "create_request",
+                "adapterType": "connector-http",
+                "readOnly": false,
+                "confirmationRequired": true,
+                "route": {
+                  "managedUrlField": "receiverActionUrl",
+                  "managedHeaderSecretRefFields": {"X-Customer-Receiver-Key": "receiverApiKey"},
+                  "method": "POST"
+                }
+              }]}
+            }
+            """;
+
+        assertThat(service.parseAndValidate(actionPlugin(), version(manifest)).pluginType()).isEqualTo("ACTION");
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(
+            manifest.replace("\"type\": \"url\"", "\"type\": \"text\"")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("managedUrlField");
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(
+            manifest.replace("\"type\": \"secretRef\"", "\"type\": \"text\"")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("managed header field");
+    }
+
+    @Test
     void sourceAttestedAgenticSpecialistManifestIsAccepted() {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
             specialistPlugin(),
@@ -658,6 +694,40 @@ class MarketplaceManifestServiceTest {
                   },
                   "method": "GET",
                   "request": {"query": {"page": 1}}
+                }
+              }]}
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("must not declare HTTP/provider request settings");
+    }
+
+    @Test
+    void sourceProjectionActionManifestRejectsManagedReceiverHeaders() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "installForm": [
+                {"id": "receiverApiKey", "label": "Receiver API key", "type": "secretRef", "required": true}
+              ],
+              "permissions": {"contributesActions": true},
+              "contributions": {"actions": [{
+                "actionId": "inventory_search",
+                "adapterType": "connector-http",
+                "readOnly": true,
+                "route": {
+                  "sourceProjection": {
+                    "sourceRef": "inventory-source",
+                    "outputFields": ["recordId"]
+                  },
+                  "managedHeaderSecretRefFields": {
+                    "X-Customer-Receiver-Key": "receiverApiKey"
+                  }
                 }
               }]}
             }

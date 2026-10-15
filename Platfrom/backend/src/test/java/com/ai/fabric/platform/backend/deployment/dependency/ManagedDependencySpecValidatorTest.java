@@ -60,4 +60,40 @@ class ManagedDependencySpecValidatorTest {
                 new ManagedDependencySpec.Value(ManagedDependencySpec.ValueKind.SERVICE_HOST, "missing"))));
         assertThatThrownBy(() -> validator.validate(invalid)).hasMessageContaining("RUNTIME_BINDING_INVALID");
     }
+
+    @Test void serviceUrlPathMustReferenceAReviewedServiceAndRelativePath() {
+        var original = ManagedDependencyFixtures.topology();
+        var valid = new ManagedDependencySpec(original.schemaVersion(), original.services(),
+            List.of(new ManagedDependencySpec.RuntimeEnvironmentBinding(
+                ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_RECEIVER_ACTION_URL",
+                new ManagedDependencySpec.Value(
+                    ManagedDependencySpec.ValueKind.SERVICE_URL_PATH,
+                    "/api/internal/actions/execute",
+                    "receiver"
+                ))));
+        assertThatNoException().isThrownBy(() -> validator.validate(valid));
+
+        var invalid = new ManagedDependencySpec(original.schemaVersion(), original.services(),
+            List.of(new ManagedDependencySpec.RuntimeEnvironmentBinding(
+                ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_RECEIVER_ACTION_URL",
+                new ManagedDependencySpec.Value(
+                    ManagedDependencySpec.ValueKind.SERVICE_URL_PATH,
+                    "https://unreviewed.example/actions",
+                    "receiver"
+                ))));
+        assertThatThrownBy(() -> validator.validate(invalid)).hasMessageContaining("RUNTIME_BINDING_INVALID");
+
+        var traversal = new ManagedDependencySpec(original.schemaVersion(), original.services(),
+            List.of(new ManagedDependencySpec.RuntimeEnvironmentBinding(
+                ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_RECEIVER_ACTION_URL",
+                new ManagedDependencySpec.Value(
+                    ManagedDependencySpec.ValueKind.SERVICE_URL_PATH,
+                    "/api/../internal/actions/execute",
+                    "receiver"
+                ))));
+        assertThatThrownBy(() -> validator.validate(traversal)).hasMessageContaining("RUNTIME_BINDING_INVALID");
+    }
 }

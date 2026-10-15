@@ -1050,7 +1050,12 @@ public class DeploymentMarketplaceDraftCompilerService {
             compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
         }
         if (actionEntry.path("route").isObject()) {
-            compiled.set("route", compileActionRoute(actionEntry.path("route")));
+            compiled.set("route", compileActionRoute(
+                actionEntry.path("route"),
+                readJson(install.getConfigJson()),
+                readJson(install.getSecretRefsJson()),
+                actionName
+            ));
         }
         if (actionEntry.path("postPolicies").isArray()) {
             compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
@@ -1206,8 +1211,26 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
     }
 
-    private ObjectNode compileActionRoute(JsonNode routeEntry) {
+    ObjectNode compileActionRoute(JsonNode routeEntry,
+                                  JsonNode installConfig,
+                                  JsonNode installSecretRefs,
+                                  String actionName) {
         ObjectNode route = ((ObjectNode) routeEntry).deepCopy();
+        String managedUrlField = text(route, "managedUrlField");
+        if (StringUtils.hasText(managedUrlField)) {
+            route.put("url", requiredManagedActionEnvironmentPlaceholder(installConfig, managedUrlField, actionName));
+            route.remove("managedUrlField");
+        }
+        JsonNode managedHeaderFields = route.remove("managedHeaderSecretRefFields");
+        if (managedHeaderFields != null && managedHeaderFields.isObject()) {
+            ObjectNode headers = route.path("headers") instanceof ObjectNode existing
+                ? existing
+                : route.putObject("headers");
+            managedHeaderFields.fields().forEachRemaining(entry -> headers.put(
+                entry.getKey(),
+                actionSecretPlaceholder(installSecretRefs, entry.getValue().asText(""), actionName)
+            ));
+        }
         JsonNode sourceProjectionEntry = route.remove("sourceProjection");
         if (sourceProjectionEntry instanceof ObjectNode sourceProjection) {
             ObjectNode compiledProjection = sourceProjection.deepCopy();
@@ -1250,6 +1273,32 @@ public class DeploymentMarketplaceDraftCompilerService {
             rename(authz, "operationType", "operation-type");
         }
         return route;
+    }
+
+    private String requiredManagedActionEnvironmentPlaceholder(JsonNode installConfig,
+                                                               String field,
+                                                               String actionName) {
+        String value = installConfig == null ? "" : installConfig.path(field).asText("").trim();
+        if (!value.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace action " + actionName + " requires a managed environment placeholder in install config field " + field + "."
+            );
+        }
+        return value;
+    }
+
+    private String actionSecretPlaceholder(JsonNode installSecretRefs,
+                                           String field,
+                                           String actionName) {
+        String secretName = installSecretRefs == null ? "" : installSecretRefs.path(field).asText("").trim();
+        if (!secretName.matches("[A-Z][A-Z0-9_]{1,127}")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace action " + actionName + " requires a valid deployment secret reference for " + field + "."
+            );
+        }
+        return "${" + secretName + "}";
     }
 
     private void rename(ObjectNode node, String from, String to) {

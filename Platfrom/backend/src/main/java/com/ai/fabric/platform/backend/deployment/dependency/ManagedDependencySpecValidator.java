@@ -54,7 +54,9 @@ public class ManagedDependencySpecValidator {
                 if (!entry.getKey().matches("[A-Z][A-Z0-9_]{0,127}") || entry.getValue() == null
                     || entry.getValue().kind() == null) fail("ENVIRONMENT_INVALID");
                 var value = entry.getValue();
-                if (value.kind() != ManagedDependencySpec.ValueKind.SERVICE_SECRET && value.serviceSlot() != null) fail("UNEXPECTED_SERVICE_REFERENCE");
+                if (value.kind() != ManagedDependencySpec.ValueKind.SERVICE_SECRET
+                    && value.kind() != ManagedDependencySpec.ValueKind.SERVICE_URL_PATH
+                    && value.serviceSlot() != null) fail("UNEXPECTED_SERVICE_REFERENCE");
                 switch (value.kind()) {
                     case SECRET, SECRET_BCRYPT_BASE64, SECRET_STANDARD_BASE64 -> { if (!service.secretPurposes().contains(value.reference())) fail("SECRET_PURPOSE_MISSING"); }
                     case TARGET_VALUE, TARGET_SECRET -> { if (!token(value.reference())) fail("TARGET_SLOT_REFERENCE_INVALID"); }
@@ -63,6 +65,11 @@ public class ManagedDependencySpecValidator {
                             .filter(s -> value.serviceSlot().equals(s.slot())).noneMatch(s -> s.secretPurposes().contains(value.reference()))) fail("SERVICE_SECRET_REFERENCE_INVALID");
                     }
                     case SERVICE_URL -> { if (!service.dependsOn().contains(value.reference())) fail("SERVICE_REFERENCE_INVALID"); }
+                    case SERVICE_URL_PATH -> {
+                        if (!service.dependsOn().contains(value.serviceSlot()) || !relativePath(value.reference())) {
+                            fail("SERVICE_URL_PATH_REFERENCE_INVALID");
+                        }
+                    }
                     case DATABASE_JDBC, DATABASE_USERNAME -> { if (service.database() == null) fail("DATABASE_MISSING"); }
                     case CALLBACK_URL -> { if (!token(value.reference())) fail("CALLBACK_REFERENCE_INVALID"); }
                     case OPERATORS -> { if (service.contract() != ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1) fail("OPERATOR_CONTRACT_INVALID"); }
@@ -85,6 +92,10 @@ public class ManagedDependencySpecValidator {
             if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL
                 || value.kind() == ManagedDependencySpec.ValueKind.SERVICE_HOST) {
                 if (!available.contains(value.reference()) || value.serviceSlot() != null) fail("RUNTIME_BINDING_INVALID");
+            } else if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL_PATH) {
+                if (!available.contains(value.serviceSlot()) || !relativePath(value.reference())) {
+                    fail("RUNTIME_BINDING_INVALID");
+                }
             } else if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_SECRET) {
                 if (!available.contains(value.serviceSlot()) || value.reference() == null
                     || spec.services().stream().filter(service -> value.serviceSlot().equals(service.slot()))
@@ -99,6 +110,13 @@ public class ManagedDependencySpecValidator {
             }
         }
         spec.totalCapacity();
+    }
+
+    private boolean relativePath(String value) {
+        return value != null
+            && value.matches("/[A-Za-z0-9._/-]{0,511}")
+            && !value.contains("//")
+            && !value.contains("..");
     }
     private void validateLifecycle(ManagedDependencySpec.Service service) {
         requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_KEY", ManagedDependencySpec.ValueKind.SECRET,

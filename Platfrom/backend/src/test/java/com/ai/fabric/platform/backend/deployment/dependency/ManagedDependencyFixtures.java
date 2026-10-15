@@ -53,6 +53,8 @@ public final class ManagedDependencyFixtures {
                     new Value(ValueKind.SERVICE_SECRET, "api", "simulator")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_SIMULATOR_ACCOUNT_ID",
                     new Value(ValueKind.ACCOUNT_ID, null, "simulator")),
+                new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_RECEIVER_ACTION_URL",
+                    new Value(ValueKind.SERVICE_URL_PATH, "/api/internal/actions/execute", "receiver")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_INBOX_BASE_URL",
                     new Value(ValueKind.SERVICE_URL, "inbox")),
                 new RuntimeEnvironmentBinding(RuntimeTarget.CONNECTOR, "MANAGED_INBOX_API_KEY",

@@ -429,6 +429,7 @@ public class MarketplaceManifestService {
         validateCapabilityProfiles(plugin, version, manifest.path("capabilityProfiles"));
         List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
         validateHttpManagedEndpointInstallFields(plugin, version, datasets, installForm);
+        validateActionManagedEndpointInstallFields(plugin, version, contributions.path("actions"), installForm);
         validateConversationChannelInstallFields(plugin, version, contributionSummary.conversationChannel(), installForm);
         List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
         MarketplacePluginPricingSummary pricing = parsePricing(plugin, version, manifest.path("pricing"));
@@ -451,6 +452,49 @@ public class MarketplaceManifestService {
             pricing,
             datasets
         );
+    }
+
+    private void validateActionManagedEndpointInstallFields(
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        JsonNode actions,
+        List<MarketplacePluginInstallFieldSummary> installForm
+    ) {
+        if (!actions.isArray()) {
+            return;
+        }
+        Map<String, String> fieldTypes = installForm.stream().collect(java.util.stream.Collectors.toMap(
+            MarketplacePluginInstallFieldSummary::id,
+            MarketplacePluginInstallFieldSummary::type
+        ));
+        for (JsonNode action : actions) {
+            JsonNode route = action.path("route");
+            if (!route.isObject()) {
+                continue;
+            }
+            String actionId = firstText(action, "id", "actionId");
+            String managedUrlField = route.path("managedUrlField").asText("").trim();
+            if (StringUtils.hasText(managedUrlField) && !"url".equals(fieldTypes.get(managedUrlField))) {
+                throw invalid(plugin, version, "action '" + actionId
+                    + "' managedUrlField must reference installForm type url.");
+            }
+            JsonNode headerFields = route.path("managedHeaderSecretRefFields");
+            if (headerFields.isMissingNode() || headerFields.isNull()) {
+                continue;
+            }
+            if (!headerFields.isObject() || headerFields.isEmpty() || headerFields.size() > 20) {
+                throw invalid(plugin, version, "action '" + actionId
+                    + "' managedHeaderSecretRefFields must be a bounded non-empty object.");
+            }
+            headerFields.fields().forEachRemaining(entry -> {
+                requireHttpHeaderName(plugin, version, entry.getKey(), "action '" + actionId + "' managed header");
+                String fieldId = entry.getValue().asText("").trim();
+                if (!"secretRef".equals(fieldTypes.get(fieldId))) {
+                    throw invalid(plugin, version, "action '" + actionId
+                        + "' managed header field must reference installForm type secretRef.");
+                }
+            });
+        }
     }
 
     private void validateHttpManagedEndpointInstallFields(
@@ -809,20 +853,22 @@ public class MarketplaceManifestService {
             JsonNode route = action.path("route");
             if (route.isObject()) {
                 String url = route.path("url").asText("").trim();
+                String managedUrlField = route.path("managedUrlField").asText("").trim();
                 String path = route.path("path").asText("").trim();
                 JsonNode sourceProjection = route.path("sourceProjection");
                 boolean sourceProjectionPresent = !sourceProjection.isMissingNode() && !sourceProjection.isNull();
                 int targetCount = (StringUtils.hasText(url) ? 1 : 0)
+                    + (StringUtils.hasText(managedUrlField) ? 1 : 0)
                     + (StringUtils.hasText(path) ? 1 : 0)
                     + (sourceProjectionPresent ? 1 : 0);
                 if (route.has("source-projection")) {
                     throw invalid(plugin, version, "action route manifests must use sourceProjection; source-projection is an internal compiled property.");
                 }
                 if (targetCount > 1) {
-                    throw invalid(plugin, version, "action route may declare exactly one of url, path, or sourceProjection.");
+                    throw invalid(plugin, version, "action route may declare exactly one of url, managedUrlField, path, or sourceProjection.");
                 }
                 if (targetCount == 0) {
-                    throw invalid(plugin, version, "action route must declare url, path, or sourceProjection when route is present.");
+                    throw invalid(plugin, version, "action route must declare url, managedUrlField, path, or sourceProjection when route is present.");
                 }
                 if (sourceProjectionPresent) {
                     validateSourceProjectionActionRoute(plugin, version, actionId.trim(), route, sourceProjection);
@@ -1137,6 +1183,8 @@ public class MarketplaceManifestService {
         }
         requireIdentifier(plugin, version, sourceProjection.path("sourceRef").asText(""), prefix + "sourceRef");
         if (route.has("method")
+            || route.has("managedUrlField")
+            || route.has("managedHeaderSecretRefFields")
             || route.has("connectionProfileRef")
             || route.has("protectedResourceBindingRef")
             || route.has("requiredCapabilityGrants")

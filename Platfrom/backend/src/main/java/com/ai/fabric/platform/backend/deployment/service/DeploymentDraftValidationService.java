@@ -1427,7 +1427,7 @@ public class DeploymentDraftValidationService {
         } else if (sourceProjectionValidShape) {
             validateSourceProjectionRoute(basePath, route, sourceProjection, httpDataSources, issues);
         } else if (!url.isEmpty()) {
-            if (!isAbsoluteHttpUrl(url)) {
+            if (!isAbsoluteHttpUrl(url) && !isManagedEnvironmentReference(url)) {
                 issues.add(error("routing", "ROUTE_URL_INVALID", basePath + ".url", "Action route url must be a valid absolute http(s) URL."));
             }
         } else {
@@ -2936,6 +2936,10 @@ public class DeploymentDraftValidationService {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    private boolean isManagedEnvironmentReference(String value) {
+        return value != null && value.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}");
     }
 
     private void validateCsvOrigins(String csv, String path, List<DraftValidationIssue> issues) {
