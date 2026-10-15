@@ -78,6 +78,10 @@ public class MarketplaceManifestService {
         "corsAllowCredentials",
         "publicRuntimeBootstrapEnabled"
     );
+    private static final Set<String> TEMPLATE_INSTALL_DEFAULT_FIELDS = Set.of("config", "secretRefs");
+    private static final int MAX_TEMPLATE_INSTALL_DEFAULTS = 32;
+    private static final int MAX_TEMPLATE_INSTALL_DEFAULT_FIELDS = 64;
+    private static final int MAX_TEMPLATE_INSTALL_DEFAULT_JSON_CHARS = 16_384;
     private static final Set<String> SUPPORTED_PROVIDER_MODE_KEYS = Set.of(
         "llm",
         "embedding",
@@ -118,11 +122,11 @@ public class MarketplaceManifestService {
         "connectorType", "connectionProfile", "protectedResource", "httpSource", "webhook"
     );
     private static final Set<String> HTTP_CONNECTION_PROFILE_FIELDS = Set.of(
-        "profileId", "environment", "baseUrl", "allowedHosts", "auth", "ratePolicy",
+        "profileId", "environment", "baseUrl", "baseUrlField", "allowedHosts", "allowedHostField", "auth", "ratePolicy",
         "errorMappings", "capabilityGrants", "correlationResponseHeaders"
     );
     private static final Set<String> HTTP_AUTH_FIELDS = Set.of(
-        "strategy", "apiKeyHeader", "apiKeySecretRefField", "tokenBaseUrl", "tokenPath", "tokenMethod",
+        "strategy", "apiKeyHeader", "apiKeySecretRefField", "tokenBaseUrl", "tokenBaseUrlField", "tokenPath", "tokenMethod",
         "credentialFields", "staticFields", "tokenJsonPointer", "absoluteExpiryJsonPointer",
         "relativeExpiryJsonPointer", "authorizationHeader", "authorizationScheme",
         "expirySkewSeconds", "timeoutMs"
@@ -470,6 +474,12 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version, "template requiredPluginRefs must use exact pluginId@version references.");
             }
         });
+        validateTemplateRequiredPluginInstallDefaults(
+            plugin,
+            version,
+            template.path("requiredPluginInstallDefaults"),
+            Set.copyOf(requiredPluginRefs)
+        );
         return new MarketplacePluginContributionSummary(
             StringUtils.hasText(curatedModuleId) ? curatedModuleId : null,
             List.of(),
@@ -496,6 +506,69 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private void validateTemplateRequiredPluginInstallDefaults(MarketplacePluginEntity plugin,
+                                                                 MarketplacePluginVersionEntity version,
+                                                                 JsonNode defaults,
+                                                                 Set<String> requiredPluginRefs) {
+        if (defaults.isMissingNode() || defaults.isNull()) {
+            return;
+        }
+        if (!defaults.isObject() || defaults.size() > MAX_TEMPLATE_INSTALL_DEFAULTS
+            || defaults.toString().length() > MAX_TEMPLATE_INSTALL_DEFAULT_JSON_CHARS) {
+            throw invalid(plugin, version, "template requiredPluginInstallDefaults must be a bounded object.");
+        }
+        defaults.fields().forEachRemaining(entry -> {
+            String pluginRef = entry.getKey();
+            JsonNode value = entry.getValue();
+            if (!requiredPluginRefs.contains(pluginRef)) {
+                throw invalid(
+                    plugin,
+                    version,
+                    "template requiredPluginInstallDefaults may reference only requiredPluginRefs: " + pluginRef
+                );
+            }
+            if (!value.isObject()) {
+                throw invalid(plugin, version, "template install defaults must be objects: " + pluginRef);
+            }
+            rejectUnknownFields(
+                plugin,
+                version,
+                value,
+                TEMPLATE_INSTALL_DEFAULT_FIELDS,
+                "template install defaults for " + pluginRef
+            );
+            validateTemplateInstallDefaultObject(plugin, version, pluginRef, "config", value.path("config"), false);
+            validateTemplateInstallDefaultObject(plugin, version, pluginRef, "secretRefs", value.path("secretRefs"), true);
+        });
+    }
+
+    private void validateTemplateInstallDefaultObject(MarketplacePluginEntity plugin,
+                                                       MarketplacePluginVersionEntity version,
+                                                       String pluginRef,
+                                                       String field,
+                                                       JsonNode value,
+                                                       boolean secretRefs) {
+        if (value.isMissingNode() || value.isNull()) {
+            return;
+        }
+        if (!value.isObject() || value.size() > MAX_TEMPLATE_INSTALL_DEFAULT_FIELDS) {
+            throw invalid(plugin, version, "template install default " + field + " must be a bounded object: " + pluginRef);
+        }
+        value.fields().forEachRemaining(entry -> {
+            if (!StringUtils.hasText(entry.getKey()) || entry.getKey().length() > 128) {
+                throw invalid(plugin, version, "template install default field names must be bounded: " + pluginRef);
+            }
+            if (secretRefs && (!entry.getValue().isTextual()
+                || !SECRET_NAME_PATTERN.matcher(entry.getValue().asText()).matches())) {
+                throw invalid(
+                    plugin,
+                    version,
+                    "template install default secretRefs must contain deployment secret names: " + pluginRef
+                );
+            }
+        });
     }
 
     private TemplateBehaviorContribution parseTemplateBehaviorContribution(MarketplacePluginEntity plugin,
@@ -2421,21 +2494,38 @@ public class MarketplaceManifestService {
 
         requireIdentifier(plugin, version, firstText(profile, "profileId"), prefix + "connectionProfile.profileId");
         requireText(plugin, version, profile, "environment", prefix);
-        requireAbsoluteHttpsUrl(plugin, version, profile.path("baseUrl").asText(""), prefix + "connectionProfile.baseUrl");
+        String baseUrl = profile.path("baseUrl").asText("").trim();
+        String baseUrlField = profile.path("baseUrlField").asText("").trim();
+        if (StringUtils.hasText(baseUrl) == StringUtils.hasText(baseUrlField)) {
+            throw invalid(plugin, version, prefix + "connectionProfile must declare exactly one of baseUrl or baseUrlField.");
+        }
+        if (StringUtils.hasText(baseUrl)) {
+            requireAbsoluteHttpsUrl(plugin, version, baseUrl, prefix + "connectionProfile.baseUrl");
+        } else {
+            requireIdentifier(plugin, version, baseUrlField, prefix + "connectionProfile.baseUrlField");
+        }
         JsonNode allowedHosts = profile.path("allowedHosts");
-        if (!allowedHosts.isArray() || allowedHosts.isEmpty()) {
+        String allowedHostField = profile.path("allowedHostField").asText("").trim();
+        if (allowedHosts.isArray() == StringUtils.hasText(allowedHostField)) {
+            throw invalid(plugin, version, prefix + "connectionProfile must declare exactly one of allowedHosts or allowedHostField.");
+        }
+        if (StringUtils.hasText(allowedHostField)) {
+            requireIdentifier(plugin, version, allowedHostField, prefix + "connectionProfile.allowedHostField");
+        } else if (allowedHosts.isEmpty()) {
             throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts must be a non-empty array.");
         }
-        String baseHost = URI.create(profile.path("baseUrl").asText("")).getHost();
+        String baseHost = StringUtils.hasText(baseUrl) ? URI.create(baseUrl).getHost() : null;
         boolean baseHostAllowed = false;
-        for (JsonNode host : allowedHosts) {
-            String value = host.asText("").trim();
-            if (!StringUtils.hasText(value) || value.contains(":") || value.contains("/")) {
-                throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts entries must be host names.");
+        if (allowedHosts.isArray()) {
+            for (JsonNode host : allowedHosts) {
+                String value = host.asText("").trim();
+                if (!StringUtils.hasText(value) || value.contains(":") || value.contains("/")) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts entries must be host names.");
+                }
+                baseHostAllowed = baseHostAllowed || value.equalsIgnoreCase(baseHost);
             }
-            baseHostAllowed = baseHostAllowed || value.equalsIgnoreCase(baseHost);
         }
-        if (!baseHostAllowed) {
+        if (StringUtils.hasText(baseUrl) && !baseHostAllowed) {
             throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts must contain the base URL host.");
         }
         Set<String> profileGrants = requireCapabilityArray(
@@ -2475,6 +2565,13 @@ public class MarketplaceManifestService {
                 prefix + "auth.apiKeyHeader"
             );
         } else {
+            String tokenBaseUrlField = auth.path("tokenBaseUrlField").asText("").trim();
+            if (StringUtils.hasText(auth.path("tokenBaseUrl").asText("")) && StringUtils.hasText(tokenBaseUrlField)) {
+                throw invalid(plugin, version, prefix + "auth may declare only one of tokenBaseUrl or tokenBaseUrlField.");
+            }
+            if (StringUtils.hasText(tokenBaseUrlField)) {
+                requireIdentifier(plugin, version, tokenBaseUrlField, prefix + "auth.tokenBaseUrlField");
+            }
             if (StringUtils.hasText(auth.path("tokenBaseUrl").asText(""))) {
                 requireAbsoluteHttpsUrl(
                     plugin,
@@ -2484,8 +2581,10 @@ public class MarketplaceManifestService {
                 );
                 String tokenHost = URI.create(auth.path("tokenBaseUrl").asText("")).getHost();
                 boolean tokenHostAllowed = false;
-                for (JsonNode host : allowedHosts) {
-                    tokenHostAllowed = tokenHostAllowed || host.asText("").trim().equalsIgnoreCase(tokenHost);
+                if (allowedHosts.isArray()) {
+                    for (JsonNode host : allowedHosts) {
+                        tokenHostAllowed = tokenHostAllowed || host.asText("").trim().equalsIgnoreCase(tokenHost);
+                    }
                 }
                 if (!tokenHostAllowed) {
                     throw invalid(

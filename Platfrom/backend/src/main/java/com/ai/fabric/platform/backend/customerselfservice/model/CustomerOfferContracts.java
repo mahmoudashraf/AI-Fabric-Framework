@@ -46,7 +46,12 @@ public final class CustomerOfferContracts {
         public SettingRule { allowedValues = ordered(allowedValues); }
     }
     public record BindingSlot(@NotBlank String id, @NotNull BindingKind kind,
-                              @NotNull Set<String> supportedProfileIds) {
+                              @NotNull Set<String> supportedProfileIds,
+                              String pluginId, String installConfigField) {
+        public BindingSlot(String id, BindingKind kind, Set<String> supportedProfileIds) {
+            this(id, kind, supportedProfileIds, null, null);
+        }
+
         public BindingSlot {
             supportedProfileIds = ordered(supportedProfileIds);
         }

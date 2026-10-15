@@ -7,12 +7,18 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerDocument
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerDocumentStorageBindingContracts.RevokeRequest;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AuthorizationRequest;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingKind;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingSlot;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerEntitlementCommandRepository;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.UpsertDocumentStorageBindingRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentStorageBindingService;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,18 +44,23 @@ public class CustomerDocumentStorageBindingService {
     private final CustomerEntitlementCommandRepository commands;
     private final DeploymentRepository deployments;
     private final DeploymentDocumentStorageBindingService bindings;
+    private final DeploymentMarketplacePluginInstallRepository installs;
+    private final DeploymentMarketplaceInstallService installService;
     private final CustomerOfferCodec codec;
     private final PlatformAuditService audit;
 
     public CustomerDocumentStorageBindingService(CustomerOfferEntitlementService entitlements,
         CustomerSelfServiceAuthorizationService authorization, CustomerEntitlementCommandRepository commands,
         DeploymentRepository deployments, DeploymentDocumentStorageBindingService bindings,
-        CustomerOfferCodec codec, PlatformAuditService audit) {
+        DeploymentMarketplacePluginInstallRepository installs,
+        DeploymentMarketplaceInstallService installService, CustomerOfferCodec codec, PlatformAuditService audit) {
         this.entitlements = entitlements;
         this.authorization = authorization;
         this.commands = commands;
         this.deployments = deployments;
         this.bindings = bindings;
+        this.installs = installs;
+        this.installService = installService;
         this.codec = codec;
         this.audit = audit;
     }
@@ -71,13 +82,15 @@ public class CustomerDocumentStorageBindingService {
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REPLACE,
             request.operationKey(), Set.of(), request.bindingSlotId(), request.selectedProfileId(), null));
-        requireS3Slot(approved, request.bindingSlotId());
+        BindingSlot slot = requireS3Slot(approved, request.bindingSlotId());
+        requireMappedInstall(deploymentId, slot);
 
         var binding = bindings.upsert(deploymentId, new UpsertDocumentStorageBindingRequest(
             request.targetProfileId(), DeploymentDocumentStorageBindingService.S3_CONNECTOR,
             request.endpoint(), request.region(), request.bucket(), request.prefix(), request.accessKey(),
             request.secretKey(), request.sessionToken(), request.pathStyleAccess(),
             request.objectVersioningAvailable(), false, null));
+        applyBindingToMappedInstall(deployment, slot, binding.bindingRef());
         Result result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(),
             request.selectedProfileId(), "CONFIGURED", binding);
         persist(grant.getId(), request.operationKey(), fingerprint, BIND_COMMAND, actorId, result);
@@ -104,10 +117,12 @@ public class CustomerDocumentStorageBindingService {
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), deploymentId, deployment.getTenantId(), null, Operation.BINDING_REVOKE,
             request.operationKey(), Set.of(), request.bindingSlotId(), null, null));
-        requireS3Slot(approved, request.bindingSlotId());
+        BindingSlot slot = requireS3Slot(approved, request.bindingSlotId());
+        requireMappedInstall(deploymentId, slot);
         var matches = bindings.list(deploymentId).stream()
             .filter(value -> request.targetProfileId().equals(value.targetProfileId())).toList();
         if (matches.size() != 1) throw conflict(STORAGE_REQUIRED);
+        removeBindingFromMappedInstall(deployment, slot);
         bindings.remove(deploymentId, matches.getFirst().bindingRef());
         Result result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(),
             null, "REVOKED", null);
@@ -118,11 +133,54 @@ public class CustomerDocumentStorageBindingService {
         return result;
     }
 
-    private void requireS3Slot(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization approved,
-                               String slotId) {
+    private BindingSlot requireS3Slot(
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization approved,
+        String slotId
+    ) {
         var slot = approved.definition().bindingSlots().stream().filter(value -> value.id().equals(slotId))
             .findFirst().orElseThrow(() -> deny(BINDING_SLOT_FORBIDDEN));
         if (slot.kind() != BindingKind.CUSTOMER_S3) throw deny(BINDING_SLOT_FORBIDDEN);
+        return slot;
+    }
+
+    private void requireMappedInstall(String deploymentId, BindingSlot slot) {
+        if (slot.pluginId() == null) return;
+        installs.findByDeploymentIdAndPluginId(deploymentId, slot.pluginId())
+            .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
+    }
+
+    private void applyBindingToMappedInstall(DeploymentEntity deployment, BindingSlot slot, String bindingRef) {
+        if (slot.pluginId() == null) return;
+        var install = installs.findByDeploymentIdAndPluginId(deployment.getId(), slot.pluginId())
+            .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
+        ObjectNode config = requireObjectConfig(install.getConfigJson());
+        config.put(slot.installConfigField(), bindingRef);
+        installService.updateInstallForTrustedCaller(
+            deployment,
+            install.getId(),
+            new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED", config, null)
+        );
+    }
+
+    private void removeBindingFromMappedInstall(DeploymentEntity deployment, BindingSlot slot) {
+        if (slot.pluginId() == null) return;
+        var install = installs.findByDeploymentIdAndPluginId(deployment.getId(), slot.pluginId())
+            .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
+        ObjectNode config = requireObjectConfig(install.getConfigJson());
+        config.remove(slot.installConfigField());
+        installService.updateInstallForTrustedCaller(
+            deployment,
+            install.getId(),
+            new UpdateDeploymentMarketplaceInstallRequest(null, "DISABLED", config, null)
+        );
+    }
+
+    private ObjectNode requireObjectConfig(String configJson) {
+        var config = codec.tree(configJson);
+        if (!(config instanceof ObjectNode object)) {
+            throw conflict(REVIEWED_COMPOSITION_CHANGED);
+        }
+        return object.deepCopy();
     }
 
     private Result replay(String entitlementId, String operationKey, String command, String fingerprint, String actorId) {

@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.marketplace.entity.*;
 import com.ai.fabric.platform.backend.marketplace.repository.*;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginInstallFieldSummary;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestService;
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.*;
@@ -31,6 +32,7 @@ class CustomerReviewedCompositionServiceTest {
     private MarketplacePluginVersionEntity version;
     private DeploymentSourceArtifactEntity artifact;
     private DeploymentTargetProfileEntity staging;
+    private MarketplaceManifestService.ParsedMarketplaceManifest templateManifest;
 
     @BeforeEach void setup() {
         service = new CustomerReviewedCompositionService(codec, validatorFactory.getValidator(), plugins, versions, manifests, artifacts, profiles);
@@ -40,10 +42,10 @@ class CustomerReviewedCompositionServiceTest {
         version.setManifestJson("{\"contributions\":{\"template\":{\"templateId\":\"reviewed-template\"}}}");
         when(plugins.findById(template.getId())).thenReturn(Optional.of(template));
         when(versions.findById(version.getId())).thenReturn(Optional.of(version));
-        var parsed = mock(MarketplaceManifestService.ParsedMarketplaceManifest.class, RETURNS_DEEP_STUBS);
-        when(parsed.manifest()).thenReturn(codec.tree(version.getManifestJson()));
-        when(parsed.contributions().templateRequiredPluginRefs()).thenReturn(List.of());
-        when(manifests.parseAndValidate(template, version)).thenReturn(parsed);
+        templateManifest = mock(MarketplaceManifestService.ParsedMarketplaceManifest.class, RETURNS_DEEP_STUBS);
+        when(templateManifest.manifest()).thenReturn(codec.tree(version.getManifestJson()));
+        when(templateManifest.contributions().templateRequiredPluginRefs()).thenReturn(List.of());
+        when(manifests.parseAndValidate(template, version)).thenReturn(templateManifest);
         artifact = new DeploymentSourceArtifactEntity(); artifact.setId("runtime-artifact"); artifact.setServiceName("runtime");
         artifact.setArtifactType("DOCKER_IMAGE"); artifact.setImageRepository("PRIVATE_REPOSITORY");
         artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setPromotedAt(Instant.now());
@@ -100,6 +102,45 @@ class CustomerReviewedCompositionServiceTest {
         var freshCodec = CustomerOfferTestFixtures.codec();
         assertThat(freshCodec.hash(freshCodec.read(codec.write(definition), Definition.class))).isEqualTo(codec.hash(definition));
         assertThat(CustomerPermissionMatrix.rows(EnumSet.allOf(Operation.class))).hasSize(Operation.values().length);
+    }
+
+    @Test void reviewedBindingMayTargetOnlyATextConfigFieldOnAnExactlyPinnedPlugin() {
+        var knowledge = new MarketplacePluginEntity();
+        knowledge.setId("knowledge-plugin");
+        knowledge.setStatus("ACTIVE");
+        knowledge.setPluginType("DATA");
+        var knowledgeVersion = new MarketplacePluginVersionEntity();
+        knowledgeVersion.setId("knowledge-v1");
+        knowledgeVersion.setPluginId(knowledge.getId());
+        knowledgeVersion.setVersion("1.0.0");
+        knowledgeVersion.setStatus("PUBLISHED");
+        knowledgeVersion.setManifestJson("{\"plugin\":\"knowledge\"}");
+        when(plugins.findById(knowledge.getId())).thenReturn(Optional.of(knowledge));
+        when(versions.findById(knowledgeVersion.getId())).thenReturn(Optional.of(knowledgeVersion));
+        var knowledgeManifest = mock(MarketplaceManifestService.ParsedMarketplaceManifest.class, RETURNS_DEEP_STUBS);
+        when(knowledgeManifest.installForm()).thenReturn(List.of(new MarketplacePluginInstallFieldSummary(
+            "documentStorageBindingRef", "Storage binding", "text", true, "Reviewed binding", List.of()
+        )));
+        when(manifests.parseAndValidate(knowledge, knowledgeVersion)).thenReturn(knowledgeManifest);
+        when(templateManifest.contributions().templateRequiredPluginRefs())
+            .thenReturn(List.of("knowledge-plugin@1.0.0"));
+
+        PluginPin pin = new PluginPin(knowledge.getId(), knowledgeVersion.getId(),
+            codec.hash(codec.tree(knowledgeVersion.getManifestJson())));
+        definition = copyWithPluginBinding(pin, "documentStorageBindingRef");
+        service.validate(definition);
+
+        definition = copyWithPluginBinding(pin, "unreviewedField");
+        assertThatThrownBy(() -> service.validate(definition)).isInstanceOf(CustomerSelfServiceException.class);
+    }
+
+    private Definition copyWithPluginBinding(PluginPin pin, String field) {
+        return new Definition(definition.schemaVersion(), definition.name(), definition.templateId(),
+            definition.template(), List.of(pin), definition.artifacts(), definition.targets(), definition.operations(),
+            definition.settings(), List.of(new BindingSlot("document-storage", BindingKind.CUSTOMER_S3,
+                Set.of("reviewed-s3"), pin.pluginId(), field)), definition.documentAudiences(),
+            definition.admissionPrerequisites(), definition.limits(), definition.approvedPolicyRef(),
+            definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
     }
 
     private void assertCode(CustomerSelfServiceException.Code code) {

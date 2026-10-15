@@ -19,6 +19,40 @@ class MarketplaceManifestServiceTest {
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
     @Test
+    void templateInstallDefaultsAreLimitedToPinnedPluginsAndDeploymentSecretNames() {
+        String valid = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {"template": {
+                "templateId": "custom-start-from-scratch",
+                "requiredPluginRefs": ["mkp-data-test@1.0.0"],
+                "requiredPluginInstallDefaults": {
+                  "mkp-data-test@1.0.0": {
+                    "config": {"scopeId": "${MANAGED_SCOPE_ID}"},
+                    "secretRefs": {"providerKey": "MANAGED_PROVIDER_KEY"}
+                  }
+                }
+              }}
+            }
+            """;
+
+        assertThat(service.parseAndValidate(templatePlugin(), templateVersion(valid)).pluginType())
+            .isEqualTo("TEMPLATE");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace("mkp-data-test@1.0.0\": {", "mkp-data-other@1.0.0\": {")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("requiredPluginRefs");
+
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(
+            valid.replace("MANAGED_PROVIDER_KEY", "literal-secret-value")
+        ))).isInstanceOf(ResponseStatusException.class).hasMessageContaining("deployment secret names");
+    }
+
+    @Test
     void sourceAttestedAgenticSpecialistManifestIsAccepted() {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
             specialistPlugin(),
@@ -1123,6 +1157,16 @@ class MarketplaceManifestServiceTest {
         return plugin;
     }
 
+    private MarketplacePluginEntity templatePlugin() {
+        MarketplacePluginEntity plugin = actionPlugin();
+        plugin.setId("mkp-template-test");
+        plugin.setSlug("template-test");
+        plugin.setDisplayName("Template Test");
+        plugin.setPluginType("TEMPLATE");
+        plugin.setShortDescription("Test template plugin.");
+        return plugin;
+    }
+
     private MarketplacePluginVersionEntity version(String manifestJson) {
         MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
         version.setId("mkv-action-test-v1");
@@ -1140,6 +1184,13 @@ class MarketplaceManifestServiceTest {
         MarketplacePluginVersionEntity version = version(manifestJson);
         version.setId("mkv-data-test-v1");
         version.setPluginId("mkp-data-test");
+        return version;
+    }
+
+    private MarketplacePluginVersionEntity templateVersion(String manifestJson) {
+        MarketplacePluginVersionEntity version = version(manifestJson);
+        version.setId("mkv-template-test-v1");
+        version.setPluginId("mkp-template-test");
         return version;
     }
 

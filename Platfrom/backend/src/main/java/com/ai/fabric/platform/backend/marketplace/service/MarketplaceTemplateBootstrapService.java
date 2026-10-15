@@ -144,17 +144,23 @@ public class MarketplaceTemplateBootstrapService {
         createBootstrapInstallRecord(deployment.id(), plugin, version);
         DeploymentEntity deploymentEntity = deploymentRepository.findById(deployment.id())
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Bootstrapped deployment was not found."));
+        JsonNode requiredPluginInstallDefaults = templateContribution.path("requiredPluginInstallDefaults");
         for (String requiredPluginRef : parsed.contributions().templateRequiredPluginRefs()) {
             int separator = requiredPluginRef.lastIndexOf('@');
             String requiredPluginId = requiredPluginRef.substring(0, separator);
             String requiredVersion = requiredPluginRef.substring(separator + 1);
+            JsonNode defaults = requiredPluginInstallDefaults.path(requiredPluginRef);
             deploymentMarketplaceInstallService.createInstallForTrustedTemplateBootstrap(
                 deploymentEntity,
                 new CreateDeploymentMarketplaceInstallRequest(
                     requiredPluginId,
                     requiredVersion,
-                    objectMapper.createObjectNode(),
-                    objectMapper.createObjectNode()
+                    defaults.path("config").isObject()
+                        ? defaults.path("config").deepCopy()
+                        : objectMapper.createObjectNode(),
+                    defaults.path("secretRefs").isObject()
+                        ? defaults.path("secretRefs").deepCopy()
+                        : objectMapper.createObjectNode()
                 )
             );
         }

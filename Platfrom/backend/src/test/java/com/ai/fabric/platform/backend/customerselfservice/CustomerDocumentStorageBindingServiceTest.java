@@ -14,6 +14,10 @@ import com.ai.fabric.platform.backend.deployment.model.DocumentStorageBindingSum
 import com.ai.fabric.platform.backend.deployment.model.UpsertDocumentStorageBindingRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentStorageBindingService;
+import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +42,8 @@ class CustomerDocumentStorageBindingServiceTest {
     private final CustomerEntitlementCommandRepository commands = mock(CustomerEntitlementCommandRepository.class);
     private final DeploymentRepository deployments = mock(DeploymentRepository.class);
     private final DeploymentDocumentStorageBindingService bindings = mock(DeploymentDocumentStorageBindingService.class);
+    private final DeploymentMarketplacePluginInstallRepository installs = mock(DeploymentMarketplacePluginInstallRepository.class);
+    private final DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
     private final CustomerOfferCodec codec = CustomerOfferTestFixtures.codec();
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private CustomerDocumentStorageBindingService service;
@@ -48,7 +54,7 @@ class CustomerDocumentStorageBindingServiceTest {
     @BeforeEach void setup() {
         CustomerOfferTestFixtures.authenticate(ACTOR, PlatformRole.CUSTOMER_ADMIN, "SESSION");
         service = new CustomerDocumentStorageBindingService(entitlements, authorization, commands,
-            deployments, bindings, codec, audit);
+            deployments, bindings, installs, installService, codec, audit);
         grant = new CustomerOfferEntitlementEntity();
         grant.setId("grant");
         grant.setRevision(2);
@@ -136,6 +142,73 @@ class CustomerDocumentStorageBindingServiceTest {
         verify(bindings, never()).remove("deployment", "production-binding");
         verify(audit).record(eq("CUSTOMER_DOCUMENT_STORAGE_REVOKED"), eq("DEPLOYMENT"), eq("deployment"),
             argThat(values -> Boolean.FALSE.equals(values.get("sourceObjectsDeleted"))));
+    }
+
+    @Test void reviewedBindingMappingEnablesThePinnedPluginWithTheCreatedBindingReference() {
+        useMappedDefinition(Operation.BINDING_REPLACE, "bind-key");
+        DeploymentMarketplacePluginInstallEntity install = install("install", "{\"publicContentApprovalConfirmed\":true}");
+        when(installs.findByDeploymentIdAndPluginId("deployment", "knowledge-plugin"))
+            .thenReturn(Optional.of(install));
+        when(bindings.upsert(eq("deployment"), any())).thenReturn(summary("binding"));
+
+        service.bind("offer", "deployment", bindRequest("bind-key"));
+
+        var request = ArgumentCaptor.forClass(UpdateDeploymentMarketplaceInstallRequest.class);
+        verify(installService).updateInstallForTrustedCaller(eq(deployment), eq("install"), request.capture());
+        assertThat(request.getValue().status()).isEqualTo("ENABLED");
+        assertThat(request.getValue().config().path("documentStorageBindingRef").asText()).isEqualTo("binding");
+        assertThat(request.getValue().config().path("publicContentApprovalConfirmed").asBoolean()).isTrue();
+    }
+
+    @Test void reviewedBindingRevocationDisablesThePinnedPluginBeforeRemovingStorage() {
+        useMappedDefinition(Operation.BINDING_REVOKE, "revoke-key");
+        DeploymentMarketplacePluginInstallEntity install = install(
+            "install",
+            "{\"documentStorageBindingRef\":\"binding\",\"publicContentApprovalConfirmed\":true}"
+        );
+        when(installs.findByDeploymentIdAndPluginId("deployment", "knowledge-plugin"))
+            .thenReturn(Optional.of(install));
+        when(bindings.list("deployment")).thenReturn(List.of(summary("binding")));
+
+        service.revoke("offer", "deployment", new RevokeRequest(
+            2,
+            "revoke-key",
+            "staging-target",
+            "document-storage"
+        ));
+
+        var request = ArgumentCaptor.forClass(UpdateDeploymentMarketplaceInstallRequest.class);
+        verify(installService).updateInstallForTrustedCaller(eq(deployment), eq("install"), request.capture());
+        assertThat(request.getValue().status()).isEqualTo("DISABLED");
+        assertThat(request.getValue().config().has("documentStorageBindingRef")).isFalse();
+        var order = inOrder(installService, bindings);
+        order.verify(installService).updateInstallForTrustedCaller(eq(deployment), eq("install"), any());
+        order.verify(bindings).remove("deployment", "binding");
+    }
+
+    private void useMappedDefinition(Operation operation, String operationKey) {
+        Definition base = CustomerOfferTestFixtures.definition();
+        Definition mapped = new Definition(base.schemaVersion(), base.name(), base.templateId(), base.template(),
+            base.plugins(), base.artifacts(), base.targets(), base.operations(), base.settings(),
+            List.of(new BindingSlot("document-storage", BindingKind.CUSTOMER_S3, Set.of("reviewed-s3"),
+                "knowledge-plugin", "documentStorageBindingRef")),
+            base.documentAudiences(), base.admissionPrerequisites(), base.limits(), base.approvedPolicyRef(),
+            base.operatingPolicyRef(), base.identityPolicyRef(), base.storagePolicyRef());
+        approved = new Authorization(new AdmissionContext("customer", "tenant", "deployment", null,
+            "staging-target", TargetIntent.CUSTOMER_STAGING, "offer", codec.hash(mapped), 2,
+            "placement", operation, operationKey, mapped.limits()), mapped);
+        when(authorization.authorize(eq("customer"), any())).thenReturn(approved);
+    }
+
+    private DeploymentMarketplacePluginInstallEntity install(String id, String configJson) {
+        DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
+        install.setId(id);
+        install.setDeploymentId("deployment");
+        install.setPluginId("knowledge-plugin");
+        install.setConfigJson(configJson);
+        install.setSecretRefsJson("{}");
+        install.setStatus("DISABLED");
+        return install;
     }
 
     private BindRequest bindRequest(String operationKey) {

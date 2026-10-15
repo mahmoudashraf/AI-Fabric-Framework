@@ -14,6 +14,7 @@ import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,10 +72,17 @@ public class CustomerReviewedCompositionService {
         if (!definition.templateId().equals(parsed.manifest().path("contributions").path("template")
             .path("templateId").asText())) throw conflict(REVIEWED_COMPOSITION_CHANGED);
         Set<String> pinnedRefs = new HashSet<>();
+        Map<String, MarketplaceManifestService.ParsedMarketplaceManifest> pinnedManifests = new HashMap<>();
         for (PluginPin pin : definition.plugins()) {
             if (pin.pluginId().equals(definition.template().pluginId())) throw invalid();
             var version = requirePlugin(pin);
             pinnedRefs.add(pin.pluginId() + "@" + version.getVersion());
+            var pinnedPlugin = plugins.findById(pin.pluginId()).orElseThrow(() -> conflict(APPROVED_POLICY_REQUIRED));
+            try {
+                pinnedManifests.put(pin.pluginId(), manifests.parseAndValidate(pinnedPlugin, version));
+            } catch (RuntimeException ex) {
+                throw conflict(APPROVED_POLICY_REQUIRED);
+            }
         }
         if (!pinnedRefs.equals(new HashSet<>(parsed.contributions().templateRequiredPluginRefs()))) {
             throw conflict(REVIEWED_COMPOSITION_CHANGED);
@@ -102,6 +110,17 @@ public class CustomerReviewedCompositionService {
         }
         for (BindingSlot slot : definition.bindingSlots()) {
             if (slot.supportedProfileIds().isEmpty() || slot.supportedProfileIds().stream().anyMatch(String::isBlank)) throw invalid();
+            boolean pluginMapped = slot.pluginId() != null && !slot.pluginId().isBlank();
+            boolean fieldMapped = slot.installConfigField() != null && !slot.installConfigField().isBlank();
+            if (pluginMapped != fieldMapped) throw invalid();
+            if (pluginMapped) {
+                var manifest = pinnedManifests.get(slot.pluginId());
+                if (manifest == null || slot.installConfigField().length() > 128
+                    || manifest.installForm().stream().noneMatch(field ->
+                        slot.installConfigField().equals(field.id()) && "text".equals(field.type()))) {
+                    throw invalid();
+                }
+            }
         }
         if (!definition.documentAudiences().isEmpty() && definition.bindingSlots().stream()
             .noneMatch(slot -> slot.kind() == BindingKind.CUSTOMER_S3)) throw invalid();
