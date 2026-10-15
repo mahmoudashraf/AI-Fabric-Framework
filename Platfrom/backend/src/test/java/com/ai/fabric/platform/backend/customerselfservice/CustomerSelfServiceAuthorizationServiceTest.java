@@ -109,6 +109,33 @@ class CustomerSelfServiceAuthorizationServiceTest {
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
+    @Test void authorityCandidatePreflightRechecksOfferTargetEntitlementAndPlacementWithoutAdmissionEvidence() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+
+        var approved = boundary.prepareAdmission(
+            deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight"
+        );
+
+        assertThat(approved.context().operation()).isEqualTo(Operation.APPLY);
+        assertThat(approved.context().targetProfileId()).isEqualTo("staging-target");
+        assertThat(approved.context().offerId()).isEqualTo("offer");
+        verify(placement).requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(provider, never()).resolve(any());
+
+        assertCode(UNENTITLED_TARGET, () -> boundary.prepareAdmission(
+            deployment, "other-target", Operation.APPLY, "runtime-authority-preflight"
+        ));
+        doThrow(conflict(REVIEWED_COMPOSITION_CHANGED)).when(composition).requireProfile(any(), any());
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.prepareAdmission(
+            deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight"
+        ));
+        reset(composition);
+        grant.setStatus(EntitlementStatus.REVOKED);
+        assertCode(ENTITLEMENT_REVOKED, () -> boundary.prepareAdmission(
+            deployment, "staging-target", Operation.APPLY, "runtime-authority-preflight"
+        ));
+    }
+
     @Test void owningBoundaryRejectsOutOfOfferTargetsArtifactsAndActualSettings() {
         var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
         var approved = boundary.require(deployment, "staging-target", null, Operation.APPLY, "apply-key", Map.of(), null, null, null);

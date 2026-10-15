@@ -13,6 +13,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRu
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateEvidence;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
@@ -1764,6 +1766,76 @@ public class DeploymentService {
             return null;
         }
 
+        List<String> reviewedOrigins = reviewedRuntimeAuthorityOrigins(version);
+        return runtimeAuthorityService.freezeCandidateForAuthorizedApply(
+            deployment.getId(),
+            targetProfile.getId(),
+            version.getId(),
+            reviewedOrigins
+        );
+    }
+
+    /**
+     * Staff-only admission preflight. The request selects identities only; origins and authority
+     * material are derived from the immutable published version and server-owned target state.
+     */
+    @Transactional
+    public RuntimeAuthorityCandidateEvidence prepareReviewedRuntimeAuthorityCandidate(
+        RuntimeAuthorityCandidateRequest request
+    ) {
+        if (request == null
+            || !StringUtils.hasText(request.deploymentId())
+            || !StringUtils.hasText(request.targetProfileId())
+            || !StringUtils.hasText(request.versionId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment, target profile and version are required.");
+        }
+        String deploymentId = request.deploymentId().trim();
+        String targetProfileId = request.targetProfileId().trim();
+        String versionId = request.versionId().trim();
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        if (!customerOfferDeploymentRepository.existsById(deploymentId)) {
+            throw new ResponseStatusException(CONFLICT,
+                "Reviewed runtime authority preflight is limited to productized customer-offer deployments.");
+        }
+        DeploymentVersionEntity version = versionRepository.findById(versionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
+        if (!deploymentId.equals(version.getDeploymentId())) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                "Version does not belong to deployment: " + deploymentId);
+        }
+        DeploymentTargetProfileEntity target = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
+        var approved = offerBoundary.prepareAdmission(
+            deployment,
+            target.getId(),
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
+            "runtime-authority-" + UUID.nameUUIDFromBytes(
+                (deploymentId + "|" + target.getId() + "|" + versionId)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8)
+            )
+        );
+        offerBoundary.requireVersion(approved, version);
+        List<String> reviewedOrigins = reviewedRuntimeAuthorityOrigins(version);
+        RuntimeAuthorityBinding.Snapshot candidate = runtimeAuthorityService.freezeCandidate(
+            deploymentId,
+            target.getId(),
+            versionId,
+            reviewedOrigins
+        );
+        RuntimeAuthorityBinding binding = candidate.binding();
+        return new RuntimeAuthorityCandidateEvidence(
+            deploymentId,
+            target.getId(),
+            versionId,
+            candidate.snapshotId(),
+            candidate.fingerprint(),
+            binding.generation(),
+            binding.allowedOrigins()
+        );
+    }
+
+    private List<String> reviewedRuntimeAuthorityOrigins(DeploymentVersionEntity version) {
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         List<String> reviewedOrigins = Arrays.stream(securityConfig.path("corsAllowedOrigins").asText("").split(","))
             .map(String::trim)
             .filter(StringUtils::hasText)
@@ -1774,12 +1846,7 @@ public class DeploymentService {
                 "Runtime authority requires reviewed exact HTTPS origins in published security corsAllowedOrigins."
             );
         }
-        return runtimeAuthorityService.freezeCandidateForAuthorizedApply(
-            deployment.getId(),
-            targetProfile.getId(),
-            version.getId(),
-            reviewedOrigins
-        );
+        return reviewedOrigins;
     }
 
     private void requireBehaviorReleaseSupport(DeploymentEntity deployment,

@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collections;
@@ -64,6 +65,16 @@ public final class AdmissionContracts {
                         Vector demand, Set<String> prerequisiteReferences) {
             this(id, deploymentId, versionId, versionConfigHash, targetProfileId, bindingFingerprint,
                 topologyReference, demand, prerequisiteReferences, Map.of());
+        }
+    }
+    /** Staff preflight input. Authority material is always derived from the immutable published version. */
+    public record RuntimeAuthorityCandidateRequest(String deploymentId, String targetProfileId, String versionId) { }
+    /** Safe nonsecret evidence that can be pinned by the reviewed admission manifest. */
+    public record RuntimeAuthorityCandidateEvidence(String deploymentId, String targetProfileId, String versionId,
+                                                    String snapshotId, String fingerprint, long generation,
+                                                    List<String> allowedOrigins) {
+        public RuntimeAuthorityCandidateEvidence {
+            allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
         }
     }
     /**

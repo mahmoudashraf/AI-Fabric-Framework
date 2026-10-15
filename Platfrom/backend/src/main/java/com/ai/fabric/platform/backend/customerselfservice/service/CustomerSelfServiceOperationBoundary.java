@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.HashSet;
+import java.util.Set;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.*;
@@ -51,6 +52,22 @@ public class CustomerSelfServiceOperationBoundary {
             operation, operationKey, settings.keySet(), bindingSlotId, selectedProfileId, audience));
         authorization.validateSettings(approved, new SettingsPatch(settings));
         return approved;
+    }
+
+    /**
+     * Staff admission preflight for an already-associated deployment. This performs the same
+     * entitlement, target, placement and reviewed-composition checks as apply authorization,
+     * but deliberately stops before prerequisite/admission evidence exists.
+     */
+    @Transactional
+    public Authorization prepareAdmission(DeploymentEntity deployment, String targetProfileId,
+                                          Operation operation, String operationKey) {
+        var association = associations.findById(deployment.getId())
+            .orElseThrow(() -> deny(ENTITLEMENT_REQUIRED));
+        return authorization.prepareAdmission(deployment.getCustomerId(), new AuthorizationRequest(
+            association.getOfferId(), targetProfileId, deployment.getId(), deployment.getTenantId(), null,
+            operation, operationKey, Set.of(), null, null, null
+        ));
     }
 
     @Transactional

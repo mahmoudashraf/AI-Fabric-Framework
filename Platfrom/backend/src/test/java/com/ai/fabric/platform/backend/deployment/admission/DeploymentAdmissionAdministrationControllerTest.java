@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
@@ -35,11 +37,13 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppC
 class DeploymentAdmissionAdministrationControllerTest {
     @Autowired WebApplicationContext context;
     @Autowired DeploymentAdmissionService admissions;
+    @Autowired DeploymentService deployments;
     private MockMvc mvc;
 
     @BeforeEach
     void setup() throws Exception {
         reset(target());
+        reset(deployments);
         mvc = webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -54,6 +58,31 @@ class DeploymentAdmissionAdministrationControllerTest {
         mvc.perform(as(post(route).contentType("application/json").content(body), PlatformRole.PLATFORM_ADMIN))
             .andExpect(status().isOk());
         verify(target()).approveManifest(any());
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_OPERATOR, PlatformRole.CUSTOMER_ADMIN,
+            PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(as(post(route).contentType("application/json").content(body), role))
+                .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void onlyPlatformAdministratorsCanPrepareRuntimeAuthorityCandidates() throws Exception {
+        String body = "{\"deploymentId\":\"deployment\",\"targetProfileId\":\"target\",\"versionId\":\"version\"}";
+        String route = "/api/platform/admission/reviews/runtime-authority-candidates";
+        when(deployments.prepareReviewedRuntimeAuthorityCandidate(any())).thenReturn(
+            new AdmissionContracts.RuntimeAuthorityCandidateEvidence(
+                "deployment", "target", "version", "snapshot", "fingerprint", 1,
+                List.of("https://workspace.example.com")
+            )
+        );
+
+        mvc.perform(as(post(route).contentType("application/json").content(body), PlatformRole.PLATFORM_ADMIN))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fingerprint").value("fingerprint"))
+            .andExpect(jsonPath("$.allowedOrigins[0]").value("https://workspace.example.com"))
+            .andExpect(jsonPath("$.binding").doesNotExist())
+            .andExpect(jsonPath("$.secrets").doesNotExist());
+        verify(deployments).prepareReviewedRuntimeAuthorityCandidate(any());
         for (PlatformRole role : List.of(PlatformRole.PLATFORM_OPERATOR, PlatformRole.CUSTOMER_ADMIN,
             PlatformRole.PUBLIC_API_CLIENT)) {
             mvc.perform(as(post(route).contentType("application/json").content(body), role))
@@ -77,8 +106,20 @@ class DeploymentAdmissionAdministrationControllerTest {
     @EnableMethodSecurity
     static class Config {
         @Bean DeploymentAdmissionService admissions() { return mock(DeploymentAdmissionService.class); }
-        @Bean DeploymentAdmissionAdministrationController controller(DeploymentAdmissionService admissions) {
-            return new DeploymentAdmissionAdministrationController(admissions);
+        @Bean DeploymentService deployments() { return mock(DeploymentService.class); }
+        @Bean AdmissionReleaseCoordinator admissionReleaseCoordinator() { return mock(AdmissionReleaseCoordinator.class); }
+        @Bean com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindingResolver() {
+            return mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);
+        }
+        @Bean com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary() {
+            return mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+        }
+        @Bean com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates() {
+            return mock(com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService.class);
+        }
+        @Bean DeploymentAdmissionAdministrationController controller(DeploymentAdmissionService admissions,
+                                                                       DeploymentService deployments) {
+            return new DeploymentAdmissionAdministrationController(admissions, deployments);
         }
         @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {
             return http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(requests -> requests.anyRequest().authenticated()).build();

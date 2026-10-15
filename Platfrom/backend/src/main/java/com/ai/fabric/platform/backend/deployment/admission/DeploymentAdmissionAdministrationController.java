@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +12,8 @@ import java.util.Map;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.CustomerGrant;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.FleetPolicy;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Manifest;
+import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateEvidence;
+import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.RuntimeAuthorityCandidateRequest;
 
 /** Staff-only publication of independently reviewed admission records. */
 @RestController
@@ -18,9 +21,12 @@ import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContr
 @PreAuthorize("hasRole('PLATFORM_ADMIN')")
 public class DeploymentAdmissionAdministrationController {
     private final DeploymentAdmissionService admissions;
+    private final DeploymentService deployments;
 
-    public DeploymentAdmissionAdministrationController(DeploymentAdmissionService admissions) {
+    public DeploymentAdmissionAdministrationController(DeploymentAdmissionService admissions,
+                                                        DeploymentService deployments) {
         this.admissions = admissions;
+        this.deployments = deployments;
     }
 
     @PostMapping("/fleet-policies")
@@ -39,5 +45,12 @@ public class DeploymentAdmissionAdministrationController {
     public Map<String, String> approveManifest(@RequestBody Manifest manifest) {
         admissions.approveManifest(manifest);
         return Map.of("manifestId", manifest.id(), "status", "REVIEWED");
+    }
+
+    @PostMapping("/runtime-authority-candidates")
+    public RuntimeAuthorityCandidateEvidence prepareRuntimeAuthorityCandidate(
+        @RequestBody RuntimeAuthorityCandidateRequest request
+    ) {
+        return deployments.prepareReviewedRuntimeAuthorityCandidate(request);
     }
 }
