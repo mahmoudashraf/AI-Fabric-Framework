@@ -3,23 +3,32 @@ package com.ai.fabric.platform.backend.deployment.dependency;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
 /** Publishes one immutable, reviewed dependency topology for an exact template version. */
 @Service
 public class ManagedDependencySpecPublishingService {
+    private static final Pattern MANAGED_ENV_PLACEHOLDER =
+        Pattern.compile("^\\$\\{(MANAGED_[A-Z0-9_]{1,119})}$");
     private final ManagedDependencySpecRepository specs;
     private final ManagedDependencySpecValidator validator;
     private final MarketplacePluginVersionRepository versions;
@@ -69,6 +78,7 @@ public class ManagedDependencySpecPublishingService {
             || !specs.findByTemplateVersionIdAndActiveTrue(templateVersionId).isEmpty()) {
             throw conflict("DEPENDENCY_SPEC_IMMUTABLE");
         }
+        validateManagedRuntimeBindings(version, request.spec());
         for (var service : request.spec().services()) validateArtifact(service);
 
         Instant reviewedAt = Instant.now();
@@ -100,6 +110,65 @@ public class ManagedDependencySpecPublishingService {
             || artifact.getGitCommitSha() == null || !service.sourceCommit().equals(artifact.getGitCommitSha())
             || artifact.getCapabilityManifestHash() == null || artifact.getCapabilityManifestHash().isBlank()) {
             throw conflict("DEPENDENCY_ARTIFACT_NOT_IMMUTABLE");
+        }
+    }
+
+    private void validateManagedRuntimeBindings(MarketplacePluginVersionEntity templateVersion,
+                                                ManagedDependencySpec spec) {
+        Set<String> required = managedEnvironmentReferences(templateVersion);
+        if (required.isEmpty()) {
+            return;
+        }
+        Set<String> provided = new HashSet<>();
+        for (var binding : spec.runtimeEnvironment()) {
+            if (binding.target() == ManagedDependencySpec.RuntimeTarget.CONNECTOR) {
+                provided.add(binding.name());
+            }
+        }
+        if (!provided.containsAll(required)) {
+            Set<String> missing = new LinkedHashSet<>(required);
+            missing.removeAll(provided);
+            throw conflict("DEPENDENCY_RUNTIME_BINDING_MISSING:" + String.join(",", missing));
+        }
+    }
+
+    private Set<String> managedEnvironmentReferences(MarketplacePluginVersionEntity templateVersion) {
+        try {
+            JsonNode template = mapper.readTree(templateVersion.getManifestJson())
+                .path("contributions").path("template");
+            JsonNode defaults = template.path("requiredPluginInstallDefaults");
+            Set<String> required = new LinkedHashSet<>();
+            if (!defaults.isObject()) {
+                return required;
+            }
+            defaults.fields().forEachRemaining(pluginDefaults -> {
+                JsonNode config = pluginDefaults.getValue().path("config");
+                if (config.isObject()) {
+                    config.fields().forEachRemaining(entry -> addManagedPlaceholder(required, entry.getValue()));
+                }
+                JsonNode secretRefs = pluginDefaults.getValue().path("secretRefs");
+                if (secretRefs.isObject()) {
+                    secretRefs.fields().forEachRemaining(entry -> {
+                        String name = entry.getValue().asText("").trim();
+                        if (name.startsWith("MANAGED_")) {
+                            required.add(name);
+                        }
+                    });
+                }
+            });
+            return required;
+        } catch (JsonProcessingException error) {
+            throw conflict("DEPENDENCY_TEMPLATE_MANIFEST_INVALID");
+        }
+    }
+
+    private void addManagedPlaceholder(Set<String> required, JsonNode value) {
+        if (!value.isTextual()) {
+            return;
+        }
+        Matcher matcher = MANAGED_ENV_PLACEHOLDER.matcher(value.asText("").trim());
+        if (matcher.matches()) {
+            required.add(matcher.group(1));
         }
     }
 

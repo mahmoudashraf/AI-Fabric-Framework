@@ -1080,7 +1080,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             contribution.providerBaseUrlField(),
             "provider base URL"
         );
-        requireHttpsUrl(providerBaseUrl, "Conversation channel provider base URL");
+        requireHttpsUrlOrManagedReference(providerBaseUrl, "Conversation channel provider base URL");
         String providerApiKeySecretRef = requiredSecretRef(
             installSecretRefs,
             contribution.providerApiKeySecretRefField()
@@ -1114,7 +1114,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (hasText(contribution.operatorConsoleUrlField())) {
             String operatorConsoleUrl = text(installConfig, contribution.operatorConsoleUrlField());
             if (hasText(operatorConsoleUrl)) {
-                requireHttpsUrl(operatorConsoleUrl, "Conversation channel operator console URL");
+                requireHttpsUrlOrManagedReference(operatorConsoleUrl, "Conversation channel operator console URL");
                 channel.put("operatorConsoleUrl", operatorConsoleUrl);
             }
         }
@@ -1187,7 +1187,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         return value;
     }
 
-    private void requireHttpsUrl(String value, String label) {
+    void requireHttpsUrlOrManagedReference(String value, String label) {
+        if (value != null && value.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}")) {
+            return;
+        }
         try {
             java.net.URI uri = java.net.URI.create(value);
             if (!"https".equalsIgnoreCase(uri.getScheme())
@@ -1196,7 +1199,10 @@ public class DeploymentMarketplaceDraftCompilerService {
                 throw new IllegalArgumentException();
             }
         } catch (RuntimeException exception) {
-            throw new ResponseStatusException(CONFLICT, label + " must be an HTTPS URL without embedded credentials.");
+            throw new ResponseStatusException(
+                CONFLICT,
+                label + " must be an HTTPS URL without embedded credentials or an exact managed environment reference."
+            );
         }
     }
 
@@ -2108,9 +2114,9 @@ public class DeploymentMarketplaceDraftCompilerService {
         return ensureObject(candidate);
     }
 
-    private ObjectNode resolveSyncConnector(MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
-                                            JsonNode installConfig,
-                                            JsonNode installSecretRefs) {
+    ObjectNode resolveSyncConnector(MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
+                                    JsonNode installConfig,
+                                    JsonNode installSecretRefs) {
         ObjectNode resolved = dataset.syncConnector() != null && dataset.syncConnector().isObject()
             ? (ObjectNode) dataset.syncConnector().deepCopy()
             : objectMapper.createObjectNode();
@@ -2152,7 +2158,15 @@ public class DeploymentMarketplaceDraftCompilerService {
                                           JsonNode installConfig,
                                           JsonNode installSecretRefs) {
         ObjectNode profile = requireObject(connector, "connectionProfile", dataset.datasetId());
+        resolveHttpConnectionProfile(profile, dataset.datasetId(), installConfig);
         ObjectNode auth = requireObject(profile, "auth", dataset.datasetId());
+        String tokenBaseUrlField = text(auth, "managedTokenBaseUrlField");
+        if (StringUtils.hasText(tokenBaseUrlField)) {
+            auth.put("tokenBaseUrl", requiredManagedEnvironmentPlaceholder(
+                installConfig, tokenBaseUrlField, dataset.datasetId()
+            ));
+            auth.remove("managedTokenBaseUrlField");
+        }
         String strategy = auth.path("strategy").asText("").trim().toUpperCase(java.util.Locale.ROOT);
         if ("API_KEY".equals(strategy)) {
             String secretRefField = text(auth, "apiKeySecretRefField");
@@ -2212,6 +2226,45 @@ public class DeploymentMarketplaceDraftCompilerService {
             webhook.put("protectedResourceBindingRef", protectedResource.path("bindingId").asText(""));
             webhook.put("reconcileDataSourceRef", source.path("sourceId").asText(""));
         }
+    }
+
+    private void resolveHttpConnectionProfile(ObjectNode profile, String datasetId, JsonNode installConfig) {
+        String baseUrlField = text(profile, "managedBaseUrlField");
+        if (StringUtils.hasText(baseUrlField)) {
+            profile.put("baseUrl", requiredManagedEnvironmentPlaceholder(installConfig, baseUrlField, datasetId));
+            profile.remove("managedBaseUrlField");
+        }
+        String allowedHostField = text(profile, "managedAllowedHostField");
+        if (StringUtils.hasText(allowedHostField)) {
+            profile.putArray("allowedHosts").add(
+                requiredManagedEnvironmentPlaceholder(installConfig, allowedHostField, datasetId)
+            );
+            profile.remove("managedAllowedHostField");
+        }
+    }
+
+    private String requiredManagedEnvironmentPlaceholder(JsonNode installConfig,
+                                                         String field,
+                                                         String datasetId) {
+        String value = requiredInstallConfig(installConfig, field, datasetId);
+        if (!value.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace HTTP dataset " + datasetId + " requires managed environment placeholder in install config field " + field + "."
+            );
+        }
+        return value;
+    }
+
+    private String requiredInstallConfig(JsonNode installConfig, String field, String datasetId) {
+        String value = installConfig == null ? "" : installConfig.path(field).asText("").trim();
+        if (!StringUtils.hasText(value)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace HTTP dataset " + datasetId + " requires install config field " + field + "."
+            );
+        }
+        return value;
     }
 
     private ObjectNode requireObject(ObjectNode parent, String field, String datasetId) {

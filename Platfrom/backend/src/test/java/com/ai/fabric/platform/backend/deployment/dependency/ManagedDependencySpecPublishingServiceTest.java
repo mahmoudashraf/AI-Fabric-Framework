@@ -38,18 +38,20 @@ class ManagedDependencySpecPublishingServiceTest {
     private final ManagedDependencySpecPublishingService service = new ManagedDependencySpecPublishingService(
         specs, validator, versions, plugins, artifacts, staff, audit,
         new ObjectMapper().findAndRegisterModules());
+    private MarketplacePluginVersionEntity templateVersion;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
             new PlatformPrincipal("admin@example.test", PlatformRole.PLATFORM_ADMIN, "Admin", "SESSION"),
             null, List.of()));
-        var version = new MarketplacePluginVersionEntity();
-        version.setId("template-version-1"); version.setPluginId("template-1");
-        version.setStatus("PUBLISHED"); version.setPublishedAt(Instant.now());
+        templateVersion = new MarketplacePluginVersionEntity();
+        templateVersion.setId("template-version-1"); templateVersion.setPluginId("template-1");
+        templateVersion.setStatus("PUBLISHED"); templateVersion.setPublishedAt(Instant.now());
+        templateVersion.setManifestJson("{}");
         var plugin = new MarketplacePluginEntity();
         plugin.setId("template-1"); plugin.setPluginType("TEMPLATE"); plugin.setStatus("ACTIVE");
-        when(versions.findById("template-version-1")).thenReturn(Optional.of(version));
+        when(versions.findById("template-version-1")).thenReturn(Optional.of(templateVersion));
         when(plugins.findById("template-1")).thenReturn(Optional.of(plugin));
         when(specs.findByTemplateVersionIdAndActiveTrue("template-version-1")).thenReturn(List.of());
         for (var dependency : ManagedDependencyFixtures.topology().services()) {
@@ -102,6 +104,54 @@ class ManagedDependencySpecPublishingServiceTest {
             new ManagedDependencySpecPublishingService.PublicationRequest(
                 "dependency-spec-2", ManagedDependencyFixtures.topology(), "review-124")))
             .hasMessageContaining("DEPENDENCY_SPEC_IMMUTABLE");
+    }
+
+    @Test
+    void requiresManagedTemplateDefaultsToHaveConnectorRuntimeBindings() {
+        templateVersion.setManifestJson("""
+            {
+              "contributions": {"template": {
+                "requiredPluginInstallDefaults": {
+                  "mkp-data-managed@1.0.0": {
+                    "config": {
+                      "providerBaseUrl": "${MANAGED_SIMULATOR_BASE_URL}",
+                      "providerHost": "${MANAGED_SIMULATOR_HOST}",
+                      "accountId": "${MANAGED_SIMULATOR_ACCOUNT_ID}"
+                    },
+                    "secretRefs": {"providerKey": "MANAGED_SIMULATOR_API_KEY"}
+                  }
+                }
+              }}
+            }
+            """);
+
+        assertThat(service.publish("template-version-1",
+            new ManagedDependencySpecPublishingService.PublicationRequest(
+                "dependency-spec-1", ManagedDependencyFixtures.topology(), "review-123")))
+            .extracting(ManagedDependencySpecPublishingService.PublicationSummary::specId)
+            .isEqualTo("dependency-spec-1");
+    }
+
+    @Test
+    void rejectsManagedTemplateDefaultWithoutConnectorRuntimeBinding() {
+        templateVersion.setManifestJson("""
+            {
+              "contributions": {"template": {
+                "requiredPluginInstallDefaults": {
+                  "mkp-data-managed@1.0.0": {
+                    "config": {"providerBaseUrl": "${MANAGED_UNKNOWN_BASE_URL}"}
+                  }
+                }
+              }}
+            }
+            """);
+
+        assertThatThrownBy(() -> service.publish("template-version-1",
+            new ManagedDependencySpecPublishingService.PublicationRequest(
+                "dependency-spec-1", ManagedDependencyFixtures.topology(), "review-123")))
+            .hasMessageContaining("DEPENDENCY_RUNTIME_BINDING_MISSING")
+            .hasMessageContaining("MANAGED_UNKNOWN_BASE_URL");
+        verify(specs, never()).saveAndFlush(any());
     }
 
     private DeploymentSourceArtifactEntity artifact(ManagedDependencySpec.Service dependency) {

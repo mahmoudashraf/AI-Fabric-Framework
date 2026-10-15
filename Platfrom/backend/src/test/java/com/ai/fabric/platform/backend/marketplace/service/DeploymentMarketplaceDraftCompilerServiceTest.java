@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -145,6 +147,87 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(compiled.path("publicRuntimeTokenIssuer").asText()).isEqualTo("runtime-public-bootstrap");
         assertThat(compiled.has("corsAllowedOrigins")).isFalse();
         assertThat(compiled.path("adminApiKeyEnabled").asBoolean()).isTrue();
+    }
+
+    @Test
+    void resolvesReviewedHttpConnectionFieldsToManagedEnvironmentPlaceholders() throws Exception {
+        ObjectNode connector = (ObjectNode) objectMapper.readTree("""
+            {
+              "connectorType": "HTTP_JSON",
+              "connectionProfile": {
+                "profileId": "managed-provider",
+                "environment": "customer",
+                "managedBaseUrlField": "providerBaseUrl",
+                "managedAllowedHostField": "providerHost",
+                "auth": {
+                  "strategy": "FORM_TOKEN_EXCHANGE",
+                  "managedTokenBaseUrlField": "providerBaseUrl",
+                  "tokenPath": "/authenticate",
+                  "credentialFields": [
+                    {"name": "key", "secretRefField": "providerKey"},
+                    {"name": "secret", "secretRefField": "providerSecret"}
+                  ]
+                }
+              },
+              "protectedResource": {
+                "bindingId": "managed-account",
+                "resourceIdField": "accountId"
+              },
+              "httpSource": {"sourceId": "managed-source", "path": "/stock"}
+            }
+            """);
+        var dataset = new MarketplaceManifestService.ParsedMarketplaceDatasetDefinition(
+            "managed-stock", "managed-record", "CUSTOMER_MANAGED", "DEPLOYMENT_ONLY",
+            "EXTERNAL_SYNC_HTTP", "UPSERT_BY_ID", null, null, null, "HTTP_JSON",
+            null, null, connector, null, null, null
+        );
+        ObjectNode config = objectMapper.createObjectNode();
+        config.put("providerBaseUrl", "${MANAGED_PROVIDER_BASE_URL}");
+        config.put("providerHost", "${MANAGED_PROVIDER_HOST}");
+        config.put("accountId", "${MANAGED_PROVIDER_ACCOUNT_ID}");
+        ObjectNode secretRefs = objectMapper.createObjectNode();
+        secretRefs.put("providerKey", "MANAGED_PROVIDER_KEY");
+        secretRefs.put("providerSecret", "MANAGED_PROVIDER_SECRET");
+
+        ObjectNode resolved = compilerService.resolveSyncConnector(dataset, config, secretRefs);
+
+        JsonNode profile = resolved.path("connectionProfile");
+        assertThat(profile.path("baseUrl").asText()).isEqualTo("${MANAGED_PROVIDER_BASE_URL}");
+        assertThat(profile.path("allowedHosts").path(0).asText()).isEqualTo("${MANAGED_PROVIDER_HOST}");
+        assertThat(profile.path("auth").path("tokenBaseUrl").asText())
+            .isEqualTo("${MANAGED_PROVIDER_BASE_URL}");
+        assertThat(profile.path("auth").path("credentialFields").path("key").asText())
+            .isEqualTo("${MANAGED_PROVIDER_KEY}");
+        assertThat(resolved.path("protectedResource").path("resourceId").asText())
+            .isEqualTo("${MANAGED_PROVIDER_ACCOUNT_ID}");
+        assertThat(resolved.path("httpSource").path("connectionProfileRef").asText())
+            .isEqualTo("managed-provider");
+
+        config.put("providerBaseUrl", "https://customer-controlled.example");
+        assertThatThrownBy(() -> compilerService.resolveSyncConnector(dataset, config, secretRefs))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("requires managed environment placeholder");
+    }
+
+    @Test
+    void conversationChannelUrlsAcceptOnlyHttpsOrExactManagedEnvironmentReferences() {
+        assertThatNoException().isThrownBy(() -> compilerService.requireHttpsUrlOrManagedReference(
+            "${MANAGED_INBOX_BASE_URL}",
+            "Conversation channel provider base URL"
+        ));
+        assertThatNoException().isThrownBy(() -> compilerService.requireHttpsUrlOrManagedReference(
+            "https://inbox.example.test",
+            "Conversation channel provider base URL"
+        ));
+
+        assertThatThrownBy(() -> compilerService.requireHttpsUrlOrManagedReference(
+            "${managed_inbox_base_url}",
+            "Conversation channel provider base URL"
+        )).hasMessageContaining("exact managed environment reference");
+        assertThatThrownBy(() -> compilerService.requireHttpsUrlOrManagedReference(
+            "http://inbox.example.test",
+            "Conversation channel provider base URL"
+        )).hasMessageContaining("must be an HTTPS URL");
     }
 
     private MarketplacePluginVersionEntity templateSecurityVersion(String id,

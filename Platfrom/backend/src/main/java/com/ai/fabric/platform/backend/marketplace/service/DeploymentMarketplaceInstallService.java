@@ -953,7 +953,9 @@ public class DeploymentMarketplaceInstallService {
                 }
                 case "url" -> {
                     String text = value.asText("").trim();
-                    if (!value.isTextual() || (!text.startsWith("http://") && !text.startsWith("https://"))) {
+                    boolean managedEnvironmentReference = text.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}" );
+                    if (!value.isTextual() || (!text.startsWith("http://") && !text.startsWith("https://")
+                        && !managedEnvironmentReference)) {
                         warnings.add("Config field '" + field.id() + "' must be an absolute http(s) URL.");
                     }
                 }

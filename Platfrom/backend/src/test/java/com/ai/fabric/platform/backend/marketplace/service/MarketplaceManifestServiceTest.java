@@ -53,6 +53,36 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void httpDatasetMayResolveReviewedConnectionEndpointsFromInstallFields() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode profile = (ObjectNode) manifest.path("contributions").path("datasets").path(0)
+            .path("syncConnector").path("connectionProfile");
+        profile.remove("baseUrl");
+        profile.remove("allowedHosts");
+        profile.put("managedBaseUrlField", "providerBaseUrl");
+        profile.put("managedAllowedHostField", "providerHost");
+        ObjectNode auth = (ObjectNode) profile.path("auth");
+        auth.remove("tokenBaseUrl");
+        auth.put("managedTokenBaseUrlField", "providerBaseUrl");
+        ((com.fasterxml.jackson.databind.node.ArrayNode) manifest.path("installForm"))
+            .addObject().put("id", "providerBaseUrl").put("label", "Provider URL")
+            .put("type", "url").put("required", true);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) manifest.path("installForm"))
+            .addObject().put("id", "providerHost").put("label", "Provider host")
+            .put("type", "text").put("required", true);
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        );
+
+        JsonNode compiledProfile = parsed.datasets().getFirst().syncConnector().path("connectionProfile");
+        assertThat(compiledProfile.path("managedBaseUrlField").asText()).isEqualTo("providerBaseUrl");
+        assertThat(compiledProfile.path("managedAllowedHostField").asText()).isEqualTo("providerHost");
+        assertThat(compiledProfile.path("auth").path("managedTokenBaseUrlField").asText()).isEqualTo("providerBaseUrl");
+    }
+
+    @Test
     void sourceAttestedAgenticSpecialistManifestIsAccepted() {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
             specialistPlugin(),

@@ -122,11 +122,11 @@ public class MarketplaceManifestService {
         "connectorType", "connectionProfile", "protectedResource", "httpSource", "webhook"
     );
     private static final Set<String> HTTP_CONNECTION_PROFILE_FIELDS = Set.of(
-        "profileId", "environment", "baseUrl", "baseUrlField", "allowedHosts", "allowedHostField", "auth", "ratePolicy",
+        "profileId", "environment", "baseUrl", "managedBaseUrlField", "allowedHosts", "managedAllowedHostField", "auth", "ratePolicy",
         "errorMappings", "capabilityGrants", "correlationResponseHeaders"
     );
     private static final Set<String> HTTP_AUTH_FIELDS = Set.of(
-        "strategy", "apiKeyHeader", "apiKeySecretRefField", "tokenBaseUrl", "tokenBaseUrlField", "tokenPath", "tokenMethod",
+        "strategy", "apiKeyHeader", "apiKeySecretRefField", "tokenBaseUrl", "managedTokenBaseUrlField", "tokenPath", "tokenMethod",
         "credentialFields", "staticFields", "tokenJsonPointer", "absoluteExpiryJsonPointer",
         "relativeExpiryJsonPointer", "authorizationHeader", "authorizationScheme",
         "expirySkewSeconds", "timeoutMs"
@@ -428,6 +428,7 @@ public class MarketplaceManifestService {
         }
         validateCapabilityProfiles(plugin, version, manifest.path("capabilityProfiles"));
         List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
+        validateHttpManagedEndpointInstallFields(plugin, version, datasets, installForm);
         validateConversationChannelInstallFields(plugin, version, contributionSummary.conversationChannel(), installForm);
         List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
         MarketplacePluginPricingSummary pricing = parsePricing(plugin, version, manifest.path("pricing"));
@@ -450,6 +451,56 @@ public class MarketplaceManifestService {
             pricing,
             datasets
         );
+    }
+
+    private void validateHttpManagedEndpointInstallFields(
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        List<ParsedMarketplaceDatasetDefinition> datasets,
+        List<MarketplacePluginInstallFieldSummary> installForm
+    ) {
+        Map<String, String> fieldTypes = installForm.stream().collect(java.util.stream.Collectors.toMap(
+            MarketplacePluginInstallFieldSummary::id,
+            MarketplacePluginInstallFieldSummary::type
+        ));
+        for (ParsedMarketplaceDatasetDefinition dataset : datasets) {
+            if (!"HTTP_JSON".equals(dataset.connectorType()) || dataset.syncConnector() == null) {
+                continue;
+            }
+            JsonNode profile = dataset.syncConnector().path("connectionProfile");
+            requireInstallFieldType(
+                plugin, version, dataset.datasetId(), fieldTypes,
+                profile.path("managedBaseUrlField").asText(""), Set.of("url")
+            );
+            requireInstallFieldType(
+                plugin, version, dataset.datasetId(), fieldTypes,
+                profile.path("managedAllowedHostField").asText(""), Set.of("text")
+            );
+            requireInstallFieldType(
+                plugin, version, dataset.datasetId(), fieldTypes,
+                profile.path("auth").path("managedTokenBaseUrlField").asText(""), Set.of("url")
+            );
+        }
+    }
+
+    private void requireInstallFieldType(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         String datasetId,
+                                         Map<String, String> fieldTypes,
+                                         String fieldId,
+                                         Set<String> allowedTypes) {
+        if (!StringUtils.hasText(fieldId)) {
+            return;
+        }
+        String actualType = fieldTypes.get(fieldId.trim());
+        if (!allowedTypes.contains(actualType)) {
+            throw invalid(
+                plugin,
+                version,
+                "HTTP dataset '" + datasetId + "' managed endpoint field '" + fieldId
+                    + "' must reference installForm type " + String.join(" or ", allowedTypes) + "."
+            );
+        }
     }
 
     private MarketplacePluginContributionSummary parseTemplateContribution(MarketplacePluginEntity plugin,
@@ -2495,22 +2546,22 @@ public class MarketplaceManifestService {
         requireIdentifier(plugin, version, firstText(profile, "profileId"), prefix + "connectionProfile.profileId");
         requireText(plugin, version, profile, "environment", prefix);
         String baseUrl = profile.path("baseUrl").asText("").trim();
-        String baseUrlField = profile.path("baseUrlField").asText("").trim();
+        String baseUrlField = profile.path("managedBaseUrlField").asText("").trim();
         if (StringUtils.hasText(baseUrl) == StringUtils.hasText(baseUrlField)) {
-            throw invalid(plugin, version, prefix + "connectionProfile must declare exactly one of baseUrl or baseUrlField.");
+            throw invalid(plugin, version, prefix + "connectionProfile must declare exactly one of baseUrl or managedBaseUrlField.");
         }
         if (StringUtils.hasText(baseUrl)) {
             requireAbsoluteHttpsUrl(plugin, version, baseUrl, prefix + "connectionProfile.baseUrl");
         } else {
-            requireIdentifier(plugin, version, baseUrlField, prefix + "connectionProfile.baseUrlField");
+            requireIdentifier(plugin, version, baseUrlField, prefix + "connectionProfile.managedBaseUrlField");
         }
         JsonNode allowedHosts = profile.path("allowedHosts");
-        String allowedHostField = profile.path("allowedHostField").asText("").trim();
+        String allowedHostField = profile.path("managedAllowedHostField").asText("").trim();
         if (allowedHosts.isArray() == StringUtils.hasText(allowedHostField)) {
-            throw invalid(plugin, version, prefix + "connectionProfile must declare exactly one of allowedHosts or allowedHostField.");
+            throw invalid(plugin, version, prefix + "connectionProfile must declare exactly one of allowedHosts or managedAllowedHostField.");
         }
         if (StringUtils.hasText(allowedHostField)) {
-            requireIdentifier(plugin, version, allowedHostField, prefix + "connectionProfile.allowedHostField");
+            requireIdentifier(plugin, version, allowedHostField, prefix + "connectionProfile.managedAllowedHostField");
         } else if (allowedHosts.isEmpty()) {
             throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts must be a non-empty array.");
         }
@@ -2565,12 +2616,12 @@ public class MarketplaceManifestService {
                 prefix + "auth.apiKeyHeader"
             );
         } else {
-            String tokenBaseUrlField = auth.path("tokenBaseUrlField").asText("").trim();
+            String tokenBaseUrlField = auth.path("managedTokenBaseUrlField").asText("").trim();
             if (StringUtils.hasText(auth.path("tokenBaseUrl").asText("")) && StringUtils.hasText(tokenBaseUrlField)) {
-                throw invalid(plugin, version, prefix + "auth may declare only one of tokenBaseUrl or tokenBaseUrlField.");
+                throw invalid(plugin, version, prefix + "auth may declare only one of tokenBaseUrl or managedTokenBaseUrlField.");
             }
             if (StringUtils.hasText(tokenBaseUrlField)) {
-                requireIdentifier(plugin, version, tokenBaseUrlField, prefix + "auth.tokenBaseUrlField");
+                requireIdentifier(plugin, version, tokenBaseUrlField, prefix + "auth.managedTokenBaseUrlField");
             }
             if (StringUtils.hasText(auth.path("tokenBaseUrl").asText(""))) {
                 requireAbsoluteHttpsUrl(
