@@ -98,6 +98,26 @@ class DeploymentDocumentBindingResolverTest {
     }
 
     @Test
+    void oneImmutableVersionFreezesBothTargetsAndStagingDriftDoesNotChangeProduction() {
+        var staging = handle("storage-stage", "stage");
+        var production = handle("storage-prod", "production");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("dep-a", "stage")).thenReturn(List.of(staging));
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("dep-a", "production")).thenReturn(List.of(production));
+        credentials("stage"); credentials("production");
+        var version = version();
+        var stageRelease = release();
+        var prodRelease = release(); prodRelease.setTargetProfileId("production");
+        resolver.freeze(deployment(), version, stageRelease);
+        resolver.freeze(deployment(), version, prodRelease);
+        assertThat(stageRelease.getDocumentBindingSnapshotJson()).contains("storage-stage");
+        assertThat(prodRelease.getDocumentBindingSnapshotJson()).contains("storage-prod");
+        assertThat(version.getMarketplaceDatasetConfigJson()).contains("slot:document-storage").doesNotContain("storage-stage", "storage-prod");
+        staging.setMetadataJson("{\"connectorType\":\"S3_COMPATIBLE_OBJECT_STORAGE\",\"bindingRevision\":2}");
+        assertThatThrownBy(() -> resolver.requireUnchanged(deployment(), version, stageRelease)).hasMessageContaining("changed");
+        resolver.requireUnchanged(deployment(), version, prodRelease);
+    }
+
+    @Test
     void missingCredentialsOrConnectorChangeBlocksFreeze() {
         var handle = handle("storage-stage", "stage");
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("dep-a", "stage")).thenReturn(List.of(handle));

@@ -472,6 +472,9 @@ class TargetRetirementPersistenceTest {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper().registerModule(new JavaTimeModule()); }
         @Bean DeploymentRepository deployments() { return mock(DeploymentRepository.class); }
         @Bean DeploymentAccessService access() { return mock(DeploymentAccessService.class); }
+        @Bean com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary() {
+            return mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+        }
         @Bean TargetRetirementInventory inventory() { return mock(TargetRetirementInventory.class); }
         @Bean TargetRetirementProviderResources provider() { return mock(TargetRetirementProviderResources.class); }
         @Bean PlatformAuditService audit() { return mock(PlatformAuditService.class); }

@@ -14,11 +14,13 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -107,6 +109,7 @@ class DeploymentServiceApplyGuardTest {
             mock(CustomerOfferDeploymentRepository.class),
             objectMapper
         );
+        ReflectionTestUtils.setField(service, "offerBoundary", mock(CustomerSelfServiceOperationBoundary.class));
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");

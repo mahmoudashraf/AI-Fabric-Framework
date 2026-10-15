@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment.retirement;
 
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -27,21 +29,25 @@ public class TargetRetirementService {
     private final TargetRetirementOperationRepository operations;
     private final TargetRetirementStore store;
     private final TargetRetirementParticipation participation;
+    private final CustomerSelfServiceOperationBoundary offerBoundary;
 
     public TargetRetirementService(DeploymentRepository deployments, DeploymentAccessService access,
                                    TargetRetirementOperationRepository operations, TargetRetirementStore store,
-                                   TargetRetirementParticipation participation) {
+                                   TargetRetirementParticipation participation, CustomerSelfServiceOperationBoundary offerBoundary) {
         this.deployments = deployments;
         this.access = access;
         this.operations = operations;
         this.store = store;
         this.participation = participation;
+        this.offerBoundary = offerBoundary;
     }
 
     public Summary plan(String deploymentId, String targetProfileId, PlanRequest request) {
         authorize(deploymentId, true);
         required(targetProfileId, 64);
-        var summary = store.plan(deploymentId, targetProfileId, normalize(request));
+        var normalized = normalize(request);
+        requireOffer(deploymentId, targetProfileId, normalized.releaseIds(), normalized.operationKey(), true);
+        var summary = store.plan(deploymentId, targetProfileId, normalized);
         if (summary.state() == State.PLANNED) {
             var operation = store.require(summary.id());
             try {
@@ -78,6 +84,7 @@ public class TargetRetirementService {
     }
     public List<Summary> list(String deploymentId, String targetId) {
         authorize(deploymentId, false);
+        requireOffer(deploymentId, targetId, List.of(), null, false);
         return operations.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(deploymentId, required(targetId, 64))
             .stream().map(store::summary).toList();
     }
@@ -95,7 +102,21 @@ public class TargetRetirementService {
             throw new ResponseStatusException(NOT_FOUND, "Retirement not found.");
         var deployment = deployments.findById(deploymentId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
         if (!operation.getCustomerId().equals(deployment.getCustomerId())) throw new ResponseStatusException(CONFLICT, "OWNERSHIP_CHANGED");
+        var releases = store.summary(operation).snapshot().releases().stream().map(ReleaseGeneration::releaseId).toList();
+        requireOffer(deploymentId, targetId, releases, operation.getOperationKey(), mutate);
         return operation;
+    }
+
+    private void requireOffer(String deploymentId, String targetId, List<String> releaseIds, String operationKey, boolean mutate) {
+        var deployment = deployments.findById(deploymentId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        if (!mutate) {
+            offerBoundary.require(deployment, targetId, null, Operation.READ, null, java.util.Map.of(), null, null, null);
+        } else {
+            for (String releaseId : releaseIds) {
+                offerBoundary.require(deployment, targetId, releaseId, Operation.TARGET_RETIRE, operationKey,
+                    java.util.Map.of(), null, null, null);
+            }
+        }
     }
     private void authorize(String deploymentId, boolean mutate) {
         if (!PlatformSecurityContext.isAuthenticated()) throw new ResponseStatusException(FORBIDDEN, "Authentication required.");

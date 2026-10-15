@@ -55,6 +55,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     private final CustomerOfferDeploymentRepository offerDeployments = mock(CustomerOfferDeploymentRepository.class);
     private final TargetRetirementGateService retirement = mock(TargetRetirementGateService.class);
     private final DeploymentAccessService access = mock(DeploymentAccessService.class);
+    private final DeploymentReleaseRecoveryService recovery = mock(DeploymentReleaseRecoveryService.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
@@ -98,6 +99,8 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
 
         service = service();
         ReflectionTestUtils.setField(service, "retirementGates", retirement);
+        ReflectionTestUtils.setField(service, "offerBoundary",
+            mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class));
     }
 
     @Test
@@ -140,6 +143,24 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         order.verify(authorities).freezeReleaseForAuthorizedApply(anyString(), anyString(), anyString(), anyString(), anyString());
         order.verify(releases).save(any(DeploymentReleaseEntity.class));
         order.verify(execution).executeApply(deployment.getId(), version.getId(), release.getValue().getId());
+    }
+
+    @Test
+    void genericApplyCannotQueueEffectsWhenTheReviewedOfferRejectsTheTarget() {
+        var boundary = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+        ReflectionTestUtils.setField(service, "offerBoundary", boundary);
+        org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException
+            .deny(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.UNENTITLED_TARGET))
+            .when(boundary).require(org.mockito.ArgumentMatchers.eq(deployment), org.mockito.ArgumentMatchers.eq(target.getId()),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY),
+                org.mockito.ArgumentMatchers.eq("apply-operation"), org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull());
+        assertThatThrownBy(() -> service.applyVersion(deployment.getId(), version.getId(), null,
+            target.getId(), "reviewed-artifact", "apply-operation")).hasMessageContaining("UNENTITLED_TARGET");
+        verify(releases, never()).save(any());
+        verify(releases, never()).saveAndFlush(any());
+        verifyNoInteractions(authorities, execution, recovery);
     }
 
     @Test
@@ -231,7 +252,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             mock(RailwayProvisioningPlanService.class),
             mock(DeploymentReleaseVerificationService.class),
             execution,
-            mock(DeploymentReleaseRecoveryService.class),
+            recovery,
             mock(DeploymentServiceConfigModelService.class),
             mock(DeploymentServiceNavigationService.class),
             mock(DeploymentProductionReadinessScorecardService.class),

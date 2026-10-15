@@ -32,6 +32,22 @@ import static org.mockito.Mockito.when;
 class DeploymentDocumentStorageBindingServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary =
+        mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+
+    @Test
+    void genericBindingRouteCannotWriteSecretsWhenTheOfferRejectsItsTargetOrSlot() {
+        Fixture fixture = fixture("staging", "staging");
+        org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException
+            .deny(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.UNENTITLED_TARGET))
+            .when(offerBoundary).require(eq(fixture.deployment()), eq("profile-staging"), any(),
+                eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.BINDING_REPLACE),
+                any(), anyMap(), any(), any(), any());
+        assertThatThrownBy(() -> fixture.service().upsert("dep-docs", s3Request("profile-staging"),
+            "bind", "document-storage", "approved-s3")).hasMessageContaining("UNENTITLED_TARGET");
+        org.mockito.Mockito.verifyNoInteractions(fixture.secretService());
+        verify(fixture.handleRepository(), never()).save(any());
+    }
 
     @Test
     void s3BindingStoresCredentialsOnlyInManagedSecretsAndProjectsSafeMetadata() throws Exception {
@@ -242,7 +258,8 @@ class DeploymentDocumentStorageBindingServiceTest {
                 secretService,
                 auditService,
                 objectMapper,
-                mock(com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService.class)
+                mock(com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService.class),
+                offerBoundary
             ),
             deployment,
             handleRepository,

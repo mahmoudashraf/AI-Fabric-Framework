@@ -109,6 +109,100 @@ class CustomerSelfServiceAuthorizationServiceTest {
         verify(placement, never()).probeAndRecord(any(), any());
     }
 
+    @Test void owningBoundaryRejectsOutOfOfferTargetsArtifactsAndActualSettings() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+        var approved = boundary.require(deployment, "staging-target", null, Operation.APPLY, "apply-key", Map.of(), null, null, null);
+        boundary.requireArtifact(approved, "runtime-artifact");
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.requireArtifact(approved, "foreign-artifact"));
+        assertCode(UNENTITLED_TARGET, () -> boundary.require(deployment, "other-target", null, Operation.APPLY,
+            "apply-key", Map.of(), null, null, null));
+        var value = com.fasterxml.jackson.databind.node.TextNode.valueOf("unreviewed-auth");
+        assertCode(SETTING_FORBIDDEN, () -> boundary.require(deployment, "staging-target", null, Operation.AUTH_CONFIGURE,
+            "auth-key", Map.of(Setting.AUTH_PROFILE_ID, value), null, null, null));
+    }
+
+    @Test void genericApplyRequiresPublishedVersionProvenanceToMatchTheReviewedPluginPins() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+        var approved = boundary.require(deployment, "staging-target", null, Operation.APPLY, "apply-key", Map.of(), null, null, null);
+        var version = new DeploymentVersionEntity();
+        version.setStatus("PUBLISHED");
+        var pin = definition.template();
+        var install = Map.of("pluginId", pin.pluginId(), "pluginVersionId", pin.versionId(),
+            "manifestSha256", "sha256:" + pin.manifestSha256());
+        version.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(install))));
+        boundary.requireVersion(approved, version);
+        version.setStatus("DRAFT");
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.requireVersion(approved, version));
+        version.setStatus("PUBLISHED");
+        version.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(install, install))));
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.requireVersion(approved, version));
+        version.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(Map.of("pluginId", pin.pluginId(), "pluginVersionId", "unreviewed-version",
+                "manifestSha256", "sha256:" + pin.manifestSha256())))));
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.requireVersion(approved, version));
+        version.setCompositionProvenanceJson("{}");
+        assertCode(REVIEWED_COMPOSITION_CHANGED, () -> boundary.requireVersion(approved, version));
+    }
+
+    @Test void owningBoundaryCannotSubstituteCustomerOwnershipForAnAcceptedOffer() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+        when(associations.findById("deployment")).thenReturn(Optional.empty());
+        assertCode(ENTITLEMENT_REQUIRED, () -> boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+            "app-key", Map.of(), null, null, null));
+        CustomerOfferTestFixtures.authenticate("platform-admin", PlatformRole.PLATFORM_ADMIN, "API_KEY");
+        assertThat(boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+            null, Map.of(), null, null, null)).isNull();
+    }
+
+    @Test void owningBoundaryRechecksRevokedEntitlementsAndExcludedOperationsForStaffAndCustomers() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+        grant.setStatus(EntitlementStatus.REVOKED);
+        assertCode(ENTITLEMENT_REVOKED, () -> boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+            "app-key", Map.of(), null, null, null));
+        grant.setStatus(EntitlementStatus.ACTIVE);
+        var limited = new Definition(definition.schemaVersion(), definition.name(), definition.templateId(), definition.template(),
+            definition.plugins(), definition.artifacts(), definition.targets(), Set.of(Operation.READ), definition.settings(),
+            definition.bindingSlots(), definition.documentAudiences(), definition.admissionPrerequisites(), definition.limits(),
+            definition.approvedPolicyRef(), definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
+        offer = new CustomerOfferEntity("offer", codec.write(limited), codec.hash(limited), "review", "admin", Instant.now());
+        when(offers.findById("offer")).thenReturn(Optional.of(offer));
+        for (var role : List.of(PlatformRole.CUSTOMER_ADMIN, PlatformRole.PLATFORM_ADMIN)) {
+            CustomerOfferTestFixtures.authenticate(role == PlatformRole.CUSTOMER_ADMIN ? owner.getEmail() : "platform-admin", role, "SESSION");
+            assertCode(OPERATION_FORBIDDEN, () -> boundary.require(deployment, "staging-target", null, Operation.APP_CONFIGURE,
+                "app-key", Map.of(), null, null, null));
+        }
+    }
+
+    @Test void consumerBoundaryRequiresExactOwnedBoundTargetReleaseAndChecksActualProfileValues() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+        var consumer = new PlatformConsumerEntity();
+        consumer.setId("consumer"); consumer.setCustomerId("customer"); consumer.setStatus("ACTIVE");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of()));
+        consumer.setBoundDeploymentId("deployment"); consumer.setBoundTargetProfileId("staging-target"); consumer.setBoundReleaseId("release");
+        when(consumers.findById("consumer")).thenReturn(Optional.of(consumer));
+        var release = new DeploymentReleaseEntity(); release.setId("release"); release.setDeploymentId("deployment");
+        release.setTargetProfileId("staging-target"); release.setSourceArtifactId("runtime-artifact");
+        when(releases.findById("release")).thenReturn(Optional.of(release));
+        boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of(Setting.APP_TITLE,
+            com.fasterxml.jackson.databind.node.TextNode.valueOf("Approved app")));
+        release.setTargetProfileId("production-target");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> boundary.requireConsumer(consumer, Operation.APP_CONFIGURE, "app", Map.of()));
+        assertThat(boundary.profileId("workspace", Map.of("a", 1, "b", 2)))
+            .isEqualTo(boundary.profileId("workspace", Map.of("b", 2, "a", 1)))
+            .isNotEqualTo(boundary.profileId("workspace", Map.of("a", 2, "b", 2)));
+    }
+
+    @Test void reviewedS3PermissionCannotAuthorizeAMountedSourceOrAnUnrelatedSlot() {
+        var boundary = new CustomerSelfServiceOperationBoundary(associations, deployments, service, codec);
+        var approved = boundary.require(deployment, "staging-target", null, Operation.BINDING_REPLACE, "bind",
+            Map.of(), "document-storage", "reviewed-s3", null);
+        boundary.requireS3(approved, "document-storage", "S3_COMPATIBLE_OBJECT_STORAGE");
+        assertCode(BINDING_SLOT_FORBIDDEN, () -> boundary.requireS3(approved, "document-storage", "MOUNTED_FOLDER"));
+        assertCode(BINDING_SLOT_FORBIDDEN, () -> boundary.requireS3(approved, "foreign-slot", "S3_COMPATIBLE_OBJECT_STORAGE"));
+    }
+
     @Test void missingAuthenticationNeverBecomesGlobalStaff() {
         clear(); assertDenied(ACTIVE_CUSTOMER_SCOPE_REQUIRED, Operation.APPLY);
     }

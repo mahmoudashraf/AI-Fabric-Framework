@@ -106,8 +106,10 @@ public class DeploymentDocumentKnowledgeController {
     }
 
     @PostMapping("/retention/cleanup")
-    public ResponseEntity<JsonNode> cleanupRetention(@PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId) {
-        return response(service.cleanupRetention(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId)));
+    public ResponseEntity<JsonNode> cleanupRetention(@PathVariable String deploymentId, @PathVariable String targetProfileId,
+                                                    @PathVariable String releaseId,
+                                                    @RequestHeader(name = "Idempotency-Key", required = false) String operationKey) {
+        return response(service.cleanupRetention(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), operationKey));
     }
 
     private ResponseEntity<JsonNode> response(DeploymentDocumentKnowledgeOperationsService.RuntimeResponse response) {

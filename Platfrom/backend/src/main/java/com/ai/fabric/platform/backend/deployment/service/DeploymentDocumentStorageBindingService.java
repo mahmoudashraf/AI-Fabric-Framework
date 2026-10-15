@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
@@ -46,6 +48,7 @@ public class DeploymentDocumentStorageBindingService {
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
     private final com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
+    private final CustomerSelfServiceOperationBoundary offerBoundary;
 
     public DeploymentDocumentStorageBindingService(
         DeploymentRepository deploymentRepository,
@@ -55,7 +58,8 @@ public class DeploymentDocumentStorageBindingService {
         PlatformSecretService secretService,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
-        com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates
+        com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates,
+        CustomerSelfServiceOperationBoundary offerBoundary
     ) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
@@ -65,6 +69,7 @@ public class DeploymentDocumentStorageBindingService {
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.retirementGates = retirementGates;
+        this.offerBoundary = offerBoundary;
     }
 
     public List<DocumentStorageBindingSummary> list(String deploymentId) {
@@ -77,6 +82,12 @@ public class DeploymentDocumentStorageBindingService {
 
     @Transactional
     public DocumentStorageBindingSummary upsert(String deploymentId, UpsertDocumentStorageBindingRequest request) {
+        return upsert(deploymentId, request, null, null, null);
+    }
+
+    @Transactional
+    public DocumentStorageBindingSummary upsert(String deploymentId, UpsertDocumentStorageBindingRequest request,
+                                               String operationKey, String bindingSlotId, String selectedProfileId) {
         DeploymentEntity deployment = requireDeployment(deploymentId, true);
         if (request == null) {
             throw badRequest("Document storage binding request is required.");
@@ -86,6 +97,9 @@ public class DeploymentDocumentStorageBindingService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Active deployment target profile was not found."));
         retirementGates.requireAvailableForMutation(deployment.getId(), profile.getId());
         String connectorType = required(request.connectorType(), "connectorType").toUpperCase(Locale.ROOT);
+        var approved = offerBoundary.require(deployment, profile.getId(), null, Operation.BINDING_REPLACE,
+            operationKey, Map.of(), bindingSlotId, selectedProfileId, null);
+        offerBoundary.requireS3(approved, bindingSlotId, connectorType);
         if (!S3_CONNECTOR.equals(connectorType) && !MOUNTED_CONNECTOR.equals(connectorType)) {
             throw badRequest("Unsupported document storage connector type.");
         }
@@ -193,8 +207,16 @@ public class DeploymentDocumentStorageBindingService {
 
     @Transactional
     public void remove(String deploymentId, String bindingRef) {
+        remove(deploymentId, bindingRef, null, null);
+    }
+
+    @Transactional
+    public void remove(String deploymentId, String bindingRef, String operationKey, String bindingSlotId) {
         DeploymentEntity deployment = requireDeployment(deploymentId, true);
         DeploymentProviderResourceHandleEntity handle = requireBinding(deployment, bindingRef);
+        var approved = offerBoundary.require(deployment, handle.getTargetProfileId(), null, Operation.BINDING_REVOKE,
+            operationKey, Map.of(), bindingSlotId, null, null);
+        offerBoundary.requireS3(approved, bindingSlotId, readJson(handle.getMetadataJson()).path("connectorType").asText());
         retirementGates.requireAvailableForMutation(deployment.getId(), handle.getTargetProfileId());
         String key = secretKey(deployment.getId(), handle.getTargetProfileId());
         for (String suffix : List.of(

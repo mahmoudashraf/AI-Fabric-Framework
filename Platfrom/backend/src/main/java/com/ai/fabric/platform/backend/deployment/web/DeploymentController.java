@@ -104,6 +104,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -679,8 +680,9 @@ public class DeploymentController {
                                                  @PathVariable String versionId,
                                                  @RequestParam(required = false) String approvalId,
                                                  @RequestParam(required = false) String targetProfileId,
-                                                 @RequestParam(required = false) String sourceArtifactId) {
-        return deploymentService.applyVersion(deploymentId, versionId, approvalId, targetProfileId, sourceArtifactId);
+                                                 @RequestParam(required = false) String sourceArtifactId,
+                                                 @RequestHeader(name = "Idempotency-Key", required = false) String operationKey) {
+        return deploymentService.applyVersion(deploymentId, versionId, approvalId, targetProfileId, sourceArtifactId, operationKey);
     }
 
     @GetMapping("/deployments/{deploymentId}/releases")

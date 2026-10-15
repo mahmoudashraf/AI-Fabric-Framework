@@ -1,9 +1,10 @@
 # Customer Self-Service Authorization (R6)
 
 This module is a closed-offer authorization boundary, not another provisioning
-engine. The owning configuration bootstrap and practical-promotion services now
-invoke this boundary; the remaining storage/apply/admission/lifecycle integrations
-are not yet certified. Existing staff workflows remain available. No framework
+engine. Configuration bootstrap, practical promotion and the generic owning
+apply, document-storage, document-operations, workspace and retirement services
+invoke this boundary. Admission/provider lifecycle integration and hosted
+acceptance must still be verified separately. Existing non-offer staff workflows remain available. No framework
 dependencies or live resources are changed by this module.
 No P0-P7 acceptance gate is closed by these source changes or unit tests.
 
@@ -98,6 +99,41 @@ deployment/tenant, call `registerBootstrap(Authorization, deploymentId)` in the
 same transaction. Later operations require this durable association. There is
 no automatic grant/backfill of legacy deployments.
 
+`CustomerSelfServiceOperationBoundary` derives the accepted offer from the
+persisted deployment association; generic HTTP routes cannot substitute customer
+ownership for an offer. An unassociated customer call denies. An associated
+staff call still requires the offer as well as existing staff access thresholds.
+Legacy non-offer staff paths retain their existing access contract.
+
+The generic version-apply, storage-binding and AI Workspace mutation routes
+accept the owning operation key in `Idempotency-Key`. Offer-scoped calls must
+supply it; legacy non-offer staff calls do not gain a new requirement. Storage
+binding writes also take `bindingSlotId` and `selectedProfileId` query parameters;
+revoke takes `bindingSlotId`. The dedicated customer binding endpoint remains
+the replay-receipted customer command. Passing a key alone does not add replay
+receipts to an owning route that has no receipt store.
+
+Apply validates the explicit target, exact reviewed artifact and published
+version provenance (template/plugin version IDs and manifest hashes) before
+release recovery, authority snapshots or queuing. Trusted promotion keeps its
+existing `PROMOTION_APPLY` authorization rather than requiring a second `APPLY`
+reservation. Its caller remains responsible for exact candidate/version pins.
+
+Workspace mutations authorize the persisted consumer's exact deployment,
+target and release. Actual normalized values are checked: title directly,
+origins individually, and canonical structured profile digests for interaction,
+theme and authentication. Publish those digests as `CHOICE` values in the
+existing `INTERACTION_PROFILE_ID`, `THEME_PROFILE_ID` and `AUTH_PROFILE_ID`
+setting rules. `profileId(kind, payload)` computes `kind:SHA256` using the
+existing canonical offer codec. The workspace interaction payload contains
+pack/version, connection mode/profile/version, delivery mode, connection config,
+and the validated experience configuration excluding theme. The theme payload
+is the removed `theme` value (including `null` for no theme). The auth payload
+contains profile code/version, interaction policy and validated auth config.
+Changing profile contents without a new reviewed digest denies; no arbitrary
+JSON is treated as a harmless profile label. Removed domains and clearing a
+theme are checked too. Existing creation/configuration validation still runs.
+
 For apply/promotion/activation use explicit target and release identities, not
 the deployment's latest runtime URL. `requireOwnedConsumer` checks app ownership;
 the parent must still enforce candidate/version/consumer-binding revision and
@@ -110,6 +146,23 @@ Never return values or raw references. Inbox operator onboarding does not grant
 human-reply authority to the customer owner. Storage must remain customer-owned
 S3-compatible text/JSON; no upload, source-object deletion, managed-storage fallback
 or mounted production source is introduced here.
+
+The mapped Marketplace install retains logical `slot:document-storage`. Physical
+storage handles, credential references, revisions and fingerprints are frozen
+per target/release by `DeploymentDocumentBindingResolver`. Binding a second target
+does not rewrite or recompile the shared configuration, so the same immutable
+version can promote. Revoke removes only that target's handle/platform secrets;
+it does not disable the shared plugin or delete source objects. Existing deployed
+copies of credentials still require the owning runtime reconcile/IAM revocation
+procedure; deleting a Platform binding is not instantaneous provider revocation.
+
+Document operations authorize before contacting the runtime. Their audience is
+derived from the published external-document dataset's knowledge-source auth
+modes, never from query wording or the caller's supplied visibility label. Every
+installed document audience must be permitted; missing audience evidence denies
+an offer-scoped operation. Index/refresh validate `DOCUMENT_AUDIENCE` values.
+Retirement plan/execute/retry/cancel authorize the exact target and release IDs;
+effect-time revocation checks belong to the worker interlock.
 
 The operation/field/staff matrix is `CustomerPermissionMatrix`. Staff calls reuse
 `DeploymentAccessService` assignment thresholds. Session operators need an

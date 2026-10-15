@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
@@ -45,6 +47,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
     private final DeploymentRuntimeJsonTransport transport;
+    private final CustomerSelfServiceOperationBoundary offerBoundary;
 
     @Autowired
     public DeploymentDocumentKnowledgeOperationsService(
@@ -53,7 +56,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         RuntimePrivateAssertionSigningService assertionSigningService,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
-        DeploymentRuntimeJsonTransport transport
+        DeploymentRuntimeJsonTransport transport,
+        CustomerSelfServiceOperationBoundary offerBoundary
     ) {
         this.targetContextService = targetContextService;
         this.secretService = secretService;
@@ -61,6 +65,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.transport = transport;
+        this.offerBoundary = offerBoundary;
     }
 
     DeploymentDocumentKnowledgeOperationsService(
@@ -69,7 +74,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         RuntimePrivateAssertionSigningService assertionSigningService,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
-        HttpClient httpClient
+        HttpClient httpClient,
+        CustomerSelfServiceOperationBoundary offerBoundary
     ) {
         this.targetContextService = targetContextService;
         this.secretService = secretService;
@@ -77,40 +83,45 @@ public class DeploymentDocumentKnowledgeOperationsService {
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.transport = new DeploymentRuntimeJsonTransport(objectMapper, httpClient);
+        this.offerBoundary = offerBoundary;
     }
 
     public RuntimeResponse connectorStatus(DeploymentTargetReference target) {
-        return send(requireAccess(target, false), "GET", "/api/documents/source-connector/status", null, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.READ, null), "GET", "/api/documents/source-connector/status", null, null, READ_SCOPE);
     }
 
     public RuntimeResponse discover(DeploymentTargetReference target, JsonNode body) {
         JsonNode safe = boundedBody(body, Set.of("datasetId", "cursor", "limit"));
-        return send(requireAccess(target, false), "POST", "/api/documents/sources/discover", safe, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.SOURCE_DISCOVER, null), "POST", "/api/documents/sources/discover", safe, null, READ_SCOPE);
     }
 
     public RuntimeResponse list(DeploymentTargetReference target) {
-        return send(requireAccess(target, false), "GET", "/api/documents/sources", null, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.READ, null), "GET", "/api/documents/sources", null, null, READ_SCOPE);
     }
 
     public RuntimeResponse detail(DeploymentTargetReference target, String sourceId) {
-        return send(requireAccess(target, false), "GET", sourcePath(sourceId), null, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.READ, null), "GET", sourcePath(sourceId), null, null, READ_SCOPE);
     }
 
     public RuntimeResponse preview(DeploymentTargetReference target, String sourceId) {
-        return send(requireAccess(target, false), "GET", sourcePath(sourceId) + "/preview", null, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.SOURCE_PREVIEW, null), "GET", sourcePath(sourceId) + "/preview", null, null, READ_SCOPE);
     }
 
     public RuntimeResponse retrievalProof(DeploymentTargetReference target, JsonNode body) {
         JsonNode safe = boundedBody(body, Set.of("query", "limit"));
-        return send(requireAccess(target, false), "POST", "/api/documents/retrieval-proof", safe, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.SOURCE_PREVIEW, null), "POST", "/api/documents/retrieval-proof", safe, null, READ_SCOPE);
     }
 
     public RuntimeResponse retentionStatus(DeploymentTargetReference target) {
-        return send(requireAccess(target, false), "GET", "/api/documents/retention", null, null, READ_SCOPE);
+        return send(requireAccess(target, false, Operation.READ, null), "GET", "/api/documents/retention", null, null, READ_SCOPE);
     }
 
     public RuntimeResponse cleanupRetention(DeploymentTargetReference target) {
-        OperationAccess access = requireAccess(target, true);
+        return cleanupRetention(target, null);
+    }
+
+    public RuntimeResponse cleanupRetention(DeploymentTargetReference target, String operationKey) {
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_REMOVE, operationKey);
         RuntimeResponse response = send(
             access,
             "POST",
@@ -126,7 +137,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
 
     public RuntimeResponse register(DeploymentTargetReference target, JsonNode body, String idempotencyKey) {
-        OperationAccess access = requireAccess(target, true);
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_INDEX, idempotencyKey);
         JsonNode safe = boundedBody(body, Set.of("datasetId", "objectReference", "visibility", "metadata"));
         String key = idempotencyKey(idempotencyKey, "document-register");
         RuntimeResponse response = send(access, "POST", "/api/documents/sources", safe, key, REGISTER_SCOPE);
@@ -147,7 +158,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
 
     public RuntimeResponse removeIndex(DeploymentTargetReference target, String sourceId, String idempotencyKey) {
-        OperationAccess access = requireAccess(target, true);
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_REMOVE, idempotencyKey);
         String key = idempotencyKey(idempotencyKey, "document-delete-index");
         RuntimeResponse response = send(access, "DELETE", sourcePath(sourceId), null, key, DELETE_SCOPE);
         auditSuccess("DOCUMENT_INDEX_REMOVAL_REQUESTED", access, response, Map.of(
@@ -164,7 +175,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
                                     String idempotencyKey,
                                     String scope,
                                     String auditAction) {
-        OperationAccess access = requireAccess(target, true);
+        OperationAccess access = requireAccess(target, true,
+            "refresh".equals(operation) ? Operation.SOURCE_REFRESH : Operation.SOURCE_INDEX, idempotencyKey);
         String key = idempotencyKey(idempotencyKey, "document-" + operation);
         RuntimeResponse response = send(
             access,
@@ -178,7 +190,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return response;
     }
 
-    private OperationAccess requireAccess(DeploymentTargetReference target, boolean mutate) {
+    private OperationAccess requireAccess(DeploymentTargetReference target, boolean mutate, Operation operation, String operationKey) {
         if (target == null) throw new ResponseStatusException(BAD_REQUEST, "Explicit target and release context is required.");
         DeploymentTargetContextService.Context context = targetContextService.resolve(
             target.deploymentId(), target.targetProfileId(), target.releaseId(), mutate
@@ -191,6 +203,33 @@ public class DeploymentDocumentKnowledgeOperationsService {
         DeploymentVersionEntity version = context.version();
         if (!claimsDocumentCapability(version)) {
             throw new ResponseStatusException(BAD_REQUEST, "The selected release version does not claim Document Knowledge Operations.");
+        }
+        java.util.Set<DocumentAudience> audiences = new java.util.HashSet<>();
+        java.util.Set<String> documentDatasets = new java.util.HashSet<>();
+        for (JsonNode dataset : readJson(version.getMarketplaceDatasetConfigJson()).path("datasets")) {
+            if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText())) {
+                documentDatasets.add(dataset.path("datasetId").asText());
+            }
+        }
+        for (JsonNode source : readJson(version.getKnowledgeSourceConfigJson()).path("sources")) {
+            if (!documentDatasets.contains(source.path("datasetRef").asText())) continue;
+            boolean publicAudience = false;
+            for (JsonNode mode : source.path("authModes")) {
+                if ("PUBLIC_RUNTIME_ANONYMOUS".equals(mode.asText())) publicAudience = true;
+            }
+            audiences.add(publicAudience ? DocumentAudience.PUBLIC : DocumentAudience.AUTHENTICATED);
+        }
+        if (audiences.isEmpty()) {
+            var approved = offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,
+                operationKey, Map.of(), null, null, null);
+            if (approved != null) throw new ResponseStatusException(BAD_REQUEST, "Reviewed document audience evidence is required.");
+        } else {
+            for (DocumentAudience audience : audiences) {
+                Map<Setting, JsonNode> settings = operation == Operation.SOURCE_INDEX || operation == Operation.SOURCE_REFRESH
+                    ? Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode(audience.name())) : Map.of();
+                offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,
+                    operationKey, settings, null, null, audience);
+            }
         }
         if (!StringUtils.hasText(secretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
             || !assertionSigningService.isConfigured()) {

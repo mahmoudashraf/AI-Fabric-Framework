@@ -146,6 +146,9 @@ public class DeploymentService {
     private DeploymentDocumentBindingResolver documentBindingResolver;
 
     @Autowired
+    private com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary;
+
+    @Autowired
     private com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
     private VectorizationPlanRepository vectorizationPlanRepository;
 
@@ -1576,6 +1579,12 @@ public class DeploymentService {
         return applyVersionInternal(deploymentId, versionId, approvalId, false, targetProfileId, sourceArtifactId);
     }
 
+    @Transactional
+    public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId, String approvalId,
+                                                 String targetProfileId, String sourceArtifactId, String operationKey) {
+        return applyVersionInternal(deploymentId, versionId, approvalId, false, targetProfileId, sourceArtifactId, operationKey);
+    }
+
     /**
      * Applies a version after an upstream platform workflow has already resolved and authorized the deployment.
      * Do not call this from controller or public API paths that have not performed their own deployment ownership check.
@@ -1623,6 +1632,12 @@ public class DeploymentService {
                                                   boolean skipAccessCheck,
                                                   String targetProfileId,
                                                   String sourceArtifactId) {
+        return applyVersionInternal(deploymentId, versionId, approvalId, skipAccessCheck, targetProfileId, sourceArtifactId, null);
+    }
+
+    private DeploymentReleaseSummary applyVersionInternal(String deploymentId, String versionId, String approvalId,
+                                                          boolean skipAccessCheck, String targetProfileId,
+                                                          String sourceArtifactId, String operationKey) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         if (!skipAccessCheck) {
@@ -1634,6 +1649,15 @@ public class DeploymentService {
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
+        DeploymentTargetProfileEntity targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
+        if (!skipAccessCheck) {
+            if (offerBoundary == null) throw new IllegalStateException("Reviewed offer authorization boundary is required.");
+            var approved = offerBoundary.require(deployment, targetProfileId, null,
+                com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
+                operationKey, java.util.Map.of(), null, null, null);
+            offerBoundary.requireArtifact(approved, sourceArtifactId);
+            offerBoundary.requireVersion(approved, version);
+        }
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment);
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
@@ -1644,7 +1668,6 @@ public class DeploymentService {
                 );
             });
         deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
-        DeploymentTargetProfileEntity targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
         if (retirementGates == null) throw new IllegalStateException("Target retirement interlock is required.");
         retirementGates.requireAvailableForMutation(deploymentId, targetProfile.getId());
         requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);

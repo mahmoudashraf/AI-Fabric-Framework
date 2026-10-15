@@ -48,6 +48,40 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     private final PlatformAuditService auditService = mock(PlatformAuditService.class);
     private final HttpClient httpClient = mock(HttpClient.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary =
+        mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+
+    @Test
+    void rejectedSourceOperationNeverCallsTheDeploymentRuntime() throws Exception {
+        configureDocumentDeployment();
+        org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException
+            .deny(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.OPERATION_FORBIDDEN))
+            .when(offerBoundary).require(any(), eq("target-1"), eq("rel-1"),
+                eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_INDEX),
+                eq("index-1"), any(), any(), any(), any());
+        assertThatThrownBy(() -> service().index(target, "source-1", "index-1")).hasMessageContaining("OPERATION_FORBIDDEN");
+        verify(httpClient, never()).send(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void documentAudienceIsDerivedFromTheImmutableKnowledgeSourceContract() throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setMarketplaceDatasetConfigJson("{\"datasets\":[{\"datasetId\":\"policies\",\"ingestionMode\":\"EXTERNAL_DOCUMENT_STORAGE\"}]}");
+        version.setKnowledgeSourceConfigJson("{\"sources\":[{\"datasetRef\":\"policies\",\"authModes\":[\"PUBLIC_RUNTIME_ANONYMOUS\"]}]}");
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+        doReturn(runtimeResponse(202, "{}"))
+            .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        service().index(target, "source-1", "index-1");
+        var settings = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"),
+            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_INDEX),
+            eq("index-1"), settings.capture(), any(), any(),
+            eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.PUBLIC));
+        assertThat(settings.getValue().get(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting.DOCUMENT_AUDIENCE))
+            .isEqualTo(objectMapper.getNodeFactory().textNode("PUBLIC"));
+    }
 
     @AfterEach
     void clearSecurityContext() {
@@ -172,7 +206,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
             assertionSigningService,
             auditService,
             objectMapper,
-            httpClient
+            httpClient,
+            offerBoundary
         );
     }
 

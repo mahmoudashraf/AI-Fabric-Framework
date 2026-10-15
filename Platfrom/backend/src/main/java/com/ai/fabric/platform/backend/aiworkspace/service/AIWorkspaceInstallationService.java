@@ -12,6 +12,9 @@ import com.ai.fabric.platform.backend.aiworkspace.model.CreateAIWorkspaceInstall
 import com.ai.fabric.platform.backend.aiworkspace.model.UpdateAIWorkspaceInstallationRequest;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -54,6 +57,7 @@ public class AIWorkspaceInstallationService {
     private final AIWorkspaceAssetCatalogService assetCatalogService;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
+    private final CustomerSelfServiceOperationBoundary offerBoundary;
 
     public AIWorkspaceInstallationService(AIWorkspaceInstallationRepository repository,
                                           PlatformCustomerRepository customerRepository,
@@ -67,7 +71,8 @@ public class AIWorkspaceInstallationService {
                                           AIWorkspaceReadinessService readinessService,
                                           AIWorkspaceAssetCatalogService assetCatalogService,
                                           PlatformAuditService auditService,
-                                          ObjectMapper objectMapper) {
+                                          ObjectMapper objectMapper,
+                                          CustomerSelfServiceOperationBoundary offerBoundary) {
         this.repository = repository;
         this.customerRepository = customerRepository;
         this.consumerRepository = consumerRepository;
@@ -81,6 +86,7 @@ public class AIWorkspaceInstallationService {
         this.assetCatalogService = assetCatalogService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
+        this.offerBoundary = offerBoundary;
     }
 
     @Transactional(readOnly = true)
@@ -106,6 +112,11 @@ public class AIWorkspaceInstallationService {
     @Transactional
     public AIWorkspaceInstallationSummary create(String customerId,
                                                   CreateAIWorkspaceInstallationRequest request) {
+        return create(customerId, request, null);
+    }
+
+    @Transactional
+    public AIWorkspaceInstallationSummary create(String customerId, CreateAIWorkspaceInstallationRequest request, String operationKey) {
         requireCustomerAccess(customerId);
         if (request == null) throw new ResponseStatusException(BAD_REQUEST, "AI Workspace installation request is required.");
         PlatformConsumerEntity consumer = requireConsumer(customerId, request.consumerId());
@@ -115,6 +126,7 @@ public class AIWorkspaceInstallationService {
             request.connectionConfiguration(), request.allowedOrigins(), request.configuration(),
             request.deliveryMode(), request.appSlug(), request.customDomains(), request.interactionPolicy(),
             request.authProfileCode(), request.authProfileVersion(), request.authConfiguration(), null);
+        authorizeConfiguration(consumer, input, operationKey);
         Instant now = Instant.now();
         AIWorkspaceInstallationEntity entity = new AIWorkspaceInstallationEntity();
         entity.setId("awi-" + UUID.randomUUID());
@@ -136,6 +148,12 @@ public class AIWorkspaceInstallationService {
     public AIWorkspaceInstallationSummary update(String customerId,
                                                   String installationId,
                                                   UpdateAIWorkspaceInstallationRequest request) {
+        return update(customerId, installationId, request, null);
+    }
+
+    @Transactional
+    public AIWorkspaceInstallationSummary update(String customerId, String installationId,
+                                                 UpdateAIWorkspaceInstallationRequest request, String operationKey) {
         requireCustomerAccess(customerId);
         if (request == null) throw new ResponseStatusException(BAD_REQUEST, "AI Workspace installation request is required.");
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
@@ -152,6 +170,9 @@ public class AIWorkspaceInstallationService {
             request.connectionConfiguration(), request.allowedOrigins(), request.configuration(),
             request.deliveryMode(), request.appSlug(), request.customDomains(), request.interactionPolicy(),
             request.authProfileCode(), request.authProfileVersion(), request.authConfiguration(), entity.getId());
+        authorizeMutation(entity, operationKey);
+        authorizeConfiguration(consumer, input, operationKey);
+        authorizeRemovedDomains(entity, input.origins(), operationKey);
         entity.setConsumerEntityId(consumer.getId());
         entity.setDisplayName(input.displayName());
         apply(entity, input);
@@ -164,8 +185,16 @@ public class AIWorkspaceInstallationService {
 
     @Transactional
     public AIWorkspaceInstallationSummary activate(String customerId, String installationId) {
+        return activate(customerId, installationId, null);
+    }
+
+    @Transactional
+    public AIWorkspaceInstallationSummary activate(String customerId, String installationId, String operationKey) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
+        PlatformConsumerEntity consumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        authorizeConfiguration(consumer, storedInput(entity), operationKey);
         AIWorkspaceReadinessSummary readiness = readinessService.evaluate(entity);
         if (!readiness.ready()) {
             String blockers = readiness.checks().stream()
@@ -187,8 +216,14 @@ public class AIWorkspaceInstallationService {
 
     @Transactional
     public AIWorkspaceInstallationSummary disable(String customerId, String installationId) {
+        return disable(customerId, installationId, null);
+    }
+
+    @Transactional
+    public AIWorkspaceInstallationSummary disable(String customerId, String installationId, String operationKey) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
+        authorizeMutation(entity, operationKey);
         Instant now = Instant.now();
         entity.setStatus(AIWorkspaceInstallationStatus.DISABLED);
         entity.setDisabledAt(now);
@@ -200,8 +235,14 @@ public class AIWorkspaceInstallationService {
 
     @Transactional
     public void deleteDraft(String customerId, String installationId) {
+        deleteDraft(customerId, installationId, null);
+    }
+
+    @Transactional
+    public void deleteDraft(String customerId, String installationId, String operationKey) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
+        authorizeMutation(entity, operationKey);
         if (entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT) {
             throw new ResponseStatusException(CONFLICT, "Only unused draft AI Workspace installations can be deleted.");
         }
@@ -221,11 +262,76 @@ public class AIWorkspaceInstallationService {
         String installationId,
         String hostname
     ) {
+        return verifyDomain(customerId, installationId, hostname, null);
+    }
+
+    @Transactional
+    public com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainSummary verifyDomain(
+        String customerId, String installationId, String hostname, String operationKey
+    ) {
         requireCustomerAccess(customerId);
         AIWorkspaceInstallationEntity entity = requireInstallation(customerId, installationId);
+        var consumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        offerBoundary.requireConsumer(consumer, Operation.DOMAIN_CONFIGURE, operationKey,
+            Map.of(Setting.APP_DOMAIN, objectMapper.getNodeFactory().textNode("https://" + domainService.normalizeHostname(hostname))));
         var result = domainService.verify(entity.getId(), hostname);
         audit("AI_WORKSPACE_DOMAIN_VERIFIED", entity, Map.of("hostname", result.hostname(), "status", result.status()));
         return result;
+    }
+
+    private void authorizeMutation(AIWorkspaceInstallationEntity entity, String operationKey) {
+        var consumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        offerBoundary.requireConsumer(consumer, Operation.APP_CONFIGURE, operationKey, Map.of());
+    }
+
+    private void authorizeRemovedDomains(AIWorkspaceInstallationEntity entity, List<String> origins, String operationKey) {
+        List<String> removed = readOrigins(entity.getAllowedOriginsJson()).stream()
+            .filter(origin -> !origins.contains(origin)).toList();
+        if (removed.isEmpty()) return;
+        var consumer = consumerRepository.findById(entity.getConsumerEntityId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Installation consumer is missing."));
+        for (String origin : removed) {
+            offerBoundary.requireConsumer(consumer, Operation.DOMAIN_CONFIGURE, operationKey,
+                Map.of(Setting.APP_DOMAIN, objectMapper.getNodeFactory().textNode(origin)));
+        }
+    }
+
+    private void authorizeConfiguration(PlatformConsumerEntity consumer, ValidatedInput input, String operationKey) {
+        var interaction = objectMapper.createObjectNode();
+        interaction.put("packCode", input.packCode()).put("packVersion", input.packVersion())
+            .put("connectionMode", input.mode().name()).put("connectionProfileCode", input.profileCode())
+            .put("connectionProfileVersion", input.profileVersion()).put("deliveryMode", input.deliveryMode().name());
+        interaction.set("connectionConfiguration", input.connectionConfiguration());
+        ObjectNode configuration = input.configuration().deepCopy();
+        JsonNode theme = configuration.remove("theme");
+        interaction.set("configuration", configuration);
+        var settings = new java.util.EnumMap<Setting, JsonNode>(Setting.class);
+        settings.put(Setting.APP_TITLE, objectMapper.getNodeFactory().textNode(input.displayName()));
+        settings.put(Setting.INTERACTION_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("workspace", interaction)));
+        settings.put(Setting.THEME_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("theme", theme)));
+        var approved = offerBoundary.requireConsumer(consumer, Operation.APP_CONFIGURE, operationKey, settings);
+        if (approved == null) return;
+        var authentication = objectMapper.createObjectNode();
+        authentication.put("profileCode", input.authProfileCode()).put("profileVersion", input.authProfileVersion())
+            .put("interactionPolicy", input.interactionPolicy().name());
+        authentication.set("configuration", input.authConfiguration());
+        offerBoundary.requireConsumer(consumer, Operation.AUTH_CONFIGURE, operationKey,
+            Map.of(Setting.AUTH_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("auth", authentication))));
+        for (String origin : input.origins()) {
+            offerBoundary.requireConsumer(consumer, Operation.DOMAIN_CONFIGURE, operationKey,
+                Map.of(Setting.APP_DOMAIN, objectMapper.getNodeFactory().textNode(origin)));
+        }
+    }
+
+    private ValidatedInput storedInput(AIWorkspaceInstallationEntity entity) {
+        return new ValidatedInput(entity.getDisplayName(), entity.getExperiencePackCode(), entity.getExperiencePackVersion(),
+            entity.getConnectionMode(), entity.getConnectionProfileCode(), entity.getConnectionProfileVersion(),
+            requireObject(readJson(entity.getConnectionConfigurationJson()), "connectionConfiguration"),
+            readOrigins(entity.getAllowedOriginsJson()), requireObject(readJson(entity.getConfigurationJson()), "configuration"),
+            entity.getDeliveryMode(), entity.getAppSlug(), List.of(), entity.getInteractionPolicy(),
+            entity.getAuthProfileCode(), entity.getAuthProfileVersion(), requireObject(readJson(entity.getAuthConfigurationJson()), "authConfiguration"));
     }
 
     private void apply(AIWorkspaceInstallationEntity entity, ValidatedInput input) {

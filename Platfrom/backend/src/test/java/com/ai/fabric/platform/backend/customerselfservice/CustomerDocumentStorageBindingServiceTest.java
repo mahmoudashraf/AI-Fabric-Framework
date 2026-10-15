@@ -78,7 +78,7 @@ class CustomerDocumentStorageBindingServiceTest {
     @Test void bindsOnlyTheReviewedS3SlotAndNeverPersistsCredentialsInTheResult() {
         BindRequest request = bindRequest("bind-key");
         DocumentStorageBindingSummary summary = summary("binding");
-        when(bindings.upsert(eq("deployment"), any())).thenReturn(summary);
+        when(bindings.upsert(eq("deployment"), any(), eq("bind-key"), eq("document-storage"), eq("reviewed-s3"))).thenReturn(summary);
 
         Result result = service.bind("offer", "deployment", request);
 
@@ -90,7 +90,7 @@ class CustomerDocumentStorageBindingServiceTest {
             "tenant", null, Operation.BINDING_REPLACE, "bind-key", Set.of(), "document-storage",
             "reviewed-s3", null));
         var storage = ArgumentCaptor.forClass(UpsertDocumentStorageBindingRequest.class);
-        verify(bindings).upsert(eq("deployment"), storage.capture());
+        verify(bindings).upsert(eq("deployment"), storage.capture(), eq("bind-key"), eq("document-storage"), eq("reviewed-s3"));
         assertThat(storage.getValue()).isEqualTo(new UpsertDocumentStorageBindingRequest("staging-target",
             DeploymentDocumentStorageBindingService.S3_CONNECTOR, "https://s3.eu-north-1.amazonaws.com",
             "eu-north-1", "customer-bucket", "dealership/staging/", "access-key", "secret-value",
@@ -138,33 +138,33 @@ class CustomerDocumentStorageBindingServiceTest {
 
         assertThat(result.status()).isEqualTo("REVOKED");
         assertThat(result.binding()).isNull();
-        verify(bindings).remove("deployment", "binding");
-        verify(bindings, never()).remove("deployment", "production-binding");
+        verify(bindings).remove("deployment", "binding", "revoke-key", "document-storage");
+        verify(bindings, never()).remove(eq("deployment"), eq("production-binding"), any(), any());
         verify(audit).record(eq("CUSTOMER_DOCUMENT_STORAGE_REVOKED"), eq("DEPLOYMENT"), eq("deployment"),
             argThat(values -> Boolean.FALSE.equals(values.get("sourceObjectsDeleted"))));
     }
 
-    @Test void reviewedBindingMappingEnablesThePinnedPluginWithTheCreatedBindingReference() {
+    @Test void reviewedBindingMappingKeepsTheLogicalSlotForPromotionToAnotherTarget() {
         useMappedDefinition(Operation.BINDING_REPLACE, "bind-key");
         DeploymentMarketplacePluginInstallEntity install = install("install", "{\"publicContentApprovalConfirmed\":true}");
         when(installs.findByDeploymentIdAndPluginId("deployment", "knowledge-plugin"))
             .thenReturn(Optional.of(install));
-        when(bindings.upsert(eq("deployment"), any())).thenReturn(summary("binding"));
+        when(bindings.upsert(eq("deployment"), any(), eq("bind-key"), eq("document-storage"), eq("reviewed-s3"))).thenReturn(summary("binding"));
 
         service.bind("offer", "deployment", bindRequest("bind-key"));
 
         var request = ArgumentCaptor.forClass(UpdateDeploymentMarketplaceInstallRequest.class);
         verify(installService).updateInstallForTrustedCaller(eq(deployment), eq("install"), request.capture());
         assertThat(request.getValue().status()).isEqualTo("ENABLED");
-        assertThat(request.getValue().config().path("documentStorageBindingRef").asText()).isEqualTo("binding");
+        assertThat(request.getValue().config().path("documentStorageBindingRef").asText()).isEqualTo("slot:document-storage");
         assertThat(request.getValue().config().path("publicContentApprovalConfirmed").asBoolean()).isTrue();
     }
 
-    @Test void reviewedBindingRevocationDisablesThePinnedPluginBeforeRemovingStorage() {
+    @Test void targetBindingRevocationPreservesSharedPluginConfigurationAndOtherTargets() {
         useMappedDefinition(Operation.BINDING_REVOKE, "revoke-key");
         DeploymentMarketplacePluginInstallEntity install = install(
             "install",
-            "{\"documentStorageBindingRef\":\"binding\",\"publicContentApprovalConfirmed\":true}"
+            "{\"documentStorageBindingRef\":\"slot:document-storage\",\"publicContentApprovalConfirmed\":true}"
         );
         when(installs.findByDeploymentIdAndPluginId("deployment", "knowledge-plugin"))
             .thenReturn(Optional.of(install));
@@ -177,13 +177,20 @@ class CustomerDocumentStorageBindingServiceTest {
             "document-storage"
         ));
 
-        var request = ArgumentCaptor.forClass(UpdateDeploymentMarketplaceInstallRequest.class);
-        verify(installService).updateInstallForTrustedCaller(eq(deployment), eq("install"), request.capture());
-        assertThat(request.getValue().status()).isEqualTo("DISABLED");
-        assertThat(request.getValue().config().has("documentStorageBindingRef")).isFalse();
-        var order = inOrder(installService, bindings);
-        order.verify(installService).updateInstallForTrustedCaller(eq(deployment), eq("install"), any());
-        order.verify(bindings).remove("deployment", "binding");
+        verifyNoInteractions(installService);
+        verify(bindings).remove("deployment", "binding", "revoke-key", "document-storage");
+        assertThat(codec.tree(install.getConfigJson()).path("documentStorageBindingRef").asText()).isEqualTo("slot:document-storage");
+    }
+
+    @Test void configuringAnAdditionalTargetDoesNotRewriteTheReviewedSlotConfiguration() {
+        useMappedDefinition(Operation.BINDING_REPLACE, "bind-key");
+        var install = install("install", "{\"documentStorageBindingRef\":\"slot:document-storage\",\"publicContentApprovalConfirmed\":true}");
+        install.setStatus("ENABLED");
+        when(installs.findByDeploymentIdAndPluginId("deployment", "knowledge-plugin")).thenReturn(Optional.of(install));
+        when(bindings.upsert(eq("deployment"), any(), eq("bind-key"), eq("document-storage"), eq("reviewed-s3")))
+            .thenReturn(summary("another-target-binding"));
+        service.bind("offer", "deployment", bindRequest("bind-key"));
+        verifyNoInteractions(installService);
     }
 
     private void useMappedDefinition(Operation operation, String operationKey) {

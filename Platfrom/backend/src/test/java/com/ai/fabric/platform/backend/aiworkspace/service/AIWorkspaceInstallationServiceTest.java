@@ -8,12 +8,20 @@ import com.ai.fabric.platform.backend.aiworkspace.model.CreateAIWorkspaceInstall
 import com.ai.fabric.platform.backend.aiworkspace.model.UpdateAIWorkspaceInstallationRequest;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -21,11 +29,15 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -51,6 +63,65 @@ class AIWorkspaceInstallationServiceTest {
     private final AIWorkspaceAssetCatalogService assets = mock(AIWorkspaceAssetCatalogService.class);
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final CustomerSelfServiceOperationBoundary offerBoundary = mock(CustomerSelfServiceOperationBoundary.class);
+
+    @ParameterizedTest
+    @EnumSource(value = Operation.class, names = {"APP_CONFIGURE", "AUTH_CONFIGURE", "DOMAIN_CONFIGURE"})
+    void offerConfigurationDenialsStopBeforeInstallationOrDomainMutation(Operation operation) throws Exception {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "northfield-web"))
+            .thenReturn(Optional.of(consumer()));
+        when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
+        when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
+        when(offerBoundary.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
+        doThrow(CustomerSelfServiceException.deny(CustomerSelfServiceException.Code.SETTING_FORBIDDEN))
+            .when(offerBoundary).requireConsumer(any(), eq(operation), any(), any());
+
+        assertThatThrownBy(() -> service().create("customer-1", new CreateAIWorkspaceInstallationRequest(
+            "northfield-web", "Workspace", "dealership", "1.1.0",
+            "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0",
+            objectMapper.createObjectNode(), List.of("https://dealer.example"), dealershipConfiguration(),
+            "embedded", null, List.of(), "public", "none", "1.0.0", objectMapper.createObjectNode()), "app-operation"))
+            .hasMessageContaining("SETTING_FORBIDDEN");
+        verify(repository, never()).saveAndFlush(any());
+        verify(domains, never()).synchronize(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void removingThemeAndDomainStillChecksTheirReviewedSettingsBeforeMutation() throws Exception {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        var consumer = consumer();
+        when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "northfield-web"))
+            .thenReturn(Optional.of(consumer));
+        when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
+        var installation = installation();
+        installation.setStatus(AIWorkspaceInstallationStatus.DRAFT);
+        installation.setAllowedOriginsJson("[\"https://old.example\"]");
+        when(repository.findByCustomerIdAndInstallationId("customer-1", installation.getInstallationId()))
+            .thenReturn(Optional.of(installation));
+        when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
+        when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
+        when(offerBoundary.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
+        doThrow(CustomerSelfServiceException.deny(CustomerSelfServiceException.Code.SETTING_FORBIDDEN))
+            .when(offerBoundary).requireConsumer(eq(consumer), eq(Operation.DOMAIN_CONFIGURE), eq("app-update"),
+                eq(Map.of(Setting.APP_DOMAIN, objectMapper.getNodeFactory().textNode("https://old.example"))));
+
+        assertThatThrownBy(() -> service().update("customer-1", installation.getInstallationId(),
+            new UpdateAIWorkspaceInstallationRequest("northfield-web", "Workspace", "dealership", "1.1.0",
+                "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0", objectMapper.createObjectNode(),
+                List.of("https://dealer.example"), dealershipConfiguration(), "embedded", null, List.of(),
+                "public", "none", "1.0.0", objectMapper.createObjectNode(), 0L), "app-update"))
+            .hasMessageContaining("SETTING_FORBIDDEN");
+
+        verify(offerBoundary).profileId(eq("theme"), isNull());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<Setting, JsonNode>> values = ArgumentCaptor.forClass(Map.class);
+        verify(offerBoundary, times(2)).requireConsumer(eq(consumer), eq(Operation.APP_CONFIGURE), eq("app-update"), values.capture());
+        assertThat(values.getAllValues().getLast()).containsEntry(Setting.THEME_PROFILE_ID,
+            objectMapper.getNodeFactory().textNode("theme:profile"));
+        verify(repository, never()).saveAndFlush(any());
+        verify(domains, never()).synchronize(any(), any(), any(), any(), any());
+    }
 
     @Test
     void createsCustomerScopedDraftWithOpaquePublicIdAndNormalizedConfiguration() throws Exception {
@@ -117,7 +188,8 @@ class AIWorkspaceInstallationServiceTest {
     private AIWorkspaceInstallationService service() {
         return new AIWorkspaceInstallationService(
             repository, customers, consumers, access, packs, profiles, authenticationProfiles, validator,
-            domains, readiness, assets, audit, objectMapper
+            domains, readiness, assets, audit, objectMapper,
+            offerBoundary
         );
     }
 

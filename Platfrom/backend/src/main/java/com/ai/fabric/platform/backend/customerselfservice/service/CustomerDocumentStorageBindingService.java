@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.UpsertDocumentStorageBindingRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentStorageBindingService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
@@ -89,8 +90,8 @@ public class CustomerDocumentStorageBindingService {
             request.targetProfileId(), DeploymentDocumentStorageBindingService.S3_CONNECTOR,
             request.endpoint(), request.region(), request.bucket(), request.prefix(), request.accessKey(),
             request.secretKey(), request.sessionToken(), request.pathStyleAccess(),
-            request.objectVersioningAvailable(), false, null));
-        applyBindingToMappedInstall(deployment, slot, binding.bindingRef());
+            request.objectVersioningAvailable(), false, null), request.operationKey(), request.bindingSlotId(), request.selectedProfileId());
+        applyBindingToMappedInstall(deployment, slot);
         Result result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(),
             request.selectedProfileId(), "CONFIGURED", binding);
         persist(grant.getId(), request.operationKey(), fingerprint, BIND_COMMAND, actorId, result);
@@ -122,8 +123,7 @@ public class CustomerDocumentStorageBindingService {
         var matches = bindings.list(deploymentId).stream()
             .filter(value -> request.targetProfileId().equals(value.targetProfileId())).toList();
         if (matches.size() != 1) throw conflict(STORAGE_REQUIRED);
-        removeBindingFromMappedInstall(deployment, slot);
-        bindings.remove(deploymentId, matches.getFirst().bindingRef());
+        bindings.remove(deploymentId, matches.getFirst().bindingRef(), request.operationKey(), request.bindingSlotId());
         Result result = new Result(offerId, deploymentId, request.targetProfileId(), request.bindingSlotId(),
             null, "REVOKED", null);
         persist(grant.getId(), request.operationKey(), fingerprint, REVOKE_COMMAND, actorId, result);
@@ -140,6 +140,9 @@ public class CustomerDocumentStorageBindingService {
         var slot = approved.definition().bindingSlots().stream().filter(value -> value.id().equals(slotId))
             .findFirst().orElseThrow(() -> deny(BINDING_SLOT_FORBIDDEN));
         if (slot.kind() != BindingKind.CUSTOMER_S3) throw deny(BINDING_SLOT_FORBIDDEN);
+        if (slot.pluginId() != null && !DeploymentDocumentBindingResolver.DOCUMENT_STORAGE_SLOT.equals("slot:" + slot.id())) {
+            throw deny(BINDING_SLOT_FORBIDDEN);
+        }
         return slot;
     }
 
@@ -149,29 +152,18 @@ public class CustomerDocumentStorageBindingService {
             .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
     }
 
-    private void applyBindingToMappedInstall(DeploymentEntity deployment, BindingSlot slot, String bindingRef) {
+    private void applyBindingToMappedInstall(DeploymentEntity deployment, BindingSlot slot) {
         if (slot.pluginId() == null) return;
         var install = installs.findByDeploymentIdAndPluginId(deployment.getId(), slot.pluginId())
             .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
         ObjectNode config = requireObjectConfig(install.getConfigJson());
-        config.put(slot.installConfigField(), bindingRef);
+        String reference = DeploymentDocumentBindingResolver.DOCUMENT_STORAGE_SLOT;
+        if ("ENABLED".equals(install.getStatus()) && reference.equals(config.path(slot.installConfigField()).asText())) return;
+        config.put(slot.installConfigField(), reference);
         installService.updateInstallForTrustedCaller(
             deployment,
             install.getId(),
             new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED", config, null)
-        );
-    }
-
-    private void removeBindingFromMappedInstall(DeploymentEntity deployment, BindingSlot slot) {
-        if (slot.pluginId() == null) return;
-        var install = installs.findByDeploymentIdAndPluginId(deployment.getId(), slot.pluginId())
-            .orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
-        ObjectNode config = requireObjectConfig(install.getConfigJson());
-        config.remove(slot.installConfigField());
-        installService.updateInstallForTrustedCaller(
-            deployment,
-            install.getId(),
-            new UpdateDeploymentMarketplaceInstallRequest(null, "DISABLED", config, null)
         );
     }
 
