@@ -496,6 +496,14 @@ source slices, verification evidence and remaining integration gates. This does
 not change the hosted facts in section 6.2. No new productized customer app,
 target profile, deployment, assignment or provider service has been created.
 
+Implementation checkpoint, 2026-10-15: the latest P0-P5 source foundations are
+locally integrated through `db48e9f2b`. The clean Platform backend gate passes
+1,551 tests and the deployment-local runtime gate passes 319 tests, both with
+zero failures, errors or skips. These results do not close the unchecked hosted
+acceptance items below: the immutable image, target-scoped customer lifecycle,
+notification, capacity/reclamation and production gates still require live
+evidence. `Platfrom/ui` remains untouched; P6 has not started.
+
 Readiness verdict after the code assessment: the architecture is correct, but
 existing primitives are foundations rather than complete self-service behavior.
 Section 10.12 is the implementation contract and code-gap resolution register.

@@ -16,10 +16,12 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 - P1-P5: source foundations are integrated. The immutable three-service managed
   dependency package is published and read back on both hosted control planes,
   and the customer-safe admission reservation plus staff-only reviewed-record
-  boundaries are deployed on both Platform backends. End-to-end customer
-  provisioning is not hosted-certified. It remains gated on live storage,
-  identity, notification, measured capacity and fresh-customer lifecycle
-  evidence.
+  boundaries are deployed on both Platform backends. The later authorization,
+  allocation, capacity, retirement and scheduler corrections are locally
+  integrated through `db48e9f2b` but are not yet deployed. End-to-end customer
+  provisioning is not hosted-certified. It remains gated on target-scoped live
+  storage, identity, notification, measured capacity and fresh-customer
+  lifecycle evidence.
 - P6: not started. No editor extraction or customer layout change before the
   verified functional baseline. Preserve the frozen STAFF-001 through STAFF-039
   capability register and source snapshot.
@@ -133,6 +135,24 @@ complete dealership topology. No resources were removed or redeployed.
   authority secret independently of service-owned credentials. Managed action
   routes compile reviewed service URL/path and secret-header bindings, validate
   HTTP methods and normalize bounded success-status contracts.
+- Customer plan/apply/activation now share one durable admission allocation and
+  scoped authorization receipts. Accepted runtime chat, action and handover
+  activity renews eligible staging allocations within the reviewed bounds;
+  customer retention and extension commands are explicit and replay-safe.
+- Generic customer mutations now require an active reviewed offer for their
+  exact operation and target. Target-specific document bindings retain the
+  logical reviewed slot while isolating the staging and production physical
+  source. The productized dealership action set now keeps anonymous callback
+  intake but requires authentication for test-drive creation.
+- Coolify application and PostgreSQL capacity limits are projected from the
+  reviewed resource envelope and checked against fresh provider readback.
+  Productized runtime databases fail closed on missing or drifted admission
+  evidence. The obsolete production-hosted staging profile is inactive for new
+  placement while historical records remain readable.
+- Admission lifecycle and release reconciliation are now separate opt-in
+  workers. Both use valid ISO-8601 scheduling defaults and remain disabled
+  unless the control-plane instance is explicitly assigned the work, avoiding
+  duplicate or unintended lifecycle processing on passive instances.
 
 ### Executed Checks
 
@@ -279,6 +299,19 @@ complete dealership topology. No resources were removed or redeployed.
   gate passed **63 tests**. A fresh complete Platform backend run then passed
   **1,485 tests**, with zero failures, errors or skips (`BUILD SUCCESS`,
   6m43s). No framework or UI change was required.
+- The subsequent P0-P5 source-integration series added promotion-triggered
+  staging retirement, exact provider-volume reclamation safeguards, enforced
+  Coolify database limits, target-specific document binding retention,
+  reviewed-offer authorization, protected dealership test-drive execution and
+  durable allocation ownership across release lifecycle. The first broad run
+  found one stale unit fixture that omitted the new required admission release
+  coordinator; the production fail-closed invariant was preserved and the
+  fixture was corrected. The clean final Platform backend run passed **1,551
+  tests**, with zero failures, errors or skips (`BUILD SUCCESS`, 6m51s).
+- The deployment-local runtime suite passed **319 tests**, with zero failures,
+  errors or skips. Runtime Flyway applied through `V15.2`, including accepted
+  admission activity. No public AI Fabric source or dependency version changed;
+  all work remains on AI Fabric `0.8.33`.
 - GitHub Actions run `38736048226` published the reviewed Platform backend from
   exact source `294f771ebadb60b5c8f43d0ea6abf63415b9efff` as
   `ghcr.io/mahmoudashraf/loomai-platform-backend:294f771ebadb60b5c8f43d0ea6abf63415b9efff`,
@@ -340,10 +373,12 @@ complete dealership topology. No resources were removed or redeployed.
 
 Logs reside under `/private/tmp/01036-*`; copy final sanitized evidence to the
 verification-support directory after the integrated gate passes. Source baseline
-started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; verified source foundations
-are committed on `Platform-V11` through `294f771eb`. The Platform
-backend and reviewed package metadata are now hosted, but the customer offer has
-not passed the remaining live safety gates and is not externally admissible.
+started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; the latest locally verified
+source foundations are committed on `Platform-V11` through `db48e9f2b`. The
+last hosted Platform backend remains source `294f771eb` until the new immutable
+image is published and staged. The reviewed package metadata is hosted, but the
+customer offer has not passed the remaining live safety gates and is not
+externally admissible.
 No customer deployment, provider resource or consumer assignment was created or
 changed by the package-publication check.
 
