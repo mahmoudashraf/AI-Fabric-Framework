@@ -73,14 +73,13 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
 
         Reservation reservation = matches.getFirst();
         Instant now = clock.instant();
-        if ((reservation.state() != State.RESERVED && reservation.state() != State.PROVISIONING)
+        if ((reservation.state() != State.RESERVED && reservation.state() != State.PROVISIONING && reservation.state() != State.ACTIVE)
             || !reservation.consumesCapacity() || reservation.expiresAt() == null || !reservation.expiresAt().isAfter(now)
             || reservation.expiryState() == ExpiryState.CLAIMED || reservation.expiryState() == ExpiryState.BLOCKED
-            || reservation.expiryState() == ExpiryState.HANDED_OFF || reservation.expiryState() == ExpiryState.RELEASED
-            || reservation.customerOperation() != requested.operation()
-            || !json.fingerprint(requested).equals(reservation.customerContextFingerprint())) {
+            || reservation.expiryState() == ExpiryState.HANDED_OFF || reservation.expiryState() == ExpiryState.RELEASED) {
             throw unavailable("CUSTOMER_CAPACITY_RESERVATION_INVALID");
         }
+        store.requireCustomerAuthorization(reservation, requested);
 
         AdmissionContext current = store.context(requested.customerId(), requested.tenantId(), requested.deploymentId(),
             reservation.manifestId());
@@ -117,17 +116,13 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         grant(current.grant(), now);
         manifest(current.manifest());
         prerequisites(current, reservation.prerequisiteReadback(), now);
-        Reserve exactCommand = new Reserve(requested.operationKey(), current.manifest().id(), requested);
-        if (!reservation.requestFingerprint().equals(store.commandFingerprint(current.customerId(), current.tenantId(),
-                current.deploymentId(), current.manifest(), exactCommand))
-            || !reservation.customerId().equals(current.customerId()) || !reservation.tenantId().equals(current.tenantId())
+        if (!reservation.customerId().equals(current.customerId()) || !reservation.tenantId().equals(current.tenantId())
             || !reservation.deploymentId().equals(current.deploymentId())
             || !reservation.targetProfileId().equals(current.target().targetProfileId())
             || reservation.intent() != current.target().intent() || !reservation.policyId().equals(current.policy().id())
             || !reservation.manifestFingerprint().equals(current.manifestFingerprint())
             || !reservation.bindingFingerprint().equals(current.manifest().bindingFingerprint())
-            || reservation.prerequisiteReadback() == null
-            || !Objects.equals(reservation.evidenceReference(), reservation.prerequisiteReadback().evidenceReference())) {
+            || reservation.prerequisiteReadback() == null) {
             throw unavailable("CUSTOMER_ADMISSION_FINGERPRINT_CHANGED");
         }
     }

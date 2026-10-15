@@ -66,8 +66,10 @@ public class CustomerAdmissionReservationService {
         Authorization prepared = preparation.execute(status -> prepare(offerId, deployment, request));
         if (prepared == null) throw deny(RESOURCE_SCOPE_MISMATCH);
         Reservation reservation = admissions.reserveCustomer(deploymentId, request.versionId(),
-            new Reserve(request.operationKey(), request.manifestId(), prepared.context()));
-        return summary(reservation);
+            new Reserve(request.operationKey(), request.manifestId(), prepared.context(), request.allocationId()));
+        Summary result = summary(reservation);
+        return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), result.intent(),
+            request.operation(), result.state(), result.revision(), result.expiresAt());
     }
 
     public Summary status(String offerId, String deploymentId, String reservationId) {
@@ -122,6 +124,7 @@ public class CustomerAdmissionReservationService {
     private void validate(Request request) {
         if (request == null || blank(request.targetProfileId(), 64) || blank(request.manifestId(), 64)
             || blank(request.versionId(), 64) || request.operation() == null || blank(request.operationKey(), 128)
+            || (request.allocationId() != null && blank(request.allocationId(), 64))
             || (request.releaseId() != null && blank(request.releaseId(), 64))) throw invalid();
     }
 

@@ -61,6 +61,8 @@ import org.slf4j.LoggerFactory;
 @Service
 @ConditionalOnProperty(prefix = "loomai.conversation-handover", name = "enabled", havingValue = "true")
 public class RuntimeConversationHandoverService {
+    @Autowired
+    private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
 
     private static final Logger log = LoggerFactory.getLogger(RuntimeConversationHandoverService.class);
 
@@ -1470,6 +1472,9 @@ public class RuntimeConversationHandoverService {
 
     private void appendEvent(ConversationScope scope, String type, Map<String, Object> payload) {
         repository.appendEvent(scope, "event-" + UUID.randomUUID(), type, payload);
+        if (admissionActivity != null && ("USER_MESSAGE_ACCEPTED".equals(type) || "HUMAN_MESSAGE".equals(type))) {
+            admissionActivity.accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.HUMAN_WORK);
+        }
     }
 
     private Map<String, Object> channelEventProjection(ConversationChannelEvent event) {

@@ -20,6 +20,8 @@ import java.util.UUID;
 
 @Service
 public class RuntimeActionPostPolicyEngine implements ActionPostPolicyEngine {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
 
     private static final int DEFAULT_TIMEOUT_MS = 3_000;
     private static final int DEFAULT_MAX_ATTEMPTS = 5;
@@ -47,6 +49,8 @@ public class RuntimeActionPostPolicyEngine implements ActionPostPolicyEngine {
         if (!StringUtils.hasText(actionName) || actionResult == null || !actionResult.isSuccess()) {
             return;
         }
+        if (admissionActivity != null) admissionActivity.accepted(
+            com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.ACCEPTED_ACTION);
         Map<String, ConnectorWebhookTargetDefinition> targetsById = webhookPolicyCatalog.webhookTargetsById();
         List<ConnectorActionPostPolicyDefinition> postPolicies = webhookPolicyCatalog.postPoliciesForAction(actionName);
         if (postPolicies.isEmpty() || targetsById.isEmpty()) {

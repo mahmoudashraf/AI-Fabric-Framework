@@ -126,8 +126,10 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         }
         List<DeploymentReleaseEntity> targetReleases = releases
             .findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(reservation.deploymentId(), reservation.targetProfileId());
+        String boundReleaseId = admissions.currentReleaseId(reservation);
         List<DeploymentReleaseEntity> matches = targetReleases.stream().filter(release ->
             manifest.versionId().equals(release.getDeploymentVersionId())
+                && (boundReleaseId == null || boundReleaseId.equals(release.getId()))
                 && "APPLIED_VERIFIED".equals(release.getStatus())
                 && "ACTIVE".equals(release.getProvisioningStatus())
                 && release.getProviderType() == DeploymentProviderType.COOLIFY

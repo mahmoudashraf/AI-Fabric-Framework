@@ -176,6 +176,8 @@ class RuntimeConversationHandoverServiceTest {
 
     @Test
     void lifecycleIsOwnerIsolatedReplaySafeAndResumesWithHumanTranscript() throws Exception {
+        var activity = org.mockito.Mockito.mock(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "admissionActivity", activity);
         ConversationMessage firstUser = service.appendUserMessage(
             owner,
             CONVERSATION_ID,
@@ -286,6 +288,7 @@ class RuntimeConversationHandoverServiceTest {
         assertThat(afterHuman.messages())
             .extracting(PublicConversationMessage::content)
             .contains("I have reviewed this with you.");
+        org.mockito.Mockito.verify(activity).accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.HUMAN_WORK);
 
         ConversationChannelEvent reusedNonce = event(
             "event-message-2",
@@ -390,6 +393,8 @@ class RuntimeConversationHandoverServiceTest {
 
     @Test
     void duplicateHumanBoundMessageReplaysWithoutCreatingAnotherDispatch() {
+        var activity = org.mockito.Mockito.mock(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "admissionActivity", activity);
         requestAnonymous("handover-message-replay");
 
         HumanMessageAcceptance first = service.appendHumanBoundUserMessage(
@@ -415,6 +420,8 @@ class RuntimeConversationHandoverServiceTest {
             .filteredOn(event -> "USER_MESSAGE_ACCEPTED".equals(event.type()))
             .hasSize(1);
         assertThat(repository.dispatchStatusCounts()).containsEntry("PENDING", 2L);
+        org.mockito.Mockito.verify(activity, org.mockito.Mockito.times(1)).accepted(
+            com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.HUMAN_WORK);
     }
 
     @Test

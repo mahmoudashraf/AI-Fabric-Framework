@@ -32,6 +32,7 @@ abstract class AdmissionFixture {
         mapper = new ObjectMapper().registerModule(new JavaTimeModule()); json = new AdmissionJson(mapper);
         dataSource = new DriverManagerDataSource("jdbc:h2:mem:admission_" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;LOCK_TIMEOUT=10000", "sa", "");
         new ResourceDatabasePopulator(new ClassPathResource("db/test-migration/V120_13__durable_capacity_admission_and_staging_expiry_test.sql")).execute(dataSource);
+        new ResourceDatabasePopulator(new ClassPathResource("db/test-migration/V120_22_2__admission_allocation_authorizations_test.sql")).execute(dataSource);
         jdbc = new JdbcTemplate(dataSource); store = new AdmissionStore(jdbc, json, new DataSourceTransactionManager(dataSource), java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
     }
     static Vector vector(long value) {

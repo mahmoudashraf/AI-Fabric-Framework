@@ -145,6 +145,12 @@ public class ChatRuntimeController {
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     private RuntimeTargetRetirementService targetRetirementService;
+    private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAdmissionActivity(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService service) {
+        this.admissionActivity = service;
+    }
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setTargetRetirementService(RuntimeTargetRetirementService service) {
@@ -268,7 +274,11 @@ public class ChatRuntimeController {
             long requestDurationMs = System.currentTimeMillis() - requestStartTime;
             attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
 
-            return okWithAuthHeaders(toCanonicalChatResponse(request, conversationId, context, result, identity), identity, requestPath);
+            ChatQueryResponse response = toCanonicalChatResponse(request, conversationId, context, result, identity);
+            if (admissionActivity != null && result != null && result.isSuccess()) {
+                admissionActivity.accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.ACCEPTED_SESSION);
+            }
+            return okWithAuthHeaders(response, identity, requestPath);
         } finally {
             if (targetRetirementService != null) targetRetirementService.finishTurn(retirementPermit);
         }

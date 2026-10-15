@@ -108,6 +108,13 @@ class AdmissionStore {
         return new AdmissionContext(customer, tenant, deployment, policy, grant, manifest, json.fingerprint(manifest), target);
     }
     Reservation replay(String customer, String deployment, String target, Reserve command, String fingerprint) {
+        if (command.customerContext() != null) {
+            var receipts = authorizationRows(customer, deployment, target, command.operationKey());
+            if (receipts.isEmpty()) return null;
+            AuthorizationReceipt receipt = receipts.getFirst();
+            if (!receipt.requestFingerprint().equals(fingerprint)) throw new AdmissionFailure(CONFLICT, "OPERATION_KEY_REUSED");
+            return require(receipt.reservationId());
+        }
         var rows = jdbc.query("SELECT payload_json FROM deployment_capacity_reservations WHERE customer_id=? AND deployment_id=? AND target_profile_id=? AND operation_key=?",
             (rs, row) -> json.read(rs.getString(1), Reservation.class), customer, deployment, target, command.operationKey());
         if (rows.isEmpty()) return null;
@@ -119,6 +126,7 @@ class AdmissionStore {
         value.put("customer", customer); value.put("tenant", tenant); value.put("deployment", deployment);
         value.put("manifestId", manifest.id()); value.put("manifestFingerprint", json.fingerprint(manifest));
         value.put("target", manifest.targetProfileId());
+        if (command.allocationId() != null) value.put("allocationId", command.allocationId());
         if (command.customerContext() != null) value.put("customerContext", command.customerContext());
         return json.fingerprint(value);
     }
@@ -137,6 +145,18 @@ class AdmissionStore {
             localGuard.run();
             now = effectiveTime(requestedAt);
             policy(current.policy(), now); grant(current.grant(), now); manifest(current.manifest()); prerequisites(current, evidence, now);
+            if (command.allocationId() != null) {
+                Reservation allocation = require(required(command.allocationId(), 64));
+                boolean lifecycleExtension = command.customerContext() != null && (command.customerContext().operation()
+                    == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.STAGING_EXTEND
+                    || command.customerContext().operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.STAGING_RETAIN);
+                requireUsableAllocation(allocation, current, now, lifecycleExtension);
+                requireReleaseAuthorization(allocation, command);
+                persistAuthorization(allocation, current, command, fingerprint, now);
+                Mutation refresh = new Mutation(allocation);
+                refresh.prerequisiteReadback = evidence;
+                return save(allocation, refresh, "ALLOCATION_OPERATION_AUTHORIZED", actor, now);
+            }
             var held = held();
             if (held.stream().anyMatch(r -> r.deploymentId().equals(current.deploymentId()) && r.targetProfileId().equals(current.target().targetProfileId())))
                 throw new AdmissionFailure(CONFLICT, "CURRENT_RESERVATION_REQUIRES_RECONCILIATION");
@@ -158,8 +178,94 @@ class AdmissionStore {
                 fingerprint, reservation.generation(), 0L, reservation.state().name(), slot(reservation), time(reservation.expiresAt()), null,
                 reservation.expiryState().name(), json.write(reservation), time(now));
             event(reservation, "RESERVED", actor, evidence.evidenceReference(), now);
+            if (command.customerContext() != null) persistAuthorization(reservation, current, command, fingerprint, now);
             return reservation;
         });
+    }
+
+    private void requireUsableAllocation(Reservation reservation, AdmissionContext current, Instant now) {
+        requireUsableAllocation(reservation, current, now, false);
+    }
+    private void requireUsableAllocation(Reservation reservation, AdmissionContext current, Instant now, boolean lifecycleExtension) {
+        if (!reservation.customerId().equals(current.customerId()) || !reservation.tenantId().equals(current.tenantId())
+            || !reservation.deploymentId().equals(current.deploymentId())
+            || !reservation.targetProfileId().equals(current.target().targetProfileId())
+            || reservation.intent() != current.target().intent() || !reservation.policyId().equals(current.policy().id())
+            || !reservation.manifestFingerprint().equals(current.manifestFingerprint())
+            || !reservation.bindingFingerprint().equals(current.manifest().bindingFingerprint())
+            || !List.of(State.RESERVED, State.PROVISIONING, State.ACTIVE).contains(reservation.state())
+            || (reservation.expiryState() != ExpiryState.CURRENT && !(lifecycleExtension
+                && List.of(ExpiryState.NOTICE_PENDING, ExpiryState.NOTICE_FAILED, ExpiryState.NOTIFIED).contains(reservation.expiryState())))
+            || !reservation.expiresAt().isAfter(now)
+            || reservation.workerToken() != null) {
+            throw new AdmissionFailure(CONFLICT, "ALLOCATION_NOT_CURRENT_FOR_REVIEWED_LIFECYCLE");
+        }
+    }
+
+    private void requireReleaseAuthorization(Reservation allocation, Reserve command) {
+        if (command.customerContext() == null) throw new AdmissionFailure(BAD_REQUEST, "CUSTOMER_ADMISSION_CONTEXT_REQUIRED");
+        var context = command.customerContext();
+        if ((context.operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ACTIVATE
+            || context.operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ROLLBACK)
+            && context.releaseId() == null) throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_SCOPE_REQUIRED");
+        if (context.releaseId() != null) {
+            ReleaseBinding binding = releaseBinding(context.releaseId());
+            if (binding == null || !allocation.id().equals(binding.reservationId())
+                || !allocation.generation().equals(binding.generation())) {
+                throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_SCOPE_MISMATCH");
+            }
+            if (context.operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.ACTIVATE
+                && !"ACTIVE".equals(binding.state())) throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_NOT_VERIFIED");
+        }
+    }
+
+    private void persistAuthorization(Reservation reservation, AdmissionContext current, Reserve command,
+                                      String fingerprint, Instant now) {
+        var scope = command.customerContext();
+        AuthorizationReceipt receipt = new AuthorizationReceipt(reservation.id(), reservation.generation(),
+            reservation.manifestFingerprint(), fingerprint, json.fingerprint(scope), command);
+        jdbc.update("""
+            INSERT INTO deployment_admission_authorizations
+             (customer_id,deployment_id,target_profile_id,operation_key,reservation_id,generation,operation,
+              version_id,request_fingerprint,context_fingerprint,payload_json,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, current.customerId(), current.deploymentId(), current.target().targetProfileId(), command.operationKey(),
+            reservation.id(), reservation.generation(), scope.operation().name(), current.manifest().versionId(),
+            fingerprint, receipt.contextFingerprint(), json.write(receipt), time(now));
+    }
+
+    private List<AuthorizationReceipt> authorizationRows(String customer, String deployment, String target, String key) {
+        return jdbc.query("""
+            SELECT payload_json FROM deployment_admission_authorizations
+             WHERE customer_id=? AND deployment_id=? AND target_profile_id=? AND operation_key=?
+            """, (rs, row) -> json.read(rs.getString(1), AuthorizationReceipt.class), customer, deployment, target, key);
+    }
+
+    void requireCustomerAuthorization(Reservation reservation,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested) {
+        var receipts = authorizationRows(requested.customerId(), requested.deploymentId(), requested.targetProfileId(), requested.operationKey());
+        if (receipts.size() != 1) throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_OPERATION_AUTHORIZATION_REQUIRED");
+        AuthorizationReceipt receipt = receipts.getFirst();
+        Manifest manifest = reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+        if (!reservation.id().equals(receipt.reservationId()) || !reservation.generation().equals(receipt.generation())
+            || !reservation.manifestFingerprint().equals(receipt.manifestFingerprint())
+            || !json.fingerprint(requested).equals(receipt.contextFingerprint())
+            || !receipt.requestFingerprint().equals(commandFingerprint(requested.customerId(), requested.tenantId(),
+                requested.deploymentId(), manifest, receipt.command()))
+            || !requested.equals(receipt.command().customerContext())) {
+            throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_CAPACITY_RESERVATION_INVALID");
+        }
+        requireReleaseAuthorization(reservation, receipt.command());
+        if (reservation.state() == State.ACTIVE && (requested.operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY
+            || requested.operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.PROMOTION_APPLY)) {
+            Long consumed = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM deployment_admission_release_bindings
+                 WHERE reservation_id=? AND generation=? AND authorization_key=?
+                """, Long.class, reservation.id(), reservation.generation(), requested.operationKey());
+            if (consumed == null || consumed > 0 || currentReleaseId(reservation) == null) {
+                throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_CAPACITY_RESERVATION_INVALID");
+            }
+        }
     }
     private void validateCustomerScope(AdmissionContext current, Reserve command) {
         var scope = command.customerContext();
@@ -247,21 +353,206 @@ class AdmissionStore {
     List<Reservation> customerPrerequisiteReservations(
         com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context) {
         return jdbc.query("""
-            SELECT customer_id,deployment_id,target_profile_id,operation_key,state,payload_json
-              FROM deployment_capacity_reservations
-             WHERE customer_id=? AND deployment_id=? AND target_profile_id=? AND operation_key=?
+            SELECT r.customer_id,r.deployment_id,r.target_profile_id,r.generation,r.state,r.payload_json
+              FROM deployment_capacity_reservations r JOIN deployment_admission_authorizations a ON a.reservation_id=r.id
+             WHERE a.customer_id=? AND a.deployment_id=? AND a.target_profile_id=? AND a.operation_key=?
              FOR UPDATE
             """, (rs, row) -> {
                 Reservation reservation = json.read(rs.getString("payload_json"), Reservation.class);
                 if (!rs.getString("customer_id").equals(reservation.customerId())
                     || !rs.getString("deployment_id").equals(reservation.deploymentId())
                     || !rs.getString("target_profile_id").equals(reservation.targetProfileId())
-                    || !rs.getString("operation_key").equals(reservation.operationKey())
+                    || !rs.getString("generation").equals(reservation.generation())
                     || !rs.getString("state").equals(reservation.state().name())) {
                     throw new AdmissionFailure(CONFLICT, "ADMISSION_RESERVATION_RECORD_MISMATCH");
                 }
                 return reservation;
             }, context.customerId(), context.deploymentId(), context.targetProfileId(), context.operationKey());
+    }
+
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void bindRelease(com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity deployment,
+                            com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity version,
+                            com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity release) {
+        ReleaseBinding existing = releaseBinding(release.getId());
+        if (existing != null) {
+            if (!deployment.getId().equals(existing.deploymentId()) || !deployment.getCustomerId().equals(existing.customerId())
+                || !deployment.getTenantId().equals(existing.tenantId()) || !release.getTargetProfileId().equals(existing.targetProfileId())
+                || !version.getId().equals(existing.versionId()) || !version.getConfigHash().equals(existing.versionConfigHash())) {
+                throw new AdmissionFailure(CONFLICT, "RELEASE_ALLOCATION_SCOPE_CHANGED");
+            }
+            return;
+        }
+        var receipts = jdbc.query("""
+            SELECT a.payload_json FROM deployment_admission_authorizations a
+             WHERE a.customer_id=? AND a.deployment_id=? AND a.target_profile_id=? AND a.version_id=?
+               AND a.operation IN ('APPLY','PROMOTION_APPLY')
+               AND NOT EXISTS (SELECT 1 FROM deployment_admission_release_bindings b
+                 WHERE b.reservation_id=a.reservation_id AND b.generation=a.generation AND b.authorization_key=a.operation_key)
+             FOR UPDATE
+            """, (rs, row) -> json.read(rs.getString(1), AuthorizationReceipt.class),
+            deployment.getCustomerId(), deployment.getId(), release.getTargetProfileId(), version.getId());
+        if (receipts.size() != 1) throw new AdmissionFailure(PRECONDITION_FAILED, "EXACT_APPLY_AUTHORIZATION_REQUIRED");
+        var receipt = receipts.getFirst();
+        Reservation allocation = require(receipt.reservationId());
+        AdmissionContext current = context(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), allocation.manifestId());
+        requireUsableAllocation(allocation, current, clock.instant());
+        requireCustomerAuthorization(allocation, receipt.command().customerContext());
+        String currentRelease = currentReleaseId(allocation);
+        if (currentRelease != null && !"ACTIVE".equals(releaseBinding(currentRelease).state())) {
+            throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_ALREADY_IN_PROGRESS");
+        }
+        if (!version.getId().equals(current.manifest().versionId()) || !version.getConfigHash().equals(current.manifest().versionConfigHash())) {
+            throw new AdmissionFailure(CONFLICT, "ALLOCATION_VERSION_CHANGED");
+        }
+        jdbc.update("""
+            INSERT INTO deployment_admission_release_bindings
+             (release_id,reservation_id,generation,authorization_key,version_id,version_config_hash,
+              customer_id,tenant_id,deployment_id,target_profile_id,state,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, release.getId(), allocation.id(), allocation.generation(), receipt.command().operationKey(), version.getId(),
+            version.getConfigHash(), deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), release.getTargetProfileId(),
+            "QUEUED", time(clock.instant()), time(clock.instant()));
+    }
+
+    ReleaseBinding releaseBinding(String releaseId) {
+        var rows = jdbc.query("SELECT * FROM deployment_admission_release_bindings WHERE release_id=?",
+            (rs, row) -> new ReleaseBinding(rs.getString("release_id"), rs.getString("reservation_id"), rs.getString("generation"),
+                rs.getString("authorization_key"), rs.getString("version_id"), rs.getString("version_config_hash"),
+                rs.getString("customer_id"), rs.getString("tenant_id"), rs.getString("deployment_id"),
+                rs.getString("target_profile_id"), rs.getString("state")), releaseId);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    String currentReleaseId(Reservation reservation) {
+        var rows = jdbc.query("""
+            SELECT release_id FROM deployment_admission_release_bindings
+             WHERE reservation_id=? AND generation=? AND state NOT IN ('SUPERSEDED','NO_EFFECT')
+             ORDER BY CASE WHEN state='ACTIVE' THEN 1 ELSE 0 END,created_at DESC,release_id DESC
+            """, (rs, row) -> rs.getString(1), reservation.id(), reservation.generation());
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    List<String> unsettledReleases(int limit) {
+        return locked(() -> {
+            var batch = jdbc.query("""
+                SELECT release_id FROM deployment_admission_release_bindings WHERE state IN ('QUEUED','PROVISIONING','OUTCOME_UNKNOWN')
+                 ORDER BY updated_at,release_id LIMIT ?
+                """, (rs, row) -> rs.getString(1), Math.max(1, Math.min(limit, 32)));
+            for (String releaseId : batch) jdbc.update("""
+                UPDATE deployment_admission_release_bindings SET updated_at=?
+                 WHERE release_id=? AND state IN ('QUEUED','PROVISIONING','OUTCOME_UNKNOWN')
+                """, time(clock.instant()), releaseId);
+            return batch;
+        });
+    }
+
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void releaseBindingState(String releaseId, String state) {
+        ReleaseBinding binding = releaseBinding(releaseId);
+        if (binding == null) throw new AdmissionFailure(PRECONDITION_FAILED, "RELEASE_ALLOCATION_REQUIRED");
+        if ("ACTIVE".equals(state)) jdbc.update("""
+            UPDATE deployment_admission_release_bindings SET state='SUPERSEDED'
+             WHERE reservation_id=? AND generation=? AND release_id<>? AND state='ACTIVE'
+            """, binding.reservationId(), binding.generation(), releaseId);
+        jdbc.update("UPDATE deployment_admission_release_bindings SET state=?,updated_at=? WHERE release_id=?",
+            state, time(clock.instant()), releaseId);
+    }
+
+    Reservation acceptActivity(Fence fence, ReleaseBinding binding, ActivityReadback readback) {
+        return locked(() -> {
+            Instant now = clock.instant();
+            Reservation reservation = fenced(fence);
+            FleetPolicy policy = reviewed("POLICY", reservation.policyId(), FleetPolicy.class);
+            if (!binding.reservationId().equals(reservation.id()) || !binding.generation().equals(reservation.generation())
+                || !binding.releaseId().equals(currentReleaseId(reservation)) || reservation.state() != State.ACTIVE
+                || reservation.intent() != Intent.CUSTOMER_STAGING || reservation.expiryState() == ExpiryState.CLAIMED
+                || reservation.expiryState() == ExpiryState.HANDED_OFF || reservation.expiryState() == ExpiryState.RELEASED) {
+                throw new AdmissionFailure(CONFLICT, "ACTIVITY_ALLOCATION_CHANGED");
+            }
+            if (readback == null || !"loomai-runtime-admission-activity-v1".equals(readback.schemaVersion())
+                || !reservation.deploymentId().equals(readback.deploymentId()) || !reservation.tenantId().equals(readback.tenantId())
+                || !reservation.targetProfileId().equals(readback.targetProfileId()) || !binding.releaseId().equals(readback.releaseId())
+                || readback.signals() == null || readback.signals().size() > 3) {
+                throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVITY_READBACK_SCOPE_INVALID");
+            }
+            fresh(readback.observedAt(), now, policy.lifecycle().readbackMaxAgeSeconds());
+            java.util.Set<Activity> seen = java.util.EnumSet.noneOf(Activity.class);
+            Instant latest = reservation.lastActivityAt();
+            for (ActivitySignal signal : readback.signals()) {
+                if (signal == null || signal.kind() == null || signal.kind() == Activity.CONFIGURATION_WRITE || !seen.add(signal.kind())
+                    || signal.sequence() < 1 || signal.acceptedAt() == null || signal.acceptedAt().isAfter(readback.observedAt())) {
+                    throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVITY_SIGNAL_INVALID");
+                }
+                var prior = jdbc.query("""
+                    SELECT sequence,accepted_at FROM deployment_admission_activity_watermarks
+                     WHERE reservation_id=? AND release_id=? AND activity=?
+                    """, (rs, row) -> new ActivitySignal(signal.kind(), rs.getLong(1), rs.getTimestamp(2).toInstant()),
+                    reservation.id(), binding.releaseId(), signal.kind().name());
+                if (!prior.isEmpty()) {
+                    ActivitySignal previous = prior.getFirst();
+                    if (signal.sequence() < previous.sequence() || signal.acceptedAt().isBefore(previous.acceptedAt())
+                        || signal.sequence() == previous.sequence() && !signal.acceptedAt().equals(previous.acceptedAt())) {
+                        throw new AdmissionFailure(CONFLICT, "ACTIVITY_SIGNAL_REGRESSED");
+                    }
+                    if (signal.sequence() == previous.sequence()) continue;
+                    jdbc.update("""
+                        UPDATE deployment_admission_activity_watermarks SET sequence=?,accepted_at=?
+                         WHERE reservation_id=? AND release_id=? AND activity=?
+                        """, signal.sequence(), time(signal.acceptedAt()), reservation.id(), binding.releaseId(), signal.kind().name());
+                } else {
+                    jdbc.update("""
+                        INSERT INTO deployment_admission_activity_watermarks(reservation_id,release_id,activity,sequence,accepted_at)
+                         VALUES (?,?,?,?,?)
+                        """, reservation.id(), binding.releaseId(), signal.kind().name(), signal.sequence(), time(signal.acceptedAt()));
+                }
+                if (signal.acceptedAt().isAfter(latest)) latest = signal.acceptedAt();
+            }
+            if (!latest.isAfter(reservation.lastActivityAt())) return reservation;
+            Instant requestedExpiry = latest.plusSeconds(policy.lifecycle().inactivitySeconds());
+            if (requestedExpiry.isBefore(reservation.expiresAt())) requestedExpiry = reservation.expiresAt();
+            Instant expires = boundedExpiry(reservation, requestedExpiry, policy.lifecycle());
+            Instant grantExpiry = customerGrant(reservation.customerId()).validUntil();
+            if (expires.isAfter(grantExpiry)) expires = grantExpiry;
+            if (!expires.isAfter(now)) return reservation;
+            Mutation mutation = new Mutation(reservation);
+            mutation.lastActivity = latest;
+            mutation.expires = expires;
+            mutation.expiryState = ExpiryState.CURRENT;
+            mutation.noticeCycle = uuid(); mutation.attempts = 0; mutation.nextRetry = null; mutation.failure = null;
+            mutation.evidence = "runtime-accepted-work:" + json.fingerprint(readback);
+            return save(reservation, mutation, "ACCEPTED_RUNTIME_ACTIVITY", "system:admission-activity", now);
+        });
+    }
+
+    Reservation extensionReplay(String reservationId, String key, String fingerprint) {
+        var rows = jdbc.query("""
+            SELECT request_fingerprint,result_json FROM deployment_admission_extension_commands
+             WHERE reservation_id=? AND operation_key=?
+            """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, reservationId, key);
+        if (rows.isEmpty()) return null;
+        if (!fingerprint.equals(rows.getFirst()[0])) throw new AdmissionFailure(CONFLICT, "OPERATION_KEY_REUSED");
+        return json.read(rows.getFirst()[1], Reservation.class);
+    }
+
+    Reservation extendCommand(Fence fence, boolean keep, CustomerGrant grant, String key, String fingerprint,
+                               String actor, Instant now) {
+        return locked(() -> extendAuthorized(fence, keep, grant, key, fingerprint, actor, now));
+    }
+
+    /** The owning authorization transaction already locks the exact reservation and entitlement. */
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public Reservation extendAuthorized(Fence fence, boolean keep, CustomerGrant grant, String key, String fingerprint,
+                                         String actor, Instant now) {
+            Reservation replay = extensionReplay(fence.reservationId(), key, fingerprint);
+            if (replay != null) return replay;
+            jdbc.queryForObject("SELECT customer_id FROM deployment_admission_grants WHERE customer_id=? FOR UPDATE", String.class, grant.customerId());
+            Reservation result = extendLocked(fence, keep, grant, "customer-extension:" + fingerprint, actor, now);
+            jdbc.update("""
+                INSERT INTO deployment_admission_extension_commands(reservation_id,operation_key,request_fingerprint,result_json)
+                 VALUES (?,?,?,?)
+                """, result.id(), key, fingerprint, json.write(result));
+            return result;
     }
     private Reservation fenced(Fence fence) {
         if (fence == null) throw new AdmissionFailure(BAD_REQUEST, "FENCE_REQUIRED");
@@ -283,6 +574,28 @@ class AdmissionStore {
             localGuard.run(); now = effectiveTime(requestedAt);
             policy(current.policy(), now); grant(current.grant(), now); prerequisites(current, evidence, now);
             return outcomeLocked(fence, State.PROVISIONING, evidence.evidenceReference(), evidence, actor, now);
+        });
+    }
+
+    Reservation beginReleaseProvisioning(ReleaseBinding binding, AdmissionContext checked, PrerequisiteReadback evidence,
+                                         String actor, Instant requestedAt) {
+        return locked(() -> {
+            Instant now = effectiveTime(requestedAt);
+            Reservation reservation = require(binding.reservationId());
+            AdmissionContext current = context(binding.customerId(), binding.tenantId(), binding.deploymentId(), reservation.manifestId());
+            requireUsableAllocation(reservation, current, now);
+            if (!binding.generation().equals(reservation.generation()) || !binding.releaseId().equals(currentReleaseId(reservation))
+                || !json.fingerprint(current).equals(json.fingerprint(checked))) {
+                throw new AdmissionFailure(CONFLICT, "RELEASE_ALLOCATION_GENERATION_CHANGED");
+            }
+            policy(current.policy(), now); grant(current.grant(), now); prerequisites(current, evidence, now);
+            Mutation mutation = new Mutation(reservation);
+            mutation.state = State.PROVISIONING;
+            mutation.prerequisiteReadback = evidence;
+            mutation.evidence = evidence.evidenceReference();
+            reservation = save(reservation, mutation, "RELEASE_PROVISIONING_STARTED", actor, now);
+            releaseBindingState(binding.releaseId(), "PROVISIONING");
+            return reservation;
         });
     }
     private Reservation outcomeLocked(Fence fence, State state, String evidence, String actor, Instant now) {
@@ -329,7 +642,9 @@ class AdmissionStore {
                 || r.expiryState() == ExpiryState.HANDED_OFF || !r.expiresAt().isAfter(now))
                 throw new AdmissionFailure(CONFLICT, "ACTIVITY_REQUIRES_CURRENT_STAGING");
             Mutation m = new Mutation(r); m.lastActivity = now;
-            m.expires = boundedExpiry(r, now.plusSeconds(policy.inactivitySeconds()), policy);
+            Instant requestedExpiry = now.plusSeconds(policy.inactivitySeconds());
+            if (requestedExpiry.isBefore(r.expiresAt())) requestedExpiry = r.expiresAt();
+            m.expires = boundedExpiry(r, requestedExpiry, policy);
             m.expiryState = ExpiryState.CURRENT; m.noticeCycle = uuid(); m.attempts = 0; m.nextRetry = null; m.failure = null;
             m.evidence = required(evidence, 255);
             return save(r, m, "ACTIVITY_" + activity.name(), actor, now);
@@ -381,7 +696,9 @@ class AdmissionStore {
         });
     }
     Reservation extend(Fence fence, boolean keep, CustomerGrant checkedGrant, String evidence, String actor, Instant requestedAt) {
-        return locked(() -> {
+        return locked(() -> extendLocked(fence, keep, checkedGrant, evidence, actor, requestedAt));
+    }
+    private Reservation extendLocked(Fence fence, boolean keep, CustomerGrant checkedGrant, String evidence, String actor, Instant requestedAt) {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence); CustomerGrant grant = customerGrant(r.customerId()); grant(grant, now);
             if (!json.fingerprint(grant).equals(json.fingerprint(checkedGrant))) throw new AdmissionFailure(CONFLICT, "CUSTOMER_GRANT_CHANGED");
@@ -400,7 +717,6 @@ class AdmissionStore {
             m.nextRetry = null; m.failure = null; m.evidence = required(evidence, 255);
             if (keep) { m.keepUntil = m.expires; m.keepEntitlement = grant.keepStagingEntitlementReference(); }
             return save(r, m, keep ? "KEEP_STAGING_APPROVED" : "STAGING_EXTENDED", actor, now);
-        });
     }
     private Instant boundedExpiry(Reservation r, Instant requested, LifecyclePolicy policy) {
         Instant max = r.createdAt().plusSeconds(policy.maxLifetimeSeconds());

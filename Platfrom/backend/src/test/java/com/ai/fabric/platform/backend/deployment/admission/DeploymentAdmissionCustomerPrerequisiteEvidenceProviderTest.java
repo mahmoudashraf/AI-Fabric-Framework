@@ -151,7 +151,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         assertRejected(customerContext, "CUSTOMER_CAPACITY_RESERVATION_AMBIGUOUS_OR_MISSING");
 
         scopedReserve(new Reserve("operation", "manifest1"));
-        assertRejected(customerContext, "CUSTOMER_CAPACITY_RESERVATION_INVALID");
+        assertRejected(customerContext, "CUSTOMER_CAPACITY_RESERVATION_AMBIGUOUS_OR_MISSING");
 
         database();
         bridgeAfterDatabaseReset();

@@ -103,6 +103,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository draftRepository;
@@ -1723,6 +1725,10 @@ public class DeploymentService {
         releaseRepository.save(release);
 
         deployment.setStatus("APPLY_REQUESTED");
+        if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.bind(deployment, version, release);
+        else if (customerOfferDeploymentRepository.existsById(deploymentId)) {
+            throw new IllegalStateException("Customer release admission coordinator is required.");
+        }
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
         platformAuditService.record(

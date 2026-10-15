@@ -38,6 +38,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class DeploymentReleaseExecutionService {
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentReleaseExecutionService.class);
 
@@ -208,6 +210,8 @@ public class DeploymentReleaseExecutionService {
         } catch (Exception ex) {
             log.error("Async apply failed: deploymentId={}, versionId={}, releaseId={}", deploymentId, versionId, releaseId, ex);
             transactionOperations.executeWithoutResult(status -> markFailed(releaseId, deploymentId, ex));
+        } finally {
+            observeAdmissionAfterCommit(releaseId);
         }
     }
 
@@ -231,6 +235,7 @@ public class DeploymentReleaseExecutionService {
             return;
         }
 
+        if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
         transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
 
         DeploymentEntity deployment = getDeployment(deploymentId);
@@ -500,6 +505,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        observeAdmissionAfterCommit(releaseId);
     }
 
     @Transactional
@@ -538,6 +544,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus(deployment.getActiveVersionId() == null ? "VERSION_PUBLISHED" : "ACTIVE");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        observeAdmissionAfterCommit(releaseId);
     }
 
     @Transactional
@@ -561,6 +568,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("PROVISIONING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        observeAdmissionAfterCommit(releaseId);
     }
 
     @Transactional
@@ -588,6 +596,21 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("APPLY_FAILED");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        observeAdmissionAfterCommit(releaseId);
+    }
+
+    private void observeAdmissionAfterCommit(String releaseId) {
+        if (admissionReleaseCoordinator == null) return;
+        Runnable observe = () -> {
+            try { admissionReleaseCoordinator.observe(releaseId); }
+            catch (RuntimeException error) { log.warn("Release admission reconciliation remains pending for {}", releaseId); }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override public void afterCommit() { observe.run(); }
+                });
+        } else observe.run();
     }
 
     private DeploymentEntity getDeployment(String deploymentId) {

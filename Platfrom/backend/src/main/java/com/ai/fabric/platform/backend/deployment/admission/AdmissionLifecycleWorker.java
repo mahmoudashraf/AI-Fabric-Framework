@@ -16,6 +16,8 @@ import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContr
 @Service
 @ConditionalOnProperty(name = "platform.deployment.admission.lifecycle.worker-enabled", havingValue = "true")
 final class AdmissionLifecycleWorker {
+    @Autowired
+    private AdmissionActivityReconciler activity;
     private static final Logger log = LoggerFactory.getLogger(AdmissionLifecycleWorker.class);
     private static final String ACTOR = "system:admission-lifecycle";
     private final AdmissionStore store;
@@ -72,6 +74,9 @@ final class AdmissionLifecycleWorker {
         Reservation reservation = store.require(input.id());
         if (!reservation.consumesCapacity() || reservation.intent() != Intent.CUSTOMER_STAGING
             || reservation.expiryState() == ExpiryState.BLOCKED) return;
+        if (activity != null && reservation.expiryState() != ExpiryState.CLAIMED && reservation.expiryState() != ExpiryState.HANDED_OFF) {
+            reservation = activity.reconcile(reservation);
+        }
         Instant now = clock.instant();
         if (noticeEligible(reservation, now)) reservation = deliverNotices(reservation, now);
         reservation = store.require(reservation.id());

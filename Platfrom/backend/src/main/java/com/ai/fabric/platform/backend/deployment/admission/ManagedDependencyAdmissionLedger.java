@@ -89,7 +89,6 @@ public class ManagedDependencyAdmissionLedger {
             || !current.manifest().versionId().equals(requirement.versionId())
             || !current.manifest().prerequisiteReferences().contains(specReference)
             || reservation.prerequisiteReadback() == null
-            || !Objects.equals(reservation.evidenceReference(), reservation.prerequisiteReadback().evidenceReference())
             || !reservation.prerequisiteReadback().verifiedPrerequisiteReferences().equals(
                 current.manifest().prerequisiteReferences())) {
             throw unavailable("DEPENDENCY_ADMISSION_FINGERPRINT_CHANGED");

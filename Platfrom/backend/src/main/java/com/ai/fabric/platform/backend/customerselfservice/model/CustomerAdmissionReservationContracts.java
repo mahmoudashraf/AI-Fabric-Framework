@@ -16,7 +16,17 @@ public final class CustomerAdmissionReservationContracts {
                           @NotBlank String versionId,
                           String releaseId,
                           @NotNull Operation operation,
-                          @NotBlank String operationKey) { }
+                          @NotBlank String operationKey,
+                          String allocationId) {
+        public Request(String targetProfileId, String manifestId, String versionId, String releaseId,
+                       Operation operation, String operationKey) {
+            this(targetProfileId, manifestId, versionId, releaseId, operation, operationKey, null);
+        }
+    }
+
+    public record ExtensionRequest(@NotBlank String targetProfileId, @NotBlank String allocationId,
+                                   long expectedRevision, @NotBlank String operationKey,
+                                   @NotBlank String reason, boolean keepAfterPromotion) { }
 
     public record Summary(String id,
                           String deploymentId,

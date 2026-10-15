@@ -72,9 +72,24 @@ public final class AdmissionContracts {
      * the durable reservation; no caller-supplied boolean can turn an ordinary reservation into customer proof.
      */
     public record Reserve(String operationKey, String manifestId,
-                          com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext customerContext) {
-        public Reserve(String operationKey, String manifestId) { this(operationKey, manifestId, null); }
+                          com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext customerContext,
+                          String allocationId) {
+        public Reserve(String operationKey, String manifestId) { this(operationKey, manifestId, null, null); }
+        public Reserve(String operationKey, String manifestId,
+                       com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext customerContext) {
+            this(operationKey, manifestId, customerContext, null);
+        }
     }
+    public record AuthorizationReceipt(String reservationId, String generation, String manifestFingerprint,
+                                       String requestFingerprint, String contextFingerprint, Reserve command) { }
+    public record ReleaseBinding(String releaseId, String reservationId, String generation,
+                                 String authorizationKey, String versionId, String versionConfigHash,
+                                 String customerId, String tenantId, String deploymentId,
+                                 String targetProfileId, String state) { }
+    public record ActivitySignal(Activity kind, long sequence, Instant acceptedAt) { }
+    public record ActivityReadback(String schemaVersion, String deploymentId, String tenantId,
+                                   String targetProfileId, String releaseId, Instant observedAt,
+                                   java.util.List<ActivitySignal> signals) { }
     public record Fence(String reservationId, long revision, String generation) { }
     public record Reservation(String id, String customerId, String tenantId, String deploymentId,
                               String targetProfileId, Intent intent, String operationKey, String requestFingerprint,

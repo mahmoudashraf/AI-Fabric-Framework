@@ -27,6 +27,18 @@ import static org.mockito.Mockito.when;
 class RuntimeActionPostPolicyEngineTest {
 
     @Test
+    void onlySuccessfulExecutedActionsAdvanceActivityEvenWithoutWebhookPolicies() {
+        var activity = mock(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.class);
+        var engine = new RuntimeActionPostPolicyEngine(mock(ConnectorActionWebhookPolicyCatalog.class),
+            mock(ActionWebhookDeliveryRepository.class), new ObjectMapper(), Clock.systemUTC());
+        org.springframework.test.util.ReflectionTestUtils.setField(engine, "admissionActivity", activity);
+        engine.handleSuccessfulAction("read-record", Map.of(), ActionResult.builder().success(false).build(), null);
+        org.mockito.Mockito.verifyNoInteractions(activity);
+        engine.handleSuccessfulAction("read-record", Map.of(), ActionResult.builder().success(true).build(), null);
+        verify(activity).accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.ACCEPTED_ACTION);
+    }
+
+    @Test
     void handleSuccessfulActionEnqueuesWebhookDeliveries() throws Exception {
         ConnectorActionWebhookPolicyCatalog webhookPolicyCatalog = mock(ConnectorActionWebhookPolicyCatalog.class);
         ActionWebhookDeliveryRepository repository = mock(ActionWebhookDeliveryRepository.class);

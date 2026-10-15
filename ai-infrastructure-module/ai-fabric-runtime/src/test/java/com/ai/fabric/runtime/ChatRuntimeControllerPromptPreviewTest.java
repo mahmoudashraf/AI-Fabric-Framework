@@ -55,6 +55,27 @@ class ChatRuntimeControllerPromptPreviewTest {
     private static final List<String> QUERY_WITH_PROMPT_PREVIEW_SCOPES = List.of("chat:query", "chat:prompt-preview");
 
     @Test
+    void onlySuccessfulChatTurnsAdvanceAcceptedActivity() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder().type(OrchestrationResultType.INFORMATION_PROVIDED).success(true).message("Answer").build(),
+            OrchestrationResult.builder().type(OrchestrationResultType.ERROR).success(false).message("Denied").build()
+        );
+        ChatRuntimeController controller = controllerFor(orchestrator);
+        var activity = mock(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.class);
+        controller.setAdmissionActivity(activity);
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "user", "session", BASE_QUERY_SCOPES);
+        controller.authContext(servletRequest);
+        verifyNoInteractions(activity);
+        ChatQueryRequest request = new ChatQueryRequest(); request.setQuery("Question");
+        assertThat(controller.query(request, servletRequest).getBody().isSuccess()).isTrue();
+        verify(activity).accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.ACCEPTED_SESSION);
+        assertThat(controller.query(request, servletRequest).getBody().isSuccess()).isFalse();
+        org.mockito.Mockito.verifyNoMoreInteractions(activity);
+    }
+
+    @Test
     void structuredActionDraftSubmissionIsAnExplicitRequestField()
         throws Exception {
         ChatQueryRequest request = new ObjectMapper().readValue("""

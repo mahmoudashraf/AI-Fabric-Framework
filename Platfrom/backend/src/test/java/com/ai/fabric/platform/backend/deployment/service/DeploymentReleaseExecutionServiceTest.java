@@ -121,7 +121,11 @@ class DeploymentReleaseExecutionServiceTest {
         when(verificationRunRepository.save(any(DeploymentVerificationRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deploymentReleaseVerificationService.verify(deployment, version, release, "PRE_APPLY")).thenReturn(failedPreflight);
 
+        var admission = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator.class);
+        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
         service.runApply("dep-123", "ver-123", "rel-123");
+        verify(admission, never()).beginProvisioning(any());
+        verify(admission).observe("rel-123");
 
         verify(deploymentProvisioningService, never()).provision(any(), any(), any(), any());
         assertThat(release.getStatus()).isEqualTo("PRE_APPLY_BLOCKED");
@@ -490,9 +494,12 @@ class DeploymentReleaseExecutionServiceTest {
 
         ManagedDependencyReleaseCoordinator dependencyCoordinator = mock(ManagedDependencyReleaseCoordinator.class);
         ReflectionTestUtils.setField(service, "managedDependencyReleaseCoordinator", dependencyCoordinator);
+        var admission = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator.class);
+        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
         service.executeApply("dep-123", "ver-123", "rel-123");
 
-        var order = inOrder(dependencyCoordinator, deploymentProvisioningService, marketplaceDatasetSyncService);
+        var order = inOrder(admission, dependencyCoordinator, deploymentProvisioningService, marketplaceDatasetSyncService);
+        order.verify(admission).beginProvisioning("rel-123");
         order.verify(dependencyCoordinator).prepareFoundation(deployment, version, release);
         order.verify(deploymentProvisioningService).provision(any(), any(), any(), any());
         order.verify(dependencyCoordinator).completeRuntimeBound(deployment, version, release);
@@ -500,6 +507,7 @@ class DeploymentReleaseExecutionServiceTest {
         verify(marketplaceDatasetSyncService).syncReleaseDatasets(deployment, version, release);
         assertThat(release.getStatus()).isEqualTo("APPLIED_VERIFIED");
         assertThat(deployment.getStatus()).isEqualTo("ACTIVE");
+        verify(admission, org.mockito.Mockito.atLeastOnce()).observe("rel-123");
     }
 
     @Test
