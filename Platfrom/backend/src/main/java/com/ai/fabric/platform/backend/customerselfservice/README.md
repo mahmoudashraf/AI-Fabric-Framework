@@ -144,10 +144,13 @@ I/O there. Populate those records before the command transaction.
 Source operations require scoped storage (and identity for private audiences).
 Missing/ambiguous adapters, wrong-context evidence, or any absent gate deny.
 
-Pending inputs: owner S3 canary credentials, approved complete template/artifact/
-dependency policies, verified physical server UUIDs, identity evidence, measured
-capacity/lifecycle policy, notification/recovery evidence and the owning-service
-adapter/wiring. Do not substitute demo fixtures for these prerequisites.
+Pending inputs: a passing owner S3 canary after both scoped identities receive
+read-only `s3:GetBucketVersioning` on the exact bucket ARN, approved complete
+template/artifact/dependency policies, verified physical server UUIDs, identity
+evidence, measured capacity/lifecycle policy, notification/recovery evidence
+and hosted owning-service wiring. The private S3 credentials exist and must not
+be copied into source or deployment-readable manifests. Do not substitute demo
+fixtures for these prerequisites.
 
 ## Verification
 

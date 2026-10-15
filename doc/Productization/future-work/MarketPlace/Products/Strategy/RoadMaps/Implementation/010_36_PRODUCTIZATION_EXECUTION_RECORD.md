@@ -8,10 +8,12 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 - P0: source contract implemented and integrated; prerequisite acceptance is in
   progress. The owner supplied the non-secret customer-owned S3 canary contract,
-  but the ignored credential entries are still placeholders. The
-  prefix-isolation/read-only live gate therefore still needs a passing sanitized
-  evidence record. Do not substitute managed storage or claim the storage gate
-  passed from fixture tests.
+  and separate staging/production credentials are present in the ignored private
+  handoff. The live verifier was rerun, but AWS denied the bucket-versioning
+  read required to prove the storage posture. The prefix-isolation/read-only
+  live gate therefore still needs a passing sanitized evidence record. Do not
+  substitute managed storage or claim the storage gate passed from fixture
+  tests.
 - P1-P5: source foundations are integrated but not hosted-certified. Dependent
   customer provisioning remains gated on live storage, identity, notification,
   immutable dependency artifacts, measured capacity and fresh-customer
@@ -267,11 +269,14 @@ disabled versioning. Each prefix contains three fictional UTF-8 policy files.
 The non-secret bucket identifier is captured in the verifier contract; all
 credential values remain outside this tracked ledger.
 
-As of 2026-10-15, the four canary credential variables in the ignored private
-handoff document remain placeholders. The live verifier was therefore not
-rerun in this source pass. Replace those placeholders with the two separate
-prefix-limited identities before the next live run; never copy their values into
-this tracked record or a deployment-readable public manifest.
+As of 2026-10-15, the four canary credential values are present in the ignored
+root private handoff and were consumed without printing or copying them into
+tracked files. The live verifier was rerun and failed at the bucket-versioning
+read described above. Sanitized evidence is recorded at
+`verification-support/productization-01036/evidence/s3-canary-2026-10-15T01-46-39-446Z.json`.
+The next run requires only the narrowly scoped bucket permission correction;
+credential values must remain private and must never be copied into this ledger
+or a deployment-readable public manifest.
 
 `verification-support/productization-01036/verify-s3-canary.mjs` validates the
 exact non-secret contract, actual unversioned state, separate principals,
