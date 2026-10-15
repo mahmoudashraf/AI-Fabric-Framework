@@ -155,12 +155,55 @@ complete dealership topology. No resources were removed or redeployed.
   runtime suite passed again: **305 tests**, zero failures, errors or skips. The
   widget passed TypeScript, all three production
   bundles and all five contract smokes. The standalone shell passed its unit
-  check and **9 browser scenarios**, including cancelled mixed-mode login with
-  no request execution and revoked/expired provider-session cleanup.
-- The S3 verifier's offline suite passed **12 tests**, covering exact native-AWS
+  check and **20 browser scenarios**, including unsolicited/replayed callback
+  rejection, cancelled mixed-mode login with no request execution, owner-change
+  fencing, bounded logout and revoked/expired provider-session cleanup.
+- The built installer also passed a fresh browser-level private-adapter
+  regression. It fetched the typed Shopify-style adapter contract with the host
+  session cookie, mounted the selected pack, sent a query through the returned
+  private route with only the bounded opaque adapter header, and exposed no
+  runtime bearer token. This closes the local shared-installer regression; a
+  hosted storefront query/action run is still required.
+- The S3 verifier's offline suite passed **13 tests**, covering exact native-AWS
   endpoint policy, separate principals, prefix isolation, bounded UTF-8 fixture
   reads, unversioned state, non-mutating write/delete denial and sanitized
-  evidence. These tests validate the verifier, not the live bucket identities.
+  evidence, including rejection of credential files with group/other access.
+  These tests validate the verifier, not the live bucket identities.
+- AI Fabric `0.8.33` was released from framework commit `b1a0ac2c`, tag
+  `ai-fabric-framework-v0.8.33`. Its Maven Central workflow completed
+  successfully and Central serves the BOM, core, execution, starter, source and
+  Javadoc artifacts. A brand-new Maven repository resolved only Central
+  artifacts: the minimal consumer passed **2 tests** and the agentic execution
+  consumer passed **5 tests**.
+- All active private consumers now select `0.8.33`: deployment runtime/
+  connector/relay, vectorization/embedding products, Basic Inbox, Platform's
+  advertised framework default and the runtime capability manifest. Clean
+  packaging passed for every private reactor. Runtime/connector packaged JARs,
+  Basic Inbox and the embedding worker contain only `0.8.33` AI Fabric
+  libraries; no `0.8.30`, `0.8.31` or `0.8.32` framework JAR remains in those
+  artifacts.
+- The production runtime Dockerfile built successfully as local image
+  `loomai-runtime-01036:0.8.33` (`sha256:4f2a23bec9af...`). Direct extraction
+  from that image showed only `0.8.33` framework libraries in `runtime.jar` and
+  `connector.jar`; the private vectorization runner remains a thin JAR and does
+  not carry a second framework version. This local image is packaging evidence,
+  not a hosted release or provider digest.
+- The final clean private runtime reactor passed with **314 runtime tests** and
+  **35 relay tests**; generic connector, runtime and relay modules all built.
+  The product reactor passed its vectorization suites and all four product
+  modules built. Dealership backend passed **32 tests**, Basic Inbox **7**, and
+  the external vehicle-provider simulator **8**.
+- The final clean Platform backend run passed **1,449 tests**, zero failures,
+  errors or skips. Its first run exposed a stale test-only Flyway ceiling
+  (`120.17`) below the current managed-dependency test schema (`120.21`); the
+  integration fixture now applies the complete test migration set. Production
+  migration/runtime behavior was not changed to make that test pass.
+- The widget passed TypeScript, all three production bundles and all seven
+  contract smokes, including structured authentication, credential broker and
+  browser-level private adapter behavior. The standalone shell again passed
+  its server test and all **20** browser scenarios after the framework upgrade.
+- `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
+  composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
   is not browser parity certification. `git diff --check` passed.
 
@@ -180,7 +223,9 @@ resource envelopes, notification/recovery evidence, repeated same-target runtime
 replacement, restart recovery, S3 indexing and cross-target denial. Complete the
 hosted real-provider Engage action-time auth, Shopify private-adapter,
 accessibility and capacity gates. The local typed-contract, cancellation,
-revocation and no-replay acceptance is closed. P6 extraction and P7
+revocation and no-replay acceptance is closed. Redeploy the hosted Platform and
+customer runtime from the `0.8.33`-aligned private source and prove live version/
+digest readback before counting that upgrade as hosted evidence. P6 extraction and P7
 fresh-customer hosted certification remain later gates. The canonical 40-task
 checklist stays open.
 

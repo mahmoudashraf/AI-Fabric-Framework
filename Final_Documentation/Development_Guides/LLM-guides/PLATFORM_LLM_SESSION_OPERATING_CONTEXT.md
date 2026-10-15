@@ -41,15 +41,16 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.8.32` through:
+The current private product source target is AI Fabric `0.8.33` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.8.32`
-- Git tag `ai-fabric-framework-v0.8.32`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.33`
+- Git tag `ai-fabric-framework-v0.8.33`
 
 The immutable tag, GitHub release, framework CI, Maven Central publication,
 and empty-cache external-consumer proof are recorded for release commit
-`561659dc`. Current private runtime changes are product adapter changes, not
-new framework releases. Exact hosted image and assignment evidence belongs in
+`b1a0ac2c`. The release adds the provider-neutral structured authentication
+requirement consumed by LoomAI Engage; it does not add identity UI or automatic
+request replay. Exact hosted image and assignment evidence belongs in
 `CODEX_WORKING_CONTEXT.md` and the private handoff; do not infer it from HEAD.
 
 Source target and hosted-fleet truth remain separate. Never infer a future live
@@ -88,7 +89,7 @@ queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR matches the current BOM (`0.8.32`), and repeat the hosted two-tenant,
+packaged execution JAR matches the current BOM (`0.8.33`), and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 
@@ -215,6 +216,101 @@ Keep these boundaries intact:
 
 The canonical design, implementation status, and release evidence are tracked
 in `010_31_PLATFORM_HOSTED_AI_WORKSPACE_INSTALLATION_AND_ASSIGNED_RUNTIME_DISCOVERY_PLAN.md`.
+
+Production self-service productization is approved planning scope in `010.36`
+section 10, not a hosted completion claim. Production control-plane ownership,
+runtime target placement, and Engage frontend delivery are independent. A
+production-owned app may initially bind a verified customer-staging release,
+then explicitly activate a verified production-target release through existing
+consumer guards. Normal promotion is not cross-control-plane export/import or
+an in-place provider move. Customer staging is not disposable developer staging;
+cleanup must check customer ownership/bindings and retain protected resources.
+Simulator data/accounts, target credentials/indexes/inboxes, and token authority
+must be isolated, with simulation explicitly labelled and never substituted for
+failed real provider access. Preserve pinned active sessions; assignment change
+is not permission to migrate conversations, attachments, pending effects, or
+human queues. Keep all outstanding Engage acceptance in `010.36` section 6.2
+open until actual verification closes it.
+
+The 010.36 hosting policy is stricter than the general placement alternatives:
+customer staging is staging Coolify only (`46.224.145.148`); production Coolify
+(`46.225.162.106`) hosts production-target deployments and shared production
+services. A production-owned app bound to staging does not provision its
+runtime on production. Validate actual target/server placement and reject
+staging spillover, including hidden production dependencies. Exhausted staging
+capacity is an explicit admission failure, not permission to use production.
+Measured quotas, update/retry reuse, failed-resource reconciliation, notified
+expiry, authorized retention/extension, post-promotion staging retirement, and
+database/index/volume reclamation are required before final UI extraction.
+Developer cleanup may not delete valid customer staging, but an authorized
+customer lifecycle policy may retire it after ownership, assignment, active
+session/human-work, and backup/retention checks. Preserve historical evidence
+and source objects; history does not require an indefinitely running fleet.
+Immediate staging rollback ends when that target is retired. Plan edits alone
+authorize no existing resource cleanup.
+
+010.36 customer self-service reuses `CUSTOMER_ADMIN`, scoped to its customer,
+and the existing Platform UI/configuration APIs. Customer and staff navigation
+compose shared editors; do not build duplicate portal configuration/persistence
+or a second frontend project. Customer document knowledge and connections are
+normal supported operations under installed capability/audience policy, not
+unrestricted source upload or global secret administration. AWS Console and
+Cloudscape inspire operational layout and resource hierarchy; adopting a new
+UI library or AWS infrastructure is not approved by that reference.
+
+The user requires UI extraction last: complete and verify P0-P5 functional and
+non-extraction work through existing views/APIs before P6 shared-editor
+extraction/customer-shell changes. Record an independently verified baseline.
+Keep P6 in UI-only commits without schema/API/configuration mutations or
+provider/assignment changes. Reverting that UI must preserve all completed
+backend work, current configuration, deployments, and indexed knowledge.
+Pause extraction for any discovered backend gap and verify it separately.
+P7 certifies the final customer UI after visual/workflow review; a UI rollback
+reopens that presentation acceptance, not independently verified functionality.
+
+Preserve staff capabilities through 010.36 extraction using
+`010_36_ADMIN_OPERATOR_UI_CAPABILITY_BASELINE_2026_10_14.md` and the frozen
+source snapshot under `verification-support/platform-ui-capability-baseline`.
+It is source-only evidence, not a live parity certification. Record P0-P5's
+separate verified baseline and map every retained/moved staff feature, field,
+action, role restriction, and operational view to post-extraction browser proof.
+Customer navigation reduction must not remove authorized admin/operator tools.
+
+Promotion exposes the section 10.5.1 customer Production Readiness & Go-Live
+checklist using existing lifecycle evidence, not another workflow engine.
+Bind mandatory checks to the exact immutable candidate, production target,
+configuration and expected consumer revision. Missing/stale/failed mandatory
+proof blocks activation; a user checkbox or readiness average cannot bypass it.
+Production activation and staging-retirement closure are separate. Show
+outstanding drain/cleanup, explicit retained staging and expiry, actual provider
+reconciliation, and loss of staging rollback after retirement. Cleanup must
+protect the active production service, shared dependencies and customer source
+objects. All functional gates precede final UI extraction/presentation.
+
+The code-reviewed implementation contract for 010.36 is section 10.12 R1-R7.
+P0 must close actual schema/API/permission decisions, Platform/canary
+prerequisites and measured limits before P1; document review is not P0 closure.
+Deployment-level environment/latest runtime/active version are projections,
+not authority for target-specific administration. Resolve the explicit owned
+target/release, including pre-activation indexing under reviewed operator
+permissions, and bind index/token/secret authority separately per target.
+Consumer activation requires a frozen bound staging candidate, database-backed
+binding revision, idempotency and atomic revalidation; all rebind paths retain
+the appropriate readiness/ownership guard. Retirement operates only on owned
+target resources and retains lineage/history, never through whole-deployment
+deletion or orphan metadata marking alone.
+
+The promotable first template uses customer-owned S3-compatible text/JSON
+sources in staging and production. Preserve the existing production mounted
+source denial; mounted developer demos are not this customer-storage contract.
+Dedicated simulator/command receiver/Basic Inbox instances per customer/target
+are the first offer; shared tenancy needs a separate proven contract. Provision
+their immutable artifacts, accounts, secrets, callbacks, storage and unique
+operator credentials through owned managed-service lifecycles with no shell
+repair. Customer scope must fail closed when absent/invalid, not become global
+staff scope. Staff catalogue/admin rights do not transfer to customer actors.
+The first offer is invite-based, explicitly simulated and capacity-bounded;
+no automatic real provider, public signup, PDF/Word, enterprise SSO or HA claim.
 
 Hosted status as of 2026-10-09:
 
@@ -661,10 +757,8 @@ runtime, and Platform contract at a time.
 - Verification and product claims must target the current immutable release;
   a pass on an older release does not count as current evidence.
 
-As of 2026-10-12, the only supported AI Fabric baseline is `0.8.30`. The
-matching LoomAI Platform/runtime rollout, exact artifacts, and live product
-evidence are recorded in `CODEX_WORKING_CONTEXT.md`, the private session
-handoff, and plan `010.33`. Focused product canaries and a canonical release
-suite do not constitute a green global Platform release gate. Do not describe
-that global gate as green until the separately recorded owner-deferred Shopify
-blocker is resolved and a fresh full run passes.
+As of 2026-10-15, the only supported source and next-rollout AI Fabric baseline
+is `0.8.33`. Exact hosted image, rollout and live product evidence remain
+separate facts recorded in `CODEX_WORKING_CONTEXT.md`, the private session
+handoff and the applicable execution plan. A Central-only consumer pass or a
+focused product canary does not prove that the hosted fleet has been upgraded.

@@ -3,7 +3,7 @@
 - Status: standalone delivery source implemented; shared frontend deployed on staging and production; hosted public, identity, handover, and recovery canaries passed. Remaining Engage acceptance is explicit in section 6.2. Production customer self-service and staging-to-production productization are in-progress backend implementation scope in section 10, not completed or hosted-certified.
 - Created: 2026-10-13.
 - Execution priority: 2.
-- Source review: Platform `db58acd9`; framework `561659dc`; source dependency AI Fabric `0.8.32`.
+- Source review baseline: Platform `db58acd9`; framework `561659dc`; AI Fabric `0.8.32`. Current implementation target: AI Fabric `0.8.33`, framework `b1a0ac2c`.
 - Owners: generic AI Workspace, experience packs, and Platform installation/delivery.
 - Product naming decision, 2026-10-13: **LoomAI Engage** is the commercial product name; **AI Workspace** remains the technical reference for its reusable interface and integration contracts.
 - Authentication decision, 2026-10-13: support entry-time and action-time sign-in; login starts a new authenticated conversation. Anonymous-to-authenticated conversation transfer is excluded.

@@ -1,11 +1,11 @@
 # Platform Starred Ideas Execution Index
 
 - Created: 2026-10-13.
-- Status: detailed plans prepared; new implementation has not started.
+- Status: 010.35 completed; 010.36 standalone delivery implemented and deployed with scoped hosted proof and remaining acceptance. The production customer self-service/promotion extension in 010.36 section 10 is planned; other starred implementations remain pending.
 - Source: [Platform Notion page](https://app.notion.com/p/332f30af56ae802a8cccf903b71916bd).
 - Latest preceding plan: `010.34`, completed Conversation Handover.
 - Code baseline: private source `db58acd9958b717666de712f44ab2882cfc99b8f`; public framework source `561659dc0a4e8872f83654ef8549ead3cc4acc32`.
-- Current source dependency: AI Fabric `0.8.32`.
+- Current source dependency: AI Fabric `0.8.33`.
 
 ## Purpose
 
@@ -24,8 +24,8 @@ relative to the public framework's `ai-infrastructure-module/` directory.
 
 | Priority | Canonical plan | Product boundary | Verdict |
 | --- | --- | --- | --- |
-| 1 | [010.35 AI Fabric Coding Assistant Skill](010_35_AI_FABRIC_CODING_ASSISTANT_SKILL_IMPLEMENTATION_PLAN.md) | Public framework developer guidance | Implement a focused, maintained skill. |
-| 2 | [010.36 LoomAI Engage](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md) | AI Workspace technical delivery form and Platform installation | Reuse the workspace; add a generic pack and standalone lifecycle. |
+| 1 | [010.35 AI Fabric Coding Assistant Skill](010_35_AI_FABRIC_CODING_ASSISTANT_SKILL_IMPLEMENTATION_PLAN.md) | Public framework developer guidance | Complete at framework commit `2f8cda26`. |
+| 2 | [010.36 LoomAI Engage](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md) | AI Workspace delivery and production customer self-service | Delivery is hosted-proven within recorded limits; close Engage acceptance and section 10 staging-to-production productization. |
 | 3 | [010.37 Platform Deployment Configuration Assistant](010_37_PLATFORM_DEPLOYMENT_CONFIGURATION_ASSISTANT_IMPLEMENTATION_PLAN.md) | Assisted control-plane authoring | Generate reviewable, validated drafts through scoped tools. |
 | 4 | [010.38 Workspace Startup Context](010_38_DEPLOYMENT_OWNED_WORKSPACE_STARTUP_CONTEXT_IMPLEMENTATION_PLAN.md) | Deployment-owned read capability and workspace presentation | Add explicit, fresh initialization evidence. |
 | 5 | [010.39 Outbound Event Integrations](010_39_DEPLOYMENT_LOCAL_OUTBOUND_EVENT_INTEGRATIONS_IMPLEMENTATION_PLAN.md) | Integration plugins and deployment-local delivery | Extend existing delivery foundations with a notification contract. |
@@ -53,6 +53,11 @@ These plans do not rebuild those capabilities. Relevant plans repeat regression 
 
 ## Source Findings That Change The Plans
 
+These findings describe the original planning snapshot. Generic-pack,
+standalone-delivery, and Supabase-broker implementation now have the scoped
+hosted evidence in 010.36 section 6.2; do not treat those original gaps as the
+current state. Other plans still require their own implementation/evidence.
+
 1. `AIWorkspaceExperiencePackRegistry` currently resolves only `dealership@1.1.0`; `AIWorkspaceConfigurationValidator` validates dealership fields. Generic standalone hosting therefore needs an actual generic pack/schema/catalog entry.
 2. The installer already models anonymous direct runtime, authenticated broker, and private backend adapter connections. Broker support is conditional on a reviewed endpoint being configured; schema support alone is not authenticated-product readiness.
 3. Draft update accepts structured sections but has no caller-supplied edit fingerprint in `UpdateDeploymentDraftRequest`. AI-assisted edits need an atomic stale-draft guard, not a new use of `revisionNumber` as if every save increments it.
@@ -77,8 +82,9 @@ internal templates require login. Prove customer-owned Supabase Auth with a
 deployment-local adapter first; OIDC follows, while existing customer-session
 and Shopify paths remain supported. Frontend, installation, and runtime
 releases/readiness are separate. There is no unmeasured 100-app ceiling.
-These are confirmed design choices; all implementation phase tasks remain
-pending, and no new hosted capability is claimed.
+These were confirmed design choices at that planning checkpoint. The
+2026-10-14 hosted delivery record below supersedes its pending implementation
+status without claiming full acceptance or customer self-service completion.
 
 Product naming confirmed, 2026-10-13: **LoomAI Engage** is the commercial
 name; **AI Workspace** remains the technical reference. Existing filenames,
@@ -99,6 +105,77 @@ Native catalogue/search, platform integration, packaging, links, and store
 publication remain deferred execution work. Dedicated business binaries are
 a later option; hosted-page WebViews are not the primary selected path.
 No mobile build or store proof is required to close the current web release.
+
+## 2026-10-14 Engage Productization Scope
+
+010.36 section 10 is the canonical new execution scope: an authorized customer
+uses production Platform to select a published Dealership Experience template,
+provision customer staging with explicitly simulated Auto Trader, and create a
+production-delivered Engage app bound to that verified staging release. Normal
+promotion reuses the deployment/version lineage with a production-target release
+and guarded explicit consumer activation; it does not require cross-control-plane
+export/import or an in-place Coolify move.
+
+Reuse Marketplace contributions, target profiles, managed services, verified
+releases, consumers, installations, and exact-host delivery. Generic UI and
+promotion remain domain-neutral. Simulation requires isolated customer/target
+fixtures and honest labels; real Auto Trader access remains separately gated.
+Customer staging is not disposable developer staging, even if they share a host.
+
+The shared shell is live in staging/production; no production Northfield
+customer app exists. Keep real action-time sign-in, cancelled-login and
+expiry/revocation proof, full Shopify private-query regression, complete
+accessibility/safe-area acceptance, and measured capacity open until verified.
+P0-P7 productization tasks are newly planned, not implementation completed by
+this document update. No framework/runtime/product deployment changed.
+
+Customer-portal refinement approved 2026-10-14: use the existing
+`CUSTOMER_ADMIN` role and one Platform UI/configuration system. Staff/customer
+experiences share editors and APIs; expose My Deployments, My Engage Apps,
+conditional Inbox, and Account & Team, with customer knowledge/connections
+inside the deployment. AWS Console/Cloudscape are layout/design-system
+inspiration, not a library replacement or AWS infrastructure migration.
+Complete and verify P0-P5 functional/non-extraction work first. P6 shared-editor
+extraction and customer-shell/layout changes must be separately committed and
+reversible without backend/schema/configuration/deployment rollback. P7 then
+certifies the simplified UI journey. See 010.36 sections 10.7-10.11; all of this
+new execution work remains planned.
+
+Placement refinement approved 2026-10-14: 010.36 customer staging is confined
+to staging Coolify (`46.224.145.148`); production Coolify (`46.225.162.106`)
+hosts production-target deployments and shared production services, not staging
+spillover. Production Engage delivery may still bind a staging runtime. Section
+10.2.1 requires measured quotas/admission, update/retry resource reuse, failed
+apply reconciliation, notified expiry/authorized extensions, default staging
+retirement after promotion and bounded drain, and owned-resource reclamation.
+These P0-P5 gates precede UI extraction; the documentation authorizes no live
+resource deletion or placement change.
+
+Staff-preservation and promotion refinement approved 2026-10-14:
+[dated admin/operator register](010_36_ADMIN_OPERATOR_UI_CAPABILITY_BASELINE_2026_10_14.md)
+preserves 39 capability groups and a frozen source snapshot of routes, controls,
+API references/contracts, and hashes. Capture a second P5 functional baseline;
+P6 must map every retained/moved staff capability to role-aware browser proof.
+010.36 section 10.5.1 defines a candidate/target-bound Production Readiness &
+Go-Live checklist with blocking pre-activation evidence and separate visible
+post-activation drain/retirement/reclamation closure. Manual checks cannot
+override security failures or stale evidence. Both extensions remain planned;
+only the source capture/comparison tooling is implemented/tested here.
+
+Code-assessment adaptation approved 2026-10-14: 010.36 section 10.12 defines
+R1 target/release administration and binding scope, R2 frozen candidate/atomic
+consumer activation, R3 target-only retirement, R4 S3-first promotable documents,
+R5 dedicated customer/target dependencies and operator onboarding, R6 fail-closed
+customer permissions/safe catalogues, and R7 offer/limits/lifecycle/evidence.
+Correct the old production-mount assumption; shared simulator/inbox tenancy
+is deferred rather than assumed from the Northfield demo. Existing global
+deployment projections, consumer mutation, scope filtering and dependency
+bootstrap are explicit source gaps, not already-complete primitives.
+P0 closes exact APIs/schema/permissions/prerequisites/measured policies and
+named verification packs before P1; P0-P5 implement/verify functionality,
+P6 remains UI-only/reversible, and P7 certifies the invite-based scoped offer.
+No implementation or hosted production-readiness claim is created by the
+adaptation; all new execution tasks remain unchecked.
 
 ## Shared Implementation Rules
 
