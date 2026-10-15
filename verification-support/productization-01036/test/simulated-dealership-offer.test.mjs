@@ -78,7 +78,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
     version("action", "1.0.0", "action-v1"),
   ];
   const template = {
-    ...version("mkp-template-simulated-dealership-experience-v1", "1.2.0", "template-v1-2"),
+    ...version("mkp-template-simulated-dealership-experience-v1", "1.3.0", "template-v1-3"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0", "action@1.0.0"]},
   };
   const definition = buildOfferDefinition({
@@ -87,7 +87,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
       target("dtp-coolify-production-behavior", "production")],
     auth,
   });
-  assert.equal(definition.template.versionId, "template-v1-2");
+  assert.equal(definition.template.versionId, "template-v1-3");
   assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
   assert.deepEqual(definition.targets.map(({intent}) => intent), ["CUSTOMER_STAGING", "CUSTOMER_PRODUCTION"]);
@@ -104,7 +104,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
 
 test("offer rejects incomplete required plugin pinning", () => {
   const template = {
-    ...version("mkp-template-simulated-dealership-experience-v1", "1.2.0", "template-v1-2"),
+    ...version("mkp-template-simulated-dealership-experience-v1", "1.3.0", "template-v1-3"),
     contributions: {templateRequiredPluginRefs: ["missing@1.0.0"]},
   };
   assert.throws(() => buildOfferDefinition({

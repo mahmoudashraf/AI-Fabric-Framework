@@ -1,8 +1,8 @@
 import {createHash} from "node:crypto";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v2";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v3";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.2.0";
+export const TEMPLATE_VERSION = "1.3.0";
 export const RUNTIME_IMAGE_DIGEST = "sha256:c15853a59ad2f7d7b7b42fc9ba0a8e77c7c5b6007419ac755be2b5e2ac11af0f";
 export const RUNTIME_SOURCE_COMMIT = "980fc9d75bfea761d07808f86af9e0386e90ab66";
 export const STAGING_TARGET_ID = "dtp-coolify-staging-behavior";

@@ -96,7 +96,7 @@ node --test verification-support/productization-01036/test/*.test.mjs
 `publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
 digests as `MANAGED_DEPENDENCY` source artifacts, promotes them through the
 production review channel, and publishes one immutable dependency topology for
-`mkv-template-simulated-dealership-experience-v1-2`. A production-reviewed
+`mkv-template-simulated-dealership-experience-v1-3`. A production-reviewed
 artifact is valid in customer staging and production; a staging-only artifact
 is never accepted for production.
 

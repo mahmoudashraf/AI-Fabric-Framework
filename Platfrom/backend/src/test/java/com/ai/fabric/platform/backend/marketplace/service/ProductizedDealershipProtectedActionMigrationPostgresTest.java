@@ -31,7 +31,7 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
         Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("179"))
+            .target(MigrationVersion.fromVersion("183"))
             .load()
             .migrate();
 
@@ -58,6 +58,14 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
                 .path("mkp-action-dealership-engagement-v1@1.1.0")
                 .path("config").path("receiverActionUrl").asText())
                 .isEqualTo("${MANAGED_RECEIVER_ACTION_URL}");
+
+            Seed refreshedTemplate = seed(connection, "mkv-template-simulated-dealership-experience-v1-3");
+            manifests.parseAndValidate(plugin(refreshedTemplate), version(refreshedTemplate));
+            assertThat(refreshedTemplate.version()).isEqualTo("1.3.0");
+            JsonNode refreshedContribution = mapper.readTree(refreshedTemplate.manifestJson())
+                .path("contributions").path("template");
+            assertThat(refreshedContribution.path("requiredPluginRefs"))
+                .isEqualTo(contribution.path("requiredPluginRefs"));
 
             try (PreparedStatement statement = connection.prepareStatement(
                 "select active from deployment_target_profiles where id = 'dtp-coolify-prod-staging'")) {
