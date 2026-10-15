@@ -589,6 +589,10 @@ class PlatformManagedProductProvisioningServiceTest {
             "ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace",
             "21280f75e129a889f0e9c1bc5ef2a0634d495985",
             new ObjectMapper().createObjectNode()
+                .put("limits_memory", "256M")
+                .put("limits_memory_swap", "256M")
+                .put("limits_memory_reservation", "64M")
+                .put("limits_cpus", "0.250")
         );
 
         when(serviceService.requireService("loomai-engage-web")).thenReturn(service);
@@ -628,6 +632,9 @@ class PlatformManagedProductProvisioningServiceTest {
             .isEqualTo("ghcr.io/mahmoudashraf/loomai-standalone-ai-workspace");
         assertThat(request.getValue().imageTag()).isEqualTo("21280f75e129a889f0e9c1bc5ef2a0634d495985");
         assertThat(request.getValue().domains()).isEqualTo("https://loomai-engage-web.46.224.145.148.sslip.io");
+        assertThat(request.getValue().runtimeSettings()).isEqualTo(new CoolifyApplicationRuntimeSettings(
+            null, null, null, null, "256M", "256M", "64M", "0.250", null
+        ));
         verify(coolifyApiClient, never()).createPublicApplication(eq(stagingConnection), any());
         verifyNoInteractions(railwayGraphqlClient);
     }
