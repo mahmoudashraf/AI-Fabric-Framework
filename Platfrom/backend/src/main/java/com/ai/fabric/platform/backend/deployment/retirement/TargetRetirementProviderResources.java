@@ -45,7 +45,7 @@ public class TargetRetirementProviderResources {
             ? client.getApplication(connection, resource.providerResourceUuid()).map(app -> app.raw())
             : client.getDatabase(connection, resource.providerResourceUuid()).map(db -> db.raw());
         observed.ifPresent(raw -> inventory.requireProviderIdentity(resource, raw));
-        if (observed.isEmpty() && isApplication(resource) && !resource.volumes().isEmpty()
+        if (observed.isEmpty() && !resource.volumes().isEmpty()
             && !inventory.volumesReclaimed(resource)) {
             throw new TargetRetirementFailure("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
         }
@@ -62,9 +62,27 @@ public class TargetRetirementProviderResources {
             retireVolumes(connection, resource);
             client.delete(connection, resource.providerResourceUuid(), true, false, false, false);
         } else {
-            client.deleteDatabase(connection, resource.providerResourceUuid(), true, false, false, false);
+            requireDatabaseVolumes(connection, resource);
+            client.deleteDatabase(connection, resource.providerResourceUuid(), true, true, false, false);
+            var observed = client.getDatabase(connection, resource.providerResourceUuid());
+            if (observed.isPresent()) {
+                inventory.requireProviderIdentity(resource, observed.get().raw());
+                return new EffectResult(false, "provider-resource:" + resource.handleId() + ":present", Instant.now());
+            }
+            Instant observedAt = Instant.now();
+            inventory.recordVolumesReclaimed(resource, observedAt);
+            return new EffectResult(true, "provider-resource:" + resource.handleId() + ":absent", observedAt);
         }
         return readback(context, resource);
+    }
+
+    private void requireDatabaseVolumes(CoolifyConnection connection, ResourceGeneration resource) {
+        if (resource.volumes().isEmpty() || resource.volumes().stream().anyMatch(value -> value.preserved()
+            || value.name() == null || value.name().isBlank())) {
+            throw new TargetRetirementFailure("DATABASE_VOLUME_OWNERSHIP_UNPROVEN");
+        }
+        inventory.requireVolumeInventory(resource,
+            client.listDatabaseStorages(connection, resource.providerResourceUuid()), false);
     }
 
     private CoolifyConnection connection(Context context, ResourceGeneration resource) {

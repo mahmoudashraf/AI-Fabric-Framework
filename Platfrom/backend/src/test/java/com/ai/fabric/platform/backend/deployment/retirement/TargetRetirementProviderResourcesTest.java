@@ -108,7 +108,30 @@ class TargetRetirementProviderResourcesTest {
         verifyNoInteractions(client, resolver);
     }
 
-    @Test void databaseVolumesAndSecretReferencesAreLeftForTheDependencyParticipant() throws Exception {
+    @Test void exclusivelyOwnedDatabaseVolumeIsDeletedWithTheDatabase() throws Exception {
+        var volume = new ProviderVolumeGeneration("database-storage", "persistent", "database-volume",
+            "/var/lib/postgresql/data", null, "volume-generation", false);
+        var database = new ResourceGeneration("database", "release", DeploymentProviderType.COOLIFY, "RUNTIME_POSTGRES_DATABASE",
+            "db", "server", "project", "environment", "destination", "database",
+            "Durable runtime chat database for AI Fabric deployment deployment",
+            "generation", "provider-generation", List.of(volume), false);
+        context = context(database);
+        when(client.getDatabase(connection, "db")).thenReturn(Optional.of(new CoolifyDatabaseSummary("db", "database", "running", "postgresql",
+            null, null, mapper.readTree("{\"uuid\":\"db\",\"server_uuid\":\"server\"}"))));
+        when(client.listDatabaseStorages(connection, "db")).thenReturn(List.of(new CoolifyApplicationStorageSummary(
+            "database-storage", "persistent", "database-volume", "/var/lib/postgresql/data", null, false,
+            mapper.createObjectNode())));
+        when(client.deleteDatabase(connection, "db", true, true, false, false)).thenAnswer(call -> {
+            when(client.getDatabase(connection, "db")).thenReturn(Optional.empty());
+            return null;
+        });
+        assertThat(service.delete(context, database).complete()).isTrue();
+        verify(inventory).requireVolumeInventory(eq(database), anyList(), eq(false));
+        verify(inventory).recordVolumesReclaimed(eq(database), any(Instant.class));
+        verify(client).deleteDatabase(connection, "db", true, true, false, false);
+    }
+
+    @Test void databaseDeletionFailsClosedWithoutFrozenVolumeOwnership() throws Exception {
         var database = new ResourceGeneration("database", "release", DeploymentProviderType.COOLIFY, "RUNTIME_POSTGRES_DATABASE",
             "db", "server", "project", "environment", "destination", "database",
             "Durable runtime chat database for AI Fabric deployment deployment",
@@ -116,12 +139,32 @@ class TargetRetirementProviderResourcesTest {
         context = context(database);
         when(client.getDatabase(connection, "db")).thenReturn(Optional.of(new CoolifyDatabaseSummary("db", "database", "running", "postgresql",
             null, null, mapper.readTree("{\"uuid\":\"db\",\"server_uuid\":\"server\"}"))));
-        when(client.deleteDatabase(connection, "db", true, false, false, false)).thenAnswer(call -> {
-            when(client.getDatabase(connection, "db")).thenReturn(Optional.empty());
-            return null;
-        });
-        assertThat(service.delete(context, database).complete()).isTrue();
-        verify(client).deleteDatabase(connection, "db", true, false, false, false);
+
+        assertThatThrownBy(() -> service.delete(context, database))
+            .hasMessageContaining("DATABASE_VOLUME_OWNERSHIP_UNPROVEN");
+
+        verify(client, never()).deleteDatabase(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void databaseProviderFailureNeverRecordsVolumeReclamation() throws Exception {
+        var volume = new ProviderVolumeGeneration("database-storage", "persistent", "database-volume",
+            "/var/lib/postgresql/data", null, "volume-generation", false);
+        var database = new ResourceGeneration("database", "release", DeploymentProviderType.COOLIFY, "RUNTIME_POSTGRES_DATABASE",
+            "db", "server", "project", "environment", "destination", "database",
+            "Durable runtime chat database for AI Fabric deployment deployment",
+            "generation", "provider-generation", List.of(volume), false);
+        context = context(database);
+        when(client.getDatabase(connection, "db")).thenReturn(Optional.of(new CoolifyDatabaseSummary("db", "database", "running", "postgresql",
+            null, null, mapper.readTree("{\"uuid\":\"db\",\"server_uuid\":\"server\"}"))));
+        when(client.listDatabaseStorages(connection, "db")).thenReturn(List.of(new CoolifyApplicationStorageSummary(
+            "database-storage", "persistent", "database-volume", "/var/lib/postgresql/data", null, false,
+            mapper.createObjectNode())));
+        when(client.deleteDatabase(connection, "db", true, true, false, false))
+            .thenThrow(new IllegalStateException("provider timeout"));
+
+        assertThatThrownBy(() -> service.delete(context, database)).hasMessageContaining("provider timeout");
+
+        verify(inventory, never()).recordVolumesReclaimed(any(), any());
     }
 
     @Test void absenceIsReadBackBeforeDeleteAndEmptyAllowlistFailsClosed() {

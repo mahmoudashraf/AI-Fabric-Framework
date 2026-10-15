@@ -14,7 +14,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Comparator;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.*;
@@ -170,15 +170,22 @@ final class AdmissionRetirementHandoffService {
             }
         }
         Set<String> releaseSet = Set.copyOf(releaseIds);
-        boolean assigned = consumers.findAll().stream().anyMatch(consumer -> {
+        var deploymentConsumers = consumers.findAll().stream()
+            .filter(consumer -> reservation.deploymentId().equals(consumer.getBoundDeploymentId()))
+            .toList();
+        boolean assigned = deploymentConsumers.stream().anyMatch(consumer -> {
             boolean target = reservation.deploymentId().equals(consumer.getBoundDeploymentId())
                 && (consumer.getBoundTargetProfileId() == null
                     || reservation.targetProfileId().equals(consumer.getBoundTargetProfileId()));
             return target || releaseSet.contains(consumer.getBoundReleaseId());
         });
         if (assigned) throw failure("TARGET_STILL_ASSIGNED");
+        List<ConsumerExpectation> expectations = deploymentConsumers.stream()
+            .map(consumer -> new ConsumerExpectation(consumer.getId(), consumer.getBindingRevision()))
+            .sorted(Comparator.comparing(ConsumerExpectation::consumerEntityId))
+            .toList();
         FleetPolicy policy = admissions.reviewed("POLICY", reservation.policyId(), FleetPolicy.class);
-        PlanRequest request = new PlanRequest(operationKey, releaseIds, List.of(), work.drainDeadline(),
+        PlanRequest request = new PlanRequest(operationKey, releaseIds, expectations, work.drainDeadline(),
             new Retention(RetentionDecision.RECLAIM, null, null, policy.restoreEvidenceReference()), work.reason());
         var planned = retirements.plan(reservation.deploymentId(), reservation.targetProfileId(), request);
         return retirements.require(planned.id());

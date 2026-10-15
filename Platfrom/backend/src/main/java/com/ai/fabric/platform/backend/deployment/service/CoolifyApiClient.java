@@ -639,10 +639,26 @@ public class CoolifyApiClient {
         CoolifyConnection connection,
         String applicationUuid
     ) {
+        return listStorages(connection, "applications", applicationUuid, "application");
+    }
+
+    public List<CoolifyApplicationStorageSummary> listDatabaseStorages(
+        CoolifyConnection connection,
+        String databaseUuid
+    ) {
+        return listStorages(connection, "databases", databaseUuid, "database");
+    }
+
+    private List<CoolifyApplicationStorageSummary> listStorages(
+        CoolifyConnection connection,
+        String resourcePath,
+        String resourceUuid,
+        String resourceLabel
+    ) {
         JsonNode response = requestJson(
             connection,
             "GET",
-            "/applications/" + encodePath(requireText(applicationUuid, "application UUID")) + "/storages",
+            "/" + resourcePath + "/" + encodePath(requireText(resourceUuid, resourceLabel + " UUID")) + "/storages",
             null,
             true
         );

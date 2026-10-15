@@ -89,5 +89,27 @@ class StagingExpiryContractTest extends AdmissionFixture {
         assertThat(active.lastActivityAt()).isEqualTo(NOW.plusSeconds(1)); assertThat(active.expiresAt()).isEqualTo(NOW.plusSeconds(1001));
         assertThatThrownBy(() -> store.activity(active.fence(), null, "health-probe", "operator", NOW.plusSeconds(2))).hasMessageContaining("ACTIVITY_REQUIRES_CURRENT_STAGING");
     }
+    @Test
+    void productionActivationSchedulesOneFreshBoundedNoticeCycleAndReplayIsStable() {
+        Reservation r = one();
+
+        Reservation scheduled = store.scheduleRetirementAfterPromotion(
+            r.deploymentId(), r.targetProfileId(), "activate-1", "owner", NOW.plusSeconds(10));
+
+        assertThat(scheduled.expiresAt()).isEqualTo(NOW.plusSeconds(110));
+        assertThat(scheduled.expiryState()).isEqualTo(ExpiryState.CURRENT);
+        assertThat(store.noticeWork(scheduled.fence(), "worker", NOW.plusSeconds(10))).hasSize(2);
+        Reservation replay = store.scheduleRetirementAfterPromotion(
+            r.deploymentId(), r.targetProfileId(), "activate-1", "owner", NOW.plusSeconds(20));
+        assertThat(replay.revision()).isEqualTo(scheduled.revision() + 1);
+        assertThat(replay.expiresAt()).isEqualTo(scheduled.expiresAt());
+        assertThat(replay.noticeCycle()).isEqualTo(scheduled.noticeCycle());
+    }
+    @Test
+    void productionActivationCannotClaimRetirementWasScheduledWithoutAStagingReservation() {
+        assertThatThrownBy(() -> store.scheduleRetirementAfterPromotion(
+            "missing-deployment", TARGET, "activate-1", "owner", NOW))
+            .hasMessageContaining("STAGING_RESERVATION_REQUIRED");
+    }
     private NoticeDelivery receipt(NoticeWork work, Instant at) { return new NoticeDelivery(work.deliveryKey(), "durable-transport-receipt", at); }
 }

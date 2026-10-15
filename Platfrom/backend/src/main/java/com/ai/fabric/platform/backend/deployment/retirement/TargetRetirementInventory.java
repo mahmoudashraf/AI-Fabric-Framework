@@ -144,7 +144,43 @@ public class TargetRetirementInventory {
                     throw failure("SHARED_RELEASE_REFERENCE");
             }
         }
+        requireExclusiveDatabaseVolumes(snapshot.resources(), allHandles);
         // Opaque provider/config/index/dependency references are proved by the mandatory interlock/participants.
+    }
+
+    private void requireExclusiveDatabaseVolumes(List<ResourceGeneration> resources,
+                                                 List<DeploymentProviderResourceHandleEntity> allHandles) {
+        var databaseResources = resources.stream()
+            .filter(resource -> "RUNTIME_POSTGRES_DATABASE".equals(resource.resourceKind()))
+            .toList();
+        for (var database : databaseResources) {
+            if (database.volumes().isEmpty()) throw failure("DATABASE_VOLUME_OWNERSHIP_UNPROVEN");
+            if (database.volumes().stream().anyMatch(ProviderVolumeGeneration::preserved)) {
+                throw failure("DATABASE_VOLUME_NOT_EXCLUSIVELY_OWNED");
+            }
+            for (var volume : database.volumes()) {
+                if (volume.name() == null || volume.name().isBlank()) {
+                    throw failure("DATABASE_VOLUME_OWNERSHIP_UNPROVEN");
+                }
+                for (var other : allHandles) {
+                    if (database.handleId().equals(other.getId()) || other.getProviderType() != database.providerType()
+                        || !Objects.equals(other.getProviderServerUuid(), database.serverUuid())
+                        || !PROVIDER_KINDS.contains(other.getResourceKind()) || "DELETED".equals(other.getStatus())) {
+                        continue;
+                    }
+                    var target = targets.findById(other.getTargetProfileId())
+                        .orElseThrow(() -> failure("DATABASE_VOLUME_REFERENCE_INVENTORY_UNPROVEN"));
+                    var connection = resolver.requireConnection(target);
+                    var observed = APPLICATION_KINDS.contains(other.getResourceKind())
+                        ? client.listApplicationStorages(connection, other.getProviderResourceUuid())
+                        : client.listDatabaseStorages(connection, other.getProviderResourceUuid());
+                    boolean shared = observed.stream().filter(storage -> "persistent".equals(storage.type()))
+                        .anyMatch(storage -> volume.storageUuid().equals(storage.uuid())
+                            || volume.name().equals(storage.name()));
+                    if (shared) throw failure("SHARED_PERSISTENT_VOLUME_REFERENCE");
+                }
+            }
+        }
     }
 
     public DeploymentProviderResourceHandleEntity requireResource(ResourceGeneration expected) {
@@ -349,12 +385,15 @@ public class TargetRetirementInventory {
     private List<ProviderVolumeGeneration> volumes(DeploymentProviderResourceHandleEntity handle,
                                                    com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity target,
                                                    ResourceGeneration expected) {
-        if (!APPLICATION_KINDS.contains(handle.getResourceKind())) return List.of();
+        if (!APPLICATION_KINDS.contains(handle.getResourceKind())
+            && !"RUNTIME_POSTGRES_DATABASE".equals(handle.getResourceKind())) return List.of();
         if (expected != null && volumeDispositionReceipt(expected).equals(handle.getLastObservedStatus())) {
             return expected.volumes();
         }
         var connection = resolver.requireConnection(target);
-        var observed = client.listApplicationStorages(connection, handle.getProviderResourceUuid());
+        var observed = APPLICATION_KINDS.contains(handle.getResourceKind())
+            ? client.listApplicationStorages(connection, handle.getProviderResourceUuid())
+            : client.listDatabaseStorages(connection, handle.getProviderResourceUuid());
         var result = observedVolumes(handle, observed);
         if (expected != null) {
             requireVolumeInventory(expected, handle, observed, true);

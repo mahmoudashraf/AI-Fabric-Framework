@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromotionCommandRepository;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -191,6 +192,8 @@ class DeploymentPracticalPromotionServiceTest {
             "promotion:" + DeploymentEvidenceFingerprint.hash(new ObjectMapper(), new ObjectMapper().createObjectNode()
                 .put("kind", "activate").put("key", "activate-operation"))
         );
+        verify(fixture.retirementScheduler).scheduleAfterCommit(
+            deployment.getId(), "dtp-coolify-prod-staging", "activate-operation");
     }
 
     private TestFixture fixture() {
@@ -210,6 +213,7 @@ class DeploymentPracticalPromotionServiceTest {
         when(candidates.resolve(any(), any(), any(), any(), any())).thenReturn(candidate);
         when(candidates.fingerprint(any())).thenReturn(DeploymentEvidenceFingerprint.hash(mapper, candidate));
         var commands = new DeploymentPromotionCommandService(mock(DeploymentPromotionCommandRepository.class), consumerRepository, mapper);
+        var retirementScheduler = mock(AdmissionPromotionRetirementScheduler.class);
         DeploymentPracticalPromotionService service = new DeploymentPracticalPromotionService(
             deploymentRepository,
             versionRepository,
@@ -225,7 +229,8 @@ class DeploymentPracticalPromotionServiceTest {
             candidates,
             commands,
             mock(DeploymentTargetContextService.class),
-            mock(CustomerSelfServicePromotionBoundary.class)
+            mock(CustomerSelfServicePromotionBoundary.class),
+            retirementScheduler
         );
         return new TestFixture(
             service,
@@ -236,7 +241,8 @@ class DeploymentPracticalPromotionServiceTest {
             resourceHandleRepository,
             consumerRepository,
             deploymentAccessService,
-            consumerService
+            consumerService,
+            retirementScheduler
         );
     }
 
@@ -342,7 +348,8 @@ class DeploymentPracticalPromotionServiceTest {
         DeploymentProviderResourceHandleRepository resourceHandleRepository,
         PlatformConsumerRepository consumerRepository,
         DeploymentAccessService deploymentAccessService,
-        PlatformCustomerConsumerService consumerService
+        PlatformCustomerConsumerService consumerService,
+        AdmissionPromotionRetirementScheduler retirementScheduler
     ) {
     }
 }

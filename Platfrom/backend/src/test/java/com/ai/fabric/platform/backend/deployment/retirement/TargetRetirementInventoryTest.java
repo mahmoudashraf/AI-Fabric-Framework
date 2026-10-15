@@ -195,5 +195,60 @@ class TargetRetirementInventoryTest {
         assertThat(capture().resources().getFirst().volumes()).singleElement()
             .satisfies(value -> assertThat(value.preserved()).isTrue());
     }
+
+    @Test void runtimeDatabaseRequiresAnExclusiveProviderObservedVolume() {
+        var connection = resolver.requireConnection(target);
+        handle.setResourceKind("RUNTIME_POSTGRES_DATABASE");
+        handle.setProviderResourceUuid("staging-db");
+        handle.setMetadataJson("{\"databaseName\":\"runtime-db\"}");
+        var rawDatabase = new ObjectMapper().createObjectNode();
+        rawDatabase.put("uuid", "staging-db"); rawDatabase.put("name", "runtime-db");
+        rawDatabase.put("description", "Durable runtime chat database for AI Fabric deployment deployment");
+        rawDatabase.put("server_uuid", "staging-server"); rawDatabase.put("project_uuid", "project");
+        rawDatabase.put("environment_uuid", "environment"); rawDatabase.put("destination_uuid", "destination");
+        rawDatabase.put("type", "postgresql"); rawDatabase.put("postgres_db", "runtime");
+        rawDatabase.put("postgres_user", "runtime_user");
+        when(client.getDatabase(connection, "staging-db")).thenReturn(Optional.of(new CoolifyDatabaseSummary(
+            "staging-db", "runtime-db", "running", "postgresql", "runtime_user", "runtime", rawDatabase)));
+        var databaseVolume = new CoolifyApplicationStorageSummary("database-storage", "persistent", "runtime-db-volume",
+            "/var/lib/postgresql/data", null, false, new ObjectMapper().createObjectNode());
+        when(client.listDatabaseStorages(connection, "staging-db")).thenReturn(List.of(databaseVolume));
+
+        assertThat(capture().resources().getFirst().volumes()).singleElement()
+            .satisfies(volume -> {
+                assertThat(volume.storageUuid()).isEqualTo("database-storage");
+                assertThat(volume.preserved()).isFalse();
+            });
+
+        when(client.listDatabaseStorages(connection, "staging-db")).thenReturn(List.of());
+        assertThatThrownBy(this::capture).hasMessageContaining("DATABASE_VOLUME_OWNERSHIP_UNPROVEN");
+    }
+
+    @Test void runtimeDatabaseVolumeSharedByAnotherManagedResourceIsRejected() {
+        var connection = resolver.requireConnection(target);
+        handle.setResourceKind("RUNTIME_POSTGRES_DATABASE");
+        handle.setProviderResourceUuid("staging-db");
+        handle.setMetadataJson("{\"databaseName\":\"runtime-db\"}");
+        var rawDatabase = new ObjectMapper().createObjectNode();
+        rawDatabase.put("uuid", "staging-db"); rawDatabase.put("name", "runtime-db");
+        rawDatabase.put("description", "Durable runtime chat database for AI Fabric deployment deployment");
+        rawDatabase.put("server_uuid", "staging-server"); rawDatabase.put("project_uuid", "project");
+        rawDatabase.put("environment_uuid", "environment"); rawDatabase.put("destination_uuid", "destination");
+        when(client.getDatabase(connection, "staging-db")).thenReturn(Optional.of(new CoolifyDatabaseSummary(
+            "staging-db", "runtime-db", "running", "postgresql", "runtime_user", "runtime", rawDatabase)));
+        var databaseVolume = new CoolifyApplicationStorageSummary("database-storage", "persistent", "shared-volume",
+            "/var/lib/postgresql/data", null, false, new ObjectMapper().createObjectNode());
+        when(client.listDatabaseStorages(connection, "staging-db")).thenReturn(List.of(databaseVolume));
+        var other = new DeploymentProviderResourceHandleEntity();
+        other.setId("other"); other.setProviderType(DeploymentProviderType.COOLIFY);
+        other.setResourceKind("APPLICATION"); other.setProviderResourceUuid("other-app");
+        other.setProviderServerUuid("staging-server"); other.setTargetProfileId("staging");
+        when(handles.findAll()).thenReturn(List.of(handle, other));
+        when(client.listApplicationStorages(connection, "other-app")).thenReturn(List.of(
+            new CoolifyApplicationStorageSummary("other-storage", "persistent", "shared-volume", "/data",
+                null, false, new ObjectMapper().createObjectNode())));
+
+        assertThatThrownBy(this::capture).hasMessageContaining("SHARED_PERSISTENT_VOLUME_REFERENCE");
+    }
     private Snapshot capture() { return service.capture("deployment", "staging", request, 0); }
 }

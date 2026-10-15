@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
@@ -8,7 +10,9 @@ import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOper
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementParticipation;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementStore;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -188,6 +192,54 @@ class AdmissionRetirementHandoffServiceTest {
 
         verify(retirements, never()).retry(org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void postActivationProductionBindingIsCarriedAsRetirementRevisionEvidence() {
+        Reservation reservation = reservation(ExpiryState.CLAIMED, null);
+        var work = expiryWork(reservation);
+        var handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId("runtime-handle");
+        handle.setDeploymentId(reservation.deploymentId());
+        handle.setTargetProfileId(reservation.targetProfileId());
+        handle.setReleaseId("staging-release");
+        handle.setResourceKind("APPLICATION");
+        var release = new DeploymentReleaseEntity();
+        release.setId("staging-release");
+        release.setDeploymentId(reservation.deploymentId());
+        release.setTargetProfileId(reservation.targetProfileId());
+        var productionConsumer = new PlatformConsumerEntity();
+        productionConsumer.setId("consumer-entity");
+        productionConsumer.setBoundDeploymentId(reservation.deploymentId());
+        productionConsumer.setBoundTargetProfileId("production-target");
+        productionConsumer.setBoundReleaseId("production-release");
+        productionConsumer.setBindingRevision(12L);
+        var operation = operation(reservation, TargetRetirementContracts.State.QUEUED);
+        var planned = mock(TargetRetirementContracts.Summary.class);
+        when(planned.id()).thenReturn(operation.getId());
+        when(admissions.expiryWork(reservation)).thenReturn(work);
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
+            reservation.deploymentId(), reservation.targetProfileId())).thenReturn(List.of(handle));
+        when(releases.findById("staging-release")).thenReturn(Optional.of(release));
+        when(consumers.findAll()).thenReturn(List.of(productionConsumer));
+        when(admissions.reviewed("POLICY", reservation.policyId(), FleetPolicy.class)).thenReturn(
+            new FleetPolicy("policy1", null, Map.of(), null, "restore-proof", null, null));
+        when(retirements.plan(org.mockito.ArgumentMatchers.eq(reservation.deploymentId()),
+            org.mockito.ArgumentMatchers.eq(reservation.targetProfileId()), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(planned);
+        when(retirements.require(operation.getId())).thenReturn(operation);
+        when(admissions.handoff(org.mockito.ArgumentMatchers.eq(work), org.mockito.ArgumentMatchers.eq(operation.getId()),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(reservation(ExpiryState.HANDED_OFF, operation.getId()));
+
+        service.handoff(reservation);
+
+        ArgumentCaptor<TargetRetirementContracts.PlanRequest> request =
+            ArgumentCaptor.forClass(TargetRetirementContracts.PlanRequest.class);
+        verify(retirements).plan(org.mockito.ArgumentMatchers.eq(reservation.deploymentId()),
+            org.mockito.ArgumentMatchers.eq(reservation.targetProfileId()), request.capture());
+        assertThat(request.getValue().consumers()).containsExactly(
+            new TargetRetirementContracts.ConsumerExpectation("consumer-entity", 12L));
     }
 
     private TargetRetirementOperationEntity operation(Reservation reservation, TargetRetirementContracts.State state) {

@@ -18,6 +18,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -85,6 +86,7 @@ public class DeploymentPracticalPromotionService {
     private final DeploymentPromotionCommandService commands;
     private final DeploymentTargetContextService targets;
     private final CustomerSelfServicePromotionBoundary customerBoundary;
+    private final AdmissionPromotionRetirementScheduler retirementScheduler;
 
     public DeploymentPracticalPromotionService(DeploymentRepository deploymentRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
@@ -100,7 +102,8 @@ public class DeploymentPracticalPromotionService {
                                                DeploymentPromotionCandidateService candidates,
                                                DeploymentPromotionCommandService commands,
                                                DeploymentTargetContextService targets,
-                                               CustomerSelfServicePromotionBoundary customerBoundary) {
+                                               CustomerSelfServicePromotionBoundary customerBoundary,
+                                               AdmissionPromotionRetirementScheduler retirementScheduler) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
@@ -116,6 +119,7 @@ public class DeploymentPracticalPromotionService {
         this.commands = commands;
         this.targets = targets;
         this.customerBoundary = customerBoundary;
+        this.retirementScheduler = retirementScheduler;
     }
 
     @Transactional
@@ -192,9 +196,13 @@ public class DeploymentPracticalPromotionService {
                                                                           DeploymentPracticalPromotionActivationRequest request) {
         DeploymentEntity deployment = requireOperatorDeployment(deploymentId);
         if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Activation request is required.");
-        return commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "ACTIVATE",
+        DeploymentPracticalPromotionSummary result = commands.execute(deployment.getCustomerId(), deploymentId, request.consumerId(), "ACTIVATE",
             request.operationKey(), request.expectedBindingRevision(), request,
             consumer -> activateProductionConsumerOnce(deployment, request, consumer));
+        if (request.markStagingSuperseded() && StringUtils.hasText(result.stagingTargetProfileId())) {
+            retirementScheduler.scheduleAfterCommit(deploymentId, result.stagingTargetProfileId(), request.operationKey());
+        }
+        return result;
     }
 
     private DeploymentPracticalPromotionSummary activateProductionConsumerOnce(DeploymentEntity deployment,

@@ -528,6 +528,34 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void listsDatabasePersistentStorageWithItsProviderIdentity() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/databases/database-uuid/storages", exchange -> sendJson(exchange, 200, """
+            {
+              "persistent_storages": [{
+                "uuid": "database-storage-uuid",
+                "name": "database-volume",
+                "host_path": null,
+                "mount_path": "/var/lib/postgresql/data"
+              }],
+              "file_storages": []
+            }
+            """));
+        server.start();
+        try {
+            assertThat(new CoolifyApiClient(objectMapper).listDatabaseStorages(connection(server), "database-uuid"))
+                .singleElement()
+                .satisfies(storage -> {
+                    assertThat(storage.uuid()).isEqualTo("database-storage-uuid");
+                    assertThat(storage.name()).isEqualTo("database-volume");
+                    assertThat(storage.mountPath()).isEqualTo("/var/lib/postgresql/data");
+                });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void updateEnvironmentVariablesDeletesOlderDuplicateRuntimeRowsForUpdatedKeys() throws Exception {
         AtomicInteger deleteRequests = new AtomicInteger();
         AtomicReference<String> deletedPath = new AtomicReference<>();

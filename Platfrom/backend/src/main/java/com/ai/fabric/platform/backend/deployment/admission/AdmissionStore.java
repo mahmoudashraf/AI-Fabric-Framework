@@ -328,6 +328,51 @@ class AdmissionStore {
             return save(r, m, "ACTIVITY_" + activity.name(), actor, now);
         });
     }
+    Reservation scheduleRetirementAfterPromotion(String deploymentId, String targetProfileId,
+                                                  String operationKey, String actor, Instant requestedAt) {
+        return locked(() -> {
+            Instant now = effectiveTime(requestedAt);
+            String evidence = "promotion-retirement:" + required(operationKey, 128);
+            var rows = jdbc.query("""
+                SELECT payload_json FROM deployment_capacity_reservations
+                WHERE deployment_id=? AND target_profile_id=? AND current_slot=?
+                """, (rs, row) -> json.read(rs.getString(1), Reservation.class),
+                required(deploymentId, 64), required(targetProfileId, 64), deploymentId + "|" + targetProfileId);
+            if (rows.isEmpty()) throw new AdmissionFailure(PRECONDITION_FAILED, "STAGING_RESERVATION_REQUIRED");
+            if (rows.size() != 1) throw new AdmissionFailure(CONFLICT, "STAGING_RESERVATION_AMBIGUOUS");
+            Reservation r = rows.getFirst();
+            Integer replay = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM deployment_admission_events
+                WHERE reservation_id=? AND event_type='PROMOTION_RETIREMENT_SCHEDULED' AND evidence_reference=?
+                """, Integer.class, r.id(), evidence);
+            if (replay != null && replay > 0) return r;
+            if (r.intent() != Intent.CUSTOMER_STAGING || !r.consumesCapacity()
+                || !List.of(ExpiryState.CURRENT, ExpiryState.NOTICE_PENDING,
+                    ExpiryState.NOTICE_FAILED, ExpiryState.NOTIFIED).contains(r.expiryState())) {
+                throw new AdmissionFailure(CONFLICT, "PROMOTION_RETIREMENT_SCHEDULE_STATE_INVALID");
+            }
+            LifecyclePolicy policy = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
+            Instant scheduled = now.plusSeconds(policy.noticeLeadSeconds());
+            if (r.keepUntil() != null && scheduled.isBefore(r.keepUntil())) scheduled = r.keepUntil();
+            Instant maximum = r.createdAt().plusSeconds(policy.maxLifetimeSeconds());
+            if (scheduled.isAfter(maximum)) {
+                throw new AdmissionFailure(CONFLICT, "PROMOTION_RETIREMENT_NOTICE_WINDOW_UNAVAILABLE");
+            }
+            Mutation m = new Mutation(r);
+            m.expires = scheduled;
+            m.expiryState = ExpiryState.CURRENT;
+            m.noticeCycle = uuid();
+            m.attempts = 0;
+            m.nextRetry = null;
+            m.worker = null;
+            m.drainDeadline = null;
+            m.recoveryUntil = null;
+            m.retirement = null;
+            m.failure = null;
+            m.evidence = evidence;
+            return save(r, m, "PROMOTION_RETIREMENT_SCHEDULED", required(actor, 255), now);
+        });
+    }
     Reservation extend(Fence fence, boolean keep, CustomerGrant checkedGrant, String evidence, String actor, Instant requestedAt) {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
