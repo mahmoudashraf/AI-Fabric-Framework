@@ -166,7 +166,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         when(offerBoundary.prepareAdmission(eq(deployment), eq(target.getId()),
             eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY), anyString()))
             .thenReturn(approved);
-        when(authorities.freezeCandidate(
+        when(authorities.freezeCandidateForAuthorizedApply(
             deployment.getId(), target.getId(), version.getId(),
             List.of("https://workspace.example.com", "https://admin.example.com")
         )).thenReturn(new RuntimeAuthorityBinding.Snapshot(
@@ -193,7 +193,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         assertThat(evidence.allowedOrigins()).containsExactly(
             "https://admin.example.com", "https://workspace.example.com"
         );
-        verify(authorities).freezeCandidate(
+        verify(authorities).freezeCandidateForAuthorizedApply(
             deployment.getId(), target.getId(), version.getId(),
             List.of("https://workspace.example.com", "https://admin.example.com")
         );

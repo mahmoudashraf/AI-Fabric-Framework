@@ -119,7 +119,7 @@ class CustomerSelfServiceControllerTest {
 
     @Test void customerAdmissionReservationRoutesAreOwnerOnlyAndStrictlyTyped() throws Exception {
         String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/admission-reservations";
-        String request = "{\"targetProfileId\":\"staging-target\",\"manifestId\":\"manifest\",\"versionId\":\"version\","
+        String request = "{\"targetProfileId\":\"staging-target\",\"versionId\":\"version\","
             + "\"operation\":\"APPLY\",\"operationKey\":\"operation\"}";
         mvc.perform(as(post(route).contentType("application/json").content(request), PlatformRole.CUSTOMER_ADMIN))
             .andExpect(status().isOk());
@@ -129,8 +129,12 @@ class CustomerSelfServiceControllerTest {
         }
         clearInvocations(reservations);
         mvc.perform(as(post(route).contentType("application/json")
-            .content("{\"targetProfileId\":\"staging-target\",\"manifestId\":\"manifest\",\"versionId\":\"version\","
+            .content("{\"targetProfileId\":\"staging-target\",\"versionId\":\"version\","
                 + "\"operation\":\"APPLY\",\"operationKey\":\"operation\",\"cpuMillis\":999999}"),
+            PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
+        mvc.perform(as(post(route).contentType("application/json")
+            .content("{\"targetProfileId\":\"staging-target\",\"manifestId\":\"caller-selected\",\"versionId\":\"version\","
+                + "\"operation\":\"APPLY\",\"operationKey\":\"operation\"}"),
             PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
         verifyNoInteractions(reservations);
         mvc.perform(as(get(route + "/reservation"), PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isOk());

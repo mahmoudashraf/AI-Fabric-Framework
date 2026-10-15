@@ -12,15 +12,14 @@ public final class CustomerAdmissionReservationContracts {
     private CustomerAdmissionReservationContracts() { }
 
     public record Request(@NotBlank String targetProfileId,
-                          @NotBlank String manifestId,
                           @NotBlank String versionId,
                           String releaseId,
                           @NotNull Operation operation,
                           @NotBlank String operationKey,
                           String allocationId) {
-        public Request(String targetProfileId, String manifestId, String versionId, String releaseId,
+        public Request(String targetProfileId, String versionId, String releaseId,
                        Operation operation, String operationKey) {
-            this(targetProfileId, manifestId, versionId, releaseId, operation, operationKey, null);
+            this(targetProfileId, versionId, releaseId, operation, operationKey, null);
         }
     }
 

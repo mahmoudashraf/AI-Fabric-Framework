@@ -36,7 +36,8 @@ All routes are under `/api/customer-self-service`. Bodies reject unknown fields.
 - Customer session: `GET /catalogue`, `GET /catalogue/{offerId}`,
   `GET /invitations`, `POST /invitations/{entitlementId}/accept`,
   `POST /catalogue/{offerId}/targets/{targetProfileId}/placement-evidence`,
-  `POST /catalogue/{offerId}/deployments`.
+  `POST /catalogue/{offerId}/deployments`, and
+  `POST /catalogue/{offerId}/deployments/{deploymentId}/admission-reservations`.
 - Platform administrator: `POST /staff/offers`,
   `POST /staff/offers/{offerId}/invitations`,
   `POST /staff/entitlements/{entitlementId}/revoke`,
@@ -98,6 +99,20 @@ all admission gates, including R7's reservation. After creating the owned
 deployment/tenant, call `registerBootstrap(Authorization, deploymentId)` in the
 same transaction. Later operations require this durable association. There is
 no automatic grant/backfill of legacy deployments.
+
+The customer admission request contains only `targetProfileId`, `versionId`,
+optional `releaseId`, `operation`, `operationKey`, and optional `allocationId`.
+It never accepts a manifest ID, capacity amount, prerequisite reference, runtime
+origin, provider handle, or secret. After authorization, the server derives an
+immutable admission manifest from the published offer topology, exact published
+version, target-scoped document binding, frozen runtime authority, active
+staff-reviewed fleet policy, staff-reviewed customer quota, and the one active
+managed-dependency spec bound to the offer's exact template version. The server
+validates the dependency spec bytes/fingerprint and proves its resource demand
+fits inside the complete admission envelope; production readback resolves the
+same offer association and fingerprint before effects. Repeating the
+same materialization is deterministic. Any changed reviewed input produces a
+different manifest and cannot mutate the old record.
 
 `CustomerSelfServiceOperationBoundary` derives the accepted offer from the
 persisted deployment association; generic HTTP routes cannot substitute customer
@@ -201,13 +216,13 @@ I/O there. Populate those records before the command transaction.
 Source operations require scoped storage (and identity for private audiences).
 Missing/ambiguous adapters, wrong-context evidence, or any absent gate deny.
 
-Pending inputs: a passing owner S3 canary after both scoped identities receive
-read-only `s3:GetBucketVersioning` on the exact bucket ARN, approved complete
-template/artifact/dependency policies, verified physical server UUIDs, identity
-evidence, measured capacity/lifecycle policy, notification/recovery evidence
-and hosted owning-service wiring. The private S3 credentials exist and must not
-be copied into source or deployment-readable manifests. Do not substitute demo
-fixtures for these prerequisites.
+The owner S3 canary passes with separate prefix-scoped identities and read-only
+`s3:GetBucketVersioning` on the exact bucket ARN. Remaining hosted inputs are
+approved complete template/artifact/dependency policies, verified physical
+server UUIDs, identity evidence, measured capacity/lifecycle policy, working
+notification/recovery evidence, and owning-service wiring. Private S3
+credentials must not be copied into source or deployment-readable manifests.
+Do not substitute demo fixtures for these prerequisites.
 
 ## Verification
 

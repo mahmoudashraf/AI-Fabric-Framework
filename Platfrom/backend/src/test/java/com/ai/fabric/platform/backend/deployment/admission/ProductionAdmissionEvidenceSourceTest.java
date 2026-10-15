@@ -5,8 +5,11 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerTargetPlacementService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +31,11 @@ import static org.mockito.Mockito.*;
 
 class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
     private final DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
+    private final DeploymentRepository deployments = mock(DeploymentRepository.class);
     private final DeploymentVersionRepository versions = mock(DeploymentVersionRepository.class);
+    private final DeploymentDocumentBindingResolver documentBindings = mock(DeploymentDocumentBindingResolver.class);
+    private final ReviewedManagedDependencyEvidenceService dependencyEvidence =
+        mock(ReviewedManagedDependencyEvidenceService.class);
     private final CustomerTargetPlacementService placement = mock(CustomerTargetPlacementService.class);
     private final PlatformUserRepository users = mock(PlatformUserRepository.class);
     private final ObjectProvider<JavaMailSender> mail = mock(ObjectProvider.class);
@@ -51,7 +58,8 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
         Set<String> references = Set.of(
             "published-lifecycle", "restore-proof", "privacy-proof", "support-owner", "approved-mail",
             "platform-user:owner", "payer", "reviewed-topology", "deployment-version:version:config-hash",
-            "binding:binding-fingerprint", "placement:placement-evidence");
+            "binding:binding-fingerprint", "placement:placement-evidence",
+            "managed-dependency-spec:" + "d".repeat(64));
         var manifest = new Manifest("manifest", "deployment1", "version", "config-hash", TARGET,
             "binding-fingerprint", "reviewed-topology", vector(1), references);
         store.approvePolicy(policy, "operator", NOW);
@@ -73,6 +81,14 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
         version.setStatus("PUBLISHED");
         version.setConfigHash("config-hash");
         when(versions.findById("version")).thenReturn(Optional.of(version));
+        var deployment = new DeploymentEntity();
+        deployment.setId("deployment1");
+        when(deployments.findById("deployment1")).thenReturn(Optional.of(deployment));
+        when(documentBindings.snapshot(deployment, version, TARGET)).thenReturn(mapper.createObjectNode());
+        when(dependencyEvidence.resolveForDeployment("customer", "tenant", "deployment1",
+            "reviewed-topology", manifest.demand()))
+            .thenReturn(Optional.of(new ReviewedManagedDependencyEvidenceService.Evidence(
+                "template-version", "d".repeat(64), "managed-dependency-spec:" + "d".repeat(64))));
 
         var owner = new PlatformUserEntity();
         owner.setId("owner");
@@ -130,9 +146,27 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
             .hasMessageContaining("NOTICE_TRANSPORT_UNAVAILABLE");
     }
 
+    @Test
+    void staffManagedAdmissionWithoutOfferAssociationRemainsSupported() {
+        Set<String> references = new java.util.HashSet<>(context.manifest().prerequisiteReferences());
+        references.remove("managed-dependency-spec:" + "d".repeat(64));
+        references.remove("reviewed-topology");
+        references.add("staff-reviewed-topology");
+        var staffManifest = new Manifest("staff-manifest", "deployment1", "version", "config-hash", TARGET,
+            "binding-fingerprint", "staff-reviewed-topology", vector(1), references);
+        store.approveManifest(staffManifest, "operator", NOW);
+        var staffContext = store.context("customer", "tenant", "deployment1", "staff-manifest");
+        when(dependencyEvidence.resolveForDeployment("customer", "tenant", "deployment1",
+            "staff-reviewed-topology", staffManifest.demand())).thenReturn(Optional.empty());
+
+        assertThat(source(properties(true, true)).read(staffContext).verifiedPrerequisiteReferences())
+            .isEqualTo(references);
+    }
+
     private ProductionAdmissionEvidenceSource source(AdmissionLifecycleProperties properties) {
-        return new ProductionAdmissionEvidenceSource(targets, versions, placement,
-            new AdmissionOwnerContactResolver(users), properties, mail, json, Clock.fixed(NOW, ZoneOffset.UTC));
+        return new ProductionAdmissionEvidenceSource(targets, deployments, versions, documentBindings,
+            dependencyEvidence, placement, new AdmissionOwnerContactResolver(users), properties, mail, json,
+            Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private AdmissionLifecycleProperties properties(boolean console, boolean email) {

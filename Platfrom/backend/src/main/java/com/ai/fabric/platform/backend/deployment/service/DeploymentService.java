@@ -1819,18 +1819,37 @@ public class DeploymentService {
             )
         );
         offerBoundary.requireVersion(approved, version);
+        return prepareAuthorizedRuntimeAuthorityCandidate(deployment, version, target.getId());
+    }
+
+    /**
+     * Internal continuation after the owning customer/staff boundary has authorized the exact
+     * deployment, target and immutable version. It accepts no caller-provided origins or secrets.
+     */
+    @Transactional
+    public RuntimeAuthorityCandidateEvidence prepareAuthorizedRuntimeAuthorityCandidate(
+        DeploymentEntity deployment,
+        DeploymentVersionEntity version,
+        String targetProfileId
+    ) {
+        if (deployment == null || version == null || !StringUtils.hasText(targetProfileId)
+            || !deployment.getId().equals(version.getDeploymentId())
+            || !"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Authorized runtime authority candidate is invalid.");
+        }
+        DeploymentTargetProfileEntity target = deploymentProvisioningService.selectedTargetProfile(targetProfileId.trim());
         List<String> reviewedOrigins = reviewedRuntimeAuthorityOrigins(version);
-        RuntimeAuthorityBinding.Snapshot candidate = runtimeAuthorityService.freezeCandidate(
-            deploymentId,
+        RuntimeAuthorityBinding.Snapshot candidate = runtimeAuthorityService.freezeCandidateForAuthorizedApply(
+            deployment.getId(),
             target.getId(),
-            versionId,
+            version.getId(),
             reviewedOrigins
         );
         RuntimeAuthorityBinding binding = candidate.binding();
         return new RuntimeAuthorityCandidateEvidence(
-            deploymentId,
+            deployment.getId(),
             target.getId(),
-            versionId,
+            version.getId(),
             candidate.snapshotId(),
             candidate.fingerprint(),
             binding.generation(),

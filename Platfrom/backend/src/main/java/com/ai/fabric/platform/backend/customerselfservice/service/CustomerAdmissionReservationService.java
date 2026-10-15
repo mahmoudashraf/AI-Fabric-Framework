@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reserve;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionManifestService;
 import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -37,6 +38,7 @@ public class CustomerAdmissionReservationService {
     private final DeploymentVersionRepository versions;
     private final DeploymentReleaseRepository releases;
     private final CustomerOfferDeploymentRepository offerDeployments;
+    private final CustomerAdmissionManifestService manifests;
     private final DeploymentAdmissionService admissions;
     private final TransactionTemplate preparation;
 
@@ -46,6 +48,7 @@ public class CustomerAdmissionReservationService {
                                                DeploymentVersionRepository versions,
                                                DeploymentReleaseRepository releases,
                                                CustomerOfferDeploymentRepository offerDeployments,
+                                               CustomerAdmissionManifestService manifests,
                                                DeploymentAdmissionService admissions,
                                                PlatformTransactionManager transactionManager) {
         this.entitlements = entitlements;
@@ -54,6 +57,7 @@ public class CustomerAdmissionReservationService {
         this.versions = versions;
         this.releases = releases;
         this.offerDeployments = offerDeployments;
+        this.manifests = manifests;
         this.admissions = admissions;
         this.preparation = new TransactionTemplate(transactionManager);
         this.preparation.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -65,8 +69,10 @@ public class CustomerAdmissionReservationService {
         DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
         Authorization prepared = preparation.execute(status -> prepare(offerId, deployment, request));
         if (prepared == null) throw deny(RESOURCE_SCOPE_MISMATCH);
+        var version = versions.findById(request.versionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        var manifest = manifests.prepare(deployment, version, prepared);
         Reservation reservation = admissions.reserveCustomer(deploymentId, request.versionId(),
-            new Reserve(request.operationKey(), request.manifestId(), prepared.context(), request.allocationId()));
+            new Reserve(request.operationKey(), manifest.id(), prepared.context(), request.allocationId()));
         Summary result = summary(reservation);
         return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), result.intent(),
             request.operation(), result.state(), result.revision(), result.expiresAt());
@@ -122,8 +128,8 @@ public class CustomerAdmissionReservationService {
     }
 
     private void validate(Request request) {
-        if (request == null || blank(request.targetProfileId(), 64) || blank(request.manifestId(), 64)
-            || blank(request.versionId(), 64) || request.operation() == null || blank(request.operationKey(), 128)
+        if (request == null || blank(request.targetProfileId(), 64) || blank(request.versionId(), 64)
+            || request.operation() == null || blank(request.operationKey(), 128)
             || (request.allocationId() != null && blank(request.allocationId(), 64))
             || (request.releaseId() != null && blank(request.releaseId(), 64))) throw invalid();
     }

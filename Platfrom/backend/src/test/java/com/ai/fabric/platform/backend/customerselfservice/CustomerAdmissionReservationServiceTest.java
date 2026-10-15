@@ -10,6 +10,8 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferE
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceAuthorizationService;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reserve;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Manifest;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionManifestService;
 import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -39,6 +41,7 @@ class CustomerAdmissionReservationServiceTest {
     private final DeploymentVersionRepository versions = mock(DeploymentVersionRepository.class);
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final CustomerOfferDeploymentRepository associations = mock(CustomerOfferDeploymentRepository.class);
+    private final CustomerAdmissionManifestService manifests = mock(CustomerAdmissionManifestService.class);
     private final DeploymentAdmissionService admissions = mock(DeploymentAdmissionService.class);
     private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
     private CustomerAdmissionReservationService service;
@@ -49,7 +52,7 @@ class CustomerAdmissionReservationServiceTest {
     void setup() {
         when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         service = new CustomerAdmissionReservationService(entitlements, authorization, deployments, versions, releases,
-            associations, admissions, transactions);
+            associations, manifests, admissions, transactions);
         when(entitlements.requireCustomerActor()).thenReturn(new CustomerOfferEntitlementService.CustomerActor("customer", "owner"));
         deployment = new DeploymentEntity();
         deployment.setId("deployment"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
@@ -61,8 +64,12 @@ class CustomerAdmissionReservationServiceTest {
         prepared = new Authorization(context, CustomerOfferTestFixtures.definition());
         when(authorization.prepareAdmission(eq("customer"), any())).thenReturn(prepared);
         var version = new DeploymentVersionEntity();
-        version.setId("version"); version.setDeploymentId("deployment"); version.setStatus("PUBLISHED");
+        version.setId("version"); version.setDeploymentId("deployment"); version.setStatus("PUBLISHED"); version.setConfigHash("hash");
         when(versions.findById("version")).thenReturn(Optional.of(version));
+        when(manifests.prepare(deployment, version, prepared)).thenReturn(new Manifest(
+            "manifest", "deployment", "version", "hash", "staging-target", "binding", "topology",
+            mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Vector.class),
+            java.util.Set.of("reviewed")));
         Reservation reservation = mock(Reservation.class);
         when(reservation.id()).thenReturn("reservation");
         when(reservation.deploymentId()).thenReturn("deployment");
@@ -89,6 +96,7 @@ class CustomerAdmissionReservationServiceTest {
         assertThat(authorizationRequest.getValue().tenantId()).isEqualTo("tenant");
         ArgumentCaptor<Reserve> reserve = ArgumentCaptor.forClass(Reserve.class);
         verify(admissions).reserveCustomer(eq("deployment"), eq("version"), reserve.capture());
+        assertThat(reserve.getValue().manifestId()).isEqualTo("manifest");
         assertThat(reserve.getValue().customerContext()).isEqualTo(prepared.context());
         verify(transactions).commit(any());
     }
@@ -106,7 +114,7 @@ class CustomerAdmissionReservationServiceTest {
         release.setId("release"); release.setDeploymentId("deployment"); release.setDeploymentVersionId("other-version");
         release.setTargetProfileId("staging-target");
         when(releases.findById("release")).thenReturn(Optional.of(release));
-        var withRelease = new Request("staging-target", "manifest", "version", "release", Operation.APPLY, "operation");
+        var withRelease = new Request("staging-target", "version", "release", Operation.APPLY, "operation");
         assertThatThrownBy(() -> service.reserve("offer", "deployment", withRelease))
             .isInstanceOfSatisfying(CustomerSelfServiceException.class,
                 error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
@@ -132,6 +140,6 @@ class CustomerAdmissionReservationServiceTest {
     }
 
     private Request request() {
-        return new Request("staging-target", "manifest", "version", null, Operation.APPLY, "operation");
+        return new Request("staging-target", "version", null, Operation.APPLY, "operation");
     }
 }

@@ -16,7 +16,14 @@ CPU-only observations cannot approve a policy: measured RAM/disk remain required
 - Main must derive `Manifest` from the real reviewed immutable version/topology
   and resolved binding snapshot. It includes the complete R5 dependency footprint,
   not just runtime CPU. Published version/config hash is checked against existing
-  records. Customers submit only `Reserve(operationKey, manifestId)`, not amounts.
+  records. The customer self-service API accepts only target/version/operation
+  scope; it derives and immutably records the manifest before calling this sidecar.
+  Offer-backed manifests include the exact reviewed managed-dependency fingerprint
+  for the offer's template version and revalidate it against the full envelope.
+  Staff-managed non-offer manifests retain their existing reviewed evidence path;
+  an `offer-topology:` manifest never falls back when its offer association is absent.
+  The sidecar's internal `Reserve(operationKey, manifestId)` contract remains a
+  trusted server-to-server continuation and never accepts customer-supplied amounts.
 - Implement exactly one `AdmissionEvidenceSource`. It must read actual Coolify
   placement and current target/config/manifest/binding-bound prerequisite evidence,
   including restore, privacy, verified owner contact and configured notification

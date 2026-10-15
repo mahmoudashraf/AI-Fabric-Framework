@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerTargetPlacementService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -23,7 +25,10 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 @Component
 final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource {
     private final DeploymentTargetProfileRepository targets;
+    private final DeploymentRepository deployments;
     private final DeploymentVersionRepository versions;
+    private final DeploymentDocumentBindingResolver documentBindings;
+    private final ReviewedManagedDependencyEvidenceService dependencyEvidence;
     private final CustomerTargetPlacementService placement;
     private final AdmissionOwnerContactResolver owners;
     private final AdmissionLifecycleProperties properties;
@@ -33,17 +38,24 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
 
     @Autowired
     ProductionAdmissionEvidenceSource(DeploymentTargetProfileRepository targets,
+                                      DeploymentRepository deployments,
                                       DeploymentVersionRepository versions,
+                                      DeploymentDocumentBindingResolver documentBindings,
+                                      ReviewedManagedDependencyEvidenceService dependencyEvidence,
                                       CustomerTargetPlacementService placement,
                                       AdmissionOwnerContactResolver owners,
                                       AdmissionLifecycleProperties properties,
                                       ObjectProvider<JavaMailSender> mailSender,
                                       AdmissionJson json) {
-        this(targets, versions, placement, owners, properties, mailSender, json, Clock.systemUTC());
+        this(targets, deployments, versions, documentBindings, dependencyEvidence, placement, owners, properties,
+            mailSender, json, Clock.systemUTC());
     }
 
     ProductionAdmissionEvidenceSource(DeploymentTargetProfileRepository targets,
+                                      DeploymentRepository deployments,
                                       DeploymentVersionRepository versions,
+                                      DeploymentDocumentBindingResolver documentBindings,
+                                      ReviewedManagedDependencyEvidenceService dependencyEvidence,
                                       CustomerTargetPlacementService placement,
                                       AdmissionOwnerContactResolver owners,
                                       AdmissionLifecycleProperties properties,
@@ -51,7 +63,10 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
                                       AdmissionJson json,
                                       Clock clock) {
         this.targets = targets;
+        this.deployments = deployments;
         this.versions = versions;
+        this.documentBindings = documentBindings;
+        this.dependencyEvidence = dependencyEvidence;
         this.placement = placement;
         this.owners = owners;
         this.properties = properties;
@@ -84,7 +99,7 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
             throw unavailable("IMMUTABLE_VERSION_EVIDENCE_CHANGED");
         }
 
-        Set<String> supported = supportedReferences(context, placementEvidence.getId());
+        Set<String> supported = supportedReferences(context, version, placementEvidence.getId());
         if (!supported.containsAll(context.manifest().prerequisiteReferences())) {
             throw unavailable("TYPED_PREREQUISITE_EVIDENCE_REQUIRED");
         }
@@ -121,8 +136,11 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
         }
     }
 
-    private Set<String> supportedReferences(AdmissionContext context, String placementEvidenceId) {
+    private Set<String> supportedReferences(AdmissionContext context,
+                                            com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity version,
+                                            String placementEvidenceId) {
         Set<String> references = new LinkedHashSet<>();
+        references.add("policy:" + context.policy().id());
         references.add(context.policy().lifecycle().policyReference());
         references.add(context.policy().restoreEvidenceReference());
         references.add(context.policy().privacyEvidenceReference());
@@ -134,6 +152,23 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
         references.add("deployment-version:" + context.manifest().versionId() + ":" + context.manifest().versionConfigHash());
         references.add("binding:" + context.manifest().bindingFingerprint());
         references.add("placement:" + placementEvidenceId);
+        var dependency = dependencyEvidence.resolveForDeployment(context.customerId(), context.tenantId(),
+            context.deploymentId(), context.manifest().topologyReference(), context.manifest().demand());
+        if (dependency.isPresent()
+            && !context.manifest().prerequisiteReferences().contains(dependency.get().reference())) {
+            throw unavailable("REVIEWED_DEPENDENCY_PREREQUISITE_REQUIRED");
+        }
+        if (dependency.isEmpty() && context.manifest().prerequisiteReferences().stream()
+            .anyMatch(reference -> reference.startsWith("managed-dependency-spec:"))) {
+            throw unavailable("UNEXPECTED_REVIEWED_DEPENDENCY_PREREQUISITE");
+        }
+        dependency.ifPresent(value -> references.add(value.reference()));
+        var deployment = deployments.findById(context.deploymentId())
+            .orElseThrow(() -> unavailable("DEPLOYMENT_EVIDENCE_REQUIRED"));
+        var documentBinding = documentBindings.snapshot(deployment, version, context.target().targetProfileId());
+        if (!documentBinding.isEmpty()) {
+            references.add("document-binding:" + json.fingerprint(documentBinding));
+        }
         return Set.copyOf(references);
     }
 
