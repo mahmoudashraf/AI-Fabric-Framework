@@ -11,5 +11,5 @@ public record CustomerSelfServiceProperties(Map<TargetIntent, TrustedServer> tru
     public CustomerSelfServiceProperties {
         trustedServers = trustedServers == null ? Map.of() : Map.copyOf(trustedServers);
     }
-    public record TrustedServer(String uuid, String address) { }
+    public record TrustedServer(String uuid, String address, String reportedAddress) { }
 }

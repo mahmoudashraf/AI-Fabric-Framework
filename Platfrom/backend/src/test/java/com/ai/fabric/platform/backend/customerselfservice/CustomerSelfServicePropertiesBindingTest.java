@@ -14,8 +14,10 @@ class CustomerSelfServicePropertiesBindingTest {
         .withPropertyValues(
             "platform.customer-self-service.trusted-servers.CUSTOMER_STAGING.uuid=staging-server",
             "platform.customer-self-service.trusted-servers.CUSTOMER_STAGING.address=192.0.2.10",
+            "platform.customer-self-service.trusted-servers.CUSTOMER_STAGING.reported-address=host.docker.internal",
             "platform.customer-self-service.trusted-servers.CUSTOMER_PRODUCTION.uuid=production-server",
             "platform.customer-self-service.trusted-servers.CUSTOMER_PRODUCTION.address=192.0.2.20",
+            "platform.customer-self-service.trusted-servers.CUSTOMER_PRODUCTION.reported-address=host.docker.internal",
             "platform.customer-self-service.evidence-max-age-seconds=900"
         );
 
@@ -25,9 +27,11 @@ class CustomerSelfServicePropertiesBindingTest {
             CustomerSelfServiceProperties properties = application.getBean(CustomerSelfServiceProperties.class);
 
             assertThat(properties.trustedServers().get(TargetIntent.CUSTOMER_STAGING))
-                .isEqualTo(new CustomerSelfServiceProperties.TrustedServer("staging-server", "192.0.2.10"));
+                .isEqualTo(new CustomerSelfServiceProperties.TrustedServer(
+                    "staging-server", "192.0.2.10", "host.docker.internal"));
             assertThat(properties.trustedServers().get(TargetIntent.CUSTOMER_PRODUCTION))
-                .isEqualTo(new CustomerSelfServiceProperties.TrustedServer("production-server", "192.0.2.20"));
+                .isEqualTo(new CustomerSelfServiceProperties.TrustedServer(
+                    "production-server", "192.0.2.20", "host.docker.internal"));
             assertThat(properties.evidenceMaxAgeSeconds()).isEqualTo(900);
         });
     }

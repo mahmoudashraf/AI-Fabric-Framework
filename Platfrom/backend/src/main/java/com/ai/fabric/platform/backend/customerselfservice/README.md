@@ -173,7 +173,11 @@ workflows remain on their existing helpers, not a synthesized customer grant.
 ## Required Trusted Inputs
 
 Configure `platform.customer-self-service.trusted-servers` by `CUSTOMER_STAGING`
-and `CUSTOMER_PRODUCTION`, with verified `uuid` and `address`. Staging must be
+and `CUSTOMER_PRODUCTION`, with verified `uuid`, physical `address`, and exact
+Coolify `reported-address`. The reported address is the value returned by that
+Coolify control plane's server record (for a local Coolify server this may be
+`host.docker.internal`); it is not substituted for the physical address stored
+in placement evidence. Staging must be
 `46.224.145.148`; production must be `46.225.162.106`. Obtain actual UUIDs from
 approved readback, not labels. Also set an explicitly reviewed positive
 `evidence-max-age-seconds`. None have defaults. The two trust identities/addresses

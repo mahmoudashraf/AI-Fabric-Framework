@@ -101,8 +101,10 @@ class CustomerOfferEntitlementConcurrencyIntegrationTest {
         when(evidenceRepository.findFirstByTargetProfileIdAndIntentAndProfileFingerprintOrderByCheckedAtDesc(
             "staging-target", TargetIntent.CUSTOMER_STAGING, "profile-hash")).thenReturn(java.util.Optional.of(proof));
         var properties = new CustomerSelfServiceProperties(java.util.Map.of(
-            TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer("stage-server", "46.224.145.148"),
-            TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer("prod-server", "46.225.162.106")), 60);
+            TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer(
+                "stage-server", "46.224.145.148", "stage.internal"),
+            TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer(
+                "prod-server", "46.225.162.106", "prod.internal")), 60);
         var target = new CustomerTargetPlacementService(properties, resolver, client, composition, codec, evidenceRepository);
         var factory = new org.springframework.aop.framework.ProxyFactory(target);
         factory.setProxyTargetClass(true);

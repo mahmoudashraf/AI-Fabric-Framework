@@ -40,8 +40,10 @@ class CustomerTargetPlacementServiceTest {
     @BeforeEach
     void setup() {
         service = new CustomerTargetPlacementService(new CustomerSelfServiceProperties(Map.of(
-            TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer("stage-server", "46.224.145.148"),
-            TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer("prod-server", "46.225.162.106")), 60),
+            TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer(
+                "stage-server", "46.224.145.148", "host.docker.internal"),
+            TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer(
+                "prod-server", "46.225.162.106", "host.docker.internal")), 60),
             resolver, client, composition, CustomerOfferTestFixtures.codec(), evidenceRepository);
         profile = CustomerOfferTestFixtures.profile("staging-target", "stage-server");
         config = mock(CoolifyTargetProfileConfig.class);
@@ -54,7 +56,7 @@ class CustomerTargetPlacementServiceTest {
         details = mapper.createObjectNode().put("serverUuid", "stage-server").put("destinationServerUuid", "stage-server")
             .put("serverReachable", true).put("serverUsable", true).put("destinationUuid", "destination");
         preflight("PASSED", Instant.now().minusSeconds(1));
-        server = mapper.createObjectNode().put("uuid", "stage-server").put("ip", "46.224.145.148");
+        server = mapper.createObjectNode().put("uuid", "stage-server").put("ip", "host.docker.internal");
         server.putObject("settings").put("is_reachable", true).put("is_usable", true);
         when(client.getServer(connection, "stage-server")).thenReturn(server);
     }
@@ -78,8 +80,8 @@ class CustomerTargetPlacementServiceTest {
     }
 
     @Test
-    void actualProductionIpIsDeniedEvenWithCorrectConfiguredUuid() {
-        server.put("ip", "46.225.162.106");
+    void unreviewedProviderReportedAddressIsDeniedEvenWithCorrectConfiguredUuid() {
+        server.put("ip", "other.internal");
         assertCode(PLACEMENT_DENIED);
     }
 
@@ -116,7 +118,8 @@ class CustomerTargetPlacementServiceTest {
         service = new CustomerTargetPlacementService(new CustomerSelfServiceProperties(null, 0), resolver, client, composition,
             CustomerOfferTestFixtures.codec(), evidenceRepository);
         assertCode(TRUSTED_PLACEMENT_REQUIRED);
-        var trusted = new CustomerSelfServiceProperties.TrustedServer("prod-server", "46.225.162.106");
+        var trusted = new CustomerSelfServiceProperties.TrustedServer(
+            "prod-server", "46.225.162.106", "host.docker.internal");
         service = new CustomerTargetPlacementService(new CustomerSelfServiceProperties(Map.of(
             TargetIntent.CUSTOMER_STAGING, trusted, TargetIntent.CUSTOMER_PRODUCTION, trusted), 60), resolver, client, composition,
             CustomerOfferTestFixtures.codec(), evidenceRepository);

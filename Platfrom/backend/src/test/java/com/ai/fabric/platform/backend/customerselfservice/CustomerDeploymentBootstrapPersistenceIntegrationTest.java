@@ -461,8 +461,10 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
         @Bean MarketplaceManifestService manifests(ObjectMapper mapper) { return new MarketplaceManifestService(mapper); }
         @Bean CustomerSelfServiceProperties properties() {
             return new CustomerSelfServiceProperties(Map.of(
-                TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer("stage-server", "192.0.2.10"),
-                TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer("prod-server", "192.0.2.20")), 300);
+                TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer(
+                    "stage-server", "192.0.2.10", "stage.internal"),
+                TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer(
+                    "prod-server", "192.0.2.20", "prod.internal")), 300);
         }
         @Bean CustomerTargetPlacementService placement(CustomerSelfServiceProperties properties,
             CustomerReviewedCompositionService composition, CustomerOfferCodec codec, CustomerPlacementEvidenceRepository evidence) {

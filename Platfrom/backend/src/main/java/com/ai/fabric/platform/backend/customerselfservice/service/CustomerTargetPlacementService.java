@@ -63,7 +63,7 @@ public class CustomerTargetPlacementService {
                 || !preflight.details().path("serverUsable").asBoolean(false)) throw conflict(PREFLIGHT_REQUIRED);
             var server = client.getServer(connection, trusted.uuid());
             if (server == null || !trusted.uuid().equals(server.path("uuid").asText())
-                || !trusted.address().equals(server.path("ip").asText())
+                || !trusted.reportedAddress().equals(server.path("ip").asText())
                 || !server.path("settings").path("is_reachable").asBoolean(false)
                 || !server.path("settings").path("is_usable").asBoolean(false)) throw conflict(PLACEMENT_DENIED);
             Instant expiresAt = preflight.checkedAt().plusSeconds(properties.evidenceMaxAgeSeconds());
@@ -113,7 +113,8 @@ public class CustomerTargetPlacementService {
         var other = properties.trustedServers().get(intent == TargetIntent.CUSTOMER_STAGING
             ? TargetIntent.CUSTOMER_PRODUCTION : TargetIntent.CUSTOMER_STAGING);
         if (trusted == null || other == null || blank(trusted.uuid()) || blank(trusted.address())
-            || blank(other.uuid()) || blank(other.address()) || trusted.uuid().equals(other.uuid())
+            || blank(trusted.reportedAddress()) || blank(other.uuid()) || blank(other.address())
+            || blank(other.reportedAddress()) || trusted.uuid().equals(other.uuid())
             || trusted.address().equals(other.address()) || properties.evidenceMaxAgeSeconds() <= 0) {
             throw conflict(TRUSTED_PLACEMENT_REQUIRED);
         }
