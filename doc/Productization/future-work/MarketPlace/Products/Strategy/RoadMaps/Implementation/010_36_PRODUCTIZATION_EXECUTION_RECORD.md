@@ -1,38 +1,47 @@
 # LoomAI Engage Productization Execution Record
 
-Date: 2026-10-15. Governing scope: section 10 of
+Date: 2026-10-16. Governing scope: section 10 of
 [010.36](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md).
 Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
 - P0: source contract implemented and integrated; prerequisite acceptance is in
-  progress. The customer-owned S3 canary contract and separate private
-  credentials were recovered from the owner-only private auth handoff. The live
-  storage verifier now passes the exact bucket posture, identity separation,
-  prefix isolation, bounded object reads and write/delete denial. Other P0
-  capacity, lifecycle, notification and operating prerequisites remain open;
-  do not substitute this storage result for complete offer admission.
+  progress. The customer-owned S3 canary passes exact bucket posture, explicit
+  unversioned state, identity separation, prefix isolation, bounded object reads
+  and write/delete denial. The staging S3 binding is persisted for the fresh v5
+  customer lifecycle. SMTP authentication is live and the admission notice
+  transport is explicitly configured on staging. Fresh guest measurements prove
+  that neither current host has an admissible complete topology envelope with
+  headroom: staging lacks RAM and production lacks CPU. No policy or grant was
+  fabricated to bypass that result.
 - P1-P5: source foundations are integrated. The immutable three-service managed
-  dependency package is published and read back on both hosted control planes,
-  and the customer-safe admission reservation plus staff-only reviewed-record
-  boundaries are deployed on both Platform backends. The later authorization,
-  allocation, capacity, retirement and scheduler corrections are locally
-  integrated through `db48e9f2b` but are not yet deployed. End-to-end customer
-  provisioning is not hosted-certified. It remains gated on target-scoped live
-  storage, identity, notification, measured capacity and fresh-customer
-  lifecycle evidence.
+  dependency package is published and read back on both hosted control planes.
+  Customer admission no longer accepts a manifest identity or capacity material:
+  the backend derives an immutable manifest from the exact offer, version,
+  target storage, runtime authority and reviewed managed dependency topology.
+  Source `fb68caac3d9305e211f8c41bda015012dbee32f9` is live on both Platform
+  backends. The hosted legal customer request reaches the measured-policy gate;
+  an old client-supplied `manifestId` is rejected as an invalid contract.
+  End-to-end provisioning remains intentionally unexecuted until sufficient
+  customer capacity is measured and approved.
 - P6: not started. No editor extraction or customer layout change before the
   verified functional baseline. Preserve the frozen STAFF-001 through STAFF-039
   capability register and source snapshot.
-- P7: not started. Fresh production-customer lifecycle certification is required.
+- P7: not started. Fresh production-customer lifecycle certification is required
+  after the external capacity prerequisite is closed.
 
 ## Initial Readback
 
-Staging Coolify readback found 33 applications and five databases. SSH to
-staging and the direct production Coolify API were blocked from this network.
-Existing shell-only capacity evidence is not admission certification for the
-complete dealership topology. No resources were removed or redeployed.
+The initial Coolify inventory found 33 staging applications and five databases.
+Later authenticated SSH and Coolify API access succeeded for both hosts. The
+2026-10-16 staging snapshot reports 8 vCPUs, 16 GB RAM, about 3.58 GiB available
+RAM and about 4.67 GiB swap in use. The reviewed dealership topology requires
+3.75 vCPUs and 5.75 GiB RAM before fleet baseline and headroom. Production has
+4 vCPUs, 16 GB RAM and about 7.87 GiB available RAM, but the topology plus the
+previously measured production baseline requires about 4.22 vCPUs before
+headroom. These facts block admission; they are not converted into permissive
+policy values.
 
 ## Safety Prerequisites
 
@@ -73,11 +82,12 @@ complete dealership topology. No resources were removed or redeployed.
   scopes. Registry updates no longer detach another target's active scope.
 - Customer admission now has a customer-safe preparation/reservation/readback
   boundary backed by the existing durable R7 ledger. The customer supplies only
-  reviewed target, manifest, version/release and operation identity; measured
-  demand, provider placement, policy and prerequisite evidence remain
-  staff-owned. Unknown capacity fields, foreign scope, unreviewed versions and
-  staff-origin reservations fail closed, and ordinary apply/promotion commands
-  still require the resulting admission evidence before provisioning.
+  reviewed target, version/release and operation identity. The server derives
+  the manifest and demand from immutable reviewed records; provider placement,
+  policy and prerequisite evidence remain staff-owned. Unknown manifest or
+  capacity fields, foreign scope, unreviewed versions and staff-origin
+  reservations fail closed, and ordinary apply/promotion commands still require
+  the resulting admission evidence before provisioning.
 - R3 target-only retirement, R5 dedicated dependency/operator lifecycle and R7
   atomic admission/expiry ledgers exist as integrated primitives. The apply path
   now derives the release-bound runtime topology, coordinates connector/vector
@@ -366,36 +376,72 @@ complete dealership topology. No resources were removed or redeployed.
   the operator CIDR has zero matches. Production Platform readback remains
   available through its authenticated API and reports backend and console
   `RUNNING_HEALTHY`.
+- The final server-derived admission implementation passed the complete Platform
+  backend suite: **1,751 tests**, zero failures, errors or skips. Focused tests
+  prove deterministic materialization, strict customer request parsing, exact
+  managed-dependency fingerprint verification, full-envelope demand checks,
+  customer isolation and retention of the staff-managed non-offer path.
+  Independent P0-P2 review found no remaining confirmed finding.
+- GitHub Actions run `38822580070` published Platform backend source
+  `fb68caac3d9305e211f8c41bda015012dbee32f9` as
+  `ghcr.io/mahmoudashraf/loomai-platform-backend:fb68caac3d9305e211f8c41bda015012dbee32f9`,
+  registry digest
+  `sha256:6ffc62b5ddb4bad505e9dd0fb45aa301721d45fd9c6c11c4dd694d3fa9193446`.
+  The unchanged UI image job was correctly skipped.
+- Staging Coolify deployment `dawwwzz71c8s6v4kn797d9gy` and production
+  deployment `tnz5ys408gfi6c9w6sfwjw7p` finished on that exact backend image.
+  Both applications report `running:healthy`; aggregate health, liveness and
+  readiness return HTTP `200`, and each host has exactly one Platform backend
+  container. Staging retained the existing SMTP settings while explicitly
+  enabling console notices with transport reference
+  `loomai-admission-console-smtp-v1`; the complete production environment
+  fingerprint was unchanged.
+- The fresh v5 staging customer lifecycle owns deployment `dep-ec6468c8`, target
+  `dtp-coolify-staging-behavior`, storage binding `dsh-480e94bb-23e` and
+  published version `ver-2dfa400e`. Runtime authority candidate generation is
+  deterministic and includes the reviewed AI Workspace origin. Apply currently
+  returns `PREREQUISITE_EVIDENCE_REQUIRED` because no admission allocation was
+  approved. Direct hosted admission probes reject caller field `manifestId`
+  with HTTP `400` / `INVALID_CONTRACT`; the legal server-derived request reaches
+  HTTP `412` / `MEASURED_POLICY_REQUIRED`. Neither probe created a reservation or
+  provider resource.
+- The live AWS verifier reran after the owner confirmed
+  `s3:GetBucketVersioning`. It passed both identities, all six expected text
+  objects, explicit `UNVERSIONED` state, cross-prefix denial and non-mutating
+  write/delete denial. Sanitized ignored evidence is
+  `verification-support/productization-01036/evidence/s3-canary-2026-10-15T23-26-47-209Z.json`
+  with SHA-256
+  `5437c7018d18d458acc7d359d2c11ecfd57971552250556919909f57ab87612e`.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
   is not browser parity certification. `git diff --check` passed.
 
-Logs reside under `/private/tmp/01036-*`; copy final sanitized evidence to the
-verification-support directory after the integrated gate passes. Source baseline
-started at `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; the latest locally verified
-source foundations are committed on `Platform-V11` through `db48e9f2b`. The
-last hosted Platform backend remains source `294f771eb` until the new immutable
-image is published and staged. The reviewed package metadata is hosted, but the
-customer offer has not passed the remaining live safety gates and is not
-externally admissible.
+Logs reside under `/private/tmp/01036-*`; copy only final sanitized evidence to
+the verification-support directory. Source baseline started at
+`5206acd97423ee857b5a60c1fe370633bf3fd5a9`; the latest locally and hosted
+verified source is committed on `Platform-V11` through
+`fb68caac3d9305e211f8c41bda015012dbee32f9`. The reviewed package metadata is
+hosted, but the customer offer has not passed the remaining live capacity and
+lifecycle gates and is not externally admissible.
 No customer deployment, provider resource or consumer assignment was created or
 changed by the package-publication check.
 
 ### Remaining Before Admission
 
-Bind and index the exact verified staging and production S3 prefixes through
-their target-scoped write-only secret bindings. Prove independent indexing,
-citation retrieval, refresh/removal and cross-target denial without adding a
-source upload or write path.
-Verify immutable dependency artifacts, actual staging/production placement,
-resource envelopes, notification/recovery evidence, repeated same-target runtime
-replacement, restart recovery, S3 indexing and cross-target denial. Complete the
+The staging prefix is bound to the fresh v5 deployment, but indexing cannot run
+until its complete runtime topology is admitted. After capacity is added,
+publish a fresh measured fleet policy and customer grant, reserve admission,
+provision the staging target, and prove indexing, citation retrieval,
+refresh/removal and cross-target denial without adding a source upload or write
+path. Bind the production prefix only as part of the later production candidate.
+Verify immutable dependency artifacts, notification/recovery evidence, repeated
+same-target runtime replacement, restart recovery and S3 indexing. Complete the
 hosted real-provider Engage action-time auth, Shopify private-adapter,
 accessibility and capacity gates. The local typed-contract, cancellation,
 revocation and no-replay acceptance is closed. The hosted Platform backend and
 dependency package publication are closed; customer runtime deployment and exact
-live version/digest readback remain open. P6 extraction and P7
+live version/digest readback remain open on external capacity. P6 extraction and P7
 fresh-customer hosted certification remain later gates. The canonical 40-task
 checklist stays open.
 

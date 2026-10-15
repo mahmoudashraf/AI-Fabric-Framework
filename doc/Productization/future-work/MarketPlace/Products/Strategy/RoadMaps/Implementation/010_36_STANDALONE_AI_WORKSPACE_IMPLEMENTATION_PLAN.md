@@ -1,6 +1,6 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Status: standalone delivery source implemented; shared frontend deployed on staging and production; hosted public, identity, handover, and recovery canaries passed. Remaining Engage acceptance is explicit in section 6.2. Production customer self-service and staging-to-production productization are in-progress backend implementation scope in section 10, not completed or hosted-certified.
+- Status: standalone delivery source implemented; shared frontend deployed on staging and production; hosted public, identity, handover, and recovery canaries passed. Section 10 backend contracts are implemented and deployed through `fb68caac3`, including server-derived customer admission manifests. Full customer staging provisioning, P6 UI extraction and P7 certification remain open: live capacity readback currently blocks an honest staging/production FleetPolicy, so no customer runtime was admitted. Remaining Engage acceptance is explicit in sections 6.2 and 10.
 - Created: 2026-10-13.
 - Execution priority: 2.
 - Source review baseline: Platform `db58acd9`; framework `561659dc`; AI Fabric `0.8.32`. Current implementation target: AI Fabric `0.8.33`, framework `b1a0ac2c`.
