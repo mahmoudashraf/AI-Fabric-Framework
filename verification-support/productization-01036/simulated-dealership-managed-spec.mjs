@@ -9,8 +9,8 @@ const REVIEWED_TEMPLATE_PATH = resolve(
 );
 const REVIEWED_TEMPLATE = JSON.parse(readFileSync(REVIEWED_TEMPLATE_PATH, "utf8"));
 
-export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-1";
-export const SPEC_ID = "mds-simulated-dealership-experience-v1-1";
+export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-2";
+export const SPEC_ID = "mds-simulated-dealership-experience-v1-2";
 export const SOURCE_COMMIT = "fda8085d0c345e62f750f9041b8fd0760598651c";
 export const POSTGRES_IMAGE =
   "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea";
