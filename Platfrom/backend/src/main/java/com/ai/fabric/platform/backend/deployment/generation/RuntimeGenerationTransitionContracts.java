@@ -7,7 +7,10 @@ public final class RuntimeGenerationTransitionContracts {
     private RuntimeGenerationTransitionContracts() { }
 
     public enum State { ACTIVE, DRAINING, AUTHORITY_REVOKED, RECLAIM_STARTED }
-    public enum CommandType { BEGIN_DRAIN, FENCE_AUTHORITY }
+    public enum CommandType {
+        BEGIN_DRAIN, CANCEL_DRAIN, FENCE_AUTHORITY,
+        RECORD_AUTHORITY_REVOCATION, RECORD_RECLAIM_STARTED
+    }
 
     public record Target(String deploymentId, String targetProfileId, String releaseId) { }
     public record Binding(Target target, long fenceEpoch, String operationId, String requestFingerprint) { }

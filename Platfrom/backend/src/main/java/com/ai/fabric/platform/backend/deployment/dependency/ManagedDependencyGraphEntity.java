@@ -19,6 +19,7 @@ public class ManagedDependencyGraphEntity {
     @Column(nullable = false) private String customerId;
     @Column(nullable = false) private String tenantId;
     @Column(nullable = false) private String versionId;
+    @Column(name = "release_id", length = 64) private String releaseId;
     @Column(nullable = false) private String specRef;
     @Column(nullable = false) private String specFingerprint;
     @Column(nullable = false) private String bindingFingerprint;

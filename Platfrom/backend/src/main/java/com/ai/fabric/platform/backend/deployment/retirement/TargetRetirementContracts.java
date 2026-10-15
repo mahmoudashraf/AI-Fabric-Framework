@@ -22,13 +22,34 @@ public final class TargetRetirementContracts {
                               Retention retention, String reason) { }
     public record Command(String requestFingerprint) { }
     public record ReleaseGeneration(String releaseId, String versionId, String generation) { }
+    public record ProviderVolumeGeneration(String storageUuid, String type, String name, String mountPath,
+                                           String hostPath, String generation, boolean preserved) { }
     public record ResourceGeneration(String handleId, String releaseId, DeploymentProviderType providerType,
                                      String resourceKind, String providerResourceUuid, String serverUuid,
-                                     String generation, boolean preserved) { }
+                                     String projectUuid, String environmentUuid, String destinationUuid,
+                                     String providerName, String deploymentMarker,
+                                     String generation, String providerIdentityFingerprint,
+                                     List<ProviderVolumeGeneration> volumes, boolean preserved) {
+        public ResourceGeneration {
+            volumes = volumes == null ? List.of() : List.copyOf(volumes);
+        }
+        public ResourceGeneration(String handleId, String releaseId, DeploymentProviderType providerType,
+                                  String resourceKind, String providerResourceUuid, String serverUuid,
+                                  String generation, boolean preserved) {
+            this(handleId, releaseId, providerType, resourceKind, providerResourceUuid, serverUuid,
+                null, null, null, null, null, generation, null, List.of(), preserved);
+        }
+        public ResourceGeneration(String handleId, String releaseId, DeploymentProviderType providerType,
+                                  String resourceKind, String providerResourceUuid, String serverUuid,
+                                  String generation, List<ProviderVolumeGeneration> volumes, boolean preserved) {
+            this(handleId, releaseId, providerType, resourceKind, providerResourceUuid, serverUuid,
+                null, null, null, null, null, generation, null, volumes, preserved);
+        }
+    }
     public record Snapshot(String customerId, String tenantId, String deploymentId, String targetProfileId,
                            String targetGeneration, long targetEpoch, List<ReleaseGeneration> releases,
                            List<ResourceGeneration> resources, List<ConsumerExpectation> consumers) { }
-    public record Context(String operationId, String requestFingerprint, Snapshot snapshot, long fenceEpoch,
+    public record Context(String operationId, String operationKey, String requestFingerprint, Snapshot snapshot, long fenceEpoch,
                           String workerToken, String requestedByActorId, String requestedByRole,
                           Instant drainDeadline, Retention retention) { }
 
@@ -36,7 +57,7 @@ public final class TargetRetirementContracts {
     public record Evidence(String requestFingerprint, long fenceEpoch, Instant observedAt, String reference,
                            boolean complete, boolean ingressBlocked, boolean inventoryComplete,
                            boolean retentionApproved, Long conversations, Long confirmations,
-                           Long humanWork, Long backgroundWork, List<String> blockers) { }
+                           Long humanWork, Long backgroundWork, boolean durable, List<String> blockers) { }
     public record RecoveryEvidence(String operationId, String previousWorkerToken, String effectKey,
                                    Instant observedAt, String reference, boolean workerFenced,
                                    boolean remoteOutcomeSettled) { }

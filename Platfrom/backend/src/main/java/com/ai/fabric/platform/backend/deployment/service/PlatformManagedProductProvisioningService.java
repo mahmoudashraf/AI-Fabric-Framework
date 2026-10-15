@@ -1905,6 +1905,68 @@ public class PlatformManagedProductProvisioningService {
         }
     }
 
+    /** Exact provider readback used after idempotent service initialization. */
+    public void verifyOwnedDependencyReady(CoolifyConnection connection, String graphId, String serviceRef,
+            String slot, String applicationUuid, String databaseUuid, Map<String, String> volumes) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
+        }
+        if (!hasText(applicationUuid)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_READBACK_REQUIRED");
+        }
+        String marker = "ManagedDependency:" + graphId + ":" + slot;
+        var application = coolifyApiClient.getApplication(connection, applicationUuid)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_READBACK_MISSING"));
+        requireOwnedDependencyResource(application.raw(), connection, serviceRef, marker);
+        if (!"running:healthy".equalsIgnoreCase(application.status())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_HEALTH_READBACK_REQUIRED");
+        }
+        Map<String, String> expectedVolumes = volumes == null ? Map.of() : Map.copyOf(volumes);
+        var storages = coolifyApiClient.listApplicationStorages(connection, applicationUuid);
+        if (storages.size() != expectedVolumes.size() || storages.stream().anyMatch(storage ->
+            !storage.uuid().equals(expectedVolumes.get(storage.mountPath())) || !"persistent".equals(storage.type())
+                || hasText(storage.hostPath())
+                || !storage.name().equals(serviceRef + "-" + Integer.toHexString(storage.mountPath().hashCode())))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        }
+        if (hasText(databaseUuid)) {
+            var database = coolifyApiClient.getDatabase(connection, databaseUuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_MISSING"));
+            requireOwnedDependencyResource(database.raw(), connection, serviceRef + "-db", marker);
+            if (!"running:healthy".equalsIgnoreCase(database.status())) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_NOT_READY");
+            }
+        }
+    }
+
+    /**
+     * Authoritative post-delete readback. Coolify currently exposes no global volume lookup after
+     * an application is gone, so a graph that owned persistent volumes fails closed until such a
+     * physical-volume receipt is available.
+     */
+    public void verifyOwnedDependenciesReclaimed(CoolifyConnection connection, String graphId,
+            List<com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource> resources) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
+        }
+        for (var resource : resources) {
+            if (resource == null || !hasText(resource.slot()) || !hasText(resource.serviceRef())) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_RECLAMATION_EVIDENCE_REQUIRED");
+            }
+            if (hasText(resource.applicationUuid())
+                && coolifyApiClient.getApplication(connection, resource.applicationUuid()).isPresent()) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_DELETION_UNCONFIRMED");
+            }
+            if (hasText(resource.databaseUuid())
+                && coolifyApiClient.getDatabase(connection, resource.databaseUuid()).isPresent()) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_DELETION_UNCONFIRMED");
+            }
+            if (resource.volumes() != null && !resource.volumes().isEmpty()) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+            }
+        }
+    }
+
     private void requireOwnedDependencyResource(JsonNode raw, CoolifyConnection connection, String name, String marker) {
         var config = connection.config();
         if (!name.equals(raw.path("name").asText()) || !marker.equals(raw.path("description").asText())

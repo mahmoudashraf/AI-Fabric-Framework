@@ -82,6 +82,7 @@ ai:
           authenticated-allowed-scopes: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_AUTHENTICATED_ALLOWED_SCOPES:chat:query,chat:suggestions,chat:conversations}
           default-audience: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE:}
           ttl-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_TTL_SECONDS:900}
+          authenticated-ttl-seconds: ${AI_FABRIC_RUNTIME_AUTHENTICATED_TOKEN_TTL_SECONDS:300}
           bootstrap:
             enabled: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED:false}
             allow-missing-origin: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOW_MISSING_ORIGIN:false}

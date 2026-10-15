@@ -52,6 +52,7 @@ import static org.mockito.Mockito.*;
 class TargetRetirementPersistenceTest {
     @Autowired TargetRetirementService service;
     @Autowired TargetRetirementStore store;
+    @Autowired TargetRetirementJson json;
     @Autowired TargetRetirementOperationRepository operations;
     @Autowired TargetRetirementGateRepository gates;
     @Autowired TargetRetirementGateService gateService;
@@ -107,6 +108,8 @@ class TargetRetirementPersistenceTest {
         assertThat(result.consumesCapacity()).isFalse();
         assertThat(result.snapshot()).isEqualTo(snapshot);
         assertThat(result.result().evidence().get(ParticipantKind.RUNTIME_DRAIN).humanWork()).isZero();
+        assertThat(result.result().evidence().get(ParticipantKind.DEPENDENCIES).complete()).isTrue();
+        assertThat(result.result().interlockEvidence().complete()).isTrue();
         assertThat(gates.findAll().get(0).getState()).isEqualTo("RETIRED");
         verify(provider, times(1)).delete(any(), argThat(resource -> resource.handleId().equals("runtime")));
         verify(provider, never()).delete(any(), argThat(ResourceGeneration::preserved));
@@ -142,7 +145,10 @@ class TargetRetirementPersistenceTest {
         Summary op = execute();
         worker.runNext(op.id());
         assertThat(status(op).errorCode()).isEqualTo("DRAIN_WORK_UNKNOWN");
-        assertThat(runtime().applied).isEmpty();
+        // BEGIN_DRAIN is the reversible operation that makes authoritative runtime inventory
+        // available. Unknown inventory still blocks every destructive successor.
+        assertThat(runtime().applied).containsExactly(TargetRetirementWorker.effectKey(
+            store.context(store.require(op.id())), Step.DRAIN, "target"));
         assertThat(status(op).result().evidence().get(ParticipantKind.RUNTIME_DRAIN).humanWork()).isNull();
         verifyNoInteractions(provider);
     }
@@ -246,6 +252,35 @@ class TargetRetirementPersistenceTest {
         assertThat(status(op).errorCode()).isEqualTo("PROVIDER_RESOURCE_STILL_PRESENT");
         assertThat(status(op).consumesCapacity()).isTrue();
         assertThat(gates.findAll().get(0).getState()).isEqualTo("RETIRING");
+    }
+
+    @Test void finalVerificationRejectsParticipantEvidenceOlderThanItsDestructiveReceipt() {
+        Summary op = execute();
+        for (int i = 0; i < 6; i++) worker.runNext(op.id());
+        assertThat(status(op).step()).isEqualTo(Step.VERIFY);
+        update(op, entity -> {
+            Progress progress = store.progress(entity);
+            var evidence = new java.util.EnumMap<ParticipantKind, Evidence>(ParticipantKind.class);
+            evidence.putAll(progress.evidence());
+            Evidence current = evidence.get(ParticipantKind.RUNTIME_DRAIN);
+            Instant effectTime = progress.effects().get(TargetRetirementWorker.effectKey(
+                store.context(entity), Step.DRAIN, "target")).observedAt();
+            evidence.put(ParticipantKind.RUNTIME_DRAIN, new Evidence(
+                current.requestFingerprint(), current.fenceEpoch(), effectTime.minusSeconds(1), current.reference(),
+                current.complete(), current.ingressBlocked(), current.inventoryComplete(), current.retentionApproved(),
+                current.conversations(), current.confirmations(), current.humanWork(), current.backgroundWork(),
+                true, current.blockers()
+            ));
+            entity.setResultJson(json.write(new Progress(
+                progress.effects(), Map.copyOf(evidence), progress.interlockEvidence(), progress.blockers()
+            )));
+        });
+
+        worker.runNext(op.id());
+
+        assertThat(status(op).errorCode()).isEqualTo("PARTICIPANT_EVIDENCE_STALE_RUNTIME_DRAIN");
+        assertThat(status(op).consumesCapacity()).isTrue();
+        assertThat(gates.findAll().getFirst().getState()).isEqualTo("RETIRING");
     }
 
     @Test void retentionExpiryResumesTheSameSnapshotAndNotTheLatestRelease() throws Exception {
@@ -376,7 +411,8 @@ class TargetRetirementPersistenceTest {
         public Evidence inspect(Context context) {
             return new Evidence(context.requestFingerprint(), context.fenceEpoch(), Instant.now(), "participant-proof-" + kind,
                 kind != ParticipantKind.RUNTIME_DRAIN || blocked && humanWork == 0, blocked, true, true,
-                0L, 0L, unknownWork ? null : humanWork, 0L, List.of());
+                0L, 0L, unknownWork ? null : humanWork, 0L,
+                kind != ParticipantKind.RUNTIME_DRAIN || blocked && humanWork == 0, List.of());
         }
         public EffectResult apply(Context context, Step step, String key) {
             applied.add(key);
@@ -396,7 +432,8 @@ class TargetRetirementPersistenceTest {
         void reset() { settled = true; absenceProven = true; blocker = null; beforeEffect = null; }
         public Evidence inspect(Context context) {
             return new Evidence(context.requestFingerprint(), context.fenceEpoch(), Instant.now(), "authority-proof", true,
-                true, true, true, 0L, 0L, 0L, 0L, blocker == null ? List.of() : List.of(blocker));
+                true, true, true, 0L, 0L, 0L, 0L, false,
+                blocker == null ? List.of() : List.of(blocker));
         }
         public EffectResult underFence(Context context, String key, Supplier<EffectResult> effect) {
             if (beforeEffect != null) beforeEffect.run();

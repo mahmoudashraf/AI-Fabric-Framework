@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResour
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
@@ -58,6 +59,9 @@ public class DeploymentReleaseExecutionService {
 
     @Autowired
     private DeploymentDocumentBindingResolver documentBindingResolver;
+
+    @Autowired(required = false)
+    private ManagedDependencyReleaseCoordinator managedDependencyReleaseCoordinator;
 
     @Autowired
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
@@ -238,6 +242,10 @@ public class DeploymentReleaseExecutionService {
             throw new IllegalStateException("Document binding resolver is required.");
         }
 
+        if (managedDependencyReleaseCoordinator != null) {
+            managedDependencyReleaseCoordinator.prepareFoundation(deployment, version, release);
+        }
+
         ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
             deployment,
             version,
@@ -247,6 +255,9 @@ public class DeploymentReleaseExecutionService {
 
         applyProvisioningResult(deploymentId, versionId, releaseId, provisioningResult);
         refreshProviderResourceHandlesAfterProvisioning(deploymentId, releaseId);
+        if (managedDependencyReleaseCoordinator != null) {
+            managedDependencyReleaseCoordinator.completeRuntimeBound(deployment, version, release);
+        }
         syncMarketplaceDatasets(deploymentId, versionId, releaseId);
         runVerification(deploymentId, versionId, releaseId);
     }

@@ -70,9 +70,59 @@ public class ManagedDependencySpecValidator {
                     default -> { if (value.reference() != null) fail("UNEXPECTED_VALUE_REFERENCE"); }
                 }
             }
+            validateLifecycle(service);
             if (service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1) validateInbox(service);
         }
+        Set<String> runtimeKeys = new HashSet<>();
+        if (spec.runtimeEnvironment() == null || spec.runtimeEnvironment().size() > 128) fail("SPEC_INVALID");
+        for (var binding : spec.runtimeEnvironment()) {
+            if (binding == null || binding.target() == null || binding.name() == null
+                || !binding.name().matches("[A-Z][A-Z0-9_]{0,127}")
+                || !runtimeKeys.add(binding.target() + ":" + binding.name()) || binding.value() == null) {
+                fail("RUNTIME_BINDING_INVALID");
+            }
+            var value = binding.value();
+            if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL) {
+                if (!available.contains(value.reference()) || value.serviceSlot() != null) fail("RUNTIME_BINDING_INVALID");
+            } else if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_SECRET) {
+                if (!available.contains(value.serviceSlot()) || value.reference() == null
+                    || spec.services().stream().filter(service -> value.serviceSlot().equals(service.slot()))
+                        .noneMatch(service -> service.secretPurposes().contains(value.reference()))) {
+                    fail("RUNTIME_BINDING_INVALID");
+                }
+            } else if (value.kind() == ManagedDependencySpec.ValueKind.ACCOUNT_ID
+                || value.kind() == ManagedDependencySpec.ValueKind.BINDING_ID) {
+                if (!available.contains(value.serviceSlot()) || value.reference() != null) fail("RUNTIME_BINDING_INVALID");
+            } else {
+                fail("RUNTIME_BINDING_INVALID");
+            }
+        }
         spec.totalCapacity();
+    }
+    private void validateLifecycle(ManagedDependencySpec.Service service) {
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_KEY", ManagedDependencySpec.ValueKind.SECRET,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_CUSTOMER_ID", ManagedDependencySpec.ValueKind.CUSTOMER_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_TENANT_ID", ManagedDependencySpec.ValueKind.TENANT_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_DEPLOYMENT_ID", ManagedDependencySpec.ValueKind.DEPLOYMENT_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_TARGET_PROFILE_ID", ManagedDependencySpec.ValueKind.TARGET_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_VERSION_ID", ManagedDependencySpec.ValueKind.VERSION_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_SLOT", ManagedDependencySpec.ValueKind.LITERAL,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_SERVICE_REF", ManagedDependencySpec.ValueKind.SERVICE_REF,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_ACCOUNT_ID", ManagedDependencySpec.ValueKind.ACCOUNT_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        requireKind(service, "LOOMAI_MANAGED_DEPENDENCY_BINDING_ID", ManagedDependencySpec.ValueKind.BINDING_ID,
+            "MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        if (!service.slot().equals(service.environment().get("LOOMAI_MANAGED_DEPENDENCY_SLOT").reference())) {
+            fail("MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
+        }
     }
     private void validateInbox(ManagedDependencySpec.Service service) {
         requireKind(service, "BASIC_INBOX_OPERATORS", ManagedDependencySpec.ValueKind.OPERATORS);
@@ -97,6 +147,11 @@ public class ManagedDependencySpecValidator {
     private void requireKind(ManagedDependencySpec.Service service, String name, ManagedDependencySpec.ValueKind kind) {
         var value = service.environment().get(name);
         if (value == null || value.kind() != kind) fail("INBOX_CONTRACT_INVALID");
+    }
+    private void requireKind(ManagedDependencySpec.Service service, String name,
+                             ManagedDependencySpec.ValueKind kind, String code) {
+        var value = service.environment().get(name);
+        if (value == null || value.kind() != kind) fail(code);
     }
     public static void immutableImage(String image) {
         if (image == null || !image.matches("[a-zA-Z0-9][a-zA-Z0-9./:_-]*@sha256:[a-f0-9]{64}")) fail("IMMUTABLE_IMAGE_REQUIRED");

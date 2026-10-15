@@ -101,7 +101,7 @@ no automatic grant/backfill of legacy deployments.
 For apply/promotion/activation use explicit target and release identities, not
 the deployment's latest runtime URL. `requireOwnedConsumer` checks app ownership;
 the parent must still enforce candidate/version/consumer-binding revision and
-provider-handle generation through R1/R2. Keep framework selection at `0.8.32`.
+provider-handle generation through R1/R2. Keep framework selection at `0.8.33`.
 
 Binding writes must resolve the slot under the authorized customer/deployment/
 target/release and replace/revoke only that owned binding. Accept secret values

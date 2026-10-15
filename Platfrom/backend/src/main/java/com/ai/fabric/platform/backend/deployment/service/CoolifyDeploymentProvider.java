@@ -804,20 +804,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         } else if (generationCheckpoint != null
             && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
-            String refreshedStopEvidence = tracked(
-                progressTracker,
-                "refresh_coolify_runtime_stop_evidence_for_generation_transition",
-                "Refresh authoritative provider stop evidence before adopting a resumed runtime replacement.",
-                () -> stopApplicationBeforeSingleWriterReplacement(
-                    connection,
-                    runtimeApplication,
-                    resourceDefaults,
-                    progressTracker
-                )
-            );
-            generationCheckpoint = runtimeGenerationCheckpointService.refreshProviderStop(
-                release.getId(), runtimeGenerationCheckpointService.fingerprint(generationCheckpoint),
-                refreshedStopEvidence
+            generationCheckpoint = refreshResumedRuntimeGenerationProviderStop(
+                generationCheckpoint,
+                release,
+                connection,
+                runtimeApplication,
+                resourceDefaults,
+                progressTracker
             );
         } else if (localLuceneRuntime && generationCheckpoint == null) {
             tracked(
@@ -1178,6 +1171,35 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
         return providerStopEvidence(observed.get(), application.uuid());
+    }
+
+    RuntimeGenerationCheckpointService.Checkpoint refreshResumedRuntimeGenerationProviderStop(
+        RuntimeGenerationCheckpointService.Checkpoint checkpoint,
+        DeploymentReleaseEntity release,
+        CoolifyConnection connection,
+        CoolifyApplicationSummary runtimeApplication,
+        JsonNode resourceDefaults,
+        ProvisioningProgressTracker progressTracker
+    ) {
+        if (checkpoint == null
+            || checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
+            return checkpoint;
+        }
+        String checkpointFingerprint = runtimeGenerationCheckpointService.fingerprint(checkpoint);
+        String refreshedStopEvidence = tracked(
+            progressTracker,
+            "refresh_coolify_runtime_stop_evidence_for_generation_transition",
+            "Refresh authoritative provider stop evidence before adopting a resumed runtime replacement.",
+            () -> stopApplicationBeforeSingleWriterReplacement(
+                connection,
+                runtimeApplication,
+                resourceDefaults,
+                progressTracker
+            )
+        );
+        return runtimeGenerationCheckpointService.refreshProviderStop(
+            release.getId(), checkpointFingerprint, refreshedStopEvidence
+        );
     }
 
     private String providerStopEvidence(CoolifyApplicationSummary observed, String applicationUuid) {
@@ -2389,7 +2411,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 deployment,
                 version,
                 providerConfigOverride,
-                profile.getId()
+                profile.getId(),
+                release.getRuntimeAuthorityFingerprint()
             );
             RailwayServicePlanSummary runtime = plan.services() == null ? null : plan.services().runtime();
             if (runtime == null) {
@@ -2425,7 +2448,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 deployment,
                 version,
                 providerConfigOverride,
-                profile.getId()
+                profile.getId(),
+                release.getRuntimeAuthorityFingerprint()
             );
             RailwayServicePlanSummary runtime = plan.services() == null ? null : plan.services().runtime();
             if (runtime == null) {
@@ -2611,6 +2635,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     : runtimeRetirementTopologyPlanService;
                 var topology = planner.plan(
                     deployment,
+                    version,
                     release,
                     runtimeEnvironment,
                     source != null && source.connectorPlan() != null,

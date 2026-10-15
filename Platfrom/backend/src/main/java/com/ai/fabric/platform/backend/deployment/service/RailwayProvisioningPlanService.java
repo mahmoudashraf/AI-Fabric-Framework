@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisio
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyLifecycleService;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRuntimeEnvironmentResolver;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -77,6 +79,9 @@ public class RailwayProvisioningPlanService {
 
     @Autowired(required = false)
     private DeploymentProviderResourceHandleRepository deploymentProviderResourceHandleRepository;
+
+    @Autowired(required = false)
+    private ManagedDependencyRuntimeEnvironmentResolver managedDependencyRuntimeEnvironmentResolver;
 
     RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
@@ -240,6 +245,14 @@ public class RailwayProvisioningPlanService {
                                                     DeploymentVersionEntity version,
                                                     JsonNode providerConfigOverride,
                                                     String targetProfileId) {
+        return buildPlan(deployment, version, providerConfigOverride, targetProfileId, null);
+    }
+
+    public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment,
+                                                    DeploymentVersionEntity version,
+                                                    JsonNode providerConfigOverride,
+                                                    String targetProfileId,
+                                                    String runtimeAuthorityFingerprint) {
         String sourceRepository = deploymentSourceResolver.resolveRepository(deployment);
         String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         String runtimeBaseUrl = deployment.getRuntimeBaseUrl() != null
@@ -262,6 +275,11 @@ public class RailwayProvisioningPlanService {
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
+        ManagedDependencyLifecycleService.RuntimeEnvironmentProjection dependencyEnvironment =
+            managedDependencyRuntimeEnvironmentResolver == null
+                ? new ManagedDependencyLifecycleService.RuntimeEnvironmentProjection(null, null)
+                : managedDependencyRuntimeEnvironmentResolver.resolve(deployment.getId(), targetProfileId,
+                    version.getId(), runtimeAuthorityFingerprint);
         boolean externalHttpIntegration = hasExternalHttpDataset(marketplaceDatasetConfig);
         CustomerBackendIngestionContract customerIngestion = customerBackendIngestionContract(
             marketplaceDatasetConfig
@@ -528,6 +546,7 @@ public class RailwayProvisioningPlanService {
             marketplaceDatasetConfig
         );
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
+        addManagedDependencyEnvironment(runtimeEnv, dependencyEnvironment.runtime());
         if (customerIngestion.enabled()) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ENABLED",
@@ -675,6 +694,7 @@ public class RailwayProvisioningPlanService {
         }
         addShopifyBridgeConnectorEnv(connectorEnv, deployment);
         addCorsEnv(connectorEnv, securityConfig);
+        addManagedDependencyEnvironment(connectorEnv, dependencyEnvironment.connector());
 
         RailwayServicePlanSummary restConnector = new RailwayServicePlanSummary(
             provisioningProperties.connectorServiceNamePrefix() + "-" + deployment.getId(),
@@ -741,6 +761,19 @@ public class RailwayProvisioningPlanService {
             new RailwayProvisioningServicesSummary(runtime, restConnector, vectorizationRunner, embeddingWorker),
             steps
         );
+    }
+
+    private void addManagedDependencyEnvironment(List<RailwayEnvVarSummary> environment,
+                                                  java.util.Map<String, String> additions) {
+        if (additions == null || additions.isEmpty()) return;
+        java.util.Set<String> existing = environment.stream().map(RailwayEnvVarSummary::key)
+            .collect(java.util.stream.Collectors.toSet());
+        additions.forEach((key, value) -> {
+            if (!existing.add(key)) {
+                throw new IllegalStateException("Managed dependency environment conflicts with reviewed runtime configuration: " + key);
+            }
+            environment.add(new RailwayEnvVarSummary(key, value));
+        });
     }
 
     private String artifactServiceSignedStrategy() {

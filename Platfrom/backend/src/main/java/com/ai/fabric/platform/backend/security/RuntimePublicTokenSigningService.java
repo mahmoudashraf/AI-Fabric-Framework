@@ -40,6 +40,11 @@ public class RuntimePublicTokenSigningService {
             throw new IllegalStateException("Runtime public token signing is not configured.");
         }
         validateClaims(claims);
+        Instant issuedAt = Instant.now();
+        if ("PUBLIC_RUNTIME_AUTHENTICATED".equals(claims.authMode())
+            && (!claims.expiresAt().isAfter(issuedAt) || claims.expiresAt().isAfter(issuedAt.plusSeconds(300)))) {
+            throw new IllegalArgumentException("Authenticated runtime token lifetime must be positive and at most 300 seconds.");
+        }
         try {
             ObjectNode payload = objectMapper.createObjectNode();
             payload.put("sub", claims.subjectId().trim());
@@ -74,6 +79,7 @@ public class RuntimePublicTokenSigningService {
                 }
             }
             payload.put("exp", claims.expiresAt().toString());
+            payload.put("iat", issuedAt.toString());
             ArrayNode scopes = payload.putArray("scopes");
             if (claims.grantedScopes() != null) {
                 claims.grantedScopes().stream()

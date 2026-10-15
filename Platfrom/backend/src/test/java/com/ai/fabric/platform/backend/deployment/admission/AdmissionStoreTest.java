@@ -19,6 +19,25 @@ import static org.assertj.core.api.Assertions.*;
 
 class AdmissionStoreTest extends AdmissionFixture {
     @Test
+    void lifecycleCursorDurablyRotatesAcrossHeldReservations() {
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(new org.springframework.core.io.ClassPathResource(
+            "db/test-migration/V120_18__admission_notice_delivery_outbox_test.sql")).execute(dataSource);
+        approve(3);
+        for (int i = 1; i <= 3; i++) {
+            store.approveManifest(manifest("m" + i, "d" + i), "operator", NOW);
+            reserve("m" + i, "op" + i);
+        }
+        List<String> ids = store.held().stream().map(Reservation::id).sorted().toList();
+
+        assertThat(store.lifecycleBatch(2).stream().map(Reservation::id)).containsExactly(ids.get(0), ids.get(1));
+        assertThat(store.lifecycleBatch(2).stream().map(Reservation::id)).containsExactly(ids.get(2), ids.get(0));
+        var restarted = new AdmissionStore(jdbc, json,
+            new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource),
+            java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
+        assertThat(restarted.lifecycleBatch(2).stream().map(Reservation::id)).containsExactly(ids.get(1), ids.get(2));
+    }
+
+    @Test
     void emptyMigrationKeepsOfferClosed() {
         assertThatThrownBy(store::activePolicy).isInstanceOf(AdmissionFailure.class).hasMessageContaining("MEASURED_POLICY_REQUIRED");
         assertThat(store.held()).isEmpty();

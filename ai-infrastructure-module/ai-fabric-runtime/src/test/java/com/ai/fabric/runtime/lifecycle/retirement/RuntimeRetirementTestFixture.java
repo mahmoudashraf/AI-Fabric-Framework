@@ -39,6 +39,7 @@ final class RuntimeRetirementTestFixture {
         dataSource = new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=3000", "sa", "");
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V12__runtime_target_retirement.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V13__runtime_generation_transition.sql")).execute(dataSource);
+        new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V14__runtime_target_index_retirement.sql")).execute(dataSource);
         jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("CREATE TABLE chat_sessions (id VARCHAR(160) PRIMARY KEY, owner_id VARCHAR(256), status VARCHAR(32), session_metadata TEXT)");
         jdbc.execute("CREATE TABLE ai_conversation_control (tenant_id VARCHAR(128), deployment_id VARCHAR(128), conversation_id VARCHAR(160), owner_id VARCHAR(256), control_state VARCHAR(32), active_handover_id VARCHAR(160))");
@@ -59,7 +60,7 @@ final class RuntimeRetirementTestFixture {
             for (var feature : RuntimeRetirementTopology.Feature.values()) features.put(feature, RuntimeRetirementTopology.Presence.ABSENT);
             features.put(RuntimeRetirementTopology.Feature.CHAT_SESSIONS, RuntimeRetirementTopology.Presence.PRESENT);
             try {
-                String raw = mapper.writeValueAsString(new RuntimeRetirementTopology.Contract(RuntimeRetirementTopology.VERSION, TARGET, "tenant-1", features, dependencies));
+                String raw = mapper.writeValueAsString(new RuntimeRetirementTopology.Contract(RuntimeRetirementTopology.VERSION, TARGET, "tenant-1", features, dependencies, null));
                 environment.withProperty("loomai.runtime.target-retirement.topology-json", raw)
                     .withProperty("loomai.runtime.target-retirement.topology-sha256", java.util.HexFormat.of().formatHex(
                         java.security.MessageDigest.getInstance("SHA-256").digest(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8))));
@@ -110,7 +111,7 @@ final class RuntimeRetirementTestFixture {
         features.put(RuntimeRetirementTopology.Feature.CHAT_SESSIONS, RuntimeRetirementTopology.Presence.PRESENT);
         try {
             String raw = mapper.writeValueAsString(new RuntimeRetirementTopology.Contract(
-                RuntimeRetirementTopology.VERSION, target, "tenant-1", features, dependencies));
+                RuntimeRetirementTopology.VERSION, target, "tenant-1", features, dependencies, null));
             environment.withProperty("loomai.runtime.target-retirement.topology-json", raw)
                 .withProperty("loomai.runtime.target-retirement.topology-sha256", java.util.HexFormat.of().formatHex(
                     java.security.MessageDigest.getInstance("SHA-256").digest(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8))));

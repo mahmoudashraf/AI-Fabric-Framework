@@ -17,12 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,15 +28,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentDocumentKnowledgeOperationsService {
 
-    private static final Duration RUNTIME_TIMEOUT = Duration.ofSeconds(45);
-    private static final int MAX_RUNTIME_RESPONSE_BYTES = 2 * 1024 * 1024;
     private static final String READ_SCOPE = "documents:read";
     private static final String REGISTER_SCOPE = "documents:register";
     private static final String INDEX_SCOPE = "documents:index";
@@ -51,7 +44,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     private final RuntimePrivateAssertionSigningService assertionSigningService;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private final DeploymentRuntimeJsonTransport transport;
 
     @Autowired
     public DeploymentDocumentKnowledgeOperationsService(
@@ -59,16 +52,15 @@ public class DeploymentDocumentKnowledgeOperationsService {
         PlatformSecretService secretService,
         RuntimePrivateAssertionSigningService assertionSigningService,
         PlatformAuditService auditService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        DeploymentRuntimeJsonTransport transport
     ) {
-        this(
-            targetContextService,
-            secretService,
-            assertionSigningService,
-            auditService,
-            objectMapper,
-            HttpClient.newBuilder().connectTimeout(RUNTIME_TIMEOUT).build()
-        );
+        this.targetContextService = targetContextService;
+        this.secretService = secretService;
+        this.assertionSigningService = assertionSigningService;
+        this.auditService = auditService;
+        this.objectMapper = objectMapper;
+        this.transport = transport;
     }
 
     DeploymentDocumentKnowledgeOperationsService(
@@ -84,7 +76,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         this.assertionSigningService = assertionSigningService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
-        this.httpClient = httpClient;
+        this.transport = new DeploymentRuntimeJsonTransport(objectMapper, httpClient);
     }
 
     public RuntimeResponse connectorStatus(DeploymentTargetReference target) {
@@ -226,47 +218,11 @@ public class DeploymentDocumentKnowledgeOperationsService {
                                  JsonNode body,
                                  String idempotencyKey,
                                  String scope) {
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(runtimeUri(access.context().runtimeBaseUrl(), path))
-                .timeout(RUNTIME_TIMEOUT)
-                .header("Accept", "application/json");
-            runtimeHeaders(access, List.of(scope)).forEach(builder::header);
-            if (StringUtils.hasText(idempotencyKey)) {
-                builder.header("Idempotency-Key", idempotencyKey);
-            }
-            if ("GET".equals(method)) {
-                builder.GET();
-            } else if ("DELETE".equals(method)) {
-                builder.DELETE();
-            } else {
-                builder.header("Content-Type", "application/json").method(
-                    method,
-                    HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(
-                        body == null ? objectMapper.createObjectNode() : body
-                    ))
-                );
-            }
-            HttpResponse<InputStream> response = httpClient.send(
-                builder.build(),
-                HttpResponse.BodyHandlers.ofInputStream()
-            );
-            byte[] responseBytes;
-            try (InputStream input = response.body()) {
-                responseBytes = input.readNBytes(MAX_RUNTIME_RESPONSE_BYTES + 1);
-            }
-            if (responseBytes.length > MAX_RUNTIME_RESPONSE_BYTES) {
-                throw new ResponseStatusException(BAD_GATEWAY, "Deployment document runtime response exceeded the Platform boundary.");
-            }
-            String responseBody = new String(responseBytes, StandardCharsets.UTF_8);
-            JsonNode payload = StringUtils.hasText(responseBody)
-                ? objectMapper.readTree(responseBody)
-                : objectMapper.createObjectNode();
-            return new RuntimeResponse(response.statusCode(), payload);
-        } catch (ResponseStatusException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach the deployment document runtime.", exception);
-        }
+        var response = transport.send(
+            access.context().runtimeBaseUrl(), method, path,
+            runtimeHeaders(access, List.of(scope)), body, idempotencyKey
+        );
+        return new RuntimeResponse(response.statusCode(), response.body());
     }
 
     private Map<String, String> runtimeHeaders(OperationAccess access, List<String> scopes) {
@@ -329,27 +285,6 @@ public class DeploymentDocumentKnowledgeOperationsService {
 
     private String sourcePath(String sourceId) {
         return "/api/documents/sources/" + encode(required(sourceId, "sourceId", 64));
-    }
-
-    private URI runtimeUri(String baseUrl, String path) {
-        try {
-            URI base = URI.create(baseUrl.trim());
-            if (!("http".equalsIgnoreCase(base.getScheme()) || "https".equalsIgnoreCase(base.getScheme()))
-                || !StringUtils.hasText(base.getHost())
-                || base.getUserInfo() != null
-                || base.getQuery() != null
-                || base.getFragment() != null) {
-                throw new IllegalArgumentException();
-            }
-            String basePath = base.getRawPath() == null ? "" : base.getRawPath();
-            if (basePath.endsWith("/")) {
-                basePath = basePath.substring(0, basePath.length() - 1);
-            }
-            String normalizedPath = path.startsWith("/") ? path : "/" + path;
-            return URI.create(base.getScheme() + "://" + base.getRawAuthority() + basePath + normalizedPath);
-        } catch (Exception exception) {
-            throw new ResponseStatusException(BAD_REQUEST, "Invalid deployment runtime URL.");
-        }
     }
 
     private JsonNode readJson(String value) {

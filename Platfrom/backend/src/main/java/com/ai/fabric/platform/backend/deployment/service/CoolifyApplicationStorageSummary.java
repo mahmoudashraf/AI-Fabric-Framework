@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-record CoolifyApplicationStorageSummary(
+public record CoolifyApplicationStorageSummary(
     String uuid,
     String type,
     String name,

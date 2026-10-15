@@ -110,11 +110,11 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         RuntimeAuthorityBinding.Snapshot candidate = new RuntimeAuthorityBinding.Snapshot(
             "authority-candidate", null, "authority-fingerprint", null
         );
-        when(authorities.freezeCandidate(
+        when(authorities.freezeCandidateForAuthorizedApply(
             deployment.getId(), target.getId(), version.getId(),
             List.of("https://workspace.example.com", "https://admin.example.com")
         )).thenReturn(candidate);
-        when(authorities.freezeRelease(
+        when(authorities.freezeReleaseForAuthorizedApply(
             eq(deployment.getId()), eq(target.getId()), anyString(),
             eq(candidate.snapshotId()), eq(candidate.fingerprint())
         )).thenAnswer(invocation -> new RuntimeAuthorityBinding.Snapshot(
@@ -129,15 +129,15 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         assertThat(release.getValue().getDeploymentVersionId()).isEqualTo(version.getId());
         assertThat(release.getValue().getRuntimeAuthoritySnapshotId()).isEqualTo("authority-release");
         assertThat(release.getValue().getRuntimeAuthorityFingerprint()).isEqualTo(candidate.fingerprint());
-        verify(authorities).freezeRelease(
+        verify(authorities).freezeReleaseForAuthorizedApply(
             deployment.getId(), target.getId(), release.getValue().getId(),
             candidate.snapshotId(), candidate.fingerprint()
         );
         verify(access).requireDeploymentOperatorAccess(deployment);
         var order = inOrder(authorities, releases, execution);
-        order.verify(authorities).freezeCandidate(anyString(), anyString(), anyString(), any());
+        order.verify(authorities).freezeCandidateForAuthorizedApply(anyString(), anyString(), anyString(), any());
         order.verify(releases).saveAndFlush(any(DeploymentReleaseEntity.class));
-        order.verify(authorities).freezeRelease(anyString(), anyString(), anyString(), anyString(), anyString());
+        order.verify(authorities).freezeReleaseForAuthorizedApply(anyString(), anyString(), anyString(), anyString(), anyString());
         order.verify(releases).save(any(DeploymentReleaseEntity.class));
         order.verify(execution).executeApply(deployment.getId(), version.getId(), release.getValue().getId());
     }
@@ -187,7 +187,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
              "corsAllowedOrigins":"http://workspace.example.com"}
             """);
         when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
-        when(authorities.freezeCandidate(
+        when(authorities.freezeCandidateForAuthorizedApply(
             deployment.getId(), target.getId(), version.getId(), List.of("http://workspace.example.com")
         )).thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target origins must be exact HTTPS origins."));
 

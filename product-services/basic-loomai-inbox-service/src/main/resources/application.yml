@@ -26,6 +26,17 @@ ai:
   enabled: false
 
 loomai:
+  managed-dependency:
+    key: ${LOOMAI_MANAGED_DEPENDENCY_KEY:}
+    customer-id: ${LOOMAI_MANAGED_DEPENDENCY_CUSTOMER_ID:}
+    tenant-id: ${LOOMAI_MANAGED_DEPENDENCY_TENANT_ID:}
+    deployment-id: ${LOOMAI_MANAGED_DEPENDENCY_DEPLOYMENT_ID:}
+    target-profile-id: ${LOOMAI_MANAGED_DEPENDENCY_TARGET_PROFILE_ID:}
+    version-id: ${LOOMAI_MANAGED_DEPENDENCY_VERSION_ID:}
+    slot: ${LOOMAI_MANAGED_DEPENDENCY_SLOT:}
+    service-ref: ${LOOMAI_MANAGED_DEPENDENCY_SERVICE_REF:}
+    account-id: ${LOOMAI_MANAGED_DEPENDENCY_ACCOUNT_ID:}
+    binding-id: ${LOOMAI_MANAGED_DEPENDENCY_BINDING_ID:}
   basic-inbox:
     binding-id: ${BASIC_INBOX_BINDING_ID:}
     tenant-id: ${BASIC_INBOX_TENANT_ID:}

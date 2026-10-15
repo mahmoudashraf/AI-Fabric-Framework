@@ -342,7 +342,7 @@ public class TargetRetirementStore {
             operation.getStartedAt(), operation.getCompletedAt(), operation.getUpdatedAt());
     }
     public Context context(TargetRetirementOperationEntity operation) {
-        return new Context(operation.getId(), operation.getRequestFingerprint(), snapshot(operation), operation.getFenceEpoch(),
+        return new Context(operation.getId(), operation.getOperationKey(), operation.getRequestFingerprint(), snapshot(operation), operation.getFenceEpoch(),
             operation.getWorkerToken(), operation.getRequestedByActorId(), operation.getRequestedByRole(), operation.getDrainDeadline(), request(operation).retention());
     }
     public PlanRequest request(TargetRetirementOperationEntity operation) { return json.read(operation.getRequestJson(), PlanRequest.class); }

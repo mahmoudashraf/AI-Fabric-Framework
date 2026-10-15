@@ -90,7 +90,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         CustomerPlacementEvidenceEntity placementEvidence = placement.requireEvidenceById(
             targets.findById(requested.targetProfileId()).orElseThrow(() -> unavailable("CUSTOMER_TARGET_PROFILE_MISSING")),
             requested.intent(), requested.placementEvidenceId());
-        if (placementEvidence == null) throw unavailable("CUSTOMER_PLACEMENT_EVIDENCE_UNKNOWN");
+        validatePlacementEvidence(requested, current.target(), placementEvidence, now);
         validateReviewedLimits(requested.limits(), current);
 
         PrerequisiteReadback readback = reservation.prerequisiteReadback();
@@ -169,6 +169,22 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
             placement(target.intent(), target.placement());
         } catch (AdmissionFailure ex) { throw ex; }
         catch (Exception ex) { throw unavailable("CUSTOMER_TARGET_CONFIGURATION_INVALID"); }
+    }
+
+    private void validatePlacementEvidence(
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested,
+        TargetBudget target, CustomerPlacementEvidenceEntity evidence, Instant now) {
+        if (evidence == null || !requested.placementEvidenceId().equals(evidence.getId())
+            || !requested.targetProfileId().equals(evidence.getTargetProfileId())
+            || requested.intent() != evidence.getIntent()
+            || !target.profileFingerprint().equals(evidence.getProfileFingerprint())
+            || !target.placement().serverUuid().equals(evidence.getServerUuid())
+            || !target.placement().ip().equals(evidence.getServerAddress())
+            || !target.placement().destinationUuid().equals(evidence.getDestinationUuid())
+            || evidence.getCheckedAt() == null || evidence.getCheckedAt().isAfter(now)
+            || evidence.getExpiresAt() == null || !evidence.getExpiresAt().isAfter(now)) {
+            throw unavailable("CUSTOMER_PLACEMENT_EVIDENCE_MISMATCH");
+        }
     }
 
     private void validateReviewedLimits(ReviewedLimits limits, AdmissionContext current) {

@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.net.URI;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.Deque;
@@ -33,6 +34,7 @@ public class RuntimePublicTokenService {
 
     private final RuntimeAuthProperties properties;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
     private final Map<String, Deque<Instant>> bootstrapRateLimitBuckets = new ConcurrentHashMap<>();
 
     public RuntimePublicTokenService(RuntimeAuthProperties properties) {
@@ -40,8 +42,17 @@ public class RuntimePublicTokenService {
     }
 
     RuntimePublicTokenService(RuntimeAuthProperties properties, ObjectMapper objectMapper) {
+        this(properties, objectMapper, Clock.systemUTC());
+    }
+
+    public RuntimePublicTokenService(RuntimeAuthProperties properties, Clock clock) {
+        this(properties, new ObjectMapper(), clock);
+    }
+
+    RuntimePublicTokenService(RuntimeAuthProperties properties, ObjectMapper objectMapper, Clock clock) {
         this.properties = properties != null ? properties : new RuntimeAuthProperties();
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     public boolean isConfigured() {
@@ -95,7 +106,7 @@ public class RuntimePublicTokenService {
     }
 
     private IssuedPublicRuntimeToken issueAnonymousToken(String sessionId) {
-        Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
+        Instant expiresAt = clock.instant().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
         RuntimeAuthContext authContext = RuntimeAuthContext.builder()
             .subjectId(sessionId)
             .subjectType(RuntimeAuthSubjectType.ANONYMOUS_SESSION)
@@ -135,6 +146,13 @@ public class RuntimePublicTokenService {
                                                             List<String> grantedScopes,
                                                             String issuer,
                                                             List<String> audiences) {
+        return issueAuthenticatedToken(subjectId, subjectType, sessionId, deploymentId, customerId, tenantId,
+            grantedScopes, issuer, audiences, null);
+    }
+
+    public IssuedPublicRuntimeToken issueAuthenticatedToken(String subjectId, RuntimeAuthSubjectType subjectType,
+            String sessionId, String deploymentId, String customerId, String tenantId, List<String> grantedScopes,
+            String issuer, List<String> audiences, Instant providerExpiresAt) {
         String normalizedSubjectId = trimToNull(subjectId);
         if (!StringUtils.hasText(normalizedSubjectId)) {
             throw new IllegalArgumentException("Authenticated runtime public token subjectId is required.");
@@ -147,7 +165,16 @@ public class RuntimePublicTokenService {
             ? authenticatedDefaultScopes()
             : requestedScopes;
         validateRequestedAuthenticatedScopes(effectiveScopes);
-        Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
+        long lifetime = properties.getPublicTokens().getAuthenticatedTtlSeconds();
+        if (lifetime < 1 || lifetime > RuntimeAuthProperties.MAX_AUTHENTICATED_TOKEN_LIFETIME_SECONDS) {
+            throw new IllegalStateException("Authenticated runtime token lifetime must be between one and 300 seconds.");
+        }
+        Instant now = clock.instant();
+        Instant expiresAt = now.plusSeconds(lifetime);
+        if (providerExpiresAt != null) {
+            if (!providerExpiresAt.isAfter(now)) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "External identity token is expired.");
+            if (providerExpiresAt.isBefore(expiresAt)) expiresAt = providerExpiresAt;
+        }
         RuntimeAuthContext authContext = RuntimeAuthContext.builder()
             .subjectId(normalizedSubjectId)
             .subjectType(subjectType)
@@ -198,7 +225,7 @@ public class RuntimePublicTokenService {
                 .expiresAt(Instant.parse(requiredText(payload, "exp")))
                 .grantedScopes(readScopes(payload.path("scopes")))
                 .build();
-            if (authContext.getExpiresAt() != null && authContext.getExpiresAt().isBefore(Instant.now())) {
+            if (!authContext.getExpiresAt().isAfter(clock.instant())) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public token is expired.");
             }
             if (authContext.getAuthMode() != RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
@@ -219,6 +246,13 @@ public class RuntimePublicTokenService {
             if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED
                 && authContext.getSubjectType() == RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated runtime public token subject type is invalid.");
+            }
+            if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED) {
+                Instant issuedAt = Instant.parse(requiredText(payload, "iat"));
+                if (issuedAt.isAfter(clock.instant()) || !authContext.getExpiresAt().isAfter(issuedAt)
+                    || authContext.getExpiresAt().isAfter(issuedAt.plusSeconds(RuntimeAuthProperties.MAX_AUTHENTICATED_TOKEN_LIFETIME_SECONDS))) {
+                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated runtime token lifetime is invalid.");
+                }
             }
             validateConfiguredIssuer(authContext.getIssuer());
             validateConfiguredAudiences(authContext.getAudiences());
@@ -262,6 +296,7 @@ public class RuntimePublicTokenService {
                 }
             }
             payload.put("exp", authContext.getExpiresAt().toString());
+            payload.put("iat", clock.instant().toString());
             ArrayNode scopes = payload.putArray("scopes");
             authContext.getGrantedScopes().forEach(scopes::add);
 
@@ -454,7 +489,7 @@ public class RuntimePublicTokenService {
         RuntimeAuthProperties.Bootstrap bootstrap = properties.getPublicTokens().getBootstrap();
         int maxRequests = Math.max(1, bootstrap.getMaxRequestsPerWindow());
         int windowSeconds = Math.max(1, bootstrap.getRateLimitWindowSeconds());
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant threshold = now.minusSeconds(windowSeconds);
         String key = (StringUtils.hasText(normalizedOrigin) ? normalizedOrigin : "missing-origin")
             + "|"

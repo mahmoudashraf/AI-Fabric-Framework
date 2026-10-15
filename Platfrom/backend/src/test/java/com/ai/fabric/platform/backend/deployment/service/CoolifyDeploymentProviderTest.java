@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
+import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
+import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService;
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationRemoteEvidenceProvider;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
@@ -48,6 +50,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -315,6 +318,59 @@ class CoolifyDeploymentProviderTest {
         );
 
         verify(coolifyApiClient, never()).stop(eq(connection), eq("runtime-uuid"), eq(false));
+    }
+
+    @Test
+    void stopConfirmedRestartRefreshesProviderStopBeforeDeploymentCanResume() {
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        RuntimeGenerationCheckpointService checkpoints = mock(RuntimeGenerationCheckpointService.class);
+        CoolifyDeploymentProvider provider = provider(coolifyApiClient);
+        provider.setRuntimeGenerationCheckpointService(checkpoints);
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary stopped = application("runtime-uuid", "exited:unhealthy");
+        var prior = new RuntimeGenerationCheckpointService.PriorRuntime(
+            "release-old", "runtime-uuid", "https://runtime.example"
+        );
+        var checkpoint = new RuntimeGenerationCheckpointService.Checkpoint(
+            RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED,
+            prior,
+            mock(DeploymentRuntimeGenerationService.DrainReceipt.class),
+            "c".repeat(64),
+            "coolify-stop:runtime-uuid:prior-proof",
+            null
+        );
+        var refreshed = new RuntimeGenerationCheckpointService.Checkpoint(
+            RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED,
+            prior,
+            checkpoint.drainReceipt(),
+            checkpoint.nextTopologyFingerprint(),
+            "coolify-stop:runtime-uuid:refreshed-proof",
+            null
+        );
+        String checkpointFingerprint = "f".repeat(64);
+        when(checkpoints.fingerprint(checkpoint)).thenReturn(checkpointFingerprint);
+        when(coolifyApiClient.getApplication(connection, "runtime-uuid")).thenReturn(Optional.of(stopped));
+        when(checkpoints.refreshProviderStop(eq("release-new"), eq(checkpointFingerprint), anyString()))
+            .thenReturn(refreshed);
+        DeploymentReleaseEntity release = release();
+        release.setId("release-new");
+
+        var result = provider.refreshResumedRuntimeGenerationProviderStop(
+            checkpoint,
+            release,
+            connection,
+            stopped,
+            objectMapper.createObjectNode(),
+            ProvisioningProgressTracker.noop()
+        );
+
+        assertThat(result).isSameAs(refreshed);
+        InOrder restartOrder = inOrder(coolifyApiClient, checkpoints);
+        restartOrder.verify(coolifyApiClient).getApplication(connection, "runtime-uuid");
+        restartOrder.verify(checkpoints).refreshProviderStop(
+            eq("release-new"), eq(checkpointFingerprint), anyString()
+        );
+        verify(coolifyApiClient, never()).start(any(), anyString(), eq(true), eq(true));
     }
 
     @Test
@@ -587,7 +643,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -682,7 +738,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class)))
             .thenReturn(railwayPlanWithConnectorRunnerAndSecrets());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
@@ -827,7 +883,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -926,7 +982,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of(new CoolifyProjectSummary(
             "customer-project",
@@ -1037,7 +1093,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -1159,7 +1215,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-production"),
@@ -1320,7 +1376,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class)))
             .thenReturn(railwayPlanWithHandoverPersistence());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
@@ -1500,7 +1556,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-production"),
@@ -1611,7 +1667,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(managedVectorProvisioningService.requiresProvisioning(any())).thenReturn(true);
         when(managedVectorProvisioningService.ensureProvisioned(any(), any())).thenReturn(managedVectorResult);
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), eq(effectiveProviderConfig), anyString())).thenReturn(plan);
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), eq(effectiveProviderConfig), anyString(), nullable(String.class))).thenReturn(plan);
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -1646,7 +1702,7 @@ class CoolifyDeploymentProviderTest {
 
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
 
-        verify(railwayProvisioningPlanService).buildPlan(any(), any(), eq(effectiveProviderConfig), anyString());
+        verify(railwayProvisioningPlanService).buildPlan(any(), any(), eq(effectiveProviderConfig), anyString(), nullable(String.class));
         verify(managedVectorResourceService).syncProvisionedResources(any(), any(), any(), eq(managedVectorResult));
         ArgumentCaptor<List<CoolifyEnvVar>> env = ArgumentCaptor.forClass(List.class);
         verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), env.capture());
@@ -1716,7 +1772,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
         when(coolifyApiClient.createProject(eq(connection), eq("customer-shopping-companion-test"), anyString()))
@@ -1849,7 +1905,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class))).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
         when(coolifyApiClient.createProject(eq(connection), eq("customer-acme"), anyString()))
@@ -1962,7 +2018,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class)))
             .thenReturn(railwayPlanWithConnectorAndSecrets());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
@@ -2138,7 +2194,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString(), nullable(String.class)))
             .thenReturn(railwayPlanWithConnectorRunnerAndSecrets());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),

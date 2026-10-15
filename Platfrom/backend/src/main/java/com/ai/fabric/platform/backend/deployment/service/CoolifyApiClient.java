@@ -652,6 +652,14 @@ public class CoolifyApiClient {
         return List.copyOf(storages);
     }
 
+    public CoolifyActionResponse deleteApplicationStorage(CoolifyConnection connection,
+                                                          String applicationUuid,
+                                                          String storageUuid) {
+        return action(connection, "DELETE", "/applications/"
+            + encodePath(requireText(applicationUuid, "application UUID")) + "/storages/"
+            + encodePath(requireText(storageUuid, "storage UUID")));
+    }
+
     private int updateEnvironmentVariablesBulk(CoolifyConnection connection, String uuid, List<CoolifyEnvVar> envVars) {
         ObjectNode body = objectMapper.createObjectNode();
         ArrayNode data = body.putArray("data");

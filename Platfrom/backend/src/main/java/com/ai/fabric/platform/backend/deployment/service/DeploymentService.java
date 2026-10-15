@@ -1685,7 +1685,7 @@ public class DeploymentService {
         );
         if (authorityCandidate != null) {
             releaseRepository.saveAndFlush(release);
-            RuntimeAuthorityBinding.Snapshot authorityRelease = runtimeAuthorityService.freezeRelease(
+            RuntimeAuthorityBinding.Snapshot authorityRelease = runtimeAuthorityService.freezeReleaseForAuthorizedApply(
                 deploymentId,
                 targetProfile.getId(),
                 release.getId(),
@@ -1739,7 +1739,7 @@ public class DeploymentService {
                 "Runtime authority requires reviewed exact HTTPS origins in published security corsAllowedOrigins."
             );
         }
-        return runtimeAuthorityService.freezeCandidate(
+        return runtimeAuthorityService.freezeCandidateForAuthorizedApply(
             deployment.getId(),
             targetProfile.getId(),
             version.getId(),

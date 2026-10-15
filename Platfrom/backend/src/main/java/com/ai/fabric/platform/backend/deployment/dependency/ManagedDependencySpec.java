@@ -5,11 +5,19 @@ import java.util.Map;
 import java.util.Set;
 
 /** Published by the reviewed template, never accepted as a customer-supplied environment overlay. */
-public record ManagedDependencySpec(String schemaVersion, List<Service> services) {
+public record ManagedDependencySpec(String schemaVersion, List<Service> services,
+                                    List<RuntimeEnvironmentBinding> runtimeEnvironment) {
+    public ManagedDependencySpec(String schemaVersion, List<Service> services) {
+        this(schemaVersion, services, List.of());
+    }
+    public ManagedDependencySpec {
+        services = services == null ? null : List.copyOf(services);
+        runtimeEnvironment = runtimeEnvironment == null ? List.of() : List.copyOf(runtimeEnvironment);
+    }
     public enum Contract { HTTP_SERVICE, BASIC_INBOX_KEYS_V1 }
     public enum ValueKind {
         LITERAL, SECRET, ACCOUNT_ID, BINDING_ID, CUSTOMER_ID, TENANT_ID, DEPLOYMENT_ID,
-        TARGET_ID, CALLBACK_URL, CALLBACK_HOSTS, ORIGINS, SERVICE_URL, PUBLIC_URL,
+        TARGET_ID, VERSION_ID, SERVICE_REF, CALLBACK_URL, CALLBACK_HOSTS, ORIGINS, SERVICE_URL, PUBLIC_URL,
         DATABASE_JDBC, DATABASE_USERNAME, OPERATORS, TARGET_VALUE, TARGET_SECRET,
         SERVICE_SECRET, SECRET_BCRYPT_BASE64, SECRET_STANDARD_BASE64
     }
@@ -25,6 +33,8 @@ public record ManagedDependencySpec(String schemaVersion, List<Service> services
     }
     public record Database(String image, String passwordPurpose, Capacity capacity) {}
     public record Volume(String mountPath, Capacity capacity) {}
+    public enum RuntimeTarget { RUNTIME, CONNECTOR }
+    public record RuntimeEnvironmentBinding(RuntimeTarget target, String name, Value value) {}
     public record Service(String slot, Contract contract, String image, String sourceArtifactId,
                           String sourceCommit, int port, String healthPath, Capacity capacity,
                           Set<String> secretPurposes, Map<String, Value> environment,

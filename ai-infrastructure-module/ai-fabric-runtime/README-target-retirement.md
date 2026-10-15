@@ -1,6 +1,6 @@
 # Private Runtime Target Retirement
 
-App-owned R3 drain service; framework 0.8.32 is read-only and unchanged. V12
+App-owned R3 drain service; framework 0.8.33 retirement state remains read-only. V12
 owns target retirement and V13 owns explicit same-target generation transition.
 
 ## Configuration
@@ -121,13 +121,13 @@ not a caller-selected conversation ID, permits chat continuation. Store/control
 SPI writes serialize with drain. Durable request permits survive crashes without
 automatic expiry; unsettled requests block completion.
 
-Interactive turns use actual 0.8.32 OrchestrationTurnGuard action/result checkpoints.
+Interactive turns use actual 0.8.33 OrchestrationTurnGuard action/result checkpoints.
 App-owned handover/document/Smart Brain/webhook worker effects hold the durable
 gate lock; scheduled registration uses fenced proxies. New scheduled retention
 cleanup stops during drain. Verified installed guards and certified absence
 compute workerFencingComplete. Enabled framework execution/chain recovery,
 review recovery, indexing processors and Quartz trigger creation lack the needed
-app target-epoch fencing in inspected 0.8.32 and retain specific named blockers.
+app target-epoch fencing in inspected 0.8.33 and retain specific named blockers.
 Custom/in-memory providers without complete enumeration also block.
 
 ## Parent R5 And Data

@@ -159,7 +159,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 deployment,
                 version,
                 initialProviderConfig,
-                release.getTargetProfileId()
+                release.getTargetProfileId(),
+                release.getRuntimeAuthorityFingerprint()
             )
         );
         ObjectNode details = objectMapper.createObjectNode();
@@ -233,7 +234,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     deployment,
                     version,
                     rebuiltProviderConfig,
-                    release.getTargetProfileId()
+                    release.getTargetProfileId(),
+                    release.getRuntimeAuthorityFingerprint()
                 )
             );
             mergePlanDetails(details, plan);

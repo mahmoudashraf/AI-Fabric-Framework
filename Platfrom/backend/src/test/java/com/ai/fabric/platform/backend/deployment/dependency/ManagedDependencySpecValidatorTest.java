@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.deployment.dependency;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import static org.assertj.core.api.Assertions.*;
 
 class ManagedDependencySpecValidatorTest {
@@ -22,6 +24,17 @@ class ManagedDependencySpecValidatorTest {
     }
     @Test void unknownSchemaAndEmptyCompositionAreRejected() {
         assertThatThrownBy(() -> validator.validate(new ManagedDependencySpec("old", List.of()))).hasMessageContaining("SPEC_INVALID");
+    }
+    @Test void lifecycleIdentityEnvironmentCannotBeOmittedFromAReviewedService() {
+        var original = ManagedDependencyFixtures.http("simulator", false);
+        var environment = new TreeMap<>(original.environment());
+        environment.remove("LOOMAI_MANAGED_DEPENDENCY_VERSION_ID");
+        var invalid = new ManagedDependencySpec.Service(original.slot(), original.contract(), original.image(),
+            original.sourceArtifactId(), original.sourceCommit(), original.port(), original.healthPath(),
+            original.capacity(), original.secretPurposes(), Map.copyOf(environment), original.database(),
+            original.volumes(), original.dependsOn(), original.initializationContract());
+        assertThatThrownBy(() -> validator.validate(new ManagedDependencySpec("managed-dependencies/v1", List.of(invalid))))
+            .hasMessageContaining("MANAGED_DEPENDENCY_LIFECYCLE_CONTRACT_INVALID");
     }
     @Test void commandIdentityRejectsPayloadSubstitution() {
         var state = new ManagedDependencyState();

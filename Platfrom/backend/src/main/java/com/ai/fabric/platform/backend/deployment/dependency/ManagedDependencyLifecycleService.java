@@ -58,11 +58,17 @@ public class ManagedDependencyLifecycleService {
         this.audit = audit; this.prerequisites = prerequisites; this.executor = executor;
     }
 
-    public record Request(String specRef, String versionId, String bindingFingerprint, String operationKey) {}
+    public record Request(String specRef, String versionId, String releaseId, String bindingFingerprint,
+                          String operationKey) {
+        public Request(String specRef, String versionId, String bindingFingerprint, String operationKey) {
+            this(specRef, versionId, null, bindingFingerprint, operationKey);
+        }
+    }
     public record NodeSummary(String slot, String status, String baseUrl, String accountId, String bindingId) {}
     public record OperatorSummary(String id, String displayName, String slot, String status, int credentialRevision,
                                   boolean delivered, Instant effectiveAt) {}
     public record Summary(String graphId, String deploymentId, String targetProfileId, String versionId,
+                          String releaseId,
                           String specFingerprint, String bindingFingerprint, long revision, String status,
                           String step, String failureCode, int attempt, long configurationRevision,
                           long effectiveConfigurationRevision, List<NodeSummary> services, List<OperatorSummary> operators) {}
@@ -70,6 +76,16 @@ public class ManagedDependencyLifecycleService {
     // Called by approved bootstrap/apply. The request selects a reviewed specification, not its contents.
     public Summary submit(String deploymentId, String targetProfileId, Request request) {
         requireScope(deploymentId, targetProfileId, true);
+        return submitInternal(deploymentId, targetProfileId, request);
+    }
+
+    /** Release-worker entry point. The caller must already have frozen the exact release authority. */
+    Summary submitForRelease(String deploymentId, String targetProfileId, Request request) {
+        requireReleaseScope(deploymentId, targetProfileId, request);
+        return submitInternal(deploymentId, targetProfileId, request);
+    }
+
+    private Summary submitInternal(String deploymentId, String targetProfileId, Request request) {
         required(request.operationKey(), 128); required(request.specRef(), 64); required(request.versionId(), 64);
         if (request.bindingFingerprint() == null || !request.bindingFingerprint().matches("[a-f0-9]{64}")) fail("BINDING_FINGERPRINT_REQUIRED");
         var version = versions.findById(request.versionId()).orElseThrow(() -> conflict("DEPENDENCY_CANDIDATE_MISSING"));
@@ -87,9 +103,28 @@ public class ManagedDependencyLifecycleService {
             if (existing != null) {
                 var graph = repository.lockById(existing.getId()).orElseThrow();
                 var state = store.state(graph);
-                if (!request.versionId().equals(graph.getVersionId()) || !reviewed.getFingerprint().equals(graph.getSpecFingerprint())
-                    || !request.bindingFingerprint().equals(graph.getBindingFingerprint()) || "RETIRED".equals(graph.getStatus())) {
+                if (!reviewed.getFingerprint().equals(graph.getSpecFingerprint())
+                    || !reviewed.getId().equals(graph.getSpecRef()) || "RETIRED".equals(graph.getStatus())) {
                     fail("DEPENDENCY_IMMUTABLE_GRAPH_CONFLICT");
+                }
+                boolean releaseTransition = !request.versionId().equals(graph.getVersionId())
+                    || !request.bindingFingerprint().equals(graph.getBindingFingerprint())
+                    || !Objects.equals(request.releaseId(), graph.getReleaseId());
+                if (releaseTransition) {
+                    if (request.releaseId() == null) fail("DEPENDENCY_IMMUTABLE_GRAPH_CONFLICT");
+                    if (graph.getWorkerToken() != null || graph.getStatus().startsWith("RETIR")) {
+                        fail("DEPENDENCY_OPERATION_IN_PROGRESS");
+                    }
+                    graph.setVersionId(request.versionId());
+                    graph.setReleaseId(request.releaseId());
+                    graph.setBindingFingerprint(request.bindingFingerprint());
+                    graph.setReservationRef(null);
+                    state.callbacks.clear(); state.origins.clear(); state.targetValues.clear();
+                    state.targetSecretReferences.clear();
+                    state.configurationRevision++;
+                    state.effectiveConfigurationRevision = -1;
+                    for (var node : state.nodes) { node.initialized = false; node.status = "PLANNED"; }
+                    graph.setStatus("PLANNED"); graph.setStep("ADMISSION"); graph.setFailureCode(null);
                 }
                 command(state, request.operationKey(), fingerprint, graph.getId());
                 graph.setStateJson(store.json(state));
@@ -99,7 +134,7 @@ public class ManagedDependencyLifecycleService {
             var graph = new ManagedDependencyGraphEntity();
             graph.setId(id("dpg")); graph.setDeploymentId(deploymentId); graph.setTargetProfileId(targetProfileId);
             graph.setCustomerId(deployment.getCustomerId()); graph.setTenantId(deployment.getTenantId());
-            graph.setVersionId(request.versionId()); graph.setSpecRef(reviewed.getId());
+            graph.setVersionId(request.versionId()); graph.setReleaseId(request.releaseId()); graph.setSpecRef(reviewed.getId());
             graph.setSpecFingerprint(reviewed.getFingerprint()); graph.setBindingFingerprint(request.bindingFingerprint());
             graph.setSpecJson(store.json(spec)); graph.setStatus("PLANNED"); graph.setStep("ADMISSION");
             graph.setCreatedAt(Instant.now()); graph.setUpdatedAt(graph.getCreatedAt());
@@ -156,9 +191,37 @@ public class ManagedDependencyLifecycleService {
         return schedule(deploymentId, targetProfileId, operationKey, false);
     }
 
+    Summary provisionForRelease(String deploymentId, String targetProfileId, String releaseId,
+                                String operationKey) {
+        return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, false);
+    }
+
+    Summary reconcileForRelease(String deploymentId, String targetProfileId, String releaseId,
+                                String operationKey) {
+        return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, true);
+    }
+
     private Summary schedule(String deploymentId, String targetProfileId, String operationKey, boolean initialize) {
         requireScope(deploymentId, targetProfileId, true);
         var graph = find(deploymentId, targetProfileId);
+        return schedule(graph, operationKey, initialize, false);
+    }
+
+    private Summary runForRelease(String deploymentId, String targetProfileId, String releaseId,
+                                  String operationKey, boolean initialize) {
+        var graph = find(deploymentId, targetProfileId);
+        if (releaseId == null || !releaseId.equals(graph.getReleaseId())) fail("DEPENDENCY_RELEASE_BINDING_CHANGED");
+        Summary accepted = schedule(graph, operationKey, initialize, true);
+        var completed = find(deploymentId, targetProfileId);
+        String expected = initialize ? "READY" : "PROVISIONED";
+        if (!expected.equals(completed.getStatus())) {
+            fail(completed.getFailureCode() == null ? "DEPENDENCY_RELEASE_RECONCILE_INCOMPLETE" : completed.getFailureCode());
+        }
+        return summary(completed);
+    }
+
+    private Summary schedule(ManagedDependencyGraphEntity graph, String operationKey, boolean initialize,
+                             boolean synchronous) {
         required(operationKey, 128);
         boolean[] accepted = {false};
         store.mutate(graph.getId(), null, (current, state) -> {
@@ -178,8 +241,12 @@ public class ManagedDependencyLifecycleService {
             repository.saveAndFlush(current); return true;
         });
         if (claimed) {
-            try { executor.execute(() -> execute(graph.getId(), token, initialize)); }
-            catch (RuntimeException error) { failure(graph.getId(), token, "DEPENDENCY_EXECUTOR_REJECTED"); }
+            if (synchronous) {
+                execute(graph.getId(), token, initialize);
+            } else {
+                try { executor.execute(() -> execute(graph.getId(), token, initialize)); }
+                catch (RuntimeException error) { failure(graph.getId(), token, "DEPENDENCY_EXECUTOR_REJECTED"); }
+            }
         }
         return summary(store.read(graph.getId()));
     }
@@ -189,21 +256,28 @@ public class ManagedDependencyLifecycleService {
             var graph = store.read(graphId); var spec = store.spec(graph); validator.validate(spec);
             if (!validator.fingerprint(spec).equals(graph.getSpecFingerprint())) fail("DEPENDENCY_SPEC_DRIFT");
             var gate = gate(); var scope = scope(graph);
-            var admission = gate.reserve(scope, spec);
+            var phase = initialize
+                ? ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND
+                : ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION;
+            var admission = gate.reserve(scope, spec, phase);
             validateAdmission(graph, admission);
             store.mutate(graphId, token, (current, state) -> {
                 if (current.getReservationRef() != null && !current.getReservationRef().equals(admission.reservationRef())) fail("DEPENDENCY_RESERVATION_DRIFT");
-                if (!state.callbacks.isEmpty() && (!state.callbacks.equals(admission.callbacks()) || !state.origins.equals(admission.origins()))) fail("DEPENDENCY_BINDING_DRIFT");
-                if (!state.targetValues.isEmpty() && !state.targetValues.equals(admission.targetValues())
-                    || !state.targetSecretReferences.isEmpty() && !state.targetSecretReferences.equals(admission.targetSecretReferences())) fail("DEPENDENCY_BINDING_DRIFT");
+                if (!state.callbacks.isEmpty() && !compatible(state.callbacks, admission.callbacks())) fail("DEPENDENCY_BINDING_DRIFT");
+                if (!state.origins.isEmpty() && !state.origins.equals(admission.origins())) fail("DEPENDENCY_BINDING_DRIFT");
+                if (!state.targetValues.isEmpty() && !compatible(state.targetValues, admission.targetValues())
+                    || !state.targetSecretReferences.isEmpty() && !compatible(state.targetSecretReferences, admission.targetSecretReferences())) fail("DEPENDENCY_BINDING_DRIFT");
                 current.setReservationRef(admission.reservationRef()); state.callbacks = new TreeMap<>(admission.callbacks());
                 state.origins = List.copyOf(admission.origins());
                 state.targetValues = new TreeMap<>(admission.targetValues()); state.targetSecretReferences = new TreeMap<>(admission.targetSecretReferences());
             });
-            for (var service : spec.services()) gate.validateArtifact(service);
+            for (var service : spec.services()) gate.validateArtifact(scope, service);
             // All prerequisites and operator enrollment must be available before creating any provider resource.
             var initial = store.state(store.read(graphId));
-            for (var service : spec.services()) {
+            List<ManagedDependencySpec.Service> phaseServices = spec.services().stream()
+                .filter(service -> initialize || foundationService(service, spec))
+                .toList();
+            for (var service : phaseServices) {
                 if (service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
                     && !node(initial, service.slot()).disabled
                     && initial.operators.stream().noneMatch(o -> service.slot().equals(o.slot) && "ENROLLED".equals(o.status))) fail("INBOX_OPERATOR_ENROLLMENT_REQUIRED");
@@ -215,8 +289,20 @@ public class ManagedDependencyLifecycleService {
                 }
             }
             CoolifyConnection connection = provisioning.ownedDependencyConnection(graph.getTargetProfileId(), environment(graph));
-            boolean[] disabled = {false};
             for (var service : spec.services()) {
+                var owned = node(store.state(store.read(graphId)), service.slot());
+                products.ensureOwnedDependency(graphId, graph.getDeploymentId(), graph.getTargetProfileId(),
+                    owned.serviceRef, service.slot(), service.image(), graph.getSpecFingerprint());
+                for (var secret : owned.secrets.entrySet()) {
+                    if (!secrets.isSecretPresent(secret.getValue())) {
+                        if (owned.applicationUuid != null || owned.databaseUuid != null) fail("DEPENDENCY_SECRET_LOST");
+                        secrets.upsertManagedSecret(secret.getValue(), credential(), Map.of("dependencyGraphId", graphId,
+                            "deploymentId", graph.getDeploymentId(), "targetProfileId", graph.getTargetProfileId(), "purpose", secret.getKey()));
+                    }
+                }
+            }
+            boolean[] disabled = {false};
+            for (var service : phaseServices) {
                 guard(graphId, token);
                 store.mutate(graphId, token, (current, state) -> current.setStep("PROVISION:" + service.slot()));
                 var node = node(store.state(store.read(graphId)), service.slot());
@@ -228,15 +314,6 @@ public class ManagedDependencyLifecycleService {
                     if (node.applicationUuid != null) updateProduct(node.serviceRef, node.baseUrl, "DISABLED");
                     disabled[0] = true;
                     continue;
-                }
-                products.ensureOwnedDependency(graphId, graph.getDeploymentId(), graph.getTargetProfileId(),
-                    node.serviceRef, service.slot(), service.image(), graph.getSpecFingerprint());
-                for (var secret : node.secrets.entrySet()) {
-                    if (!secrets.isSecretPresent(secret.getValue())) {
-                        if (node.applicationUuid != null || node.databaseUuid != null) fail("DEPENDENCY_SECRET_LOST");
-                        secrets.upsertManagedSecret(secret.getValue(), credential(), Map.of("dependencyGraphId", graphId,
-                            "deploymentId", graph.getDeploymentId(), "targetProfileId", graph.getTargetProfileId(), "purpose", secret.getKey()));
-                    }
                 }
                 var result = provisioning.reconcileOwnedDependency(connection, graphId, node.serviceRef, service,
                     resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid), checkpoint(graphId, token, service.slot()));
@@ -320,6 +397,8 @@ public class ManagedDependencyLifecycleService {
                 case TENANT_ID -> graph.getTenantId();
                 case DEPLOYMENT_ID -> graph.getDeploymentId();
                 case TARGET_ID -> graph.getTargetProfileId();
+                case VERSION_ID -> graph.getVersionId();
+                case SERVICE_REF -> node.serviceRef;
                 case CALLBACK_URL -> state.callbacks.get(value.reference());
                 case CALLBACK_HOSTS -> String.join(",", state.callbacks.values().stream().map(v -> URI.create(v).getHost()).distinct().sorted().toList());
                 case ORIGINS -> String.join(",", state.origins);
@@ -389,6 +468,45 @@ public class ManagedDependencyLifecycleService {
     public List<ManagedDependencyPrerequisites.Binding> provisionedBindings(String deploymentId, String targetProfileId,
             String expectedSpecFingerprint, String expectedBindingFingerprint) {
         return bindingProjection(deploymentId, targetProfileId, expectedSpecFingerprint, expectedBindingFingerprint, false);
+    }
+
+    public record RuntimeEnvironmentProjection(Map<String, String> runtime, Map<String, String> connector) {
+        public RuntimeEnvironmentProjection {
+            runtime = runtime == null ? Map.of() : Map.copyOf(runtime);
+            connector = connector == null ? Map.of() : Map.copyOf(connector);
+        }
+    }
+
+    /** Internal release planning projection. Values come only from the reviewed immutable specification. */
+    public RuntimeEnvironmentProjection runtimeEnvironment(String deploymentId, String targetProfileId,
+            String versionId, String expectedBindingFingerprint) {
+        var graph = find(deploymentId, targetProfileId);
+        if (!versionId.equals(graph.getVersionId()) || !expectedBindingFingerprint.equals(graph.getBindingFingerprint())
+            || graph.getWorkerToken() != null || !java.util.Set.of("PROVISIONED", "READY").contains(graph.getStatus())) {
+            fail("DEPENDENCY_RUNTIME_BINDINGS_NOT_READY");
+        }
+        gate().validateReservation(scope(graph), graph.getReservationRef());
+        var state = store.state(graph);
+        var spec = store.spec(graph);
+        var connection = provisioning.ownedDependencyConnection(graph.getTargetProfileId(), environment(graph));
+        Map<String, String> runtime = new TreeMap<>();
+        Map<String, String> connector = new TreeMap<>();
+        for (var binding : spec.runtimeEnvironment()) {
+            var value = binding.value();
+            var owned = node(state, value.kind() == ManagedDependencySpec.ValueKind.SERVICE_URL
+                ? value.reference() : value.serviceSlot());
+            String resolved = switch (value.kind()) {
+                case SERVICE_URL -> owned.baseUrl == null ? plannedPublicUrl(owned, connection) : owned.baseUrl;
+                case SERVICE_SECRET -> "${secret:" + owned.secrets.get(value.reference()) + "}";
+                case ACCOUNT_ID -> owned.accountId;
+                case BINDING_ID -> owned.bindingId;
+                default -> throw conflict("DEPENDENCY_RUNTIME_BINDING_INVALID");
+            };
+            if (resolved == null || resolved.isBlank()) fail("DEPENDENCY_RUNTIME_BINDING_UNRESOLVED");
+            (binding.target() == ManagedDependencySpec.RuntimeTarget.RUNTIME ? runtime : connector)
+                .put(binding.name(), resolved);
+        }
+        return new RuntimeEnvironmentProjection(runtime, connector);
     }
 
     public record RuntimeGenerationEvidence(Map<String, String> readbacks) {
@@ -523,21 +641,25 @@ public class ManagedDependencyLifecycleService {
             || readyRequired && !"READY".equals(graph.getStatus())) fail("DEPENDENCY_BINDINGS_NOT_READY");
         gate().validateReservation(scope(graph), graph.getReservationRef());
         var state = store.state(graph);
-        if (state.nodes.stream().anyMatch(n -> n.disabled || n.baseUrl == null || n.applicationUuid == null
-            || n.provisionedConfigurationRevision != state.configurationRevision)) fail("DEPENDENCY_BINDINGS_NOT_READY");
-        return state.nodes.stream().map(this::binding).toList();
+        var available = state.nodes.stream()
+            .filter(n -> !n.disabled && n.baseUrl != null && n.applicationUuid != null
+                && n.provisionedConfigurationRevision == state.configurationRevision)
+            .toList();
+        if (readyRequired && available.size() != state.nodes.size()) fail("DEPENDENCY_BINDINGS_NOT_READY");
+        return available.stream().map(this::binding).toList();
     }
     ManagedDependencyPrerequisites.Binding binding(ManagedDependencyState.Node node) {
         return new ManagedDependencyPrerequisites.Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId, Map.copyOf(node.secrets));
     }
     ManagedDependencyPrerequisites gate() {
-        var value = prerequisites.getIfAvailable();
-        if (value == null) fail("DEPENDENCY_ADMISSION_ADAPTER_REQUIRED");
-        return value;
+        var values = prerequisites.orderedStream().toList();
+        if (values.size() != 1) fail("DEPENDENCY_ADMISSION_ADAPTER_REQUIRED");
+        return values.getFirst();
     }
     ManagedDependencyPrerequisites.Scope scope(ManagedDependencyGraphEntity graph) {
         return new ManagedDependencyPrerequisites.Scope(graph.getId(), graph.getCustomerId(), graph.getTenantId(),
-            graph.getDeploymentId(), graph.getTargetProfileId(), graph.getVersionId(), graph.getSpecFingerprint(), graph.getBindingFingerprint());
+            graph.getDeploymentId(), graph.getTargetProfileId(), graph.getVersionId(), graph.getReleaseId(),
+            graph.getSpecFingerprint(), graph.getBindingFingerprint());
     }
     ManagedDependencyGraphEntity find(String deploymentId, String targetProfileId) {
         return store.transaction(repository -> repository.findByDeploymentIdAndTargetProfileId(deploymentId, targetProfileId)
@@ -550,6 +672,18 @@ public class ManagedDependencyLifecycleService {
             || deployment.getTenantId().isBlank() || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_REQUIRED");
         var target = targets.findById(targetProfileId).orElseThrow(() -> conflict("DEPENDENCY_TARGET_MISSING"));
         if (!target.isActive()) fail("DEPENDENCY_TARGET_INACTIVE");
+    }
+
+    private void requireReleaseScope(String deploymentId, String targetProfileId, Request request) {
+        var deployment = deployments.findById(deploymentId).orElseThrow(() -> conflict("DEPENDENCY_DEPLOYMENT_MISSING"));
+        if (deployment.getCustomerId() == null || deployment.getCustomerId().isBlank()
+            || deployment.getTenantId() == null || deployment.getTenantId().isBlank()
+            || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_REQUIRED");
+        var target = targets.findById(targetProfileId).orElseThrow(() -> conflict("DEPENDENCY_TARGET_MISSING"));
+        if (!target.isActive()) fail("DEPENDENCY_TARGET_INACTIVE");
+        var version = versions.findById(request.versionId()).orElseThrow(() -> conflict("DEPENDENCY_CANDIDATE_MISSING"));
+        if (!deploymentId.equals(version.getDeploymentId())) fail("DEPENDENCY_CANDIDATE_MISMATCH");
+        required(request.releaseId(), 64);
     }
     String environment(ManagedDependencyGraphEntity graph) {
         return targets.findById(graph.getTargetProfileId()).orElseThrow().getEnvironmentName();
@@ -570,10 +704,30 @@ public class ManagedDependencyLifecycleService {
     private void validateAdmission(ManagedDependencyGraphEntity graph, ManagedDependencyPrerequisites.Admission admission) {
         if (admission == null || admission.reservationRef() == null || admission.reservationRef().isBlank()
             || !graph.getBindingFingerprint().equals(admission.bindingFingerprint()) || admission.callbacks() == null
-            || admission.origins() == null || admission.origins().isEmpty() || admission.targetValues() == null
+            || admission.origins() == null || admission.targetValues() == null
             || admission.targetSecretReferences() == null) fail("DEPENDENCY_ADMISSION_INVALID");
         admission.callbacks().values().forEach(ManagedDependencyLifecycleService::https);
         admission.origins().forEach(ManagedDependencyLifecycleService::https);
+    }
+    private boolean foundationService(ManagedDependencySpec.Service service, ManagedDependencySpec spec) {
+        boolean runtimeBound = service.environment().values().stream().anyMatch(value ->
+            value.kind() == ManagedDependencySpec.ValueKind.CALLBACK_URL
+                || value.kind() == ManagedDependencySpec.ValueKind.TARGET_VALUE
+                && ("runtime-base-url".equals(value.reference()) || "connector-base-url".equals(value.reference())));
+        if (runtimeBound) return false;
+        return service.dependsOn().stream().allMatch(slot -> {
+            var dependency = spec.services().stream().filter(candidate -> slot.equals(candidate.slot())).findFirst()
+                .orElseThrow(() -> conflict("DEPENDENCY_SLOT_MISSING"));
+            return foundationService(dependency, spec);
+        });
+    }
+    private static boolean compatible(Map<String, String> existing, Map<String, String> candidate) {
+        return existing.entrySet().stream().allMatch(entry -> Objects.equals(entry.getValue(), candidate.get(entry.getKey())));
+    }
+    private String plannedPublicUrl(ManagedDependencyState.Node node, CoolifyConnection connection) {
+        String suffix = connection.config().defaultPublicDomainSuffix();
+        if (suffix == null || suffix.isBlank()) fail("DEPENDENCY_PUBLIC_DOMAIN_REQUIRED");
+        return "https://" + node.serviceRef + "." + suffix.replaceFirst("^\\.", "");
     }
     static void https(String value) {
         try {
@@ -585,6 +739,7 @@ public class ManagedDependencyLifecycleService {
     Summary summary(ManagedDependencyGraphEntity graph) {
         var state = store.state(graph);
         return new Summary(graph.getId(), graph.getDeploymentId(), graph.getTargetProfileId(), graph.getVersionId(),
+            graph.getReleaseId(),
             graph.getSpecFingerprint(), graph.getBindingFingerprint(), graph.getRevision(), graph.getStatus(), graph.getStep(),
             graph.getFailureCode(), graph.getAttempt(), state.configurationRevision, state.effectiveConfigurationRevision,
             state.nodes.stream().map(n -> new NodeSummary(n.slot, n.status, n.baseUrl, n.accountId, n.bindingId)).toList(),

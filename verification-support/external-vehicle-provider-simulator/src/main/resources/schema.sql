@@ -46,3 +46,17 @@ create table if not exists simulator_fault (
 
 create index if not exists idx_simulator_vehicle_account
     on simulator_vehicle (profile, account_id, vehicle_id);
+
+create table if not exists loomai_managed_dependency_state (
+    singleton_id integer primary key,
+    lifecycle_state varchar(24) not null,
+    binding_id varchar(160) not null,
+    updated_at timestamp with time zone not null
+);
+
+create table if not exists loomai_managed_dependency_operation (
+    operation_key varchar(240) primary key,
+    request_sha256 varchar(64) not null,
+    response_json text not null,
+    created_at timestamp with time zone not null
+);

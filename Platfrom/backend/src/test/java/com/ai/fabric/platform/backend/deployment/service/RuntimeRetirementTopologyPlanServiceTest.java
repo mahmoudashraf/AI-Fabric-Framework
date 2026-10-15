@@ -27,7 +27,7 @@ class RuntimeRetirementTopologyPlanServiceTest {
             MessageDigest.getInstance("SHA-256").digest(first.json().getBytes(StandardCharsets.UTF_8))
         ));
         var json = mapper.readTree(first.json());
-        assertThat(json.path("contractVersion").asText()).isEqualTo("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V1");
+        assertThat(json.path("contractVersion").asText()).isEqualTo("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V2");
         assertThat(json.path("target").path("deploymentId").asText()).isEqualTo("dep-1");
         assertThat(json.path("target").path("targetProfileId").asText()).isEqualTo("target-staging");
         assertThat(json.path("target").path("releaseId").asText()).isEqualTo("release-1");

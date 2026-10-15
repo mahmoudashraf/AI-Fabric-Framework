@@ -90,7 +90,23 @@ public class DeploymentRuntimeAuthorityService {
     /** Origins are a reviewed target slot. No arbitrary environment map or issuer/key overrides are accepted. */
     @Transactional
     public Snapshot freezeCandidate(String deploymentId, String targetProfileId, String versionId, List<String> reviewedOrigins) {
-        DeploymentEntity deployment = lock(deploymentId, targetProfileId, true);
+        return freezeCandidate(deploymentId, targetProfileId, versionId, reviewedOrigins, true);
+    }
+
+    /**
+     * Release-orchestration boundary used only after DeploymentService or its trusted caller has
+     * authorized the apply. This accepts the same server-owned identities and reviewed origins as
+     * the operator path, but deliberately does not depend on an ambient browser principal.
+     */
+    @Transactional
+    public Snapshot freezeCandidateForAuthorizedApply(String deploymentId, String targetProfileId,
+                                                       String versionId, List<String> reviewedOrigins) {
+        return freezeCandidate(deploymentId, targetProfileId, versionId, reviewedOrigins, false);
+    }
+
+    private Snapshot freezeCandidate(String deploymentId, String targetProfileId, String versionId,
+                                     List<String> reviewedOrigins, boolean requireOperatorAccess) {
+        DeploymentEntity deployment = lock(deploymentId, targetProfileId, true, requireOperatorAccess);
         DeploymentVersionEntity version = version(deployment, versionId);
         List<String> origins = origins(reviewedOrigins);
         RuntimeAuthorityEntity authority = authorities.findByDeploymentIdAndTargetProfileId(deploymentId, targetProfileId)
@@ -124,7 +140,20 @@ public class DeploymentRuntimeAuthorityService {
     @Transactional
     public Snapshot freezeRelease(String deploymentId, String targetProfileId, String releaseId,
                                   String candidateSnapshotId, String expectedFingerprint) {
-        DeploymentEntity deployment = lock(deploymentId, targetProfileId, true);
+        return freezeRelease(deploymentId, targetProfileId, releaseId, candidateSnapshotId, expectedFingerprint, true);
+    }
+
+    /** Completes an already-authorized apply without consulting browser identity. */
+    @Transactional
+    public Snapshot freezeReleaseForAuthorizedApply(String deploymentId, String targetProfileId, String releaseId,
+                                                     String candidateSnapshotId, String expectedFingerprint) {
+        return freezeRelease(deploymentId, targetProfileId, releaseId, candidateSnapshotId, expectedFingerprint, false);
+    }
+
+    private Snapshot freezeRelease(String deploymentId, String targetProfileId, String releaseId,
+                                   String candidateSnapshotId, String expectedFingerprint,
+                                   boolean requireOperatorAccess) {
+        DeploymentEntity deployment = lock(deploymentId, targetProfileId, true, requireOperatorAccess);
         var release = release(deployment, targetProfileId, releaseId);
         var authority = authority(deployment, targetProfileId);
         var candidate = requireSnapshot(candidateSnapshotId);
@@ -214,6 +243,32 @@ public class DeploymentRuntimeAuthorityService {
             false, grantedScopes, ttl);
     }
 
+    /**
+     * Scheduler-only authority for an exact frozen release. Unlike the browser path this does not
+     * consult a request principal; the caller must already hold the durable target-retirement fence.
+     */
+    @Transactional
+    public Map<String, String> issueTargetRetirementHeaders(String deploymentId, String targetProfileId,
+        String releaseId, String expectedFingerprint, String operationId, List<String> grantedScopes) {
+        var release = releases.findById(required(releaseId))
+            .filter(value -> deploymentId.equals(value.getDeploymentId())
+                && targetProfileId.equals(value.getTargetProfileId()))
+            .orElseThrow(() -> conflict("Retirement release does not belong to the exact target."));
+        var deployment = deployments.findById(required(deploymentId))
+            .orElseThrow(() -> conflict("Retirement deployment is unavailable."));
+        var snapshot = snapshots.findByReleaseId(releaseId)
+            .orElseThrow(() -> conflict("Retirement release lacks frozen target authority evidence."));
+        if (!release.getDeploymentVersionId().equals(snapshot.getVersionId())
+            || !expectedFingerprint.equals(snapshot.getFingerprint())) {
+            throw conflict("Retirement release authority evidence changed.");
+        }
+        var checked = checkedSnapshot(deployment, authority(deployment, targetProfileId), snapshot, expectedFingerprint);
+        requireProvisioned(release);
+        String subject = "target-retirement:" + requiredIdentity(operationId);
+        return headers(checked.binding(), subject, "SYSTEM_PROCESS", subject, false,
+            grantedScopes, Duration.ofMinutes(2));
+    }
+
     @Transactional
     public Map<String, String> issuePlatformProxyHeaders(String deploymentId, String targetProfileId, String releaseId,
         String expectedFingerprint, List<String> grantedScopes, Duration ttl) {
@@ -273,10 +328,15 @@ public class DeploymentRuntimeAuthorityService {
     }
 
     private DeploymentEntity lock(String deploymentId, String targetProfileId, boolean requireActiveTarget) {
+        return lock(deploymentId, targetProfileId, requireActiveTarget, true);
+    }
+
+    private DeploymentEntity lock(String deploymentId, String targetProfileId, boolean requireActiveTarget,
+                                  boolean requireOperatorAccess) {
         required(deploymentId);
         required(targetProfileId);
         var deployment = deployments.findByIdForUpdate(deploymentId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
-        access.requireDeploymentOperatorAccess(deployment);
+        if (requireOperatorAccess) access.requireDeploymentOperatorAccess(deployment);
         required(deployment.getCustomerId());
         required(deployment.getTenantId());
         var target = targets.findById(targetProfileId).orElseThrow(() -> conflict("Explicit target profile is unavailable."));

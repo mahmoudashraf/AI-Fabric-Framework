@@ -14,9 +14,14 @@ import java.time.Instant;
 @Setter
 public class ManagedDependencySpecEntity {
     @Id private String id;
+    /** Exact reviewed marketplace template version that owns this immutable topology. */
+    @Column(name = "template_version_id", length = 64, unique = true)
+    private String templateVersionId;
     @Column(nullable = false) private String fingerprint;
     @Column(nullable = false, columnDefinition = "TEXT") private String specJson;
     @Column(nullable = false) private String reviewedBy;
     @Column(nullable = false) private Instant reviewedAt;
+    @Column(name = "review_reference", nullable = false, length = 255)
+    private String reviewReference;
     @Column(nullable = false) private boolean active;
 }

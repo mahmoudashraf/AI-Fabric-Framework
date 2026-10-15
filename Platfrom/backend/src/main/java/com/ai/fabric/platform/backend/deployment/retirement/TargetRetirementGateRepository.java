@@ -12,4 +12,8 @@ public interface TargetRetirementGateRepository extends JpaRepository<TargetReti
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select g from TargetRetirementGateEntity g where g.deploymentId = :deployment and g.targetProfileId = :target")
     Optional<TargetRetirementGateEntity> findForUpdate(@Param("deployment") String deployment, @Param("target") String target);
+
+    @Query("select g from TargetRetirementGateEntity g where g.deploymentId = :deployment and g.targetProfileId = :target")
+    Optional<TargetRetirementGateEntity> findByDeploymentIdAndTargetProfileId(
+        @Param("deployment") String deployment, @Param("target") String target);
 }

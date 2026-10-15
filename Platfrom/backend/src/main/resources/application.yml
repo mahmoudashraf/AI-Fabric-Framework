@@ -42,7 +42,7 @@ platform:
   stage: bootstrap
   current-phase: phase-21-public-provisioning-api
   ai-fabric:
-    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.32}
+    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.33}
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
     ecommerce-demo:
@@ -145,6 +145,23 @@ platform:
     runtime-proxy-timeout-ms: ${PLATFORM_RUNTIME_PROXY_TIMEOUT_MS:60000}
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
+  deployment:
+    admission:
+      lifecycle:
+        worker-enabled: ${PLATFORM_ADMISSION_LIFECYCLE_WORKER_ENABLED:false}
+        initial-delay: ${PLATFORM_ADMISSION_LIFECYCLE_INITIAL_DELAY:30s}
+        poll-delay: ${PLATFORM_ADMISSION_LIFECYCLE_POLL_DELAY:30s}
+        batch-size: ${PLATFORM_ADMISSION_LIFECYCLE_BATCH_SIZE:32}
+        notice-transport-reference: ${PLATFORM_ADMISSION_NOTICE_TRANSPORT_REFERENCE:loomai-admission-console-smtp-v1}
+        console-enabled: ${PLATFORM_ADMISSION_CONSOLE_NOTICES_ENABLED:false}
+        owner-email-enabled: ${PLATFORM_ADMISSION_OWNER_EMAIL_ENABLED:false}
+        owner-email-from: ${PLATFORM_ADMISSION_OWNER_EMAIL_FROM:}
+        retirement-worker-enabled: ${PLATFORM_ADMISSION_RETIREMENT_WORKER_ENABLED:false}
+  target-retirement:
+    worker-enabled: ${PLATFORM_TARGET_RETIREMENT_WORKER_ENABLED:false}
+    poll-delay-ms: ${PLATFORM_TARGET_RETIREMENT_POLL_DELAY_MS:15000}
+    approved-staging-addresses: ${PLATFORM_TARGET_RETIREMENT_APPROVED_STAGING_ADDRESSES:}
+    approved-retained-volume-mounts: ${PLATFORM_TARGET_RETIREMENT_APPROVED_RETAINED_VOLUME_MOUNTS:}
   cors:
     allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,https://ai-fabric-framework-production-158d.up.railway.app}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}

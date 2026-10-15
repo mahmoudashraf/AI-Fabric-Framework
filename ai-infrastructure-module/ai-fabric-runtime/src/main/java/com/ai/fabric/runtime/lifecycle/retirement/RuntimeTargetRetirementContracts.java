@@ -2,6 +2,7 @@ package com.ai.fabric.runtime.lifecycle.retirement;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public final class RuntimeTargetRetirementContracts {
     private RuntimeTargetRetirementContracts() { }
@@ -29,6 +30,13 @@ public final class RuntimeTargetRetirementContracts {
     public record GenerationTransitionResult(Readback previous, Readback current,
                                              String providerStopEvidenceReference,
                                              Instant transitionedAt, boolean replay) { }
+    public record IndexRetirementCommand(Binding binding, String topologyFingerprint) { }
+    public record IndexRetirementReadback(Target target, String tenantId, String operationId,
+                                          long fenceEpoch, String topologyFingerprint,
+                                          String provider, String scopeType, String scopeValue,
+                                          Map<String, Long> countsByEntityType, long totalVectors,
+                                          long removedVectors, Instant observedAt,
+                                          String evidenceReference, boolean complete, boolean replay) { }
     public record Observation(String source, Long observedCount, boolean complete, List<String> blockers) { }
     public record Metric(Long count, boolean complete, List<Observation> observations) { }
     public record RemoteObligation(String dependencyKind, Target target, String topologyFingerprint, String requirement) { }

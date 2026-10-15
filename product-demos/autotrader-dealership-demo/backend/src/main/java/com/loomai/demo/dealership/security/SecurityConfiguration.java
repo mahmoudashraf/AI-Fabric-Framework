@@ -96,12 +96,12 @@ public class SecurityConfiguration {
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .csrf(configurer -> configurer
                 .csrfTokenRepository(csrf)
-                .ignoringRequestMatchers("/api/staff/session", "/api/internal/**")
+                .ignoringRequestMatchers("/api/staff/session", "/api/internal/**", "/internal/loomai-managed-dependency/**")
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/actuator/health/**", "/api/public/**", "/api/internal/**").permitAll()
+                .requestMatchers("/actuator/health/**", "/api/public/**", "/api/internal/**", "/internal/loomai-managed-dependency/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/staff/session").permitAll()
                 .requestMatchers("/api/staff/**").hasRole("STAFF")
                 .anyRequest().denyAll()

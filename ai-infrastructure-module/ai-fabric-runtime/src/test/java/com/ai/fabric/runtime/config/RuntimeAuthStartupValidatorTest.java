@@ -163,6 +163,18 @@ class RuntimeAuthStartupValidatorTest {
         assertThat(new RuntimeAuthStartupValidator(properties).validationErrors()).isEmpty();
     }
 
+    @Test
+    void authenticatedTokenLifetimeIsStrictlyBoundedAtStartup() {
+        RuntimeAuthProperties properties = configuredPublicRuntime();
+        for (long invalid : new long[]{0, -1, 301, 900}) {
+            properties.getPublicTokens().setAuthenticatedTtlSeconds(invalid);
+            assertThat(new RuntimeAuthStartupValidator(properties).validationErrors())
+                .anyMatch(message -> message.contains("between one and 300 seconds"));
+        }
+        properties.getPublicTokens().setAuthenticatedTtlSeconds(300);
+        assertThat(new RuntimeAuthStartupValidator(properties).validationErrors()).isEmpty();
+    }
+
     private RuntimeAuthProperties configuredPublicRuntime() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");

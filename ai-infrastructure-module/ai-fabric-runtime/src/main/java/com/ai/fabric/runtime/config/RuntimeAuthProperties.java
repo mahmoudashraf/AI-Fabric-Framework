@@ -11,6 +11,8 @@ import java.util.List;
 @ConfigurationProperties(prefix = "ai.fabric.runtime.auth")
 public class RuntimeAuthProperties {
 
+    public static final long MAX_AUTHENTICATED_TOKEN_LIFETIME_SECONDS = 300;
+
     private Ingress ingress = new Ingress();
     private PublicTokens publicTokens = new PublicTokens();
     private ExternalIdentityBroker externalIdentityBroker = new ExternalIdentityBroker();
@@ -75,6 +77,7 @@ public class RuntimeAuthProperties {
         private List<String> authenticatedAllowedScopes = new ArrayList<>(List.of("chat:query", "chat:suggestions", "chat:conversations"));
         private String defaultAudience;
         private long ttlSeconds = 900;
+        private long authenticatedTtlSeconds = MAX_AUTHENTICATED_TOKEN_LIFETIME_SECONDS;
         private Bootstrap bootstrap = new Bootstrap();
         private Defaults defaults = new Defaults();
     }

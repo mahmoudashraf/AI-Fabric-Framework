@@ -58,6 +58,8 @@ class ManagedDependencyLifecycleServiceTest {
         when(deployments.findByIdForUpdate("dep-1")).thenReturn(Optional.of(deployment));
         var version = new DeploymentVersionEntity(); version.setId("v1"); version.setDeploymentId("dep-1");
         when(versions.findById("v1")).thenReturn(Optional.of(version));
+        var nextVersion = new DeploymentVersionEntity(); nextVersion.setId("v2"); nextVersion.setDeploymentId("dep-1");
+        when(versions.findById("v2")).thenReturn(Optional.of(nextVersion));
         for (String target : List.of("staging", "production")) {
             var profile = new DeploymentTargetProfileEntity(); profile.setId(target); profile.setActive(true); profile.setEnvironmentName(target);
             when(targets.findById(target)).thenReturn(Optional.of(profile));
@@ -66,10 +68,12 @@ class ManagedDependencyLifecycleServiceTest {
         reviewed.setReviewedAt(Instant.now()); reviewed.setReviewedBy("reviewer");
         reviewed.setSpecJson(store.json(ManagedDependencyFixtures.topology())); reviewed.setFingerprint(validator.fingerprint(ManagedDependencyFixtures.topology()));
         when(specRepository.findById("spec1")).thenReturn(Optional.of(reviewed));
-        when(gates.getIfAvailable()).thenReturn(gate);
-        when(gate.reserve(any(), any())).thenAnswer(i -> new ManagedDependencyPrerequisites.Admission(
+        when(gates.orderedStream()).thenAnswer(ignored -> java.util.stream.Stream.of(gate));
+        when(gate.reserve(any(), any(), any())).thenAnswer(i -> new ManagedDependencyPrerequisites.Admission(
             "reservation-" + ((ManagedDependencyPrerequisites.Scope)i.getArgument(0)).graphId(), "c".repeat(64),
-            Map.of("inbox", "https://connector.example.test/inbox/callback"), List.of("https://app.example.test"), Map.of(), Map.of()));
+            i.getArgument(2) == ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND
+                ? Map.of("inbox", "https://connector.example.test/inbox/callback") : Map.of(),
+            List.of("https://app.example.test"), Map.of(), Map.of()));
         when(secrets.isSecretPresent(anyString())).thenAnswer(i -> keys.containsKey(i.getArgument(0)));
         when(secrets.resolveSecret(anyString())).thenAnswer(i -> keys.get(i.getArgument(0)));
         when(secrets.upsertManagedSecret(anyString(), anyString(), anyMap())).thenAnswer(i -> {
@@ -116,9 +120,16 @@ class ManagedDependencyLifecycleServiceTest {
         submit(target); return operators.enroll("dep-1", target, new ManagedDependencyOperatorService.Enroll("inbox", "Staff", "enroll"));
     }
     @Test void missingAdmissionBlocksBeforeAnyProviderResource() {
-        submit("staging"); when(gates.getIfAvailable()).thenReturn(null);
+        submit("staging"); when(gates.orderedStream()).thenReturn(java.util.stream.Stream.empty());
         var result = lifecycle.reconcile("dep-1", "staging", "apply");
         assertThat(result.failureCode()).isEqualTo("DEPENDENCY_ADMISSION_ADAPTER_REQUIRED"); verifyNoInteractions(provider);
+    }
+    @Test void ambiguousAdmissionAdaptersBlockBeforeAnyProviderResource() {
+        submit("staging");
+        when(gates.orderedStream()).thenReturn(java.util.stream.Stream.of(gate, mock(ManagedDependencyPrerequisites.class)));
+        var result = lifecycle.reconcile("dep-1", "staging", "apply");
+        assertThat(result.failureCode()).isEqualTo("DEPENDENCY_ADMISSION_ADAPTER_REQUIRED");
+        verifyNoInteractions(provider);
     }
     @Test void pluginOrGraphRowsAreNotReadinessAndEnrollmentIsRequired() {
         submit("staging"); var result = lifecycle.reconcile("dep-1", "staging", "apply");
@@ -190,15 +201,29 @@ class ManagedDependencyLifecycleServiceTest {
     }
     @Test void explicitProvisionedBindingsCanBootstrapRuntimeWithoutClaimingReady() {
         submit("staging");
-        doThrow(new IllegalStateException("runtime not yet provisioned")).when(gate).initializeAndVerify(any(), anyString(), any());
-        var pending = operators.enroll("dep-1", "staging", new ManagedDependencyOperatorService.Enroll("inbox", "Staff", "enroll"));
-        assertThat(pending.status()).isEqualTo("BLOCKED");
-        assertThat(lifecycle.provisionedBindings("dep-1", "staging", pending.specFingerprint(), pending.bindingFingerprint())).hasSize(3);
+        var pending = lifecycle.provision("dep-1", "staging", "resources-only");
+        assertThat(pending.status()).isEqualTo("PROVISIONED");
+        assertThat(lifecycle.provisionedBindings("dep-1", "staging", pending.specFingerprint(), pending.bindingFingerprint()))
+            .extracting(ManagedDependencyPrerequisites.Binding::slot)
+            .containsExactly("simulator", "receiver");
+        var runtimeEnvironment = lifecycle.runtimeEnvironment("dep-1", "staging", "v1", pending.bindingFingerprint());
+        assertThat(runtimeEnvironment.runtime()).isEmpty();
+        assertThat(runtimeEnvironment.connector())
+            .containsEntry("MANAGED_SIMULATOR_BASE_URL", "https://dep-" + pending.graphId().substring(4) + "-simulator.example.test")
+            .containsEntry("MANAGED_INBOX_BASE_URL", "https://dep-" + pending.graphId().substring(4) + "-inbox.example.test")
+            .containsEntry("MANAGED_SIMULATOR_ACCOUNT_ID", store.state(graphs.get(pending.graphId())).nodes.getFirst().accountId);
+        assertThat(runtimeEnvironment.connector().get("MANAGED_SIMULATOR_API_KEY"))
+            .startsWith("${secret:MANAGED_DEP_").endsWith("}");
         assertThatThrownBy(() -> lifecycle.bindings("dep-1", "staging", pending.specFingerprint(), pending.bindingFingerprint()))
             .hasMessageContaining("BINDINGS_NOT_READY");
-        var provisioned = lifecycle.provision("dep-1", "staging", "resources-only");
-        assertThat(provisioned.status()).isEqualTo("PROVISIONED");
-        assertThat(provisioned.effectiveConfigurationRevision()).isEqualTo(-1);
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), contains("inbox"), any(), any(), any(), any());
+
+        var enrolled = operators.enroll("dep-1", "staging",
+            new ManagedDependencyOperatorService.Enroll("inbox", "Staff", "enroll"));
+        assertThat(enrolled.status()).isEqualTo("READY");
+        assertThat(lifecycle.bindings("dep-1", "staging", enrolled.specFingerprint(), enrolled.bindingFingerprint()))
+            .hasSize(3);
+        assertThat(enrolled.effectiveConfigurationRevision()).isEqualTo(enrolled.configurationRevision());
     }
 
     @Test void runtimeGenerationQuiescesAndResumesOnlyTheManagedInbox() {
@@ -224,5 +249,38 @@ class ManagedDependencyLifecycleServiceTest {
             eq("inbox"), anyString(), any());
         verify(provider).resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
             eq("inbox"), anyString(), any());
+    }
+
+    @Test void releaseRebindAdvancesGenerationAndInitialOwnerEnrollmentIsIdempotent() {
+        var first = lifecycle.submitForRelease("dep-1", "staging",
+            new ManagedDependencyLifecycleService.Request("spec1", "v1", "release-1", "c".repeat(64), "submit-1"));
+        operators.enrollInitialOwnerForRelease("dep-1", "staging", "release-1",
+            new ManagedDependencyOperatorService.Enroll("inbox", "owner@example.test", "owner-1"));
+        long firstRevision = lifecycle.status("dep-1", "staging").configurationRevision();
+
+        var graph = graphs.get(first.graphId());
+        graph.setReservationRef("reservation-old");
+        var state = store.state(graph);
+        state.callbacks.put("inbox", "https://old.example.test/callback");
+        state.origins = List.of("https://old.example.test");
+        state.targetValues.put("runtime-base-url", "https://old-runtime.example.test");
+        graph.setStateJson(store.json(state));
+
+        var rebound = lifecycle.submitForRelease("dep-1", "staging",
+            new ManagedDependencyLifecycleService.Request("spec1", "v2", "release-2", "d".repeat(64), "submit-2"));
+        operators.enrollInitialOwnerForRelease("dep-1", "staging", "release-2",
+            new ManagedDependencyOperatorService.Enroll("inbox", "owner@example.test", "owner-2"));
+
+        assertThat(rebound.configurationRevision()).isGreaterThan(firstRevision);
+        assertThat(rebound.versionId()).isEqualTo("v2");
+        assertThat(rebound.releaseId()).isEqualTo("release-2");
+        assertThat(rebound.bindingFingerprint()).isEqualTo("d".repeat(64));
+        assertThat(graphs.get(first.graphId()).getReservationRef()).isNull();
+        assertThat(store.state(graphs.get(first.graphId())).callbacks).isEmpty();
+        assertThat(store.state(graphs.get(first.graphId())).origins).isEmpty();
+        assertThat(store.state(graphs.get(first.graphId())).targetValues).isEmpty();
+        assertThat(store.state(graphs.get(first.graphId())).operators)
+            .filteredOn(operator -> "ENROLLED".equals(operator.status))
+            .hasSize(1);
     }
 }

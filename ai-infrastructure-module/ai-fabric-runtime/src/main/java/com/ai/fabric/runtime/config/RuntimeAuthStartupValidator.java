@@ -113,6 +113,10 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
         }
 
         boolean publicRuntimeConfigured = StringUtils.hasText(publicTokens.getSigningKey());
+        if (publicRuntimeConfigured && (publicTokens.getAuthenticatedTtlSeconds() < 1
+            || publicTokens.getAuthenticatedTtlSeconds() > RuntimeAuthProperties.MAX_AUTHENTICATED_TOKEN_LIFETIME_SECONDS)) {
+            errors.add("Authenticated runtime token lifetime must be between one and 300 seconds.");
+        }
         if (publicRuntimeConfigured && isEmpty(publicTokens.getAcceptedIssuers())) {
             errors.add(
                 "Runtime public bearer auth is configured without ai.fabric.runtime.auth.public-tokens.accepted-issuers. "

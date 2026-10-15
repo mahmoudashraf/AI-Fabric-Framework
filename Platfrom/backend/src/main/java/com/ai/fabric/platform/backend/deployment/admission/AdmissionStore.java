@@ -201,6 +201,36 @@ class AdmissionStore {
         return jdbc.query("SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' ORDER BY id",
             (rs, row) -> json.read(rs.getString(1), Reservation.class));
     }
+    List<Reservation> lifecycleBatch(int requestedSize) {
+        return locked(() -> {
+            int size = Math.max(1, Math.min(requestedSize, 256));
+            String cursor = jdbc.queryForObject("SELECT lifecycle_cursor FROM deployment_admission_mutex WHERE id=1",
+                String.class);
+            List<Reservation> batch = new ArrayList<>();
+            if (cursor != null) {
+                batch.addAll(jdbc.query("""
+                    SELECT payload_json FROM deployment_capacity_reservations
+                     WHERE state<>'RELEASED' AND id>? ORDER BY id LIMIT ?
+                    """, (rs, row) -> json.read(rs.getString(1), Reservation.class), cursor, size));
+            }
+            if (batch.size() < size) {
+                int remaining = size - batch.size();
+                String sql = cursor == null
+                    ? "SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' ORDER BY id LIMIT ?"
+                    : "SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' AND id<=? ORDER BY id LIMIT ?";
+                if (cursor == null) {
+                    batch.addAll(jdbc.query(sql, (rs, row) -> json.read(rs.getString(1), Reservation.class), remaining));
+                } else {
+                    batch.addAll(jdbc.query(sql, (rs, row) -> json.read(rs.getString(1), Reservation.class), cursor, remaining));
+                }
+            }
+            if (!batch.isEmpty()) {
+                jdbc.update("UPDATE deployment_admission_mutex SET lifecycle_cursor=? WHERE id=1",
+                    batch.getLast().id());
+            }
+            return List.copyOf(batch);
+        });
+    }
     Reservation require(String id) {
         var rows = jdbc.query("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?",
             (rs, row) -> json.read(rs.getString(1), Reservation.class), required(id, 64));
@@ -386,6 +416,43 @@ class AdmissionStore {
             Mutation m = new Mutation(r); m.failure = required(code, 64);
             m.expiryState = r.attempts() >= p.maxAttempts() ? ExpiryState.BLOCKED : ExpiryState.NOTICE_FAILED;
             return save(r, m, "NOTICE_FAILED", actor, now);
+        });
+    }
+    Reservation noticeOutcomeUnknown(Fence fence, String actor, Instant requestedAt) {
+        return locked(() -> {
+            Instant now = effectiveTime(requestedAt);
+            Reservation r = fenced(fence);
+            if (r.expiryState() != ExpiryState.NOTICE_PENDING) {
+                throw new AdmissionFailure(CONFLICT, "NOTICE_NOT_PENDING");
+            }
+            Mutation m = new Mutation(r);
+            m.expiryState = ExpiryState.BLOCKED;
+            m.failure = "NOTICE_DELIVERY_OUTCOME_UNKNOWN";
+            m.nextRetry = null;
+            return save(r, m, "NOTICE_DELIVERY_OUTCOME_UNKNOWN", actor, now);
+        });
+    }
+    Reservation resumeNoticeAfterResolution(String reservationId, String noticeCycle, String actor,
+                                              Instant requestedAt) {
+        return locked(() -> {
+            Instant now = effectiveTime(requestedAt);
+            Reservation r = require(required(reservationId, 64));
+            if (!Objects.equals(r.noticeCycle(), required(noticeCycle, 64)) || !r.consumesCapacity()
+                || r.intent() != Intent.CUSTOMER_STAGING
+                || r.expiryState() == ExpiryState.CLAIMED || r.expiryState() == ExpiryState.HANDED_OFF) {
+                throw new AdmissionFailure(CONFLICT, "NOTICE_RESOLUTION_STALE");
+            }
+            if (r.expiryState() == ExpiryState.NOTIFIED) return r;
+            if (!List.of(ExpiryState.BLOCKED, ExpiryState.NOTICE_FAILED, ExpiryState.NOTICE_PENDING)
+                .contains(r.expiryState())) {
+                throw new AdmissionFailure(CONFLICT, "NOTICE_RESOLUTION_STALE");
+            }
+            Mutation m = new Mutation(r);
+            m.expiryState = ExpiryState.NOTICE_FAILED;
+            m.attempts = 0;
+            m.nextRetry = now;
+            m.failure = null;
+            return save(r, m, "NOTICE_DELIVERY_RESOLVED", required(actor, 255), now);
         });
     }
     ExpiryWork claimExpiry(Fence fence, String actor, Instant requestedAt) {

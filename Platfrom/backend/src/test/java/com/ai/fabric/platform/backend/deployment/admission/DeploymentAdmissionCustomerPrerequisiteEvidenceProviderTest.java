@@ -46,6 +46,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     private DeploymentAdmissionCustomerPrerequisiteEvidenceProvider provider;
     private DeploymentTargetProfileEntity targetProfile;
     private FleetPolicy reviewedPolicy;
+    private String reviewedProfileFingerprint;
     private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext customerContext;
 
     @BeforeEach
@@ -68,14 +69,14 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         targetProfile.setResourceDefaultsJson("{}");
         when(targets.findById(TARGET)).thenReturn(Optional.of(targetProfile));
 
-        String profileFingerprint = json.fingerprint(Map.of("id", TARGET, "provider", DeploymentProviderType.COOLIFY,
+        reviewedProfileFingerprint = json.fingerprint(Map.of("id", TARGET, "provider", DeploymentProviderType.COOLIFY,
             "environment", "customer-staging", "sourceStrategy", "IMAGE_SOURCE", "credentialReference", "",
             "providerConfig", mapper.readTree(targetProfile.getProviderConfigJson()),
             "networkPolicy", mapper.readTree("{}"), "resourceDefaults", mapper.readTree("{}")));
         Budget budget = new Budget(vector(4), vector(0), vector(0), "measurement-proof",
             NOW.minusSeconds(1), NOW.plusSeconds(10_000));
         reviewedPolicy = new FleetPolicy("policy1", budget,
-            Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_STAGING, STAGING, profileFingerprint, budget)),
+            Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_STAGING, STAGING, reviewedProfileFingerprint, budget)),
             policy(4).lifecycle(), "restore-proof", "privacy-proof", "support-owner");
         store.approvePolicy(reviewedPolicy, "operator", NOW);
         store.approveGrant(grant(4), "operator", NOW);
@@ -94,7 +95,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             Operation.APPLY, "operation", "offer-fingerprint", limits("measurement-proof"));
         when(placement.requireEvidenceById(eq(targetProfile), eq(TargetIntent.CUSTOMER_STAGING), eq("placement-proof")))
             .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, TargetIntent.CUSTOMER_STAGING,
-                "r6-profile-fingerprint", STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(),
+                reviewedProfileFingerprint, STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(),
                 NOW.minusSeconds(1), NOW.plusSeconds(120)));
         provider = providerAt(NOW);
     }
@@ -236,6 +237,33 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         var foreignDeployment = context("customer", "tenant", "other-deployment", TARGET, TargetIntent.CUSTOMER_STAGING,
             Operation.APPLY, "operation", "offer-fingerprint", limits("measurement-proof"));
         assertRejected(foreignDeployment, "AMBIGUOUS_OR_MISSING");
+    }
+
+    @Test
+    void mismatchedPlacementEvidenceCannotSatisfyTheExactTarget() {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        when(placement.requireEvidenceById(targetProfile, TargetIntent.CUSTOMER_STAGING, "placement-proof"))
+            .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, TargetIntent.CUSTOMER_STAGING,
+                reviewedProfileFingerprint, STAGING.serverUuid(), "other-server", STAGING.destinationUuid(),
+                NOW.minusSeconds(1), NOW.plusSeconds(120)));
+
+        assertRejected(customerContext, "CUSTOMER_PLACEMENT_EVIDENCE_MISMATCH");
+    }
+
+    @Test
+    void changedOrExpiredPlacementSnapshotCannotSatisfyReviewedTargetEvidence() {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        when(placement.requireEvidenceById(targetProfile, TargetIntent.CUSTOMER_STAGING, "placement-proof"))
+            .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, TargetIntent.CUSTOMER_STAGING,
+                "changed-profile-fingerprint", STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(),
+                NOW.minusSeconds(1), NOW.plusSeconds(120)));
+        assertRejected(customerContext, "CUSTOMER_PLACEMENT_EVIDENCE_MISMATCH");
+
+        when(placement.requireEvidenceById(targetProfile, TargetIntent.CUSTOMER_STAGING, "placement-proof"))
+            .thenReturn(new CustomerPlacementEvidenceEntity("placement-proof", TARGET, TargetIntent.CUSTOMER_STAGING,
+                reviewedProfileFingerprint, STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(),
+                NOW.minusSeconds(120), NOW));
+        assertRejected(customerContext, "CUSTOMER_PLACEMENT_EVIDENCE_MISMATCH");
     }
 
     @Test

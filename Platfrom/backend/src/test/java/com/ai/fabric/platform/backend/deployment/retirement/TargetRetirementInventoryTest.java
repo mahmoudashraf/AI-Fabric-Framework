@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.retirement;
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.*;
+import com.ai.fabric.platform.backend.deployment.service.*;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +26,10 @@ class TargetRetirementInventoryTest {
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
     private final PlatformConsumerRepository consumers = mock(PlatformConsumerRepository.class);
+    private final CoolifyTargetProfileResolver resolver = mock(CoolifyTargetProfileResolver.class);
+    private final CoolifyApiClient client = mock(CoolifyApiClient.class);
+    private final TargetRetirementJson json = new TargetRetirementJson(
+        new ObjectMapper().registerModule(new JavaTimeModule()));
     private TargetRetirementInventory service;
     private PlanRequest request;
     private DeploymentProviderResourceHandleEntity handle;
@@ -34,14 +39,27 @@ class TargetRetirementInventoryTest {
 
     @BeforeEach void setup() {
         service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers,
-            new TargetRetirementJson(new ObjectMapper().registerModule(new JavaTimeModule())));
+            json, resolver, client, List.of());
         var deployment = new DeploymentEntity();
         deployment.setId("deployment"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
         when(deployments.findById("deployment")).thenReturn(Optional.of(deployment));
         target = new DeploymentTargetProfileEntity();
         target.setId("staging"); target.setEnvironmentName("staging"); target.setProviderType(DeploymentProviderType.COOLIFY); target.setActive(true);
-        target.setProviderConfigJson("{\"serverUuid\":\"staging-server\"}"); target.setResourceDefaultsJson("{}"); target.setNetworkPolicyJson("{}");
+        target.setProviderConfigJson("{\"serverUuid\":\"staging-server\",\"destinationUuid\":\"destination\"}"); target.setResourceDefaultsJson("{}"); target.setNetworkPolicyJson("{}");
         when(targets.findById("staging")).thenReturn(Optional.of(target));
+        var config = mock(CoolifyTargetProfileConfig.class);
+        when(config.serverUuid()).thenReturn("staging-server");
+        when(config.destinationUuid()).thenReturn("destination");
+        var connection = new CoolifyConnection("https://coolify.test", "private", config);
+        when(resolver.requireConnection(target)).thenReturn(connection);
+        when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of());
+        var rawApplication = new ObjectMapper().createObjectNode();
+        rawApplication.put("uuid", "staging-app"); rawApplication.put("name", "runtime");
+        rawApplication.put("description", "Managed by AI Fabric deployment deployment");
+        rawApplication.put("server_uuid", "staging-server"); rawApplication.put("project_uuid", "project");
+        rawApplication.put("environment_uuid", "environment"); rawApplication.put("destination_uuid", "destination");
+        when(client.getApplication(connection, "staging-app")).thenReturn(Optional.of(new CoolifyApplicationSummary(
+            "staging-app", "runtime", null, "running:healthy", null, null, rawApplication)));
         release = new DeploymentReleaseEntity();
         release.setId("staging-release"); release.setDeploymentId("deployment"); release.setTargetProfileId("staging");
         release.setDeploymentVersionId("version"); release.setProviderType(DeploymentProviderType.COOLIFY);
@@ -51,8 +69,9 @@ class TargetRetirementInventoryTest {
         handle = new DeploymentProviderResourceHandleEntity();
         handle.setId("handle"); handle.setDeploymentId("deployment"); handle.setTargetProfileId("staging"); handle.setReleaseId("staging-release");
         handle.setResourceKind("APPLICATION"); handle.setProviderType(DeploymentProviderType.COOLIFY);
-        handle.setProviderResourceUuid("staging-app"); handle.setProviderServerUuid("staging-server"); handle.setCreatedAt(Instant.now());
-        handle.setStatus("ACTIVE"); handle.setMetadataJson("{}");
+        handle.setProviderResourceUuid("staging-app"); handle.setProviderServerUuid("staging-server");
+        handle.setProviderProjectUuid("project"); handle.setProviderEnvironmentUuid("environment"); handle.setCreatedAt(Instant.now());
+        handle.setStatus("ACTIVE"); handle.setMetadataJson("{\"applicationName\":\"runtime\"}");
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "staging")).thenReturn(List.of(handle));
         when(handles.findById("handle")).thenReturn(Optional.of(handle));
         when(handles.findAll()).thenReturn(List.of(handle));
@@ -108,6 +127,20 @@ class TargetRetirementInventoryTest {
         target.setProviderConfigJson("{\"serverUuid\":\"production-server\"}");
         assertThatThrownBy(() -> service.recheck(snapshot, request)).hasMessageContaining("SNAPSHOT_GENERATION_CHANGED");
     }
+    @Test void liveProviderOwnershipOrGenerationDriftInvalidatesFrozenSnapshot() {
+        var snapshot = capture();
+        var connection = resolver.requireConnection(target);
+        var drifted = new ObjectMapper().createObjectNode();
+        drifted.put("uuid", "staging-app"); drifted.put("name", "runtime");
+        drifted.put("description", "Managed by AI Fabric deployment deployment");
+        drifted.put("server_uuid", "staging-server"); drifted.put("project_uuid", "other-project");
+        drifted.put("environment_uuid", "environment"); drifted.put("destination_uuid", "destination");
+        when(client.getApplication(connection, "staging-app")).thenReturn(Optional.of(new CoolifyApplicationSummary(
+            "staging-app", "runtime", null, "running:healthy", null, null, drifted)));
+
+        assertThatThrownBy(() -> service.recheck(snapshot, request))
+            .hasMessageContaining("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
+    }
     @Test void unownedOrUnenumeratedConsumersAndForeignResourceReleaseFailClosed() {
         consumer.setCustomerId("foreign");
         assertThatThrownBy(this::capture).hasMessageContaining("CONSUMER_REVISION_CHANGED");
@@ -126,6 +159,41 @@ class TargetRetirementInventoryTest {
         target.setEnvironmentName("staging");
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "staging")).thenReturn(List.of());
         assertThatThrownBy(this::capture).hasMessageContaining("RESOURCE_INVENTORY_EMPTY");
+    }
+    @Test void disposableVolumeAbsenceIsResumableAndRequiresADurableReceipt() {
+        var connection = resolver.requireConnection(target);
+        var volume = new CoolifyApplicationStorageSummary("storage-1", "persistent", "runtime-data",
+            "/app/data", null, false, new ObjectMapper().createObjectNode());
+        when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of(volume));
+        var snapshot = capture();
+        assertThat(snapshot.resources().getFirst().volumes()).singleElement()
+            .satisfies(value -> assertThat(value.preserved()).isFalse());
+
+        when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of());
+        service.recheck(snapshot, request);
+        assertThat(service.volumesReclaimed(snapshot.resources().getFirst())).isFalse();
+        assertThatThrownBy(() -> service.recordReclaimed(snapshot.resources().getFirst(), Instant.now()))
+            .hasMessageContaining("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
+        assertThat(handle.getStatus()).isEqualTo("ACTIVE");
+        service.recordVolumesReclaimed(snapshot.resources().getFirst(), Instant.now());
+        assertThat(service.volumesReclaimed(snapshot.resources().getFirst())).isTrue();
+        service.recordReclaimed(snapshot.resources().getFirst(), Instant.now());
+        assertThat(handle.getStatus()).isEqualTo("DELETED");
+        assertThat(handle.getLastObservedStatus())
+            .isEqualTo(service.volumeDispositionReceipt(snapshot.resources().getFirst()));
+        assertThat(service.volumesReclaimed(snapshot.resources().getFirst())).isTrue();
+    }
+    @Test void hostBackedVolumeRequiresExplicitApprovedRetention() {
+        var connection = resolver.requireConnection(target);
+        var mounted = new CoolifyApplicationStorageSummary("storage-1", "persistent", "documents",
+            "/app/document-sources", "/srv/loomai/documents", true, new ObjectMapper().createObjectNode());
+        when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of(mounted));
+        assertThatThrownBy(this::capture).hasMessageContaining("PERSISTENT_VOLUME_RETENTION_UNAPPROVED");
+
+        service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers,
+            json, resolver, client, List.of("/app/document-sources"));
+        assertThat(capture().resources().getFirst().volumes()).singleElement()
+            .satisfies(value -> assertThat(value.preserved()).isTrue());
     }
     private Snapshot capture() { return service.capture("deployment", "staging", request, 0); }
 }

@@ -28,6 +28,18 @@ public class ManagedDependencyOperatorService {
 
     public ManagedDependencyLifecycleService.Summary enroll(String deploymentId, String targetProfileId, Enroll request) {
         owner(deploymentId, targetProfileId);
+        return enrollInternal(deploymentId, targetProfileId, request, true);
+    }
+
+    ManagedDependencyLifecycleService.Summary enrollInitialOwnerForRelease(String deploymentId,
+            String targetProfileId, String releaseId, Enroll request) {
+        var graph = lifecycle.find(deploymentId, targetProfileId);
+        if (releaseId == null || !releaseId.equals(graph.getReleaseId())) fail("DEPENDENCY_RELEASE_BINDING_CHANGED");
+        return enrollInternal(deploymentId, targetProfileId, request, false);
+    }
+
+    private ManagedDependencyLifecycleService.Summary enrollInternal(String deploymentId, String targetProfileId,
+            Enroll request, boolean reconcile) {
         required(request.slot(), 48); required(request.displayName(), 128); required(request.operationKey(), 128);
         // These are protocol delimiters, not semantic text interpretation.
         if (request.displayName().chars().anyMatch(c -> c == '|' || c == ';' || c == ',' || Character.isISOControl(c))) fail("INBOX_OPERATOR_NAME_INVALID");
@@ -37,6 +49,14 @@ public class ManagedDependencyOperatorService {
             && s.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1)) fail("INBOX_OPERATOR_SLOT_INVALID");
         store.mutate(graph.getId(), null, (current, state) -> {
             requireIdle(current);
+            var matchingOwner = state.operators.stream()
+                .filter(operator -> request.slot().equals(operator.slot)
+                    && request.displayName().equals(operator.displayName))
+                .findFirst().orElse(null);
+            if (matchingOwner != null) {
+                if (!"ENROLLED".equals(matchingOwner.status)) fail("INBOX_INITIAL_OWNER_REVOKED");
+                return;
+            }
             var fingerprint = validator.fingerprint(List.of("ENROLL", request.slot(), request.displayName()));
             if (!command(state, request.operationKey(), fingerprint, id("operator"))) return;
             accepted[0] = true;
@@ -50,8 +70,12 @@ public class ManagedDependencyOperatorService {
             changed(current, state);
         });
         lifecycle.audit(graph.getId(), "INBOX_OPERATOR_ENROLLED", Map.of("operationKey", request.operationKey()));
-        if (!accepted[0]) return lifecycle.status(deploymentId, targetProfileId);
-        return lifecycle.reconcile(deploymentId, targetProfileId, request.operationKey() + ":apply");
+        if (!accepted[0]) return reconcile
+            ? lifecycle.status(deploymentId, targetProfileId)
+            : lifecycle.summary(lifecycle.find(deploymentId, targetProfileId));
+        return reconcile
+            ? lifecycle.reconcile(deploymentId, targetProfileId, request.operationKey() + ":apply")
+            : lifecycle.summary(lifecycle.find(deploymentId, targetProfileId));
     }
 
     public ManagedDependencyLifecycleService.Summary rotate(String deploymentId, String targetProfileId, String operatorId, Mutation request) {

@@ -37,6 +37,30 @@ import static org.mockito.Mockito.when;
 class PlatformManagedProductProvisioningServiceTest {
 
     @Test
+    void managedDependencyReclamationFailsClosedWhenPhysicalVolumeAbsenceCannotBeReadBack() {
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyConnection connection = coolifyConnection();
+        when(coolifyApiClient.getApplication(connection, "application")).thenReturn(Optional.empty());
+
+        var service = newCoolifyProvisioningService(serviceService, serviceRepository,
+            shopifyStoreConnectionRepository, platformSecretService, platformAuditService,
+            railwayGraphqlClient, targetProfileResolver, coolifyApiClient, targetProfileRepository);
+        var resources = List.of(new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource(
+            "inbox", "managed-inbox", "application", null, java.util.Map.of("/app/data", "volume")));
+
+        assertThatThrownBy(() -> service.verifyOwnedDependenciesReclaimed(connection, "graph", resources))
+            .hasMessageContaining("DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+    }
+
+    @Test
     void coolifySourceInputsUseApiCompatibleFormats() {
         assertThat(PlatformManagedProductProvisioningService.coolifyGitRepository("mahmoudashraf/AI-Fabric-Framework"))
             .isEqualTo("https://github.com/mahmoudashraf/AI-Fabric-Framework.git");

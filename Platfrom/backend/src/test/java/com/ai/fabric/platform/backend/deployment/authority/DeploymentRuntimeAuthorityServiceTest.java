@@ -88,6 +88,27 @@ class DeploymentRuntimeAuthorityServiceTest {
         order.verify(secrets, atLeastOnce()).save(any());
     }
 
+    @Test void authorizedApplyFreezeDoesNotDependOnAmbientBrowserAuthority() {
+        var candidate = service.freezeCandidateForAuthorizedApply(
+            "dep-1", "staging", "version-1", List.of("https://workspace.example.com")
+        );
+        var release = new DeploymentReleaseEntity();
+        release.setId("release-authorized-apply");
+        release.setDeploymentId("dep-1");
+        release.setTargetProfileId("staging");
+        release.setDeploymentVersionId("version-1");
+        when(releases.findById(release.getId())).thenReturn(Optional.of(release));
+
+        var frozen = service.freezeReleaseForAuthorizedApply(
+            "dep-1", "staging", release.getId(), candidate.snapshotId(), candidate.fingerprint()
+        );
+
+        assertThat(frozen.releaseId()).isEqualTo(release.getId());
+        assertThat(frozen.binding().targetProfileId()).isEqualTo("staging");
+        assertThat(frozen.binding().versionId()).isEqualTo("version-1");
+        verifyNoInteractions(access);
+    }
+
     @Test void targetKeysAndAudienceIssuerBoundariesRejectEachOthersCredentials() throws Exception {
         var stage = release("staging", "release-stage");
         var prod = release("production", "release-prod");

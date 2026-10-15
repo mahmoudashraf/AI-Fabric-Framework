@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -29,6 +30,7 @@ public class RuntimeExternalIdentityBrokerService {
 
     private final RuntimeAuthProperties properties;
     private final RuntimePublicTokenService tokenService;
+    private final Clock clock;
     private final Map<String, Deque<Instant>> rateLimitBuckets = new ConcurrentHashMap<>();
     private volatile JwtDecoder decoder;
 
@@ -40,9 +42,15 @@ public class RuntimeExternalIdentityBrokerService {
     RuntimeExternalIdentityBrokerService(RuntimeAuthProperties properties,
                                          RuntimePublicTokenService tokenService,
                                          JwtDecoder decoder) {
+        this(properties, tokenService, decoder, Clock.systemUTC());
+    }
+
+    RuntimeExternalIdentityBrokerService(RuntimeAuthProperties properties, RuntimePublicTokenService tokenService,
+                                         JwtDecoder decoder, Clock clock) {
         this.properties = properties != null ? properties : new RuntimeAuthProperties();
         this.tokenService = tokenService;
         this.decoder = decoder;
+        this.clock = clock;
     }
 
     public BrokeredIdentity authenticate(HttpServletRequest request, String authorizationHeader) {
@@ -62,6 +70,7 @@ public class RuntimeExternalIdentityBrokerService {
         } catch (RuntimeException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "External identity token is invalid.");
         }
+        validateLifetime(jwt);
         if (Boolean.TRUE.equals(jwt.getClaim("is_anonymous"))) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Anonymous provider identities cannot obtain authenticated runtime access.");
         }
@@ -82,13 +91,25 @@ public class RuntimeExternalIdentityBrokerService {
             trim(properties.getPublicTokens().getDefaults().getTenantId()),
             config.getGrantedScopes(),
             null,
-            List.of()
+            List.of(),
+            jwt.getExpiresAt()
         );
         return new BrokeredIdentity(issued, trim(jwt.getClaimAsString("email")));
     }
 
     public boolean isEnabled() {
         return configuration().isEnabled();
+    }
+
+    private void validateLifetime(Jwt jwt) {
+        Instant now = clock.instant();
+        Instant issuedAt = jwt.getIssuedAt();
+        Instant expiresAt = jwt.getExpiresAt();
+        // A copied provider JWT may survive logout. It must not extend private access indefinitely.
+        if (issuedAt == null || expiresAt == null || issuedAt.isAfter(now) || !expiresAt.isAfter(now)
+            || !expiresAt.isAfter(issuedAt)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "External identity token lifetime is invalid.");
+        }
     }
 
     private JwtDecoder decoder() {
@@ -130,7 +151,7 @@ public class RuntimeExternalIdentityBrokerService {
 
     private void enforceRateLimit(String key, RuntimeAuthProperties.ExternalIdentityBroker config) {
         int limit = Math.max(1, config.getMaxRequestsPerWindow());
-        Instant cutoff = Instant.now().minusSeconds(Math.max(1, config.getRateLimitWindowSeconds()));
+        Instant cutoff = clock.instant().minusSeconds(Math.max(1, config.getRateLimitWindowSeconds()));
         if (!rateLimitBuckets.containsKey(key) && rateLimitBuckets.size() >= MAX_RATE_LIMIT_BUCKETS) {
             key = "bounded-overflow";
         }
@@ -140,7 +161,7 @@ public class RuntimeExternalIdentityBrokerService {
             if (bucket.size() >= limit) {
                 throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "External identity broker rate limit exceeded.");
             }
-            bucket.addLast(Instant.now());
+            bucket.addLast(clock.instant());
         }
     }
 

@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
 
 import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.*;
@@ -43,13 +44,16 @@ public class TargetRetirementWorker {
     }
 
     private void runParticipant(Context context, Step step) {
-        inspection(context, step != Step.DRAIN);
+        var interlock = participation.interlock();
+        if (step == Step.DEPENDENCIES) requireCompleted(context, Step.DRAIN, Step.AUTHORITY, Step.INDEX);
+        else if (step != Step.DRAIN) inspection(context, true);
         String key = effectKey(context, step, "target");
         var participant = participation.participant(kind(step));
         store.prepareEffect(context, key, step != Step.DRAIN);
-        EffectResult result = participation.interlock().underFence(context, key, () -> {
+        EffectResult result = interlock.underFence(context, key, () -> {
             store.recheck(context);
-            inspection(context, step != Step.DRAIN);
+            if (step == Step.DEPENDENCIES) requireCompleted(context, Step.DRAIN, Step.AUTHORITY, Step.INDEX);
+            else if (step != Step.DRAIN) inspection(context, true);
             var prior = participant.readback(context, step, key);
             participation.validate(prior);
             if (!prior.complete()) {
@@ -65,6 +69,11 @@ public class TargetRetirementWorker {
                     if (!context.drainDeadline().isAfter(Instant.now())) throw new TargetRetirementFailure("DRAIN_DEADLINE_EXCEEDED");
                     return new EffectResult(false, readback.evidenceReference(), readback.observedAt());
                 }
+            } else if (readback.complete()) {
+                Evidence proof = step == Step.DEPENDENCIES
+                    ? refreshEvidence(context, ParticipantKind.DEPENDENCIES)
+                    : inspection(context, true).evidence().get(kind(step));
+                requireCompleteProof(proof, "PARTICIPANT_READBACK_INCOMPLETE_" + kind(step));
             }
             return readback;
         });
@@ -74,7 +83,7 @@ public class TargetRetirementWorker {
     }
 
     private void reclaimResource(Context context) {
-        inspection(context, true);
+        requireCompleted(context, Step.DRAIN, Step.AUTHORITY, Step.INDEX);
         var progress = store.progress(store.require(context.operationId()));
         var owned = context.snapshot().resources().stream().filter(resource -> !resource.preserved()).toList();
         var remaining = owned.stream().filter(resource -> {
@@ -93,7 +102,7 @@ public class TargetRetirementWorker {
         store.prepareEffect(context, key, true);
         EffectResult result = participation.interlock().underFence(context, key, () -> {
             store.recheck(context);
-            inspection(context, true);
+            requireCompleted(context, Step.DRAIN, Step.AUTHORITY, Step.INDEX);
             var readback = resources.readback(context, resource);
             if (readback.complete()) return absence(context, resource);
             // Accepted asynchronous deletes are polled, not resubmitted on every worker tick.
@@ -107,28 +116,72 @@ public class TargetRetirementWorker {
     }
 
     private void verify(Context context) {
-        inspection(context, true);
+        requireCompleted(context, Step.DRAIN, Step.AUTHORITY, Step.INDEX, Step.DEPENDENCIES);
         String key = effectKey(context, Step.VERIFY, "target");
         var verified = participation.interlock().underFence(context, key, () -> {
             store.recheck(context);
-            inspection(context, true);
+            requireCompleted(context, Step.DRAIN, Step.AUTHORITY, Step.INDEX, Step.DEPENDENCIES);
+            refreshEvidence(context, ParticipantKind.DEPENDENCIES);
+            requirePersistedEvidence(context);
             for (var resource : context.snapshot().resources()) {
                 if (!resource.preserved()) {
                     if (!resources.readback(context, resource).complete() || !absence(context, resource).complete())
                         throw new TargetRetirementFailure("PROVIDER_RESOURCE_STILL_PRESENT");
                 }
             }
-            EffectResult last = null;
-            for (var step : List.of(Step.DRAIN, Step.AUTHORITY, Step.INDEX, Step.DEPENDENCIES)) {
-                last = participation.participant(kind(step)).readback(context, step, effectKey(context, step, "target"));
-                participation.validate(last);
-                if (!last.complete()) throw new TargetRetirementFailure("PARTIAL_CLEANUP_REMAINS");
-            }
-            return last;
+            return new EffectResult(true, "target-retirement:" + context.operationId() + ":verified", Instant.now());
         });
         participation.validate(verified);
         if (!verified.complete()) throw new TargetRetirementFailure("PARTIAL_CLEANUP_REMAINS");
         store.finish(context, false);
+    }
+
+    private Evidence refreshEvidence(Context context, ParticipantKind kind) {
+        var progress = store.progress(store.require(context.operationId()));
+        var evidence = new EnumMap<ParticipantKind, Evidence>(ParticipantKind.class);
+        evidence.putAll(progress.evidence());
+        Evidence participantProof = participation.participant(kind).inspect(context);
+        participation.validate(context, participantProof);
+        Evidence interlockProof = participation.interlock().inspect(context);
+        participation.validate(context, interlockProof);
+        evidence.put(kind, participantProof);
+        store.evidence(context, evidence, interlockProof);
+        return participantProof;
+    }
+
+    private void requirePersistedEvidence(Context context) {
+        var progress = store.progress(store.require(context.operationId()));
+        Instant latestEffect = null;
+        for (ParticipantKind kind : ParticipantKind.values()) {
+            Evidence proof = progress.evidence().get(kind);
+            EffectResult effect = progress.effects().get(effectKey(context, step(kind), "target"));
+            if (effect == null || !effect.complete() || effect.observedAt() == null
+                || effect.observedAt().isAfter(Instant.now())) {
+                throw new TargetRetirementFailure("PARTICIPANT_EFFECT_RECEIPT_MISSING_" + kind);
+            }
+            requireCompleteProof(proof, "PARTICIPANT_READBACK_INCOMPLETE_" + kind, true);
+            if (proof.observedAt().isBefore(effect.observedAt())) {
+                throw new TargetRetirementFailure("PARTICIPANT_EVIDENCE_STALE_" + kind);
+            }
+            if (latestEffect == null || effect.observedAt().isAfter(latestEffect)) latestEffect = effect.observedAt();
+            if (kind == ParticipantKind.RUNTIME_DRAIN) participation.requireDrained(proof);
+        }
+        requireCompleteProof(progress.interlockEvidence(), "RETIREMENT_AUTHORITY_UNPROVEN", false);
+        if (latestEffect != null && progress.interlockEvidence().observedAt().isBefore(latestEffect)) {
+            throw new TargetRetirementFailure("RETIREMENT_AUTHORITY_EVIDENCE_STALE");
+        }
+    }
+
+    private void requireCompleteProof(Evidence proof, String code) {
+        requireCompleteProof(proof, code, false);
+    }
+
+    private void requireCompleteProof(Evidence proof, String code, boolean requireDurable) {
+        if (proof == null || !proof.complete() || !proof.inventoryComplete() || !proof.retentionApproved()
+            || requireDurable && !proof.durable()
+            || proof.blockers() == null || !proof.blockers().isEmpty()) {
+            throw new TargetRetirementFailure(code);
+        }
     }
     private EffectResult absence(Context context, ResourceGeneration resource) {
         var proof = participation.interlock().verifyResourceAbsent(context, resource);
@@ -174,6 +227,18 @@ public class TargetRetirementWorker {
         }
         return inspection;
     }
+
+    private void requireCompleted(Context context, Step... steps) {
+        var effects = store.progress(store.require(context.operationId())).effects();
+        for (Step step : steps) {
+            EffectResult result = effects.get(effectKey(context, step, "target"));
+            if (result == null || !result.complete() || result.evidenceReference() == null
+                || result.evidenceReference().isBlank() || result.observedAt() == null
+                || result.observedAt().isAfter(Instant.now())) {
+                throw new TargetRetirementFailure("PARTIAL_CLEANUP_REMAINS");
+            }
+        }
+    }
     private ParticipantKind kind(Step step) {
         return switch (step) {
             case DRAIN, CANCEL_DRAIN -> ParticipantKind.RUNTIME_DRAIN;
@@ -181,6 +246,14 @@ public class TargetRetirementWorker {
             case INDEX -> ParticipantKind.INDEX;
             case DEPENDENCIES -> ParticipantKind.DEPENDENCIES;
             default -> throw new IllegalArgumentException("Not a participant step: " + step);
+        };
+    }
+    private Step step(ParticipantKind kind) {
+        return switch (kind) {
+            case RUNTIME_DRAIN -> Step.DRAIN;
+            case AUTHORITY -> Step.AUTHORITY;
+            case INDEX -> Step.INDEX;
+            case DEPENDENCIES -> Step.DEPENDENCIES;
         };
     }
     private Step next(Step step) {

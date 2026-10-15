@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResour
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
@@ -19,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -28,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,7 +67,6 @@ class DeploymentReleaseExecutionServiceTest {
             TransactionOperations.withoutTransaction(),
             new ObjectMapper()
         );
-
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");
         deployment.setName("Sample Commerce Dev");
@@ -486,9 +488,15 @@ class DeploymentReleaseExecutionServiceTest {
             )
         );
 
+        ManagedDependencyReleaseCoordinator dependencyCoordinator = mock(ManagedDependencyReleaseCoordinator.class);
+        ReflectionTestUtils.setField(service, "managedDependencyReleaseCoordinator", dependencyCoordinator);
         service.executeApply("dep-123", "ver-123", "rel-123");
 
-        verify(deploymentProvisioningService).provision(any(), any(), any(), any());
+        var order = inOrder(dependencyCoordinator, deploymentProvisioningService, marketplaceDatasetSyncService);
+        order.verify(dependencyCoordinator).prepareFoundation(deployment, version, release);
+        order.verify(deploymentProvisioningService).provision(any(), any(), any(), any());
+        order.verify(dependencyCoordinator).completeRuntimeBound(deployment, version, release);
+        order.verify(marketplaceDatasetSyncService).syncReleaseDatasets(deployment, version, release);
         verify(marketplaceDatasetSyncService).syncReleaseDatasets(deployment, version, release);
         assertThat(release.getStatus()).isEqualTo("APPLIED_VERIFIED");
         assertThat(deployment.getStatus()).isEqualTo("ACTIVE");

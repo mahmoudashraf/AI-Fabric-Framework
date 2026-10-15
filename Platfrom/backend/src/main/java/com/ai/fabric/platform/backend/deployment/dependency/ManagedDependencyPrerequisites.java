@@ -7,9 +7,17 @@ import java.util.Map;
  * No default implementation: absent reviewed prerequisites must block provisioning.
  */
 public interface ManagedDependencyPrerequisites {
+    enum ProvisioningPhase { FOUNDATION, RUNTIME_BOUND }
     record Scope(String graphId, String customerId, String tenantId, String deploymentId,
-                 String targetProfileId, String versionId, String specFingerprint,
-                 String bindingFingerprint) {}
+                 String targetProfileId, String versionId, String releaseId,
+                 String specFingerprint, String bindingFingerprint) {
+        public Scope(String graphId, String customerId, String tenantId, String deploymentId,
+                     String targetProfileId, String versionId, String specFingerprint,
+                     String bindingFingerprint) {
+            this(graphId, customerId, tenantId, deploymentId, targetProfileId, versionId, null,
+                specFingerprint, bindingFingerprint);
+        }
+    }
     record Admission(String reservationRef, String bindingFingerprint,
                      Map<String, String> callbacks, List<String> origins,
                      Map<String, String> targetValues, Map<String, String> targetSecretReferences) {}
@@ -18,10 +26,10 @@ public interface ManagedDependencyPrerequisites {
 
     // Must atomically reserve the complete graph, include builds/concurrent work, and revalidate entitlement.
     // Repeated graphId + fingerprint returns the same durable reservation; never manufacture capacity.
-    Admission reserve(Scope scope, ManagedDependencySpec spec);
+    Admission reserve(Scope scope, ManagedDependencySpec spec, ProvisioningPhase phase);
     void validateReservation(Scope scope, String reservationRef);
     // Must verify reviewed artifact provenance, availability and exact digest, not only syntax.
-    void validateArtifact(ManagedDependencySpec.Service service);
+    void validateArtifact(Scope scope, ManagedDependencySpec.Service service);
     // Idempotent, account/target-scoped seed (never fixture-wide reset), sync and canary readback.
     // Reapply must preserve fixture state. Returns only after callback registration and canaries succeed.
     void initializeAndVerify(Scope scope, String initializationContract, Binding binding);

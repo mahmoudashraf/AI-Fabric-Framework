@@ -21,12 +21,15 @@ public class RuntimeTargetRetirementController {
     private final RuntimeRequestAuthResolver auth;
     private final RuntimeTargetRetirementIdentity identity;
     private final RuntimeTargetRetirementService service;
+    private final RuntimeTargetIndexRetirementService indexes;
 
     public RuntimeTargetRetirementController(RuntimeRequestAuthResolver auth,
-        RuntimeTargetRetirementIdentity identity, RuntimeTargetRetirementService service) {
+        RuntimeTargetRetirementIdentity identity, RuntimeTargetRetirementService service,
+        RuntimeTargetIndexRetirementService indexes) {
         this.auth = auth;
         this.identity = identity;
         this.service = service;
+        this.indexes = indexes;
     }
 
     @PostMapping("/commands")
@@ -55,6 +58,18 @@ public class RuntimeTargetRetirementController {
         @RequestBody Binding binding, HttpServletRequest request) {
         authorize(request, READ_SCOPE);
         return response(service.readSnapshot(snapshotId, binding));
+    }
+    @PostMapping("/index-retirements")
+    public ResponseEntity<IndexRetirementReadback> retireIndex(
+        @RequestBody IndexRetirementCommand command, HttpServletRequest request) {
+        authorize(request, WRITE_SCOPE);
+        return response(indexes.retire(command));
+    }
+    @PostMapping("/index-retirements/readback")
+    public ResponseEntity<IndexRetirementReadback> indexReadback(
+        @RequestBody IndexRetirementCommand command, HttpServletRequest request) {
+        authorize(request, READ_SCOPE);
+        return response(indexes.readback(command));
     }
 
     private void authorize(HttpServletRequest request, String scope) {

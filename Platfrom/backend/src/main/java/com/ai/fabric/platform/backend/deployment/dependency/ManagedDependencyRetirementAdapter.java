@@ -26,6 +26,15 @@ public class ManagedDependencyRetirementAdapter {
 
     public Plan plan(String deploymentId, String targetProfileId) {
         lifecycle.requireScope(deploymentId, targetProfileId, true);
+        return planInternal(deploymentId, targetProfileId);
+    }
+
+    /** Scheduler path; destructive authorization is supplied by requireUnused under the retirement fence. */
+    public Plan planForTargetRetirement(String deploymentId, String targetProfileId) {
+        return planInternal(deploymentId, targetProfileId);
+    }
+
+    private Plan planInternal(String deploymentId, String targetProfileId) {
         var graph = lifecycle.find(deploymentId, targetProfileId); var state = store.state(graph);
         List<String> blockers = new ArrayList<>();
         if (graph.getWorkerToken() != null) blockers.add("DEPENDENCY_OPERATION_IN_PROGRESS");
@@ -42,6 +51,18 @@ public class ManagedDependencyRetirementAdapter {
     public ManagedDependencyLifecycleService.Summary retire(String deploymentId, String targetProfileId,
             long expectedRevision, String expectedPlanFingerprint, String operationKey) {
         lifecycle.requireScope(deploymentId, targetProfileId, true); required(operationKey, 128);
+        return retireInternal(deploymentId, targetProfileId, expectedRevision, expectedPlanFingerprint, operationKey);
+    }
+
+    /** Exact target-retirement worker path; cannot run without the R5 durable gate proof. */
+    public ManagedDependencyLifecycleService.Summary retireForTargetRetirement(String deploymentId, String targetProfileId,
+            long expectedRevision, String expectedPlanFingerprint, String operationKey) {
+        required(operationKey, 128);
+        return retireInternal(deploymentId, targetProfileId, expectedRevision, expectedPlanFingerprint, operationKey);
+    }
+
+    private ManagedDependencyLifecycleService.Summary retireInternal(String deploymentId, String targetProfileId,
+            long expectedRevision, String expectedPlanFingerprint, String operationKey) {
         var graph = lifecycle.find(deploymentId, targetProfileId);
         var gate = lifecycle.gate();
         var scope = lifecycle.scope(graph);
@@ -54,7 +75,7 @@ public class ManagedDependencyRetirementAdapter {
             if (!fresh && "RETIRED".equals(current.getStatus())) { completed[0] = true; return; }
             if (current.getWorkerToken() != null) fail("DEPENDENCY_OPERATION_IN_PROGRESS");
             if (fresh) {
-                var plan = plan(deploymentId, targetProfileId);
+                var plan = planInternal(deploymentId, targetProfileId);
                 if (current.getRevision() != expectedRevision || !plan.fingerprint().equals(expectedPlanFingerprint)
                     || !plan.blockers().isEmpty()) fail("DEPENDENCY_RETIREMENT_PLAN_STALE");
                 state.retirementFingerprint = expectedPlanFingerprint;

@@ -18,7 +18,8 @@ class RuntimeRetirementSecurityAndIngressTest {
     void requiresApiKeyPlusSignedPrivateServerAssertionExactScopesAndMatchingTenant() {
         var f = new RuntimeRetirementTestFixture();
         var properties = properties();
-        var controller = new RuntimeTargetRetirementController(new RuntimeRequestAuthResolver(properties), f.identity, f.service);
+        var controller = new RuntimeTargetRetirementController(new RuntimeRequestAuthResolver(properties),
+            f.identity, f.service, org.mockito.Mockito.mock(RuntimeTargetIndexRetirementService.class));
         var missing = new MockHttpServletRequest();
         missing.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
         assertThatThrownBy(() -> controller.status(TARGET, missing)).hasMessageContaining("Private runtime auth context is required");

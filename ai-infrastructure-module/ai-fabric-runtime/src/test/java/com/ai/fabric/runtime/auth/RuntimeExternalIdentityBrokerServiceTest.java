@@ -154,7 +154,7 @@ class RuntimeExternalIdentityBrokerServiceTest {
             .claim("email_verified", true)
             .claim("is_anonymous", anonymous)
             .issuedAt(Instant.now().minusSeconds(10))
-            .expiresAt(Instant.now().plusSeconds(600))
+            .expiresAt(Instant.now().plusSeconds(280))
             .build();
     }
 }

@@ -22,9 +22,12 @@ public class RuntimeRetirementTopology {
     }
     public enum Presence { PRESENT, ABSENT }
     public enum Dependency { CONNECTOR, HUMAN_INBOX, VECTORIZATION_RUNNER }
+    public record VectorScope(String provider, String scopeType, String scopeValue,
+                              List<String> entityTypes) { }
     public record Contract(String contractVersion, Target target, String tenantId,
-                           Map<Feature, Presence> features, List<Dependency> remoteDependencies) { }
-    public static final String VERSION = "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V1";
+                           Map<Feature, Presence> features, List<Dependency> remoteDependencies,
+                           VectorScope vectorScope) { }
+    public static final String VERSION = "LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V2";
     private final Contract contract;
     private final String fingerprint;
     private final Map<Feature, Boolean> verifiedAbsent = new EnumMap<>(Feature.class);
@@ -49,6 +52,7 @@ public class RuntimeRetirementTopology {
                 || !identity.tenantId().equals(contract.tenantId()) || contract.features() == null
                 || contract.features().size() != Feature.values().length || contract.remoteDependencies() == null
                 || contract.features().containsValue(null)) throw new IllegalStateException("Retirement topology identity or feature contract is invalid.");
+            validateVectorScope(contract.vectorScope(), contract.features().get(Feature.INDEXING), identity);
             List<String> issues = new ArrayList<>();
             for (Feature feature : Feature.values()) {
                 boolean absent = contract.features().get(feature) == Presence.ABSENT;
@@ -65,6 +69,7 @@ public class RuntimeRetirementTopology {
     }
 
     public String fingerprint() { return fingerprint; }
+    public VectorScope vectorScope() { return contract == null ? null : contract.vectorScope(); }
     public boolean absent(Feature feature) { return Boolean.TRUE.equals(verifiedAbsent.get(feature)); }
     public List<String> blockers() { return blockers; }
     public List<RemoteObligation> remoteObligations(Target target) {
@@ -108,5 +113,26 @@ public class RuntimeRetirementTopology {
             case DOCUMENTS -> "loomai.documents.enabled";
             case ACTION_WEBHOOK -> null;
         };
+    }
+
+    private void validateVectorScope(VectorScope scope, Presence indexing, RuntimeTargetRetirementIdentity identity) {
+        if (indexing == Presence.ABSENT) return;
+        if (scope == null || scope.provider() == null || scope.provider().isBlank()
+            || scope.scopeType() == null || scope.scopeType().isBlank()
+            || scope.scopeValue() == null || scope.scopeValue().isBlank()
+            || scope.entityTypes() == null || scope.entityTypes().isEmpty()
+            || scope.entityTypes().size() > 500
+            || scope.entityTypes().stream().anyMatch(value -> value == null || value.isBlank()
+                || value.length() > 128 || !value.equals(value.trim()))
+            || scope.entityTypes().stream().distinct().count() != scope.entityTypes().size()) {
+            throw new IllegalStateException("Retirement topology vector scope is invalid.");
+        }
+        if ("DEDICATED_RUNTIME_STORAGE".equals(scope.scopeType()) && !identity.dedicatedStore()) {
+            throw new IllegalStateException("Retirement topology local vector scope requires dedicated runtime storage.");
+        }
+        if (!"DEDICATED_RUNTIME_STORAGE".equals(scope.scopeType())
+            && !java.util.Set.of("COLLECTION_PREFIX", "NAMESPACE_PREFIX").contains(scope.scopeType())) {
+            throw new IllegalStateException("Retirement topology vector scope type is unsupported.");
+        }
     }
 }
