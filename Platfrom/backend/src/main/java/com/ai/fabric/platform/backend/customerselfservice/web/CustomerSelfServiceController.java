@@ -20,18 +20,21 @@ public class CustomerSelfServiceController {
     private final CustomerOfferCodec codec;
     private final CustomerPlacementProbeService placementProbes;
     private final CustomerDeploymentBootstrapService bootstrap;
+    private final CustomerDeploymentVersionService versions;
     private final CustomerDocumentStorageBindingService documentStorageBindings;
 
     public CustomerSelfServiceController(CustomerSelfServiceCatalogueService catalogue,
                                          CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec,
                                          CustomerPlacementProbeService placementProbes,
                                          CustomerDeploymentBootstrapService bootstrap,
+                                         CustomerDeploymentVersionService versions,
                                          CustomerDocumentStorageBindingService documentStorageBindings) {
         this.catalogue = catalogue;
         this.entitlements = entitlements;
         this.codec = codec;
         this.placementProbes = placementProbes;
         this.bootstrap = bootstrap;
+        this.versions = versions;
         this.documentStorageBindings = documentStorageBindings;
     }
 
@@ -46,6 +49,13 @@ public class CustomerSelfServiceController {
         @PathVariable String offerId, @RequestBody JsonNode body) {
         return bootstrap.bootstrap(offerId, decode(body,
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts.Request.class));
+    }
+
+    @PostMapping("/catalogue/{offerId}/deployments/{deploymentId}/versions")
+    public com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishResult publishVersion(
+        @PathVariable String offerId, @PathVariable String deploymentId, @RequestBody JsonNode body) {
+        return versions.publish(offerId, deploymentId, decode(body,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishRequest.class));
     }
 
     @PostMapping("/catalogue/{offerId}/deployments/{deploymentId}/document-storage-binding")

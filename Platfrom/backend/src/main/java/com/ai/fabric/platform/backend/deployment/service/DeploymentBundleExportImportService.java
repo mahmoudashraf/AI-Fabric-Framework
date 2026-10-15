@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
@@ -86,6 +87,7 @@ import java.util.regex.Pattern;
 
 import static com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.SCHEMA_VERSION;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -139,6 +141,7 @@ public class DeploymentBundleExportImportService {
     private final PlatformManagedProductServiceRepository managedProductServiceRepository;
     private final PlatformProductProvisioningProperties productProvisioningProperties;
     private final DeploymentAccessService deploymentAccessService;
+    private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
     private final DeploymentService deploymentService;
     private final PlatformAuditService platformAuditService;
     private final DeploymentBundleSealingService sealingService;
@@ -165,6 +168,7 @@ public class DeploymentBundleExportImportService {
                                                PlatformManagedProductServiceRepository managedProductServiceRepository,
                                                PlatformProductProvisioningProperties productProvisioningProperties,
                                                DeploymentAccessService deploymentAccessService,
+                                               CustomerOfferDeploymentRepository customerOfferDeploymentRepository,
                                                DeploymentService deploymentService,
                                                PlatformAuditService platformAuditService,
                                                DeploymentBundleSealingService sealingService) {
@@ -190,6 +194,7 @@ public class DeploymentBundleExportImportService {
         this.managedProductServiceRepository = managedProductServiceRepository;
         this.productProvisioningProperties = productProvisioningProperties;
         this.deploymentAccessService = deploymentAccessService;
+        this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
         this.deploymentService = deploymentService;
         this.platformAuditService = platformAuditService;
         this.sealingService = sealingService;
@@ -1349,9 +1354,14 @@ public class DeploymentBundleExportImportService {
     private RestoreResult restoreInPlace(JsonNode bundle,
                                          DeploymentImportRequest request,
                                          JsonNode decryptedSecrets) {
-        MarketplaceCatalogRestore marketplaceCatalogRestore = restoreMarketplaceCatalog(bundle);
         String targetDeploymentId = request == null ? null : request.targetDeploymentId();
         DeploymentEntity deployment = requireDeploymentAdmin(targetDeploymentId);
+        if (customerOfferDeploymentRepository.existsById(deployment.getId())) {
+            throw new ResponseStatusException(
+                FORBIDDEN,
+                "Reviewed-offer deployments must use the scoped customer self-service configuration and version routes."
+            );
+        }
         String bundledBehaviorType = bundle.path("manifest").path("deployment").path("behaviorType").asText();
         if (!deployment.getBehaviorType().equals(bundledBehaviorType)) {
             throw new ResponseStatusException(
@@ -1359,6 +1369,7 @@ public class DeploymentBundleExportImportService {
                 "Restore-in-place requires the bundle and target deployment to use the same behaviorType."
             );
         }
+        MarketplaceCatalogRestore marketplaceCatalogRestore = restoreMarketplaceCatalog(bundle);
         DeploymentDraftEntity latestDraft = latestDraft(deployment.getId());
         Instant now = Instant.now();
         DeploymentDraftEntity restoredDraft = new DeploymentDraftEntity();

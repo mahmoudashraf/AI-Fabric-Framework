@@ -4,9 +4,13 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.CoolifyHostVolumeReclamationService;
+import com.ai.fabric.platform.backend.deployment.retirement.ProviderHostCommandRunner;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -21,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,12 +57,38 @@ class PlatformManagedProductProvisioningServiceTest {
 
         var service = newCoolifyProvisioningService(serviceService, serviceRepository,
             shopifyStoreConnectionRepository, platformSecretService, platformAuditService,
-            railwayGraphqlClient, targetProfileResolver, coolifyApiClient, targetProfileRepository);
+            railwayGraphqlClient, targetProfileResolver, coolifyApiClient, targetProfileRepository,
+            customerSelfServiceProperties(), emptyProviderHostReadback());
         var resources = List.of(new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource(
             "inbox", "managed-inbox", "application", null, java.util.Map.of("/app/data", "volume")));
 
         assertThatThrownBy(() -> service.verifyOwnedDependenciesReclaimed(connection, "graph", resources))
             .hasMessageContaining("DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+    }
+
+    @Test
+    void managedDependencyReclamationAcceptsExactDurableVolumeReceiptAndProviderAbsence() {
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyConnection connection = coolifyConnection();
+        when(coolifyApiClient.getApplication(connection, "application")).thenReturn(Optional.empty());
+
+        var service = newCoolifyProvisioningService(serviceService, serviceRepository,
+            shopifyStoreConnectionRepository, platformSecretService, platformAuditService,
+            railwayGraphqlClient, targetProfileResolver, coolifyApiClient, targetProfileRepository,
+            customerSelfServiceProperties(), emptyProviderHostReadback());
+        var resources = List.of(new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource(
+            "inbox", "managed-inbox", "application", null,
+            java.util.Map.of("/app/data", "volume"), java.util.Set.of("volume")));
+
+        service.verifyOwnedDependenciesReclaimed(connection, "graph", resources);
     }
 
     @Test
@@ -1194,6 +1225,28 @@ class PlatformManagedProductProvisioningServiceTest {
         CoolifyApiClient coolifyApiClient,
         DeploymentTargetProfileRepository targetProfileRepository
     ) {
+        return newCoolifyProvisioningService(serviceService, serviceRepository,
+            shopifyStoreConnectionRepository, platformSecretService, platformAuditService,
+            railwayGraphqlClient, targetProfileResolver, coolifyApiClient, targetProfileRepository,
+            new CustomerSelfServiceProperties(Map.of(), 0),
+            new CoolifyHostVolumeReclamationService((intent, serverUuid, command) -> {
+                throw new IllegalStateException("Provider host verification is not configured for this test.");
+            }));
+    }
+
+    private PlatformManagedProductProvisioningService newCoolifyProvisioningService(
+        PlatformManagedProductServiceService serviceService,
+        PlatformManagedProductServiceRepository serviceRepository,
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+        PlatformSecretService platformSecretService,
+        PlatformAuditService platformAuditService,
+        RailwayGraphqlClient railwayGraphqlClient,
+        CoolifyTargetProfileResolver targetProfileResolver,
+        CoolifyApiClient coolifyApiClient,
+        DeploymentTargetProfileRepository targetProfileRepository,
+        CustomerSelfServiceProperties customerSelfServiceProperties,
+        CoolifyHostVolumeReclamationService hostVolumeReclamationService
+    ) {
         return new PlatformManagedProductProvisioningService(
             new PlatformProvisioningProperties(null, null, null, "mahmoudashraf/AI-Fabric-Framework", "Platform-V8", "staging", "ws-123", null, null, null, null, null, null, 32, null, null, false, false, 60_000, Duration.ofSeconds(1), Duration.ofSeconds(5)),
             new PlatformProductProvisioningProperties(null, null, null, null, null, null, null, null, null, Duration.ofMillis(1), Duration.ofSeconds(1)),
@@ -1207,8 +1260,23 @@ class PlatformManagedProductProvisioningServiceTest {
             shopifyStoreConnectionRepository,
             serviceService,
             platformAuditService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            customerSelfServiceProperties,
+            hostVolumeReclamationService
         );
+    }
+
+    private CustomerSelfServiceProperties customerSelfServiceProperties() {
+        return new CustomerSelfServiceProperties(Map.of(
+            TargetIntent.CUSTOMER_STAGING,
+            new CustomerSelfServiceProperties.TrustedServer(
+                "server-uuid", "46.224.145.148", "staging.internal")
+        ), 60);
+    }
+
+    private CoolifyHostVolumeReclamationService emptyProviderHostReadback() {
+        return new CoolifyHostVolumeReclamationService((intent, serverUuid, command) ->
+            new ProviderHostCommandRunner.Result(0, ""));
     }
 
     private void mockMcpGateway(PlatformManagedProductServiceRepository serviceRepository,

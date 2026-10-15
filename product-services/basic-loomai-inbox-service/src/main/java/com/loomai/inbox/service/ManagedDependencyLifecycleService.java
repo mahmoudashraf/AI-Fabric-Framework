@@ -64,14 +64,35 @@ public class ManagedDependencyLifecycleService {
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MANAGED_DEPENDENCY_COMMAND_INVALID");
         }
         Instant now = Instant.now();
-        int updated = jdbc.update("UPDATE loomai_managed_dependency_state SET lifecycle_state = ?, binding_id = ?, updated_at = ? WHERE singleton_id = 1",
-            state, managed.bindingId(), Timestamp.from(now));
-        if (updated == 0) jdbc.update("INSERT INTO loomai_managed_dependency_state (singleton_id, lifecycle_state, binding_id, updated_at) VALUES (1, ?, ?, ?)",
-            state, managed.bindingId(), Timestamp.from(now));
+        int updated = jdbc.update("UPDATE loomai_managed_dependency_state SET lifecycle_state = ?, binding_id = ?, updated_at = ?, operation_key = ? WHERE singleton_id = 1",
+            state, managed.bindingId(), Timestamp.from(now), request.operationKey());
+        if (updated == 0) jdbc.update("INSERT INTO loomai_managed_dependency_state (singleton_id, lifecycle_state, binding_id, updated_at, operation_key) VALUES (1, ?, ?, ?, ?)",
+            state, managed.bindingId(), Timestamp.from(now), request.operationKey());
         Readback result = readback(request, state, active, now, evidence, false);
         jdbc.update("INSERT INTO loomai_managed_dependency_operation (operation_key, request_sha256, response_json, created_at) VALUES (?, ?, ?, ?)",
             request.operationKey(), fingerprint, write(result), Timestamp.from(now));
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public CurrentReadback current(String challenge) {
+        requireConfigured();
+        if (challenge == null || !challenge.matches("[A-Za-z0-9-]{16,128}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MANAGED_DEPENDENCY_CHALLENGE_INVALID");
+        }
+        var state = jdbc.query("SELECT lifecycle_state, binding_id, operation_key FROM loomai_managed_dependency_state WHERE singleton_id = 1",
+            (rs, row) -> new CurrentState(rs.getString(1), rs.getString(2), rs.getString(3))).stream()
+            .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "MANAGED_DEPENDENCY_NOT_INITIALIZED"));
+        if (!managed.bindingId().equals(state.bindingId()) || !StringUtils.hasText(state.operationKey())) {
+            conflict("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
+        }
+        if (!managed.bindingId().equals(inbox.getBindingId()) || !managed.tenantId().equals(inbox.getTenantId())
+            || !managed.deploymentId().equals(inbox.getDeploymentId())) conflict("INBOX_RUNTIME_BINDING_MISMATCH");
+        var current = new Readback(VERSION, state.state(), managed.customerId(), managed.tenantId(),
+            managed.deploymentId(), managed.targetProfileId(), managed.versionId(), managed.slot(), managed.serviceRef(),
+            managed.accountId(), state.bindingId(), state.operationKey(), activeWork(), Instant.now(),
+            "inbox:current:" + state.bindingId() + ":" + state.operationKey(), false);
+        return new CurrentReadback(current, challenge);
     }
 
     public boolean available() {
@@ -114,10 +135,12 @@ public class ManagedDependencyLifecycleService {
     private String sha256(String v) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(v.getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException(e); } }
     private void conflict(String reason) { throw new ResponseStatusException(HttpStatus.CONFLICT, reason); }
     private record Stored(String fingerprint, String response) { }
+    private record CurrentState(String state, String bindingId, String operationKey) { }
     public record Request(String contractVersion, String command, String initializationContract, String customerId, String tenantId,
         String deploymentId, String targetProfileId, String versionId, String slot, String serviceRef, String accountId,
         String bindingId, String operationKey) { }
     public record Readback(String contractVersion, String state, String customerId, String tenantId, String deploymentId,
         String targetProfileId, String versionId, String slot, String serviceRef, String accountId, String bindingId,
         String operationKey, long activeWork, Instant observedAt, String evidenceReference, boolean replay) { }
+    public record CurrentReadback(Readback current, String challenge) { }
 }

@@ -66,6 +66,12 @@ public class ManagedDependencyTargetRetirementParticipant implements TargetRetir
             + ":" + graph.get().getStatus().toLowerCase(java.util.Locale.ROOT));
     }
 
+    @Override
+    public boolean recoverySafe(Context context, Step step, String effectKey) {
+        return step == Step.DEPENDENCIES && adapter.canResumeForTargetRetirement(
+            context.snapshot().deploymentId(), context.snapshot().targetProfileId(), context.operationKey());
+    }
+
     private Evidence evidence(Context context, boolean complete, String reference, List<String> blockers) {
         return new Evidence(context.requestFingerprint(), context.fenceEpoch(), Instant.now(), reference,
             complete, true, true, true, null, null, null, null, complete, blockers);

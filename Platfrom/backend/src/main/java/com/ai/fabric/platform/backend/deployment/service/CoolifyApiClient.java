@@ -407,6 +407,17 @@ public class CoolifyApiClient {
         return updated;
     }
 
+    public String requireRuntimeEnvironmentValue(CoolifyConnection connection, String uuid, String key) {
+        var matches = environmentRecords(environmentInventory(connection, uuid), Set.of(new EnvIdentity(key, false)))
+            .getOrDefault(new EnvIdentity(key, false), List.of());
+        if (matches.size() != 1 || matches.getFirst().value() == null || !matches.getFirst().runtime()
+            || matches.getFirst().buildtime()) {
+            throw new CoolifyApiException("Exact runtime environment evidence is required.", 409,
+                "/applications/" + encodePath(uuid) + "/envs");
+        }
+        return matches.getFirst().value();
+    }
+
     private JsonNode environmentInventory(CoolifyConnection connection, String uuid) {
         JsonNode inventory = requestJson(
             connection,

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.fail;
 
@@ -16,7 +17,9 @@ import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDepend
 public class HttpManagedDependencyInitializationVerifier implements ManagedDependencyInitializationVerifier {
     static final String VERSION = "loomai-managed-dependency-lifecycle/v1";
     static final String PATH = "/internal/loomai-managed-dependency/v1/lifecycle";
+    static final String STATUS_PATH = PATH + "/status";
     static final String HEADER = "X-LoomAI-Managed-Dependency-Key";
+    private static final long CURRENT_READBACK_MAX_AGE_SECONDS = 30;
     private static final Set<String> CONTRACTS = Set.of(
         "scoped-seed-sync-canary/v1", "inbox-callback-canary/v1");
 
@@ -38,14 +41,72 @@ public class HttpManagedDependencyInitializationVerifier implements ManagedDepen
 
     @Override
     public void initializeAndVerify(ManagedDependencyPrerequisites.Scope scope,
-        String initializationContract, ManagedDependencyPrerequisites.Binding binding) {
-        execute(scope, initializationContract, binding, "INITIALIZE", "READY", operationKey(scope, binding, "initialize"));
+        String initializationContract, ManagedDependencyPrerequisites.Binding binding,
+        String operationKey) {
+        required(operationKey, "DEPENDENCY_INITIALIZATION_OPERATION_REQUIRED");
+        execute(scope, initializationContract, binding, "INITIALIZE", "READY", operationKey);
+    }
+
+    private void verifyCurrent(ManagedDependencyPrerequisites.Scope scope,
+        ManagedDependencyPrerequisites.Binding binding, String expectedState, String operationKey, String managementKey) {
+        String challenge = UUID.randomUUID().toString();
+        var response = transport.send(binding.baseUrl(), "GET", STATUS_PATH + "?challenge=" + challenge,
+            Map.of(HEADER, managementKey, "Cache-Control", "no-cache"), null, null);
+        if (response.statusCode() != 200 || response.body() == null || !response.body().isObject()) {
+            fail("DEPENDENCY_CURRENT_READBACK_REJECTED");
+        }
+        var payload = response.body().path("current");
+        if (!response.body().path("challenge").isTextual() || !payload.isObject()
+            || !payload.path("activeWork").isIntegralNumber() || !payload.path("activeWork").canConvertToLong()
+            || !payload.path("replay").isBoolean()) {
+            fail("DEPENDENCY_CURRENT_READBACK_INVALID");
+        }
+        final CurrentReadback status;
+        try { status = mapper.treeToValue(response.body(), CurrentReadback.class); }
+        catch (Exception error) { fail("DEPENDENCY_CURRENT_READBACK_INVALID"); return; }
+        Instant now = Instant.now();
+        if (status == null || !challenge.equals(status.challenge())
+            || !exactReadback(scope, binding, expectedState, operationKey, status.current())
+            || status.current().replay()
+            || status.current().observedAt().isBefore(now.minusSeconds(CURRENT_READBACK_MAX_AGE_SECONDS))) {
+            fail("DEPENDENCY_CURRENT_READBACK_INVALID");
+        }
     }
 
     @Override
     public void disableAndVerify(ManagedDependencyPrerequisites.Scope scope,
         String initializationContract, ManagedDependencyPrerequisites.Binding binding) {
         execute(scope, initializationContract, binding, "DISABLE", "DISABLED", operationKey(scope, binding, "disable"));
+    }
+
+    @Override
+    public void verifyOperatorRevocation(ManagedDependencyPrerequisites.Scope scope,
+        String initializationContract, ManagedDependencyPrerequisites.Binding binding,
+        java.util.List<String> retiredCredentialReferences, String operationKey, boolean disabled) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Dependency credential probes must run outside a database transaction.");
+        }
+        if (!"inbox-callback-canary/v1".equals(initializationContract)
+            || retiredCredentialReferences == null || retiredCredentialReferences.isEmpty()) {
+            fail("INBOX_OPERATOR_REVOCATION_EVIDENCE_REQUIRED");
+        }
+        required(operationKey, "INBOX_OPERATOR_REVOCATION_OPERATION_REQUIRED");
+        if (disabled) {
+            execute(scope, initializationContract, binding, "DISABLE", "DISABLED", operationKey + ":lifecycle");
+            return;
+        }
+        // OPERATOR_AUTH_INVALID is emitted only after the inbox's READY availability gate.
+        // Do not INITIALIZE here: revocation must never re-enable a separately disabled inbox.
+        for (String reference : retiredCredentialReferences) {
+            String credential = secrets.resolveSecret(reference);
+            if (credential == null || credential.length() < 32) fail("INBOX_OPERATOR_SECRET_MISSING");
+            var response = transport.send(binding.baseUrl(), "GET", "/api/operator/me",
+                Map.of("X-LoomAI-Operator-Key", credential), null, null);
+            if (response.statusCode() != 401 || response.body() == null
+                || !"OPERATOR_AUTH_INVALID".equals(response.body().path("code").asText())) {
+                fail("INBOX_OPERATOR_REVOCATION_UNCONFIRMED");
+            }
+        }
     }
 
     @Override
@@ -76,7 +137,16 @@ public class HttpManagedDependencyInitializationVerifier implements ManagedDepen
         final ManagedReadback readback;
         try { readback = mapper.treeToValue(response.body(), ManagedReadback.class); }
         catch (Exception error) { fail("DEPENDENCY_INITIALIZATION_READBACK_INVALID"); return; }
-        if (readback == null || !VERSION.equals(readback.contractVersion())
+        if (!exactReadback(scope, binding, expectedState, operationKey, readback)) {
+            fail("DEPENDENCY_INITIALIZATION_READBACK_INVALID");
+        }
+        verifyCurrent(scope, binding, expectedState, operationKey, managementKey);
+    }
+
+    private boolean exactReadback(ManagedDependencyPrerequisites.Scope scope,
+        ManagedDependencyPrerequisites.Binding binding, String expectedState, String operationKey,
+        ManagedReadback readback) {
+        return !(readback == null || !VERSION.equals(readback.contractVersion())
             || !expectedState.equals(readback.state()) || !scope.customerId().equals(readback.customerId())
             || !scope.tenantId().equals(readback.tenantId())
             || !scope.deploymentId().equals(readback.deploymentId())
@@ -87,9 +157,7 @@ public class HttpManagedDependencyInitializationVerifier implements ManagedDepen
             || !operationKey.equals(readback.operationKey()) || readback.observedAt() == null
             || readback.observedAt().isAfter(Instant.now()) || readback.evidenceReference() == null
             || readback.evidenceReference().isBlank() || readback.activeWork() < 0
-            || "UNUSED".equals(expectedState) && readback.activeWork() != 0) {
-            fail("DEPENDENCY_INITIALIZATION_READBACK_INVALID");
-        }
+            || "UNUSED".equals(expectedState) && readback.activeWork() != 0);
     }
 
     private String operationKey(ManagedDependencyPrerequisites.Scope scope,
@@ -113,4 +181,6 @@ public class HttpManagedDependencyInitializationVerifier implements ManagedDepen
                                   String versionId, String slot, String serviceRef, String accountId,
                                   String bindingId, String operationKey, long activeWork,
                                   Instant observedAt, String evidenceReference, boolean replay) { }
+
+    public record CurrentReadback(ManagedReadback current, String challenge) { }
 }

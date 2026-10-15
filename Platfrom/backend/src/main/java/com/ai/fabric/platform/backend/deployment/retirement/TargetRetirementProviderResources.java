@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.retirement;
 
+import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
@@ -10,10 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.*;
 
@@ -27,16 +28,22 @@ public class TargetRetirementProviderResources {
     private final DeploymentTargetProfileRepository targets;
     private final CoolifyTargetProfileResolver resolver;
     private final CoolifyApiClient client;
+    private final CoolifyHostVolumeReclamationService volumeReclamation;
     private final List<String> approvedStagingAddresses;
+    private final CustomerSelfServiceProperties customerSelfServiceProperties;
 
     public TargetRetirementProviderResources(TargetRetirementInventory inventory, DeploymentTargetProfileRepository targets,
                                              CoolifyTargetProfileResolver resolver, CoolifyApiClient client,
-                                             @Value("${platform.target-retirement.approved-staging-addresses:}") List<String> addresses) {
+                                             CoolifyHostVolumeReclamationService volumeReclamation,
+                                             @Value("${platform.target-retirement.approved-staging-addresses:}") List<String> addresses,
+                                             CustomerSelfServiceProperties customerSelfServiceProperties) {
         this.inventory = inventory;
         this.targets = targets;
         this.resolver = resolver;
         this.client = client;
+        this.volumeReclamation = volumeReclamation;
         this.approvedStagingAddresses = List.copyOf(addresses);
+        this.customerSelfServiceProperties = customerSelfServiceProperties;
     }
 
     public EffectResult readback(Context context, ResourceGeneration resource) {
@@ -45,9 +52,14 @@ public class TargetRetirementProviderResources {
             ? client.getApplication(connection, resource.providerResourceUuid()).map(app -> app.raw())
             : client.getDatabase(connection, resource.providerResourceUuid()).map(db -> db.raw());
         observed.ifPresent(raw -> inventory.requireProviderIdentity(resource, raw));
-        if (observed.isEmpty() && !resource.volumes().isEmpty()
-            && !inventory.volumesReclaimed(resource)) {
-            throw new TargetRetirementFailure("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
+        if (observed.isEmpty()) {
+            verifyContainerAbsence(resource);
+            if (!resource.volumes().isEmpty() && !inventory.volumesReclaimed(resource)) {
+                if (!inventory.volumeDeletionIntentRecorded(resource)) {
+                    throw new TargetRetirementFailure("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
+                }
+                verifyAndRecordVolumeDisposition(resource);
+            }
         }
         return new EffectResult(observed.isEmpty(), "provider-resource:" + resource.handleId() + ":"
             + (observed.isEmpty() ? "absence-candidate" : "present"), Instant.now());
@@ -57,21 +69,31 @@ public class TargetRetirementProviderResources {
         var before = readback(context, resource);
         if (before.complete()) return before;
         var connection = connection(context, resource);
-        // Runtime application storage has its own frozen inventory and provider absence receipt.
         if (isApplication(resource)) {
-            retireVolumes(connection, resource);
-            client.delete(connection, resource.providerResourceUuid(), true, false, false, false);
+            prepareApplicationVolumeDeletion(connection, resource);
+            client.delete(connection, resource.providerResourceUuid(), true, true, false, false);
+            var observed = client.getApplication(connection, resource.providerResourceUuid());
+            if (observed.isEmpty()) {
+                verifyContainerAbsence(resource);
+                Instant observedAt = verifyAndRecordVolumeDisposition(resource);
+                return new EffectResult(true, "provider-resource:" + resource.handleId() + ":absent", observedAt);
+            } else {
+                inventory.requireProviderIdentity(resource, observed.get().raw());
+            }
         } else {
             requireDatabaseVolumes(connection, resource);
+            if (!inventory.volumeDeletionIntentRecorded(resource)) {
+                inventory.recordVolumeDeletionIntent(resource, Instant.now());
+            }
             client.deleteDatabase(connection, resource.providerResourceUuid(), true, true, false, false);
             var observed = client.getDatabase(connection, resource.providerResourceUuid());
-            if (observed.isPresent()) {
+            if (observed.isEmpty()) {
+                verifyContainerAbsence(resource);
+                Instant observedAt = verifyAndRecordVolumeDisposition(resource);
+                return new EffectResult(true, "provider-resource:" + resource.handleId() + ":absent", observedAt);
+            } else {
                 inventory.requireProviderIdentity(resource, observed.get().raw());
-                return new EffectResult(false, "provider-resource:" + resource.handleId() + ":present", Instant.now());
             }
-            Instant observedAt = Instant.now();
-            inventory.recordVolumesReclaimed(resource, observedAt);
-            return new EffectResult(true, "provider-resource:" + resource.handleId() + ":absent", observedAt);
         }
         return readback(context, resource);
     }
@@ -95,9 +117,12 @@ public class TargetRetirementProviderResources {
         if (!"staging".equals(profile.getEnvironmentName())) throw new TargetRetirementFailure("STAGING_TARGET_REQUIRED");
         var connection = resolver.requireConnection(profile);
         requireFrozenOwnership(context, resource, connection);
+        var trusted = customerSelfServiceProperties.trustedServers().get(TargetIntent.CUSTOMER_STAGING);
         JsonNode server = client.getServer(connection, resource.serverUuid());
         if (server == null || !resource.serverUuid().equals(server.path("uuid").asText())
-            || server.path("ip").asText().isBlank() || !approvedStagingAddresses.contains(server.path("ip").asText()))
+            || trusted == null || !resource.serverUuid().equals(trusted.uuid())
+            || trusted.address() == null || !approvedStagingAddresses.contains(trusted.address())
+            || trusted.reportedAddress() == null || !trusted.reportedAddress().equals(server.path("ip").asText()))
             throw new TargetRetirementFailure("STAGING_PLACEMENT_NOT_APPROVED");
         return connection;
     }
@@ -131,34 +156,44 @@ public class TargetRetirementProviderResources {
         }
     }
 
-    private void retireVolumes(CoolifyConnection connection, ResourceGeneration resource) {
+    private void prepareApplicationVolumeDeletion(CoolifyConnection connection, ResourceGeneration resource) {
         if (resource.volumes().isEmpty()) return;
-        boolean dispositionRecorded = inventory.volumesReclaimed(resource);
-        List<com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationStorageSummary> observed =
-            client.listApplicationStorages(connection, resource.providerResourceUuid());
-        inventory.requireVolumeInventory(resource, observed, true);
-        Map<String, com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationStorageSummary> byId = observed.stream()
-            .filter(value -> "persistent".equals(value.type()))
-            .collect(Collectors.toMap(value -> value.uuid(), value -> value));
-        if (dispositionRecorded) {
-            if (resource.volumes().stream().anyMatch(value -> !value.preserved() && byId.containsKey(value.storageUuid()))) {
-                throw new TargetRetirementFailure("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
-            }
-            return;
+        if (inventory.volumesReclaimed(resource)) {
+            throw new TargetRetirementFailure("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
         }
+        var observed = client.listApplicationStorages(connection, resource.providerResourceUuid());
+        boolean intentRecorded = inventory.volumeDeletionIntentRecorded(resource);
+        if (intentRecorded) {
+            inventory.requireVolumeDeletionProgress(resource, observed);
+        } else {
+            inventory.requireVolumeInventory(resource, observed, false);
+            inventory.recordVolumeDeletionIntent(resource, Instant.now());
+        }
+        var observedIds = new HashSet<String>();
+        for (var volume : observed) observedIds.add(volume.uuid());
         for (var volume : resource.volumes()) {
-            if (!volume.preserved() && byId.containsKey(volume.storageUuid())) {
+            if (volume.preserved() && observedIds.contains(volume.storageUuid())) {
                 client.deleteApplicationStorage(connection, resource.providerResourceUuid(), volume.storageUuid());
             }
         }
         var after = client.listApplicationStorages(connection, resource.providerResourceUuid());
-        inventory.requireVolumeInventory(resource, after, true);
-        var remaining = after.stream().filter(value -> "persistent".equals(value.type()))
-            .map(value -> value.uuid()).collect(Collectors.toSet());
-        if (resource.volumes().stream().anyMatch(value -> !value.preserved() && remaining.contains(value.storageUuid()))) {
-            throw new TargetRetirementFailure("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
-        }
-        inventory.recordVolumesReclaimed(resource, Instant.now());
+        inventory.requireApplicationDeletionVolumeInventory(resource, after);
+    }
+
+    private Instant verifyAndRecordVolumeDisposition(ResourceGeneration resource) {
+        if (resource.volumes().isEmpty()) return Instant.now();
+        var receipt = volumeReclamation.reclaimAndVerify(TargetIntent.CUSTOMER_STAGING, resource.serverUuid(),
+            resource.handleId(), resource.volumes().stream().map(volume ->
+                new CoolifyHostVolumeReclamationService.Volume(volume.storageUuid(), volume.name(),
+                    volume.hostPath(), volume.preserved())).toList());
+        inventory.recordVolumesReclaimed(resource, receipt.observedAt());
+        return receipt.observedAt();
+    }
+
+    private Instant verifyContainerAbsence(ResourceGeneration resource) {
+        return volumeReclamation.verifyContainersAbsent(TargetIntent.CUSTOMER_STAGING,
+            resource.serverUuid(), resource.handleId(), isApplication(resource) ? "application" : "database",
+            resource.providerResourceUuid()).observedAt();
     }
 
     private boolean isApplication(ResourceGeneration resource) {

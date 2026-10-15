@@ -24,6 +24,11 @@ import static org.springframework.http.HttpStatus.*;
 /** All ledger writes serialize on a database row, across threads/processes and across target pools. */
 @Repository
 class AdmissionStore {
+    record ReleasePrerequisiteAllocation(
+        Reservation reservation,
+        ReleaseBinding release,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext admittedContext
+    ) { }
     private final JdbcTemplate jdbc;
     private final AdmissionJson json;
     private final TransactionTemplate transaction;
@@ -368,6 +373,52 @@ class AdmissionStore {
                 }
                 return reservation;
             }, context.customerId(), context.deploymentId(), context.targetProfileId(), context.operationKey());
+    }
+
+    ReleasePrerequisiteAllocation customerPrerequisiteReleaseAllocation(
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested) {
+        var rows = jdbc.query("""
+            SELECT b.*,r.payload_json AS reservation_payload,a.payload_json AS authorization_payload,
+                   r.customer_id AS reservation_customer_id,r.deployment_id AS reservation_deployment_id,
+                   r.target_profile_id AS reservation_target_profile_id,r.generation AS reservation_generation,
+                   r.state AS reservation_state
+              FROM deployment_admission_release_bindings b
+              JOIN deployment_capacity_reservations r
+                ON r.id=b.reservation_id AND r.generation=b.generation
+              JOIN deployment_admission_authorizations a
+                ON a.reservation_id=b.reservation_id AND a.generation=b.generation
+               AND a.operation_key=b.authorization_key AND a.version_id=b.version_id
+             WHERE b.release_id=? AND b.customer_id=? AND b.tenant_id=?
+               AND b.deployment_id=? AND b.target_profile_id=?
+               AND b.state IN ('ACTIVE','PROVISIONING','OUTCOME_UNKNOWN')
+               AND a.operation IN ('APPLY','PROMOTION_APPLY')
+             FOR UPDATE
+            """, (rs, row) -> {
+                Reservation reservation = json.read(rs.getString("reservation_payload"), Reservation.class);
+                AuthorizationReceipt receipt = json.read(rs.getString("authorization_payload"), AuthorizationReceipt.class);
+                ReleaseBinding binding = new ReleaseBinding(rs.getString("release_id"), rs.getString("reservation_id"),
+                    rs.getString("generation"), rs.getString("authorization_key"), rs.getString("version_id"),
+                    rs.getString("version_config_hash"), rs.getString("customer_id"), rs.getString("tenant_id"),
+                    rs.getString("deployment_id"), rs.getString("target_profile_id"), rs.getString("state"));
+                if (!rs.getString("reservation_customer_id").equals(reservation.customerId())
+                    || !rs.getString("reservation_deployment_id").equals(reservation.deploymentId())
+                    || !rs.getString("reservation_target_profile_id").equals(reservation.targetProfileId())
+                    || !rs.getString("reservation_generation").equals(reservation.generation())
+                    || !rs.getString("reservation_state").equals(reservation.state().name())
+                    || receipt.command() == null || receipt.command().customerContext() == null) {
+                    throw new AdmissionFailure(CONFLICT, "ADMISSION_RELEASE_PREREQUISITE_RECORD_MISMATCH");
+                }
+                return new ReleasePrerequisiteAllocation(reservation, binding, receipt.command().customerContext());
+            }, requested.releaseId(), requested.customerId(), requested.tenantId(), requested.deploymentId(),
+            requested.targetProfileId());
+        if (rows.size() != 1) {
+            throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+        }
+        ReleasePrerequisiteAllocation allocation = rows.getFirst();
+        if (!requested.releaseId().equals(currentReleaseId(allocation.reservation()))) {
+            throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+        }
+        return allocation;
     }
 
     @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)

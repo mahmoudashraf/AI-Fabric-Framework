@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.secret.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
@@ -39,6 +40,7 @@ public class DeploymentProviderSecretOverrideService {
     private final DeploymentProviderSecretBindingRepository bindingRepository;
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
+    private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
     private final DeploymentSecretPurposeCatalog purposeCatalog;
     private final DeploymentProviderSecretResolutionService resolutionService;
     private final PlatformAuditService platformAuditService;
@@ -47,6 +49,7 @@ public class DeploymentProviderSecretOverrideService {
                                                    DeploymentProviderSecretBindingRepository bindingRepository,
                                                    DeploymentRepository deploymentRepository,
                                                    DeploymentAccessService deploymentAccessService,
+                                                   CustomerOfferDeploymentRepository customerOfferDeploymentRepository,
                                                    DeploymentSecretPurposeCatalog purposeCatalog,
                                                    DeploymentProviderSecretResolutionService resolutionService,
                                                    PlatformAuditService platformAuditService) {
@@ -54,6 +57,7 @@ public class DeploymentProviderSecretOverrideService {
         this.bindingRepository = bindingRepository;
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
+        this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
         this.purposeCatalog = purposeCatalog;
         this.resolutionService = resolutionService;
         this.platformAuditService = platformAuditService;
@@ -131,7 +135,10 @@ public class DeploymentProviderSecretOverrideService {
         return new DeploymentProviderSecretBindingCatalogSummary(
             deployment.getId(),
             supportedOverridePurposes(),
-            listOverrideSecrets(),
+            platformSecretRepository.findByScopeTypeOrderByUpdatedAtDesc(PlatformSecretScopeType.DEPLOYMENT_OVERRIDE).stream()
+                .filter(secret -> availableToDeployment(secret, deployment.getId()))
+                .map(this::toOverrideSummary)
+                .toList(),
             bindings
         );
     }
@@ -140,6 +147,7 @@ public class DeploymentProviderSecretOverrideService {
     public DeploymentProviderSecretBindingSummary upsertBinding(String deploymentId,
                                                                 UpsertDeploymentProviderSecretBindingRequest request) {
         DeploymentEntity deployment = requireDeploymentForAdmin(deploymentId);
+        requireGenericBindingMutationAllowed(deployment);
         DeploymentSecretPurposeCatalog.SecretPurposeDefinition definition =
             purposeCatalog.requireDefinition(request.secretPurpose());
         DeploymentProviderSecretBindingMode bindingMode = resolveBindingMode(request.bindingMode());
@@ -150,8 +158,8 @@ public class DeploymentProviderSecretOverrideService {
             if (primarySecretName == null || secondarySecretName == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Paired secret purpose requires both primary and secondary secret names.");
             }
-            requireOverrideSecretForPurpose(primarySecretName, definition.purpose());
-            requireOverrideSecretForPurpose(secondarySecretName, definition.purpose());
+            requireOverrideSecretForPurpose(primarySecretName, definition.purpose(), deployment.getId());
+            requireOverrideSecretForPurpose(secondarySecretName, definition.purpose(), deployment.getId());
         } else {
             if (primarySecretName == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A secret name is required to bind this override.");
@@ -159,7 +167,7 @@ public class DeploymentProviderSecretOverrideService {
             if (secondarySecretName != null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Secondary secret name is not allowed for this secret purpose.");
             }
-            requireOverrideSecretForPurpose(primarySecretName, definition.purpose());
+            requireOverrideSecretForPurpose(primarySecretName, definition.purpose(), deployment.getId());
         }
 
         DeploymentProviderSecretBindingEntity entity = bindingRepository.findByDeploymentIdAndSecretPurpose(deployment.getId(), definition.purpose())
@@ -193,6 +201,7 @@ public class DeploymentProviderSecretOverrideService {
     @Transactional
     public void clearBinding(String deploymentId, String secretPurpose) {
         DeploymentEntity deployment = requireDeploymentForAdmin(deploymentId);
+        requireGenericBindingMutationAllowed(deployment);
         DeploymentSecretPurposeCatalog.SecretPurposeDefinition definition = purposeCatalog.requireDefinition(secretPurpose);
         DeploymentProviderSecretBindingEntity entity = bindingRepository.findByDeploymentIdAndSecretPurpose(deployment.getId(), definition.purpose())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment override binding not found for purpose: " + definition.purpose()));
@@ -289,15 +298,27 @@ public class DeploymentProviderSecretOverrideService {
         );
     }
 
-    private void requireOverrideSecretForPurpose(String secretName, String secretPurpose) {
+    private void requireOverrideSecretForPurpose(String secretName, String secretPurpose, String deploymentId) {
         PlatformSecretEntity entity = platformSecretRepository.findById(secretName)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment override secret not found: " + secretName));
         if (entity.getScopeType() != PlatformSecretScopeType.DEPLOYMENT_OVERRIDE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Secret is not a deployment override: " + secretName);
         }
+        if (!availableToDeployment(entity, deploymentId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Deployment override secret is not available to this deployment.");
+        }
         if (!secretPurpose.equals(entity.getSecretPurpose())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Secret " + secretName + " is not registered for purpose " + secretPurpose + ".");
         }
+    }
+
+    private boolean availableToDeployment(PlatformSecretEntity secret, String deploymentId) {
+        if (deploymentId.equals(secret.getDeploymentId())) {
+            return true;
+        }
+        return secret.getDeploymentId() == null
+            && (secret.getCleanupPolicy() == PlatformSecretCleanupPolicy.KEEP
+                || secret.getCleanupPolicy() == PlatformSecretCleanupPolicy.DELETE_WHEN_UNREFERENCED);
     }
 
     private boolean shouldDeleteOnHardDelete(PlatformSecretEntity entity) {
@@ -367,6 +388,15 @@ public class DeploymentProviderSecretOverrideService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment not found: " + deploymentId));
         return deploymentAccessService.requireDeploymentAdminAccess(deployment);
+    }
+
+    private void requireGenericBindingMutationAllowed(DeploymentEntity deployment) {
+        if (customerOfferDeploymentRepository.existsById(deployment.getId())) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Reviewed-offer deployments must use the scoped customer self-service credential binding routes."
+            );
+        }
     }
 
     private String trimToNull(String value) {

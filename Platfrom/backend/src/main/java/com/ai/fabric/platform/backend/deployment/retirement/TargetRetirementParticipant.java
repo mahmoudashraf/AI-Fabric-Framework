@@ -14,4 +14,11 @@ public interface TargetRetirementParticipant {
     Evidence inspect(Context context);
     EffectResult apply(Context context, Step step, String effectKey);
     EffectResult readback(Context context, Step step, String effectKey);
+
+    /**
+     * Proves an unfinished effect can be resumed by the same durable operation after the prior
+     * worker has been fenced. Participants remain fail-closed unless they explicitly implement
+     * restart-safe, operation-key-bound checkpoints.
+     */
+    default boolean recoverySafe(Context context, Step step, String effectKey) { return false; }
 }

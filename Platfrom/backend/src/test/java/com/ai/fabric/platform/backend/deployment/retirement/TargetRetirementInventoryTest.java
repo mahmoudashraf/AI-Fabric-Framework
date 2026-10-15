@@ -172,6 +172,11 @@ class TargetRetirementInventoryTest {
         when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of());
         service.recheck(snapshot, request);
         assertThat(service.volumesReclaimed(snapshot.resources().getFirst())).isFalse();
+        assertThatThrownBy(() -> service.recordVolumesReclaimed(snapshot.resources().getFirst(), Instant.now()))
+            .hasMessageContaining("PROVIDER_VOLUME_DELETE_INTENT_REQUIRED");
+        service.recordVolumeDeletionIntent(snapshot.resources().getFirst(), Instant.now());
+        assertThat(service.volumeDeletionIntentRecorded(snapshot.resources().getFirst())).isTrue();
+        assertThat(service.volumesReclaimed(snapshot.resources().getFirst())).isFalse();
         assertThatThrownBy(() -> service.recordReclaimed(snapshot.resources().getFirst(), Instant.now()))
             .hasMessageContaining("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
         assertThat(handle.getStatus()).isEqualTo("ACTIVE");
@@ -183,6 +188,18 @@ class TargetRetirementInventoryTest {
             .isEqualTo(service.volumeDispositionReceipt(snapshot.resources().getFirst()));
         assertThat(service.volumesReclaimed(snapshot.resources().getFirst())).isTrue();
     }
+
+    @Test void applicationDeleteInventoryRequiresDisposableAttachedAndRetainedDetached() {
+        var connection = resolver.requireConnection(target);
+        var disposable = new CoolifyApplicationStorageSummary("storage-1", "persistent", "runtime-data",
+            "/app/data", null, false, new ObjectMapper().createObjectNode());
+        when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of(disposable));
+        var resource = capture().resources().getFirst();
+
+        service.requireApplicationDeletionVolumeInventory(resource, List.of(disposable));
+        assertThatThrownBy(() -> service.requireApplicationDeletionVolumeInventory(resource, List.of()))
+            .hasMessageContaining("PERSISTENT_VOLUME_GENERATION_CHANGED");
+    }
     @Test void hostBackedVolumeRequiresExplicitApprovedRetention() {
         var connection = resolver.requireConnection(target);
         var mounted = new CoolifyApplicationStorageSummary("storage-1", "persistent", "documents",
@@ -192,8 +209,12 @@ class TargetRetirementInventoryTest {
 
         service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers,
             json, resolver, client, List.of("/app/document-sources"));
-        assertThat(capture().resources().getFirst().volumes()).singleElement()
+        var resource = capture().resources().getFirst();
+        assertThat(resource.volumes()).singleElement()
             .satisfies(value -> assertThat(value.preserved()).isTrue());
+        service.requireApplicationDeletionVolumeInventory(resource, List.of());
+        assertThatThrownBy(() -> service.requireApplicationDeletionVolumeInventory(resource, List.of(mounted)))
+            .hasMessageContaining("PERSISTENT_VOLUME_RETENTION_UNPROVEN");
     }
 
     @Test void runtimeDatabaseRequiresAnExclusiveProviderObservedVolume() {

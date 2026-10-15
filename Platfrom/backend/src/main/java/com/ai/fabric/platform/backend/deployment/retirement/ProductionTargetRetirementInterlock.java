@@ -91,9 +91,12 @@ public class ProductionTargetRetirementInterlock implements TargetRetirementInte
             && Objects.equals(effectKey, operation.getInFlightEffect())
             && "RETIRING".equals(gate.getState()) && context.operationId().equals(gate.getOperationId())
             && context.fenceEpoch() == gate.getEpoch();
-        boolean settled = fenced && settled(context, effectKey);
+        RecoveryDisposition disposition = fenced
+            ? recoveryDisposition(context, effectKey)
+            : new RecoveryDisposition(false, false);
         return new RecoveryEvidence(context.operationId(), previousWorkerToken, effectKey, now,
-            "target-retirement-recovery:" + context.operationId() + ":" + effectKey, fenced, settled);
+            "target-retirement-recovery:" + context.operationId() + ":" + effectKey, fenced,
+            disposition.settled(), disposition.resumeSafe());
     }
 
     @Override
@@ -183,16 +186,22 @@ public class ProductionTargetRetirementInterlock implements TargetRetirementInte
             || secrets.resolveSecret(reference) != null && !secrets.resolveSecret(reference).isBlank();
     }
 
-    private boolean settled(Context context, String effectKey) {
+    private RecoveryDisposition recoveryDisposition(Context context, String effectKey) {
         String[] parts = effectKey.split(":", 4);
-        if (parts.length != 4 || !context.operationId().equals(parts[0])) return false;
+        if (parts.length != 4 || !context.operationId().equals(parts[0])) {
+            return new RecoveryDisposition(false, false);
+        }
         Step step;
         try { step = Step.valueOf(parts[2]); }
-        catch (Exception error) { return false; }
+        catch (Exception error) { return new RecoveryDisposition(false, false); }
         if (step == Step.RESOURCES) {
             var resource = context.snapshot().resources().stream()
                 .filter(value -> value.handleId().equals(parts[3]) && !value.preserved()).findFirst().orElse(null);
-            return resource != null && resources.readback(context, resource).complete();
+            if (resource == null) return new RecoveryDisposition(false, false);
+            EffectResult result = resources.readback(context, resource);
+            validateEffect(result);
+            // Exact frozen identity readback proves that repeating the idempotent provider delete is safe.
+            return new RecoveryDisposition(result.complete(), true);
         }
         ParticipantKind kind = switch (step) {
             case DRAIN, CANCEL_DRAIN -> ParticipantKind.RUNTIME_DRAIN;
@@ -201,10 +210,22 @@ public class ProductionTargetRetirementInterlock implements TargetRetirementInte
             case DEPENDENCIES -> ParticipantKind.DEPENDENCIES;
             default -> null;
         };
-        if (kind == null) return false;
-        EffectResult result = participation.getObject().participant(kind).readback(context, step, effectKey);
-        participation.getObject().validate(result);
-        return result.complete();
+        if (kind == null) return new RecoveryDisposition(false, false);
+        TargetRetirementParticipant participant = participation.getObject().participant(kind);
+        EffectResult result = participant.readback(context, step, effectKey);
+        validateEffect(result);
+        return new RecoveryDisposition(result.complete(), result.complete()
+            || participant.recoverySafe(context, step, effectKey));
+    }
+
+    private record RecoveryDisposition(boolean settled, boolean resumeSafe) { }
+
+    private void validateEffect(EffectResult result) {
+        if (result == null || result.evidenceReference() == null || result.evidenceReference().isBlank()
+            || result.observedAt() == null || result.observedAt().isAfter(Instant.now())
+            || result.observedAt().isBefore(Instant.now().minusSeconds(60))) {
+            throw new TargetRetirementFailure("EFFECT_READBACK_UNPROVEN");
+        }
     }
 
     private List<String> append(List<String> values, String value) {

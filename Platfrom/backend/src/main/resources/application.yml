@@ -177,6 +177,20 @@ platform:
     poll-delay-ms: ${PLATFORM_TARGET_RETIREMENT_POLL_DELAY_MS:15000}
     approved-staging-addresses: ${PLATFORM_TARGET_RETIREMENT_APPROVED_STAGING_ADDRESSES:}
     approved-retained-volume-mounts: ${PLATFORM_TARGET_RETIREMENT_APPROVED_RETAINED_VOLUME_MOUNTS:}
+  provider-host-volume-reclamation:
+    enabled: ${PLATFORM_PROVIDER_HOST_VOLUME_RECLAMATION_ENABLED:false}
+    timeout: ${PLATFORM_PROVIDER_HOST_VOLUME_RECLAMATION_TIMEOUT:PT15S}
+    hosts:
+      CUSTOMER_STAGING:
+        username: ${PLATFORM_PROVIDER_HOST_STAGING_USERNAME:}
+        port: ${PLATFORM_PROVIDER_HOST_STAGING_PORT:22}
+        private-key-secret-name: ${PLATFORM_PROVIDER_HOST_STAGING_PRIVATE_KEY_SECRET_NAME:}
+        known-hosts-secret-name: ${PLATFORM_PROVIDER_HOST_STAGING_KNOWN_HOSTS_SECRET_NAME:}
+      CUSTOMER_PRODUCTION:
+        username: ${PLATFORM_PROVIDER_HOST_PRODUCTION_USERNAME:}
+        port: ${PLATFORM_PROVIDER_HOST_PRODUCTION_PORT:22}
+        private-key-secret-name: ${PLATFORM_PROVIDER_HOST_PRODUCTION_PRIVATE_KEY_SECRET_NAME:}
+        known-hosts-secret-name: ${PLATFORM_PROVIDER_HOST_PRODUCTION_KNOWN_HOSTS_SECRET_NAME:}
   cors:
     allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,https://ai-fabric-framework-production-158d.up.railway.app}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}

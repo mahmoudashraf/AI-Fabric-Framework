@@ -285,7 +285,8 @@ public class TargetRetirementStore {
     }
 
     private void requireRecovery(TargetRetirementOperationEntity operation, RecoveryEvidence recovery) {
-        if (recovery == null || !recovery.workerFenced() || !recovery.remoteOutcomeSettled()
+        if (recovery == null || !recovery.workerFenced()
+            || !(recovery.remoteOutcomeSettled() || recovery.resumeSafe())
             || !operation.getId().equals(recovery.operationId())
             || !Objects.equals(operation.getWorkerToken(), recovery.previousWorkerToken())
             || !operation.getInFlightEffect().equals(recovery.effectKey())

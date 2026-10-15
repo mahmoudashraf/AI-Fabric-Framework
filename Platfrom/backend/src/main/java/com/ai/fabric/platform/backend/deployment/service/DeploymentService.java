@@ -1112,6 +1112,7 @@ public class DeploymentService {
     public DeploymentDraftResponse restorePromptRevision(String deploymentId, String revisionId) {
         DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
         assertNotArchived(deployment, "restore prompt revision");
+        assertReviewedOfferUsesDedicatedDraftPath(deployment, false);
         DeploymentPromptRevisionEntity revision = promptRevisionRepository.findById(revisionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Prompt revision not found: " + revisionId));
         if (!deployment.getId().equals(revision.getDeploymentId())) {
@@ -1191,6 +1192,7 @@ public class DeploymentService {
             ? deploymentRepository.findById(draft.getDeploymentId())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
+        assertReviewedOfferUsesDedicatedDraftPath(deployment, skipAccessCheck);
         assertNotArchived(deployment, "update draft");
         assertActiveEditableDraft(deployment, draft, "be updated");
 
@@ -1356,6 +1358,7 @@ public class DeploymentService {
             ? deploymentRepository.findById(draft.getDeploymentId())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
+        assertReviewedOfferUsesDedicatedDraftPath(deployment, skipAccessCheck);
         assertNotArchived(deployment, "publish draft");
         assertActiveEditableDraft(deployment, draft, "be published");
         if (!EntityConfigContractService.CONTRACT_VERSION_V04.equals(
@@ -1521,6 +1524,7 @@ public class DeploymentService {
                                                              UpdateDeploymentCuratedModuleRequest request) {
         DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
         assertNotArchived(deployment, "apply curated module to draft");
+        assertReviewedOfferUsesDedicatedDraftPath(deployment, false);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
             request.curatedModuleId()
@@ -2080,6 +2084,15 @@ public class DeploymentService {
         deployment = deploymentAccessService.requireDeploymentAdminAccess(deployment);
         assertDeletionNotPending(deployment, "administer");
         return deployment;
+    }
+
+    private void assertReviewedOfferUsesDedicatedDraftPath(DeploymentEntity deployment, boolean trustedCaller) {
+        if (!trustedCaller && customerOfferDeploymentRepository.existsById(deployment.getId())) {
+            throw new ResponseStatusException(
+                FORBIDDEN,
+                "Reviewed-offer deployments must use the scoped customer self-service configuration and version routes."
+            );
+        }
     }
 
     private void requirePlatformAdminForExplicitBindingRequest(String customerId, String tenantId) {

@@ -231,11 +231,88 @@ public class TargetRetirementInventory {
         }
     }
 
+    public void requireApplicationDeletionVolumeInventory(ResourceGeneration expected,
+                                                           List<CoolifyApplicationStorageSummary> observed) {
+        var handle = requireResource(expected);
+        var current = observedVolumes(handle, observed);
+        var frozen = expected.volumes().stream().collect(Collectors.toMap(
+            ProviderVolumeGeneration::storageUuid, value -> value
+        ));
+        for (var entry : current.entrySet()) {
+            var prior = frozen.get(entry.getKey());
+            if (prior == null || !prior.generation().equals(entry.getValue().generation())) {
+                throw failure("PERSISTENT_VOLUME_GENERATION_CHANGED");
+            }
+        }
+        for (var prior : expected.volumes()) {
+            boolean present = current.containsKey(prior.storageUuid());
+            if (prior.preserved() == present) {
+                throw failure(prior.preserved()
+                    ? "PERSISTENT_VOLUME_RETENTION_UNPROVEN"
+                    : "PERSISTENT_VOLUME_GENERATION_CHANGED");
+            }
+        }
+    }
+
+    public void requireVolumeDeletionProgress(ResourceGeneration expected,
+                                              List<CoolifyApplicationStorageSummary> observed) {
+        requireVolumeDeletionProgress(expected, requireResource(expected), observed);
+    }
+
+    private void requireVolumeDeletionProgress(ResourceGeneration expected,
+                                               DeploymentProviderResourceHandleEntity handle,
+                                               List<CoolifyApplicationStorageSummary> observed) {
+        var current = observedVolumes(handle, observed);
+        var frozen = expected.volumes().stream().collect(Collectors.toMap(
+            ProviderVolumeGeneration::storageUuid, value -> value
+        ));
+        for (var entry : current.entrySet()) {
+            var prior = frozen.get(entry.getKey());
+            if (prior == null || !prior.generation().equals(entry.getValue().generation())) {
+                throw failure("PERSISTENT_VOLUME_GENERATION_CHANGED");
+            }
+        }
+    }
+
+    @Transactional
+    public void recordVolumeDeletionIntent(ResourceGeneration expected, Instant observedAt) {
+        if (expected.volumes().isEmpty()) return;
+        var handle = requireResource(expected);
+        String intent = volumeDeletionIntentReceipt(expected);
+        String existing = handle.getVolumeDeletionIntentReceipt();
+        if (existing != null && !intent.equals(existing)) {
+            throw failure("PROVIDER_VOLUME_DELETE_INTENT_CHANGED");
+        }
+        String disposition = handle.getVolumeReclamationReceipt();
+        if (disposition != null && !volumeDispositionReceipt(expected).equals(disposition)) {
+            throw failure("PROVIDER_VOLUME_RECLAMATION_RECEIPT_CHANGED");
+        }
+        handle.setVolumeDeletionIntentReceipt(intent);
+        handle.setLastObservedAt(observedAt);
+        handle.setUpdatedAt(Instant.now());
+        handles.save(handle);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean volumeDeletionIntentRecorded(ResourceGeneration expected) {
+        if (expected.volumes().isEmpty()) return true;
+        var handle = handles.findById(expected.handleId()).orElseThrow(() -> failure("RESOURCE_MISSING"));
+        return volumeDeletionIntentReceipt(expected).equals(handle.getVolumeDeletionIntentReceipt());
+    }
+
     @Transactional
     public void recordVolumesReclaimed(ResourceGeneration expected, Instant observedAt) {
         if (expected.volumes().isEmpty()) return;
         var handle = requireResource(expected);
-        handle.setLastObservedStatus(volumeDispositionReceipt(expected));
+        if (!volumeDeletionIntentReceipt(expected).equals(handle.getVolumeDeletionIntentReceipt())) {
+            throw failure("PROVIDER_VOLUME_DELETE_INTENT_REQUIRED");
+        }
+        String receipt = volumeDispositionReceipt(expected);
+        if (handle.getVolumeReclamationReceipt() != null
+            && !receipt.equals(handle.getVolumeReclamationReceipt())) {
+            throw failure("PROVIDER_VOLUME_RECLAMATION_RECEIPT_CHANGED");
+        }
+        handle.setVolumeReclamationReceipt(receipt);
         handle.setLastObservedAt(observedAt);
         handle.setUpdatedAt(Instant.now());
         handles.save(handle);
@@ -245,7 +322,7 @@ public class TargetRetirementInventory {
     public boolean volumesReclaimed(ResourceGeneration expected) {
         if (expected.volumes().isEmpty()) return true;
         var handle = handles.findById(expected.handleId()).orElseThrow(() -> failure("RESOURCE_MISSING"));
-        return volumeDispositionReceipt(expected).equals(handle.getLastObservedStatus());
+        return volumeDispositionReceipt(expected).equals(handle.getVolumeReclamationReceipt());
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -387,7 +464,7 @@ public class TargetRetirementInventory {
                                                    ResourceGeneration expected) {
         if (!APPLICATION_KINDS.contains(handle.getResourceKind())
             && !"RUNTIME_POSTGRES_DATABASE".equals(handle.getResourceKind())) return List.of();
-        if (expected != null && volumeDispositionReceipt(expected).equals(handle.getLastObservedStatus())) {
+        if (expected != null && volumeDispositionReceipt(expected).equals(handle.getVolumeReclamationReceipt())) {
             return expected.volumes();
         }
         var connection = resolver.requireConnection(target);
@@ -396,7 +473,11 @@ public class TargetRetirementInventory {
             : client.listDatabaseStorages(connection, handle.getProviderResourceUuid());
         var result = observedVolumes(handle, observed);
         if (expected != null) {
-            requireVolumeInventory(expected, handle, observed, true);
+            if (volumeDeletionIntentReceipt(expected).equals(handle.getVolumeDeletionIntentReceipt())) {
+                requireVolumeDeletionProgress(expected, handle, observed);
+            } else {
+                requireVolumeInventory(expected, handle, observed, true);
+            }
             return expected.volumes();
         }
         return result.values().stream().sorted(Comparator.comparing(ProviderVolumeGeneration::storageUuid)).toList();
@@ -446,6 +527,17 @@ public class TargetRetirementInventory {
             "disposition", volume.preserved() ? "RETAINED" : "DELETED"
         )).toList();
         return "VOLUME_DISPOSITION:" + json.fingerprint(disposition);
+    }
+
+    public String volumeDeletionIntentReceipt(ResourceGeneration expected) {
+        if (expected.volumes().isEmpty()) return "VOLUME_DELETE_INTENT:empty";
+        var intent = expected.volumes().stream().map(volume -> Map.of(
+            "storageUuid", volume.storageUuid(),
+            "mountPath", volume.mountPath(),
+            "generation", volume.generation(),
+            "disposition", volume.preserved() ? "DETACH_AND_RETAIN" : "DELETE_WITH_RESOURCE"
+        )).toList();
+        return "VOLUME_DELETE_INTENT:" + json.fingerprint(intent);
     }
 
     private String releaseGeneration(DeploymentReleaseEntity release) {

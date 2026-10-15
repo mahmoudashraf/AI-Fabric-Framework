@@ -150,8 +150,9 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
       {targetProfileId: production.id, intent: "CUSTOMER_PRODUCTION", profileFingerprint: profileFingerprint(production)},
     ],
     operations: [
-      "TEMPLATE_SELECT", "BOOTSTRAP_CONFIGURATION", "BOOTSTRAP", "READ", "DRAFT_EDIT",
+      "TEMPLATE_SELECT", "BOOTSTRAP_CONFIGURATION", "BOOTSTRAP", "READ", "VERSION_PUBLISH",
       "BINDING_REPLACE", "BINDING_REVOKE", "SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX",
+      "INBOX_OPERATOR_ENROLL", "INBOX_OPERATOR_ROTATE", "INBOX_OPERATOR_DELIVER", "INBOX_OPERATOR_REVOKE",
       "SOURCE_REFRESH", "SOURCE_REMOVE", "APP_CONFIGURE", "DOMAIN_CONFIGURE", "AUTH_CONFIGURE",
       "APPLY", "VERIFY", "PROMOTION_PLAN", "PROMOTION_APPLY", "ACTIVATE", "ROLLBACK",
       "STAGING_RETAIN", "STAGING_EXTEND", "TARGET_RETIRE",
@@ -168,13 +169,20 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
       {setting: "APP_DOMAIN", type: "TEXT", maxLength: 255, allowedValues: []},
       {setting: "DOCUMENT_AUDIENCE", type: "CHOICE", maxLength: 32, allowedValues: ["PUBLIC"]},
     ],
-    bindingSlots: [{
-      id: "document-storage",
-      kind: "CUSTOMER_S3",
-      supportedProfileIds: ["reviewed-s3-read-only"],
-      pluginId: "mkp-data-dealership-knowledge-v1",
-      installConfigField: "documentStorageBindingRef",
-    }],
+    bindingSlots: [
+      {
+        id: "document-storage",
+        kind: "CUSTOMER_S3",
+        supportedProfileIds: ["reviewed-s3-read-only"],
+        pluginId: "mkp-data-dealership-knowledge-v1",
+        installConfigField: "documentStorageBindingRef",
+      },
+      {
+        id: "inbox",
+        kind: "INBOX_OPERATOR",
+        supportedProfileIds: ["managed-basic-inbox-keys-v1"],
+      },
+    ],
     documentAudiences: ["PUBLIC"],
     admissionPrerequisites: [
       "APPROVED_POLICY", "IMMUTABLE_ARTIFACTS", "STORAGE", "IDENTITY", "CAPACITY",

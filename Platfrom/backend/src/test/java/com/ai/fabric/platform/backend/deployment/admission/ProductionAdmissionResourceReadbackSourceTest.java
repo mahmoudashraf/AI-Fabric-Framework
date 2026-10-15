@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -48,7 +50,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
             mock(DeploymentProviderResourceHandleRepository.class),
             mock(PlatformConsumerRepository.class), operations, retirements,
             mock(TargetRetirementInventory.class),
-            mock(CoolifyTargetProfileResolver.class), mock(CoolifyApiClient.class), json,
+            mock(CoolifyTargetProfileResolver.class), mock(CoolifyApiClient.class), properties(), json,
             Clock.fixed(AdmissionFixture.NOW, ZoneOffset.UTC));
         Reservation reservation = reservation();
         FleetPolicy policy = policy();
@@ -85,7 +87,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
         var source = new ProductionAdmissionResourceReadbackSource(admissions, targets, releases, versions,
             handles, consumers, mock(TargetRetirementOperationRepository.class), mock(TargetRetirementStore.class),
             mock(TargetRetirementInventory.class),
-            resolver, client, json, Clock.fixed(AdmissionFixture.NOW, ZoneOffset.UTC));
+            resolver, client, properties(), json, Clock.fixed(AdmissionFixture.NOW, ZoneOffset.UTC));
         Manifest manifest = new Manifest("manifest1", "deployment", "version", "config-hash",
             AdmissionFixture.TARGET, "b".repeat(64), "topology", AdmissionFixture.vector(1), Set.of());
         Reservation reservation = activeReservation(manifest, json);
@@ -117,7 +119,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
         var connection = new CoolifyConnection("https://coolify.test", "private", config);
         when(resolver.requireConnection(profile)).thenReturn(connection);
         when(client.getServer(connection, AdmissionFixture.STAGING.serverUuid())).thenReturn(new ObjectMapper().readTree(
-            "{\"uuid\":\"" + AdmissionFixture.STAGING.serverUuid() + "\",\"ip\":\"" + AdmissionFixture.STAGING.ip() + "\"}"
+            "{\"uuid\":\"" + AdmissionFixture.STAGING.serverUuid() + "\",\"ip\":\"host.docker.internal\"}"
         ));
         when(client.getApplication(connection, "runtime-app")).thenReturn(Optional.of(new CoolifyApplicationSummary(
             "runtime-app", "runtime", null, "running:healthy", null, null,
@@ -148,7 +150,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
         var source = new ProductionAdmissionResourceReadbackSource(admissions, targets,
             mock(DeploymentReleaseRepository.class), mock(DeploymentVersionRepository.class), handles, consumers,
             operations, retirements, retirementInventory, mock(CoolifyTargetProfileResolver.class),
-            mock(CoolifyApiClient.class), json, Clock.fixed(AdmissionFixture.NOW, ZoneOffset.UTC));
+            mock(CoolifyApiClient.class), properties(), json, Clock.fixed(AdmissionFixture.NOW, ZoneOffset.UTC));
         Reservation reservation = reservation();
         when(targets.findById(AdmissionFixture.TARGET)).thenReturn(Optional.of(profile()));
 
@@ -216,5 +218,14 @@ class ProductionAdmissionResourceReadbackSourceTest {
         return new FleetPolicy("policy1", budget, Map.of(AdmissionFixture.TARGET, target),
             new LifecyclePolicy(1000, 100, 100, 2, 3000, 200, 10, 10, 20, 2, 60, 3600,
                 "policy", "approved-mail"), "restore", "privacy", "support");
+    }
+
+    private static CustomerSelfServiceProperties properties() {
+        return new CustomerSelfServiceProperties(Map.of(
+            TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer(
+                AdmissionFixture.STAGING.serverUuid(), AdmissionFixture.STAGING.ip(), "host.docker.internal"),
+            TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer(
+                "production-server", "46.225.162.106", "production.internal")
+        ), 300);
     }
 }

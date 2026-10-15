@@ -302,7 +302,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
 
         applyTemplateRequirements(behaviorRoot, installs);
-        applyResolvedTemplateExecutionExtensionDefaults(behaviorRoot, installs);
+        applyResolvedTemplateExecutionExtensionDefaults(
+            behaviorRoot,
+            installs,
+            activeConversationChannelPluginId != null,
+            installedControlActionBindings.containsKey("request_conversation_handover")
+        );
         validateConversationHandoverComposition(behaviorRoot, installedControlActionBindings);
 
         synchronizeEntityVectorDimensions(entityRoot, providerRoot);
@@ -410,7 +415,9 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     private void applyResolvedTemplateExecutionExtensionDefaults(
         ObjectNode behaviorRoot,
-        List<DeploymentMarketplacePluginInstallEntity> installs
+        List<DeploymentMarketplacePluginInstallEntity> installs,
+        boolean conversationChannelReady,
+        boolean conversationHandoverActionReady
     ) {
         LinkedHashSet<String> defaults = new LinkedHashSet<>();
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
@@ -433,7 +440,9 @@ public class DeploymentMarketplaceDraftCompilerService {
             if (configuredDefaults.isArray()) {
                 configuredDefaults.forEach(value -> {
                     String normalized = value.asText("").trim();
-                    if (hasText(normalized)) {
+                    if (hasText(normalized)
+                        && (!("CONVERSATION_HANDOVER".equals(normalized))
+                            || (conversationChannelReady && conversationHandoverActionReady))) {
                         defaults.add(normalized);
                     }
                 });
@@ -447,9 +456,8 @@ public class DeploymentMarketplaceDraftCompilerService {
     }
 
     void mergeTemplateExecutionExtensionDefaults(ObjectNode behaviorRoot, Set<String> defaults) {
-        // A pending, unrelated template dependency must not erase the template's reviewed
-        // execution intent. Extension-specific composition validation below remains fail-closed
-        // when the action or integration required by an enabled extension is actually absent.
+        // Callers filter defaults whose own prerequisites are unresolved. Unrelated pending
+        // dependencies must not erase the rest of the template's reviewed execution intent.
         ArrayNode selected = ensureArray(behaviorRoot, "executionExtensions");
         LinkedHashSet<String> existing = new LinkedHashSet<>();
         selected.forEach(value -> existing.add(value.asText("")));

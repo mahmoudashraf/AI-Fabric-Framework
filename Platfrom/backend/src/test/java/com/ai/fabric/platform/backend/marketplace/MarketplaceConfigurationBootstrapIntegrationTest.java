@@ -49,4 +49,5 @@ class MarketplaceConfigurationBootstrapIntegrationTest {
         assertThat(vectorizationPlans.findByDeploymentId(created.id())).isEmpty();
         assertThat(deployments.listVersions(created.id())).isEmpty();
     }
+
 }

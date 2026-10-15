@@ -50,6 +50,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary =
         mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+    private final com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService sourcePrerequisites =
+        mock(com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService.class);
 
     @Test
     void rejectedSourceOperationNeverCallsTheDeploymentRuntime() throws Exception {
@@ -74,6 +76,9 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(202, "{}"))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         service().index(target, "source-1", "index-1");
+        verify(sourcePrerequisites).ensureFresh(target,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_INDEX,
+            "index-1", java.util.Set.of(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.PUBLIC));
         var settings = ArgumentCaptor.forClass(java.util.Map.class);
         verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"),
             eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.SOURCE_INDEX),
@@ -81,6 +86,21 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
             eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience.PUBLIC));
         assertThat(settings.getValue().get(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting.DOCUMENT_AUDIENCE))
             .isEqualTo(objectMapper.getNodeFactory().textNode("PUBLIC"));
+    }
+
+    @Test
+    void failedRecurringSourceProbePreventsTheRuntimeWrite() throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setMarketplaceDatasetConfigJson("{\"datasets\":[{\"datasetId\":\"policies\",\"ingestionMode\":\"EXTERNAL_DOCUMENT_STORAGE\"}]}");
+        version.setKnowledgeSourceConfigJson("{\"sources\":[{\"datasetRef\":\"policies\",\"authModes\":[\"PUBLIC_RUNTIME_ANONYMOUS\"]}]}");
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+        org.mockito.Mockito.doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.PRECONDITION_FAILED,
+            "SOURCE_CONNECTOR_PROBE_FAILED")).when(sourcePrerequisites).ensureFresh(eq(target), any(), eq("index-1"), any());
+        assertThatThrownBy(() -> service().index(target, "source-1", "index-1"))
+            .hasMessageContaining("SOURCE_CONNECTOR_PROBE_FAILED");
+        verify(httpClient, never()).send(any(), any());
+        org.mockito.Mockito.verifyNoInteractions(offerBoundary);
     }
 
     @AfterEach
@@ -207,7 +227,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
             auditService,
             objectMapper,
             httpClient,
-            offerBoundary
+            offerBoundary,
+            sourcePrerequisites
         );
     }
 

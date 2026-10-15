@@ -49,6 +49,12 @@ class ManagedDependencyTargetRetirementParticipantTest {
         verify(adapter).retireForTargetRetirement("deployment", "target", 7, "plan-fingerprint", "operation-key");
     }
 
+    @Test void recoverySafetyDelegatesToTheOperationBoundAdapterProof() {
+        when(adapter.canResumeForTargetRetirement("deployment", "target", "operation-key")).thenReturn(true);
+        assertThat(participant.recoverySafe(context(), Step.DEPENDENCIES, "effect")).isTrue();
+        assertThat(participant.recoverySafe(context(), Step.AUTHORITY, "effect")).isFalse();
+    }
+
     private ManagedDependencyGraphEntity graph() {
         var value = new ManagedDependencyGraphEntity();
         value.setId("graph");

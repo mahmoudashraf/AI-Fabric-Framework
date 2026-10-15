@@ -22,6 +22,9 @@ public class ManagedDependencyState {
     public String runtimeGenerationOperationKey;
     public String runtimeGenerationState;
     public List<String> runtimeGenerationStoppedSlots = new ArrayList<>();
+    public String operatorRevocationOperatorId;
+    public String operatorRevocationOperationKey;
+    public String operatorRevocationLifecycleKey;
 
     public static class Node {
         public String slot;
@@ -39,6 +42,9 @@ public class ManagedDependencyState {
         public long provisionedConfigurationRevision = -1;
         public Map<String, String> secrets = new LinkedHashMap<>();
         public Map<String, String> volumes = new LinkedHashMap<>();
+        public String retirementOperationKey;
+        public Map<String, String> volumeReclamationPlan = new LinkedHashMap<>();
+        public List<String> reclaimedVolumeUuids = new ArrayList<>();
     }
     public static class Operator {
         public String id;

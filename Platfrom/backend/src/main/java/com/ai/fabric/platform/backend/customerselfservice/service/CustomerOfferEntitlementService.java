@@ -198,6 +198,11 @@ public class CustomerOfferEntitlementService {
             .filter(customer -> "ACTIVE".equals(customer.getStatus())).isEmpty()) throw deny(ACTIVE_CUSTOMER_SCOPE_REQUIRED);
     }
 
+    public void requireCurrentOwnerEligibility(String ownerId, String customerId) {
+        requireActiveCustomer(customerId);
+        requireOwner(ownerId, customerId);
+    }
+
     private PlatformUserEntity requireOwner(String ownerId, String customerId) {
         return users.findById(ownerId).filter(user -> "ACTIVE".equals(user.getStatus())
             && "CUSTOMER_ADMIN".equals(user.getRole()) && customerId.equals(user.getCustomerId()))

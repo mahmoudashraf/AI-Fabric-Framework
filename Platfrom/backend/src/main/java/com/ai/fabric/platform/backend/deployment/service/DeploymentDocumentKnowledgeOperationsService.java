@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
@@ -48,6 +49,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     private final ObjectMapper objectMapper;
     private final DeploymentRuntimeJsonTransport transport;
     private final CustomerSelfServiceOperationBoundary offerBoundary;
+    private final CustomerSourcePrerequisiteRefreshService sourcePrerequisites;
 
     @Autowired
     public DeploymentDocumentKnowledgeOperationsService(
@@ -57,7 +59,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
         DeploymentRuntimeJsonTransport transport,
-        CustomerSelfServiceOperationBoundary offerBoundary
+        CustomerSelfServiceOperationBoundary offerBoundary,
+        CustomerSourcePrerequisiteRefreshService sourcePrerequisites
     ) {
         this.targetContextService = targetContextService;
         this.secretService = secretService;
@@ -66,6 +69,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         this.objectMapper = objectMapper;
         this.transport = transport;
         this.offerBoundary = offerBoundary;
+        this.sourcePrerequisites = sourcePrerequisites;
     }
 
     DeploymentDocumentKnowledgeOperationsService(
@@ -75,7 +79,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
         HttpClient httpClient,
-        CustomerSelfServiceOperationBoundary offerBoundary
+        CustomerSelfServiceOperationBoundary offerBoundary,
+        CustomerSourcePrerequisiteRefreshService sourcePrerequisites
     ) {
         this.targetContextService = targetContextService;
         this.secretService = secretService;
@@ -84,6 +89,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         this.objectMapper = objectMapper;
         this.transport = new DeploymentRuntimeJsonTransport(objectMapper, httpClient);
         this.offerBoundary = offerBoundary;
+        this.sourcePrerequisites = sourcePrerequisites;
     }
 
     public RuntimeResponse connectorStatus(DeploymentTargetReference target) {
@@ -218,6 +224,12 @@ public class DeploymentDocumentKnowledgeOperationsService {
                 if ("PUBLIC_RUNTIME_ANONYMOUS".equals(mode.asText())) publicAudience = true;
             }
             audiences.add(publicAudience ? DocumentAudience.PUBLIC : DocumentAudience.AUTHENTICATED);
+        }
+        if (!audiences.isEmpty() && switch (operation) {
+            case SOURCE_DISCOVER, SOURCE_PREVIEW, SOURCE_INDEX, SOURCE_REFRESH, SOURCE_REMOVE -> true;
+            default -> false;
+        }) {
+            sourcePrerequisites.ensureFresh(target, operation, operationKey, Set.copyOf(audiences));
         }
         if (audiences.isEmpty()) {
             var approved = offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,

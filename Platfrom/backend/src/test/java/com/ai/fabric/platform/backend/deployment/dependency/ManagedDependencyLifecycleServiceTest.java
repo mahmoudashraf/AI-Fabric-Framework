@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,9 +37,11 @@ class ManagedDependencyLifecycleServiceTest {
     final PlatformManagedProductServiceRepository productRepository = mock(PlatformManagedProductServiceRepository.class);
     final PlatformSecretService secrets = mock(PlatformSecretService.class);
     final ManagedDependencyPrerequisites gate = mock(ManagedDependencyPrerequisites.class);
+    final ManagedDependencyCustomerOfferGuard customerOfferGuard = mock(ManagedDependencyCustomerOfferGuard.class);
     @SuppressWarnings("unchecked") final ObjectProvider<ManagedDependencyPrerequisites> gates = mock(ObjectProvider.class);
     final Map<String, ManagedDependencyGraphEntity> graphs = new HashMap<>();
     final Map<String, String> keys = new HashMap<>();
+    final Map<String, String> installedInboxOperators = new HashMap<>();
     ManagedDependencyGraphStore store;
     ManagedDependencyLifecycleService lifecycle;
     ManagedDependencyOperatorService operators;
@@ -100,14 +103,34 @@ class ManagedDependencyLifecycleServiceTest {
             if ("inbox".equals(spec.slot())) {
                 var env = environment.apply(null);
                 assertThat(env).anySatisfy(v -> { assertThat(v.key()).isEqualTo("BASIC_INBOX_OPERATORS"); assertThat(v.value()).contains("|binding-"); });
+                installedInboxOperators.put(graphId, env.stream().filter(v -> "BASIC_INBOX_OPERATORS".equals(v.key()))
+                    .findFirst().orElseThrow().value());
             }
             assertThat(graphs.get(graphId).getStateJson()).contains("applicationCreateIntent");
             return new PlatformManagedProductProvisioningService.OwnedDependencyResult("app-" + serviceRef,
                 spec.database() == null ? null : "db-" + serviceRef, "https://" + serviceRef + ".example.test");
         });
+        when(provider.planOwnedDependencyOperatorRemoval(any(), anyString(), anyString(), any(), any(), anyString(), anyString()))
+            .thenAnswer(call -> {
+                String graphId = call.getArgument(1); String operatorId = call.getArgument(6);
+                var specification = call.getArgument(3, ManagedDependencySpec.Service.class);
+                assertThat(specification.slot()).isEqualTo("inbox");
+                String current = installedInboxOperators.get(graphId);
+                var remaining = Arrays.stream(current.split(";")).filter(row -> !operatorId.equals(row.split("\\|")[0])).toList();
+                return new PlatformManagedProductProvisioningService.OwnedDependencyOperatorRestriction(operatorId,
+                    "BASIC_INBOX_OPERATORS", current, String.join(";", remaining), remaining.size());
+            });
+        doAnswer(call -> {
+            var checkpoint = call.getArgument(6, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class);
+            checkpoint.guard();
+            var restriction = call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyOperatorRestriction.class);
+            if (restriction.remainingOperators() > 0) installedInboxOperators.put(call.getArgument(1), restriction.restrictedValue());
+            return null;
+        }).when(provider).applyOwnedDependencyOperatorRemoval(any(), anyString(), anyString(), any(), any(), any(), any());
         lifecycle = new ManagedDependencyLifecycleService(store, specRepository, validator, deployments, versions, targets,
-            access, provider, products, productRepository, secrets, mock(PlatformAuditService.class), gates, Runnable::run);
-        operators = new ManagedDependencyOperatorService(lifecycle, store, validator, secrets);
+            access, provider, products, productRepository, secrets, mock(PlatformAuditService.class), gates, Runnable::run,
+            customerOfferGuard);
+        operators = new ManagedDependencyOperatorService(lifecycle, store, validator, secrets, customerOfferGuard);
         login(PlatformRole.CUSTOMER_ADMIN);
     }
     @AfterEach void clearSecurity() { SecurityContextHolder.clearContext(); }
@@ -147,8 +170,25 @@ class ManagedDependencyLifecycleServiceTest {
         verifyNoInteractions(provider);
         lifecycle.reconcile("dep-1", "staging", "retry-new-key");
         assertThat(store.state(graphs.get(ready.graphId())).nodes.stream().map(n -> n.serviceRef)).containsExactlyElementsOf(refs);
-        verify(gate, times(6)).initializeAndVerify(any(), anyString(), any());
+        var initializationKeys = ArgumentCaptor.forClass(String.class);
+        verify(gate, times(6)).initializeAndVerify(any(), anyString(), any(), initializationKeys.capture());
+        assertThat(initializationKeys.getAllValues().subList(0, 3))
+            .containsExactlyElementsOf(initializationKeys.getAllValues().subList(3, 6));
         assertThat(store.json(ready)).doesNotContain(keys.values().iterator().next(), "secretName");
+    }
+    @Test void configurationChangeProducesFreshInitializationGenerations() {
+        var initial = ready("staging");
+        var initialKeys = ArgumentCaptor.forClass(String.class);
+        verify(gate, times(3)).initializeAndVerify(any(), anyString(), any(), initialKeys.capture());
+        clearInvocations(gate);
+
+        var changed = operators.enroll("dep-1", "staging",
+            new ManagedDependencyOperatorService.Enroll("inbox", "Second", "second-generation"));
+
+        assertThat(changed.status()).isEqualTo("READY");
+        var changedKeys = ArgumentCaptor.forClass(String.class);
+        verify(gate, times(3)).initializeAndVerify(any(), anyString(), any(), changedKeys.capture());
+        assertThat(changedKeys.getAllValues()).doesNotContainAnyElementsOf(initialKeys.getAllValues());
     }
     @Test void targetsGetDifferentAccountsBindingsAndCredentials() {
         var staging = ready("staging"); var production = ready("production");
@@ -169,16 +209,193 @@ class ManagedDependencyLifecycleServiceTest {
         assertThat(operators.deliver("dep-1", "staging", operatorId, new ManagedDependencyOperatorService.Mutation(2, "deliver2"), true).apiKey()).isNotEqualTo(delivered.apiKey());
         var revoked = operators.revoke("dep-1", "staging", operatorId, new ManagedDependencyOperatorService.Mutation(2, "revoke"));
         assertThat(revoked.failureCode()).isEqualTo("INBOX_DISABLED"); assertThat(revoked.operators().get(0).effectiveAt()).isNotNull();
-        verify(provider).disableOwnedDependency(any(), eq(ready.graphId()), anyString(), eq("inbox"), anyString(), any());
-        verify(gate).disableAndVerifyBinding(any(), any());
+        verify(provider).applyOwnedDependencyOperatorRemoval(any(), eq(ready.graphId()), anyString(), any(), any(),
+            argThat(value -> value.remainingOperators() == 0), any());
+        verify(gate).verifyOperatorRevocation(any(), any(), anyList(), anyString(), eq(true));
     }
     @Test void staffNeverReceivePlatformRoleOrOwnerManagementAuthority() {
         submit("staging"); login(PlatformRole.PLATFORM_OPERATOR);
         assertThatThrownBy(() -> operators.enroll("dep-1", "staging", new ManagedDependencyOperatorService.Enroll("inbox", "Staff", "enroll")))
             .hasMessageContaining("Customer owner enrollment"); verifyNoInteractions(provider);
     }
+    @Test void reviewedOfferDenialStopsEnrollmentBeforeSecretOrProviderWork() {
+        submit("staging"); clearInvocations(secrets, provider);
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.FORBIDDEN, "ENTITLEMENT_REQUIRED"))
+            .when(customerOfferGuard).authorizeGrant(any(), eq(com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.INBOX_OPERATOR_ENROLL),
+                eq("denied-enroll"), eq("inbox"));
+
+        assertThatThrownBy(() -> operators.enroll("dep-1", "staging",
+            new ManagedDependencyOperatorService.Enroll("inbox", "Staff", "denied-enroll")))
+            .hasMessageContaining("ENTITLEMENT_REQUIRED");
+
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+        verifyNoInteractions(provider);
+        assertThat(store.state(graphs.values().iterator().next()).operators).isEmpty();
+    }
+    @Test void reviewedOfferDenialStopsRotationAndDeliveryBeforeSecretAccess() {
+        var ready = ready("staging"); String operatorId = ready.operators().getFirst().id();
+        clearInvocations(secrets, provider, customerOfferGuard);
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.FORBIDDEN, "ENTITLEMENT_REQUIRED"))
+            .when(customerOfferGuard).authorizeGrant(any(), any(), anyString(), eq("inbox"));
+
+        assertThatThrownBy(() -> operators.rotate("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "denied-rotate")))
+            .hasMessageContaining("ENTITLEMENT_REQUIRED");
+        assertThatThrownBy(() -> operators.deliver("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "denied-deliver"), true))
+            .hasMessageContaining("ENTITLEMENT_REQUIRED");
+
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+        verify(secrets, never()).resolveSecret(anyString());
+        verifyNoInteractions(provider);
+    }
+    @Test void inactiveReviewedOfferStopsWorkerBeforeProviderWork() {
+        submit("staging"); clearInvocations(provider, gate);
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT, "DEPENDENCY_ENTITLEMENT_INACTIVE"))
+            .when(customerOfferGuard).requireActiveExecution(any());
+
+        var result = lifecycle.reconcile("dep-1", "staging", "denied-worker");
+
+        assertThat(result.failureCode()).isEqualTo("DEPENDENCY_ENTITLEMENT_INACTIVE");
+        verifyNoInteractions(provider, gate);
+    }
+    @Test void emergencyRevocationCanRemoveAccessAfterEntitlementLoss() {
+        var ready = ready("staging"); String operatorId = ready.operators().getFirst().id();
+        clearInvocations(provider, gate, customerOfferGuard);
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT, "DEPENDENCY_ENTITLEMENT_INACTIVE"))
+            .when(customerOfferGuard).requireActiveExecution(any());
+
+        var result = operators.revoke("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "security-revoke"));
+
+        assertThat(result.failureCode()).isEqualTo("INBOX_DISABLED");
+        verify(customerOfferGuard, never()).authorizeGrant(any(), any(), anyString(), anyString());
+        verify(provider).applyOwnedDependencyOperatorRemoval(any(), eq(ready.graphId()), anyString(), any(), any(),
+            argThat(value -> value.remainingOperators() == 0), any());
+    }
+    @Test void revokeWithRemainingOperatorsUsesOnlyExistingInboxAndIgnoresStaleAdmission() {
+        var initial = ready("staging"); String operatorId = initial.operators().getFirst().id();
+        var current = operators.enroll("dep-1", "staging", new ManagedDependencyOperatorService.Enroll("inbox", "Second", "enroll-second"));
+        var state = store.state(graphs.get(current.graphId()));
+        String retired = state.operators.stream().filter(value -> value.id.equals(operatorId)).findFirst().orElseThrow().secretName;
+        var unrelated = state.nodes.stream().filter(value -> !value.slot.equals("inbox"))
+            .map(value -> List.of(value.slot, value.applicationUuid, Objects.toString(value.databaseUuid, ""), value.baseUrl)).toList();
+        clearInvocations(provider, gate, products, secrets, customerOfferGuard);
+        doThrow(new IllegalStateException("expired original admission")).when(gate).reserve(any(), any(), any());
+
+        var result = operators.revoke("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "revoke-one"));
+
+        assertThat(result.status()).isEqualTo("READY");
+        assertThat(result.operators().stream().filter(value -> value.id().equals(operatorId)).findFirst().orElseThrow().effectiveAt()).isNotNull();
+        assertThat(keys).doesNotContainKey(retired);
+        assertThat(store.state(graphs.get(result.graphId())).nodes.stream().filter(value -> !value.slot.equals("inbox"))
+            .map(value -> List.of(value.slot, value.applicationUuid, Objects.toString(value.databaseUuid, ""), value.baseUrl)).toList())
+            .isEqualTo(unrelated);
+        verify(gate, never()).reserve(any(), any(), any()); verify(gate, never()).validateReservation(any(), any());
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(products, never()).ensureOwnedDependency(any(), any(), any(), any(), any(), any(), any());
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), anyMap());
+        verify(gate).verifyOperatorRevocation(any(), argThat(value -> value.slot().equals("inbox")), anyList(), anyString(), eq(false));
+    }
+    @Test void providerFailureLeavesRevocationPendingRetainsSecretAndAllowsExactRetry() {
+        var initial = ready("staging"); String operatorId = initial.operators().getFirst().id();
+        String retired = store.state(graphs.get(initial.graphId())).operators.getFirst().secretName;
+        clearInvocations(secrets, provider, gate);
+        doThrow(new IllegalStateException("provider unavailable")).doNothing().when(provider)
+            .applyOwnedDependencyOperatorRemoval(any(), anyString(), anyString(), any(), any(), any(), any());
+        var request = new ManagedDependencyOperatorService.Mutation(1, "retry-revoke");
+
+        var failed = operators.revoke("dep-1", "staging", operatorId, request);
+
+        assertThat(failed.status()).isEqualTo("BLOCKED");
+        assertThat(failed.operators().getFirst().effectiveAt()).isNull(); assertThat(keys).containsKey(retired);
+        verify(secrets, never()).clearManagedSecret(eq(retired), anyMap());
+        var recovered = operators.revoke("dep-1", "staging", operatorId, request);
+        assertThat(recovered.operators().getFirst().effectiveAt()).isNotNull(); assertThat(keys).doesNotContainKey(retired);
+    }
+    @Test void failedCredentialReadbackRetainsSecretAfterProviderChange() {
+        var initial = ready("staging"); String operatorId = initial.operators().getFirst().id();
+        operators.enroll("dep-1", "staging", new ManagedDependencyOperatorService.Enroll("inbox", "Second", "second"));
+        String retired = store.state(graphs.get(initial.graphId())).operators.getFirst().secretName;
+        clearInvocations(secrets);
+        doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            "INBOX_OPERATOR_REVOCATION_UNCONFIRMED")).when(gate)
+            .verifyOperatorRevocation(any(), any(), anyList(), anyString(), eq(false));
+
+        var failed = operators.revoke("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "unconfirmed"));
+
+        assertThat(failed.failureCode()).isEqualTo("INBOX_OPERATOR_REVOCATION_UNCONFIRMED");
+        assertThat(failed.operators().getFirst().effectiveAt()).isNull(); assertThat(keys).containsKey(retired);
+        verify(secrets, never()).clearManagedSecret(eq(retired), anyMap());
+    }
+    @Test void lastOperatorRevocationRetriesAfterProviderStopWithoutCallingTheStoppedInbox() {
+        var initial = ready("staging"); String operatorId = initial.operators().getFirst().id();
+        String retired = store.state(graphs.get(initial.graphId())).operators.getFirst().secretName;
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT, "DEPENDENCY_DISABLE_UNCONFIRMED"))
+            .doNothing().when(provider).applyOwnedDependencyOperatorRemoval(any(), eq(initial.graphId()),
+                anyString(), any(), any(), any(), any());
+
+        var failed = operators.revoke("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "last-revoke"));
+
+        assertThat(failed.failureCode()).isEqualTo("DEPENDENCY_DISABLE_UNCONFIRMED");
+        assertThat(store.state(graphs.get(initial.graphId())).operatorRevocationLifecycleKey).isNotBlank();
+        assertThat(keys).containsKey(retired);
+        assertThatThrownBy(() -> operators.enroll("dep-1", "staging",
+            new ManagedDependencyOperatorService.Enroll("inbox", "Replacement", "replacement")))
+            .hasMessageContaining("INBOX_OPERATOR_REVOCATION_IN_PROGRESS");
+        clearInvocations(gate, provider);
+
+        var recovered = operators.revoke("dep-1", "staging", operatorId,
+            new ManagedDependencyOperatorService.Mutation(1, "last-revoke"));
+
+        assertThat(recovered.failureCode()).isEqualTo("INBOX_DISABLED");
+        assertThat(store.state(graphs.get(initial.graphId())).operatorRevocationLifecycleKey).isNull();
+        assertThat(keys).doesNotContainKey(retired);
+        verify(gate, never()).verifyOperatorRevocation(any(), any(), anyList(), anyString(), anyBoolean());
+        verify(provider).applyOwnedDependencyOperatorRemoval(any(), eq(initial.graphId()), anyString(), any(), any(), any(), any());
+    }
+    @Test void entitlementRevokedDuringProviderWorkStopsNextMutationCheckpoint() {
+        ready("staging"); clearInvocations(provider, gate);
+        doAnswer(call -> {
+            doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                "DEPENDENCY_ENTITLEMENT_INACTIVE")).when(customerOfferGuard).requireActiveExecution(any());
+            call.getArgument(6, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
+            throw new AssertionError("A revoked entitlement passed its provider checkpoint");
+        }).when(provider).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+
+        var result = lifecycle.reconcile("dep-1", "staging", "concurrent-revoke");
+
+        assertThat(result.failureCode()).isEqualTo("DEPENDENCY_ENTITLEMENT_INACTIVE");
+        verify(provider, times(1)).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(gate, never()).initializeAndVerify(any(), anyString(), any(), anyString());
+    }
+    @Test void entitlementRevokedAtFinalReadbackCannotMarkConfigurationEffective() {
+        var initial = ready("staging"); long effective = initial.effectiveConfigurationRevision();
+        doAnswer(call -> {
+            if (call.getArgument(1, String.class).equals("inbox-callback-canary/v1")) {
+                doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "DEPENDENCY_ENTITLEMENT_INACTIVE")).when(customerOfferGuard).requireActiveExecution(any());
+            }
+            return null;
+        }).when(gate).initializeAndVerify(any(), anyString(), any(), anyString());
+
+        var result = operators.enroll("dep-1", "staging", new ManagedDependencyOperatorService.Enroll("inbox", "Second", "final-revoke"));
+
+        assertThat(result.status()).isEqualTo("BLOCKED"); assertThat(result.failureCode()).isEqualTo("DEPENDENCY_ENTITLEMENT_INACTIVE");
+        assertThat(result.effectiveConfigurationRevision()).isEqualTo(effective);
+        assertThat(result.configurationRevision()).isGreaterThan(effective);
+    }
     @Test void canaryFailurePreservesOwnedPartialGraphForRetry() {
-        doThrow(new IllegalStateException("private provider failure")).doNothing().when(gate).initializeAndVerify(any(), anyString(), any());
+        doThrow(new IllegalStateException("private provider failure")).doNothing().when(gate)
+            .initializeAndVerify(any(), anyString(), any(), anyString());
         var failed = ready("staging"); assertThat(failed.failureCode()).isEqualTo("DEPENDENCY_RECONCILE_FAILED");
         var before = store.state(graphs.get(failed.graphId())).nodes.get(0).applicationUuid;
         var retry = lifecycle.reconcile("dep-1", "staging", "retry"); assertThat(retry.status()).isEqualTo("READY");

@@ -58,6 +58,12 @@ public class DeploymentProviderResourceHandleEntity {
     @Column(name = "last_observed_at")
     private Instant lastObservedAt;
 
+    @Column(name = "volume_deletion_intent_receipt", length = 128)
+    private String volumeDeletionIntentReceipt;
+
+    @Column(name = "volume_reclamation_receipt", length = 128)
+    private String volumeReclamationReceipt;
+
     @Column(name = "metadata_json", nullable = false, columnDefinition = "TEXT")
     private String metadataJson;
 
@@ -177,6 +183,22 @@ public class DeploymentProviderResourceHandleEntity {
 
     public void setLastObservedAt(Instant lastObservedAt) {
         this.lastObservedAt = lastObservedAt;
+    }
+
+    public String getVolumeDeletionIntentReceipt() {
+        return volumeDeletionIntentReceipt;
+    }
+
+    public void setVolumeDeletionIntentReceipt(String volumeDeletionIntentReceipt) {
+        this.volumeDeletionIntentReceipt = volumeDeletionIntentReceipt;
+    }
+
+    public String getVolumeReclamationReceipt() {
+        return volumeReclamationReceipt;
+    }
+
+    public void setVolumeReclamationReceipt(String volumeReclamationReceipt) {
+        this.volumeReclamationReceipt = volumeReclamationReceipt;
     }
 
     public String getMetadataJson() {

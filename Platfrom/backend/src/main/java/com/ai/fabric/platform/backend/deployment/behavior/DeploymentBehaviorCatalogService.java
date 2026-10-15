@@ -275,7 +275,7 @@ public class DeploymentBehaviorCatalogService {
         String bindingId = config.path("channelBindingId").asText("").trim();
         if (!config.path("enabled").asBoolean(false)
             || !"request_conversation_handover".equals(config.path("actionId").asText(""))
-            || !bindingId.matches("^[a-z][a-z0-9-]{1,79}$")) {
+            || !isStableBindingIdOrManagedReference(bindingId)) {
             return Validation.invalid(
                 "CONVERSATION_HANDOVER_CONFIG_INVALID",
                 "Conversation Handover requires its canonical action and a stable channel binding ID."
@@ -335,6 +335,11 @@ public class DeploymentBehaviorCatalogService {
             );
         }
         return Validation.valid(config.deepCopy());
+    }
+
+    private boolean isStableBindingIdOrManagedReference(String value) {
+        return value.matches("^[a-z][a-z0-9-]{1,79}$")
+            || value.matches("\\$\\{MANAGED_[A-Z0-9_]{1,119}}");
     }
 
     private Validation validateSpecialistBundles(JsonNode configured,

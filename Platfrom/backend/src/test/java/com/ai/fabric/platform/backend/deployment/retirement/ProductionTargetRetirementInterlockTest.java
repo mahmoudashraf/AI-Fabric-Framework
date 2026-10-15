@@ -67,12 +67,14 @@ class ProductionTargetRetirementInterlockTest {
         RecoveryEvidence present = interlock.recover(context, "old-worker", "operation:2:RESOURCES:handle");
         assertThat(present.workerFenced()).isTrue();
         assertThat(present.remoteOutcomeSettled()).isFalse();
+        assertThat(present.resumeSafe()).isTrue();
 
         when(resources.readback(eq(context), any())).thenReturn(new EffectResult(true,
             "provider-resource:handle:absence-candidate", Instant.now()));
         RecoveryEvidence absent = interlock.recover(context, "old-worker", "operation:2:RESOURCES:handle");
         assertThat(absent.workerFenced()).isTrue();
         assertThat(absent.remoteOutcomeSettled()).isTrue();
+        assertThat(absent.resumeSafe()).isTrue();
     }
 
     @Test void changedGateGenerationCannotFenceThePreviousWorker() {
@@ -81,6 +83,7 @@ class ProductionTargetRetirementInterlockTest {
         RecoveryEvidence evidence = interlock.recover(context, "old-worker", "operation:2:RESOURCES:handle");
         assertThat(evidence.workerFenced()).isFalse();
         assertThat(evidence.remoteOutcomeSettled()).isFalse();
+        assertThat(evidence.resumeSafe()).isFalse();
         verifyNoInteractions(resources);
     }
 }

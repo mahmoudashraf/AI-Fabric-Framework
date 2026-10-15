@@ -91,7 +91,14 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
   assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
   assert.deepEqual(definition.targets.map(({intent}) => intent), ["CUSTOMER_STAGING", "CUSTOMER_PRODUCTION"]);
+  assert.equal(definition.operations.includes("VERSION_PUBLISH"), true);
+  assert.equal(definition.operations.includes("DRAFT_EDIT"), false);
+  assert.equal(definition.operations.includes("INBOX_OPERATOR_ENROLL"), true);
+  assert.equal(definition.operations.includes("INBOX_OPERATOR_DELIVER"), true);
   assert.equal(definition.bindingSlots[0].pluginId, "mkp-data-dealership-knowledge-v1");
+  assert.deepEqual(definition.bindingSlots[1], {
+    id: "inbox", kind: "INBOX_OPERATOR", supportedProfileIds: ["managed-basic-inbox-keys-v1"],
+  });
   assert.equal(definition.settings.filter(({type}) => type === "CHOICE").every(({allowedValues}) => allowedValues.length > 0), true);
 });
 

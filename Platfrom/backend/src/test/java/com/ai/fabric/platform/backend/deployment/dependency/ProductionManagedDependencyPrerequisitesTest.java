@@ -11,7 +11,10 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateEntity;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationEntity;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileConfig;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseEndpointService;
@@ -199,7 +202,7 @@ class ProductionManagedDependencyPrerequisitesTest {
                 "8080", "/actuator/health", "8080"));
         when(provisioning.ownedDependencyConnection("target", "staging")).thenReturn(connection);
 
-        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, "test-init/v1", binding))
+        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, "test-init/v1", binding, "init-1"))
             .hasMessageContaining("DEPENDENCY_INITIALIZATION_VERIFIER_REQUIRED");
         verify(provisioning, never()).verifyOwnedDependencyReady(any(), anyString(), anyString(), anyString(),
             anyString(), any(), anyMap());
@@ -207,15 +210,15 @@ class ProductionManagedDependencyPrerequisitesTest {
         var verifier = mock(ManagedDependencyInitializationVerifier.class);
         when(verifier.supports("test-init/v1")).thenReturn(true);
         when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
-        prerequisites.initializeAndVerify(scope, "test-init/v1", binding);
+        prerequisites.initializeAndVerify(scope, "test-init/v1", binding, "init-1");
         verify(provisioning).verifyOwnedDependencyReady(connection, "graph", "managed-service", "service",
             "application", null, Map.of());
-        verify(verifier).initializeAndVerify(scope, "test-init/v1", binding);
+        verify(verifier).initializeAndVerify(scope, "test-init/v1", binding, "init-1");
 
         var duplicate = mock(ManagedDependencyInitializationVerifier.class);
         when(duplicate.supports("test-init/v1")).thenReturn(true);
         when(verifiers.orderedStream()).thenReturn(Stream.of(verifier, duplicate));
-        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, "test-init/v1", binding))
+        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, "test-init/v1", binding, "init-1"))
             .hasMessageContaining("DEPENDENCY_INITIALIZATION_VERIFIER_REQUIRED");
     }
 
@@ -229,9 +232,33 @@ class ProductionManagedDependencyPrerequisitesTest {
 
         var changed = new ManagedDependencyPrerequisites.Binding("service", "managed-service",
             "https://other.example.test", "account", "binding", Map.of("api", "MANAGED_API"));
-        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, "test-init/v1", changed))
+        assertThatThrownBy(() -> prerequisites.initializeAndVerify(scope, "test-init/v1", changed, "init-1"))
             .hasMessageContaining("DEPENDENCY_BINDING_CHANGED");
         verifyNoInteractions(provisioning);
+    }
+
+    @Test
+    void exactInboxRevocationDoesNotDependOnExpiredProvisioningEvidence() {
+        var inbox = ManagedDependencyFixtures.topology().services().stream().filter(value -> value.slot().equals("inbox")).findFirst().orElseThrow();
+        spec = new ManagedDependencySpec("managed-dependencies/v1", List.of(inbox));
+        String fingerprint = validator.fingerprint(spec); graph.setSpecFingerprint(fingerprint);
+        scope = new ManagedDependencyPrerequisites.Scope("graph", "customer", "tenant", "deployment", "target", "version", "release",
+            fingerprint, scope.bindingFingerprint());
+        state.nodes.getFirst().slot = "inbox";
+        when(graphs.spec(graph)).thenReturn(spec);
+        var binding = new ManagedDependencyPrerequisites.Binding("inbox", "managed-service", "https://managed-service.example.test",
+            "account", "binding", Map.of("api", "MANAGED_API"));
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports("inbox-callback-canary/v1")).thenReturn(true);
+        when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
+        clearInvocations(admission);
+        when(admission.require(any(), any())).thenThrow(new IllegalStateException("expired admission"));
+
+        prerequisites.verifyOperatorRevocation(scope, binding, List.of("RETIRED_KEY"), "revoke", false);
+
+        verifyNoInteractions(admission, provisioning);
+        verify(verifier).verifyOperatorRevocation(scope, "inbox-callback-canary/v1", binding,
+            List.of("RETIRED_KEY"), "revoke", false);
     }
 
     @Test
@@ -247,6 +274,65 @@ class ProductionManagedDependencyPrerequisitesTest {
             "application", null, Map.of("/app/data", "volume")));
         prerequisites.verifyReclaimed(scope, resources);
         verify(provisioning).verifyOwnedDependenciesReclaimed(connection, "graph", resources);
+    }
+
+    @Test
+    void retirementProbesOnlyLiveNodesAndAcceptsExactSameOperationCheckpoints() {
+        configureRetirement("retire-1");
+        graph.setStatus("RETIRING");
+        var retired = new ManagedDependencyState.Node();
+        retired.slot = "removed"; retired.serviceRef = "removed-service";
+        retired.status = "RETIRED"; retired.retirementOperationKey = "retire-1";
+        state.nodes.add(retired);
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports("test-init/v1")).thenReturn(true);
+        when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
+
+        prerequisites.requireUnused(scope, graph.getRevision(), "retire-1");
+
+        verify(verifier).requireUnused(eq(scope), eq("test-init/v1"), any(), eq("retire-1"));
+    }
+
+    @Test
+    void retirementRejectsNodeCheckpointFromAnotherOperation() {
+        configureRetirement("retire-1");
+        graph.setStatus("RETIRING");
+        state.nodes.getFirst().status = "RETIRING";
+        state.nodes.getFirst().retirementOperationKey = "retire-other";
+
+        assertThatThrownBy(() -> prerequisites.requireUnused(scope, graph.getRevision(), "retire-1"))
+            .hasMessageContaining("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
+    }
+
+    @Test
+    void previouslyDisabledNodeDoesNotRequireAStoppedHttpEndpoint() {
+        configureRetirement("retire-1");
+        graph.setStatus("RETIRING");
+        state.nodes.getFirst().status = "DISABLED";
+        var verifier = mock(ManagedDependencyInitializationVerifier.class);
+        when(verifier.supports("test-init/v1")).thenReturn(true);
+        when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
+
+        prerequisites.requireUnused(scope, graph.getRevision(), "retire-1");
+
+        verifyNoInteractions(verifier);
+    }
+
+    private void configureRetirement(String operationKey) {
+        var operation = new TargetRetirementOperationEntity();
+        operation.setId("retirement"); operation.setCustomerId("customer");
+        operation.setDeploymentId("deployment"); operation.setTargetProfileId("target");
+        operation.setOperationKey(operationKey); operation.setState(TargetRetirementContracts.State.RUNNING);
+        operation.setStep(TargetRetirementContracts.Step.DEPENDENCIES); operation.setWorkerToken("worker");
+        operation.setLeaseExpiresAt(Instant.now().plusSeconds(60)); operation.setDestructiveStarted(true);
+        operation.setFenceEpoch(4);
+        when(retirementOperations.findByDeploymentIdAndTargetProfileIdAndOperationKey(
+            "deployment", "target", operationKey)).thenReturn(Optional.of(operation));
+        var gate = new TargetRetirementGateEntity();
+        gate.setId("gate"); gate.setDeploymentId("deployment"); gate.setTargetProfileId("target");
+        gate.setState("RETIRING"); gate.setOperationId("retirement"); gate.setEpoch(4);
+        when(retirementGates.findByDeploymentIdAndTargetProfileId("deployment", "target"))
+            .thenReturn(Optional.of(gate));
     }
 
     private ManagedDependencyPrerequisites.Binding binding() {

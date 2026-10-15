@@ -125,7 +125,8 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     }
 
     @Override
-    public void initializeAndVerify(Scope scope, String initializationContract, Binding binding) {
+    public void initializeAndVerify(Scope scope, String initializationContract, Binding binding,
+                                    String operationKey) {
         validateReservation(scope, graph(scope).getReservationRef());
         var graph = graph(scope);
         var node = exactNode(graph, binding);
@@ -134,7 +135,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             provisioning.ownedDependencyConnection(scope.targetProfileId(), environment(scope)),
             scope.graphId(), node.serviceRef, node.slot, node.applicationUuid, node.databaseUuid,
             Map.copyOf(node.volumes));
-        verifier.initializeAndVerify(scope, initializationContract, binding);
+        verifier.initializeAndVerify(scope, initializationContract, binding, operationKey);
     }
 
     @Override
@@ -147,6 +148,30 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             && "ENROLLED".equals(value.status))) fail("DEPENDENCY_BINDING_DISABLE_UNPROVEN");
         String contract = service(graph, node.slot).initializationContract();
         verifier(contract).disableAndVerify(scope, contract, binding);
+    }
+
+    @Override
+    public void validateOperatorRevocationScope(Scope scope, Binding binding) {
+        requireScope(scope);
+        var graph = graph(scope);
+        var node = exactNode(graph, binding);
+        var service = service(graph, node.slot);
+        if (service.contract() != ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
+            || node.applicationUuid == null || node.baseUrl == null) {
+            fail("INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
+        }
+        authority(scope);
+    }
+
+    @Override
+    public void verifyOperatorRevocation(Scope scope, Binding binding, List<String> retiredCredentialReferences,
+                                        String operationKey, boolean disabled) {
+        validateOperatorRevocationScope(scope, binding);
+        var graph = graph(scope);
+        var node = exactNode(graph, binding);
+        String contract = service(graph, node.slot).initializationContract();
+        verifier(contract).verifyOperatorRevocation(scope, contract, binding, retiredCredentialReferences,
+            operationKey, disabled);
     }
 
     @Override
@@ -182,6 +207,19 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         }
         validateReservation(scope, graph.getReservationRef());
         for (var node : graphs.state(graph).nodes) {
+            if ("DISABLED".equals(node.status)) continue;
+            if ("RETIRED".equals(node.status)) {
+                if (!retirementOperationKey.equals(node.retirementOperationKey)) {
+                    fail("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
+                }
+                continue;
+            }
+            if ("RETIRING".equals(node.status)) {
+                if (!retirementOperationKey.equals(node.retirementOperationKey)) {
+                    fail("DEPENDENCY_RETIREMENT_GENERATION_CHANGED");
+                }
+                continue;
+            }
             String contract = service(graph, node.slot).initializationContract();
             verifier(contract).requireUnused(scope, contract,
                 new Binding(node.slot, node.serviceRef, node.baseUrl, node.accountId, node.bindingId,

@@ -40,11 +40,12 @@ class CustomerSelfServiceControllerTest {
     @Autowired CustomerOfferEntitlementService entitlements;
     @Autowired CustomerSelfServiceCatalogueService catalogue;
     @Autowired CustomerDeploymentBootstrapService bootstrap;
+    @Autowired CustomerDeploymentVersionService versions;
     @Autowired CustomerAdmissionReservationService reservations;
     private MockMvc mvc;
 
     @BeforeEach void setup() {
-        reset(entitlements, catalogue, bootstrap, reservations);
+        reset(entitlements, catalogue, bootstrap, versions, reservations);
         mvc = webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -54,6 +55,20 @@ class CustomerSelfServiceControllerTest {
             mvc.perform(as(get("/api/customer-self-service/catalogue"), role)).andExpect(status().isForbidden());
         }
         mvc.perform(get("/api/customer-self-service/catalogue")).andExpect(status().isForbidden());
+    }
+
+    @Test void reviewedVersionPublicationIsCustomerOnlyAndUsesTheDedicatedContract() throws Exception {
+        when(versions.publish(eq("offer"), eq("deployment"), any())).thenReturn(
+            new com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishResult(
+                "deployment", "version", "v1", "config", "staging-target", 2));
+        String body = "{\"targetProfileId\":\"staging-target\",\"expectedEntitlementRevision\":2,\"operationKey\":\"publish-key\"}";
+        mvc.perform(as(post("/api/customer-self-service/catalogue/offer/deployments/deployment/versions")
+            .contentType("application/json").content(body), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.versionId").value("version"));
+        mvc.perform(as(post("/api/customer-self-service/catalogue/offer/deployments/deployment/versions")
+            .contentType("application/json").content(body), PlatformRole.PLATFORM_OPERATOR))
+            .andExpect(status().isForbidden());
+        verify(versions, times(1)).publish(eq("offer"), eq("deployment"), any());
     }
 
     @Test void grantRevokeRoutesAreAdminOnlyAndCannotBeReachedThroughCustomerOrOperatorRoles() throws Exception {
@@ -134,14 +149,16 @@ class CustomerSelfServiceControllerTest {
         @Bean CustomerOfferCodec codec() { return CustomerOfferTestFixtures.codec(); }
         @Bean CustomerPlacementProbeService placementProbes() { return mock(CustomerPlacementProbeService.class); }
         @Bean CustomerDeploymentBootstrapService bootstrap() { return mock(CustomerDeploymentBootstrapService.class); }
+        @Bean CustomerDeploymentVersionService versions() { return mock(CustomerDeploymentVersionService.class); }
         @Bean CustomerDocumentStorageBindingService documentStorageBindings() {
             return mock(CustomerDocumentStorageBindingService.class);
         }
         @Bean CustomerAdmissionReservationService reservations() { return mock(CustomerAdmissionReservationService.class); }
         @Bean CustomerSelfServiceController controller(CustomerSelfServiceCatalogueService catalogue,
             CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec, CustomerPlacementProbeService placementProbes,
-            CustomerDeploymentBootstrapService bootstrap, CustomerDocumentStorageBindingService documentStorageBindings) {
-            return new CustomerSelfServiceController(catalogue, entitlements, codec, placementProbes, bootstrap,
+            CustomerDeploymentBootstrapService bootstrap, CustomerDeploymentVersionService versions,
+            CustomerDocumentStorageBindingService documentStorageBindings) {
+            return new CustomerSelfServiceController(catalogue, entitlements, codec, placementProbes, bootstrap, versions,
                 documentStorageBindings);
         }
         @Bean CustomerSelfServiceExceptionHandler errors() { return new CustomerSelfServiceExceptionHandler(); }

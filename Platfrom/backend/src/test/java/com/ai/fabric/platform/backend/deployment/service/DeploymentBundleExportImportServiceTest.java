@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
@@ -54,6 +55,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -65,12 +68,15 @@ import java.util.Optional;
 
 import static com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.RecipientType.OPERATOR_PUBLIC_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DeploymentBundleExportImportServiceTest {
@@ -99,6 +105,7 @@ class DeploymentBundleExportImportServiceTest {
         null, null, null, null, null, null, null, null, null, null, null
     );
     private final DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+    private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository = mock(CustomerOfferDeploymentRepository.class);
     private final DeploymentService deploymentService = mock(DeploymentService.class);
     private final PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
     private final DeploymentBundleSealingService sealingService = new DeploymentBundleSealingService(objectMapper);
@@ -320,6 +327,46 @@ class DeploymentBundleExportImportServiceTest {
             .path("secrets")
             .findValuesAsText("secretName"))
             .containsExactlyInAnyOrder("CONNECTOR_API_KEY", "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY");
+    }
+
+    @Test
+    void reviewedOfferRestoreIsRejectedBeforeCatalogDraftInstallOrSecretMutation() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity deployment = deployment();
+        DeploymentDraftEntity draft = draft(deployment.getId());
+        PlatformSecretEntity secret = deploymentSecret("MANAGED_DEPLOYMENT_SECRET", "original-secret", deployment.getId());
+        stubExportState(deployment, draft, secret);
+        KeyPair keyPair = rsaKeyPair();
+        var export = service.exportDeployment(deployment.getId(), new DeploymentExportRequest(
+            ExportMode.SEALED_BACKUP, "reviewed-offer restore test",
+            new ExportRecipient(OPERATOR_PUBLIC_KEY, publicKeyPem(keyPair)), true, true
+        ));
+        var bundle = (com.fasterxml.jackson.databind.node.ObjectNode) export.bundle();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) bundle.path("manifest").path("marketplaceCatalog").path("plugins"))
+            .addObject().put("id", "mkp-unreviewed").put("slug", "unreviewed-plugin").put("pluginType", "DATA");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) bundle.path("integrity"))
+            .put("manifestHash", sealingService.sha256(bundle.path("manifest")));
+        when(customerOfferDeploymentRepository.existsById(deployment.getId())).thenReturn(true);
+        clearInvocations(draftRepository, versionRepository, marketplacePluginInstallRepository, marketplacePluginRepository,
+            marketplacePluginVersionRepository, marketplacePluginDatasetRepository, secretBindingRepository,
+            platformSecretRepository, vectorizationPlanRepository, vectorizationSourceConnectionRepository,
+            vectorizationPlanRevisionRepository, managedProductServiceRepository, platformAuditService);
+
+        assertThatThrownBy(() -> service.importDeployment(new DeploymentImportRequest(
+            bundle, ImportMode.RESTORE_IN_PLACE, deployment.getId(), null, null, null, null, null,
+            privateKeyPem(keyPair), "restore reviewed deployment"
+        )))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        assertThat(deployment.getActiveDraftId()).isEqualTo(draft.getId());
+        assertThat(deployment.getStatus()).isEqualTo("DRAFT");
+        assertThat(secret.getSecretValue()).isEqualTo("original-secret");
+        verify(deploymentRepository, never()).save(any());
+        verifyNoInteractions(draftRepository, versionRepository, marketplacePluginInstallRepository, marketplacePluginRepository,
+            marketplacePluginVersionRepository, marketplacePluginDatasetRepository, secretBindingRepository,
+            platformSecretRepository, vectorizationPlanRepository, vectorizationSourceConnectionRepository,
+            vectorizationPlanRevisionRepository, managedProductServiceRepository, platformAuditService);
     }
 
     @Test
@@ -1252,6 +1299,7 @@ class DeploymentBundleExportImportServiceTest {
             managedProductServiceRepository,
             productProvisioningProperties,
             deploymentAccessService,
+            customerOfferDeploymentRepository,
             deploymentService,
             platformAuditService,
             sealingService

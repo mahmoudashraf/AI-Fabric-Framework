@@ -11,6 +11,8 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
@@ -74,6 +76,16 @@ class AIWorkspaceAssignmentServiceTest {
         assertThat(service.resolveCurrent(consumer).runtimeBaseUrl()).isEqualTo("https://stage.example");
         assertThat(service.resolveCurrent(consumer).deployment().getEnvironmentName()).isEqualTo("staging");
         assertThat(deployments.findById("dep-1").orElseThrow().getEnvironmentName()).isEqualTo("production");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VERIFYING", "APPLIED_VERIFICATION_FAILED"})
+    void candidateSourceAdministrationDoesNotMakeAnUnverifiedReleaseConsumerAssignable(String candidateStatus) {
+        release.setStatus(candidateStatus);
+        release.setProvisioningStatus("ACTIVE");
+        release.setVerificationStatus("FAILED");
+        assertThatThrownBy(() -> service.resolveCurrent(consumer))
+            .isInstanceOf(IllegalStateException.class).hasMessageContaining("not verified");
     }
 
     @Test

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyLifecycleService.*;
 import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.fail;
+import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.*;
 
 @Service
 public class ManagedDependencyOperatorService {
@@ -16,9 +17,12 @@ public class ManagedDependencyOperatorService {
     private final ManagedDependencyGraphStore store;
     private final ManagedDependencySpecValidator validator;
     private final PlatformSecretService secrets;
+    private final ManagedDependencyCustomerOfferGuard customerOfferGuard;
     public ManagedDependencyOperatorService(ManagedDependencyLifecycleService lifecycle, ManagedDependencyGraphStore store,
-                                            ManagedDependencySpecValidator validator, PlatformSecretService secrets) {
+                                            ManagedDependencySpecValidator validator, PlatformSecretService secrets,
+                                            ManagedDependencyCustomerOfferGuard customerOfferGuard) {
         this.lifecycle = lifecycle; this.store = store; this.validator = validator; this.secrets = secrets;
+        this.customerOfferGuard = customerOfferGuard;
     }
     public record Enroll(String slot, String displayName, String operationKey) {}
     public record Mutation(int expectedCredentialRevision, String operationKey) {}
@@ -49,6 +53,9 @@ public class ManagedDependencyOperatorService {
             && s.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1)) fail("INBOX_OPERATOR_SLOT_INVALID");
         store.mutate(graph.getId(), null, (current, state) -> {
             requireIdle(current);
+            requireNoPendingRevocation(state);
+            if (reconcile) customerOfferGuard.authorizeGrant(current, INBOX_OPERATOR_ENROLL,
+                request.operationKey(), request.slot());
             var matchingOwner = state.operators.stream()
                 .filter(operator -> request.slot().equals(operator.slot)
                     && request.displayName().equals(operator.displayName))
@@ -91,6 +98,9 @@ public class ManagedDependencyOperatorService {
         store.mutate(graph.getId(), null, (current, state) -> {
             requireIdle(current);
             var operator = operator(state, operatorId);
+            requireCompatiblePendingRevocation(state, operatorId, request.operationKey(), revoke);
+            if (!revoke) customerOfferGuard.authorizeGrant(current, INBOX_OPERATOR_ROTATE,
+                request.operationKey(), operator.slot);
             if (!command(state, request.operationKey(), validator.fingerprint(List.of(revoke ? "REVOKE" : "ROTATE", operatorId,
                 request.expectedCredentialRevision())), operatorId)) return;
             accepted[0] = true;
@@ -111,9 +121,11 @@ public class ManagedDependencyOperatorService {
             changed(current, state);
         });
         lifecycle.audit(graph.getId(), revoke ? "INBOX_OPERATOR_REVOKE_REQUESTED" : "INBOX_OPERATOR_ROTATE_REQUESTED", Map.of("operatorId", operatorId));
-        if (!accepted[0]) return lifecycle.status(deploymentId, targetProfileId);
+        if (!accepted[0] && !revoke) return lifecycle.status(deploymentId, targetProfileId);
         // The old key remains effective until managed redeploy/readback completes. Never report immediate revoke.
-        return lifecycle.reconcile(deploymentId, targetProfileId, request.operationKey() + ":apply");
+        return revoke
+            ? lifecycle.reconcileSecurityRevocation(deploymentId, targetProfileId, operatorId, request.operationKey())
+            : lifecycle.reconcile(deploymentId, targetProfileId, request.operationKey() + ":apply");
     }
     public Delivery deliver(String deploymentId, String targetProfileId, String operatorId, Mutation request, boolean secureTransport) {
         owner(deploymentId, targetProfileId);
@@ -122,7 +134,10 @@ public class ManagedDependencyOperatorService {
         Delivery[] delivery = {null};
         store.mutate(graph.getId(), null, (current, state) -> {
             requireIdle(current);
+            requireNoPendingRevocation(state);
             var operator = operator(state, operatorId);
+            customerOfferGuard.authorizeGrant(current, INBOX_OPERATOR_DELIVER,
+                request.operationKey(), operator.slot);
             if (!"READY".equals(current.getStatus()) || state.configurationRevision != state.effectiveConfigurationRevision
                 || !"ENROLLED".equals(operator.status) || operator.effectiveAt == null) fail("INBOX_OPERATOR_CONFIGURATION_NOT_EFFECTIVE");
             if (operator.credentialRevision != request.expectedCredentialRevision()) fail("INBOX_OPERATOR_REVISION_CONFLICT");
@@ -149,6 +164,23 @@ public class ManagedDependencyOperatorService {
     }
     private static void requireIdle(ManagedDependencyGraphEntity graph) {
         if (graph.getWorkerToken() != null || "RETIRING".equals(graph.getStatus()) || "RETIRED".equals(graph.getStatus())) fail("DEPENDENCY_OPERATION_IN_PROGRESS");
+    }
+    private static void requireNoPendingRevocation(ManagedDependencyState state) {
+        if (state.operators.stream().anyMatch(operator -> "REVOKED".equals(operator.status)
+            && operator.effectiveAt == null) || state.operatorRevocationLifecycleKey != null) {
+            fail("INBOX_OPERATOR_REVOCATION_IN_PROGRESS");
+        }
+    }
+    private static void requireCompatiblePendingRevocation(ManagedDependencyState state, String operatorId,
+                                                            String operationKey, boolean revoke) {
+        var pending = state.operators.stream().filter(operator -> "REVOKED".equals(operator.status)
+            && operator.effectiveAt == null).toList();
+        if (pending.isEmpty() && state.operatorRevocationLifecycleKey == null) return;
+        var command = state.commands.get(operationKey);
+        if (!revoke || pending.size() != 1 || !operatorId.equals(pending.getFirst().id)
+            || command == null || !operatorId.equals(command.resultId())) {
+            fail("INBOX_OPERATOR_REVOCATION_IN_PROGRESS");
+        }
     }
     private static void changed(ManagedDependencyGraphEntity graph, ManagedDependencyState state) {
         state.configurationRevision++; graph.setStatus("BLOCKED"); graph.setStep("OPERATOR_RECONCILE");

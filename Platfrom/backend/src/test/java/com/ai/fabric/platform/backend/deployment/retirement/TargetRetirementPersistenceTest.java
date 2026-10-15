@@ -197,9 +197,10 @@ class TargetRetirementPersistenceTest {
             .hasMessageContaining("STALE_WORKER");
         update(op, entity -> entity.setNextRetryAt(Instant.now().minusSeconds(1)));
         interlock.settled = false;
+        interlock.resumeSafe = false;
         assertThatThrownBy(() -> service.retry("deployment", "staging", op.id(), new Command(op.requestFingerprint())))
             .hasMessageContaining("RECOVERY_EVIDENCE_REQUIRED");
-        interlock.settled = true;
+        interlock.resumeSafe = true;
         service.retry("deployment", "staging", op.id(), new Command(op.requestFingerprint()));
         Context replacement = store.claim(op.id());
         assertThat(replacement.workerToken()).isNotEqualTo(old.workerToken());
@@ -426,10 +427,11 @@ class TargetRetirementPersistenceTest {
     }
     static class FakeInterlock implements TargetRetirementInterlock {
         boolean settled = true;
+        boolean resumeSafe = true;
         boolean absenceProven = true;
         String blocker;
         Runnable beforeEffect;
-        void reset() { settled = true; absenceProven = true; blocker = null; beforeEffect = null; }
+        void reset() { settled = true; resumeSafe = true; absenceProven = true; blocker = null; beforeEffect = null; }
         public Evidence inspect(Context context) {
             return new Evidence(context.requestFingerprint(), context.fenceEpoch(), Instant.now(), "authority-proof", true,
                 true, true, true, 0L, 0L, 0L, 0L, false,
@@ -440,7 +442,8 @@ class TargetRetirementPersistenceTest {
             return effect.get();
         }
         public RecoveryEvidence recover(Context context, String oldWorker, String effectKey) {
-            return new RecoveryEvidence(context.operationId(), oldWorker, effectKey, Instant.now(), "quiescence-proof", true, settled);
+            return new RecoveryEvidence(context.operationId(), oldWorker, effectKey, Instant.now(),
+                "quiescence-proof", true, settled, resumeSafe);
         }
         public EffectResult verifyResourceAbsent(Context context, ResourceGeneration resource) {
             return new EffectResult(absenceProven, "authoritative-absence-" + resource.handleId(), Instant.now());

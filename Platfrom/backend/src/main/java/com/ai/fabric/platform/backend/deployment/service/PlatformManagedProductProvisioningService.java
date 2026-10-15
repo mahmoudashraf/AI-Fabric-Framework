@@ -4,9 +4,12 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.CoolifyHostVolumeReclamationService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceShopifyBillingConfigSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
@@ -29,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -60,6 +64,8 @@ public class PlatformManagedProductProvisioningService {
     private final PlatformManagedProductServiceService serviceService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    private final CustomerSelfServiceProperties customerSelfServiceProperties;
+    private final CoolifyHostVolumeReclamationService hostVolumeReclamationService;
 
     @Autowired
     public PlatformManagedProductProvisioningService(PlatformProvisioningProperties provisioningProperties,
@@ -74,7 +80,9 @@ public class PlatformManagedProductProvisioningService {
                                                      ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
                                                      PlatformManagedProductServiceService serviceService,
                                                      PlatformAuditService platformAuditService,
-                                                     ObjectMapper objectMapper) {
+                                                     ObjectMapper objectMapper,
+                                                     CustomerSelfServiceProperties customerSelfServiceProperties,
+                                                     CoolifyHostVolumeReclamationService hostVolumeReclamationService) {
         this.provisioningProperties = provisioningProperties;
         this.productProvisioningProperties = productProvisioningProperties;
         this.deliveryProperties = deliveryProperties;
@@ -88,6 +96,51 @@ public class PlatformManagedProductProvisioningService {
         this.serviceService = serviceService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.customerSelfServiceProperties = customerSelfServiceProperties;
+        this.hostVolumeReclamationService = hostVolumeReclamationService;
+    }
+
+    PlatformManagedProductProvisioningService(PlatformProvisioningProperties provisioningProperties,
+                                             PlatformProductProvisioningProperties productProvisioningProperties,
+                                             PlatformDeliveryProperties deliveryProperties,
+                                             RailwayGraphqlClient railwayGraphqlClient,
+                                             CoolifyTargetProfileResolver coolifyTargetProfileResolver,
+                                             CoolifyApiClient coolifyApiClient,
+                                             DeploymentTargetProfileRepository targetProfileRepository,
+                                             PlatformSecretService platformSecretService,
+                                             PlatformManagedProductServiceRepository serviceRepository,
+                                             ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                             PlatformManagedProductServiceService serviceService,
+                                             PlatformAuditService platformAuditService, ObjectMapper objectMapper) {
+        this(provisioningProperties, productProvisioningProperties, deliveryProperties, railwayGraphqlClient,
+            coolifyTargetProfileResolver, coolifyApiClient, targetProfileRepository, platformSecretService,
+            serviceRepository, shopifyStoreConnectionRepository, serviceService, platformAuditService, objectMapper,
+            new CustomerSelfServiceProperties(Map.of(), 0),
+            new CoolifyHostVolumeReclamationService((intent, serverUuid, command) -> {
+                throw new IllegalStateException("Provider host verification is not configured for this test.");
+            }));
+    }
+
+    PlatformManagedProductProvisioningService(PlatformProvisioningProperties provisioningProperties,
+                                             PlatformProductProvisioningProperties productProvisioningProperties,
+                                             PlatformDeliveryProperties deliveryProperties,
+                                             RailwayGraphqlClient railwayGraphqlClient,
+                                             CoolifyTargetProfileResolver coolifyTargetProfileResolver,
+                                             CoolifyApiClient coolifyApiClient,
+                                             DeploymentTargetProfileRepository targetProfileRepository,
+                                             PlatformSecretService platformSecretService,
+                                             PlatformManagedProductServiceRepository serviceRepository,
+                                             ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                             PlatformManagedProductServiceService serviceService,
+                                             PlatformAuditService platformAuditService, ObjectMapper objectMapper,
+                                             CustomerSelfServiceProperties customerSelfServiceProperties) {
+        this(provisioningProperties, productProvisioningProperties, deliveryProperties, railwayGraphqlClient,
+            coolifyTargetProfileResolver, coolifyApiClient, targetProfileRepository, platformSecretService,
+            serviceRepository, shopifyStoreConnectionRepository, serviceService, platformAuditService, objectMapper,
+            customerSelfServiceProperties,
+            new CoolifyHostVolumeReclamationService((intent, serverUuid, command) -> {
+                throw new IllegalStateException("Provider host verification is not configured for this test.");
+            }));
     }
 
     PlatformManagedProductProvisioningService(PlatformProvisioningProperties provisioningProperties,
@@ -1714,11 +1767,36 @@ public class PlatformManagedProductProvisioningService {
         void creating(String kind);
         void created(String kind, String uuid);
         void volume(String mountPath, String uuid);
+        void volumeReclamationPlanned(Map<String, String> volumeNamesByUuid);
+        void volumesReclaimed(Set<String> volumeUuids);
     }
 
     public record OwnedDependencyResources(String applicationUuid, String databaseUuid,
                                           boolean applicationCreateIntent, boolean databaseCreateIntent,
-                                          Map<String, String> volumes) {}
+                                          Map<String, String> volumes,
+                                          Map<String, String> volumeReclamationPlan,
+                                          Set<String> reclaimedVolumeUuids) {
+        public OwnedDependencyResources {
+            volumes = volumes == null ? Map.of() : Map.copyOf(volumes);
+            volumeReclamationPlan = volumeReclamationPlan == null ? Map.of() : Map.copyOf(volumeReclamationPlan);
+            reclaimedVolumeUuids = reclaimedVolumeUuids == null ? Set.of() : Set.copyOf(reclaimedVolumeUuids);
+        }
+
+        public OwnedDependencyResources(String applicationUuid, String databaseUuid,
+                boolean applicationCreateIntent, boolean databaseCreateIntent,
+                Map<String, String> volumes) {
+            this(applicationUuid, databaseUuid, applicationCreateIntent, databaseCreateIntent,
+                volumes, Map.of(), Set.of());
+        }
+
+        public OwnedDependencyResources(String applicationUuid, String databaseUuid,
+                boolean applicationCreateIntent, boolean databaseCreateIntent,
+                Map<String, String> volumes, Set<String> reclaimedVolumeUuids) {
+            this(applicationUuid, databaseUuid, applicationCreateIntent, databaseCreateIntent,
+                volumes, reclaimedVolumeUuids.stream().collect(java.util.stream.Collectors.toMap(
+                    value -> value, value -> value)), reclaimedVolumeUuids);
+        }
+    }
     public record OwnedDependencyResult(String applicationUuid, String databaseUuid, String baseUrl) {}
 
     public CoolifyConnection ownedDependencyConnection(String targetProfileId, String environmentIntent) {
@@ -1731,14 +1809,26 @@ public class PlatformManagedProductProvisioningService {
         }
         CoolifyConnection connection = coolifyTargetProfileResolver.requireConnection(profile);
         CoolifyTargetProfileConfig config = connection.config();
-        String expectedIp = switch (environmentIntent) {
-            case "staging" -> "46.224.145.148";
-            case "production" -> "46.225.162.106";
+        TargetIntent intent = switch (environmentIntent) {
+            case "staging" -> TargetIntent.CUSTOMER_STAGING;
+            case "production" -> TargetIntent.CUSTOMER_PRODUCTION;
             default -> throw new ResponseStatusException(CONFLICT, "DEPENDENCY_ENVIRONMENT_UNSUPPORTED");
         };
+        TargetIntent otherIntent = intent == TargetIntent.CUSTOMER_STAGING
+            ? TargetIntent.CUSTOMER_PRODUCTION : TargetIntent.CUSTOMER_STAGING;
+        var trusted = customerSelfServiceProperties.trustedServers().get(intent);
+        var other = customerSelfServiceProperties.trustedServers().get(otherIntent);
+        if (trusted == null || other == null || !hasText(trusted.uuid()) || !hasText(trusted.address())
+            || !hasText(trusted.reportedAddress()) || !hasText(other.uuid()) || !hasText(other.address())
+            || !hasText(other.reportedAddress())
+            || trusted.uuid().equals(other.uuid()) || trusted.address().equals(other.address())
+            || !trusted.uuid().equals(config.serverUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_SERVER_PLACEMENT_CONFLICT");
+        }
         // Read actual placement. A profile name is not server evidence.
         JsonNode server = coolifyApiClient.getServer(connection, config.serverUuid());
-        if (!expectedIp.equals(server.path("ip").asText()) || !config.serverUuid().equals(server.path("uuid").asText())) {
+        if (server == null || !trusted.reportedAddress().equals(server.path("ip").asText())
+            || !trusted.uuid().equals(server.path("uuid").asText())) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_SERVER_PLACEMENT_CONFLICT");
         }
         CoolifyDestinationPlacement placement = coolifyApiClient.resolveDestinationPlacement(
@@ -1854,6 +1944,7 @@ public class PlatformManagedProductProvisioningService {
         checkpoint.guard();
         coolifyApiClient.updateEnvironmentVariables(connection, appUuid, environment.apply(dbUuid).stream()
             .filter(v -> !"__DATABASE_PASSWORD".equals(v.key())).toList());
+        checkpoint.guard();
         CoolifyActionResponse response = coolifyApiClient.start(connection, appUuid, true, true);
         if (response == null || !hasText(response.deploymentUuid())) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
@@ -1868,6 +1959,129 @@ public class PlatformManagedProductProvisioningService {
         return new OwnedDependencyResult(appUuid, dbUuid, domain);
     }
 
+    public record OwnedDependencyOperatorRestriction(String operatorId, String environmentKey,
+            String previousValue, String restrictedValue, int remainingOperators) {
+        @Override public String toString() {
+            return "OwnedDependencyOperatorRestriction[operatorId=" + operatorId
+                + ", remainingOperators=" + remainingOperators + ", configuration=***]";
+        }
+    }
+
+    /** Reads a strict subset of existing credentials; it never resolves a desired enrollment or creates resources. */
+    public OwnedDependencyOperatorRestriction planOwnedDependencyOperatorRemoval(CoolifyConnection connection,
+            String graphId, String serviceRef,
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources, String bindingId, String operatorId) {
+        requireExistingInboxResources(connection, graphId, serviceRef, spec, resources);
+        var keys = spec.environment().entrySet().stream()
+            .filter(entry -> entry.getValue().kind()
+                == com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.ValueKind.OPERATORS)
+            .map(Map.Entry::getKey).toList();
+        if (keys.size() != 1 || !hasText(operatorId) || !hasText(bindingId)) {
+            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_REVOCATION_SCOPE_INVALID");
+        }
+        String current = coolifyApiClient.requireRuntimeEnvironmentValue(connection, resources.applicationUuid(), keys.getFirst());
+        List<String> remaining = new ArrayList<>();
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (String row : current.split(";", -1)) {
+            String[] fields = row.split("\\|", -1);
+            if (fields.length != 4 || !hasText(fields[0]) || !hasText(fields[1]) || fields[2].length() < 32
+                || !bindingId.equals(fields[3]) || !ids.add(fields[0])) {
+                throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_CONFIGURATION_EVIDENCE_REQUIRED");
+            }
+            if (!operatorId.equals(fields[0])) remaining.add(row);
+        }
+        return new OwnedDependencyOperatorRestriction(operatorId, keys.getFirst(), current,
+            String.join(";", remaining), remaining.size());
+    }
+
+    /** Changes only one existing inbox credential field, or stops that inbox after lifecycle disable. */
+    public void applyOwnedDependencyOperatorRemoval(CoolifyConnection connection, String graphId, String serviceRef,
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources, OwnedDependencyOperatorRestriction restriction,
+            OwnedDependencyCheckpoint checkpoint) {
+        requireExistingInboxResources(connection, graphId, serviceRef, spec, resources);
+        var keys = spec.environment().entrySet().stream().filter(entry -> entry.getValue().kind()
+            == com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.ValueKind.OPERATORS)
+            .map(Map.Entry::getKey).toList();
+        var remaining = java.util.Arrays.stream(restriction.previousValue().split(";", -1))
+            .filter(row -> !restriction.operatorId().equals(row.split("\\|", -1)[0])).toList();
+        if (keys.size() != 1 || !keys.getFirst().equals(restriction.environmentKey())
+            || restriction.remainingOperators() != remaining.size()
+            || !String.join(";", remaining).equals(restriction.restrictedValue())) {
+            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_REMOVAL_ONLY_REQUIRED");
+        }
+        String current = coolifyApiClient.requireRuntimeEnvironmentValue(connection, resources.applicationUuid(),
+            restriction.environmentKey());
+        if (!current.equals(restriction.previousValue()) && !current.equals(restriction.restrictedValue())) {
+            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_CONFIGURATION_CHANGED");
+        }
+        checkpoint.guard();
+        if (restriction.remainingOperators() == 0) {
+            disableOwnedDependency(connection, graphId, serviceRef, spec.slot(), resources.applicationUuid(), checkpoint);
+            return;
+        }
+        coolifyApiClient.updateEnvironmentVariables(connection, resources.applicationUuid(), List.of(
+            new CoolifyEnvVar(restriction.environmentKey(), restriction.restrictedValue(), false, true, false, true)));
+        checkpoint.guard();
+        var started = coolifyApiClient.start(connection, resources.applicationUuid(), true, true);
+        if (started == null || !hasText(started.deploymentUuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        }
+        awaitOwnedDependencyDeployment(connection, resources.applicationUuid(), started.deploymentUuid());
+        requireExistingInboxResources(connection, graphId, serviceRef, spec, resources);
+        verifyOwnedDependencyReady(connection, graphId, serviceRef, spec.slot(), resources.applicationUuid(),
+            resources.databaseUuid(), resources.volumes());
+        if (!restriction.restrictedValue().equals(coolifyApiClient.requireRuntimeEnvironmentValue(
+            connection, resources.applicationUuid(), restriction.environmentKey()))) {
+            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_CONFIGURATION_READBACK_FAILED");
+        }
+    }
+
+    private void requireExistingInboxResources(CoolifyConnection connection, String graphId, String serviceRef,
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
+        }
+        if (spec.contract() != com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
+            || resources == null || !hasText(resources.applicationUuid())
+            || (spec.database() == null) != !hasText(resources.databaseUuid())) {
+            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
+        }
+        String marker = "ManagedDependency:" + graphId + ":" + spec.slot();
+        var application = coolifyApiClient.getApplication(connection, resources.applicationUuid())
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
+        requireOwnedDependencyResource(application.raw(), connection, serviceRef, marker);
+        var image = ownedDependencyImage(spec.image());
+        String domain = "https://" + serviceRef + "." + connection.config().defaultPublicDomainSuffix().replaceFirst("^\\.", "");
+        if (!resources.applicationUuid().equals(application.uuid())
+            || !image.repository().equals(application.imageRepository()) || !image.hashTag().equals(application.imageTag())
+            || !domain.equals(application.fqdn())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_SPEC_DRIFT");
+        }
+        var storages = coolifyApiClient.listApplicationStorages(connection, resources.applicationUuid());
+        Map<String, String> volumes = resources.volumes() == null ? Map.of() : resources.volumes();
+        if (!spec.volumes().stream().map(com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Volume::mountPath)
+                .collect(java.util.stream.Collectors.toSet()).equals(volumes.keySet())
+            || storages.size() != volumes.size() || storages.stream().anyMatch(storage ->
+            !storage.uuid().equals(volumes.get(storage.mountPath())) || !"persistent".equals(storage.type())
+                || hasText(storage.hostPath())
+                || !storage.name().equals(serviceRef + "-" + Integer.toHexString(storage.mountPath().hashCode())))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        }
+        if (hasText(resources.databaseUuid())) {
+            var database = coolifyApiClient.getDatabase(connection, resources.databaseUuid())
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_MISSING"));
+            requireOwnedDependencyResource(database.raw(), connection, serviceRef + "-db", marker);
+            if (!resources.databaseUuid().equals(database.uuid()) || !spec.database().image().equals(database.raw().path("image").asText())
+                || !"dependency".equals(database.postgresUser()) || !"dependency".equals(database.postgresDatabase())
+                || database.raw().path("is_public").asBoolean(true)) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_SPEC_DRIFT");
+            }
+        }
+    }
+
     private record OwnedDependencyImage(String repository, String hashTag) {}
     private OwnedDependencyImage ownedDependencyImage(String reference) {
         com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.immutableImage(reference);
@@ -1879,35 +2093,108 @@ public class PlatformManagedProductProvisioningService {
     public void retireOwnedDependency(CoolifyConnection connection, String graphId, String serviceRef,
             String slot, OwnedDependencyResources resources, OwnedDependencyCheckpoint checkpoint) {
         String marker = "ManagedDependency:" + graphId + ":" + slot;
+        Set<String> applicationVolumeUuids = Set.copyOf(resources.volumes().values());
         if (resources.applicationCreateIntent() && !hasText(resources.applicationUuid())
-            || resources.databaseCreateIntent() && !hasText(resources.databaseUuid())) {
+            || resources.databaseCreateIntent() && !hasText(resources.databaseUuid())
+            || !hasText(resources.applicationUuid()) && !resources.volumes().isEmpty()) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_CREATE_UNCERTAIN_RECONCILE_REQUIRED");
         }
+        if (applicationVolumeUuids.size() != resources.volumes().size()
+            || resources.reclaimedVolumeUuids().stream().anyMatch(value -> !resources.volumeReclamationPlan().containsKey(value))
+            || resources.volumeReclamationPlan().values().stream().anyMatch(value -> !hasText(value))
+            || resources.volumeReclamationPlan().values().stream().distinct().count() != resources.volumeReclamationPlan().size()) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_EVIDENCE_INVALID");
+        }
+        var application = hasText(resources.applicationUuid())
+            ? coolifyApiClient.getApplication(connection, resources.applicationUuid()) : java.util.Optional.<CoolifyApplicationSummary>empty();
+        var database = hasText(resources.databaseUuid())
+            ? coolifyApiClient.getDatabase(connection, resources.databaseUuid()) : java.util.Optional.<CoolifyDatabaseSummary>empty();
+        application.ifPresent(value -> requireOwnedDependencyResource(value.raw(), connection, serviceRef, marker));
+        database.ifPresent(value -> requireOwnedDependencyResource(value.raw(), connection, serviceRef + "-db", marker));
+
+        Map<String, String> volumePlan = resources.volumeReclamationPlan();
+        if (volumePlan.isEmpty()) {
+            if (hasText(resources.applicationUuid()) && application.isEmpty() && !applicationVolumeUuids.isEmpty()
+                || hasText(resources.databaseUuid()) && database.isEmpty()) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+            }
+            var planned = new java.util.LinkedHashMap<String, String>();
+            if (application.isPresent()) planned.putAll(requireOwnedApplicationVolumes(connection, serviceRef, resources));
+            if (database.isPresent()) planned.putAll(requireOwnedDatabaseVolumes(connection, resources.databaseUuid()));
+            if (planned.values().stream().distinct().count() != planned.size()) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_EVIDENCE_INVALID");
+            }
+            volumePlan = Map.copyOf(planned);
+            if (!volumePlan.isEmpty()) {
+                checkpoint.guard();
+                checkpoint.volumeReclamationPlanned(volumePlan);
+            }
+        } else {
+            Map<String, String> existingPlan = volumePlan;
+            if (!volumePlan.keySet().containsAll(applicationVolumeUuids)) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_EVIDENCE_INVALID");
+            }
+            if (application.isPresent()
+                && !requireOwnedApplicationVolumes(connection, serviceRef, resources).entrySet()
+                    .stream().allMatch(entry -> entry.getValue().equals(existingPlan.get(entry.getKey())))) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_EVIDENCE_INVALID");
+            }
+            if (database.isPresent()) {
+                Map<String, String> observedDatabase = requireOwnedDatabaseVolumes(connection, resources.databaseUuid());
+                Set<String> plannedDatabaseUuids = new java.util.HashSet<>(volumePlan.keySet());
+                plannedDatabaseUuids.removeAll(applicationVolumeUuids);
+                if (!plannedDatabaseUuids.equals(observedDatabase.keySet()) || observedDatabase.entrySet().stream()
+                    .anyMatch(entry -> !entry.getValue().equals(existingPlan.get(entry.getKey())))) {
+                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_EVIDENCE_INVALID");
+                }
+            }
+        }
+        Set<String> databaseVolumeUuids = new java.util.HashSet<>(volumePlan.keySet());
+        databaseVolumeUuids.removeAll(applicationVolumeUuids);
+        if (hasText(resources.databaseUuid()) && databaseVolumeUuids.isEmpty()) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+        }
+        Set<String> reclaimed = new java.util.HashSet<>(resources.reclaimedVolumeUuids());
+        TargetIntent targetIntent = ownedDependencyTargetIntent(connection);
+
         if (hasText(resources.applicationUuid())) {
-            var app = coolifyApiClient.getApplication(connection, resources.applicationUuid());
-            if (app.isPresent()) {
-                requireOwnedDependencyResource(app.get().raw(), connection, serviceRef, marker);
-                var storages = coolifyApiClient.listApplicationStorages(connection, resources.applicationUuid());
-                if (storages.size() != resources.volumes().size() || storages.stream().anyMatch(s ->
-                    !s.uuid().equals(resources.volumes().get(s.mountPath())) || !"persistent".equals(s.type())
-                        || hasText(s.hostPath()) || !s.name().equals(serviceRef + "-" + Integer.toHexString(s.mountPath().hashCode())))) {
-                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+            if (application.isPresent()) {
+                if (reclaimed.stream().anyMatch(applicationVolumeUuids::contains)) {
+                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
                 }
                 checkpoint.guard();
-                coolifyApiClient.delete(connection, resources.applicationUuid(), true, true, true, false);
+                coolifyApiClient.delete(connection, resources.applicationUuid(), true, true, false, false);
                 awaitCoolifyApplicationDeletion(connection, resources.applicationUuid());
+            }
+            hostVolumeReclamationService.verifyContainersAbsent(targetIntent, connection.config().serverUuid(),
+                graphId + ":" + slot + ":application", "application", resources.applicationUuid());
+            if (!reclaimed.containsAll(applicationVolumeUuids)) {
+                checkpoint.guard();
+                reclaimed.addAll(reclaimOwnedVolumes(targetIntent, connection, graphId + ":" + slot + ":application",
+                    volumePlan, applicationVolumeUuids));
+                checkpoint.volumesReclaimed(Set.copyOf(reclaimed));
             }
         }
         if (hasText(resources.databaseUuid())) {
-            var db = coolifyApiClient.getDatabase(connection, resources.databaseUuid());
-            if (db.isPresent()) {
-                requireOwnedDependencyResource(db.get().raw(), connection, serviceRef + "-db", marker);
+            if (database.isPresent()) {
+                if (reclaimed.stream().anyMatch(databaseVolumeUuids::contains)) {
+                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+                }
                 checkpoint.guard();
                 coolifyApiClient.deleteDatabase(connection, resources.databaseUuid(), true, true, true, false);
-                if (coolifyApiClient.getDatabase(connection, resources.databaseUuid()).isPresent()) {
-                    throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_DELETION_UNCONFIRMED");
-                }
+                awaitCoolifyDatabaseDeletion(connection, resources.databaseUuid());
             }
+            hostVolumeReclamationService.verifyContainersAbsent(targetIntent, connection.config().serverUuid(),
+                graphId + ":" + slot + ":database", "database", resources.databaseUuid());
+            if (!reclaimed.containsAll(databaseVolumeUuids)) {
+                checkpoint.guard();
+                reclaimed.addAll(reclaimOwnedVolumes(targetIntent, connection, graphId + ":" + slot + ":database",
+                    volumePlan, databaseVolumeUuids));
+                checkpoint.volumesReclaimed(Set.copyOf(reclaimed));
+            }
+        }
+        if (!reclaimed.equals(volumePlan.keySet())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
         }
     }
 
@@ -1945,16 +2232,13 @@ public class PlatformManagedProductProvisioningService {
         }
     }
 
-    /**
-     * Authoritative post-delete readback. Coolify currently exposes no global volume lookup after
-     * an application is gone, so a graph that owned persistent volumes fails closed until such a
-     * physical-volume receipt is available.
-     */
+    /** Authoritative post-delete readback plus the durable pre-application-delete volume receipt. */
     public void verifyOwnedDependenciesReclaimed(CoolifyConnection connection, String graphId,
             List<com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyRetirementAdapter.Resource> resources) {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
         }
+        TargetIntent targetIntent = ownedDependencyTargetIntent(connection);
         for (var resource : resources) {
             if (resource == null || !hasText(resource.slot()) || !hasText(resource.serviceRef())) {
                 throw new ResponseStatusException(CONFLICT, "DEPENDENCY_RECLAMATION_EVIDENCE_REQUIRED");
@@ -1963,14 +2247,90 @@ public class PlatformManagedProductProvisioningService {
                 && coolifyApiClient.getApplication(connection, resource.applicationUuid()).isPresent()) {
                 throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_DELETION_UNCONFIRMED");
             }
+            if (hasText(resource.applicationUuid())) {
+                hostVolumeReclamationService.verifyContainersAbsent(targetIntent, connection.config().serverUuid(),
+                    graphId + ":" + resource.slot() + ":application", "application", resource.applicationUuid());
+            }
             if (hasText(resource.databaseUuid())
                 && coolifyApiClient.getDatabase(connection, resource.databaseUuid()).isPresent()) {
                 throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_DELETION_UNCONFIRMED");
             }
-            if (resource.volumes() != null && !resource.volumes().isEmpty()) {
+            if (hasText(resource.databaseUuid())) {
+                hostVolumeReclamationService.verifyContainersAbsent(targetIntent, connection.config().serverUuid(),
+                    graphId + ":" + resource.slot() + ":database", "database", resource.databaseUuid());
+            }
+            Set<String> applicationVolumeUuids = resource.volumes() == null
+                ? Set.of() : Set.copyOf(resource.volumes().values());
+            if (applicationVolumeUuids.size() != resource.volumes().size()
+                || !resource.volumeReclamationPlan().keySet().containsAll(applicationVolumeUuids)
+                || !resource.volumeReclamationPlan().keySet().equals(resource.reclaimedVolumeUuids())) {
                 throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
             }
         }
+    }
+
+    private Map<String, String> requireOwnedApplicationVolumes(CoolifyConnection connection, String serviceRef,
+            OwnedDependencyResources resources) {
+        var storages = coolifyApiClient.listApplicationStorages(connection, resources.applicationUuid());
+        if (storages.size() != resources.volumes().size() || storages.stream().anyMatch(storage ->
+            !storage.uuid().equals(resources.volumes().get(storage.mountPath())) || !"persistent".equals(storage.type())
+                || hasText(storage.hostPath())
+                || !storage.name().equals(serviceRef + "-" + Integer.toHexString(storage.mountPath().hashCode())))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        }
+        return storages.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+            CoolifyApplicationStorageSummary::uuid, CoolifyApplicationStorageSummary::name));
+    }
+
+    private Map<String, String> requireOwnedDatabaseVolumes(CoolifyConnection connection, String databaseUuid) {
+        var storages = coolifyApiClient.listDatabaseStorages(connection, databaseUuid);
+        if (storages.isEmpty() || storages.stream().anyMatch(storage -> !"persistent".equals(storage.type())
+            || hasText(storage.hostPath()) || !hasText(storage.uuid()) || !hasText(storage.name()))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        }
+        try {
+            return storages.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+                CoolifyApplicationStorageSummary::uuid, CoolifyApplicationStorageSummary::name));
+        } catch (IllegalStateException error) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_OWNERSHIP_CONFLICT");
+        }
+    }
+
+    private Set<String> reclaimOwnedVolumes(TargetIntent intent, CoolifyConnection connection, String reference,
+            Map<String, String> plan, Set<String> volumeUuids) {
+        if (volumeUuids.isEmpty()) return Set.of();
+        var receipt = hostVolumeReclamationService.reclaimAndVerify(intent, connection.config().serverUuid(), reference,
+            volumeUuids.stream().sorted().map(uuid ->
+                new CoolifyHostVolumeReclamationService.Volume(uuid, plan.get(uuid), false)).toList());
+        if (!receipt.reclaimedUuids().equals(volumeUuids)) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
+        }
+        return receipt.reclaimedUuids();
+    }
+
+    private void awaitCoolifyDatabaseDeletion(CoolifyConnection connection, String databaseUuid) {
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (coolifyApiClient.getDatabase(connection, databaseUuid).isEmpty()) return;
+            try {
+                Thread.sleep(Math.max(productProvisioningProperties.pollInterval().toMillis(), 0L));
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for Coolify database deletion.", error);
+            }
+        }
+        throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_DELETION_UNCONFIRMED");
+    }
+
+    private TargetIntent ownedDependencyTargetIntent(CoolifyConnection connection) {
+        var matches = customerSelfServiceProperties.trustedServers().entrySet().stream()
+            .filter(entry -> entry.getValue() != null
+                && connection.config().serverUuid().equals(entry.getValue().uuid()))
+            .map(Map.Entry::getKey).toList();
+        if (matches.size() != 1) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_TARGET_AUTHORITY_UNAVAILABLE");
+        }
+        return matches.getFirst();
     }
 
     private void requireOwnedDependencyResource(JsonNode raw, CoolifyConnection connection, String name, String marker) {
@@ -2041,10 +2401,16 @@ public class PlatformManagedProductProvisioningService {
         var app = coolifyApiClient.getApplication(connection, applicationUuid)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_MISSING"));
         requireOwnedDependencyResource(app.raw(), connection, serviceRef, "ManagedDependency:" + graphId + ":" + slot);
+        String currentState = upper(app.status()).split(":", 2)[0];
+        if (java.util.Set.of("EXITED", "STOPPED").contains(currentState)) return;
         checkpoint.guard();
         coolifyApiClient.stop(connection, applicationUuid, false);
         var readback = coolifyApiClient.getApplication(connection, applicationUuid)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "DEPENDENCY_DISABLE_UNCONFIRMED"));
+        requireOwnedDependencyResource(readback.raw(), connection, serviceRef, "ManagedDependency:" + graphId + ":" + slot);
+        if (!applicationUuid.equals(readback.uuid())) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DISABLE_UNCONFIRMED");
+        }
         String state = upper(readback.status()).split(":", 2)[0];
         if (!java.util.Set.of("EXITED", "STOPPED").contains(state)) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DISABLE_UNCONFIRMED");

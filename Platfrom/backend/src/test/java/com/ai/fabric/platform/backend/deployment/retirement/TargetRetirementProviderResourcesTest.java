@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.retirement;
 
+import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
@@ -23,6 +25,7 @@ class TargetRetirementProviderResourcesTest {
     private final DeploymentTargetProfileRepository profiles = mock(DeploymentTargetProfileRepository.class);
     private final CoolifyTargetProfileResolver resolver = mock(CoolifyTargetProfileResolver.class);
     private final CoolifyApiClient client = mock(CoolifyApiClient.class);
+    private final CoolifyHostVolumeReclamationService volumeReclamation = mock(CoolifyHostVolumeReclamationService.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private TargetRetirementProviderResources service;
     private Context context;
@@ -30,7 +33,8 @@ class TargetRetirementProviderResourcesTest {
     private CoolifyConnection connection;
 
     @BeforeEach void setup() throws Exception {
-        service = new TargetRetirementProviderResources(inventory, profiles, resolver, client, List.of("46.224.145.148"));
+        service = new TargetRetirementProviderResources(inventory, profiles, resolver, client, volumeReclamation,
+            List.of("46.224.145.148"), properties());
         var profile = new DeploymentTargetProfileEntity();
         profile.setId("target");
         profile.setEnvironmentName("staging");
@@ -43,16 +47,27 @@ class TargetRetirementProviderResourcesTest {
         when(config.destinationUuid()).thenReturn("destination");
         connection = new CoolifyConnection("https://coolify.test", "private-token", config);
         when(resolver.requireConnection(profile)).thenReturn(connection);
-        when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\",\"ip\":\"46.224.145.148\"}"));
+        when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\",\"ip\":\"host.docker.internal\"}"));
         application = application(List.of());
         context = context(application);
         var observed = new CoolifyApplicationSummary("app", "runtime", null, "running", null, null,
             mapper.readTree("{\"uuid\":\"app\",\"server_uuid\":\"server\"}"));
         when(client.getApplication(connection, "app")).thenReturn(Optional.of(observed));
+        when(volumeReclamation.reclaimAndVerify(eq(TargetIntent.CUSTOMER_STAGING), eq("server"), anyString(), anyList()))
+            .thenAnswer(call -> {
+                @SuppressWarnings("unchecked")
+                List<CoolifyHostVolumeReclamationService.Volume> volumes = call.getArgument(3, List.class);
+                return new CoolifyHostVolumeReclamationService.Receipt("receipt", Instant.now(),
+                    volumes.stream().filter(value -> !value.preserved()).map(CoolifyHostVolumeReclamationService.Volume::uuid)
+                        .collect(java.util.stream.Collectors.toSet()));
+            });
+        when(volumeReclamation.verifyContainersAbsent(eq(TargetIntent.CUSTOMER_STAGING), eq("server"),
+            anyString(), anyString(), anyString())).thenAnswer(call ->
+                new CoolifyHostVolumeReclamationService.ContainerReceipt("container-receipt", Instant.now()));
     }
 
     @Test void deleteUsesExactUuidAndNoVolumeNetworkOrDockerCascadeOutsideTransaction() {
-        when(client.delete(connection, "app", true, false, false, false)).thenAnswer(call -> {
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
             return null;
@@ -60,8 +75,23 @@ class TargetRetirementProviderResourcesTest {
         assertThat(service.delete(context, application).complete()).isTrue();
         var order = inOrder(inventory, client);
         order.verify(inventory).requireProviderIdentity(eq(application), any());
-        order.verify(client).delete(connection, "app", true, false, false, false);
+        order.verify(client).delete(connection, "app", true, true, false, false);
+        verify(volumeReclamation).verifyContainersAbsent(TargetIntent.CUSTOMER_STAGING, "server",
+            "handle", "application", "app");
         verify(client, never()).deleteDatabase(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void statelessApplicationCannotCompleteWhileAnOwnedContainerRemains() {
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
+            when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
+            return null;
+        });
+        when(volumeReclamation.verifyContainersAbsent(TargetIntent.CUSTOMER_STAGING, "server",
+            "handle", "application", "app"))
+            .thenThrow(new TargetRetirementFailure("PROVIDER_CONTAINER_ABSENCE_UNPROVEN"));
+
+        assertThatThrownBy(() -> service.delete(context, application))
+            .hasMessageContaining("PROVIDER_CONTAINER_ABSENCE_UNPROVEN");
     }
 
     @Test void deletionRequiresExactFrozenReleaseVersionAndGenerationBinding() {
@@ -78,7 +108,7 @@ class TargetRetirementProviderResourcesTest {
     }
 
     @Test void productionPlacementIsRejectedRegardlessOfStagingProfileName() throws Exception {
-        when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\",\"ip\":\"46.225.162.106\"}"));
+        when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\",\"ip\":\"production.internal\"}"));
         assertThatThrownBy(() -> service.delete(context, application)).hasMessageContaining("STAGING_PLACEMENT_NOT_APPROVED");
         verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
         verify(client, never()).getApplication(any(), anyString());
@@ -87,7 +117,7 @@ class TargetRetirementProviderResourcesTest {
     @Test void missingPlacementAndProviderReadbackAreNotProofOfAbsence() throws Exception {
         when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\"}"));
         assertThatThrownBy(() -> service.readback(context, application)).hasMessageContaining("STAGING_PLACEMENT_NOT_APPROVED");
-        when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\",\"ip\":\"46.224.145.148\"}"));
+        when(client.getServer(connection, "server")).thenReturn(mapper.readTree("{\"uuid\":\"server\",\"ip\":\"host.docker.internal\"}"));
         when(client.getApplication(connection, "app")).thenThrow(new IllegalStateException("timeout"));
         assertThatThrownBy(() -> service.readback(context, application)).hasMessageContaining("timeout");
     }
@@ -127,6 +157,7 @@ class TargetRetirementProviderResourcesTest {
         });
         assertThat(service.delete(context, database).complete()).isTrue();
         verify(inventory).requireVolumeInventory(eq(database), anyList(), eq(false));
+        verify(inventory).recordVolumeDeletionIntent(eq(database), any(Instant.class));
         verify(inventory).recordVolumesReclaimed(eq(database), any(Instant.class));
         verify(client).deleteDatabase(connection, "db", true, true, false, false);
     }
@@ -171,21 +202,23 @@ class TargetRetirementProviderResourcesTest {
         when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
         assertThat(service.delete(context, application).complete()).isTrue();
         verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
-        var unconfigured = new TargetRetirementProviderResources(inventory, profiles, resolver, client, List.of());
+        var unconfigured = new TargetRetirementProviderResources(inventory, profiles, resolver, client,
+            volumeReclamation, List.of(), properties());
         assertThatThrownBy(() -> unconfigured.readback(context, application)).hasMessageContaining("STAGING_PLACEMENT_NOT_APPROVED");
     }
 
-    @Test void persistentVolumeIsDeletedAndProviderAbsenceIsProvedBeforeApplicationCapacityRelease() {
+    @Test void persistentVolumeIsDeletedWithApplicationAfterDurableIntent() {
         var expectedVolume = new ProviderVolumeGeneration("storage-1", "persistent", "runtime-data",
             "/app/data", null, "volume-generation", false);
         application = application(List.of(expectedVolume));
         context = context(application);
         var observedVolume = new CoolifyApplicationStorageSummary("storage-1", "persistent", "runtime-data",
             "/app/data", null, false, mapper.createObjectNode());
-        when(inventory.volumesReclaimed(application)).thenReturn(false, true);
+        when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(false);
         when(client.listApplicationStorages(connection, "app"))
-            .thenReturn(List.of(observedVolume), List.of());
-        when(client.delete(connection, "app", true, false, false, false)).thenAnswer(call -> {
+            .thenReturn(List.of(observedVolume), List.of(observedVolume));
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
             when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
             return null;
         });
@@ -193,10 +226,12 @@ class TargetRetirementProviderResourcesTest {
         assertThat(service.delete(context, application).complete()).isTrue();
 
         var order = inOrder(client, inventory);
-        order.verify(client).deleteApplicationStorage(connection, "app", "storage-1");
+        order.verify(inventory).requireVolumeInventory(application, List.of(observedVolume), false);
+        order.verify(inventory).recordVolumeDeletionIntent(eq(application), any(Instant.class));
+        order.verify(inventory).requireApplicationDeletionVolumeInventory(application, List.of(observedVolume));
+        order.verify(client).delete(connection, "app", true, true, false, false);
         order.verify(inventory).recordVolumesReclaimed(eq(application), any(Instant.class));
-        order.verify(client).delete(connection, "app", true, false, false, false);
-        verify(inventory, times(2)).requireVolumeInventory(eq(application), anyList(), eq(true));
+        verify(client, never()).deleteApplicationStorage(any(), anyString(), anyString());
     }
 
     @Test void absentApplicationWithoutFrozenVolumeDispositionFailsClosed() {
@@ -206,69 +241,132 @@ class TargetRetirementProviderResourcesTest {
         context = context(application);
         when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
         when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(false);
 
         assertThatThrownBy(() -> service.readback(context, application))
             .hasMessageContaining("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
     }
 
-    @Test void approvedRetainedVolumeMustRemainPresentAndIsNeverDeleted() {
+    @Test void approvedRetainedVolumeIsDetachedBeforeDisposableVolumeDeletion() {
         var retained = new ProviderVolumeGeneration("storage-retained", "persistent", "documents",
             "/app/document-sources", "/srv/loomai/documents", "retained-generation", true);
         application = application(List.of(retained));
         context = context(application);
         var observed = new CoolifyApplicationStorageSummary("storage-retained", "persistent", "documents",
             "/app/document-sources", "/srv/loomai/documents", true, mapper.createObjectNode());
-        when(inventory.volumesReclaimed(application)).thenReturn(false, true);
+        when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(false);
         when(client.listApplicationStorages(connection, "app"))
-            .thenReturn(List.of(observed), List.of(observed));
-        when(client.delete(connection, "app", true, false, false, false)).thenAnswer(call -> {
+            .thenReturn(List.of(observed), List.of());
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
             when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
             return null;
         });
 
         assertThat(service.delete(context, application).complete()).isTrue();
 
-        verify(client, never()).deleteApplicationStorage(any(), anyString(), anyString());
+        verify(client).deleteApplicationStorage(connection, "app", "storage-retained");
         verify(inventory).recordVolumesReclaimed(eq(application), any(Instant.class));
-        verify(inventory, times(2)).requireVolumeInventory(eq(application), anyList(), eq(true));
-        verify(client).delete(connection, "app", true, false, false, false);
+        var order = inOrder(inventory, client);
+        order.verify(inventory).requireVolumeInventory(application, List.of(observed), false);
+        order.verify(inventory).recordVolumeDeletionIntent(eq(application), any(Instant.class));
+        order.verify(client).deleteApplicationStorage(connection, "app", "storage-retained");
+        verify(inventory).requireApplicationDeletionVolumeInventory(application, List.of());
+        verify(client).delete(connection, "app", true, true, false, false);
     }
 
-    @Test void restartAfterProviderDeletedVolumeRecordsDispositionBeforeDeletingApplication() {
+    @Test void restartAfterAcceptedApplicationDeleteFinalizesDispositionFromIntent() {
         var disposable = new ProviderVolumeGeneration("storage-1", "persistent", "runtime-data",
             "/app/data", null, "volume-generation", false);
         application = application(List.of(disposable));
         context = context(application);
-        when(inventory.volumesReclaimed(application)).thenReturn(false, true);
-        when(client.listApplicationStorages(connection, "app")).thenReturn(List.of(), List.of());
-        when(client.delete(connection, "app", true, false, false, false)).thenAnswer(call -> {
-            when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
-            return null;
-        });
+        when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
+        when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(true);
 
         assertThat(service.delete(context, application).complete()).isTrue();
 
-        var order = inOrder(inventory, client);
-        order.verify(inventory).recordVolumesReclaimed(eq(application), any(Instant.class));
-        order.verify(client).delete(connection, "app", true, false, false, false);
-        verify(client, never()).deleteApplicationStorage(any(), anyString(), anyString());
+        verify(inventory).recordVolumesReclaimed(eq(application), any(Instant.class));
+        verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
     }
 
-    @Test void recordedVolumeDispositionDoesNotBypassFreshInventoryBeforeApplicationDeletion() {
+    @Test void providerAbsenceWithoutIndependentHostProofNeverRecordsReclamation() {
         var disposable = new ProviderVolumeGeneration("storage-1", "persistent", "runtime-data",
             "/app/data", null, "volume-generation", false);
         application = application(List.of(disposable));
         context = context(application);
-        var regenerated = new CoolifyApplicationStorageSummary("storage-1", "persistent", "runtime-data",
-            "/app/data", null, false, mapper.createObjectNode());
-        when(inventory.volumesReclaimed(application)).thenReturn(true);
-        when(client.listApplicationStorages(connection, "app")).thenReturn(List.of(regenerated));
+        when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
+        when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(true);
+        when(volumeReclamation.reclaimAndVerify(any(), anyString(), anyString(), anyList()))
+            .thenThrow(new TargetRetirementFailure("PROVIDER_HOST_VOLUME_READBACK_FAILED"));
 
+        assertThatThrownBy(() -> service.readback(context, application))
+            .hasMessageContaining("PROVIDER_HOST_VOLUME_READBACK_FAILED");
+
+        verify(inventory, never()).recordVolumesReclaimed(any(), any());
+    }
+
+    @Test void recordedVolumeDispositionWithPresentApplicationFailsClosed() {
+        var disposable = new ProviderVolumeGeneration("storage-1", "persistent", "runtime-data",
+            "/app/data", null, "volume-generation", false);
+        application = application(List.of(disposable));
+        context = context(application);
+        when(inventory.volumesReclaimed(application)).thenReturn(true);
         assertThatThrownBy(() -> service.delete(context, application))
             .hasMessageContaining("PROVIDER_VOLUME_ABSENCE_UNPROVEN");
 
-        verify(inventory).requireVolumeInventory(application, List.of(regenerated), true);
+        verify(inventory, never()).requireVolumeInventory(any(), anyList(), anyBoolean());
         verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+    }
+
+    @Test void preparedIntentRetriesApplicationDeleteWithoutDetachingDisposableVolumes() {
+        var disposable = new ProviderVolumeGeneration("storage-1", "persistent", "runtime-data",
+            "/app/data", null, "volume-generation", false);
+        application = application(List.of(disposable));
+        context = context(application);
+        var observed = new CoolifyApplicationStorageSummary("storage-1", "persistent", "runtime-data",
+            "/app/data", null, false, mapper.createObjectNode());
+        when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(true);
+        when(client.listApplicationStorages(connection, "app")).thenReturn(List.of(observed));
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
+            when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
+            return null;
+        });
+
+        assertThat(service.delete(context, application).complete()).isTrue();
+
+        verify(inventory).requireVolumeDeletionProgress(application, List.of(observed));
+        verify(inventory, never()).recordVolumeDeletionIntent(any(), any());
+        verify(client, never()).deleteApplicationStorage(any(), anyString(), anyString());
+        verify(client).delete(connection, "app", true, true, false, false);
+        verify(inventory).recordVolumesReclaimed(eq(application), any(Instant.class));
+    }
+
+    @Test void preparedIntentResumesAfterRetainedVolumeWasAlreadyDetached() {
+        var retained = new ProviderVolumeGeneration("storage-retained", "persistent", "documents",
+            "/app/document-sources", "/srv/loomai/documents", "retained-generation", true);
+        var disposable = new ProviderVolumeGeneration("storage-runtime", "persistent", "runtime-data",
+            "/app/data", null, "runtime-generation", false);
+        application = application(List.of(retained, disposable));
+        context = context(application);
+        var observedDisposable = new CoolifyApplicationStorageSummary("storage-runtime", "persistent", "runtime-data",
+            "/app/data", null, false, mapper.createObjectNode());
+        when(inventory.volumesReclaimed(application)).thenReturn(false);
+        when(inventory.volumeDeletionIntentRecorded(application)).thenReturn(true);
+        when(client.listApplicationStorages(connection, "app")).thenReturn(List.of(observedDisposable));
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
+            when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
+            return null;
+        });
+
+        assertThat(service.delete(context, application).complete()).isTrue();
+
+        verify(inventory).requireVolumeDeletionProgress(application, List.of(observedDisposable));
+        verify(client, never()).deleteApplicationStorage(any(), anyString(), anyString());
+        verify(inventory).requireApplicationDeletionVolumeInventory(application, List.of(observedDisposable));
+        verify(inventory).recordVolumesReclaimed(eq(application), any(Instant.class));
     }
 
     private ResourceGeneration application(List<ProviderVolumeGeneration> volumes) {
@@ -283,5 +381,14 @@ class TargetRetirementProviderResourcesTest {
         return new Context("operation", "operation-key", "fingerprint", snapshot, 2, "worker", "actor",
             "CUSTOMER_ADMIN", Instant.now().plusSeconds(30),
             new Retention(RetentionDecision.RECLAIM, null, null, "backup-decision"));
+    }
+
+    private static CustomerSelfServiceProperties properties() {
+        return new CustomerSelfServiceProperties(java.util.Map.of(
+            TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer(
+                "server", "46.224.145.148", "host.docker.internal"),
+            TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer(
+                "production-server", "46.225.162.106", "production.internal")
+        ), 300);
     }
 }

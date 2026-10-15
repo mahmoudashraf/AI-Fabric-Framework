@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -42,6 +43,7 @@ import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -55,6 +57,7 @@ public class DeploymentMarketplaceInstallService {
     private final DeploymentDraftRepository deploymentDraftRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentAccessService deploymentAccessService;
+    private final CustomerOfferDeploymentRepository customerOfferDeploymentRepository;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
@@ -68,6 +71,7 @@ public class DeploymentMarketplaceInstallService {
                                                DeploymentDraftRepository deploymentDraftRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
                                                DeploymentAccessService deploymentAccessService,
+                                               CustomerOfferDeploymentRepository customerOfferDeploymentRepository,
                                                DeploymentMarketplacePluginInstallRepository installRepository,
                                                MarketplaceCatalogService marketplaceCatalogService,
                                                MarketplaceManifestService marketplaceManifestService,
@@ -80,6 +84,7 @@ public class DeploymentMarketplaceInstallService {
         this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentAccessService = deploymentAccessService;
+        this.customerOfferDeploymentRepository = customerOfferDeploymentRepository;
         this.installRepository = installRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
@@ -125,6 +130,7 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        requireScopedOfferMutationPath(deployment);
         return createInstallForDeployment(deployment, request, false, true, false);
     }
 
@@ -241,6 +247,7 @@ public class DeploymentMarketplaceInstallService {
                                                              String installId,
                                                              UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        requireScopedOfferMutationPath(deployment);
         return updateInstallForDeployment(deployment, installId, request, false, true);
     }
 
@@ -390,6 +397,7 @@ public class DeploymentMarketplaceInstallService {
     @Transactional
     public void deleteInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        requireScopedOfferMutationPath(deployment);
         deleteInstallForDeployment(deployment, installId, false);
     }
 
@@ -735,6 +743,15 @@ public class DeploymentMarketplaceInstallService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         return deploymentAccessService.requireDeploymentEditorAccess(deployment);
+    }
+
+    private void requireScopedOfferMutationPath(DeploymentEntity deployment) {
+        if (customerOfferDeploymentRepository.existsById(deployment.getId())) {
+            throw new ResponseStatusException(
+                FORBIDDEN,
+                "Reviewed-offer deployments must use the scoped customer self-service configuration routes."
+            );
+        }
     }
 
     private JsonNode normalizeObject(JsonNode node, String fieldName) {

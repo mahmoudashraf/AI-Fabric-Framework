@@ -46,7 +46,7 @@ FROM maven:3.9.6-eclipse-temurin-21
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends bash curl jq python3 && \
+    apt-get install -y --no-install-recommends bash curl jq openssh-client python3 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node

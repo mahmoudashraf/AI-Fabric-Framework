@@ -299,6 +299,28 @@ class CustomerSelfServiceAuthorizationServiceTest {
         verifyNoInteractions(provider);
     }
 
+    @Test void sourceRefreshPreparationRequiresExactEntitlementAndReleaseBeforeCollectingEvidence() {
+        var release = new DeploymentReleaseEntity();
+        release.setId("release"); release.setDeploymentId("deployment"); release.setTargetProfileId("staging-target");
+        release.setSourceArtifactId("runtime-artifact");
+        when(releases.findById("release")).thenReturn(Optional.of(release));
+        var request = new AuthorizationRequest("offer", "staging-target", "deployment", "tenant", "release",
+            Operation.SOURCE_DISCOVER, null, Set.of(), null, null, DocumentAudience.PUBLIC);
+
+        var prepared = service.prepareSourcePrerequisiteRefresh("customer", request);
+
+        assertThat(prepared.context().entitlementRevision()).isEqualTo(2);
+        assertThat(prepared.context().placementEvidenceId()).isNull();
+        verifyNoInteractions(provider, placement);
+        grant.setStatus(EntitlementStatus.REVOKED);
+        assertCode(ENTITLEMENT_REVOKED, () -> service.prepareSourcePrerequisiteRefresh("customer", request));
+        grant.setStatus(EntitlementStatus.ACTIVE);
+        release.setDeploymentId("foreign");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.prepareSourcePrerequisiteRefresh("customer", request));
+        assertCode(OPERATION_FORBIDDEN,
+            () -> service.prepareSourcePrerequisiteRefresh("customer", request(Operation.APPLY)));
+    }
+
     @Test void missingStaleAndMismatchedPlacementEvidenceNeverTriggersAProbeUnderCommandLocks() {
         for (var code : List.of(PLACEMENT_EVIDENCE_REQUIRED, PLACEMENT_EVIDENCE_STALE, PLACEMENT_DENIED)) {
             doThrow(conflict(code)).when(placement).requireFreshEvidence(any(), any());

@@ -6,14 +6,19 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerTargetPlacementService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetContextService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -43,6 +48,8 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     private DeploymentVersionRepository versions;
     private DeploymentTargetProfileRepository targets;
     private CustomerTargetPlacementService placement;
+    private DeploymentTargetContextService targetContexts;
+    private CustomerSourcePrerequisiteEvidenceStore sourceEvidence;
     private DeploymentAdmissionCustomerPrerequisiteEvidenceProvider provider;
     private DeploymentTargetProfileEntity targetProfile;
     private FleetPolicy reviewedPolicy;
@@ -55,6 +62,10 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         versions = mock(DeploymentVersionRepository.class);
         targets = mock(DeploymentTargetProfileRepository.class);
         placement = mock(CustomerTargetPlacementService.class);
+        targetContexts = mock(DeploymentTargetContextService.class);
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(new org.springframework.core.io.ClassPathResource(
+            "db/migration/V180__release_scoped_source_prerequisite_evidence.sql")).execute(dataSource);
+        sourceEvidence = new CustomerSourcePrerequisiteEvidenceStore(jdbc, json);
 
         targetProfile = new DeploymentTargetProfileEntity();
         targetProfile.setId(TARGET);
@@ -117,6 +128,178 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     }
 
     @Test
+    void sourceOperationsReuseTheExactActiveReleaseEvidenceWithoutAllocatingMoreCapacity() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var sourceContext = sourceContext(Operation.SOURCE_PREVIEW, null, "release-1", "offer-fingerprint", 2);
+        sourceEvidence(sourceContext, NOW.plusSeconds(3), NOW.plusSeconds(60));
+
+        var resolved = providerAt(NOW.plusSeconds(3)).resolve(sourceContext);
+
+        assertThat(resolved.context()).isEqualTo(sourceContext);
+        assertThat(resolved.capacityReservationId()).isEqualTo(allocation.id());
+        assertThat(resolved.checkedAt()).isEqualTo(NOW.plusSeconds(3));
+        assertThat(resolved.passed()).contains(Prerequisite.STORAGE, Prerequisite.IDENTITY);
+        assertThat(store.held()).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_authorizations", Long.class))
+            .isEqualTo(1L);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Operation.class, names = {"SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX", "SOURCE_REFRESH", "SOURCE_REMOVE"})
+    void sourceOperationsCanPrepareTheExactProvisionedCandidateBeforeActivation(Operation operation) {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        Reservation candidate = provisionRelease("candidate-1");
+        var source = sourceContext(operation, "source-operation", "candidate-1", "offer-fingerprint", 2);
+        sourceEvidence(source, NOW.plusSeconds(3), NOW.plusSeconds(60));
+
+        var resolved = providerAt(NOW.plusSeconds(3)).resolve(source);
+
+        assertThat(resolved.capacityReservationId()).isEqualTo(allocation.id());
+        assertThat(resolved.passed()).contains(Prerequisite.STORAGE, Prerequisite.IDENTITY);
+        assertThat(store.require(allocation.id())).isEqualTo(candidate);
+        assertThat(candidate.state()).isEqualTo(State.PROVISIONING);
+        assertThat(store.releaseBinding("candidate-1").state()).isEqualTo("PROVISIONING");
+        assertThat(deployments.findById("deployment1").orElseThrow().getActiveVersionId()).isNull();
+        assertThat(store.held()).hasSize(1);
+    }
+
+    @Test
+    void sourceIndexingCanRepairAProvisionedCandidateAfterItsDocumentVerificationFailed() {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        Reservation candidate = provisionRelease("candidate-1");
+        Reservation failedVerification = store.outcome(candidate.fence(), State.OUTCOME_UNKNOWN,
+            "verification-failed", "worker", NOW.plusSeconds(2));
+        store.releaseBindingState("candidate-1", "OUTCOME_UNKNOWN");
+        var runtime = targetContexts.resolve("deployment1", TARGET, "candidate-1", false);
+        runtime.release().setStatus("APPLIED_VERIFICATION_FAILED");
+        var source = sourceContext(Operation.SOURCE_INDEX, "source-index", "candidate-1", "offer-fingerprint", 2);
+        sourceEvidence(source, NOW.plusSeconds(3), NOW.plusSeconds(60));
+
+        assertThat(providerAt(NOW.plusSeconds(3)).resolve(source).passed()).contains(Prerequisite.STORAGE);
+        assertThat(store.require(candidate.id())).isEqualTo(failedVerification);
+        assertThat(runtime.release().getStatus()).isEqualTo("APPLIED_VERIFICATION_FAILED");
+        assertThat(deployments.findById("deployment1").orElseThrow().getActiveVersionId()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"QUEUED", "NO_EFFECT", "SUPERSEDED"})
+    void unprovisionedOrFencedCandidateCannotObtainSourceAuthority(String bindingState) {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        provisionRelease("candidate-1");
+        store.releaseBindingState("candidate-1", bindingState);
+        var source = sourceContext(Operation.SOURCE_PREVIEW, null, "candidate-1", "offer-fingerprint", 2);
+        assertRejected(source, "ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"FAILED", "APPLIED_VERIFICATION_BLOCKED", "QUEUED", "APPLIED_VERIFICATION_FAILED"})
+    void provisioningAllocationDoesNotGrantSourceAuthorityForUnsettledOrFailedRuntimeStates(String status) {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        provisionRelease("candidate-1");
+        targetContexts.resolve("deployment1", TARGET, "candidate-1", false).release().setStatus(status);
+        var source = sourceContext(Operation.SOURCE_PREVIEW, null, "candidate-1", "offer-fingerprint", 2);
+        assertRejected(source, "SOURCE_RELEASE_NOT_PROVISIONED_OR_ALLOCATION_UNSETTLED");
+    }
+
+    @Test
+    void uncertainProvisioningOrChangedCandidateGenerationCannotUseSourceEvidence() {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        Reservation candidate = provisionRelease("candidate-1");
+        var source = sourceContext(Operation.SOURCE_INDEX, "source-index", "candidate-1", "offer-fingerprint", 2);
+        sourceEvidence(source, NOW.plusSeconds(3), NOW.plusSeconds(60));
+        var runtime = targetContexts.resolve("deployment1", TARGET, "candidate-1", false);
+        runtime.release().setProvisioningStatus("AWAITING_CONFIRMATION");
+        assertRejected(source, "SOURCE_RELEASE_NOT_PROVISIONED_OR_ALLOCATION_UNSETTLED");
+        runtime.release().setProvisioningStatus("ACTIVE");
+        store.outcome(candidate.fence(), State.OUTCOME_UNKNOWN, "uncertain-provider", "worker", NOW.plusSeconds(2));
+        store.releaseBindingState("candidate-1", "OUTCOME_UNKNOWN");
+        assertRejected(source, "SOURCE_RELEASE_NOT_PROVISIONED_OR_ALLOCATION_UNSETTLED");
+        jdbc.update("UPDATE deployment_admission_release_bindings SET generation='foreign-generation' WHERE release_id='candidate-1'");
+        assertRejected(source, "ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+    }
+
+    @Test
+    void sourceAuthorityDoesNotExtendTheProvisioningCandidatesCapacityLifetime() {
+        scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        Reservation candidate = provisionRelease("candidate-1");
+        var source = sourceContext(Operation.SOURCE_PREVIEW, null, "candidate-1", "offer-fingerprint", 2);
+        sourceEvidence(source, NOW.plusSeconds(3), NOW.plusSeconds(60));
+
+        assertThatThrownBy(() -> providerAt(candidate.expiresAt().plusSeconds(1)).resolve(source))
+            .hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_INVALID");
+        assertThat(store.require(candidate.id())).isEqualTo(candidate);
+    }
+
+    @Test
+    void freshReleaseScopedSourceProbeReplacesExpiredProvisioningProofWithoutChangingIt() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        Reservation before = store.require(allocation.id());
+        var sourceContext = sourceContext(Operation.SOURCE_PREVIEW, null, "release-1", "offer-fingerprint", 2);
+        sourceEvidence(sourceContext, NOW.plusSeconds(80), NOW.plusSeconds(110));
+
+        var resolved = providerAt(NOW.plusSeconds(80)).resolve(sourceContext);
+
+        assertThat(resolved.checkedAt()).isEqualTo(NOW.plusSeconds(80));
+        assertThat(resolved.passed()).contains(Prerequisite.STORAGE, Prerequisite.IDENTITY);
+        assertThat(before.prerequisiteReadback().validUntil()).isBefore(NOW.plusSeconds(80));
+        assertThat(store.require(allocation.id())).isEqualTo(before);
+        assertThat(store.held()).hasSize(1);
+        verify(placement, never()).probeAndRecord(any(), any());
+    }
+
+    @Test
+    void missingExpiredOrTamperedRecurringSourceProofFailsClosed() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var source = sourceContext(Operation.SOURCE_PREVIEW, null, "release-1", "offer-fingerprint", 2);
+        assertRejected(source, "SOURCE_PREREQUISITE_REFRESH_REQUIRED");
+        sourceEvidence(source, NOW.minusSeconds(61), NOW.plusSeconds(30));
+        assertRejected(source, "SOURCE_PREREQUISITE_REFRESH_REQUIRED");
+        sourceEvidence(source, NOW, NOW.plusSeconds(30));
+        jdbc.update("UPDATE deployment_source_prerequisite_evidence SET payload_fingerprint='tampered'");
+        assertRejected(source, "SOURCE_PREREQUISITE_RECORD_MISMATCH");
+    }
+
+    @Test
+    void storageOrCredentialRevisionDriftCannotReuseRecurringSourceProof() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var source = sourceContext(Operation.SOURCE_PREVIEW, null, "release-1", "offer-fingerprint", 2);
+        sourceEvidence(source, NOW, NOW.plusSeconds(30));
+        var runtime = targetContexts.resolve("deployment1", TARGET, "release-1", false);
+        runtime.release().setDocumentBindingFingerprint("changed-storage-or-credentials");
+        assertRejected(source, "SOURCE_PREREQUISITE_REFRESH_REQUIRED");
+    }
+
+    @Test
+    void sourceEvidenceFailsClosedForSupersededForeignOrDriftedReleaseScope() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+
+        assertRejected(sourceContext(Operation.SOURCE_PREVIEW, null, "foreign-release", "offer-fingerprint", 2),
+            "ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+        assertRejected(sourceContext(Operation.SOURCE_INDEX, "index-key", "release-1", "changed-offer", 2),
+            "ACTIVE_RELEASE_PREREQUISITE_SCOPE_CHANGED");
+        assertRejected(sourceContext(Operation.SOURCE_INDEX, "index-key", "release-1", "offer-fingerprint", 3),
+            "ACTIVE_RELEASE_PREREQUISITE_SCOPE_CHANGED");
+
+        store.releaseBindingState("release-1", "SUPERSEDED");
+        assertRejected(sourceContext(Operation.SOURCE_PREVIEW, null, "release-1", "offer-fingerprint", 2),
+            "ACTIVE_RELEASE_PREREQUISITE_EVIDENCE_REQUIRED");
+    }
+
+    @Test
+    void mutatingSourceOperationsStillRequireAnOperationKey() {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+
+        assertRejected(sourceContext(Operation.SOURCE_REFRESH, null, "release-1", "offer-fingerprint", 2),
+            "CUSTOMER_PREREQUISITE_CONTEXT_INVALID");
+    }
+
+    @Test
     void capacityReservationDoesNotInventUnmappedCustomerPrerequisites() {
         Manifest full = manifest("manifest-partial", "deployment1");
         Manifest partial = new Manifest(full.id(), full.deploymentId(), full.versionId(), full.versionConfigHash(),
@@ -166,7 +349,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         AdmissionStore ambiguousStore = mock(AdmissionStore.class);
         when(ambiguousStore.customerPrerequisiteReservations(customerContext)).thenReturn(List.of(held, held));
         var ambiguousProvider = new DeploymentAdmissionCustomerPrerequisiteEvidenceProvider(ambiguousStore, json,
-            mapper, deployments, versions, targets, placement, Clock.fixed(NOW, ZoneOffset.UTC));
+            mapper, deployments, versions, targets, placement, sourceEvidence, targetContexts, Clock.fixed(NOW, ZoneOffset.UTC));
         clearInvocations(deployments, versions, targets, placement);
 
         assertThatThrownBy(() -> ambiguousProvider.resolve(customerContext))
@@ -371,9 +554,53 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         return store.reserve(admission, command, evidence(admission, NOW), "owner", NOW);
     }
 
+    private void activateRelease(String releaseId, Reservation allocation) {
+        Reservation provisioning = provisionRelease(releaseId);
+        Reservation active = store.reconcile(provisioning.fence(),
+            readback(provisioning, NOW.plusSeconds(2), false, 0L, 0L), false, "worker", NOW.plusSeconds(2));
+        assertThat(active.id()).isEqualTo(allocation.id());
+        store.releaseBindingState(releaseId, "ACTIVE");
+        targetContexts.resolve("deployment1", TARGET, releaseId, false).release().setStatus("APPLIED_VERIFIED");
+    }
+
+    private Reservation provisionRelease(String releaseId) {
+        DeploymentEntity deployment = deployments.findById("deployment1").orElseThrow();
+        DeploymentVersionEntity version = versions.findById("version").orElseThrow();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId(releaseId);
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId(version.getId());
+        release.setTargetProfileId(TARGET);
+        release.setStatus("VERIFYING");
+        release.setProvisioningStatus("ACTIVE");
+        release.setProviderResourceHandleId("runtime-handle");
+        release.setDocumentBindingFingerprint("frozen-storage-binding");
+        release.setDocumentBindingSnapshotJson("""
+            {"resourceHandleId":"storage-handle","safeMetadata":{"bindingRevision":1,
+            "connectorType":"S3_COMPATIBLE_OBJECT_STORAGE"},"secretRevisions":{"ACCESS_KEY":"revision-1"}}
+            """);
+        when(targetContexts.resolve("deployment1", TARGET, releaseId, false)).thenReturn(
+            new DeploymentTargetContextService.Context(deployment, targetProfile, release, version,
+                "https://runtime.example", "https://connector.example"));
+        new TransactionTemplate(new DataSourceTransactionManager(dataSource))
+            .executeWithoutResult(status -> store.bindRelease(deployment, version, release));
+        ReleaseBinding binding = store.releaseBinding(releaseId);
+        AdmissionContext admission = store.context("customer", "tenant", "deployment1", "manifest1");
+        return store.beginReleaseProvisioning(binding, admission,
+            evidence(admission, NOW.plusSeconds(1)), "worker", NOW.plusSeconds(1));
+    }
+
     private DeploymentAdmissionCustomerPrerequisiteEvidenceProvider providerAt(Instant instant) {
         return new DeploymentAdmissionCustomerPrerequisiteEvidenceProvider(store, json, mapper, deployments, versions,
-            targets, placement, Clock.fixed(instant, ZoneOffset.UTC));
+            targets, placement, sourceEvidence, targetContexts, Clock.fixed(instant, ZoneOffset.UTC));
+    }
+
+    private void sourceEvidence(
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context,
+        Instant checkedAt, Instant expiresAt) {
+        var snapshot = provider.sourceSnapshot(context);
+        sourceEvidence.save(new CustomerSourcePrerequisiteEvidence("source-" + java.util.UUID.randomUUID(), snapshot.scope(),
+            "placement-proof", snapshot.passed(), "connector-proof-digest", checkedAt, expiresAt));
     }
 
     private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context(
@@ -382,6 +609,14 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         return new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
             customer, tenant, deployment, null, target, intent, "offer", offerFingerprint, 2,
             "placement-proof", operation, operationKey, limits);
+    }
+
+    private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext sourceContext(
+        Operation operation, String operationKey, String releaseId, String offerFingerprint, long entitlementRevision) {
+        return new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
+            "customer", "tenant", "deployment1", releaseId, TARGET, TargetIntent.CUSTOMER_STAGING,
+            "offer", offerFingerprint, entitlementRevision, "placement-proof", operation, operationKey,
+            limits("measurement-proof"));
     }
 
     private ReviewedLimits limits(String measurementReference) {

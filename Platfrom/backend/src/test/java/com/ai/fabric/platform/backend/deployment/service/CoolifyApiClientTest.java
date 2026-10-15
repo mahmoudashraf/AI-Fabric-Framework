@@ -21,6 +21,43 @@ class CoolifyApiClientTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void credentialRestrictionRequiresOneUnmaskedRuntimeEnvironmentRecord() throws Exception {
+        var inventory = new AtomicReference<String>("""
+            [{"uuid":"env-one","key":"BASIC_INBOX_OPERATORS","value":"current-operator-configuration",
+              "is_preview":false,"is_buildtime":false,"is_runtime":true}]
+            """);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            byte[] bytes = inventory.get().getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) { output.write(bytes); }
+        });
+        server.start();
+        try {
+            var client = new CoolifyApiClient(objectMapper);
+            assertThat(client.requireRuntimeEnvironmentValue(connection(server), "app-uuid", "BASIC_INBOX_OPERATORS"))
+                .isEqualTo("current-operator-configuration");
+            inventory.set("""
+                [{"uuid":"env-one","key":"BASIC_INBOX_OPERATORS","value":"one","is_runtime":true},
+                 {"uuid":"env-two","key":"BASIC_INBOX_OPERATORS","value":"two","is_runtime":true}]
+                """);
+            assertThatThrownBy(() -> client.requireRuntimeEnvironmentValue(connection(server), "app-uuid", "BASIC_INBOX_OPERATORS"))
+                .hasMessageContaining("Exact runtime environment evidence");
+            inventory.set("""
+                [{"uuid":"env-one","key":"BASIC_INBOX_OPERATORS","value":null,"is_runtime":true}]
+                """);
+            assertThatThrownBy(() -> client.requireRuntimeEnvironmentValue(connection(server), "app-uuid", "BASIC_INBOX_OPERATORS"))
+                .hasMessageContaining("Exact runtime environment evidence");
+            inventory.set("""
+                [{"uuid":"env-one","key":"BASIC_INBOX_OPERATORS","value":"preview-only","is_preview":true,"is_runtime":true}]
+                """);
+            assertThatThrownBy(() -> client.requireRuntimeEnvironmentValue(connection(server), "app-uuid", "BASIC_INBOX_OPERATORS"))
+                .hasMessageContaining("Exact runtime environment evidence");
+        } finally { server.stop(0); }
+    }
+
+    @Test
     void updatePublicApplicationSendsOnlyPatchAcceptedFields() throws Exception {
         AtomicReference<String> observedBody = new AtomicReference<>();
         HttpServer server = patchServer(observedBody);

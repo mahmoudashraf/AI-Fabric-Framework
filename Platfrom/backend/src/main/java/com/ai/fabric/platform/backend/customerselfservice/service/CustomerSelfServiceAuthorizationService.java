@@ -28,6 +28,7 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 
 @Service
 public class CustomerSelfServiceAuthorizationService {
+    private enum EvidenceMode { REQUIRED, ADMISSION_PREPARATION, SOURCE_REFRESH }
     private final CustomerOfferEntitlementService entitlements;
     private final CustomerReviewedCompositionService composition;
     private final CustomerTargetPlacementService placement;
@@ -64,7 +65,7 @@ public class CustomerSelfServiceAuthorizationService {
     /** Join the owning command transaction so revoke cannot race the persisted mutation. */
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization authorize(String customerId, AuthorizationRequest request) {
-        return authorize(customerId, request, true);
+        return authorize(customerId, request, EvidenceMode.REQUIRED);
     }
 
     /**
@@ -74,10 +75,16 @@ public class CustomerSelfServiceAuthorizationService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization prepareAdmission(String customerId, AuthorizationRequest request) {
-        return authorize(customerId, request, false);
+        return authorize(customerId, request, EvidenceMode.ADMISSION_PREPARATION);
     }
 
-    private Authorization authorize(String customerId, AuthorizationRequest request, boolean requireAdmissionEvidence) {
+    /** The source probe collects placement/prerequisite evidence after this short transaction has ended. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Authorization prepareSourcePrerequisiteRefresh(String customerId, AuthorizationRequest request) {
+        return authorize(customerId, request, EvidenceMode.SOURCE_REFRESH);
+    }
+
+    private Authorization authorize(String customerId, AuthorizationRequest request, EvidenceMode evidenceMode) {
         if (request == null || request.operation() == null || blank(request.targetProfileId())
             || blank(request.offerId())) throw invalid();
         var principal = PlatformSecurityContext.currentPrincipal();
@@ -95,7 +102,10 @@ public class CustomerSelfServiceAuthorizationService {
         var definition = entitlements.definition(offer);
         if (!definition.operations().contains(request.operation())) throw deny(OPERATION_FORBIDDEN);
         PermissionRow row = CustomerPermissionMatrix.row(request.operation());
-        if (!requireAdmissionEvidence && !row.admissionEvidenceRequired()) throw deny(OPERATION_FORBIDDEN);
+        if ((evidenceMode == EvidenceMode.ADMISSION_PREPARATION && !row.admissionEvidenceRequired())
+            || (evidenceMode == EvidenceMode.SOURCE_REFRESH && !isSourceOperation(request.operation()))) {
+            throw deny(OPERATION_FORBIDDEN);
+        }
         if (!row.settings().containsAll(request.changedSettings()) || !definition.settings().stream()
             .map(SettingRule::setting).collect(java.util.stream.Collectors.toSet()).containsAll(request.changedSettings())) {
             throw deny(SETTING_FORBIDDEN);
@@ -148,15 +158,17 @@ public class CustomerSelfServiceAuthorizationService {
         composition.validate(definition);
         var profile = profiles.findById(target.targetProfileId()).orElseThrow(() -> deny(UNENTITLED_TARGET));
         composition.requireProfile(profile, target);
-        var placementEvidence = placement.requireFreshEvidence(profile, target.intent());
+        var placementEvidence = evidenceMode == EvidenceMode.SOURCE_REFRESH ? null
+            : placement.requireFreshEvidence(profile, target.intent());
         if (request.operation() != Operation.READ && request.operation() != Operation.TEMPLATE_SELECT
             && request.operation() != Operation.SOURCE_DISCOVER && request.operation() != Operation.SOURCE_PREVIEW) {
             entitlements.requireOperationKey(request.operationKey());
         }
         AdmissionContext context = new AdmissionContext(customerId, request.tenantId(), request.deploymentId(),
             request.releaseId(), target.targetProfileId(), target.intent(), offer.getId(), offer.getFingerprint(),
-            entitlement.getRevision(), placementEvidence.getId(), request.operation(), request.operationKey(), definition.limits());
-        if (requireAdmissionEvidence) requirePrerequisites(context, requiredPrerequisites(definition, row));
+            entitlement.getRevision(), placementEvidence == null ? null : placementEvidence.getId(),
+            request.operation(), request.operationKey(), definition.limits());
+        if (evidenceMode == EvidenceMode.REQUIRED) requirePrerequisites(context, requiredPrerequisites(definition, row));
         return new Authorization(context, definition);
     }
 

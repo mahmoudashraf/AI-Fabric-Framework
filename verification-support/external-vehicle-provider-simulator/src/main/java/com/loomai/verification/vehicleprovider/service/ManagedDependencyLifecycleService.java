@@ -60,15 +60,34 @@ public class ManagedDependencyLifecycleService {
         var run = simulator.status().fixture();
         long version = simulator.sourceVersion(Profile.AUTOTRADER, simulator.accountId(Profile.AUTOTRADER));
         Instant now = Instant.now();
-        int updated = jdbc.update("update loomai_managed_dependency_state set lifecycle_state = ?, binding_id = ?, updated_at = ? where singleton_id = 1",
-            state, properties.bindingId(), Timestamp.from(now));
-        if (updated == 0) jdbc.update("insert into loomai_managed_dependency_state (singleton_id, lifecycle_state, binding_id, updated_at) values (1, ?, ?, ?)",
-            state, properties.bindingId(), Timestamp.from(now));
+        int updated = jdbc.update("update loomai_managed_dependency_state set lifecycle_state = ?, binding_id = ?, updated_at = ?, operation_key = ? where singleton_id = 1",
+            state, properties.bindingId(), Timestamp.from(now), request.operationKey());
+        if (updated == 0) jdbc.update("insert into loomai_managed_dependency_state (singleton_id, lifecycle_state, binding_id, updated_at, operation_key) values (1, ?, ?, ?, ?)",
+            state, properties.bindingId(), Timestamp.from(now), request.operationKey());
         Readback result = readback(request, state, 0, now,
             "simulator:" + run.resetId() + ":source-version:" + version, false);
         jdbc.update("insert into loomai_managed_dependency_operation (operation_key, request_sha256, response_json, created_at) values (?, ?, ?, ?)",
             request.operationKey(), fingerprint, write(result), Timestamp.from(now));
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public CurrentReadback current(String challenge) {
+        requireConfigured();
+        if (challenge == null || !challenge.matches("[A-Za-z0-9-]{16,128}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MANAGED_DEPENDENCY_CHALLENGE_INVALID");
+        }
+        var state = jdbc.query("select lifecycle_state, binding_id, operation_key from loomai_managed_dependency_state where singleton_id = 1",
+            (rs, row) -> new CurrentState(rs.getString(1), rs.getString(2), rs.getString(3))).stream()
+            .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "MANAGED_DEPENDENCY_NOT_INITIALIZED"));
+        if (!properties.bindingId().equals(state.bindingId()) || !StringUtils.hasText(state.operationKey())) {
+            conflict("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
+        }
+        var current = new Readback(VERSION, state.state(), properties.customerId(), properties.tenantId(),
+            properties.deploymentId(), properties.targetProfileId(), properties.versionId(), properties.slot(), properties.serviceRef(),
+            properties.accountId(), state.bindingId(), state.operationKey(), 0, Instant.now(),
+            "simulator:current:" + state.bindingId() + ":" + state.operationKey(), false);
+        return new CurrentReadback(current, challenge);
     }
 
     public boolean available() {
@@ -110,6 +129,7 @@ public class ManagedDependencyLifecycleService {
     private String sha256(String value) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException(e); } }
     private void conflict(String reason) { throw new ResponseStatusException(HttpStatus.CONFLICT, reason); }
     private record Stored(String fingerprint, String response) { }
+    private record CurrentState(String state, String bindingId, String operationKey) { }
     public record Request(String contractVersion, String command, String initializationContract, String customerId,
         String tenantId, String deploymentId, String targetProfileId, String versionId, String slot,
         String serviceRef, String accountId, String bindingId, String operationKey) { }
@@ -117,4 +137,5 @@ public class ManagedDependencyLifecycleService {
         String deploymentId, String targetProfileId, String versionId, String slot, String serviceRef,
         String accountId, String bindingId, String operationKey, long activeWork, Instant observedAt,
         String evidenceReference, boolean replay) { }
+    public record CurrentReadback(Readback current, String challenge) { }
 }

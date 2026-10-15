@@ -8,10 +8,13 @@ import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuth
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -48,6 +51,7 @@ import static org.mockito.Mockito.when;
 class DeploymentServiceRuntimeAuthorityFreezeTest {
 
     private final DeploymentRepository deployments = mock(DeploymentRepository.class);
+    private final DeploymentDraftRepository drafts = mock(DeploymentDraftRepository.class);
     private final DeploymentVersionRepository versions = mock(DeploymentVersionRepository.class);
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final DeploymentProvisioningService provisioning = mock(DeploymentProvisioningService.class);
@@ -168,6 +172,36 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
     }
 
     @Test
+    void reviewedOfferDeploymentRejectsGenericDraftMutationAndPublicationRoutes() {
+        DeploymentDraftEntity draft = new DeploymentDraftEntity();
+        draft.setId("draft-1");
+        draft.setDeploymentId(deployment.getId());
+        when(drafts.findById(draft.getId())).thenReturn(Optional.of(draft));
+        when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(access.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
+        when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.updateDraft(draft.getId(), new UpdateDeploymentDraftRequest(
+            null, null, null, null, null, null, null, null, null, null
+        ))).isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> service.publishDraft(draft.getId()))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> service.restorePromptRevision(deployment.getId(), "revision-1"))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN));
+        assertThatThrownBy(() -> service.applyCuratedModuleToDraft(
+            deployment.getId(), new UpdateDeploymentCuratedModuleRequest("curated-module")))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN));
+    }
+
+    @Test
     void productizedApplyFailsClosedWhenPublishedOriginsAreAbsent() {
         version.setSecurityConfigJson("{\"authzMode\":\"ALLOW_VERIFIED\",\"publicRuntimeBootstrapEnabled\":true}");
         when(offerDeployments.existsById(deployment.getId())).thenReturn(true);
@@ -245,7 +279,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         var provisioningProperties = provisioningProperties();
         return new DeploymentService(
             deployments,
-            mock(DeploymentDraftRepository.class),
+            drafts,
             mock(DeploymentPromptRevisionRepository.class),
             versions,
             releases,

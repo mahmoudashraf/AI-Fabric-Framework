@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
@@ -46,6 +48,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
     private final TargetRetirementInventory retirementInventory;
     private final CoolifyTargetProfileResolver resolver;
     private final CoolifyApiClient client;
+    private final CustomerSelfServiceProperties customerSelfServiceProperties;
     private final AdmissionJson json;
     private final Clock clock;
 
@@ -61,9 +64,10 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
                                               TargetRetirementInventory retirementInventory,
                                               CoolifyTargetProfileResolver resolver,
                                               CoolifyApiClient client,
+                                              CustomerSelfServiceProperties customerSelfServiceProperties,
                                               AdmissionJson json) {
         this(admissions, targets, releases, versions, handles, consumers, operations, retirements, retirementInventory,
-            resolver, client, json, Clock.systemUTC());
+            resolver, client, customerSelfServiceProperties, json, Clock.systemUTC());
     }
 
     ProductionAdmissionResourceReadbackSource(AdmissionStore admissions,
@@ -77,6 +81,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
                                               TargetRetirementInventory retirementInventory,
                                               CoolifyTargetProfileResolver resolver,
                                               CoolifyApiClient client,
+                                              CustomerSelfServiceProperties customerSelfServiceProperties,
                                               AdmissionJson json, Clock clock) {
         this.admissions = admissions;
         this.targets = targets;
@@ -89,6 +94,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         this.retirementInventory = retirementInventory;
         this.resolver = resolver;
         this.client = client;
+        this.customerSelfServiceProperties = customerSelfServiceProperties;
         this.json = json;
         this.clock = clock;
     }
@@ -152,8 +158,11 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
                 throw failure(PRECONDITION_FAILED, "TARGET_PLACEMENT_EVIDENCE_CHANGED");
             }
             var server = client.getServer(connection, target.placement().serverUuid());
+            var trusted = trusted(target.intent());
             if (server == null || !target.placement().serverUuid().equals(server.path("uuid").asText())
-                || !target.placement().ip().equals(server.path("ip").asText())) {
+                || !target.placement().serverUuid().equals(trusted.uuid())
+                || !target.placement().ip().equals(trusted.address())
+                || !trusted.reportedAddress().equals(server.path("ip").asText())) {
                 throw failure(PRECONDITION_FAILED, "TARGET_PLACEMENT_EVIDENCE_CHANGED");
             }
             providerEvidence = owned.stream().map(handle -> activeProviderEvidence(
@@ -173,6 +182,19 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         ));
         return readback(context, target, now, reference, true, true, false, false,
             false, false, assignments(reservation, releaseIds), null, null, null, null);
+    }
+
+    private CustomerSelfServiceProperties.TrustedServer trusted(Intent intent) {
+        TargetIntent targetIntent = intent == Intent.CUSTOMER_STAGING
+            ? TargetIntent.CUSTOMER_STAGING
+            : TargetIntent.CUSTOMER_PRODUCTION;
+        var trusted = customerSelfServiceProperties.trustedServers().get(targetIntent);
+        if (trusted == null || trusted.uuid() == null || trusted.uuid().isBlank()
+            || trusted.address() == null || trusted.address().isBlank()
+            || trusted.reportedAddress() == null || trusted.reportedAddress().isBlank()) {
+            throw failure(PRECONDITION_FAILED, "TARGET_PLACEMENT_EVIDENCE_CHANGED");
+        }
+        return trusted;
     }
 
     private ResourceReadback retired(ReadbackContext context, TargetBudget target) {

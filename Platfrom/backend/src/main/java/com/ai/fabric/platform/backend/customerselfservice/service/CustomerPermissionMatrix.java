@@ -12,6 +12,7 @@ public final class CustomerPermissionMatrix {
         Set<Setting> settings = switch (operation) {
             case BOOTSTRAP_CONFIGURATION, BOOTSTRAP -> Set.of(Setting.DEPLOYMENT_NAME);
             case DRAFT_EDIT -> Set.of(Setting.DEPLOYMENT_NAME, Setting.INTERACTION_PROFILE_ID);
+            case VERSION_PUBLISH -> Set.of();
             case APP_CONFIGURE -> Set.of(Setting.APP_TITLE, Setting.LOGO_ASSET_ID, Setting.THEME_PROFILE_ID,
                 Setting.INITIAL_VIEW, Setting.INTERACTION_PROFILE_ID);
             case DOMAIN_CONFIGURE -> Set.of(Setting.APP_DOMAIN);
@@ -21,8 +22,10 @@ public final class CustomerPermissionMatrix {
         };
         StaffAccess staffAccess = switch (operation) {
             case READ, TEMPLATE_SELECT, SOURCE_DISCOVER, SOURCE_PREVIEW -> StaffAccess.VIEWER;
-            case DRAFT_EDIT, APP_CONFIGURE, DOMAIN_CONFIGURE, AUTH_CONFIGURE -> StaffAccess.EDITOR;
-            case BOOTSTRAP_CONFIGURATION, BINDING_REPLACE, BINDING_REVOKE, STAGING_RETAIN, STAGING_EXTEND, TARGET_RETIRE -> StaffAccess.ADMIN;
+            case DRAFT_EDIT, VERSION_PUBLISH, APP_CONFIGURE, DOMAIN_CONFIGURE, AUTH_CONFIGURE -> StaffAccess.EDITOR;
+            case BOOTSTRAP_CONFIGURATION, BINDING_REPLACE, BINDING_REVOKE,
+                 INBOX_OPERATOR_ENROLL, INBOX_OPERATOR_ROTATE, INBOX_OPERATOR_DELIVER, INBOX_OPERATOR_REVOKE,
+                 STAGING_RETAIN, STAGING_EXTEND, TARGET_RETIRE -> StaffAccess.ADMIN;
             default -> StaffAccess.OPERATOR;
         };
         Set<TargetIntent> intents = switch (operation) {
@@ -34,8 +37,10 @@ public final class CustomerPermissionMatrix {
             case BOOTSTRAP, APPLY, PROMOTION_PLAN, PROMOTION_APPLY, ACTIVATE, ROLLBACK, STAGING_RETAIN, STAGING_EXTEND -> true;
             default -> false;
         };
-        return new PermissionRow(operation, staffAccess, intents, settings,
-            operation == Operation.BINDING_REPLACE || operation == Operation.BINDING_REVOKE, admission);
+        boolean ownedBinding = operation == Operation.BINDING_REPLACE || operation == Operation.BINDING_REVOKE
+            || operation == Operation.INBOX_OPERATOR_ENROLL || operation == Operation.INBOX_OPERATOR_ROTATE
+            || operation == Operation.INBOX_OPERATOR_DELIVER || operation == Operation.INBOX_OPERATOR_REVOKE;
+        return new PermissionRow(operation, staffAccess, intents, settings, ownedBinding, admission);
     }
 
     public static java.util.List<PermissionRow> rows(Set<Operation> operations) {

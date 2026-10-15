@@ -60,7 +60,7 @@ public final class TargetRetirementContracts {
                            Long humanWork, Long backgroundWork, boolean durable, List<String> blockers) { }
     public record RecoveryEvidence(String operationId, String previousWorkerToken, String effectKey,
                                    Instant observedAt, String reference, boolean workerFenced,
-                                   boolean remoteOutcomeSettled) { }
+                                   boolean remoteOutcomeSettled, boolean resumeSafe) { }
     public record EffectResult(boolean complete, String evidenceReference, Instant observedAt) { }
     public record Progress(Map<String, EffectResult> effects, Map<ParticipantKind, Evidence> evidence,
                            Evidence interlockEvidence, List<String> blockers) {

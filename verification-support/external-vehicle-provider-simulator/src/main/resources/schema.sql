@@ -54,6 +54,8 @@ create table if not exists loomai_managed_dependency_state (
     updated_at timestamp with time zone not null
 );
 
+alter table loomai_managed_dependency_state add column if not exists operation_key varchar(240);
+
 create table if not exists loomai_managed_dependency_operation (
     operation_key varchar(240) primary key,
     request_sha256 varchar(64) not null,
