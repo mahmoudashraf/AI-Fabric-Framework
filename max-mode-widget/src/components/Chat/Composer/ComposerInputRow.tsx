@@ -80,12 +80,12 @@ export function ComposerInputRow({
         <span
           className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
             currentPosition === "cart"
-              ? "bg-orange-500 text-white"
+              ? "bg-orange-700 text-white"
               : currentPosition === "search"
-                ? "bg-blue-500 text-white"
+                ? "bg-blue-700 text-white"
                 : currentPosition === "catalog"
-                  ? "bg-indigo-500 text-white"
-                  : "bg-green-500 text-white"
+                  ? "bg-indigo-700 text-white"
+                  : "bg-green-700 text-white"
           }`}
         >
           {positionLabel(currentPosition)}
@@ -184,12 +184,12 @@ export function ComposerInputRow({
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
               currentPosition === "cart"
-                ? "bg-orange-500 text-white"
+                ? "bg-orange-700 text-white"
                 : currentPosition === "search"
-                  ? "bg-blue-500 text-white"
+                  ? "bg-blue-700 text-white"
                   : currentPosition === "catalog"
-                    ? "bg-indigo-500 text-white"
-                    : "bg-green-500 text-white"
+                    ? "bg-indigo-700 text-white"
+                    : "bg-green-700 text-white"
             }`}
           >
             {positionLabel(currentPosition)}
@@ -209,6 +209,7 @@ export function ComposerInputRow({
           size="icon"
           onClick={onSubmit}
           disabled={isLoading || !chatQuery.trim() || oldConversationLocked}
+          aria-label={isLoading ? "Sending message" : "Send message"}
           className="absolute right-2 bottom-2 h-10 w-10 md:h-11 md:w-11 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 border border-white/20"
         >
           {isLoading ? <Loader2 className="h-5 w-5 md:h-5.5 md:w-5.5 animate-spin text-white" /> : <Send className="h-5 w-5 md:h-5.5 md:w-5.5 text-white" />}

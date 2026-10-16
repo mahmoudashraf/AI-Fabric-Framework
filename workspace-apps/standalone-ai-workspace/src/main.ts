@@ -42,6 +42,7 @@ declare global {
 }
 
 const shell = required<HTMLElement>('shell')
+const appHeading = required<HTMLHeadingElement>('app-heading')
 const statusPanel = required<HTMLElement>('status-panel')
 const statusTitle = required<HTMLElement>('status-title')
 const statusCopy = required<HTMLElement>('status-copy')
@@ -105,6 +106,7 @@ async function start() {
   try {
     bootstrap = await fetchBootstrap()
     document.title = bootstrap.displayName
+    appHeading.textContent = bootstrap.displayName
     session = await restoreSession(bootstrap)
     configureAuthDialog(bootstrap)
     if (!session && authenticationCallbackError) {

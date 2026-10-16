@@ -24,8 +24,9 @@ export function MaxModeView({
   }
 
   return (
-    <motion.div
+    <motion.main
       data-max-mode-view
+      aria-label={`${controller.assistantLabel} AI Workspace`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -46,6 +47,6 @@ export function MaxModeView({
       <MaxModeCollectionAnimation collectingItem={controller.collectingItem} />
       <MaxModeComposerBar controller={controller} />
       <MaxModeOverlays controller={controller} />
-    </motion.div>
+    </motion.main>
   );
 }

@@ -217,7 +217,7 @@ export function CompanionDock({
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
               Assist
             </span>
-            <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
+            <span className="rounded-full bg-green-700 px-3 py-1 text-xs font-bold text-white">
               {positionLabel(controller.currentPosition)}
             </span>
           </div>
@@ -278,6 +278,7 @@ export function CompanionDock({
               type="button"
               onClick={submit}
               disabled={controller.isLoading || !controller.chatQuery.trim() || controller.oldConversationLocked}
+              aria-label={controller.isLoading ? "Sending message" : "Send message"}
               className="h-12 w-12 rounded-2xl bg-blue-600 text-white shadow-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               title="Send message"
             >
