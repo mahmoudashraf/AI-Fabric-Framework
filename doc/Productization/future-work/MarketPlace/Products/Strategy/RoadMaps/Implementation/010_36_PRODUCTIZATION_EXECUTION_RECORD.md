@@ -20,7 +20,7 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `54c2a36522b9dbcd2a44193cf43e19bd77703b7e` is live on both Platform
+  Source `1ac809d70e095c3d3c4a73cfdf9b9b84f88cff8a` is live on both Platform
   backends. The hosted legal customer request reaches the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
   End-to-end provisioning remains intentionally unexecuted until sufficient
@@ -463,6 +463,23 @@ policy values.
   and isolation, not Shopify theme-extension publication. Sanitized evidence is
   tracked at
   `verification-support/productization-01036/evidence/shopify-private-adapter-browser-canary-2026-10-16.json`.
+- The supported accessibility/mobile acceptance is closed on hosted staging.
+  Generic workspace fixes give the send control an accessible name, preserve
+  one installation-specific `h1`, meet compact-label contrast, and expose the
+  embedded workspace as a named region without taking ownership of the host
+  page's single main landmark. The widget TypeScript/build, viewport and native
+  modal/focus/safe-area/keyboard smoke contracts pass; the standalone shell
+  passes its server test and all **26 browser scenarios**. Fresh Chromium and
+  axe-core scans against both the dealership and generic installations at
+  `1440x1000` and `390x844` report **zero violations** across four scans.
+  Staging and production now run backend source
+  `1ac809d70e095c3d3c4a73cfdf9b9b84f88cff8a`; both shared standalone services
+  run source `aebe8dc8135c912458d8249484ca54ae64b2282b`. All four Coolify apps read
+  back their exact immutable tags as `running:healthy`; Platform aggregate,
+  liveness and readiness are HTTP `200` / `UP` in both environments, and the
+  production shared workspace health route returns HTTP `200`. Sanitized
+  evidence is tracked at
+  `verification-support/productization-01036/evidence/ai-workspace-accessibility-hosted-canary-2026-10-16.json`.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
@@ -472,7 +489,7 @@ Logs reside under `/private/tmp/01036-*`; copy only final sanitized evidence to
 the verification-support directory. Source baseline started at
 `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; the latest locally and hosted
 verified source is committed on `Platform-V11` through
-`54c2a36522b9dbcd2a44193cf43e19bd77703b7e`. The reviewed package metadata is
+`1ac809d70e095c3d3c4a73cfdf9b9b84f88cff8a`. The reviewed package metadata is
 hosted, but the customer offer has not passed the remaining live capacity and
 lifecycle gates and is not externally admissible.
 No customer deployment, provider resource or consumer assignment was created or
@@ -488,7 +505,7 @@ refresh/removal and cross-target denial without adding a source upload or write
 path. Bind the production prefix only as part of the later production candidate.
 Verify immutable dependency artifacts, notification/recovery evidence, repeated
 same-target runtime replacement, restart recovery and S3 indexing. Complete the
-hosted real-provider Engage action-time auth, accessibility and capacity gates.
+hosted real-provider Engage action-time authentication and capacity gates.
 The Shopify private-adapter browser transport, reload continuity and
 cross-browser isolation gate is closed. The local typed-contract, cancellation,
 revocation and no-replay acceptance is closed. The hosted Platform backend and

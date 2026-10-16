@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "loomai-productization-01036-accessibility-evidence-v1",
+  "recordedAt": "2026-10-16",
+  "result": "PASS",
+  "scope": "Hosted LoomAI Engage accessibility, responsive viewport and immutable rollout canary",
+  "images": {
+    "platformBackend": {
+      "sourceCommit": "1ac809d70e095c3d3c4a73cfdf9b9b84f88cff8a",
+      "registryDigest": "sha256:57b9e833df70f3cea8d4f023e1890a19da215ee921c6a979c4035c88b8a61f8e",
+      "workflowRunId": "38834796003"
+    },
+    "standaloneAiWorkspace": {
+      "sourceCommit": "aebe8dc8135c912458d8249484ca54ae64b2282b",
+      "registryDigest": "sha256:b0bcc495279bc8ce1db007d1447cbbfab1e5a21bde9071831030a0c1b4de8c28",
+      "workflowRunId": "38834052024"
+    }
+  },
+  "deployments": {
+    "staging": {
+      "platformBackendDeploymentId": "w1enqmxr1003usdrcd03i2tf",
+      "standaloneWorkspaceDeploymentId": "cdsmc8nkwtxoyoeetb7af202",
+      "applicationState": "running:healthy",
+      "aggregateHealth": "HTTP_200_UP",
+      "liveness": "HTTP_200_UP",
+      "readiness": "HTTP_200_UP"
+    },
+    "production": {
+      "platformBackendDeploymentId": "eiru8gn9wx0ggyt2g7hfid85",
+      "standaloneWorkspaceDeploymentId": "os9mw6bqzkgk16p7665w4ipv",
+      "applicationState": "running:healthy",
+      "aggregateHealth": "HTTP_200_UP",
+      "liveness": "HTTP_200_UP",
+      "readiness": "HTTP_200_UP",
+      "sharedWorkspaceHealth": "HTTP_200"
+    }
+  },
+  "browserCanary": {
+    "engine": "Chromium",
+    "scanner": "axe-core-4.12.1",
+    "targets": [
+      "https://northfield-demo.apps.46.224.145.148.sslip.io/",
+      "https://northfield-support.apps.46.224.145.148.sslip.io/"
+    ],
+    "viewports": [
+      {
+        "name": "desktop",
+        "width": 1440,
+        "height": 1000
+      },
+      {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "scans": 4,
+    "violations": 0,
+    "structuralAssertions": {
+      "hostMainLandmarks": 1,
+      "namedWorkspaceRegions": 1,
+      "installationSpecificHeading": true
+    }
+  },
+  "focusedVerification": {
+    "widgetTypecheck": "PASS",
+    "widgetProductionBundles": "PASS",
+    "widgetViewportSmoke": "PASS",
+    "widgetAccessibilitySmoke": "PASS",
+    "standaloneTypecheck": "PASS",
+    "standaloneProductionBuild": "PASS",
+    "standaloneServerTests": 1,
+    "standaloneBrowserScenarios": 26
+  },
+  "exclusions": [
+    "No native mobile application or installable PWA certification was claimed.",
+    "No production customer AI Workspace installation was created by this canary.",
+    "Customer admission, hosted S3 indexing and staging-to-production lifecycle remain capacity-gated."
+  ]
+}

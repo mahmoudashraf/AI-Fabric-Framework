@@ -1220,7 +1220,7 @@ and verify them. Passing documentation review alone does not close P0.
 
 - [ ] Run real action-time sign-in, cancelled/failed login, expiry/refresh,
   revocation/logout/account-switch, and no-replay/owner-isolation scenarios.
-- [ ] Run full Shopify private-adapter query regression and complete supported
+- [x] Run full Shopify private-adapter query regression and complete supported
   keyboard/accessibility/mobile safe-area acceptance; retain precise failures.
 
 **P5. Close production operations and limits.**
