@@ -230,11 +230,19 @@ public class PublicAIWorkspaceManifestService {
             ObjectNode adapter = objectMapper.createObjectNode();
             adapter.put("bootstrapUrl", profile.endpoint());
             adapter.put("method", "POST");
-            adapter.put("credentials", "include");
+            adapter.put("credentials", adapterBrowserCredentials(profile));
             adapter.put("responseSchemaVersion", "loomai-workspace-private-adapter-v1");
             connection.set("adapter", adapter);
         }
         return connection;
+    }
+
+    private String adapterBrowserCredentials(AIWorkspaceConnectionProfileRegistry.ConnectionProfile profile) {
+        String credentials = profile.browserCredentials();
+        if ("omit".equals(credentials) || "include".equals(credentials) || "same-origin".equals(credentials)) {
+            return credentials;
+        }
+        throw new IllegalStateException("Private adapter connection profile must declare browser credentials mode.");
     }
 
     private ObjectNode credentialBroker(String runtimeBaseUrl) {

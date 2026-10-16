@@ -36,12 +36,12 @@ public class AIWorkspaceConnectionProfileRegistry {
         ConnectionProfile profile = switch (code == null ? "" : code) {
             case ANONYMOUS -> new ConnectionProfile(
                 ANONYMOUS, VERSION, "Direct anonymous runtime", AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS,
-                "direct-public-runtime", "loomai-runtime-anonymous-v1", true, null, Map.of()
+                "direct-public-runtime", "loomai-runtime-anonymous-v1", true, null, null, Map.of()
             );
             case AUTHENTICATED -> new ConnectionProfile(
                 AUTHENTICATED, VERSION, "Authenticated runtime broker", AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED,
                 "brokered-public-runtime", "loomai-runtime-token-broker-v1",
-                true, null, Map.of()
+                true, null, null, Map.of()
             );
             case SHOPIFY -> shopifyProfile(configuration);
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace connection profile.");
@@ -80,7 +80,7 @@ public class AIWorkspaceConnectionProfileRegistry {
         return new ConnectionProfile(
             SHOPIFY, VERSION, "Shopify storefront bridge", AIWorkspaceConnectionMode.BACKEND_MEDIATED_PRIVATE_RUNTIME,
             "private-backend-adapter", "loomai-shopify-bridge-adapter-v1", baseUrl != null,
-            bootstrapUrl, Map.of("shopDomain", shopDomain)
+            bootstrapUrl, "omit", Map.of("shopDomain", shopDomain)
         );
     }
 
@@ -105,6 +105,7 @@ public class AIWorkspaceConnectionProfileRegistry {
         String configurationSchemaVersion,
         boolean enabled,
         String endpoint,
+        String browserCredentials,
         Map<String, Object> publicConfiguration
     ) {
     }

@@ -317,7 +317,7 @@ class AIWorkspaceInstallationServiceTest {
         return new AIWorkspaceConnectionProfileRegistry.ConnectionProfile(
             "runtime-anonymous-direct", "1.0.0", "Anonymous",
             AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS, "direct-public-runtime",
-            "loomai-runtime-anonymous-v1", true, null, java.util.Map.of()
+            "loomai-runtime-anonymous-v1", true, null, null, java.util.Map.of()
         );
     }
 }

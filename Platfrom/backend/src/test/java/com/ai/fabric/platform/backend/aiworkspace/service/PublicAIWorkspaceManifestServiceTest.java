@@ -152,7 +152,7 @@ class PublicAIWorkspaceManifestServiceTest {
         assertThat(connection.path("adapter").path("bootstrapUrl").asText())
             .isEqualTo("https://shopify-bridge.loomai.pro/api/storefront/shops/"
                 + "northfield.myshopify.com/workspace/bootstrap");
-        assertThat(connection.path("adapter").path("credentials").asText()).isEqualTo("include");
+        assertThat(connection.path("adapter").path("credentials").asText()).isEqualTo("omit");
         assertThat(connection.has("runtimeBaseUrl")).isFalse();
         assertThat(connection.has("routes")).isFalse();
         assertThat(json)
