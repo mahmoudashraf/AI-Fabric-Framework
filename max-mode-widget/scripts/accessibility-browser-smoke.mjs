@@ -34,7 +34,7 @@ try {
   })
   await page.goto(origin)
   await page.locator('[data-max-mode-view]').waitFor()
-  assert.equal(await page.getByRole('main', { name: 'Support AI Workspace' }).count(), 1)
+  assert.equal(await page.getByRole('region', { name: 'Support AI Workspace' }).count(), 1)
   assert.equal(await page.getByRole('button', { name: 'Send message', exact: true }).count(), 1)
   const trigger = page.getByRole('button', { name: 'Talk to a person', exact: true })
   await trigger.click()
