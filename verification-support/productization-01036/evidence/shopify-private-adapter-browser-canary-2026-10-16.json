@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "sourceCommit": "54c2a36522b9dbcd2a44193cf43e19bd77703b7e",
+  "installationId": "awi_pub_fad735b62c2c3f7c958282e6ef2c8d1a",
+  "origin": "https://shopping-companion-test.myshopify.com",
+  "primary": {
+    "adapterBootstraps": 2,
+    "queries": 2,
+    "browserSessionPreservedAcrossReload": true,
+    "conversationPreservedAcrossReload": true,
+    "replayObserved": false
+  },
+  "isolation": {
+    "separateBrowserSession": true,
+    "separateConversation": true
+  },
+  "responseTypes": [
+    "INFORMATION_PROVIDED",
+    "INFORMATION_PROVIDED",
+    "INFORMATION_PROVIDED"
+  ],
+  "redaction": {
+    "browserSessionIds": "omitted",
+    "conversationIds": "omitted",
+    "requestHeaders": "omitted",
+    "answers": "omitted",
+    "credentials": "not captured"
+  }
+}

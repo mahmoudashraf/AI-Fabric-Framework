@@ -20,7 +20,7 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `fb68caac3d9305e211f8c41bda015012dbee32f9` is live on both Platform
+  Source `54c2a36522b9dbcd2a44193cf43e19bd77703b7e` is live on both Platform
   backends. The hosted legal customer request reaches the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
   End-to-end provisioning remains intentionally unexecuted until sufficient
@@ -412,6 +412,57 @@ policy values.
   `verification-support/productization-01036/evidence/s3-canary-2026-10-15T23-26-47-209Z.json`
   with SHA-256
   `5437c7018d18d458acc7d359d2c11ecfd57971552250556919909f57ab87612e`.
+- The authoritative production Shopify deployment was upgraded through its
+  normal release lifecycle to version `ver-6fe713d2` (`v30`, AI Fabric
+  `0.8.33`) and release `rel-28acbf96`. Release status is
+  `APPLIED_VERIFIED`, provisioning is `ACTIVE`, verification is `PASSED`, and
+  the bound runtime, connector and vector runner each run immutable runtime
+  artifact `dsa-3d324415` from source `980fc9d75bfea761d07808f86af9e0386e90ab66`.
+  Consumer `shopify-shopping-companion-test` was atomically rebound to that
+  release at revision `1`; the stale staging control-plane record was not
+  treated as deployment truth.
+- Production AI Workspace installation
+  `awi_pub_fad735b62c2c3f7c958282e6ef2c8d1a` is active for the exact Shopify
+  origin and bound to release `rel-28acbf96` through the reviewed
+  `shopify-storefront-bridge` private-adapter profile. Assignment, assets,
+  experience pack, profile, exact origin, HTTPS endpoint and private assertion
+  readiness checks all pass.
+- The first real browser canary found a contract defect that direct HTTP
+  bootstrap checks could not reveal: Platform emitted `credentials: include`
+  for every private adapter, while the Shopify bridge uses an opaque header and
+  intentionally does not enable credentialed wildcard CORS. The browser blocked
+  bootstrap. Source `54c2a36522b9dbcd2a44193cf43e19bd77703b7e` makes browser
+  credential mode an explicit connection-profile property; Shopify declares
+  `omit`, while a future cookie-backed profile must explicitly declare
+  `include`. No wildcard credential policy, hostname matching or permissive
+  fallback was added. Focused manifest and installation tests pass.
+- GitHub Actions run `38831295518` published the corrected immutable Platform
+  backend image. Production Coolify deployment
+  `md0geh2v9amhhv0k1yk0n3rt` and staging deployment
+  `z1023zouk0trodc50w5js6fo` both finished on exact source
+  `54c2a36522b9dbcd2a44193cf43e19bd77703b7e`; each control plane has one healthy
+  backend container and aggregate, liveness and readiness return HTTP `200`.
+  Production Shopify Bridge reconciliation completed as deployment
+  `w1c9dsrh5n4ldth2fbywhdl6`, with one healthy exact-source container, no drift,
+  and HTTP `200` on both its managed and canonical health routes.
+- The complete Platform backend Maven suite passed on the exact corrected
+  source: **1,753 tests**, zero failures, zero errors and zero skipped. A fresh
+  post-deployment readback also confirmed exact source
+  `54c2a36522b9dbcd2a44193cf43e19bd77703b7e` in the single healthy staging and
+  production Platform backend containers and the production Shopify Bridge
+  container. Platform aggregate, liveness and readiness routes and both Bridge
+  health routes returned HTTP `200` with status `UP`.
+- The post-fix production browser canary loaded Platform `install.js` from the
+  exact `shopping-companion-test.myshopify.com` origin, mounted the hosted
+  workspace and queried through the production bridge/runtime. Reload preserved
+  the generated browser owner and conversation, issued no replay, and a
+  follow-up continued the same conversation. A separate browser context
+  received a different owner and conversation. All three live responses were
+  successful `INFORMATION_PROVIDED` results. The canary used controlled page
+  HTML at the exact approved origin; it proves browser transport, persistence
+  and isolation, not Shopify theme-extension publication. Sanitized evidence is
+  tracked at
+  `verification-support/productization-01036/evidence/shopify-private-adapter-browser-canary-2026-10-16.json`.
 - `Platfrom/ui` remains unchanged. P6 editor extraction and customer-layout
   composition have not started.
 - Frozen staff baseline snapshot remains unchanged. Source navigation comparison
@@ -421,7 +472,7 @@ Logs reside under `/private/tmp/01036-*`; copy only final sanitized evidence to
 the verification-support directory. Source baseline started at
 `5206acd97423ee857b5a60c1fe370633bf3fd5a9`; the latest locally and hosted
 verified source is committed on `Platform-V11` through
-`fb68caac3d9305e211f8c41bda015012dbee32f9`. The reviewed package metadata is
+`54c2a36522b9dbcd2a44193cf43e19bd77703b7e`. The reviewed package metadata is
 hosted, but the customer offer has not passed the remaining live capacity and
 lifecycle gates and is not externally admissible.
 No customer deployment, provider resource or consumer assignment was created or
@@ -437,8 +488,9 @@ refresh/removal and cross-target denial without adding a source upload or write
 path. Bind the production prefix only as part of the later production candidate.
 Verify immutable dependency artifacts, notification/recovery evidence, repeated
 same-target runtime replacement, restart recovery and S3 indexing. Complete the
-hosted real-provider Engage action-time auth, Shopify private-adapter,
-accessibility and capacity gates. The local typed-contract, cancellation,
+hosted real-provider Engage action-time auth, accessibility and capacity gates.
+The Shopify private-adapter browser transport, reload continuity and
+cross-browser isolation gate is closed. The local typed-contract, cancellation,
 revocation and no-replay acceptance is closed. The hosted Platform backend and
 dependency package publication are closed; customer runtime deployment and exact
 live version/digest readback remain open on external capacity. P6 extraction and P7
