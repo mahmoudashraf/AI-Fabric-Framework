@@ -31,6 +31,7 @@ set -euo pipefail
 #   EXPECT_ENABLED_SURFACES=contextual-pill,product-insight,policy-strip,product-faq,comparison,order-lookup
 #   EXPECT_ALLOWED_CONVERSATION_MODES=thinker_deep,executor
 #   MAX_WIDGET_SCREENSHOT_PATH=/tmp/shopify-companion-max-widget.png
+#   MAX_WIDGET_GROUNDING_REQUIRED=true
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -58,6 +59,11 @@ EXPECT_ENABLED_SURFACES="${EXPECT_ENABLED_SURFACES:-contextual-pill,product-insi
 EXPECT_ALLOWED_CONVERSATION_MODES="${EXPECT_ALLOWED_CONVERSATION_MODES:-thinker_deep,executor}"
 SHOPPER_SESSION_ID="${SHOPPER_SESSION_ID:-max-widget-live-$(date +%s)}"
 MAX_WIDGET_QUERY="${MAX_WIDGET_QUERY:-Open the store assistant and recommend one product from this store.}"
+MAX_WIDGET_GROUNDING_REQUIRED="${MAX_WIDGET_GROUNDING_REQUIRED:-true}"
+if [[ "${MAX_WIDGET_GROUNDING_REQUIRED}" != "true" && "${MAX_WIDGET_GROUNDING_REQUIRED}" != "false" ]]; then
+  echo "MAX_WIDGET_GROUNDING_REQUIRED must be true or false." >&2
+  exit 2
+fi
 MAX_WIDGET_SCREENSHOT_PATH="${MAX_WIDGET_SCREENSHOT_PATH:-/tmp/shopify-companion-max-widget-${SHOP_DOMAIN:-store}-$(date +%s).png}"
 PLAYWRIGHT_REQUIRE_PATH="${PLAYWRIGHT_REQUIRE_PATH:-${REPO_ROOT}/Platfrom/ui/node_modules/playwright}"
 TEMP_PLATFORM_COOKIE_JAR=""
@@ -321,6 +327,11 @@ PY
   http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${payload}" -H "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
   assert_equals "${HTTP_STATUS}" "200" "storefront max-mode query status"
   assert_nonempty "$(json_get "${HTTP_BODY}" "conversationId")" "storefront max-mode query conversationId"
+  if [[ "${MAX_WIDGET_GROUNDING_REQUIRED}" == "true" ]]; then
+    printf '%s' "${HTTP_BODY}" | python3 "${REPO_ROOT}/scripts/shopify_response_contract.py" --grounding-required
+  else
+    printf '%s' "${HTTP_BODY}" | python3 "${REPO_ROOT}/scripts/shopify_response_contract.py"
+  fi
 }
 
 verify_poc_auth_path() {
@@ -338,6 +349,7 @@ PY
   platform_request POST "${platform_base}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=${auth_path}" "${payload}"
   if [[ "${HTTP_STATUS}" == "200" ]]; then
     assert_nonempty "$(json_get "${HTTP_BODY}" "conversationId")" "POC ${auth_path} conversationId"
+    printf '%s' "${HTTP_BODY}" | python3 "${REPO_ROOT}/scripts/shopify_response_contract.py"
     echo "PASS: POC Max widget auth path ${auth_path}"
     return
   fi

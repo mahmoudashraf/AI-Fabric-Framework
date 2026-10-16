@@ -18,12 +18,13 @@ copy_file() {
   cp "${ROOT_DIR}/${source}" "${OUTPUT_DIR}/${destination}"
 }
 
-copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md" "docs/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md"
-copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md" "docs/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md"
-copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md" "docs/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md"
-copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md" "docs/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md"
-copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md" "docs/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md"
+copy_file "doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md" "docs/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md"
+copy_file "doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md" "docs/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md"
+copy_file "doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md" "docs/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md"
+copy_file "doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md" "docs/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md"
+copy_file "doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md" "docs/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md"
 copy_file "scripts/verify-shopify-companion.sh" "scripts/verify-shopify-companion.sh"
+copy_file "scripts/shopify_response_contract.py" "scripts/shopify_response_contract.py"
 copy_file "scripts/verify-shopify-companion-uninstall.sh" "scripts/verify-shopify-companion-uninstall.sh"
 
 chmod +x "${OUTPUT_DIR}/scripts/verify-shopify-companion.sh" "${OUTPUT_DIR}/scripts/verify-shopify-companion-uninstall.sh"
@@ -41,6 +42,7 @@ Contents:
 - `docs/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md`
 - `docs/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
 - `scripts/verify-shopify-companion.sh`
+- `scripts/shopify_response_contract.py`
 - `scripts/verify-shopify-companion-uninstall.sh`
 
 Suggested operator sequence:

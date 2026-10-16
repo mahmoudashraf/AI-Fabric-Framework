@@ -30,7 +30,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
@@ -101,7 +100,7 @@ public class ShopifyStorefrontController {
                 "conversationsUrl", query.getRawPath(),
                 "conversationItemUrlTemplate", query.getRawPath()
             ),
-            Map.of(SHOPPER_SESSION_HEADER, "workspace-" + UUID.randomUUID()),
+            Map.of(SHOPPER_SESSION_HEADER, "workspace-" + request.browserSessionId()),
             "omit",
             false,
             false,
@@ -173,7 +172,9 @@ public class ShopifyStorefrontController {
             || request.installationId() == null
             || !request.installationId().matches("awi_pub_[a-f0-9]{32}")
             || request.assignmentRevision() == null
-            || !request.assignmentRevision().matches("sha256:[a-f0-9]{64}")) {
+            || !request.assignmentRevision().matches("sha256:[a-f0-9]{64}")
+            || request.browserSessionId() == null
+            || !request.browserSessionId().matches("[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}")) {
             throw new ResponseStatusException(BAD_REQUEST, "The AI Workspace adapter request is invalid.");
         }
     }

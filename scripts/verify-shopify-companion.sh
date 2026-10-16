@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # Shopify Companion verification script.
 #
 # Verifies:
@@ -673,6 +675,7 @@ retry_storefront_query() {
   for ((attempt=1; attempt<=STOREFRONT_QUERY_RETRY_ATTEMPTS; attempt+=1)); do
     http_request POST "${url}" "${body}" "${headers[@]-}"
     if [[ "${HTTP_STATUS}" == "200" ]]; then
+      printf '%s' "${HTTP_BODY}" | python3 "${REPO_ROOT}/scripts/shopify_response_contract.py"
       return 0
     fi
     if [[ ! "${HTTP_STATUS}" =~ ^(429|500|502|503|504)$ || "${attempt}" -eq "${STOREFRONT_QUERY_RETRY_ATTEMPTS}" ]]; then

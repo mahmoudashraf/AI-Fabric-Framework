@@ -77,6 +77,14 @@ export interface WorkspacePrivateConnection extends WorkspaceConnectionBase {
   };
 }
 
+export interface WorkspacePrivateAdapterRequest {
+  schemaVersion: "loomai-workspace-private-adapter-request-v1";
+  installationId: string;
+  assignmentRevision: string;
+  /** Anonymous browser correlation only; never proof of an authenticated identity. */
+  browserSessionId: string;
+}
+
 export type WorkspaceConnection =
   | WorkspaceAnonymousConnection
   | WorkspaceAuthenticatedConnection

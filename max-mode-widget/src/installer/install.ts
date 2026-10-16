@@ -4,6 +4,7 @@ import type {
   AIWorkspaceInstallationManifest,
   WorkspaceConnection,
   AIWorkspaceHostCapabilities,
+  WorkspacePrivateAdapterRequest,
   WorkspaceRuntimeRoutes,
 } from "./types";
 import { credentialBrokerTokenSupplier } from "./credentialBroker";
@@ -101,13 +102,17 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
     const identityKey = hostCapabilities?.identity?.status === "authenticated"
       ? `authenticated:${hostCapabilities.identity.subjectKey}`
       : "anonymous";
+    const privateBrowserSessionId = manifest.connection.mode === "backend-mediated-private-runtime"
+      ? privateAdapterBrowserSession(manifest.connection, manifest, identityKey)
+      : undefined;
     const widgetConfig = {
-      ...await connectionWidgetConfig(manifest.connection, manifest),
+      ...await connectionWidgetConfig(manifest.connection, manifest, privateBrowserSessionId),
       storageNamespace: [
         installationId,
         manifest.connection.mode,
         manifest.assignmentRevision,
         identityKey,
+        ...(privateBrowserSessionId ? [privateBrowserSessionId] : []),
       ].join(":"),
       host: {
         authentication: authenticationHostConfig(manifest, hostCapabilities),
@@ -115,8 +120,10 @@ async function initializeFromScript(script: HTMLScriptElement | null) {
       },
     };
     const currentIdentity = validateHostCapabilities(window.LoomAIWorkspaceHost)?.identity;
-    if ((currentIdentity?.status || "anonymous") !== (hostCapabilities?.identity?.status || "anonymous")
-      || currentIdentity?.subjectKey !== hostCapabilities?.identity?.subjectKey) {
+    const currentIdentityKey = currentIdentity?.status === "authenticated"
+      ? `authenticated:${currentIdentity.subjectKey}`
+      : "anonymous";
+    if (currentIdentityKey !== identityKey) {
       throw new Error("Workspace identity changed during initialization; start a new conversation.");
     }
     state.activeController = await registration.mount({
@@ -178,6 +185,7 @@ async function fetchManifest(url: string, expectedInstallationId: string, platfo
 async function connectionWidgetConfig(
   connection: WorkspaceConnection,
   manifest: AIWorkspaceInstallationManifest,
+  privateBrowserSessionId?: string,
 ) {
   if (connection.mode === "public-runtime-anonymous") {
     const tokenSupplier = connection.credentialBroker
@@ -209,7 +217,8 @@ async function connectionWidgetConfig(
       }, connection.conversationHandover),
     };
   }
-  const adapterConfig = await bootstrapPrivateAdapter(connection, manifest);
+  if (!privateBrowserSessionId) throw new Error("Private adapter browser session is missing.");
+  const adapterConfig = await bootstrapPrivateAdapter(connection, manifest, privateBrowserSessionId);
   return {
     integrationMode: connection.mode,
     apiConfig: adapterConfig,
@@ -254,6 +263,7 @@ function installationCredentialBrokerTokenSupplier(
 async function bootstrapPrivateAdapter(
   connection: Extract<WorkspaceConnection, { mode: "backend-mediated-private-runtime" }>,
   manifest: AIWorkspaceInstallationManifest,
+  browserSessionId: string,
 ) {
   const response = await fetch(normalizeHttpsUrl(connection.adapter.bootstrapUrl, "adapter bootstrap URL"), {
     method: "POST",
@@ -263,7 +273,8 @@ async function bootstrapPrivateAdapter(
       schemaVersion: "loomai-workspace-private-adapter-request-v1",
       installationId: manifest.installationId,
       assignmentRevision: manifest.assignmentRevision,
-    }),
+      browserSessionId,
+    } satisfies WorkspacePrivateAdapterRequest),
   });
   if (!response.ok) throw new Error(`Private adapter returned HTTP ${response.status}.`);
   const result = await response.json() as Record<string, any>;
@@ -293,6 +304,38 @@ async function bootstrapPrivateAdapter(
     probeShellConfigOnOpen: result.probeShellConfigOnOpen === true,
     runtimeAuth: { probeAuthContextOnOpen: result.probeAuthContextOnOpen === true },
   };
+}
+
+function privateAdapterBrowserSession(
+  connection: Extract<WorkspaceConnection, { mode: "backend-mediated-private-runtime" }>,
+  manifest: AIWorkspaceInstallationManifest,
+  identityKey: string,
+) {
+  const scope = JSON.stringify([
+    manifest.installationId,
+    manifest.assignmentRevision,
+    connection.profileCode,
+    connection.profileVersion,
+    normalizeHttpsUrl(connection.adapter.bootstrapUrl, "adapter bootstrap URL"),
+    identityKey,
+  ]);
+  const storageKey = `loomai_workspace_private_adapter_session_v1:${scope}`;
+  let sessionId: string;
+  try {
+    const stored = sessionStorage.getItem(storageKey);
+    if (stored !== null) {
+      if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(stored)) {
+        throw new Error("Invalid stored session.");
+      }
+      return stored;
+    }
+    sessionId = crypto.randomUUID();
+    sessionStorage.setItem(storageKey, sessionId);
+    if (sessionStorage.getItem(storageKey) !== sessionId) throw new Error("Session was not persisted.");
+  } catch {
+    throw new Error("The private adapter browser session could not be preserved. Clear this app's browser session and try again.");
+  }
+  return sessionId;
 }
 
 function validateManifest(value: AIWorkspaceInstallationManifest, installationId: string, platformBaseUrl: string) {

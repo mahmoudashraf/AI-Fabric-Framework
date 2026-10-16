@@ -3,6 +3,14 @@
   "productRef": "shopify-companion",
   "targetStore": "shopping-companion-test.myshopify.com",
   "description": "Canonical Shopify Companion first-product query-to-answer audit pack.",
+  "groundingEvidencePaths": [
+    "sources",
+    "documents",
+    "ragResponse.documents",
+    "actions[].documents",
+    "actions[].ragResponse.documents",
+    "actions[].actionResult.data.documents"
+  ],
   "globalForbiddenClaims": [
     "Search completed.",
     "order lookup is available",

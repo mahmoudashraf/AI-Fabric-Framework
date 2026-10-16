@@ -124,6 +124,23 @@ Allow these CSP sources:
 The manifest request sends no cookies. Authenticated brokers and private
 adapters define their own reviewed cookie, CSRF, and origin behavior.
 
+### Private Adapter Session Continuity
+
+The installer includes a `browserSessionId` UUID in the
+`loomai-workspace-private-adapter-request-v1` bootstrap request. It persists this
+opaque correlation ID in `sessionStorage`, scoped to the installation,
+assignment revision, adapter URL/profile, and host identity. The Shopify adapter
+returns the same shopper-session header for that ID, so reload and same-tab
+navigation can submit the restored conversation under the same anonymous owner.
+
+This ID does not authenticate a customer. An authenticated adapter must still
+derive authority from its verified server session. Runtime assertions, provider
+tokens, and returned adapter headers are not persisted by this mechanism.
+Assignment, adapter, or host-identity changes use a different session and
+conversation namespace. Missing browser storage or corrupt session state stops
+installation explicitly; it never silently sends an old conversation as a new
+owner.
+
 ## Lifecycle Events
 
 The installer emits browser events without breaking the host page:
@@ -182,6 +199,9 @@ Before release, verify:
 7. When handover is enabled, direct request, optional intake, pending,
    operator reply, reload/replay, and explicit return-to-AI all complete
    without an AI response during human ownership.
+8. Private-adapter query, reload, and follow-up preserve the same conversation
+   owner without replaying the query; reassignment and identity changes start
+   separate conversations.
 
 ## Failure Handling
 

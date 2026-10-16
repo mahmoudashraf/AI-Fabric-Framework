@@ -14,6 +14,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from shopify_response_contract import validate_response
+
 TIER_RANKS = {
     "FREE": 0,
     "STARTER": 1,
@@ -133,6 +135,7 @@ def evaluate_query(
     global_forbidden_internal_terms: list[str],
     timeout: int,
     shopper_session_prefix: str,
+    grounding_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     query_id = str(query["queryId"])
     request_payload = {
@@ -168,8 +171,10 @@ def evaluate_query(
     unsafe_action_execution = [
         phrase for phrase in action_execution_terms if contains_phrase(answer, phrase)
     ]
+    contract = validate_response(response, query.get("groundingRequired", False), query.get("groundingEvidencePaths", grounding_paths))
     checks = {
         "http_status_ok": status == 200,
+        **contract["checks"],
         "conversation_id_present": bool(conversation_id(response)),
         "answer_non_empty": bool(answer),
         "forbidden_claims_absent": not forbidden,
@@ -188,6 +193,8 @@ def evaluate_query(
         "answerLength": len(answer),
         "answerPreview": answer[:500],
         "checks": checks,
+        "groundingRequired": query.get("groundingRequired") is True,
+        "groundingEvidence": contract["groundingEvidence"],
         "forbiddenHits": forbidden,
         "missingRequiredConcepts": missing_required,
         "unsafeActionExecutionHits": unsafe_action_execution,
@@ -207,6 +214,14 @@ def failure_category(
         return None
     if status != 200:
         return "backend_issue"
+    if not all(checks.get(key, False) for key in (
+        "structured_success", "structured_result_type", "no_structured_error", "no_error_code", "no_fallback_reason",
+    )):
+        return "structured_runtime_failure"
+    if not checks.get("grounding_contract_valid", False) or not checks.get("grounding_requirement_valid", False):
+        return "invalid_grounding_contract"
+    if not checks.get("required_grounding_present", False):
+        return "required_grounding_missing"
     if forbidden:
         return "forbidden_claim_or_internal_language"
     if unsafe_action_execution:
@@ -305,6 +320,7 @@ def main() -> int:
             [str(value) for value in pack.get("globalForbiddenInternalTerms", [])],
             args.timeout,
             shopper_session_prefix,
+            pack.get("groundingEvidencePaths"),
         )
         for query in queries
     ]
@@ -346,6 +362,8 @@ def main() -> int:
                     "answerLength": result["answerLength"],
                     "answerPreview": result["answerPreview"],
                     "checks": result["checks"],
+                    "groundingRequired": result["groundingRequired"],
+                    "groundingEvidence": result["groundingEvidence"],
                     "forbiddenHits": result["forbiddenHits"],
                     "missingRequiredConcepts": result["missingRequiredConcepts"],
                     "unsafeActionExecutionHits": result["unsafeActionExecutionHits"],

@@ -26,6 +26,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -144,7 +145,8 @@ class ShopifyStorefrontControllerTest {
                     {
                       "schemaVersion":"loomai-workspace-private-adapter-request-v1",
                       "installationId":"awi_pub_0123456789abcdef0123456789abcdef",
-                      "assignmentRevision":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                      "assignmentRevision":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                      "browserSessionId":"821162c8-fdcf-4ad1-aea9-1edea9bd37b3"
                     }
                     """))
             .andExpect(status().isOk())
@@ -154,6 +156,8 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.probeAuthContextOnOpen").value(false))
             .andExpect(jsonPath("$.probeShellConfigOnOpen").value(false))
             .andExpect(jsonPath("$.features.conversations").value(false))
+            .andExpect(jsonPath("$.defaultHeaders['X-AI-FABRIC-SHOPPER-SESSION-ID']")
+                .value("workspace-821162c8-fdcf-4ad1-aea9-1edea9bd37b3"))
             .andReturn().getResponse().getContentAsString();
 
         org.assertj.core.api.Assertions.assertThat(body)
@@ -161,6 +165,70 @@ class ShopifyStorefrontControllerTest {
             .doesNotContain("consumer-alpha")
             .doesNotContain("runtime")
             .doesNotContain("assertion");
+    }
+
+    @Test
+    void workspaceReloadKeepsTheSameShopperForConversationFollowUp() throws Exception {
+        when(storefrontBootstrapService.bootstrap("alpha.myshopify.com", null)).thenReturn(storefrontBootstrap());
+        String browserSessionId = "821162c8-fdcf-4ad1-aea9-1edea9bd37b3";
+        var query = objectMapper.readTree("""
+            {"query":"Compare those products","conversationId":"conversation-owned-by-browser"}
+            """);
+        when(storefrontChatService.query("alpha.myshopify.com", query, "workspace-" + browserSessionId))
+            .thenReturn(objectMapper.readTree("""
+                {"success":true,"type":"INFORMATION_PROVIDED","conversationId":"conversation-owned-by-browser"}
+                """));
+
+        for (int load = 0; load < 2; load++) {
+            String bootstrap = mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/workspace/bootstrap")
+                    .contentType("application/json")
+                    .content(workspaceRequest(browserSessionId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+            String shopper = objectMapper.readTree(bootstrap).path("defaultHeaders")
+                .path("X-AI-FABRIC-SHOPPER-SESSION-ID").asText();
+            mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/chat/query")
+                    .contentType("application/json")
+                    .header("X-AI-FABRIC-SHOPPER-SESSION-ID", shopper)
+                    .content(query.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.conversationId").value("conversation-owned-by-browser"));
+        }
+        verify(storefrontChatService, times(2)).query("alpha.myshopify.com", query, "workspace-" + browserSessionId);
+    }
+
+    @Test
+    void workspaceBootstrapKeepsDistinctBrowsersSeparate() throws Exception {
+        when(storefrontBootstrapService.bootstrap("alpha.myshopify.com", null)).thenReturn(storefrontBootstrap());
+        for (String sessionId : List.of("821162c8-fdcf-4ad1-aea9-1edea9bd37b3", "97414067-5cc1-4809-934a-6f1f9791e864")) {
+            mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/workspace/bootstrap")
+                    .contentType("application/json").content(workspaceRequest(sessionId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.defaultHeaders['X-AI-FABRIC-SHOPPER-SESSION-ID']").value("workspace-" + sessionId));
+        }
+    }
+
+    @Test
+    void workspaceBootstrapRejectsMissingOrMalformedBrowserSession() throws Exception {
+        for (String sessionId : List.of("", "shared-browser", "821162c8-fdcf-1ad1-aea9-1edea9bd37b3")) {
+            mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/workspace/bootstrap")
+                    .contentType("application/json").content(workspaceRequest(sessionId)))
+                .andExpect(status().isBadRequest());
+        }
+        var missing = objectMapper.readTree(workspaceRequest("821162c8-fdcf-4ad1-aea9-1edea9bd37b3"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) missing).remove("browserSessionId");
+        mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/workspace/bootstrap")
+                .contentType("application/json").content(missing.toString()))
+            .andExpect(status().isBadRequest());
+    }
+
+    private String workspaceRequest(String browserSessionId) {
+        return objectMapper.createObjectNode()
+            .put("schemaVersion", "loomai-workspace-private-adapter-request-v1")
+            .put("installationId", "awi_pub_0123456789abcdef0123456789abcdef")
+            .put("assignmentRevision", "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+            .put("browserSessionId", browserSessionId).toString();
     }
 
     @Test
