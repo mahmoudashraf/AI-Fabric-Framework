@@ -2,16 +2,30 @@
 
 ## Hosted Native-Token Image Verified
 
-Both control planes are verified on source d2b1a9792/migration193/healthUP after
+Both control planes are verified on source8432ec735/migration193/healthUP after
 fresh backups and successful isolated restores. Actual CI runtime digest
 `sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140`
 passed unstarted-container inspection:20 framework0.8.36 jars match Central,
 manifest matches committed source, token and all budget guards are present.
 Staging reviewed artifact: dsa-94841998. No customer runtime is applied yet.
-New spec1.8/offer v11 pin this image and template1.8; old publications are not
-rewritten. Provider binding/admission/attended canary are still required.
+Spec1.8/offer v11 pin this image and template1.8; old publications are not
+rewritten. Formal Free01 TOKEN binding and exact replay pass, as does real
+customer physical reservation f0e90dba-14f0-4787-b583-7dcf712bc4b2. Normal apply
+was rejected before release/provider effects because the template requests
+the distinct unsupported GOVERNED_RESOLVER API lifecycle. Counters stay zero;
+the reservation stays fully charged. Exact receipt:
+`/private/tmp/01036-v11-staging-apply-20261018.json`.
 
-## Current Checkpoint: Native Token Integration
+Local V194/template1.9/spec1.9/offer v12 correct only that extension declaration,
+preserving all actions, confirmations, handover, plugins and service graph.
+Actual runtime-manifest migration gate3PASS; final full support103PASS/0skip
+with catalog-derived requirement checks and exact pinned action protection. This
+does not require a framework/runtime release and is not yet deployed/published.
+Generic safe unused-reservation cancellation is being implemented separately.
+No direct deletion/rebind, invented empty index, or fake capacity release.
+Hosted apply/indexing, retained-index lifecycle, production fit and P6/P7 stay open.
+
+## Historical Checkpoint: Native Token Integration
 
 Owner explicitly authorized use of the existing broader API key for Free-01
 only in the same synthetic staging campaign. Another restricted key,

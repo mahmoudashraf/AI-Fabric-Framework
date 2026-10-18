@@ -5702,3 +5702,39 @@ Critical fixes that made the gate pass:
   servingmetadataauthPASS, details/keysinignoredprivatehandoff. Don'tcreate
   duplicateoraskagainforproviderchoice. Productionmodelbudgetstillunapproved,
   no promotion/productionbinding/nativeSDKfitclaimed. Stagingcontinues.
+
+## 2026-10-18 Accurate Template Contract And Cancellation Follow-Up
+
+- LocalV194/immutabletemplate1.9/spec1.9/offerv12 correct ONLY unsupported
+  GOVERNED_RESOLVER declaration; ordinary confirmedactions+protectedtestdrive,
+  callback,handover,plugins,graph,resources/imagesunchanged. Runtimeimage+d2b1/
+  framework0.8.36 unchanged; noframeworkrelease/runtimebuildneeded. PG3PASS:
+  actualcheckedinmanifestmatchesfullreleaserequirements+doc/integrationgates,
+  old1.8stillrejected+oldrowsunchanged; testsresolveactualpinnedengagement1.2.
+- Genericpublicationhelper nowrequires backendbehavior/extensioncatalogs and
+  validatesderivedcaps/endpoints/migrations/verificationpacks/exactbundles,
+  notextension-nameheuristics. Publisherfetchesexistingread-onlycatalogAPIs.
+  Finalparentfullsupport103PASS/0skip(realopt-inDockerfixtureenabled);
+  relatedcomposition/version/apply/manifest/behavior30PASS/0skip.
+- Currentv11reservationstillcharged, no release/modelallocation. Consumer
+  con-234cfdda isACTIVEasconfigurationmetadata, exactdep/target/releaseNULL,
+  bindingrev1; soleappDRAFT. GenericbindingAPIcannotdetachreviewedconsumer,
+  deletionrequiresunbind, R3requiresreleaseids. Ramanmustproposerealexplicit
+  fencednever-activateddetachmentusingowningprimitives, not SQL/statesbypass.
+  Cancellationinitialsource hasNOWAITdep/auth/reservation/handlelocks;
+  AmperecriticalreviewnoP1/P2butstore-levelracecoverageonly, moretestsneeded.
+- All30pausedworkloadsagainverifiedunchangedatcurrentreadback.
+  Parentoldvectoraudit72containers+localhandles foundno eightoldclusterrefs
+  inwhitelistedendpointfields; no arbitrary-file/externalclientguarantee.
+  Requiredforproductionreports8owner-authorizedstandarddropscompleteand
+  Free01+FrankfurtproductionclusterRUNNING; don'tduplicatecleanup.
+  SharingdifferentdealershipsonsameexternalclusterNOTyetenabled(current
+  bindingexclusive); providercollectionmultitenancy!=platformsharedbindingproof.
+  Productionproviderchoiceapproved, modelbudgetnotapproved.
+- Cross-chatsendofimpactfindingswaspermission-rejected; asyncquestionasks
+  explicitpermission. DoNOTbypassorstallunaffectedworkforthisrelay.
+- Freshreadonlyproductionbaseline25samples21:45:40-21:47:40UTC:
+ 4cores/16,368,742,400RAM, minavailable12,669,140,992bytes, swap0,
+  CPUmax347.914m, Dockerfsavailable133,181,198,336bytes. Report
+  /private/tmp/01036-production-post-precision-pre-fit-baseline-20261018.json.
+  Idlefleetonly, noadmission/policy/productioncapacityapproval/workloadproof.

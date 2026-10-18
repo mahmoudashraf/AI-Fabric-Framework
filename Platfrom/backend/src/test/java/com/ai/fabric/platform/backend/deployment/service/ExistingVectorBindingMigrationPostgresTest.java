@@ -30,6 +30,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -90,6 +92,73 @@ class ExistingVectorBindingMigrationPostgresTest {
         assertThat(new MarketplaceManifestService(mapper).parseAndValidate(plugin, version).manifest()).isEqualTo(tokenCandidate);
         assertThat(text("select count(*)::text from deployment_provider_resource_handles where resource_kind='EXTERNAL_VECTOR_STORAGE_BINDING'")).isEqualTo("0");
         assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
+
+        String immutableTokenTemplate = text("select row_to_json(v)::text from platform_marketplace_plugin_versions v where id='mkv-template-simulated-dealership-experience-v1-8'");
+        migrate("194");
+        assertThat(text("select row_to_json(v)::text from platform_marketplace_plugin_versions v where id='mkv-template-simulated-dealership-experience-v1-8'"))
+            .isEqualTo(immutableTokenTemplate);
+        var corrected = mapper.readTree(text("select manifest_json from platform_marketplace_plugin_versions where id='mkv-template-simulated-dealership-experience-v1-9'"));
+        ObjectNode expectedContract = tokenCandidate.deepCopy(); expectedContract.put("version", "1.9.0");
+        var declaration = (ObjectNode) expectedContract.path("contributions").path("template").path("deploymentBehavior");
+        declaration.putArray("allowedExecutionExtensions").add("CONVERSATION_HANDOVER");
+        declaration.putArray("defaultExecutionExtensions").add("CONVERSATION_HANDOVER");
+        assertThat(corrected).isEqualTo(expectedContract);
+        assertThat(text("select json_agg(row_to_json(p) order by id)::text from deployment_target_profiles p")).isEqualTo(targets);
+        version.setId("mkv-template-simulated-dealership-experience-v1-9"); version.setVersion("1.9.0");
+        version.setManifestJson(corrected.toString());
+        assertThat(new MarketplaceManifestService(mapper).parseAndValidate(plugin, version).manifest()).isEqualTo(corrected);
+
+        // Consume the real runtime declaration, not one synthesized from the requirements under test.
+        Path runtimeManifest = Path.of(System.getProperty("basedir", "."))
+            .resolve("../../ai-infrastructure-module/ai-fabric-runtime/src/main/resources/META-INF/loomai/runtime-capabilities.json");
+        var actual = mapper.readTree(Files.readString(runtimeManifest));
+        assertThat(actual.path("aiFabricVersion").asText()).isEqualTo("0.8.36");
+        var behaviors = new com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService(mapper);
+        var manifests = new DeploymentSourceCapabilityManifestService(mapper);
+        ObjectNode behavior = (ObjectNode) behaviors.defaultConfig("CONVERSATIONAL");
+        behavior.set("channelBindings", declaration.path("allowedChannelBindings"));
+        behavior.set("executionExtensions", declaration.path("defaultExecutionExtensions"));
+        manifests.requireSupports(actual, behaviors.releaseRequirements(behavior));
+        manifests.requireDocumentKnowledgeSupport(actual);
+        manifests.requireExternalHttpIntegrationSupport(actual);
+        ObjectNode unsupported = behavior.deepCopy();
+        unsupported.set("executionExtensions", tokenCandidate.path("contributions").path("template")
+            .path("deploymentBehavior").path("defaultExecutionExtensions"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> manifests.requireSupports(actual, behaviors.releaseRequirements(unsupported)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("supportedExecutionExtensions: GOVERNED_RESOLVER");
+        var engagementRefs = java.util.stream.StreamSupport.stream(corrected.path("contributions").path("template")
+            .path("requiredPluginRefs").spliterator(), false).map(value -> value.asText())
+            .filter(value -> value.startsWith("mkp-action-dealership-engagement-v1@")).toList();
+        assertThat(engagementRefs).hasSize(1);
+        String[] engagementRef = engagementRefs.getFirst().split("@", 2);
+        com.fasterxml.jackson.databind.JsonNode engagement;
+        try (Connection connection = POSTGRES.createConnection("");
+             var query = connection.prepareStatement("select manifest_json from platform_marketplace_plugin_versions where plugin_id=? and version=?")) {
+            query.setString(1, engagementRef[0]); query.setString(2, engagementRef[1]);
+            try (var rows = query.executeQuery()) {
+                assertThat(rows.next()).isTrue(); engagement = mapper.readTree(rows.getString(1));
+                assertThat(rows.next()).isFalse();
+            }
+        }
+        var actions = java.util.stream.StreamSupport.stream(engagement.path("contributions").path("actions").spliterator(), false).toList();
+        assertThat(actions).filteredOn(action -> "dealership_request_test_drive".equals(action.path("actionId").asText()))
+            .singleElement().satisfies(action -> {
+                assertThat(action.path("requiresConfirmation").booleanValue()).isTrue();
+                assertThat(action.path("anonymousAllowed").isBoolean()).isTrue();
+                assertThat(action.path("anonymousAllowed").booleanValue()).isFalse();
+                assertThat(action.path("readOnly").isBoolean()).isTrue();
+                assertThat(action.path("readOnly").booleanValue()).isFalse();
+            });
+        assertThat(actions).filteredOn(action -> "dealership_request_callback".equals(action.path("actionId").asText()))
+            .singleElement().satisfies(action -> {
+                assertThat(action.path("requiresConfirmation").booleanValue()).isTrue();
+                assertThat(action.path("anonymousAllowed").booleanValue()).isTrue();
+                assertThat(action.path("readOnly").isBoolean()).isTrue();
+                assertThat(action.path("readOnly").booleanValue()).isFalse();
+            });
+        assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
+
     }
 
     @ParameterizedTest

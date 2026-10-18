@@ -2,19 +2,32 @@
 
 ## Native Token Checkpoint
 
-Current candidate: immutable offer v11/template1.8/spec1.8 with the inspected
-CI-native-token runtime. Its20 framework jars match released0.8.36 Central bytes.
-Both control planes are on V193; the artifact is registered/promoted on staging.
-The spec's physical dependency graph and service images have not changed.
-Publication, binding, admission and actual hosted workload acceptance remain
-separate steps. Historical v10 references below are not the current token recipe.
+Local corrected candidate: offer v12/template1.9/spec1.9, retaining the exact
+inspected native-token runtime. Its20 framework jars match released0.8.36 Central
+bytes. Both control planes remain on V193/source8432ec735. V194/1.9 is not yet
+deployed; it removes only an unsupported Governed Resolver API declaration,
+not ordinary chat actions or their confirmations. Old publications are immutable.
+
+The hosted v11 canary's TOKEN binding and real customer reservation/replay pass.
+Apply correctly rejects its unsupported extension before creating a release or
+allocating provider credits. The whole reservation remains charged. Generic
+unused-reservation cancellation is under implementation; no direct database
+release, clear/drop or guessed absence is allowed. Actual hosted workload
+acceptance remains open. The spec's graph and service image pins are unchanged.
+New publication guards consume the backend behavior/extension catalogs and
+check every derived capability, endpoint, migration and verification pack,
+including specialist-bundle identities, against the actual runtime declaration.
+Real PostgreSQL migration/manifest regression3PASS and complete support103PASS/
+0skip, including the opted-in synthetic Docker test. The exact pinned engagement
+version preserves protected test-drive and anonymous callback confirmation.
 
 Backend476, runtime425, provider accounting140, connector76 and vectorization32
 checks pass with zero skips against public AI Fabric0.8.36 from Central. Local
 packaging passes; this is not CI-image, hosted runtime or capacity acceptance.
 The published v10 offer below still pins the older immutable runtime/template1.7;
-it is not token-capable proof. A new reviewed offer/spec must pin template1.8 and
-the inspected new CI image before apply.
+it is not token-capable proof. The corrected new offer/spec must pin template1.9
+and the same inspected CI image before apply. No framework or runtime rebuild
+is needed for the template contract correction.
 
 Explicit local credential readiness:
 `GET /api/deployments/{deploymentId}/versions/{versionId}/targets/{targetProfileId}/secret-usage`.

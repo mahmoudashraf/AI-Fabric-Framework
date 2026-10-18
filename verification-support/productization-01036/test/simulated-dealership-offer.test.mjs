@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import test from "node:test";
 
 import {
@@ -15,6 +16,7 @@ import {
   RUNTIME_FRAMEWORK_VERSION,
   RUNTIME_IMAGE_DIGEST,
   RUNTIME_SOURCE_COMMIT,
+  requireTemplateRuntimeSupport,
   TEMPLATE_PLUGIN_ID,
   TEMPLATE_VERSION,
   workspaceProfile,
@@ -24,7 +26,12 @@ const auth = {projectUrl: "https://example.supabase.co", publishableKey: "public
 const manifest = (pluginId, version) => ({pluginId, version, contributions: pluginId === TEMPLATE_PLUGIN_ID
   ? {template: {providerConfig: {openaiMaxTokens: OPENAI_MAX_TOKENS, vectorStrategy: "milvus",
     vectorProvisioningMode: "EXTERNAL_EXISTING", vectorStoragePosture: "SHARED", milvusExternalBindingRequired: true,
-    milvusAuthenticationType: "TOKEN"}}} : {}});
+    milvusAuthenticationType: "TOKEN"}, deploymentBehavior: {
+      type: "CONVERSATIONAL", requiredRuntimeCapabilityIds: ["ai-fabric-core", "ai-fabric-chat-session"],
+      allowedExecutionExtensions: ["CONVERSATION_HANDOVER"], defaultExecutionExtensions: ["CONVERSATION_HANDOVER"],
+      allowedChannelBindings: ["BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT"],
+      verificationPackIds: ["conversational-behavior-v1"],
+    }}} : {}});
 const version = (pluginId, semanticVersion, id) => ({
   pluginId, version: semanticVersion, id, manifest: manifest(pluginId, semanticVersion),
 });
@@ -54,20 +61,43 @@ const artifact = {
   serviceName: "ai-fabric-runtime", imageRepository: "registry/runtime",
   imageDigest: RUNTIME_IMAGE_DIGEST, gitCommitSha: RUNTIME_SOURCE_COMMIT,
   promotionChannel: "staging", promotedAt: "2026-10-18T21:00:00Z", buildRunId: "39164527840",
-  capabilityManifest: {
-    aiFabricVersion: RUNTIME_FRAMEWORK_VERSION,
-    capabilities: ["deployment-local-provider-budget-v1", MILVUS_TOKEN_CAPABILITY],
-    endpointClasses: ["provider-budget-administration"],
-    migrationIds: ["provider-budget-accounting-v1"],
-    verificationPackIds: ["provider-budget-hard-limit-v1"],
-  },
+  capabilityManifest: JSON.parse(readFileSync(new URL(
+    "../../../ai-infrastructure-module/ai-fabric-runtime/src/main/resources/META-INF/loomai/runtime-capabilities.json",
+    import.meta.url), "utf8")),
   capabilityManifestHash: "manifest-hash",
 };
 
+const catalogs = {
+  behaviorCatalog: [{
+    code: "CONVERSATIONAL",
+    activationSources: ["AUTHENTICATED_INTERACTIVE"],
+    channelBindings: ["BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT", "QUERY_ONCE"],
+    allowedExecutionExtensions: ["GOVERNED_RESOLVER", "HUMAN_REVIEW", "CONVERSATION_HANDOVER"],
+    requiredRuntimeCapabilities: ["ai-fabric-core", "ai-fabric-chat-session"],
+    requiredRuntimeEndpointClasses: ["chat-query", "query-once", "session-management"],
+    requiredRuntimeMigrationIds: [],
+    baselineVerificationPackIds: ["conversational-behavior-v1"],
+    requiredSpecialistBundles: [],
+  }],
+  executionExtensionCatalog: [{
+    code: "CONVERSATION_HANDOVER",
+    compatibleBehaviorTypes: ["CONVERSATIONAL"],
+    requiredRuntimeCapabilities: ["canonical-conversation-orchestration-state"],
+    requiredRuntimeEndpointClasses: ["conversation-channel-callback"],
+    requiredRuntimeMigrationIds: ["loomai-conversation-orchestration-state-v1"],
+    verificationPackIds: ["conversation-handover-v1"],
+  }],
+};
+
+function catalogInputs() {
+  return structuredClone(catalogs);
+}
+
 function offerInputs() {
   return {
+    ...catalogInputs(),
     template: {
-      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
+      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
       contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
     },
     pluginVersions: [version("data", "1.0.0", "data-v1")],
@@ -78,9 +108,9 @@ function offerInputs() {
   };
 }
 
-test("v11 pins template 1.8.0 and the verified native-token image as an unmeasured external staging candidate", () => {
-  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v11");
-  assert.equal(TEMPLATE_VERSION, "1.8.0");
+test("v12 pins accurate template 1.9.0 and the unchanged verified native-token image", () => {
+  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v12");
+  assert.equal(TEMPLATE_VERSION, "1.9.0");
   assert.equal(RUNTIME_FRAMEWORK_VERSION, "0.8.36");
   assert.equal(MILVUS_TOKEN_CAPABILITY, "milvus-token-authentication-v1");
   assert.equal(OPENAI_MAX_TOKENS, 2048);
@@ -92,7 +122,7 @@ test("v11 pins template 1.8.0 and the verified native-token image as an unmeasur
     input.artifact.promotionChannel = promotionChannel;
     const unchanged = structuredClone(input);
     const definition = buildOfferDefinition(input);
-    assert.equal(definition.template.versionId, "template-v1-8");
+    assert.equal(definition.template.versionId, "template-v1-9");
     assert.match(definition.name, /Staging Measurement Candidate/);
     assert.deepEqual(definition.artifacts, [{
       artifactId: input.artifact.id, fingerprint: artifactFingerprint(input.artifact),
@@ -111,7 +141,7 @@ test("candidate offer requires the exact explicit integer output cap without cha
   }
   const input = offerInputs();
   input.template.version = "1.5.0";
-  assert.throws(() => buildOfferDefinition(input), /exact 1.8.0 template/);
+  assert.throws(() => buildOfferDefinition(input), /exact 1.9.0 template/);
 });
 
 test("external candidate rejects unmanaged routing and implicit endpoint or secret fallback", () => {
@@ -138,7 +168,7 @@ test("external candidate rejects unmanaged routing and implicit endpoint or secr
   }
 });
 
-test("v11 rejects legacy or mixed image pins without rewriting published v10 artifact identity", () => {
+test("v12 rejects legacy or mixed image pins without rewriting published v10 artifact identity", () => {
   const legacyArtifact = {
     ...artifact,
     imageDigest: "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28",
@@ -215,6 +245,154 @@ for (const [field, required] of Object.entries({
     assert.doesNotThrow(() => buildOfferDefinition(input));
   });
 }
+
+test("publication rejects the old unsupported resolver declaration against the actual runtime manifest", () => {
+  const input = offerInputs();
+  const behavior = input.template.manifest.contributions.template.deploymentBehavior;
+  behavior.allowedExecutionExtensions.unshift("GOVERNED_RESOLVER");
+  behavior.defaultExecutionExtensions.unshift("GOVERNED_RESOLVER");
+  const before = structuredClone(input);
+  assert.throws(() => requireTemplateRuntimeSupport(input.template, input.artifact, input), /allowedExecutionExtensions/);
+  assert.throws(() => buildOfferDefinition(input), /allowedExecutionExtensions/);
+  assert.deepEqual(input, before);
+});
+
+for (const [field, supported] of Object.entries({
+  requiredRuntimeCapabilityIds: "capabilities", allowedExecutionExtensions: "supportedExecutionExtensions",
+  defaultExecutionExtensions: "supportedExecutionExtensions", allowedChannelBindings: "supportedChannelBindings",
+  verificationPackIds: "verificationPackIds",
+})) {
+  test(`template publication checks ${field} without weakening the runtime declaration`, () => {
+    const input = offerInputs();
+    input.template.manifest.contributions.template.deploymentBehavior[field].push("unsupported-exact-contract");
+    assert.throws(() => requireTemplateRuntimeSupport(input.template, input.artifact, input), new RegExp(field));
+    input.template.manifest.contributions.template.deploymentBehavior[field] = null;
+    assert.throws(() => requireTemplateRuntimeSupport(input.template, input.artifact, input), new RegExp(field));
+    const valid = offerInputs();
+    valid.artifact.capabilityManifest[supported] = null;
+    assert.throws(() => requireTemplateRuntimeSupport(valid.template, valid.artifact, valid), /template contract/);
+  });
+}
+
+test("publication requires an explicit supported behavior", () => {
+  const input = offerInputs();
+  input.template.manifest.contributions.template.deploymentBehavior.type = "UNSUPPORTED";
+  assert.throws(() => requireTemplateRuntimeSupport(input.template, input.artifact, input), /declared behavior/);
+  delete input.template.manifest.contributions.template.deploymentBehavior;
+  assert.throws(() => requireTemplateRuntimeSupport(input.template, input.artifact, input), /declared behavior/);
+});
+
+for (const [field, missing] of [
+  ["capabilities", "canonical-conversation-orchestration-state"],
+  ["endpointClasses", "conversation-channel-callback"],
+  ["migrationIds", "loomai-conversation-orchestration-state-v1"],
+  ["verificationPackIds", "conversation-handover-v1"],
+]) {
+  test(`publication rejects catalog-derived handover requirements missing from ${field}`, () => {
+    const input = offerInputs();
+    input.artifact.capabilityManifest[field] = input.artifact.capabilityManifest[field].filter(value => value !== missing);
+    const before = structuredClone(input);
+    assert.throws(() => requireTemplateRuntimeSupport(input.template, input.artifact, input), new RegExp(`${field}: ${missing}`));
+    assert.throws(() => buildOfferDefinition(input), new RegExp(`${field}: ${missing}`));
+    assert.deepEqual(input, before);
+  });
+}
+
+for (const [catalogField, manifestField, required] of [
+  ["activationSources", "supportedActivationSources", "AUTHENTICATED_INTERACTIVE"],
+  ["requiredRuntimeCapabilities", "capabilities", "ai-fabric-execution"],
+  ["requiredRuntimeEndpointClasses", "endpointClasses", "query-once"],
+  ["requiredRuntimeMigrationIds", "migrationIds", "ai-action-proposal-receipt-v1"],
+  ["baselineVerificationPackIds", "verificationPackIds", "human-review-action-proposal-v1"],
+]) {
+  test(`publication enforces the base behavior catalog's ${catalogField}`, () => {
+    const input = offerInputs();
+    input.behaviorCatalog[0][catalogField] = [required];
+    assert.doesNotThrow(() => buildOfferDefinition(input));
+    input.artifact.capabilityManifest[manifestField] = input.artifact.capabilityManifest[manifestField]
+      .filter(value => value !== required);
+    assert.throws(() => buildOfferDefinition(input), new RegExp(`CONVERSATIONAL catalog requirements in ${manifestField}: ${required}`));
+  });
+}
+
+test("catalog requirements are taken from the supplied contract rather than extension-name heuristics", () => {
+  const input = offerInputs();
+  input.executionExtensionCatalog[0].requiredRuntimeEndpointClasses.push("catalog-only-new-endpoint");
+  assert.throws(() => buildOfferDefinition(input), /endpointClasses: catalog-only-new-endpoint/);
+});
+
+test("requirements of allowed extensions are checked even when the extension is not a default", () => {
+  const input = offerInputs();
+  input.template.manifest.contributions.template.deploymentBehavior.allowedExecutionExtensions.push("HUMAN_REVIEW");
+  input.executionExtensionCatalog.push({
+    code: "HUMAN_REVIEW", compatibleBehaviorTypes: ["CONVERSATIONAL"],
+    requiredRuntimeCapabilities: ["jdbc-review-state"], requiredRuntimeEndpointClasses: ["review-decision"],
+    requiredRuntimeMigrationIds: ["ai-review-task-v1"], verificationPackIds: ["human-review-action-proposal-v1"],
+  });
+  assert.doesNotThrow(() => buildOfferDefinition(input));
+  input.artifact.capabilityManifest.verificationPackIds = input.artifact.capabilityManifest.verificationPackIds
+    .filter(value => value !== "human-review-action-proposal-v1");
+  assert.throws(() => buildOfferDefinition(input), /HUMAN_REVIEW catalog requirements in verificationPackIds/);
+});
+
+for (const field of ["behaviorCatalog", "executionExtensionCatalog"]) {
+  test(`publication requires exactly one applicable contract in ${field}`, () => {
+    for (const value of [undefined, null, {}, [], [catalogs[field][0], catalogs[field][0]]]) {
+      const input = offerInputs();
+      input[field] = structuredClone(value);
+      assert.throws(() => buildOfferDefinition(input), /backend .* catalog/);
+    }
+  });
+}
+
+test("template defaults, channel bindings and extension compatibility must agree with the backend catalogs", () => {
+  const invalidDefault = offerInputs();
+  invalidDefault.template.manifest.contributions.template.deploymentBehavior.allowedExecutionExtensions = [];
+  assert.throws(() => buildOfferDefinition(invalidDefault), /default execution extensions must be allowed/);
+
+  const invalidChannel = offerInputs();
+  invalidChannel.behaviorCatalog[0].channelBindings = ["BACKEND_API"];
+  assert.throws(() => buildOfferDefinition(invalidChannel), /channel bindings are outside the backend behavior catalog/);
+
+  const invalidExtension = offerInputs();
+  invalidExtension.behaviorCatalog[0].allowedExecutionExtensions = [];
+  assert.throws(() => buildOfferDefinition(invalidExtension), /not compatible with the backend CONVERSATIONAL/);
+
+  const incompatible = offerInputs();
+  incompatible.executionExtensionCatalog[0].compatibleBehaviorTypes = ["SMART_BRAIN"];
+  assert.throws(() => buildOfferDefinition(incompatible), /not compatible with the backend CONVERSATIONAL/);
+});
+
+test("missing or malformed catalog requirement arrays cannot silently omit requirements", () => {
+  for (const [catalog, fields] of [
+    ["behaviorCatalog", ["activationSources", "requiredRuntimeCapabilities", "requiredRuntimeEndpointClasses",
+      "requiredRuntimeMigrationIds", "baselineVerificationPackIds", "channelBindings", "allowedExecutionExtensions"]],
+    ["executionExtensionCatalog", ["compatibleBehaviorTypes", "requiredRuntimeCapabilities", "requiredRuntimeEndpointClasses",
+      "requiredRuntimeMigrationIds", "verificationPackIds"]],
+  ]) {
+    for (const field of fields) {
+      for (const value of [undefined, null, "missing", [null], [" "]]) {
+        const input = offerInputs();
+        input[catalog][0][field] = value;
+        assert.throws(() => buildOfferDefinition(input), /Invalid runtime catalog contract/);
+      }
+    }
+  }
+});
+
+test("base behavior specialist bundle requirements retain exact artifact identity", () => {
+  const input = offerInputs();
+  input.behaviorCatalog[0].requiredSpecialistBundles = [structuredClone(artifact.capabilityManifest.specialistBundles[0])];
+  assert.doesNotThrow(() => buildOfferDefinition(input));
+  input.artifact.capabilityManifest.specialistBundles[0].contentHash = `sha256:${"0".repeat(64)}`;
+  assert.throws(() => buildOfferDefinition(input), /missing the exact catalog specialist bundle/);
+
+  for (const value of [undefined, null, {}, [null]]) {
+    const invalid = offerInputs();
+    invalid.behaviorCatalog[0].requiredSpecialistBundles = value;
+    assert.throws(() => buildOfferDefinition(invalid), /specialist.*[Bb]undle/);
+  }
+});
 
 test("canonical hashes do not depend on object insertion order", () => {
   assert.equal(hash({b: 2, a: {d: 4, c: 3}}), hash({a: {c: 3, d: 4}, b: 2}));
@@ -373,16 +551,17 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
     version("action", "1.0.0", "action-v1"),
   ];
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0", "action@1.0.0"]},
   };
   const definition = buildOfferDefinition({
+    ...catalogInputs(),
     template, pluginVersions, artifact,
     targets: [target("dtp-coolify-staging-behavior", "staging"),
       target("dtp-coolify-production-behavior", "production")],
     auth,
   });
-  assert.equal(definition.template.versionId, "template-v1-8");
+  assert.equal(definition.template.versionId, "template-v1-9");
   assert.equal(definition.templateId, "dev-openai-milvus");
   assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
@@ -420,13 +599,14 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
 test("offer refuses a target whose enforced worker capacity drifted", () => {
   const pluginVersions = [version("data", "1.0.0", "data-v1")];
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
   };
   const staging = target("dtp-coolify-staging-behavior", "staging");
   staging.resourceDefaults.connectorLimitsCpus = "2.0";
 
   assert.throws(() => buildOfferDefinition({
+    ...catalogInputs(),
     template, pluginVersions, artifact,
     targets: [staging, target("dtp-coolify-production-behavior", "production")], auth,
   }), /drifted capacity fields: connectorLimitsCpus/);
@@ -434,10 +614,11 @@ test("offer refuses a target whose enforced worker capacity drifted", () => {
 
 test("offer rejects incomplete required plugin pinning", () => {
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
     contributions: {templateRequiredPluginRefs: ["missing@1.0.0"]},
   };
   assert.throws(() => buildOfferDefinition({
+    ...catalogInputs(),
     template, pluginVersions: [], artifact,
     targets: [target("dtp-coolify-staging-behavior", "staging"),
       target("dtp-coolify-production-behavior", "production")], auth,

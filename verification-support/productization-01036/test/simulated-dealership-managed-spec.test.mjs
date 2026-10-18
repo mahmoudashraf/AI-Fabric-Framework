@@ -40,9 +40,9 @@ test("reviewed capacity includes services, database and persistent volumes", () 
   });
 });
 
-test("native-token spec 1.8 has a new template-scoped identity and retains the exact reviewed dependency graph", () => {
-  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-8");
-  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-8");
+test("corrected-contract spec 1.9 has a new template-scoped identity and retains the exact reviewed dependency graph", () => {
+  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-9");
+  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-9");
   assert.notEqual(SPEC_ID, "mds-simulated-dealership-experience-v1-7");
   const base = "../../../Platfrom/backend/src/test/resources/managed-dependency/";
   const old = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1.template.json`, import.meta.url), "utf8"));

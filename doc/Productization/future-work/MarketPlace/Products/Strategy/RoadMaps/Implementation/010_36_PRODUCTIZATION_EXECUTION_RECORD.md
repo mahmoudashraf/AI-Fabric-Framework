@@ -70,6 +70,54 @@ secret metadata; pending evidence stays MISSING and global-name collisions
 cannot satisfy it. This is local credential-presence evidence, not provider
 health or runtime initialization. No rollout yet; UI extraction stays last.
 
+Local template correction: V194 publishes immutable1.9, changing only the
+version and allowed/default execution-extension declarations. Governed Resolver
+means separate proposal/confirm/receipt APIs; ordinary in-chat confirmed actions
+do not implement it. Action/plugin contributions, protected-action behavior,
+handover and the full dependency graph remain unchanged. Spec1.9/offer v12 keep
+the exact inspected d2b1 runtime image/framework0.8.36; no rebuild or framework
+release is needed. Publication support now rejects unsupported template
+behavior/capabilities/extensions/channels/verification packs before metadata
+effects. The real PostgreSQL migration gate passes3checks, including exact old
+row preservation, full release-requirements comparison against the actual runtime
+manifest, document/integration requirements and old1.8 rejection. Full support
+gate87PASS/0skip includes the enabled synthetic Docker restore. One first guard
+test expected the later of two fields sharing the same missing support array;
+its error-order expectation was corrected without changing production behavior.
+The correction is not deployed or published yet. A generic durable no-effect
+reservation cancellation and its apply-race/binding-history proof are being
+implemented separately; no direct database release or provider mutation.
+
+Independent contract review requested full catalog-derived extension requirements
+in the publication helper and exact pinned engagement-action assertions. The
+PostgreSQL regression now resolves the template's actual engagement version,
+proving protected test-drive confirmation/authentication and callback confirmation/
+anonymous access;3PASS/0skip. Related composition/version/apply/manifest/behavior
+regressions30PASS/0skip. Helper hardening is now parent-reviewed and verified:
+mandatory backend behavior/extension catalogs supply complete capability,
+endpoint, migration, verification-pack and specialist-bundle requirements.
+No extension-name heuristic or synthetic requirements-derived artifact is used.
+Final support103PASS/0skip, including the enabled synthetic Docker restore.
+Read-only retained-stop verification again passes all30 original workloads.
+
+The owner's dedicated operational chat reports creation of the separately
+approved Frankfurt production Serverless cluster `in05-58b569513f0fc1c` in
+`proj-807f74adeb59398bfc3d2b`, and owner-authorized removal of eight old
+non-Free clusters from Default Project. It reports both intended clusters
+RUNNING: that production cluster and existing staging Free-01. Private provider
+receipts are recorded by that chat; no parent duplicate provider mutation was
+performed. Parent read-only metadata and whitelisted vector-endpoint environment
+audit found no references to those eight IDs across72 containers on both hosts;
+this is not an exhaustive arbitrary-file/external-client audit. Evidence:
+`/private/tmp/01036-old-zilliz-reference-audit-20261018.json`. An explicit future
+apply of an old managed-mode configuration can still create a missing cluster;
+that path has not been disabled, and paused auto-deploy is not a permanent
+provider-level prohibition. Current external-existing canary does not use it.
+No production model/embedding allowance or customer promotion follows from the
+separate provider-resource approval. A requested cross-chat findings relay was
+blocked by permission review; explicit sending permission is requested, with
+unaffected implementation continuing.
+
 - P0: source contract implemented and integrated; prerequisite acceptance is in
   progress. The customer-owned S3 canary passes exact bucket posture, explicit
   unversioned state, identity separation, prefix isolation, bounded object reads

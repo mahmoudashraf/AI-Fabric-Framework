@@ -2,9 +2,9 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v11";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v12";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.8.0";
+export const TEMPLATE_VERSION = "1.9.0";
 export const OPENAI_MAX_TOKENS = 2048;
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
 // Verified CI receipt: run 39164527840, job 117785013595. Registration and promotion are separate prerequisites.
@@ -259,10 +259,11 @@ function requireReviewedArtifact(artifact) {
   }
 }
 
-export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
+export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth,
+  behaviorCatalog, executionExtensionCatalog}) {
   if (template?.version !== TEMPLATE_VERSION
     || template.manifest?.contributions?.template?.providerConfig?.openaiMaxTokens !== OPENAI_MAX_TOKENS) {
-    throw new Error("The exact 1.8.0 template with an explicit integer 2048-token output cap is required.");
+    throw new Error("The exact 1.9.0 template with an explicit integer 2048-token output cap is required.");
   }
   const provider = template.manifest.contributions.template.providerConfig;
   const credentialFields = ["milvusToken", "milvusUsername", "milvusPassword", "milvusHost",
@@ -278,6 +279,7 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
     throw new Error("The template's exact required plugin versions were not supplied.");
   }
   requireReviewedArtifact(artifact);
+  requireTemplateRuntimeSupport(template, artifact, {behaviorCatalog, executionExtensionCatalog});
   const targetById = new Map(targets.map((target) => [target.id, target]));
   const staging = targetById.get(STAGING_TARGET_ID);
   const production = targetById.get(PRODUCTION_TARGET_ID);
@@ -348,4 +350,113 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
     identityPolicyRef: "01036-supabase-mixed-auth-v1",
     storagePolicyRef: "01036-s3-read-only-text-json-v1",
   };
+}
+
+export function requireTemplateRuntimeSupport(template, artifact,
+  {behaviorCatalog, executionExtensionCatalog} = {}) {
+  const behavior = template?.manifest?.contributions?.template?.deploymentBehavior;
+  const manifest = artifact?.capabilityManifest;
+  if (!behavior || typeof behavior.type !== "string" || !behavior.type.trim()
+    || !manifest || !Array.isArray(manifest.supportedBehaviorTypes)
+    || !manifest.supportedBehaviorTypes.includes(behavior.type)) {
+    throw new Error("The reviewed runtime artifact must support the template's declared behavior.");
+  }
+  for (const [field, supportedField] of Object.entries({
+    requiredRuntimeCapabilityIds: "capabilities",
+    allowedExecutionExtensions: "supportedExecutionExtensions",
+    defaultExecutionExtensions: "supportedExecutionExtensions",
+    allowedChannelBindings: "supportedChannelBindings",
+    verificationPackIds: "verificationPackIds",
+  })) {
+    const required = behavior[field];
+    const supported = manifest[supportedField];
+    if (!Array.isArray(required) || required.some(value => typeof value !== "string" || !value.trim())
+      || !Array.isArray(supported) || required.some(value => !supported.includes(value))) {
+      throw new Error(`The reviewed runtime artifact does not support the template contract: ${field}.`);
+    }
+  }
+
+  function strings(value, field) {
+    if (!Array.isArray(value) || value.some(item => typeof item !== "string" || !item.trim())) {
+      throw new Error(`Invalid runtime catalog contract: ${field}.`);
+    }
+    return value;
+  }
+
+  function catalogEntry(catalog, code, name) {
+    if (!Array.isArray(catalog)) throw new Error(`The backend ${name} catalog is required.`);
+    const matches = catalog.filter(entry => entry?.code === code);
+    if (matches.length !== 1) throw new Error(`The backend ${name} catalog must contain exactly one ${code} contract.`);
+    return matches[0];
+  }
+
+  function requireDeclarations(required, field, origin) {
+    const supported = strings(manifest[field], `manifest.${field}`);
+    const missing = required.filter(value => !supported.includes(value));
+    if (missing.length > 0) {
+      throw new Error(`The reviewed runtime artifact is missing ${origin} catalog requirements in ${field}: ${missing.join(", ")}.`);
+    }
+  }
+
+  function requireCatalogFields(contract, fields) {
+    for (const [field, supportedField] of Object.entries(fields)) {
+      requireDeclarations(strings(contract[field], `${contract.code}.${field}`), supportedField, contract.code);
+    }
+  }
+
+  const base = catalogEntry(behaviorCatalog, behavior.type, "behavior");
+  requireCatalogFields(base, {
+    activationSources: "supportedActivationSources",
+    requiredRuntimeCapabilities: "capabilities",
+    requiredRuntimeEndpointClasses: "endpointClasses",
+    requiredRuntimeMigrationIds: "migrationIds",
+    baselineVerificationPackIds: "verificationPackIds",
+  });
+  const allowedChannels = strings(base.channelBindings, `${base.code}.channelBindings`);
+  if (behavior.allowedChannelBindings.some(channel => !allowedChannels.includes(channel))) {
+    throw new Error("The template channel bindings are outside the backend behavior catalog contract.");
+  }
+  const allowedExtensions = strings(base.allowedExecutionExtensions, `${base.code}.allowedExecutionExtensions`);
+  if (behavior.defaultExecutionExtensions.some(code => !behavior.allowedExecutionExtensions.includes(code))) {
+    throw new Error("The template default execution extensions must be allowed by its contract.");
+  }
+  const selectedExtensions = new Set([...behavior.allowedExecutionExtensions, ...behavior.defaultExecutionExtensions]);
+  if (!Array.isArray(executionExtensionCatalog)) throw new Error("The backend execution-extension catalog is required.");
+  for (const code of selectedExtensions) {
+    const extension = catalogEntry(executionExtensionCatalog, code, "execution-extension");
+    if (!allowedExtensions.includes(code)
+      || !strings(extension.compatibleBehaviorTypes, `${code}.compatibleBehaviorTypes`).includes(behavior.type)) {
+      throw new Error(`Execution extension ${code} is not compatible with the backend ${behavior.type} behavior contract.`);
+    }
+    requireCatalogFields(extension, {
+      requiredRuntimeCapabilities: "capabilities",
+      requiredRuntimeEndpointClasses: "endpointClasses",
+      requiredRuntimeMigrationIds: "migrationIds",
+      verificationPackIds: "verificationPackIds",
+    });
+  }
+
+  if (!Array.isArray(base.requiredSpecialistBundles) || !Array.isArray(manifest.specialistBundles)) {
+    throw new Error("The runtime catalog and artifact must declare specialistBundles.");
+  }
+  for (const required of base.requiredSpecialistBundles) {
+    if (!required || typeof required.bundleId !== "string" || !required.bundleId.trim()) {
+      throw new Error("Invalid runtime catalog specialist bundle contract.");
+    }
+    const matches = manifest.specialistBundles.filter(bundle => bundle?.bundleId === required.bundleId);
+    const actual = matches.length === 1 ? matches[0] : null;
+    const scalarFields = ["contractVersion", "contentHash"];
+    const arrayFields = ["behaviorTypes", "specialistRefs", "chainRefs", "resourceLocations"];
+    const sameScalars = scalarFields.every(field => typeof required[field] === "string"
+      && required[field].trim() && actual?.[field] === required[field]);
+    const sameArrays = arrayFields.every(field => {
+      const expected = strings(required[field], `${required.bundleId}.${field}`);
+      const values = actual?.[field];
+      return Array.isArray(values) && values.length === new Set(values).size
+        && new Set(expected).size === values.length && expected.every(value => values.includes(value));
+    });
+    if (!sameScalars || !sameArrays) {
+      throw new Error(`The reviewed runtime artifact is missing the exact catalog specialist bundle: ${required.bundleId}.`);
+    }
+  }
 }

@@ -59,10 +59,13 @@ async function main() {
   }));
   const targets = await request(baseUrl, apiKey, "/api/deployment-provider/target-profiles");
   const artifacts = await request(baseUrl, apiKey, "/api/deployment-provider/source-artifacts?serviceName=ai-fabric-runtime");
+  const behaviorCatalog = await request(baseUrl, apiKey, "/api/deployments/deployment-behaviors");
+  const executionExtensionCatalog = await request(baseUrl, apiKey, "/api/deployments/deployment-execution-extensions");
   const artifact = artifacts.find((candidate) => candidate.imageDigest === RUNTIME_IMAGE_DIGEST
     && candidate.gitCommitSha === RUNTIME_SOURCE_COMMIT && candidate.artifactRole === "RUNTIME");
   const selectedTargets = targets.filter(({id}) => id === STAGING_TARGET_ID || id === PRODUCTION_TARGET_ID);
-  const definition = buildOfferDefinition({template, pluginVersions, artifact, targets: selectedTargets, auth});
+  const definition = buildOfferDefinition({template, pluginVersions, artifact, targets: selectedTargets, auth,
+    behaviorCatalog, executionExtensionCatalog});
 
   const placement = [];
   for (const [targetProfileId, intent] of [
