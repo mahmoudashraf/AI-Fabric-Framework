@@ -2,12 +2,12 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v7";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v8";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
 export const TEMPLATE_VERSION = "1.5.0";
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
-export const RUNTIME_IMAGE_DIGEST = "sha256:d7cc5b3a7d72f65da0f77c02ae50a27d836b8599908566b109b5a07bd5e6f16f";
-export const RUNTIME_SOURCE_COMMIT = "bf72080847c960c331d3ec6a2441e8d5f38ca56a";
+export const RUNTIME_IMAGE_DIGEST = "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28";
+export const RUNTIME_SOURCE_COMMIT = "600f136bf0becb9a473ff1e085bbc9896b4ef696";
 export const STAGING_TARGET_ID = "dtp-coolify-staging-behavior";
 export const PRODUCTION_TARGET_ID = "dtp-coolify-production-behavior";
 
@@ -230,18 +230,33 @@ function requireReviewedTarget(target, targetId) {
   }
 }
 
-export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
-  const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
-  const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));
-  if (requiredRefs.length === 0 || requiredRefs.some((reference) => !byRef.has(reference))) {
-    throw new Error("The template's exact required plugin versions were not supplied.");
-  }
+function requireReviewedArtifact(artifact) {
   if (!artifact?.id || artifact.artifactRole !== "RUNTIME"
     || artifact.imageDigest !== RUNTIME_IMAGE_DIGEST || artifact.gitCommitSha !== RUNTIME_SOURCE_COMMIT
     || !["staging", "production"].includes(artifact.promotionChannel)
     || artifact.capabilityManifest?.aiFabricVersion !== "0.8.35") {
     throw new Error("The exact promoted AI Fabric 0.8.35 runtime artifact is required.");
   }
+  for (const [field, required] of Object.entries({
+    capabilities: "deployment-local-provider-budget-v1",
+    endpointClasses: "provider-budget-administration",
+    migrationIds: "provider-budget-accounting-v1",
+    verificationPackIds: "provider-budget-hard-limit-v1",
+  })) {
+    const declarations = artifact.capabilityManifest[field];
+    if (!Array.isArray(declarations) || !declarations.includes(required)) {
+      throw new Error(`The reviewed runtime artifact is missing a required provider-budget guard declaration: ${field}.`);
+    }
+  }
+}
+
+export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
+  const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
+  const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));
+  if (requiredRefs.length === 0 || requiredRefs.some((reference) => !byRef.has(reference))) {
+    throw new Error("The template's exact required plugin versions were not supplied.");
+  }
+  requireReviewedArtifact(artifact);
   const targetById = new Map(targets.map((target) => [target.id, target]));
   const staging = targetById.get(STAGING_TARGET_ID);
   const production = targetById.get(PRODUCTION_TARGET_ID);

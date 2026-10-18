@@ -5,12 +5,15 @@ import {
   artifactFingerprint,
   buildOfferDefinition,
   hash,
+  OFFER_ID,
   profileFingerprint,
   REVIEWED_LIMITS,
   REVIEWED_TOPOLOGY,
   reviewedTopologyCapacity,
   RUNTIME_IMAGE_DIGEST,
   RUNTIME_SOURCE_COMMIT,
+  TEMPLATE_PLUGIN_ID,
+  TEMPLATE_VERSION,
   workspaceProfile,
 } from "../simulated-dealership-offer.mjs";
 
@@ -44,9 +47,102 @@ const artifact = {
   id: "runtime-artifact", artifactRole: "RUNTIME", artifactType: "DOCKER_IMAGE",
   serviceName: "ai-fabric-runtime", imageRepository: "registry/runtime",
   imageDigest: RUNTIME_IMAGE_DIGEST, gitCommitSha: RUNTIME_SOURCE_COMMIT,
-  promotionChannel: "staging", capabilityManifest: {aiFabricVersion: "0.8.35"},
+  promotionChannel: "staging",
+  capabilityManifest: {
+    aiFabricVersion: "0.8.35",
+    capabilities: ["deployment-local-provider-budget-v1"],
+    endpointClasses: ["provider-budget-administration"],
+    migrationIds: ["provider-budget-accounting-v1"],
+    verificationPackIds: ["provider-budget-hard-limit-v1"],
+  },
   capabilityManifestHash: "manifest-hash",
 };
+
+function offerInputs() {
+  return {
+    template: {
+      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-5"),
+      contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
+    },
+    pluginVersions: [version("data", "1.0.0", "data-v1")],
+    artifact: structuredClone(artifact),
+    targets: [target("dtp-coolify-staging-behavior", "staging"),
+      target("dtp-coolify-production-behavior", "production")],
+    auth,
+  };
+}
+
+test("v8 pins the inspected guarded image without advancing template 1.5.0", () => {
+  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v8");
+  assert.equal(TEMPLATE_VERSION, "1.5.0");
+  assert.equal(RUNTIME_IMAGE_DIGEST, "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28");
+  assert.equal(RUNTIME_SOURCE_COMMIT, "600f136bf0becb9a473ff1e085bbc9896b4ef696");
+  for (const promotionChannel of ["staging", "production"]) {
+    const input = offerInputs();
+    input.artifact.promotionChannel = promotionChannel;
+    const definition = buildOfferDefinition(input);
+    assert.equal(definition.template.versionId, "template-v1-5");
+    assert.deepEqual(definition.artifacts, [{
+      artifactId: input.artifact.id, fingerprint: artifactFingerprint(input.artifact),
+    }]);
+    assert.deepEqual(definition.topology, REVIEWED_TOPOLOGY);
+    assert.deepEqual(definition.limits, REVIEWED_LIMITS);
+  }
+});
+
+test("v8 rejects legacy or mixed image pins without rewriting v7 artifact identity", () => {
+  const legacyArtifact = {
+    ...artifact,
+    imageDigest: "sha256:d7cc5b3a7d72f65da0f77c02ae50a27d836b8599908566b109b5a07bd5e6f16f",
+    gitCommitSha: "bf72080847c960c331d3ec6a2441e8d5f38ca56a",
+    capabilityManifest: {aiFabricVersion: "0.8.35"},
+  };
+  const legacyOffer = {
+    offerId: "offer-loomai-engage-simulated-dealership-early-access-v7",
+    definition: {artifacts: [{
+      artifactId: legacyArtifact.id, fingerprint: artifactFingerprint(legacyArtifact),
+    }]},
+  };
+  const legacySnapshot = structuredClone({artifact: legacyArtifact, offer: legacyOffer});
+  for (const pins of [
+    {imageDigest: legacyArtifact.imageDigest},
+    {gitCommitSha: legacyArtifact.gitCommitSha},
+    {imageDigest: legacyArtifact.imageDigest, gitCommitSha: legacyArtifact.gitCommitSha},
+  ]) {
+    const input = offerInputs();
+    input.artifact = {...input.artifact, ...pins};
+    assert.throws(() => buildOfferDefinition(input), /exact promoted AI Fabric 0.8.35 runtime artifact/);
+  }
+  assert.throws(() => buildOfferDefinition({...offerInputs(), artifact: legacyArtifact}),
+    /exact promoted AI Fabric 0.8.35 runtime artifact/);
+  const next = buildOfferDefinition(offerInputs());
+  assert.notEqual(OFFER_ID, legacyOffer.offerId);
+  assert.notEqual(next.artifacts[0].fingerprint, legacyOffer.definition.artifacts[0].fingerprint);
+  assert.deepEqual({artifact: legacyArtifact, offer: legacyOffer}, legacySnapshot);
+  assert.equal(artifactFingerprint(legacyArtifact), legacyOffer.definition.artifacts[0].fingerprint);
+});
+
+for (const [field, required] of Object.entries({
+  capabilities: "deployment-local-provider-budget-v1",
+  endpointClasses: "provider-budget-administration",
+  migrationIds: "provider-budget-accounting-v1",
+  verificationPackIds: "provider-budget-hard-limit-v1",
+})) {
+  test(`offer requires the exact provider-budget declaration in ${field}`, () => {
+    for (const declarations of [
+      undefined, null, [], required, {[required]: true}, [{id: required}],
+      [`${required}-extra`], [required.toUpperCase()],
+    ]) {
+      const input = offerInputs();
+      if (declarations === undefined) delete input.artifact.capabilityManifest[field];
+      else input.artifact.capabilityManifest[field] = declarations;
+      assert.throws(() => buildOfferDefinition(input), /required provider-budget guard declaration/);
+    }
+    const input = offerInputs();
+    input.artifact.capabilityManifest[field] = ["unrelated-capability", required];
+    assert.doesNotThrow(() => buildOfferDefinition(input));
+  });
+}
 
 test("canonical hashes do not depend on object insertion order", () => {
   assert.equal(hash({b: 2, a: {d: 4, c: 3}}), hash({a: {c: 3, d: 4}, b: 2}));
@@ -199,7 +295,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
     version("action", "1.0.0", "action-v1"),
   ];
   const template = {
-    ...version("mkp-template-simulated-dealership-experience-v1", "1.4.0", "template-v1-4"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-5"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0", "action@1.0.0"]},
   };
   const definition = buildOfferDefinition({
@@ -208,7 +304,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
       target("dtp-coolify-production-behavior", "production")],
     auth,
   });
-  assert.equal(definition.template.versionId, "template-v1-4");
+  assert.equal(definition.template.versionId, "template-v1-5");
   assert.equal(definition.templateId, "dev-openai-milvus");
   assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
@@ -238,7 +334,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
 test("offer refuses a target whose enforced worker capacity drifted", () => {
   const pluginVersions = [version("data", "1.0.0", "data-v1")];
   const template = {
-    ...version("mkp-template-simulated-dealership-experience-v1", "1.4.0", "template-v1-4"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-5"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
   };
   const staging = target("dtp-coolify-staging-behavior", "staging");
@@ -252,7 +348,7 @@ test("offer refuses a target whose enforced worker capacity drifted", () => {
 
 test("offer rejects incomplete required plugin pinning", () => {
   const template = {
-    ...version("mkp-template-simulated-dealership-experience-v1", "1.4.0", "template-v1-4"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-5"),
     contributions: {templateRequiredPluginRefs: ["missing@1.0.0"]},
   };
   assert.throws(() => buildOfferDefinition({

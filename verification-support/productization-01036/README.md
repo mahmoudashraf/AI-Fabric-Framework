@@ -161,6 +161,40 @@ reservation success, and transport-error sanitization. A passing canary proves
 these control-plane contracts, **not** hosted indexing, runtime functionality,
 capacity readiness, production promotion, or full 010.36 certification.
 
+## Guarded runtime and financial allowances
+
+The current offer publisher prepares a new immutable v8 offer pinned to the
+inspected guarded runtime image. It does not rewrite v7 or provision a runtime.
+Template 1.5.0 and its complete resource topology remain unchanged. The four
+provider-budget capability, endpoint, migration and verification declarations
+are required in addition to the exact reviewed image digest and source commit.
+Publishing an offer is not approval of host capacity or provider spending.
+
+Financial allowance comes from an explicit staff-reviewed lifetime grant,
+separately from the physical R7 admission manifest. Automatic preparation
+allocates the complete grant to one deployment; exact retries reuse it, a
+second deployment cannot reuse it, and retirement does not refund it. A partial
+staff allocation cannot silently turn its remaining balance into a fresh
+automatic allowance. Unsupported model/rate bindings must be rejected before
+debit. Customers cannot submit credits through query context or public APIs.
+
+The private runtime starts with paid calls denied. Provisioning initializes its
+deployment-local ledger, commits the returned store UUID in the control plane,
+and only then activates that exact allocation. Missing/replaced stores require
+explicit reconciliation, not automatic credit initialization from environment
+variables. Query/suggestion ingress and indexing embeddings share the durable
+guard. Unknown native usage retains its full reservation. The separate bounded
+embedding-worker profile permits verified local ONNX only, not unguarded paid
+worker calls.
+
+Verify archive/image provenance, private authorization, uninitialized readiness,
+actual restart persistence and native pre-send bounds before an attended live
+canary. Use only the real approved limits. A skipped provider probe, a healthy
+control plane or successful offer publication is not evidence of paid runtime
+verification. The existing 100,000-token campaign cannot admit the guard's
+conservative full-context chat reservation; the proposed token-only increase
+must not be used until explicitly approved.
+
 ## Reviewed simulated-dealership dependency package
 
 `publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
