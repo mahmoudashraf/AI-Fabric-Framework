@@ -161,6 +161,28 @@ reservation success, and transport-error sanitization. A passing canary proves
 these control-plane contracts, **not** hosted indexing, runtime functionality,
 capacity readiness, production promotion, or full 010.36 certification.
 
+## Independent Host Baseline
+
+Capacity preparation does not require vector serving credentials. Use the
+read-only host sampler with an explicit SSH identity and a new private output:
+
+```sh
+node verification-support/productization-01036/measure-host-baseline.mjs \
+  --environment staging --host 46.224.145.148 --user loomops \
+  --identity "$HOME/.ssh/loom_coolify_hetzner_ed25519" \
+  --samples 181 --interval 5 --output /private/tmp/new-staging-baseline.json
+```
+
+The sampler uses CPU-counter deltas, interval memory/swap observations and
+filesystem statistics for `/var/lib/docker`. It rejects missing/reset counters,
+topology drift, incomplete windows and interrupted cadence. SSH host-key checking
+is mandatory, outputs are exclusive mode0600, and transport failures are redacted.
+It starts no application and changes no remote state. Swap is never counted as
+usable RAM. Every report explicitly says `candidateWorkloadIncluded=false` and
+`policyApproval=false`: a current-fleet baseline cannot certify customer load,
+startup/promotion overlap, vector quota or database capacity, and it never
+publishes admission policy or allocates a grant.
+
 ## Guarded runtime and financial allowances
 
 The current offer publisher prepares a new immutable v10 staging measurement
