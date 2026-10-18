@@ -20,14 +20,17 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `1ac809d70e095c3d3c4a73cfdf9b9b84f88cff8a` is live on both Platform
-  backends. The hosted legal customer request reaches the measured-policy gate;
+  Source `8c35eb3bc419cc61cb42a19941bb1238c3decac0` is live on both Platform
+  backends, with template 1.5.0 and reviewed offer v6 published. The hosted legal
+  customer request previously reached the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
   End-to-end provisioning remains intentionally unexecuted until sufficient
   customer capacity is measured and approved.
-- P6: not started. No editor extraction or customer layout change before the
-  verified functional baseline. Preserve the frozen STAFF-001 through STAFF-039
-  capability register and source snapshot.
+- P6: local UI implementation and fixture-based checks are in progress, but the
+  extraction has not been committed or deployed. Hosted rollout remains gated
+  on the verified functional baseline. Preserve the frozen STAFF-001 through
+  STAFF-039 capability register and source snapshot; keep the UI-only rollback
+  independent from backend and runtime corrections.
 - P7: not started. Fresh production-customer lifecycle certification is required
   after the external capacity prerequisite is closed.
 
@@ -570,3 +573,189 @@ contains no principals, keys, object names, object contents, ETags or raw AWS
 errors. Fixture tests prove pass and fail-closed behavior but are not live AWS
 evidence. Secret values belong only in an ignored private source and managed
 write-only bindings, never this ledger.
+
+### 2026-10-18 Resumed Implementation Checkpoint
+
+- Resumed the two pending code workers and the owner's separate recovery-plan
+  documentation task. The latter owns deferred plan 010.43; it does not expand
+  010.36 or authorize infrastructure spending.
+- Runtime and connector source is committed and pushed as `bf7208084`:
+  AI Fabric `0.8.35`, canonical conversation-state migration/fencing, exact
+  tenant/customer/deployment/target/release document ownership, generation-aware
+  retrieval, and durable runtime/connector administration receipts. Product
+  verification passed 436 tests (runtime 360, connector 76), with zero failures,
+  errors or skips, including PostgreSQL receipt/concurrency and restart tests.
+  Runtime image publication is still in progress at this checkpoint; this is
+  not a claim that any customer runtime has been upgraded.
+- Basic Inbox's `0.8.35` dependency update passed all 11 tests and is committed
+  separately as `2035dc360`. Only the affected immutable dependency image is
+  scheduled for rebuilding.
+- The previous complete Platform backend run finished with 1,861 tests and
+  zero failures/errors/skips. Subsequent focused readiness/admission tests pass.
+  The first restricted-sandbox invocation could not attach Mockito's JVM test
+  agent; the same tests passed with the required local test permissions.
+- Corrected the customer console's admission sequence: each reserve and owning
+  command now share the exact operation key; production plan/apply/activation
+  and rollback explicitly authorize the existing target allocation. The helper
+  preserves its initial allocation choice after response loss. Helper/API
+  tests pass (14), and the actual-button browser smoke passes through staging,
+  assignment, production planning/apply and activation using stateful API
+  fixtures. This browser result is not a hosted customer certification.
+- Readiness now resolves capacity through the exact release's original apply
+  receipt. It accepts a valid allocation initially created during promotion
+  planning and rejects an unrelated current allocation. Required admission
+  checks were not weakened.
+- SSH currently succeeds to both hosts with the existing key and strict host
+  verification. The owner explicitly allows the current source-scoped operator
+  access to remain open until full plan implementation/verification completes;
+  do not cycle firewall rules or close them independently during that work.
+- Fresh read-only capacity: staging has 15,608 MiB physical RAM, approximately
+  2,566 MiB available and 4,092 MiB swap occupied; production has approximately
+  8,239 MiB available. Staging currently contains 33 applications and 5
+  databases. The reviewed dedicated offer reserves 5,888 MiB, 3,750 milliCPU,
+  two databases and two indexes per target, before operating headroom. A fresh
+  staging admission is therefore not yet supported by this measurement. Swap
+  does not count as physical RAM headroom; paid upgrades remain declined.
+- No workload was stopped or deleted during this readback. Old-looking
+  `dep-7706fafb` still has a staging consumer assignment. Actual customer/bridge
+  usage must be proved before any scoped reversible reclamation. The external
+  capacity gate is tracked in `Required for production`; code corrections and
+  source verification continue while that gate remains open.
+- UI changes remain a separate uncommitted workstream. The configuration-only
+  assignment needed to create an Engage origin before initial publication is
+  being completed. P6 hosted rollout, exact app lifecycle certification,
+  repeated-generation hosted proof and P7 remain open.
+
+### 2026-10-18 Parallel Review And Regression Repairs
+
+- Both immutable images finished publication: runtime `bf7208084`, digest
+  `sha256:d7cc5b3a7d72f65da0f77c02ae50a27d836b8599908566b109b5a07bd5e6f16f`,
+  and Basic Inbox `2035dc360`, digest
+  `sha256:d74871880950f09674e0558cdfb09bdadcce050e89ae7b33312dad7069ac3759`.
+  Runtime artifact identities are registered for staging review on both control
+  planes. Registration is not customer deployment or production certification.
+- An independent profile-contract review found credential field leakage,
+  noncanonical theme/auth pin risks, and a missing `artifactRole` in the offer
+  generator's artifact fingerprint. Connection profiles now admit only their
+  supported fields. Supabase configuration accepts public publishable keys or
+  legacy `anon` keys, never privileged secret/service-role credentials. Reviewed
+  profiles reject nested themes and configuration that would normalize to
+  different installed hashes. The artifact fingerprint now matches the backend
+  field set. These are structural security checks, not semantic query matching.
+- The complete backend run executed 1,917 tests: one assertion failure and 17
+  errors, with no skips. The assertion incorrectly expected template 1.5.0 to
+  retain the older Inbox plugin. V186 already publishes the correct immutable
+  1.5.0 template; the redundant proposed V189 was removed before deployment.
+  The 17 errors shared one sliced-test context missing the newly injected
+  profile validator. After correcting that test context, all 38 affected
+  profile, public-manifest, bootstrap-persistence and PostgreSQL migration tests
+  pass. A complete rerun remains required after the allocation transition work.
+- Existing-target configuration replacement remains an explicit implementation
+  and verification gate. The console must allow a different published version
+  only after the existing release settles; the ledger must preserve reviewed
+  capacity, exact command receipts, generation fencing and retirement interlocks
+  across that transition. Merely enabling the button is not completion.
+- Fresh Platform database archives exist for both hosts, with matching-host
+  `pg_restore --list` validation. These temporary operator-local archives do not
+  constitute full Coolify disaster recovery or a tested restore. Deferred plan
+  010.43 remains separate.
+- Reviewed public profiles now support the first Engage app without an existing
+  installation or a bound runtime release. This is configuration-only; runtime
+  activation still requires verified release authority. The customer form keeps
+  its original operation key when retrying the unchanged save after response
+  loss. A newly identified backend create-receipt gap is being corrected before
+  release, so an accepted embedded-app creation cannot be duplicated by retry.
+- Current local UI verification passes: production build; 31 profile/admission/
+  API tests; 13 reviewed-profile browser scenarios including a pre-runtime first
+  app and lost-response retry; and the stateful customer staging/assignment/
+  production-promotion browser flow. Independent review confirms no remaining
+  actionable findings in the scoped public-profile safety corrections. These
+  results use local fixture APIs, not a fresh hosted customer.
+- Final owning-service review found and corrected two more edge cases: completed
+  create replay after the original slug was renamed/reused, and inverse
+  allocation/binding lock order between replacement planning and release bind.
+  Slug availability is checked only for mutations, while completed replay still
+  reauthorizes the current owner/consumer/offer. Both admission paths now lock
+  allocation before binding. A latch-based concurrency regression verifies the
+  binding stays available through `NOWAIT` and the waiting request rejects a
+  lifecycle changed by a concurrent real bind.
+- The final focused set passed 132 tests with zero failures/errors/skips:
+  38 PostgreSQL admission, 38 H2 admission, 12 admission-service, 40 PostgreSQL
+  create-receipt, and four public-authentication registry tests. The final full
+  clean suite is running from the integrated source; its log is
+  `/private/tmp/01036-full-backend-release-20261018.log`. The earlier clean
+  snapshot run was deliberately stopped to include the lock-order correction.
+- Desktop/mobile screenshots were inspected after animations settled. Mobile
+  navigation now uses the existing drawer as a temporary panel, and the main
+  flex column is width-constrained. Overflow, role-scoped navigation and
+  Escape-to-close checks pass alongside the 13 reviewed-profile scenarios.
+  The existing staff workspace browser smoke and customer promotion smoke pass
+  on the final local UI build. No hosted UI extraction has been deployed.
+
+### 2026-10-18 Backend Source Verification And Publication
+
+- Backend and reviewed deployment-package implementation is committed/pushed as
+  `8c35eb3bc419cc61cb42a19941bb1238c3decac0`. UI extraction remains outside this
+  commit. No unrelated publishing assets, videos or local artifacts were staged.
+- The complete clean backend run passed 2,030 tests with zero failures/errors/
+  skips. A final explicit-assignment guard was then added: reviewed customer
+  consumers cannot use deployment-wide runtime discovery before activation, or
+  resolve a verified release under a mismatched target. The 33 affected-path
+  tests pass against that final source, covering general discovery, bridge chat,
+  workspace manifests and binding concurrency. Non-offer discovery behavior is
+  unchanged. This is resource authorization, not semantic query routing.
+- The final integrated lifecycle set also passes 132 focused tests. Deployment
+  package/S3 verifier fixtures pass 25 tests; local UI helper/API tests pass 31.
+  All stated test counts exclude no skipped cases.
+- Backend-only image publication is running in GitHub Actions run `39113959720`.
+  Publication and hosted deployment are separate gates. Staging-first rollout
+  must verify the running image source/digest, migration 189 and HTTP health
+  before production rollout. No customer runtime or customer data-plane
+  activation is implied by backend publication.
+
+### 2026-10-18 Hosted Backend Rollout Readback
+
+- GitHub Actions [run 39113959720](https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/39113959720)
+  passed and published only the affected backend image. Immutable digest:
+  `sha256:49d9fc4d7a71a4021adcd6574cb3c64b37f2364b0f36d1988c93a443a2df8abe`.
+- Staging rollout `ugf34j2460bweq6decvlkn47` and then production rollout
+  `nnmyru7iweop9q55xoziexff` finished. SSH readback verified the actual running
+  image OCI revision `8c35eb3bc419cc61cb42a19941bb1238c3decac0` and digest on
+  each host, not only the configured image tag. Both databases reached migration
+  189; both HTTP health endpoints returned `200 UP` and Coolify marked both
+  backends `running:healthy`. Staging's initial unhealthy flag cleared after
+  startup; no check was disabled.
+- Immutable dependency package publication and exact readback passed on both
+  control planes for `mkv-template-simulated-dealership-experience-v1-5`.
+  Spec fingerprints: staging
+  `50e87074c95c47391bff867b8a9e7272476384b72d5169c83023cde2d9fd3ec6`,
+  production `e27393b400d0b2a8d98cd987d4f1cf27d71109adb0a488dcf80dd792b6b1f0d2`.
+  The environment-local artifact IDs are intentionally distinct.
+- Reviewed offer `offer-loomai-engage-simulated-dealership-early-access-v6`
+  publication passed real existing profile validators and artifact/target pin
+  validation on each backend. Offer fingerprints: staging
+  `70212b4793eec9ca2bfcb924efdc785bd5f201ba75e2aaffed40d03eb4de48ae`,
+  production `9d0a116a9805efb0734be7f989c449b882bb29574cedafe53e1df61ebece37cb`.
+  Publication grants no customer entitlement or capacity and deploys no runtime.
+- Fresh private database archives were retained separately at
+  `/private/tmp/01036-control-plane-preproduction-20261018/`; checksums and
+  matching-host archive catalogs were validated for both hosts. Catalog listing
+  can close stdin before reading the complete custom archive; verification
+  accepted that specific `EPIPE` only alongside process exit zero and a valid
+  catalog. No archive contents were restored, no backup was uploaded, and no
+  full Coolify disaster-recovery claim is made.
+- Post-rollout read-only snapshot: staging 15,608 MiB physical RAM, 2,535 MiB
+  available, 4,268 MiB swap occupied, load averages 1.08/1.47/1.48; production
+  15,610 MiB physical RAM, 8,222 MiB available, no swap occupied, load averages
+  0.77/0.85/0.70. Staging remains below the 6,912 MiB admission-plus-reserve
+  threshold. CPU load is not a substitute for reviewed CPU capacity accounting.
+- Only the two Platform backend applications were redeployed. No customer or
+  demo workload was paused/deleted, no database was removed, no customer runtime
+  or data-plane assignment was changed, no capacity policy was weakened, and no
+  paid resource was added. Hetzner operator access remains open as instructed.
+- Remaining gate: owner decision in `Required for production` on the exact
+  temporary public-demo outage or another authorized capacity path. The seven
+  demos alone are insufficient; older-container dependencies must independently
+  clear before any pause. Hosted repeated-generation, customer-owned S3 indexing,
+  real-provider protected-action, fresh-customer lifecycle and P6/P7 certification
+  remain open. UI extraction source stays separate and undeployed.

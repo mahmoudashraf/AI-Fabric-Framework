@@ -4874,3 +4874,97 @@ Critical fixes that made the gate pass:
   Finish actual authority/binding, admission/apply and R3/R5/R6/R7 owning-service
   wiring, generation reuse, measured policies/artifacts/notifications and S3
   canaries before offer activation; then Engage gaps, P6 and fresh-customer P7.
+
+## 2026-10-18 010.36 Resumed Verification Checkpoint
+
+- Branch `Platform-V11`. Runtime/connector source is committed/pushed as
+  `bf7208084`, Basic Inbox dependency alignment as `2035dc360`; both consume
+  AI Fabric 0.8.35. Their immutable images are published. Product tests passed
+  436 (runtime/connector) and 11 (Inbox). No customer runtime was applied by this
+  checkpoint. Full provenance is in `010_36_PRODUCTIZATION_EXECUTION_RECORD.md`.
+- Resumed the pending UI/activation workers and completed additional reviewed
+  profile, first-app, exact admission receipt, replacement-version and create-
+  receipt work. Backend remains uncommitted pending clean full verification.
+  Public profile validation rejects privileged credentials and noncanonical
+  pins; offer fingerprints now include artifactRole. Reapply planning preserves
+  active-release authority; only a distinct apply receipt commits replacement.
+- Focused verification passed: 38 profile/bootstrap/migration tests, 84 admission
+  tests, 49 create-receipt tests and 25 support-script tests. A further slug-reuse
+  replay regression is included in the full run. Incremental Maven retained a
+  deleted V189 in target/classes; source has only V189 create receipts. That
+  stale-output run was stopped and replaced with `mvn clean test`, log
+  `/private/tmp/01036-full-backend-clean-20261018.log` (running at checkpoint).
+- UI changes remain separate and undeployed: first app from reviewed public
+  profiles before runtime activation, stable save retry keys, exact admission
+  sequencing, safe settled-release replacement controls and responsive navigation.
+  Build, 31 helper/API tests, staff/customer browser flows and 13 reviewed-profile
+  scenarios pass; screenshots and mobile overflow/navigation checks are local
+  fixture evidence, not hosted certification. Frozen STAFF-001..039 baseline is
+  unchanged. Commit/deploy extraction only after the functional gate.
+- Both Platform DBs have temporary private pre-deployment dumps with matching
+  host archive-list validation. Not a tested restore or full Coolify backup.
+  No workloads were stopped/deleted, no paid capacity added, no firewall cycled.
+  Owner explicitly permits source-scoped Hetzner access to remain open until
+  full implementation/verification completes.
+- Fresh topology still needs 5888 MiB plus reserve on staging; current physical
+  headroom is insufficient. Read-only audit proposed seven additional healthy
+  framework demos plus the older six-container set for temporary pause. This is
+  an OWNER DECISION, not cleanup authorization; actual post-stop MemAvailable
+  must reach 6912 MiB. Evidence and request are in `Required for production`
+  thread `01a14123-a0af-7bb1-9df5-b1c981bd3a4a`. Keep ProdUS/Shopify fallback
+  dependencies intact. Paid upgrades declined. Deferred DR plan is 010.43.
+- Next: finish clean backend suite and final allocation concurrency review,
+  scoped backend commit/push and immutable image, staging-first backend rollout,
+  production readback, then publish updated reviewed package/offer. Customer
+  runtime/repeated-generation/S3/real-provider hosted gates remain blocked on
+  external capacity; P6 rollout and fresh-customer P7 are not closed.
+
+### 2026-10-18 Final Verification Pointer
+
+- All parallel code/review workers are completed and closed. Final corrections
+  include slug-reuse receipt replay and allocation-before-binding lock order.
+  The integrated focused set passes 132 tests, zero failures/errors/skips.
+- Earlier clean snapshot was deliberately stopped before completion to include
+  the final lock-order fix. The authoritative complete clean run is now
+  `/private/tmp/01036-full-backend-release-20261018.log`, exec session `5058`.
+  Do not call an earlier snapshot a final green suite.
+- Scoped rollout helper `/private/tmp/01036-backend-rollout.mjs` supports only
+  explicit staging/production backend deploy/status/verify with full source SHA
+  and immutable digest; it requires the private DB backup before deploy, then
+  checks running image revision/digest, migration189 and HTTP health. No deploy
+  has been triggered yet; both backends remain healthy at `1ac809d70`.
+
+- Backend source is now committed/pushed as
+  `8c35eb3bc419cc61cb42a19941bb1238c3decac0`. Complete clean backend suite passed
+  2030 tests, zero failures/errors/skips. A final reviewed-consumer discovery
+  guard then passed 33 affected-path tests (no release or mismatched target
+  cannot resolve a deployment-wide runtime). Focused integrated lifecycle set
+  passed 132. No framework release was created in this turn.
+- GitHub backend-only image publication run is `39113959720`; get its immutable
+  digest before staging-first deploy with the scoped rollout helper. UI source
+  remains uncommitted/undeployed and unrelated dirty files remain untouched.
+
+### 2026-10-18 Hosted Rollout Complete; Customer Certification Open
+
+- Backend `8c35eb3bc419cc61cb42a19941bb1238c3decac0` is live on BOTH staging
+  and production. CI run39113959720 passed; actual running digest is
+  `sha256:49d9fc4d7a71a4021adcd6574cb3c64b37f2364b0f36d1988c93a443a2df8abe`.
+  Exact OCI source/digest, migration189, HTTP200UP and Coolify healthy verified.
+  Rollouts: staging `ugf34j2460bweq6decvlkn47`, production
+  `nnmyru7iweop9q55xoziexff`. No customer runtime was applied.
+- Canonical template1.5.0 managed package and early-access offer v6 were published
+  and read back on both control planes using real profile/pin validation. Runtime
+  artifact remains the separately built bf7208084/AI Fabric0.8.35 image, not the
+  Platform backend image. No new customer entitlement or assignment was created.
+- Fresh private DB backups/checksums/catalogs validated; no restore or full
+  Coolify DR proof. Post-rollout RAM available: staging2535MiB, production8222MiB;
+  staging swap4268MiB. Required staging threshold6912MiB remains unmet.
+- Owner prerequisite thread has the exact seven-demo temporary-outage proposal,
+  conditional on independently resolving dependencies of the older six
+  containers. Nothing paused/deleted; no paid upgrade or permissive admission.
+  Leave source-scoped Hetzner access open until full plan completion per owner.
+- UI build,31 helper/API tests,13 reviewed-profile browser scenarios and
+  staff/customer browser regressions pass locally. Desktop/mobile screenshots
+  inspected, overflow/navigation/Escape checks pass. UI source remains separate
+  and uncommitted/undeployed; frozen staff baseline unchanged. Hosted P0-P5
+  lifecycle proof still precedes P6 rollout and fresh-customer P7 certification.

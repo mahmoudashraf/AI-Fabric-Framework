@@ -1,9 +1,9 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Status: standalone delivery source implemented; shared frontend deployed on staging and production; hosted public, identity, handover, and recovery canaries passed. Section 10 backend contracts are implemented and deployed through `fb68caac3`, including server-derived customer admission manifests. Full customer staging provisioning, P6 UI extraction and P7 certification remain open: live capacity readback currently blocks an honest staging/production FleetPolicy, so no customer runtime was admitted. Remaining Engage acceptance is explicit in sections 6.2 and 10.
+- Status: standalone delivery source implemented; shared frontend deployed on staging and production; earlier hosted public, identity, handover, and recovery canaries passed. Section 10 backend contracts are implemented and live through `8c35eb3bc` on both control planes, with immutable template 1.5.0 and reviewed offer v6 published. Full customer staging provisioning, hosted P6 rollout and P7 certification remain open: measured capacity still blocks customer runtime admission. Local UI implementation and fixture verification are prepared but remain uncommitted and undeployed until the functional hosted gate. Remaining Engage acceptance is explicit in sections 6.2 and 10.
 - Created: 2026-10-13.
 - Execution priority: 2.
-- Source review baseline: Platform `db58acd9`; framework `561659dc`; AI Fabric `0.8.32`. Current implementation target: AI Fabric `0.8.33`, framework `b1a0ac2c`.
+- Source review baseline: Platform `db58acd9`; framework `561659dc`; AI Fabric `0.8.32`. Current implementation target: AI Fabric `0.8.35`, framework `7b593da4`.
 - Owners: generic AI Workspace, experience packs, and Platform installation/delivery.
 - Product naming decision, 2026-10-13: **LoomAI Engage** is the commercial product name; **AI Workspace** remains the technical reference for its reusable interface and integration contracts.
 - Authentication decision, 2026-10-13: support entry-time and action-time sign-in; login starts a new authenticated conversation. Anonymous-to-authenticated conversation transfer is excluded.
