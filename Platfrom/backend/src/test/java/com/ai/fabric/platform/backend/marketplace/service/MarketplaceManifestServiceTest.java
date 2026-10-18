@@ -19,6 +19,46 @@ class MarketplaceManifestServiceTest {
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
     @Test
+    void templateMayDeclareAnExplicitOutputCapWithoutAcceptingMalformedOrSecretProviderSettings() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree("""
+            {
+              "schemaVersion": 1,
+              "pluginType": "TEMPLATE",
+              "compatibility": {"requiredCapabilities": ["templates"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesTemplate": true},
+              "contributions": {"template": {
+                "templateId": "custom-start-from-scratch",
+                "providerConfig": {"openaiMaxTokens": 2048}
+              }}
+            }
+            """);
+        var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+        assertThat(parsed.manifest().path("contributions").path("template").path("providerConfig")
+            .path("openaiMaxTokens").asInt()).isEqualTo(2048);
+
+        for (Object invalid : java.util.List.of(0, -1, 2048.5, Long.MAX_VALUE, "2048", true)) {
+            ObjectNode changed = manifest.deepCopy();
+            ((ObjectNode) changed.path("contributions").path("template").path("providerConfig"))
+                .set("openaiMaxTokens", objectMapper.valueToTree(invalid));
+            assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(changed.toString())))
+                .as("invalid output cap %s", invalid).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("openaiMaxTokens must be a positive integer");
+        }
+        ObjectNode missingValue = manifest.deepCopy();
+        ((ObjectNode) missingValue.path("contributions").path("template").path("providerConfig"))
+            .putNull("openaiMaxTokens");
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(missingValue.toString())))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("positive integer");
+
+        ObjectNode secret = manifest.deepCopy();
+        ((ObjectNode) secret.path("contributions").path("template").path("providerConfig"))
+            .put("openaiApiKey", "literal-secret-not-allowed");
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(secret.toString())))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("unsupported field");
+    }
+
+    @Test
     void templateProviderBaselineAllowsOnlyBoundedNonSecretVectorSettings() throws Exception {
         String valid = """
             {

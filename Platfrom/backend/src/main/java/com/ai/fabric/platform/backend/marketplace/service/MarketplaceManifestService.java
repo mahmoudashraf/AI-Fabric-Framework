@@ -100,6 +100,7 @@ public class MarketplaceManifestService {
         "zillizCloudCuType"
     );
     private static final Set<String> TEMPLATE_PROVIDER_INTEGER_FIELDS = Set.of(
+        "openaiMaxTokens",
         "qdrantPort",
         "qdrantGrpcPort",
         "qdrantTimeout",
