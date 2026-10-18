@@ -205,6 +205,44 @@ until that hosted evidence exists. The harness is outside image-build watch
 paths and the lightweight `test/*.test.mjs` gate, so adding verification does
 not publish replacement backend/runtime images.
 
+## Local Control-Plane Restore Drill
+
+```sh
+RUN_01036_LOCAL_CONTROL_PLANE_RESTORE=true \
+node verification-support/productization-01036/run-local-control-plane-restore.mjs \
+  --dump /private/tmp/01036-control-plane-pre-retained-external-binding-20261018/staging.dump \
+  --docker-host "unix://$HOME/.docker/run/docker.sock" \
+  --postgres-major 18 --expected-migration 191 \
+  --image postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+```
+
+Use a private custom-format archive and an already cached official matching-major
+image. The verifier never pulls images or accepts remote Docker/database targets.
+It creates new labelled local fixtures with network disabled, no published ports,
+no backend/workers and no host bind mounts; raw restore diagnostics are discarded.
+The official `pg_restore --list` validates source/tool versions before data restore.
+Typed schema, migration chain, aggregate counts, constraint/index checks and an
+unchanged source hash are required. Cleanup verifies exact fixture identity and
+isolation before removing only those resources. Reports are mode0600.
+
+The two actual pre-V192 staging/production archives passed on PostgreSQL18 with
+120 public tables, 37 selected typed columns, counts across 15 core tables and
+191 successful migrations. This proves local database recovery of those archives,
+not V192/current-head recovery, owner/ACL parity, secret decryption-key availability,
+application bootstrap, hosted recovery or runtime/index/object-store restoration.
+
+To include the synthetic real-Docker regression in the support gate:
+
+```sh
+RUN_01036_LOCAL_CONTROL_PLANE_DOCKER_TEST=true \
+CP_RESTORE_TEST_DOCKER_HOST="unix://$HOME/.docker/run/docker.sock" \
+node --test verification-support/productization-01036/test/*.test.mjs
+```
+
+That regression uses a separate synthetic PostgreSQL16 fixture. It does not
+substitute for the actual private PostgreSQL18 archive results. Without explicit
+opt-in, it is visibly skipped, never silently counted as executed.
+
 ## Guarded runtime and financial allowances
 
 The current offer publisher prepares a new immutable v10 staging measurement
