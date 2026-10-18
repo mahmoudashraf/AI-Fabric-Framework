@@ -163,8 +163,8 @@ capacity readiness, production promotion, or full 010.36 certification.
 
 ## Guarded runtime and financial allowances
 
-The current offer publisher prepares a new immutable v9 staging measurement
-candidate, using template/spec 1.6 and the same inspected guarded runtime image.
+The current offer publisher prepares a new immutable v10 staging measurement
+candidate, using template/spec 1.7 and the same inspected guarded runtime image.
 It does not rewrite old offers or provision a runtime. The candidate declares
 an explicit integer `openaiMaxTokens=2048`, now accepted by the generic
 Marketplace template contract, and retains every service, binding and RAM/disk
@@ -203,13 +203,25 @@ These historical canary limits are not default customer entitlements or
 authority for another run. The exact scope and current counters must be
 verified before any provider call.
 
-The template's dedicated managed Zilliz Serverless cluster is a separate
-provider effect. Model-token approval does not authorize new paid vector
-infrastructure, existing-cluster adoption or deletion/recreation. Resolve that
-permission and formal binding boundary before apply. An existing Free cluster
-with no collections is not automatically an unowned resource or permission to
-reuse it. Missing runtime credentials must leave an existing cluster and its
-remaining secrets intact; recovery requires explicit operator reconciliation.
+The prior template 1.6 requested a dedicated managed Zilliz Serverless cluster,
+a separate effect not authorized by model-token approval. On 2026-10-18 the
+owner explicitly approved the existing Free-01 for isolated synthetic staging
+use at no additional vector cost, retaining both cluster and data. Template
+1.7 instead requires an explicit retained external-vector binding, with no
+seeded endpoint or credentials and no managed creation fallback. Existing
+cluster metadata or an empty collection list alone never grants permission.
+See [the execution checkpoint](EXISTING_VECTOR_CANARY_CHECKPOINT.md) for missing
+serving credentials and the honest retained-index retirement blocker.
+
+The staff-only API is `POST /api/deployments/{deploymentId}/targets/{targetId}/existing-vector-binding`.
+It accepts an exact published `versionId`, `clusterId`, `projectId`, `regionId`,
+`expectedDeploymentOption`, `databaseName=default`, existing serving `username`
+and `password`, and an `approvalReference`. Read back the redacted summary with
+GET on the same path. Changed replay is rejected, not treated as credential
+rotation. Serving secrets are target-owned; the management key stays on the
+control plane for GET-only identity readback. A missing, changed, foreign or
+unbound scope must stop generation, with no global-key fallback. Do not store
+credential-bearing request JSON in committed fixtures, logs or screenshots.
 
 For an opt-in synthetic export/restore of the actual guarded image's budget
 store, see [the local rehearsal guide](java/README.md). It uses cached exact
@@ -222,9 +234,9 @@ reactivation after restoring an older financial snapshot.
 `publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
 digests as `MANAGED_DEPENDENCY` source artifacts, promotes them through the
 production review channel, and publishes one immutable dependency topology for
-`mkv-template-simulated-dealership-experience-v1-6`. This template establishes
-the reviewed platform-managed Zilliz/Milvus baseline before customer-owned
-document storage is enabled. A production-reviewed
+`mkv-template-simulated-dealership-experience-v1-7`. It retains the exact 1.6
+dependency graph and requires a separately approved retained external-vector
+binding before apply. This does not approve production fit or promotion. A production-reviewed
 artifact is valid in customer staging and production; a staging-only artifact
 is never accepted for production.
 

@@ -1353,3 +1353,53 @@ write-only bindings, never this ledger.
   backend container and matching OCI source revision/repository digest; no
   overlap or health assertion was weakened. This is a control-plane rollout,
   not customer-runtime acceptance or vector-provider mutation.
+
+### 2026-10-18 Approved Existing Free Cluster And Retained Binding
+
+- Owner directly replied `Use Free-01` in main. Allocation permission is
+  resolved for the existing cluster, isolated synthetic staging, zero additional
+  vector cost, retaining both cluster and data. No create/delete/recreate,
+  upgrade, paid fallback or production allocation is approved by that reply.
+  The existing 50-request / 200,000-token / USD 12 cumulative campaign is
+  unchanged, including prior use and holds; no new grant or reset was created.
+- Backend source commit `2f5fb8132` implements the explicit retained external
+  binding, using existing Platform provider modes, scoped prefixes, secret
+  storage and resource-handle primitives. V192 seeds immutable template 1.7
+  without endpoint/credentials or managed-cluster creation. Spec 1.7/offer v10
+  reuse the exact 1.6 dependency graph, service images and resource envelope.
+  This is not production-fit or actual hosted-runtime evidence.
+- Binding pins the published version/hash, customer, tenant, deployment,
+  target, provider cluster/project/region and deployment option. Metadata-only
+  serving authentication verifies the default alias and collection scope
+  before credits/dependency effects, then repeats during plan generation.
+  Missing/changed credentials cannot fall back to global keys or reset the
+  binding. A private target-owned HMAC key prevents publishing a guessable
+  password digest; the organization key stays on the control plane.
+- Integrated gate passed 351 checks with zero failures/errors/skips, including
+  real PostgreSQL V192, admin-only method security, generated runtime contract,
+  pre-debit denial, persisted retirement blocking and preservation regressions.
+  Support fixtures passed 57 checks. Six physical-name golden vectors passed
+  against the exact cached runtime's actual Milvus class without constructing a
+  provider or making network calls. Source guard and diff check passed.
+- Independent critical review cleared after correcting five findings: late
+  validation before financial/provider effects, mutable override anchoring,
+  idempotent replay despite lost secrets, integer code overflow, and double
+  counting already materialized collections. No public framework release,
+  runtime-image change or semantic query-matching workaround was introduced.
+- Retained external data has a fail-closed INDEX retirement interlock before
+  any runtime clear. The current contract cannot certify complete retained-
+  index retirement; its blocker is explicit and capacity is not falsely freed.
+  The pinned adapter also does not select arbitrary database names, so only
+  `default` plus unique physical collection prefixes is accepted. This single
+  synthetic allocation is not proof of provider-enforced tenant ACLs.
+- Existing Free-01 serving credentials were not found in private docs or either
+  vault; Required for production is gathering the existing pair securely. No
+  unrelated service credentials, management-key-as-runtime-token, password
+  reset, new provider user/key/role or permission change is being used.
+- At this source checkpoint the changes are not yet deployed. Fresh private
+  backups and catalogs are validated under
+  `/private/tmp/01036-control-plane-pre-retained-external-binding-20261018/`;
+  actual restore false. See the [bounded execution checkpoint](../../../../../../../../verification-support/productization-01036/EXISTING_VECTOR_CANARY_CHECKPOINT.md)
+  for exact local test evidence and next steps. Actual vector binding, hosted
+  apply/activation/indexing, provider spending, production sizing/promotion,
+  full retained-index completion, P6 and P7 remain open. UI extraction is last.

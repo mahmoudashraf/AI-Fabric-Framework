@@ -2,9 +2,9 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v9";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v10";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.6.0";
+export const TEMPLATE_VERSION = "1.7.0";
 export const OPENAI_MAX_TOKENS = 2048;
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
 export const RUNTIME_IMAGE_DIGEST = "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28";
@@ -55,7 +55,7 @@ export const REVIEWED_TOPOLOGY = Object.freeze({
 
 // A proposed cap envelope, not measured capacity or production admission.
 export const REVIEWED_LIMITS = Object.freeze({
-  measuredPolicyRef: "01036-dealership-capacity-2026-10-18-candidate-v1",
+  measuredPolicyRef: "01036-dealership-capacity-2026-10-18-external-candidate-v2",
   activeStagingTargets: 1,
   replicas: 1,
   cpuMillis: 4000,
@@ -255,7 +255,13 @@ function requireReviewedArtifact(artifact) {
 export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
   if (template?.version !== TEMPLATE_VERSION
     || template.manifest?.contributions?.template?.providerConfig?.openaiMaxTokens !== OPENAI_MAX_TOKENS) {
-    throw new Error("The exact 1.6.0 template with an explicit integer 2048-token output cap is required.");
+    throw new Error("The exact 1.7.0 template with an explicit integer 2048-token output cap is required.");
+  }
+  const provider = template.manifest.contributions.template.providerConfig;
+  if (provider.vectorStrategy !== "milvus" || provider.vectorProvisioningMode !== "EXTERNAL_EXISTING"
+    || provider.vectorStoragePosture !== "SHARED" || provider.milvusExternalBindingRequired !== true
+    || provider.milvusHost || provider.milvusRuntimeUsernameSecretName || provider.milvusRuntimePasswordSecretName) {
+    throw new Error("The exact retained external-vector binding contract is required; no implicit managed or endpoint fallback.");
   }
   const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
   const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));

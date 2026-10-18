@@ -20,7 +20,8 @@ import {
 
 const auth = {projectUrl: "https://example.supabase.co", publishableKey: "public-test-key"};
 const manifest = (pluginId, version) => ({pluginId, version, contributions: pluginId === TEMPLATE_PLUGIN_ID
-  ? {template: {providerConfig: {openaiMaxTokens: OPENAI_MAX_TOKENS}}} : {}});
+  ? {template: {providerConfig: {openaiMaxTokens: OPENAI_MAX_TOKENS, vectorStrategy: "milvus",
+    vectorProvisioningMode: "EXTERNAL_EXISTING", vectorStoragePosture: "SHARED", milvusExternalBindingRequired: true}}} : {}});
 const version = (pluginId, semanticVersion, id) => ({
   pluginId, version: semanticVersion, id, manifest: manifest(pluginId, semanticVersion),
 });
@@ -63,7 +64,7 @@ const artifact = {
 function offerInputs() {
   return {
     template: {
-      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-6"),
+      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
       contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
     },
     pluginVersions: [version("data", "1.0.0", "data-v1")],
@@ -74,9 +75,9 @@ function offerInputs() {
   };
 }
 
-test("v9 pins template 1.6.0 and the same guarded image as an unmeasured staging candidate", () => {
-  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v9");
-  assert.equal(TEMPLATE_VERSION, "1.6.0");
+test("v10 pins template 1.7.0 and the same guarded image as an unmeasured external staging candidate", () => {
+  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v10");
+  assert.equal(TEMPLATE_VERSION, "1.7.0");
   assert.equal(OPENAI_MAX_TOKENS, 2048);
   assert.match(REVIEWED_LIMITS.measuredPolicyRef, /candidate/);
   assert.equal(RUNTIME_IMAGE_DIGEST, "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28");
@@ -85,7 +86,7 @@ test("v9 pins template 1.6.0 and the same guarded image as an unmeasured staging
     const input = offerInputs();
     input.artifact.promotionChannel = promotionChannel;
     const definition = buildOfferDefinition(input);
-    assert.equal(definition.template.versionId, "template-v1-6");
+    assert.equal(definition.template.versionId, "template-v1-7");
     assert.match(definition.name, /Staging Measurement Candidate/);
     assert.deepEqual(definition.artifacts, [{
       artifactId: input.artifact.id, fingerprint: artifactFingerprint(input.artifact),
@@ -103,10 +104,23 @@ test("candidate offer requires the exact explicit integer output cap without cha
   }
   const input = offerInputs();
   input.template.version = "1.5.0";
-  assert.throws(() => buildOfferDefinition(input), /exact 1.6.0 template/);
+  assert.throws(() => buildOfferDefinition(input), /exact 1.7.0 template/);
 });
 
-test("v9 rejects legacy or mixed image pins without rewriting v7 artifact identity", () => {
+test("external candidate rejects unmanaged routing and implicit endpoint or secret fallback", () => {
+  for (const patch of [
+    {vectorStrategy: "lucene"}, {vectorProvisioningMode: "PLATFORM_MANAGED"},
+    {vectorStoragePosture: "DEDICATED"}, {milvusExternalBindingRequired: false},
+    {milvusHost: "unreviewed.example"}, {milvusRuntimeUsernameSecretName: "MILVUS_USERNAME"},
+    {milvusRuntimePasswordSecretName: "MILVUS_PASSWORD"},
+  ]) {
+    const input = offerInputs();
+    Object.assign(input.template.manifest.contributions.template.providerConfig, patch);
+    assert.throws(() => buildOfferDefinition(input), /retained external-vector binding contract/);
+  }
+});
+
+test("v10 rejects legacy or mixed image pins without rewriting v7 artifact identity", () => {
   const legacyArtifact = {
     ...artifact,
     imageDigest: "sha256:d7cc5b3a7d72f65da0f77c02ae50a27d836b8599908566b109b5a07bd5e6f16f",
@@ -311,7 +325,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
     version("action", "1.0.0", "action-v1"),
   ];
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-6"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0", "action@1.0.0"]},
   };
   const definition = buildOfferDefinition({
@@ -320,7 +334,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
       target("dtp-coolify-production-behavior", "production")],
     auth,
   });
-  assert.equal(definition.template.versionId, "template-v1-6");
+  assert.equal(definition.template.versionId, "template-v1-7");
   assert.equal(definition.templateId, "dev-openai-milvus");
   assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
@@ -350,7 +364,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
 test("offer refuses a target whose enforced worker capacity drifted", () => {
   const pluginVersions = [version("data", "1.0.0", "data-v1")];
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-6"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
   };
   const staging = target("dtp-coolify-staging-behavior", "staging");
@@ -364,7 +378,7 @@ test("offer refuses a target whose enforced worker capacity drifted", () => {
 
 test("offer rejects incomplete required plugin pinning", () => {
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-6"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
     contributions: {templateRequiredPluginRefs: ["missing@1.0.0"]},
   };
   assert.throws(() => buildOfferDefinition({

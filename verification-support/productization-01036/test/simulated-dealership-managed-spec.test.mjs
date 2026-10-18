@@ -40,9 +40,9 @@ test("reviewed capacity includes services, database and persistent volumes", () 
   });
 });
 
-test("candidate spec 1.6 changes only receiver and database CPU, retaining the immutable old fixture", () => {
-  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-6");
-  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-6");
+test("external-vector spec 1.7 reuses the exact reviewed 1.6 graph and retains the immutable old fixture", () => {
+  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-7");
+  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-7");
   const base = "../../../Platfrom/backend/src/test/resources/managed-dependency/";
   const old = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1.template.json`, import.meta.url), "utf8"));
   const candidate = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1-6.template.json`, import.meta.url), "utf8"));

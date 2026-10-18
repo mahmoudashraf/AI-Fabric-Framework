@@ -5358,3 +5358,67 @@ Critical fixes that made the gate pass:
   app stops and two protected memory-backed bridges unchanged. Keep Hetzner
   access open. Owner token amendment is RESOLVED, vector effect prerequisite,
   hosted acceptance, production capacity/promotion and P6/P7 are not green.
+
+### 2026-10-18 Free-01 Permission Resolved, Safe Binding In Progress
+
+- Direct owner reply in main: `Use Free-01`. The same synthetic staging
+  allocation is approved at zero additional vector cost, retaining cluster
+  AND data, without create/delete/recreate/upgrade/paid fallback. Reported the
+  decision to Required for production; do not ask for that allocation again.
+- Implementing an explicit existing-Zilliz binding using the existing external
+  Milvus mode, scoped prefixes, secret storage and resource handle registry.
+  Binding pins customer/tenant/deployment/target/published version/hash and
+  observed cluster/project/region/deploymentOption. Management key remains CP
+  only; serving credentials are target-owned, with no global fallback.
+- Source candidate V192/template1.7/spec1.7/offer v10 retains all services,
+  RAM/disk/images and CPU envelope from1.6; it no longer requests a new managed
+  cluster. No endpoint, cluster ID, auth value, grant or capacity approval is
+  seeded. This source checkpoint is NOT yet deployed or hosted-acceptance proof.
+- First combined gate242PASS/0skip including actualPGmigration and method-
+  security, sourceguardPASS; final scope/defaultDB/retention changes and
+  independentcriticalreview still in progress. Support fixtures57PASS.
+  Earlier first compile used wrong Map/JsonNode helper call and first unit
+  assertions used abbreviated error codes; both corrected. Directory-wide
+  node --test incorrectly executed a CLI fixture; explicit *.test.mjs invocation
+  passes. Do not mislabel these harness failures as product acceptance.
+- Pinned Milvus SDK does not select a configured nondefaultdatabase. Reject
+  nondefault bindings and prove defaultalias+unique prefix with serving auth;
+  do not claim arbitrary database-name isolation. Existing index retirement
+  clears collections, so add explicit retainedexternal INDEX blocker BEFORE
+  any gateway clear, without fakezero counts or reclaimed indexcapacity.
+- External prerequisite now is auth material, not allocation permission:
+  verifiedFree-01 serving username/password absent in private docs/vault.
+  Required for production has a private owner-input section; no password
+  reset/newuser/role/key/permission change or managementkeyruntimeuse allowed.
+  Actualbind/apply/provider traffic stillNONE; sole approved grant unallocated.
+  UI extraction LAST, unrelated dirtyUI/site/media preserved, SSH remainsOPEN.
+
+### 2026-10-18 Retained External Binding Source Gate Passed
+
+- Backend committed `2f5fb8132`: explicit retained existing-vector binding,
+  GET-only control identity plus metadata-only serving POST, immutable version
+  requirement anchoring, pre-debit/dependency checks, namespace/Free quota,
+  target-owned serving pair and CP-only private HMAC key, no global fallback.
+  Ordinary source navigation remains metadata-only when no authorized target
+  is available. Existing/foreign/unknown resources cannot enter deletion or
+  fake capacity reclamation through this new binding kind.
+- Final integrated parent gate351PASS/0fail/0error/0skip; log
+  `/private/tmp/01036-external-binding-release-gate-20261018.log`. Support57PASS.
+  Actual cached600f/runtime0.8.35 physical-name method6goldensPASS, no provider
+  instance/network: `/private/tmp/01036-CollectionMappingProof.java` with JARs
+  extracted under `/private/tmp/01036-pinned-collection-proof/`. Initial helper
+  classpath lacked libraries; corrected extraction, not a framework rebuild.
+- Independentreview found/fixed pre-debit ordering, override flag stripping,
+  replaymissingcredentials, integer-responsecode overflow, and double-counted
+  materializedcollections. Final criticalsource review clear. No semantic
+  query matching or LLM-decision fallback introduced; identifier normalization
+  mirrors the pinned vector provider's physical-name contract only.
+- Retainedexternal INDEX has an honest blocker before gateway clear calls;
+  full retained-index lifecycle completion is NOT claimed. No fakezero counts,
+  reclaimedquota or complete retirement. Productionfit/P7 stillOPEN.
+- Source only at this checkpoint; no newbackend/runtime has been deployed yet.
+  Runtime source600f, publicframework0.8.35 unchanged. Fresh before-V192 private
+  backups `/private/tmp/01036-control-plane-pre-retained-external-binding-20261018/`
+  checksum/catalog723eachPASS; actualCPrestorefalse. Servingpairstillmissing,
+  actualbinding/providercalls/grantallocationNONE. Required for production owns
+  missingauthquestion, not repeatFreeapproval. Bothcodingagentscollected/closed.
