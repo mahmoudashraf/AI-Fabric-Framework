@@ -5422,3 +5422,28 @@ Critical fixes that made the gate pass:
   checksum/catalog723eachPASS; actualCPrestorefalse. Servingpairstillmissing,
   actualbinding/providercalls/grantallocationNONE. Required for production owns
   missingauthquestion, not repeatFreeapproval. Bothcodingagentscollected/closed.
+
+### 2026-10-18 Retained Binding Hosted Rollout And v10 Metadata Proof
+
+- Follow-up `58bf670de` resolves external provider config before release/scope
+  inventory projection; unbound required bindings remain BLOCKED, resolved
+  scopes report COLLECTION_PREFIX rather than unsupported database isolation.
+  Focused gate107PASS/0skip. CI39153198911 backend-onlyPASS; UI skipped.
+- Both CPs strictly verified at source58bf670de, digest
+  `sha256:9d12191c88cba18c9d38892ab34ef214944162549c5178891fdb9c86d8eb7a68`,
+  migration192/publicUP/exactlyonecontainer. Stage rollout
+  `bklxnl0ydxp37vkpa3i0aaf0`; prod `s35fsnwh41udc6stv1xb1juu` finished.
+  No runtime/publicframework/UI release;600f/0.8.35 remains pinned.
+- Stage spec1.7/offer v10 published; actual graphfingerprint unchanged from1.6.
+  Nine owner configuration-only checksPASS: dep-ccd7da65/ver-529e85bc,
+  targetdtp-coolify-staging-behavior, DRAFTawi_pub_69a2777be578a7460912b217dded3665.
+  Evidence `/private/tmp/01036-v10-configuration-evidence.json`. Six additional
+  hostedreadchecksPASS: validowner version/hash, binding anonymous401/customer403/
+  staffunbound404, immutablemode/requiredflag/noendpoint, samegrant0allocation.
+  `/private/tmp/01036-external-binding-hosted-readback-20261018.json`.
+- All30stoppedapps exactretained/autodeployfalse readbackPASS after rollout.
+  Missing existingFree-01 username/password stillblank; dedicated Required
+  for production owns privateinputrequest. No reset/user/key/role mutation,
+  servingauth/vectorbinding/runtimeapply/activation/paidcall/email/grantreset.
+  Actualhosted acceptance, retainedindexcompletion, measuredpolicy, productionfit,
+  promotion andP6/P7 remainOPEN. UIextractionLAST; SSHkeepOPEN asownerinstructed.

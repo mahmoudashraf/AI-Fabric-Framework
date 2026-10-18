@@ -1403,3 +1403,41 @@ write-only bindings, never this ledger.
   for exact local test evidence and next steps. Actual vector binding, hosted
   apply/activation/indexing, provider spending, production sizing/promotion,
   full retained-index completion, P6 and P7 remain open. UI extraction is last.
+
+### 2026-10-18 Final Retained-Binding Backend Rollout And v10 Configuration
+
+- Committed inventory follow-up `58bf670de`: resolve the approved target binding
+  before projecting release provider config and the shared vector registry.
+  Required unbound scope is BLOCKED; native external isolation is accurately
+  reported as COLLECTION_PREFIX. Focused gate107 passed, zero failures/skips.
+- Backend-only CI39153198911 passed and published digest
+  `sha256:9d12191c88cba18c9d38892ab34ef214944162549c5178891fdb9c86d8eb7a68`.
+  Both staging `bklxnl0ydxp37vkpa3i0aaf0` and production
+  `s35fsnwh41udc6stv1xb1juu` finished. Exact one-container/source/digest,
+  migration192 and publicUP verification passed in both. UI publication skipped;
+  runtime600f/framework0.8.35 unchanged.
+- New dependent spec1.7 and offer v10 were published on staging only. Their
+  service graph is unchanged from1.6, fingerprint
+  `45948e39d82f17196b3712941a2f70ef6255e30532bd839b1cf819a9577416c4`.
+  Template1.7 itself is seeded byV192 on both control planes. Publication is
+  measurement preparation, not production-fit approval or customer activation.
+- Nine real-owner configuration-only checks passed: `dep-ccd7da65`,
+  `ver-529e85bc`, hash
+  `b5658d34e44cef349cbdfcb0b0589f9284d9698f8f5910b9b77814bc8f23154a`.
+  Ownership/replay, reviewed placement, S3 redaction, immutable configuration,
+  foreign denial and expected measured-policy admission denial were exercised.
+  Installation `awi_pub_69a2777be578a7460912b217dded3665` remains DRAFT/inactive.
+  Evidence `/private/tmp/01036-v10-configuration-evidence.json`.
+- Six read-only hosted checks additionally passed at18:29UTC: valid customer
+  session/version hash; binding GET anonymous401/customer403/staff-unbound404;
+  database readback of required EXTERNAL_EXISTING/SHARED with no endpoint; and
+  unchanged sole grant with all allocation counters zero. Evidence
+  `/private/tmp/01036-external-binding-hosted-readback-20261018.json`.
+- Read-only preservation check passed all30paused workloads after rollout,
+  unchanged containers/images/configuration/layers/mounts and auto-deploy off.
+  No provider serving authentication/write, runtime apply, activation, paid
+  call, allowance reset or lifecycle email occurred. Existing Free-01 serving
+  credentials remain missing; private input is tracked in Required for
+  production. Keep Hetzner access open. Actual provider/indexing acceptance,
+  measured admission, retained-index completion, production fit/promotion and
+  completeP6/P7 remain open. UI extraction remains last and untouched.

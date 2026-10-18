@@ -174,6 +174,15 @@ provider-budget capability, endpoint, migration and verification declarations
 are required in addition to the exact reviewed image digest and source commit.
 Publishing an offer is not approval of host capacity or provider spending.
 
+Hosted checkpoint, 2026-10-18: both control planes run backend `58bf670de`,
+migration 192, with exact-image and public-health verification. The v10 offer
+and spec 1.7 were published on staging only; the nine-check real-owner
+configuration canary and six additional read-only binding checks passed.
+Free-01 allocation is approved, but its existing serving credentials are still
+missing. No external binding, runtime apply, paid traffic or grant allocation
+has occurred. See [the retained-vector checkpoint](EXISTING_VECTOR_CANARY_CHECKPOINT.md)
+for exact rollout receipts, evidence and unresolved acceptance gates.
+
 Financial allowance comes from an explicit staff-reviewed lifetime grant,
 separately from the physical R7 admission manifest. Automatic preparation
 allocates the complete grant to one deployment; exact retries reuse it, a

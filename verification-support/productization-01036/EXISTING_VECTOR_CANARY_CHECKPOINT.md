@@ -12,17 +12,18 @@ embeddings; prior use and holds count. No production allocation is authorized.
 
 - Completed: reused existing external Milvus mode, target-scoped collection
   prefixes, managed secret storage and provider-resource handle primitives.
-- Locally verified, not yet deployed: staff-only immutable binding to an
+- Deployed and verified on both control planes: staff-only immutable binding to an
   exact customer, tenant, deployment, published version/hash and target; actual
   GET-only Zilliz identity/plan readback plus metadata-only serving POST checks,
   target-owned serving credentials and a private HMAC fingerprint key.
-- Locally verified, not yet deployed: preservation across cleanup,
+- Deployed and verified on both control planes: preservation across cleanup,
   retirement inventory and admission readback. Retained-only inventory cannot
   prove owned-capacity reclamation; unknown resource kinds still fail closed.
-- Locally verified, not yet deployed: new immutable template 1.7, dependent
-  spec 1.7 and offer v10 measurement candidate, using the unchanged 1.6 service
-  graph and exact guarded runtime image. No endpoint, cluster ID or credential
-  is hardcoded into generic code or seeded into the template.
+- Published on staging: new immutable dependent spec 1.7 and offer v10
+  measurement candidate using template 1.7, the unchanged 1.6 service graph and
+  exact guarded runtime image. Migration V192 seeds template 1.7 on both control
+  planes; spec/offer publication was staging-only. No endpoint, cluster ID or
+  credential is hardcoded into generic code or seeded into the template.
 - Open: missing Free-01 serving username/password, requested through Required
   for production. Do not reuse unrelated stopped-service credentials or send a
   control-plane management key into the runtime. No password reset, new user,
@@ -97,7 +98,7 @@ is a distinct prerequisite, not a request to approve the cluster again.
   runtime apply/activation, model call or lifecycle email occurred. Production
   readiness, external retained-index completion and full 010.36 remain open.
 
-## Hosted Rollout In Progress
+## Hosted Rollout And Metadata Verification Complete
 
 Backend implementation `2f5fb8132` and support checkpoint `d023f5b30` were pushed.
 CI 39152376107 passed; UI image was skipped. Staging deployment
@@ -111,6 +112,35 @@ scope registry must use the resolved target binding, while an unbound template
 remains BLOCKED instead of claiming an endpoint or database isolation. The
 107-check inventory/binding regression gate passed with zero skips at
 `/private/tmp/01036-external-binding-inventory-projection-gate-20261018.log`.
-Roll this reviewed follow-up to staging, run the configuration-only canary,
-then verify the same backend image on production. No customer runtime or
-external binding is applied by these backend rollouts.
+The follow-up source `58bf670de00d3477a3d91b2f78d4d9fe4d9cd7db` was published
+by successful backend-only CI run `39153198911` and deployed to both control
+planes using digest
+`sha256:9d12191c88cba18c9d38892ab34ef214944162549c5178891fdb9c86d8eb7a68`.
+Staging deployment `bklxnl0ydxp37vkpa3i0aaf0` and production deployment
+`s35fsnwh41udc6stv1xb1juu` finished. Strict readback verified exactly one
+backend container, matching OCI revision and repository digest, migration 192
+and public health UP in each environment. Runtime source 600f / framework
+0.8.35 and the UI were not rebuilt or deployed.
+
+Nine staging real-owner configuration-only checks passed at 18:23 UTC:
+deployment `dep-ccd7da65`, published version `ver-529e85bc`, target
+`dtp-coolify-staging-behavior`, offer v10. Draft installation
+`awi_pub_69a2777be578a7460912b217dded3665` remains inactive. The canary proves
+ownership, replay, safe S3 configuration/redaction, foreign-access denial and
+expected measured-policy admission denial, not a deployed customer runtime.
+Private evidence: `/private/tmp/01036-v10-configuration-evidence.json`.
+
+Six additional read-only hosted checks passed at 18:29 UTC: owner version/hash
+readback; anonymous binding GET 401; customer-owner GET 403; staff-unbound GET
+404; persisted EXTERNAL_EXISTING/SHARED/required-binding contract without an
+endpoint; and zero allocation in the unchanged sole financial grant.
+Evidence: `/private/tmp/01036-external-binding-hosted-readback-20261018.json`.
+All 30 stopped workloads (21 staging, nine production) still retain their exact
+containers, images, configuration, layers and mounts with auto-deploy disabled.
+
+Existing serving-credential fields remain blank in the ignored private auth
+document. Required for production holds the private-input request. No serving
+authentication, vector binding, provider writes, customer-runtime apply,
+activation, paid call, allowance reset or lifecycle email occurred. Full 010.36,
+retained-index lifecycle completion and production fit remain open. Keep
+Hetzner access open as instructed; UI extraction remains last.
