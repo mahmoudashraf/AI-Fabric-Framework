@@ -55,13 +55,23 @@ public class CustomerSelfServiceCatalogueService {
                 try {
                     var profile = profiles.findById(permission.targetProfileId()).orElseThrow(() -> conflict(UNENTITLED_TARGET));
                     composition.requireProfile(profile, permission);
-                    placement.requireFreshEvidence(profile, permission.intent());
+                    String readiness = "PLACEMENT_VERIFIED_ADMISSION_REQUIRED";
+                    List<String> targetBlockers = new ArrayList<>();
+                    try {
+                        placement.requireFreshEvidence(profile, permission.intent());
+                    } catch (CustomerSelfServiceException ex) {
+                        if (ex.code() != PLACEMENT_EVIDENCE_REQUIRED && ex.code() != PLACEMENT_EVIDENCE_STALE) throw ex;
+                        readiness = "PLACEMENT_RECHECK_REQUIRED";
+                        targetBlockers.add(ex.code().name());
+                        blockers.add(ex.code().name());
+                    }
                     // Discovery never reserves capacity or claims admission readiness.
+                    targetBlockers.add(PREREQUISITE_EVIDENCE_REQUIRED.name());
                     var capabilities = definition.operations().stream()
                         .filter(operation -> CustomerPermissionMatrix.row(operation).targetIntents().contains(permission.intent()))
                         .collect(java.util.stream.Collectors.toSet());
-                    targets.add(new TargetSummary(permission.targetProfileId(), permission.intent(), "PLACEMENT_VERIFIED_ADMISSION_REQUIRED",
-                        capabilities, definition.limits(), List.of("PREREQUISITE_EVIDENCE_REQUIRED")));
+                    targets.add(new TargetSummary(permission.targetProfileId(), permission.intent(), readiness,
+                        capabilities, definition.limits(), List.copyOf(targetBlockers)));
                 } catch (CustomerSelfServiceException ex) { blockers.add(ex.code().name()); }
             }
         } catch (CustomerSelfServiceException ex) { blockers.add(ex.code().name()); }
