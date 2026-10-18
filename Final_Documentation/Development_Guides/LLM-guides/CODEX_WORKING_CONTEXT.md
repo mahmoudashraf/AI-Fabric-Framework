@@ -5222,3 +5222,43 @@ Critical fixes that made the gate pass:
   withnewsourceconstants. No paidcalls/grants/emails/runtimeapply;100k/50/USD2
   stillbinding,200kdelta pending in Required for production. No status messages
   there unless actualmissingexternalmaterialrequest; generalstatuswasblocked.
+
+### 2026-10-18 Final Guarded Offer Checkpoint, 15:49 BST
+
+- Pushed separate ed122f1b7 financialhandoff fix and2bf8b3aab guardedofferv8.
+  Parent131backendtests+54supportfixturesPASS. Independentcriticalreview found
+  no confirmeddefect. CI39136211077backendonlyPASS/UI skipped/runtime notrebuilt.
+- Both backends NOW2bf8b3aaba2e9bb1b5a1a188938f4faf872ec0f4,
+  digest8390c26a592c2bea070d5102f0ba04b8053cbb5ab08c621362a031b01e44314a,
+  schema190/publicUP. Stagex111yg1wyx30kfbi63fp64tv thenprod
+  lldgi2enq4hqqo0v3p1lbgpc finished+exactOCI/digest/healthverified. Earlystage
+  two-containeroverlapcheckcorrectlydeniedproof; retriedonlyafterfinished.
+  Freshprivatebackup /private/tmp/01036-control-plane-pre-whole-grant-fix-20261018
+  checksum/catalog723linesbothPASS, actualrestorefalse.
+- v8publishedstage fingerprint856085506838af34a923dc2fe3f00fba863be6ecb261f3c24e9a47a63bbc74ac,
+  prod2165f95b87a9cb590a9b6251618c43eee2f05a52869c56b9a0cbeaaa5162c41a.
+  Runtimeimage remains600f/d3f744..., framework0.8.35; unchangedtemplate1.5,
+  full3750mCPUtopology. Do NOT publish2750candidateasmeasured.
+- Realowner9v8configuration9checksPASS:dep-ae68ef7b,ver-050b015a,
+  hash ea390514ea9d0839911ed4e21d3af417afd45a43ec815cf33e6bb079a9eea677,
+  consumer01036-v8-config-canary,appawi_pub_b1c120b26ab7c988f76f7aebfaf28a91DRAFT.
+  /private/tmp/01036-v8-configuration-private/state.json and
+  /private/tmp/01036-v8-configuration-evidence.json. Noreservation/release/apply;
+  exact412MEASURED_POLICY_REQUIRED. Newwrapper01036-run-v8-customer-configuration.mjs.
+- HTTPstaff/anonymouschecks6PASSbothCP, actualstagingownerbaseline200andquota403
+  PASS afteremail-vs-userIDharnessfix. ProductionownerNOTPROVEN(noactualsession).
+- Actualcachedruntime offlineboot11checksPASS,59698ms,networkNONE/synthetickeys/
+  boundedlocalresources/disposableH2. LivenessUP/readinessDOWNNOT_INITIALIZED,
+  privateGETUNINITIALIZED, unauthorized/wrongscope denial, query+suggestions
+  typedPROVIDER_BUDGET_NOT_INITIALIZEDbeforeAIwork, finalstateunchanged. Own
+  containerremoved. /private/tmp/01036-offline-guarded-runtime-XGSjViAxk6g1/report.json.
+  Previousharnessfailuresretained(stdin-i,releaseID,loopbackhostname), noguard/
+  lifecycle/schedulerdisabled. Not hostedactivation/restartorpaid-providerproof.
+- All30stopsreverifiedreadonly:21stage+9prod,autodeployfalse,exactcontainer/
+  image/config/layer/mountsunchanged. /private/tmp/01036-final-retained-stop-readback-20261018.json.
+  Two memorybusinessShopifybridgesstillrunning;8DB/shared/dealershippreserved.
+- Allparallelworkcollected/agentsclosed; no neededlocalprocessleft. No paid
+  calls/grants/emails/customer-runtimeapply.200kdelta STILLpending;100k/50/USD2
+  includingembeddingremainsbinding. Next: owneramendment, genuineguardedhosted
+  canary+index/recovery/lifecycle/privateactivation, measuredproductionfit,
+  promotion, thenUIextractionlast/P7. DoNOTclaimfullgate/01036green. SSH staysOPEN.

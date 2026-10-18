@@ -22,10 +22,11 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `600f136bf0becb9a473ff1e085bbc9896b4ef696` is live on both Platform
-  backends at migration 190, with template 1.5.0 and reviewed offer v7 published.
-  The guarded runtime artifact is registered separately; existing offer pins
-  remain unchanged until a fresh offer is published. The hosted legal
+  Source `2bf8b3aaba2e9bb1b5a1a188938f4faf872ec0f4` is live on both Platform
+  backends at migration 190, with template 1.5.0 and guarded offer v8 published.
+  The inspected runtime image remains pinned to `600f136bf`; its source did
+  not change in the narrow backend correction. Older offer pins are unchanged.
+  The hosted legal
   customer request previously reached the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
   End-to-end provisioning remains intentionally unexecuted until sufficient
@@ -1164,3 +1165,67 @@ write-only bindings, never this ledger.
   No paid call, grant, lifecycle email, customer runtime apply or UI extraction
   deployment has occurred. The token amendment and remaining acceptance gates
   remain open.
+
+### 2026-10-18 Final Guarded-Offer Checkpoint
+
+- Separate pushed commits: `ed122f1b7` corrects the real financial-authority
+  handoff; `2bf8b3aab` prepares the fresh guarded offer. Final parent backend
+  integration passed 131 tests, and offer-support fixtures passed 54. Runtime
+  and public framework sources were not changed by this follow-up.
+- Backend-only CI `39136211077` passed; the UI job was skipped and the runtime
+  image workflow was not retriggered. Staging `x111yg1wyx30kfbi63fp64tv`, then
+  production `lldgi2enq4hqqo0v3p1lbgpc`, finished and passed actual image,
+  migration and health verification. Both now run
+  `2bf8b3aaba2e9bb1b5a1a188938f4faf872ec0f4` at
+  `sha256:8390c26a592c2bea070d5102f0ba04b8053cbb5ab08c621362a031b01e44314a`,
+  migration 190, public UP. An early staging check correctly refused proof
+  during the temporary two-container rolling overlap; it passed only after
+  completion. No exact-container assertion was weakened.
+- Fresh pre-correction private database archives and catalogs are in
+  `/private/tmp/01036-control-plane-pre-whole-grant-fix-20261018/`; both checksum
+  and matching-client catalog checks passed, 723 lines each. Actual restore
+  was not performed.
+- Immutable offer v8 is published on both control planes, with fingerprints
+  staging `856085506838af34a923dc2fe3f00fba863be6ecb261f3c24e9a47a63bbc74ac`
+  and production `2165f95b87a9cb590a9b6251618c43eee2f05a52869c56b9a0cbeaaa5162c41a`.
+  Template 1.5.0 and the complete 3,750mCPU topology remain unchanged; the
+  2,750mCPU candidate was not published as if it had been measured.
+- The real staging owner passed all nine configuration-only v8 checks:
+  deployment `dep-ae68ef7b`, version `ver-050b015a`, config hash
+  `ea390514ea9d0839911ed4e21d3af417afd45a43ec815cf33e6bb079a9eea677`,
+  consumer `01036-v8-config-canary`, draft app
+  `awi_pub_b1c120b26ab7c988f76f7aebfaf28a91`. Evidence:
+  `/private/tmp/01036-v8-configuration-evidence.json`; private continuation state:
+  `/private/tmp/01036-v8-configuration-private/state.json`. Admission returned
+  the expected missing-measured-policy denial, with no reservation or release.
+  No runtime was applied or app activated.
+- HTTP budget checks prove anonymous denial and authenticated staff handling
+  on both hosts, plus actual staging customer-owner denial with HTTP 403 after
+  exact source-bound email/session verification. Production owner coverage is
+  still NOT_PROVEN, not silently passed; no production customer test session
+  was created. Routine owner authentication only updated last-seen metadata.
+- Exact-image offline bootstrap passed all eleven assertions in 59,698ms:
+  liveness UP; readiness DOWN/NOT_INITIALIZED; private readback UNINITIALIZED;
+  unauthenticated and wrong-scope denials; query/suggestions typed budget denial
+  before AI orchestration; final state still UNINITIALIZED. It used synthetic
+  keys, network NONE, loopback only, bounded local resources and disposable
+  storage. Its only owned container was removed. Evidence:
+  `/private/tmp/01036-offline-guarded-runtime-XGSjViAxk6g1/report.json`.
+  Earlier harness failures (missing Docker stdin forwarding, required release
+  ID and offline hostname resolution) remain recorded separately. No runtime
+  guard, scheduler, lifecycle check or production setting was disabled to pass.
+  This local negative-path proof is not hosted activation or paid inference.
+- Final read-only preservation proof passed for all thirty stopped apps:
+  21 staging, nine production, exact container/image/config/writable-layer/mount
+  identities retained and auto-deploy still paused. Evidence:
+  `/private/tmp/01036-final-retained-stop-readback-20261018.json`.
+  The two memory-only business-state Shopify bridges remain running; eight
+  audited databases and shared/dealership infrastructure were preserved.
+- All parallel work for this checkpoint was collected and the agents closed.
+  No paid provider test, live financial grant, customer runtime activation or
+  lifecycle email occurred. The 200,000-token amendment still awaits the owner;
+  50 requests / 100,000 tokens / USD 2 including embeddings remains binding.
+  Complete hosted indexing, private bootstrap/activation, restart/recovery,
+  lifecycle notices, production sizing and promotion acceptance remain open.
+  Keep Hetzner access open as instructed; P6 UI extraction and P7 certification
+  remain last and incomplete. Full 010.36 is NOT declared green.
