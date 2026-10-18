@@ -5037,3 +5037,93 @@ Critical fixes that made the gate pass:
   or approval inferred; prior7-demo/old-six option superseded. Capacity and
   CPU/disk/startup/operatingpolicy remain gates. All bounded agents completed
   andclosed. LeaveHetzneraccessOPENuntilfullimplementation perowner.
+
+### 2026-10-18 Owner-Authorized Temporary Stops
+
+- Owner's informed response in Required for production supersedes the prior
+  approval gate: dealership products are the focus; non-dealership deployments
+  including the disclosed twelve framework demos may be temporarily stopped
+  until needed for productization. The clarified response includes disclosed
+  transient demo/session/in-memory DB resets. Do not re-request broad downtime,
+  reset or duration approval. Builds and actual deploy verification must still
+  pass; stopped steady state is allowed, not an excuse for failed builds.
+- Main then received direct owner instruction: "Produs and Shopify can be
+  temporarily stop also". This is stop authorization, not deletion, recreation,
+  durable data removal, paid upgrades or disaster-recovery implementation.
+  Preserve exact existing containers/images/layers/volumes/config and keep
+  dealership/shared/build infrastructure and databases available.
+- The twelve exact audited framework demo backends are now STOPPED_RETAINED;
+  all exited143 after graceful SIGTERM, no SIGKILL, OOM, delete or recreation.
+  Docker manual stop uses --signal=SIGTERM --timeout=-1. Private pre-state and
+  sanitized evidence: /private/tmp/01036-authorized-stops-20261018/.
+  Helper: /private/tmp/01036-stop-authorized-framework-demos.mjs. All source/
+  identity/build-path checks passed (repo suffix/base-relative variants handled
+  structurally); same container/image/mounts retained. Recheck confirms stopped.
+- Staging actual physical MemAvailable7658MiB at11:28:48UTC; swap2489MiB is
+  excluded from capacity. This clears the prior RAM minimum but is not by
+  itself an approved CPU/disk/operating/admission policy. No customer runtime
+  admitted yet. Dealership/shared services stillrunninghealthy.
+- Parallel: Bohr preparing exact reversible ProdUS/Shopify stop order/manifest
+  for both hosts, no agentstops. Dewey preparing read-only genuine R7 policy/
+  grant/evidence preflight. Parent owns all mutations and hosted canaries.
+  Keep source-scoped HetzneraccessOPEN; no firewallcycling or new charges.
+
+- Parent completed18audited ProdUS/Shopify application stops:9staging/9prod.
+  All gracefulexit0/143,noOOM,exactIDs/images/writablelayers/mountsretained.
+  DBsunchanged:5stage+3prodallrunninghealthy. TwoShopifybridgesheldonlyfor
+  actualmemory-business-stateverification; Bohrinspectsliveconfigread-only.
+  Privateprestate/proof /private/tmp/01036-produs-shopify-stops-20261018/.
+  Poststop /private/tmp/01036-post-produs-shopify-stop-readback-20261018.json:
+  availablephysicalRAM10561/12095MiB,8/4cores,root35%/13%;swapexcluded.
+  ShortCPUsamples297-934/170-277milliCPUarenotpolicyapproval. NoDB/dealership/
+  sharedstop,newcharge,delete,recreationorfirewallcycling. Userallowsstopped
+  steady-statebutbuild/deployverificationmuststillpass.
+- ConfirmedactualR7identitybug:composition/placementandadmissionhashdifferent
+  keys,admissionincludesenvironment. DeweyownssharedJavaidentitywithallfields,
+  Ramanujanindependentreview. ParentJSpublisheralignstoadmissionkeyrecipeand
+  bumpsoffertov7;v6recordsremainimmutable,nonewbackwardcompatibilityhashpath.
+  47supporttestsnowpass. NoJavafixdeployednorv7offerpublishedyet.UIlast.
+
+### 2026-10-18 Shared Identity Fix Live And v7 Canary
+
+- Scopedcommit65b522a2dc5167c5770d198642921448a0009a12pushedPlatform-V11.
+  SharedDeploymentTargetProfileIdentityretains8securityfields/environment;
+  composition/placement/bothadmissionvalidators+JSpublisheragree. Nolegacyhash
+  acceptance/globalhashchange/frameworkrelease/semanticmatching. Numericcontract
+  exactsafeintegersanddecimalstrings; actual4reviewedprofilespass.146Java
+  testsincl13realcomposition/placement/admissionbridge+48supporttestspass.
+  Independentreviewnoactionablefindings. Initial1extremeexponentassertionwas
+  errorclassificationonly; parserinvalidandparsedunsupportedbothfailclosed.
+- CI39125180102backendonlysuccess/UIjobskipped. BothBACKENDSverifiedlive
+  exactsource65b522a2d,digest9adbf77f53a79afd951f15e656629b33e9ccdabdc404f9725446fef10fc06ee8,
+  migration189,public200UP,Coolifyhealthy. Stagingrollouts11jabc65u86e3vd1zltw6ui
+  beforeproductionh93t53ryvz06wcn8iz3tdx9z. Noactiveappliesbeforeupdate.
+  FreshprivateDBarchives /private/tmp/01036-control-plane-pre-identity-fix-20261018
+  checksum+catalogpass706linesboth,noactualrestore. Rollouthelpernowaccepts
+  BACKUP_DIRECTORY. UIextractionsourceuncommitted/undeployed.
+- Newimmutableofferv7publishedbothCPs,publisherchecksplacement==pinlive.
+  Stagefingerprint9ec0b49744ebcb59ac5770419fc82b3279bab508d6f4ba18c01d82c79452bcc4;
+  prod1e7244834a17a7cd27951827f40957a8a90490f590a0e1a3e29009aa031441c9.
+  v6historyunchanged. v7realowner9configurationcheckspass:dep-51739855,
+  ver-e18d9063,configHash3363d16d6bedc6ecb7bdf4047a852e2392d3aba6f9c656422a7ce49a610c0701,
+  consumer01036-v7-config-canary,appawi_pub_9a9e273f598766fb280af69b2775a835DRAFT.
+  Private /private/tmp/01036-v7-configuration-private/state.json; sanitized
+  /private/tmp/01036-v7-configuration-evidence.json. Noapply/reservation/release;
+  measuredpolicydenialremains412. Newruntimeadmissionstillnotdone.
+- All18ProdUS/Shopifystopsreverifiedafterrollouts,8DBhealthy,2bridgesstillheld.
+  LaterRAM10621/12156MiBstage/prod,root35/13%;swapexcluded. Noautoresume.
+  SharedEngagestageservicei11rgdryn7fswlg5wdg8d2hwreconciledwhenappcreated;
+  thisisnotdeploymentoftheuncommittedUIextraction.
+- OwnerapprovedboundedstagingprovidercampaignviaRequiredforproduction:
+  50chatrequests/100000modeltokens/USD2INCLUDINGembeddings;contact/mailboxalso
+  approved. Exactapprovalignoredprivatehandoff. NOT YETspent/called/emailed.
+  Existingmetricsdonotenforcecaps. DeweynewsharedJDBCledgeronlyinNEWmodule
+  ai-fabric-product/ai-fabric-provider-budget; BohrnewOpenAIguardmoduleonly
+  ai-fabric-product/ai-fabric-provider-budget-openai. BothNOcommits/deploy/paid
+  calls;mainownsallintegration/POM/runtime/platform. Sharedcontractpending.
+  Fullcontextreservation128kchat(modelmax)cannotfit100kcap;owneraskedONLY
+  increase-to200kdelta,same50/$2/scope,noreset. Pendingreply100kstillbinding.
+  Noestimatedtokens,oneoffproxy,silentResponsesconversion,LLMfallbackor
+  unrelatedframeworkmatrix. UsepublicSPI/nativeHTTPprooforraiseconcretegap.
+  Track /private/tmp/01036-provider-budget-execution-track-20261018.md.
+  UIlast;firewallstaysOPEN;nopaidinfraorfull010.43DRwork.

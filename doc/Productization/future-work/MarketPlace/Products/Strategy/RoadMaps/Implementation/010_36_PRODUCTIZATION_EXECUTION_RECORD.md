@@ -913,3 +913,119 @@ write-only bindings, never this ledger.
   is inferred, no workload was stopped/deleted, no policy weakened, and no paid
   resource or firewall change occurred. All bounded parallel workers completed
   and were closed; the external owner decision remains pending.
+
+### 2026-10-18 Authorized Temporary Workload Stops
+
+- The owner's informed approval in `Required for production` supersedes the
+  earlier pending decision: the twelve disclosed framework demo backends may
+  remain stopped while dealership productization is the priority, including the
+  disclosed transient demo/session resets. The owner additionally authorized
+  temporary ProdUS and Shopify stops directly in the implementation thread.
+  These instructions do not authorize deletion, recreation, durable-data loss,
+  new paid capacity or bypassing build/deployment verification.
+- All twelve framework demo backends and eighteen audited ProdUS/Shopify
+  application services are now stopped. Application stops used graceful
+  `SIGTERM` with no forced-kill timeout. All eighteen latter exits were 0 or 143;
+  no OOM stop occurred. Readback verifies the same container IDs, image IDs,
+  writable filesystem layers and mounts. No database, volume, image, deployment
+  configuration, customer assignment or release history was removed.
+- Two Shopify bridges remain running pending actual datasource verification:
+  their source defaults to an in-memory database. The authorization for demo
+  resets is not treated as authorization to discard Shopify business state.
+  This entry-specific check does not delay the other eighteen stops.
+- Fresh post-stop physical memory samples show staging 10,561 MiB available
+  on eight cores and production 12,095 MiB on four cores. Swap is excluded.
+  Root disk use is 35% and 13%, respectively. Short host CPU samples were
+  297-934 milliCPU staging and 170-277 milliCPU production; these are observed
+  samples, not a sustained-load certification or reviewed admission allowance.
+  In particular, production's four cores must still cover the 3,750 milliCPU
+  topology plus real baseline and operating reserve; free RAM alone is not
+  sufficient to authorize production promotion.
+- All five staging and three production audited databases remain running and
+  healthy. Dealership and shared control-plane services were not stopped.
+  Private before-state and sanitized retention evidence are held in
+  `/private/tmp/01036-authorized-stops-20261018/` and
+  `/private/tmp/01036-produs-shopify-stops-20261018/`; post-stop readback is
+  `/private/tmp/01036-post-produs-shopify-stop-readback-20261018.json`.
+  Hetzner access stays open per the owner's instruction until full completion.
+
+### 2026-10-18 Shared Target Identity And Fresh Customer Canary
+
+- Found a real contradiction: customer composition/placement and admission
+  hashed different field names, and only admission included the environment.
+  No honest policy payload could satisfy both. Commit `65b522a2d` replaces
+  those local recipes with one private deployment-domain identity, retaining
+  all eight security fields. Active/provider/source/physical-server/intent and
+  freshness checks remain independent and fail closed.
+- Java and the offer publisher share a nested golden hash. Numeric
+  normalization is local to this identity and accepts only exact safe integers;
+  resource decimals remain strings. Malformed configuration, unsafe/fractional
+  numbers, old environment-omitting pins and every tested security-field drift
+  fail closed. Global evidence hashing, semantic decisions and the public
+  framework were not changed. No alternative legacy hash is accepted.
+- Focused backend verification: 146 tests passed, including 13 real composition
+  to placement to admission bridge cases using the H2 admission ledger. All 48
+  support tests passed. Independent scoped review found no actionable security
+  issue under the documented numeric contract. The initial extreme-exponent
+  assertion was corrected to distinguish parser-invalid input from a parsed
+  unsupported number; both remain denied rather than rounded or accepted.
+- CI `39125180102` passed with only the backend image selected and the UI image
+  job skipped. Both running backends are verified on full source
+  `65b522a2dc5167c5770d198642921448a0009a12`, digest
+  `sha256:9adbf77f53a79afd951f15e656629b33e9ccdabdc404f9725446fef10fc06ee8`,
+  migration 189 and public `200 UP`. Staging rollout
+  `s11jabc65u86e3vd1zltw6ui` completed before production
+  `h93t53ryvz06wcn8iz3tdx9z`. No active apply was found before restarting them.
+  The pending UI extraction source was not committed or deployed.
+- Fresh pre-update private control-plane archives are in
+  `/private/tmp/01036-control-plane-pre-identity-fix-20261018/`. Checksums and
+  matching-host PostgreSQL catalogs passed for both. This is not restore proof
+  or the deferred Coolify disaster-recovery implementation.
+- Published a new immutable offer
+  `offer-loomai-engage-simulated-dealership-early-access-v7` on both control
+  planes. The publisher now verifies each freshly recorded placement identity
+  against its exact reviewed pin before publication. Fingerprints are staging
+  `9ec0b49744ebcb59ac5770419fc82b3279bab508d6f4ba18c01d82c79452bcc4`
+  and production
+  `1e7244834a17a7cd27951827f40957a8a90490f590a0e1a3e29009aa031441c9`.
+  Existing v6 and earlier records were not rewritten or repinned.
+- The real customer-owner configuration canary passed all nine checks on v7:
+  deployment `dep-51739855`, immutable version `ver-e18d9063`, consumer
+  `01036-v7-config-canary`, draft app
+  `awi_pub_9a9e273f598766fb280af69b2775a835`. Bootstrap/app/consumer/binding/
+  version replay, read-only staging S3 redaction, foreign-resource denials and
+  early activation denial passed. Legal admission still returned the exact
+  missing-measured-policy denial, with no reservation or release. No runtime
+  apply, source-object mutation or provider call occurred.
+- Post-rollout readback still confirms all eighteen ProdUS/Shopify apps stopped,
+  all eight audited databases healthy and the two memory bridges retained.
+  Available RAM was 10,621/12,156 MiB staging/production in the later snapshot;
+  root disk use remained 35%/13%. Short CPU samples are not a production
+  capacity approval. Framework remains 0.8.35, with the earlier pinned runtime
+  artifact unchanged.
+
+### 2026-10-18 Provider Allowance Enforcement Work
+
+- The owner approved a bounded, synthetic staging provider test and the existing
+  owner test mailbox/attended escalation contact through `Required for
+  production`. Exact private approval is in the ignored production handoff.
+  It does not grant new infrastructure, production promotion, a counter reset
+  or an SLA. No test provider call or lifecycle email has been sent yet.
+- Read-only inspection found that current framework diagnostics and runtime
+  metrics do not enforce aggregate allowance before every paid send. Native
+  retries, embedding usage and a separate embedding worker require coverage;
+  no successful metrics label is treated as enforcement. A shared private
+  durable reservation ledger and guarded provider transport are being built.
+  No public framework release is currently required by the available hooks.
+- The first token ceiling is lower than this model's documented full context.
+  A conservative pre-send full-context reservation would correctly deny every
+  chat call at that ceiling. Only the token-ceiling adjustment was sent back
+  for a specific owner decision; the existing ceiling remains binding until
+  explicitly changed. No guessed character/token estimate, silent API/model
+  switch or hidden fallback is being used to make the canary appear green.
+- Execution tracking and the source-only assessments are under
+  `/private/tmp/01036-provider-budget-execution-track-20261018.md`,
+  `/private/tmp/01036-provider-budget-enforcement-assessment-20261018.md` and
+  `/private/tmp/01036-operating-proof-path-20261018.md`. Genuine hosted budget,
+  restore/rebuild, lifecycle delivery and customer-runtime/promotion checks
+  remain open. This is continued implementation, not full 010.36 completion.
