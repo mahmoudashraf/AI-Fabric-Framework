@@ -6,14 +6,14 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
-Latest hosted readback, 2026-10-18: backend source `d2b1a9792` and migration193
+Latest hosted readback, 2026-10-18: backend source `8432ec735` and migration193
 are verified on both control planes, with public healthUP and exact OCI revision/
 RepoDigest. Backend digest:
-`sha256:60d3992614c667af9d9d286124bdf9f529559cfb05f0beb4bbbeeadda4ebc89b`.
-Rollouts: staging `t1i0q0vpyejmte8tpo3sk9t8`, production `gy2uuzgf84h00stdxdtkx7sn`.
-Fresh pre-V193 backups both passed isolated local PostgreSQL18 restores through
-their actual migration192; reports `...restore-nDRlOyyQsbWQ/report.json` and
-`...restore-7kUaIKpz9a6q/report.json` under `/private/tmp/01036-local-control-plane-`.
+`sha256:a668651d6daac04336f1fff71bd20008a97586914b46b677433b95421769661e`.
+Rollouts: staging `ql6letv36y5212g4fnhdudzz`, production `gzilo152u7s2rcjx5g5tedfj`.
+Fresh pre-fix backups both passed isolated local PostgreSQL18 restores through
+their actual migration193; reports `...restore-l4lMMDmKgXts/report.json` and
+`...restore-YGALPNohTkT1/report.json` under `/private/tmp/01036-local-control-plane-`.
 These are control-plane backup proofs, not customer-runtime/topology recovery.
 
 Runtime CI39164527840 succeeded. Exact image
@@ -35,21 +35,40 @@ Staging spec1.8 and offer v11 are now published. The real CUSTOMER_ADMIN
 configuration-only canary passed9 checks for `dep-6e29bab9` / `ver-3c0e3b88`,
 config hash `c54fc56cfd5060c625ec1f0997df4059bf9a643e7a16311e0651062a658a75cc`.
 Installation `awi_pub_10aefdad2b85e09d0a2bca3588298c4b` remains inactive; no
-runtime or reservation exists. Evidence `/private/tmp/01036-v11-configuration-evidence.json`.
+runtime exists. Configuration evidence `/private/tmp/01036-v11-configuration-evidence.json`.
 Formal TOKEN binding to approved Free-01 was created and local scoped credentials
 are READY. Six read-only checks prove anonymous/customer denial, exact staging
 readiness, no production/unscoped reuse and unchanged zero grant allocation:
 `/private/tmp/01036-v11-binding-access-and-scope-20261018.json`.
 
-Do not mark exact first-bind replay green yet: live verification found initial
-nanoseconds versus PostgreSQL microseconds in `checkedAt`. Identity/fingerprint
-and credentials did not change. A narrow backend fix stores the shared timestamp
-at database precision before returning the first response;89 service and3 real
-PostgreSQL tests pass, including the reported value and a second-boundary case.
-No timestamp is ignored, refreshed or rewritten to conceal the mismatch. The
-fix still needs publication/rollout and hosted replay readback. Three declared
-managed-simulator credentials are not provisioned yet; they are not missing
-owner OpenAI inputs. Scoped managed-dependency reporting is under separate review.
+The exact bind replay now passes on the deployed precision fix, with the same
+binding identity/fingerprint, credentials and persisted timestamp. The first
+bind occurred before the fix; new-create precision is covered by89 service and3
+real PostgreSQL tests. Hosted evidence:
+`/private/tmp/01036-v11-free01-binding-evidence-20261018.json`. Nothing is
+ignored, refreshed or rewritten to conceal the original mismatch.
+
+Physical policy `01036-staging-v11-measured-20261018` and the one-candidate
+customer quota are published on staging only. A fresh25-sample baseline and
+the [attended operating review](../../../../../../../../verification-support/productization-01036/STAGING_V11_ATTENDED_CANARY_OPERATING_REVIEW.md)
+support this bounded measurement, not production fit. Real customer reservation
+`f0e90dba-14f0-4787-b583-7dcf712bc4b2` is RESERVED and exact replay passes.
+Its whole envelope remains charged. Normal customer apply was correctly denied:
+the immutable template requires `GOVERNED_RESOLVER`, which the runtime does not
+advertise. Full template/runtime contract investigation is in progress; the gate
+is not bypassed and ordinary confirmed actions are not treated as proof of the
+distinct proposal/receipt extension. Read-only reconciliation proves zero
+releases, apply commands, release bindings and provider allocations. Sole
+financial grant remains0allocated/50requests/200ktokens/USD12remaining.
+Evidence: `/private/tmp/01036-v11-staging-admission-20261018.json` and
+`/private/tmp/01036-v11-staging-apply-20261018.json`.
+
+Scoped managed-dependency credential projection is implemented locally and
+parent-verified:185tests/0fail/0skip. It requires exact persisted version/target,
+customer/tenant, reviewed spec, provisioned node revision and present managed
+secret metadata; pending evidence stays MISSING and global-name collisions
+cannot satisfy it. This is local credential-presence evidence, not provider
+health or runtime initialization. No rollout yet; UI extraction stays last.
 
 - P0: source contract implemented and integrated; prerequisite acceptance is in
   progress. The customer-owned S3 canary passes exact bucket posture, explicit
@@ -58,8 +77,8 @@ owner OpenAI inputs. Scoped managed-dependency reporting is under separate revie
   customer lifecycle. SMTP authentication is live and the admission notice
   transport is explicitly configured on staging. Fresh guest measurements prove
   a prior capacity shortfall. Authorized retained workload stops have since
-  cleared the staging RAM minimum; complete measured policy, workload and
-  recovery acceptance remain open. Fresh short-window baselines after the
+  cleared the staging RAM minimum. The measured staging policy is now
+  published; workload and complete recovery acceptance remain open. Short-window baselines after the
   pauses show lower current CPU load on both hosts, but do not certify the
   unchanged topology under workload/startup/promotion overlap. Production fit
   remains unapproved. No policy or grant was fabricated to bypass that gate.
@@ -68,18 +87,15 @@ owner OpenAI inputs. Scoped managed-dependency reporting is under separate revie
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `58bf670de00d3477a3d91b2f78d4d9fe4d9cd7db` is live on both Platform
-  backends at migration 192, including retained-external vector binding.
-  Template 1.7 is seeded on both; dependent spec 1.7 and guarded offer v10
-  are published on staging only.
-  The inspected runtime image remains pinned to `600f136bf`; its source did
-  not change in the narrow backend correction. Older offer pins are unchanged.
-  The hosted legal
-  customer request previously reached the measured-policy gate;
-  an old client-supplied `manifestId` is rejected as an invalid contract.
-  End-to-end provisioning remains unexecuted pending native serving-token
-  integration/publication, formal binding and
-  measured/approved customer capacity.
+  Backend `8432ec735` is live on both control planes at migration193;
+  native token binding and its exact replay pass. Template1.8 is seeded on both;
+  spec1.8/offer v11 are published on staging only and pin inspected runtime
+  `d2b1a9792`/framework0.8.36. Real customer capacity reservation now passes.
+  Apply is denied before release creation because the template requests the
+  unsupported distinct governed-resolver extension. Ordinary confirmed chat
+  actions are not proof of that extension's APIs. The contract is being
+  corrected without bypassing the artifact gate. The reservation remains
+  charged until an explicit no-effect cancellation can prove safe release.
 - P6: local UI implementation and fixture-based checks are in progress, but the
   extraction has not been committed or deployed. Hosted rollout remains gated
   on the verified functional baseline. Preserve the frozen STAFF-001 through
@@ -90,8 +106,8 @@ owner OpenAI inputs. Scoped managed-dependency reporting is under separate revie
 
 ### Independent Work While Hosted Vector Integration Is Pending
 
-The unfinished native-token integration blocks actual binding,
-indexing/retrieval and dependent hosted lifecycle acceptance. Owner permission
+Native-token integration and formal staging binding now pass; the template
+contract mismatch above blocks indexing and hosted lifecycle acceptance. Owner permission
 to use the existing broader key for Free-01 is resolved; do not ask again for
 another credential or allocation approval. This dependency does not block
 all implementation or verification. Continue independent tasks without weakening

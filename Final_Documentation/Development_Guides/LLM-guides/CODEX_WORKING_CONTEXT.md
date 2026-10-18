@@ -5668,3 +5668,37 @@ Critical fixes that made the gate pass:
 - Dedicated Requiredforproduction informed of LATERP7productionvectorboundary/
   model-useallowanceinput; existingFree01/$12/200k/50grantstagingonly unchanged,
   no productionpromotionauthorized. Do NOTstallstagingforthatquestion.
+
+## 2026-10-18 Continued Live Admission And Contract Verification
+
+- Backend8432ec735/CI39166800690 live BOTH CPs, migration193, exactdigest
+  sha256:a668651d6daac04336f1fff71bd20008a97586914b46b677433b95421769661e,
+  healthUP/singlecontainer. Strict Free01 binding replay PASS with unchanged
+  bindingid/key/fingerprint/timestamp; firstcreate predatedfix. FreshCP193
+  backups/restores PASS: /private/tmp/01036-local-control-plane-restore-
+  l4lMMDmKgXts/report.json(stage), YGALPNohTkT1/report.json(prod).
+- Parent reviewed generic dependency secret readiness;185 focusedtests PASS,
+  zero skips, sharedsource rerun. Only DeploymentSecretUsageService+test changed.
+  Exact version/target/customer/tenant/spec/provisionedrevision/secretpresence;
+  pending remainsMISSING, noglobalplaceholderbypass, noproviderprobes.
+- Operatingreview committed50e25f649+d3cc6259c. Fresh stagingbaseline25samples
+  21:18:32-21:20:32UTC, CPUmax914m, RAMminavailable11,057,324,032bytes,
+  swapliabilityincluded. Published physicalpolicy01036-staging-v11-measured-
+  20261018 plusonecandidatecustomerquota. Real customerreserve/replayPASS:
+  f0e90dba-14f0-4787-b583-7dcf712bc4b2 / dep-6e29bab9 / ver-3c0e3b88,
+  operationkey01036-v11-apply-20261018. Wholecapacityremainscharged.
+- Normalapply409beforeeffects: runtime manifest lacks GOVERNED_RESOLVER,
+  whichV174-derivedtemplatedefaultsrequire. DoNOTfalselyadvertiseproposal/
+  confirm/receiptAPIsfromordinarychatconfirmation. Menciusread-onlyinvestigates
+  fulltemplate/realmanifestcontract; no weakeninggate. NoeffectSQLreadback:
+ 0releases/commands/bindings/allocations; financialgrant unchanged0allocated.
+  /private/tmp/01036-v11-staging-apply-20261018.json tracks exact request.
+- Ramanowns generic UNUSED reservationcancellation implementation (staffonly,
+  strict no-effectproof/concurrentapplyfences/durablereceipt, V195reserved).
+  V194reservedfortemplatecorrection. No livecancelornewcandidateuntilreview.
+  ProvisionedINDEXretentionblocker stays; no partial/fakecapacityreclamation.
+- Requiredforproductionreports owner-authorized separateServerless cluster
+  in05-58b569513f0fc1c/projectproj-807f74adeb59398bfc3d2b FrankfurtRUNNING;
+  servingmetadataauthPASS, details/keysinignoredprivatehandoff. Don'tcreate
+  duplicateoraskagainforproviderchoice. Productionmodelbudgetstillunapproved,
+  no promotion/productionbinding/nativeSDKfitclaimed. Stagingcontinues.

@@ -1,6 +1,12 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyGraphEntity;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyGraphStore;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecRepository;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -38,19 +44,28 @@ public class DeploymentSecretUsageService {
     private final PlatformDeliveryProperties deliveryProperties;
     private final ObjectMapper objectMapper;
     private final DeploymentExistingVectorBindingService existingVectorBindings;
+    private final ManagedDependencyGraphStore dependencyGraphs;
+    private final ManagedDependencySpecValidator dependencySpecs;
+    private final ManagedDependencySpecRepository reviewedDependencySpecs;
 
     public DeploymentSecretUsageService(PlatformSecretService platformSecretService,
                                         DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                         DeploymentSecretPurposeCatalog deploymentSecretPurposeCatalog,
                                         PlatformDeliveryProperties deliveryProperties,
                                         ObjectMapper objectMapper,
-                                        DeploymentExistingVectorBindingService existingVectorBindings) {
+                                        DeploymentExistingVectorBindingService existingVectorBindings,
+                                        ManagedDependencyGraphStore dependencyGraphs,
+                                        ManagedDependencySpecValidator dependencySpecs,
+                                        ManagedDependencySpecRepository reviewedDependencySpecs) {
         this.platformSecretService = platformSecretService;
         this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
         this.deploymentSecretPurposeCatalog = deploymentSecretPurposeCatalog;
         this.deliveryProperties = deliveryProperties;
         this.objectMapper = objectMapper;
         this.existingVectorBindings = existingVectorBindings;
+        this.dependencyGraphs = dependencyGraphs;
+        this.dependencySpecs = dependencySpecs;
+        this.reviewedDependencySpecs = reviewedDependencySpecs;
     }
 
     public DeploymentSecretUsageSummary build(String deploymentId, DeploymentDraftEntity draft) {
@@ -193,11 +208,13 @@ public class DeploymentSecretUsageService {
         );
 
         registerHttpIntegrationSecrets(usages, literalRisks, secretCatalog, marketplaceDatasetConfig);
+        projectLocalDependencySecrets(deploymentId, draft, bindingContext, usages);
 
         List<DeploymentSecretUsageItemSummary> secrets = usages.entrySet().stream()
             .map(entry -> toItemSummary(
                 deploymentId,
-                resolveSecretSummary(secretCatalog, entry.getKey()),
+                entry.getValue().dependencyEvidence != null && entry.getValue().draftReferenceOnly
+                    ? null : resolveSecretSummary(secretCatalog, entry.getKey()),
                 entry.getKey(),
                 entry.getValue()
             ))
@@ -227,17 +244,11 @@ public class DeploymentSecretUsageService {
     }
 
     private boolean externalVectorBindingReady(String deploymentId, DeploymentDraftEntity draft, BindingContext context) {
-        if (context == null) {
+        if (!matchesPublishedScope(deploymentId, draft, context)) {
             return false;
         }
         var deployment = context.deployment();
         var version = context.version();
-        if (!identifier(deploymentId) || !identifier(context.targetProfileId()) || version == null || !identifier(version.getId())
-            || !deploymentId.equals(draft.getDeploymentId()) || !deploymentId.equals(version.getDeploymentId())
-            || deployment.getArchivedAt() != null || "ARCHIVED".equals(deployment.getStatus())
-            || !"PUBLISHED".equals(version.getStatus()) || !draftMatchesVersion(draft, version)) {
-            return false;
-        }
         try {
             JsonNode publishedConfig = readJson(version.getProviderConfigJson());
             JsonNode effectiveConfig = existingVectorBindings.resolveLocal(deployment, version, publishedConfig, context.targetProfileId());
@@ -255,6 +266,139 @@ public class DeploymentSecretUsageService {
             }
             throw ex;
         }
+    }
+
+    private boolean matchesPublishedScope(String deploymentId, DeploymentDraftEntity draft, BindingContext context) {
+        return context != null && identifier(deploymentId) && identifier(context.targetProfileId())
+            && context.version() != null && identifier(context.version().getId())
+            && deploymentId.equals(draft.getDeploymentId()) && deploymentId.equals(context.version().getDeploymentId())
+            && context.deployment().getArchivedAt() == null && !"ARCHIVED".equals(context.deployment().getStatus())
+            && "PUBLISHED".equals(context.version().getStatus()) && draftMatchesVersion(draft, context.version());
+    }
+
+    private void projectLocalDependencySecrets(String deploymentId, DeploymentDraftEntity draft, BindingContext context,
+                                                Map<String, UsageAccumulator> usages) {
+        if (context == null || !identifier(deploymentId) || !identifier(context.targetProfileId())
+            || usages.values().stream().allMatch(usage -> usage.draftReferences.isEmpty())) {
+            return;
+        }
+        var graph = dependencyGraphs.find(deploymentId, context.targetProfileId()).orElse(null);
+        // Release-time projection also checks providers; readiness consumes only persisted local evidence.
+        var spec = publishedDependencySpec(context.version());
+        if (spec == null && graph != null) {
+            spec = dependencyGraphs.spec(graph);
+        }
+        if (graph == null && spec == null) {
+            return;
+        }
+        dependencySpecs.validate(spec);
+        boolean scoped = matchesPublishedScope(deploymentId, draft, context)
+            && identifier(context.deployment().getCustomerId()) && identifier(context.deployment().getTenantId())
+            && (graph == null || deploymentId.equals(graph.getDeploymentId())
+                && context.targetProfileId().equals(graph.getTargetProfileId())
+                && context.version().getId().equals(graph.getVersionId())
+                && context.deployment().getCustomerId().equals(graph.getCustomerId())
+                && context.deployment().getTenantId().equals(graph.getTenantId())
+                && dependencySpecs.fingerprint(spec).equals(graph.getSpecFingerprint()));
+        boolean provisioned = graph != null && scoped && locallyProvisioned(graph);
+        var state = provisioned ? dependencyGraphs.state(graph) : null;
+        String scope = "target " + context.targetProfileId() + " and published version "
+            + (context.version() == null ? "(not supplied)" : context.version().getId());
+        for (var binding : spec.runtimeEnvironment()) {
+            var usage = usages.get(binding.name());
+            if (binding.target() != ManagedDependencySpec.RuntimeTarget.CONNECTOR || usage == null
+                || !usage.draftReferences.contains(binding.name())) {
+                continue;
+            }
+            boolean present = provisioned && dependencySecretPresent(deploymentId, binding.value(), state);
+            String message = present
+                ? "Local managed-dependency credentials are ready for " + scope + ". Provider health and runtime initialization have not been checked."
+                : !scoped
+                    ? "Local managed-dependency credentials are missing for " + scope + ". Persisted evidence does not match this draft and scope."
+                    : !provisioned
+                        ? "Local managed-dependency credentials are missing for " + scope + ". Dependency provisioning is pending or not ready."
+                        : "Local managed-dependency credentials are missing for " + scope + ". Exact provisioned dependency and secret-presence evidence is required.";
+            usage.dependencyEvidence = new DependencySecretEvidence(present, message);
+        }
+    }
+
+    private ManagedDependencySpec publishedDependencySpec(DeploymentVersionEntity version) {
+        if (version == null) {
+            return null;
+        }
+        JsonNode installs = readJson(version.getCompositionProvenanceJson()).path("marketplaceInstalls");
+        Set<String> templateVersions = new LinkedHashSet<>();
+        if (installs.isArray()) {
+            for (JsonNode install : installs) {
+                if ("TEMPLATE".equals(install.path("pluginType").asText())) {
+                    String versionId = install.path("pluginVersionId").asText();
+                    if (!identifier(versionId)) {
+                        throw new IllegalStateException("Persisted template version identifier is invalid.");
+                    }
+                    templateVersions.add(versionId);
+                }
+            }
+        }
+        if (templateVersions.isEmpty()) {
+            return null;
+        }
+        if (templateVersions.size() != 1) {
+            throw new IllegalStateException("Persisted template version is ambiguous.");
+        }
+        String templateVersion = templateVersions.iterator().next();
+        var matches = reviewedDependencySpecs.findByTemplateVersionIdAndActiveTrue(templateVersion);
+        if (matches.isEmpty()) {
+            return null;
+        }
+        if (matches.size() != 1) {
+            throw new IllegalStateException("Reviewed dependency specification is ambiguous.");
+        }
+        var publication = matches.getFirst();
+        var spec = dependencyGraphs.parse(publication.getSpecJson(), ManagedDependencySpec.class);
+        dependencySpecs.validate(spec);
+        if (!publication.isActive() || !templateVersion.equals(publication.getTemplateVersionId())
+            || publication.getReviewedAt() == null || publication.getReviewedBy() == null || publication.getReviewedBy().isBlank()
+            || !dependencySpecs.fingerprint(spec).equals(publication.getFingerprint())) {
+            throw new IllegalStateException("Reviewed dependency specification does not match its publication.");
+        }
+        return spec;
+    }
+
+    private boolean locallyProvisioned(ManagedDependencyGraphEntity graph) {
+        return ("PROVISIONED".equals(graph.getStatus()) || "READY".equals(graph.getStatus())) && graph.getWorkerToken() == null
+            && graph.getReservationRef() != null && !graph.getReservationRef().isBlank()
+            && graph.getBindingFingerprint() != null && graph.getBindingFingerprint().matches("[a-f0-9]{64}");
+    }
+
+    private boolean dependencySecretPresent(String deploymentId, ManagedDependencySpec.Value value, ManagedDependencyState state) {
+        if (state.configurationRevision < 0) {
+            return false;
+        }
+        String reference;
+        if (value.kind() == ManagedDependencySpec.ValueKind.SERVICE_SECRET) {
+            var nodes = state.nodes.stream().filter(node -> value.serviceSlot().equals(node.slot)).toList();
+            if (nodes.size() != 1) {
+                return false;
+            }
+            var node = nodes.getFirst();
+            if (node.disabled || node.applicationUuid == null || node.applicationUuid.isBlank()
+                || node.baseUrl == null || node.baseUrl.isBlank()
+                || !("PROVISIONED".equals(node.status) || "READY".equals(node.status))
+                || node.provisionedConfigurationRevision != state.configurationRevision) {
+                return false;
+            }
+            reference = node.secrets.get(value.reference());
+        } else if (value.kind() == ManagedDependencySpec.ValueKind.TARGET_SECRET) {
+            reference = state.targetSecretReferences.get(value.reference());
+        } else {
+            return false;
+        }
+        if (reference == null || reference.isBlank() || !platformSecretService.isManagedSecretName(reference)) {
+            return false;
+        }
+        var metadata = platformSecretService.describeSecret(reference);
+        return metadata != null && reference.equals(metadata.name()) && metadata.present() && metadata.managedByPlatform()
+            && deploymentId.equals(metadata.deploymentId()) && "DEPLOYMENT_MANAGED".equals(metadata.scopeType());
     }
 
     private boolean identifier(String value) {
@@ -332,7 +476,7 @@ public class DeploymentSecretUsageService {
         if (secretName != null) {
             boolean managed = secretCatalog.containsKey(secretName)
                 || platformSecretService.isManagedSecretName(secretName);
-            registerUsage(usages, secretName, managed, service, path);
+            registerUsage(usages, secretName, managed, service, path, true);
             return;
         }
         if (defaultSecretName != null) {
@@ -346,10 +490,23 @@ public class DeploymentSecretUsageService {
                                boolean required,
                                String service,
                                String path) {
+        registerUsage(usages, secretName, required, service, path, false);
+    }
+
+    private void registerUsage(Map<String, UsageAccumulator> usages,
+                               String secretName,
+                               boolean required,
+                               String service,
+                               String path,
+                               boolean draftReference) {
         String usageKey = usageKey(secretName);
         UsageAccumulator usage = usages.computeIfAbsent(usageKey, ignored -> new UsageAccumulator());
         usage.secretPurpose = secretPurposeFor(secretName);
         usage.required = usage.required || required;
+        if (draftReference) {
+            usage.draftReferences.add(secretName);
+        }
+        usage.draftReferenceOnly &= draftReference;
         usage.services.add(service);
         usage.paths.add(path);
     }
@@ -358,15 +515,23 @@ public class DeploymentSecretUsageService {
                                                            PlatformSecretSummary summary,
                                                            String secretName,
                                                            UsageAccumulator usage) {
+        if (usage.dependencyEvidence != null && usage.draftReferenceOnly) {
+            return new DeploymentSecretUsageItemSummary(secretName, secretName, true, usage.dependencyEvidence.present(),
+                "DEPLOYMENT_MANAGED", usage.dependencyEvidence.present() ? "READY" : "MISSING",
+                List.copyOf(usage.services), List.copyOf(usage.paths), usage.dependencyEvidence.message(), null, null);
+        }
         DeploymentSecretResolutionSummary effectiveResolution = usage.bindingOnly
             ? null : effectiveResolution(deploymentId, usage.secretPurpose);
         boolean present = usage.bindingOnly
             ? usage.bindingPresent
             : effectiveResolution != null ? effectiveResolution.resolved() : summary != null && summary.present();
+        if (usage.dependencyEvidence != null) {
+            present &= usage.dependencyEvidence.present();
+        }
         String source = usage.bindingOnly ? "DEPLOYMENT_MANAGED" : effectiveResolution != null && effectiveResolution.scopeType() != null
             ? effectiveResolution.scopeType()
             : summary != null ? summary.source() : "UNMANAGED";
-        boolean required = usage.required || (summary != null && summary.required());
+        boolean required = usage.required || usage.dependencyEvidence != null || (summary != null && summary.required());
         String status;
         String message;
         if (required && !present) {
@@ -391,6 +556,9 @@ public class DeploymentSecretUsageService {
                 : present
                     ? "Local external-vector credentials are ready for " + usage.bindingScope + ". Provider health has not been checked."
                     : "Local external-vector credentials are not ready for " + usage.bindingScope + ". Binding evidence is missing or does not match this draft.";
+        }
+        if (usage.dependencyEvidence != null) {
+            message += " " + usage.dependencyEvidence.message();
         }
         return new DeploymentSecretUsageItemSummary(
             secretName,
@@ -460,12 +628,17 @@ public class DeploymentSecretUsageService {
     private static final class UsageAccumulator {
         private String secretPurpose;
         private boolean required;
+        private boolean draftReferenceOnly = true;
+        private DependencySecretEvidence dependencyEvidence;
         private boolean bindingOnly;
         private boolean bindingPresent;
         private String bindingScope;
         private final Set<String> services = new LinkedHashSet<>();
         private final Set<String> paths = new LinkedHashSet<>();
+        private final Set<String> draftReferences = new LinkedHashSet<>();
     }
+
+    private record DependencySecretEvidence(boolean present, String message) { }
 
     private record BindingContext(DeploymentEntity deployment, DeploymentVersionEntity version, String targetProfileId) { }
 }
