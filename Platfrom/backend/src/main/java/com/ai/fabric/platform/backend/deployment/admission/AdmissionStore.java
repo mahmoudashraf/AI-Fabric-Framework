@@ -628,6 +628,150 @@ class AdmissionStore {
             "QUEUED", time(clock.instant()), time(clock.instant()));
     }
 
+    UnusedReservationCancellationReceipt cancelUnused(String deploymentId, String targetId,
+                                                       CancelUnusedReservation command, String actor) {
+        return cancelUnused(deploymentId, targetId, command, actor, null);
+    }
+
+    UnusedReservationCancellationReceipt cancelUnused(String deploymentId, String targetId,
+            CancelUnusedReservation command, String actor, AdmissionUnusedConsumerDetachment consumerDetachment) {
+        validateUnusedCancellation(command);
+        required(deploymentId, 64); required(targetId, 64); required(actor, 255);
+        String fingerprint = json.fingerprint(Map.of("deploymentId", deploymentId, "targetProfileId", targetId, "command", command));
+        return locked(() -> {
+            // Apply owns deployment first and may subsequently need the ledger. Never wait here while owning its mutex.
+            try {
+                var deployment = jdbc.query("SELECT id FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), deploymentId);
+                if (deployment.isEmpty()) throw new AdmissionFailure(NOT_FOUND, "DEPLOYMENT_NOT_FOUND");
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "UNUSED_CANCELLATION_DEPLOYMENT_BUSY");
+            }
+            // bindRelease locks authorizations before the reservation. Never invert that order here.
+            List<AuthorizationReceipt> authorizations;
+            List<String> ids;
+            try {
+                authorizations = jdbc.query("""
+                    SELECT payload_json FROM deployment_admission_authorizations WHERE reservation_id=?
+                     ORDER BY operation_key FOR UPDATE NOWAIT
+                    """, (rs, row) -> json.read(rs.getString(1), AuthorizationReceipt.class), command.fence().reservationId());
+                ids = jdbc.query("SELECT id FROM deployment_capacity_reservations WHERE id=? FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), command.fence().reservationId());
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "UNUSED_CANCELLATION_AUTHORIZATION_BUSY");
+            }
+            if (ids.size() != 1) throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+            Reservation observed = require(command.fence().reservationId());
+            if (!deploymentId.equals(observed.deploymentId()) || !targetId.equals(observed.targetProfileId()))
+                throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+            var prior = jdbc.query("""
+                SELECT payload_json FROM deployment_admission_unused_cancellations WHERE reservation_id=? AND generation=?
+                """, (rs, row) -> json.read(rs.getString(1), UnusedReservationCancellationReceipt.class),
+                observed.id(), command.fence().generation());
+            if (!prior.isEmpty()) {
+                var receipt = prior.getFirst();
+                if (!fingerprint.equals(receipt.commandFingerprint())) throw new AdmissionFailure(CONFLICT, "CANCELLATION_OPERATION_REUSED");
+                return receipt;
+            }
+            Reservation reservation = fenced(command.fence());
+            if (reservation.state() != State.RESERVED || reservation.expiryState() != ExpiryState.CURRENT
+                || reservation.workerToken() != null || reservation.retirementOperationId() != null
+                || reservation.drainDeadline() != null || reservation.recoveryUntil() != null
+                || reservation.failureCode() != null || reservation.attempts() != 0)
+                throw new AdmissionFailure(CONFLICT, "UNUSED_CANCELLATION_REQUIRES_UNUSED_RESERVATION");
+            Manifest manifest = reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+            if (!reservation.manifestFingerprint().equals(command.manifestFingerprint())
+                || !json.fingerprint(manifest).equals(command.manifestFingerprint())
+                || !reservation.bindingFingerprint().equals(command.bindingFingerprint())
+                || !manifest.bindingFingerprint().equals(command.bindingFingerprint())
+                || !manifest.deploymentId().equals(deploymentId) || !manifest.targetProfileId().equals(targetId)
+                || !manifest.versionId().equals(command.versionId()) || !manifest.versionConfigHash().equals(command.versionConfigHash()))
+                throw new AdmissionFailure(CONFLICT, "UNUSED_CANCELLATION_SCOPE_CHANGED");
+            AuthorizationReceipt selected = null;
+            for (var authorization : authorizations) {
+                if (!reservation.id().equals(authorization.reservationId()) || !reservation.generation().equals(authorization.generation())
+                    || !reservation.manifestFingerprint().equals(authorization.manifestFingerprint())
+                    || authorization.command() == null || authorization.command().customerContext() == null)
+                    throw new AdmissionFailure(CONFLICT, "UNUSED_CANCELLATION_AUTHORIZATION_CHANGED");
+                requireCustomerAuthorization(reservation, authorization.command().customerContext());
+                if (command.authorizationOperationKey().equals(authorization.command().operationKey())) selected = authorization;
+            }
+            if (selected == null || !command.authorizationRequestFingerprint().equals(selected.requestFingerprint()))
+                throw new AdmissionFailure(CONFLICT, "UNUSED_CANCELLATION_AUTHORIZATION_CHANGED");
+            var localEvidence = new AdmissionUnusedReservationEvidence(jdbc, json);
+            UnusedReservationEvidence evidence;
+            List<UnusedConsumerDetachmentReceipt> detachments = List.of();
+            try {
+                evidence = localEvidence.read(reservation, manifest,
+                    command.consumerDetachments().stream().map(UnusedConsumerDetachment::consumerEntityId).toList());
+                if (!command.consumerDetachments().isEmpty()) {
+                    if (consumerDetachment == null) throw new AdmissionFailure(CONFLICT, "UNUSED_CONSUMER_DETACHMENT_UNAVAILABLE");
+                    detachments = consumerDetachment.detach(reservation, command.consumerDetachments(), fingerprint);
+                }
+                // All assignments must now be absent, and every other no-effect input must remain identical.
+                if (!evidence.equals(localEvidence.read(reservation, manifest)))
+                    throw new AdmissionFailure(CONFLICT, "UNUSED_CANCELLATION_EVIDENCE_CHANGED");
+            }
+            catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "UNUSED_CANCELLATION_BINDING_BUSY");
+            }
+            Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+            localEvidence.retainUnusedBindings(reservation, evidence, now);
+            String receiptId = uuid();
+            Mutation mutation = new Mutation(reservation);
+            mutation.state = State.RELEASED; mutation.expiryState = ExpiryState.RELEASED;
+            mutation.worker = null; mutation.nextRetry = null; mutation.failure = null;
+            mutation.evidence = "unused-reservation-cancellation:" + receiptId;
+            Reservation cancelled = save(reservation, mutation, "CANCELLED_UNUSED_NO_EFFECT", actor, now);
+            var receipt = new UnusedReservationCancellationReceipt(receiptId, command.operationKey(), fingerprint,
+                command.authorizationOperationKey(), manifest.versionId(), manifest.versionConfigHash(),
+                CancellationOutcome.CANCELLED_UNUSED_NO_EFFECT, false, actor, now, evidence, detachments, cancelled);
+            jdbc.update("""
+                INSERT INTO deployment_admission_unused_cancellations
+                 (reservation_id,generation,id,operation_key,command_fingerprint,payload_json,cancelled_at)
+                VALUES (?,?,?,?,?,?,?)
+                """, reservation.id(), reservation.generation(), receiptId, command.operationKey(), fingerprint, json.write(receipt), time(now));
+            return receipt;
+        });
+    }
+
+    private void validateUnusedCancellation(CancelUnusedReservation command) {
+        if (command == null || command.fence() == null || command.fence().revision() < 0)
+            throw new AdmissionFailure(BAD_REQUEST, "UNUSED_CANCELLATION_COMMAND_REQUIRED");
+        required(command.fence().reservationId(), 64); required(command.fence().generation(), 64);
+        for (String value : new String[]{command.operationKey(), command.authorizationOperationKey()}) required(value, 128);
+        required(command.authorizationRequestFingerprint(), 64); required(command.manifestFingerprint(), 64);
+        required(command.versionId(), 64); required(command.versionConfigHash(), 255); required(command.bindingFingerprint(), 64);
+        for (String value : new String[]{command.operationKey(), command.authorizationOperationKey(),
+            command.authorizationRequestFingerprint(), command.manifestFingerprint(), command.versionId(),
+            command.versionConfigHash(), command.bindingFingerprint(), command.fence().reservationId(), command.fence().generation()})
+            if (value.chars().anyMatch(Character::isISOControl))
+                throw new AdmissionFailure(BAD_REQUEST, "UNUSED_CANCELLATION_COMMAND_INVALID");
+        if (command.consumerDetachments().size() > 32 || command.consumerDetachments().stream()
+            .map(UnusedConsumerDetachment::consumerEntityId).distinct().count() != command.consumerDetachments().size())
+            throw new AdmissionFailure(BAD_REQUEST, "UNUSED_CONSUMER_EXPECTATIONS_INVALID");
+        for (var consumer : command.consumerDetachments()) {
+            required(consumer.consumerEntityId(), 64);
+            if (consumer.expectedBindingRevision() < 0 || consumer.draftWorkspaces() == null || consumer.draftWorkspaces().size() > 64
+                || consumer.draftWorkspaces().stream().map(DraftWorkspaceExpectation::installationEntityId).distinct().count() != consumer.draftWorkspaces().size())
+                throw new AdmissionFailure(BAD_REQUEST, "UNUSED_CONSUMER_EXPECTATIONS_INVALID");
+            for (var workspace : consumer.draftWorkspaces()) {
+                required(workspace.installationEntityId(), 64);
+                if (workspace.expectedRowVersion() < 0) throw new AdmissionFailure(BAD_REQUEST, "UNUSED_CONSUMER_EXPECTATIONS_INVALID");
+            }
+        }
+    }
+
+    private RuntimeException unusedCancellationLockFailure(org.springframework.dao.DataAccessException failure, String code) {
+        // Spring's default translator does not consistently classify PostgreSQL NOWAIT (55P03).
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof java.sql.SQLException sql && ("55P03".equals(sql.getSQLState())
+                || "HYT00".equals(sql.getSQLState()) && sql.getErrorCode() == 50200))
+                return new AdmissionFailure(CONFLICT, code);
+        }
+        return failure;
+    }
+
     ReleaseBinding releaseBinding(String releaseId) {
         var rows = jdbc.query("SELECT * FROM deployment_admission_release_bindings WHERE release_id=?",
             (rs, row) -> new ReleaseBinding(rs.getString("release_id"), rs.getString("reservation_id"), rs.getString("generation"),

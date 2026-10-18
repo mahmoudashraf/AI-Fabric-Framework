@@ -113,6 +113,63 @@ class DeploymentExistingVectorBindingServiceTest {
     }
     private static final String URI_HOST = "cluster-free.serverless.aws-eu-central-1.cloud.zilliz.com";
 
+    @Test void freshCandidateRequiresExactCancellationProofForEveryHistoricalClusterHandle() {
+        var proof = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "unusedCancellations", proof);
+        var first = historicalHandle("old-one");
+        var second = historicalHandle("old-two");
+        when(handles.findFirstByProviderTypeAndProviderResourceUuid(DeploymentProviderType.COOLIFY, CLUSTER)).thenReturn(Optional.of(first));
+        when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of(first, second));
+        when(proof.permitsFreshBinding(eq(first), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), anyString())).thenReturn(true);
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
+        verifyNoInteractions(zilliz);
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+        when(proof.permitsFreshBinding(eq(second), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), anyString())).thenReturn(true);
+        var bound = service.bind(deployment.getId(), TARGET, request());
+        String prefix = scopes.targetScopedProviderConfig(deployment, config, TARGET).path("milvusCollectionPrefix").asText();
+        assertThat(bound.collectionPrefix()).isEqualTo(prefix);
+        verify(proof, atLeastOnce()).permitsFreshBinding(eq(first), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), eq(prefix));
+        verify(proof, atLeastOnce()).permitsFreshBinding(eq(second), eq(deployment.getCustomerId()), eq(deployment.getTenantId()), anyString(), eq(prefix));
+        verify(zilliz).getCluster(CLUSTER, "control-plane-only");
+        verify(zilliz).listServingCollections(ENDPOINT, "db_admin", "serving-password");
+    }
+
+    @Test void inactiveHistoricalHandleWithoutReceiptReaderStillBlocksAndSameDeploymentCannotBeRebound() {
+        var old = historicalHandle("old-one");
+        when(handles.findFirstByProviderTypeAndProviderResourceUuid(DeploymentProviderType.COOLIFY, CLUSTER)).thenReturn(Optional.of(old));
+        when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of(old));
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
+        verifyNoInteractions(zilliz);
+        when(handles.findFirstByProviderTypeAndProviderResourceUuid(DeploymentProviderType.COOLIFY, CLUSTER)).thenReturn(Optional.empty());
+        when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of());
+        service.bind(deployment.getId(), TARGET, request());
+        saved.setStatus("RETAINED_UNUSED");
+        clearInvocations(zilliz, secrets, handles);
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "BINDING_IMMUTABLE");
+        verifyNoInteractions(zilliz);
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+    }
+
+    private DeploymentProviderResourceHandleEntity historicalHandle(String id) {
+        var handle = new DeploymentProviderResourceHandleEntity(); handle.setId(id);
+        handle.setProviderType(DeploymentProviderType.COOLIFY); handle.setProviderResourceUuid(CLUSTER);
+        handle.setTargetProfileId(TARGET);
+        handle.setStatus("RETAINED_UNUSED"); handle.setResourceKind(DeploymentExistingVectorBindingService.RESOURCE_KIND);
+        return handle;
+    }
+
+    @Test void historicalCancellationCannotAuthorizeAnotherTargetOrProviderType() {
+        var proof = mock(com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "unusedCancellations", proof);
+        var previous = historicalHandle("previous"); previous.setTargetProfileId("other-target");
+        when(handles.findByProviderResourceUuidOrderByIdAsc(CLUSTER)).thenReturn(java.util.List.of(previous));
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
+        previous.setTargetProfileId(TARGET); previous.setProviderType(DeploymentProviderType.RAILWAY_API);
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "CLUSTER_ALREADY_BOUND");
+        verifyNoInteractions(proof, zilliz);
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+    }
+
     @ParameterizedTest @ValueSource(strings = {"TOKEN", "USERNAME_PASSWORD"})
     void firstResponseAndExactReplayKeepPostgresPrecisionWithoutRefreshingTimestamps(String authType) {
         if (authType.equals("TOKEN")) useTokenConfig();

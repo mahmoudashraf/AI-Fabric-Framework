@@ -2,7 +2,16 @@ package com.ai.fabric.platform.backend.deployment.admission;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +111,82 @@ public final class AdmissionContracts {
                                    String targetProfileId, String releaseId, Instant observedAt,
                                    java.util.List<ActivitySignal> signals) { }
     public record Fence(String reservationId, long revision, String generation) { }
+    public record CancelUnusedReservation(
+                                           @JsonProperty(value = "fence", required = true) @JsonSetter(nulls = Nulls.FAIL)
+                                           @JsonDeserialize(using = CancelUnusedFenceDeserializer.class) Fence fence,
+                                           String operationKey, String authorizationOperationKey,
+                                           String authorizationRequestFingerprint, String manifestFingerprint,
+                                           String versionId, String versionConfigHash, String bindingFingerprint,
+                                           List<UnusedConsumerDetachment> consumerDetachments) {
+        public CancelUnusedReservation {
+            if (consumerDetachments != null && consumerDetachments.stream().anyMatch(java.util.Objects::isNull))
+                throw new IllegalArgumentException("Consumer detachment expectations must not contain null entries.");
+            consumerDetachments = consumerDetachments == null ? List.of() : consumerDetachments.stream()
+                .sorted(java.util.Comparator.comparing(UnusedConsumerDetachment::consumerEntityId,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()))).toList();
+        }
+        public CancelUnusedReservation(Fence fence, String operationKey, String authorizationOperationKey,
+                                       String authorizationRequestFingerprint, String manifestFingerprint,
+                                       String versionId, String versionConfigHash, String bindingFingerprint) {
+            this(fence, operationKey, authorizationOperationKey, authorizationRequestFingerprint, manifestFingerprint,
+                versionId, versionConfigHash, bindingFingerprint, List.of());
+        }
+    }
+    /** Cancellation requires explicit JSON evidence; other commands retain the shared Fence contract. */
+    public static final class CancelUnusedFenceDeserializer extends JsonDeserializer<Fence> {
+        @Override public Fence deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            JsonNode value = parser.getCodec().readTree(parser);
+            if (!value.isObject()) return context.reportInputMismatch(Fence.class, "Cancellation fence must be an object.");
+            JsonNode reservationId = value.get("reservationId");
+            JsonNode revision = value.get("revision");
+            JsonNode generation = value.get("generation");
+            if (reservationId == null || !reservationId.isTextual() || generation == null || !generation.isTextual()
+                || revision == null || !revision.isIntegralNumber() || !revision.canConvertToLong())
+                return context.reportInputMismatch(Fence.class,
+                    "Cancellation fence requires textual reservationId and generation and an explicit integral long revision.");
+            return new Fence(reservationId.textValue(), revision.longValue(), generation.textValue());
+        }
+    }
+    public record DraftWorkspaceExpectation(String installationEntityId,
+            @JsonProperty(value = "expectedRowVersion", required = true) @JsonSetter(nulls = Nulls.FAIL) long expectedRowVersion) { }
+    public record UnusedConsumerDetachment(String consumerEntityId,
+            @JsonProperty(value = "expectedBindingRevision", required = true) @JsonSetter(nulls = Nulls.FAIL) long expectedBindingRevision,
+                                            List<DraftWorkspaceExpectation> draftWorkspaces) {
+        public UnusedConsumerDetachment {
+            if (draftWorkspaces != null && draftWorkspaces.stream().anyMatch(java.util.Objects::isNull))
+                throw new IllegalArgumentException("Draft workspace expectations must not contain null entries.");
+            if (draftWorkspaces != null) draftWorkspaces = draftWorkspaces.stream()
+                .sorted(java.util.Comparator.comparing(DraftWorkspaceExpectation::installationEntityId,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()))).toList();
+        }
+    }
+    public record UnusedConsumerDetachmentReceipt(String consumerEntityId, long fromBindingRevision,
+                                                   long toBindingRevision, String historyId, String operationKey,
+                                                   List<DraftWorkspaceExpectation> preservedDraftWorkspaces) {
+        public UnusedConsumerDetachmentReceipt { preservedDraftWorkspaces = List.copyOf(preservedDraftWorkspaces); }
+    }
+    public enum BindingCancellationDisposition { PRESERVED_METADATA, RETAINED_UNUSED }
+    public record RetainedBindingMetadata(String handleId, String resourceKind, String identityFingerprint,
+                                           BindingCancellationDisposition disposition) { }
+    public record UnusedAuthorityCandidate(String snapshotId, String fingerprint, long generation) { }
+    /** Local no-effect evidence only; neither external absence nor provider health is asserted. */
+    public record UnusedReservationEvidence(List<RetainedBindingMetadata> retainedBindings,
+                                             List<UnusedAuthorityCandidate> authorityCandidates) {
+        public UnusedReservationEvidence {
+            retainedBindings = List.copyOf(retainedBindings);
+            authorityCandidates = List.copyOf(authorityCandidates);
+        }
+    }
+    public enum CancellationOutcome { CANCELLED_UNUSED_NO_EFFECT }
+    public record UnusedReservationCancellationReceipt(String id, String operationKey, String commandFingerprint,
+                                                        String authorizationOperationKey, String versionId,
+                                                        String versionConfigHash, CancellationOutcome outcome,
+                                                        boolean reclamationPerformed, String actorId,
+                                                        Instant cancelledAt, UnusedReservationEvidence evidence,
+                                                        List<UnusedConsumerDetachmentReceipt> consumerDetachments,
+                                                        Reservation reservation) {
+        public UnusedReservationCancellationReceipt { consumerDetachments = List.copyOf(consumerDetachments); }
+    }
     public record Reservation(String id, String customerId, String tenantId, String deploymentId,
                               String targetProfileId, Intent intent, String operationKey, String requestFingerprint,
                               String generation, long revision, State state, Vector demand, String policyId,

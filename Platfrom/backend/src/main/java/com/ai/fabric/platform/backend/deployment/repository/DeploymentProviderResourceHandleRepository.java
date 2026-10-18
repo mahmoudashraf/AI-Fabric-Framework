@@ -34,4 +34,6 @@ public interface DeploymentProviderResourceHandleRepository extends JpaRepositor
         DeploymentProviderType providerType,
         String providerResourceUuid
     );
+
+    List<DeploymentProviderResourceHandleEntity> findByProviderResourceUuidOrderByIdAsc(String providerResourceUuid);
 }

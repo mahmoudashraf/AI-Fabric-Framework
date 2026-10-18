@@ -55,6 +55,8 @@ public class DeploymentExistingVectorBindingService {
     private final TargetRetirementGateService retirement;
     private final PlatformAuditService audit;
     private final ObjectMapper mapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence unusedCancellations;
 
     public DeploymentExistingVectorBindingService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentTargetProfileRepository targets, DeploymentProviderResourceHandleRepository handles,
@@ -119,8 +121,17 @@ public class DeploymentExistingVectorBindingService {
             resolve(deployment, version, config, targetId);
             return summary(previous);
         }
-        if (handles.findFirstByProviderTypeAndProviderResourceUuid(target.getProviderType(), clusterId).isPresent()) {
-            throw new ResponseStatusException(CONFLICT, "EXTERNAL_VECTOR_CLUSTER_ALREADY_BOUND");
+        var historical = handles.findFirstByProviderTypeAndProviderResourceUuid(target.getProviderType(), clusterId);
+        var all = handles.findByProviderResourceUuidOrderByIdAsc(clusterId);
+        if (historical.isPresent() || !all.isEmpty()) {
+            String newPrefix = scopes.targetScopedProviderConfig(deployment, config, targetId).path("milvusCollectionPrefix").asText();
+            if (unusedCancellations == null || all.isEmpty()
+                || historical.isPresent() && all.stream().noneMatch(value -> value.getId().equals(historical.get().getId()))
+                || all.stream().anyMatch(value -> value.getProviderType() != target.getProviderType()
+                    || !clusterId.equals(value.getProviderResourceUuid())
+                    || !targetId.equals(value.getTargetProfileId())
+                    || !unusedCancellations.permitsFreshBinding(value, deployment.getCustomerId(), deployment.getTenantId(), approval, newPrefix)))
+                throw new ResponseStatusException(CONFLICT, "EXTERNAL_VECTOR_CLUSTER_ALREADY_BOUND");
         }
         String managementKey = secrets.resolveSecret("ZILLIZ_CLOUD_API_KEY");
         if (managementKey == null || managementKey.isBlank()) throw failure("EXTERNAL_VECTOR_READBACK_CREDENTIAL_REQUIRED");

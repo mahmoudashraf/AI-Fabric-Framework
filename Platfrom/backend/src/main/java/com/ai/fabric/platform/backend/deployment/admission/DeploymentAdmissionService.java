@@ -46,6 +46,8 @@ public class DeploymentAdmissionService {
     private final ObjectProvider<AdmissionResourceReadbackSource> resourceSources;
     private final ObjectProvider<AdmissionNoticeDeliverySource> noticeSources;
     private final TargetRetirementGateService retirementGates;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AdmissionUnusedConsumerDetachment unusedConsumerDetachment;
 
     public DeploymentAdmissionService(AdmissionStore store, AdmissionJson json, ObjectMapper mapper,
                                       DeploymentRepository deployments, DeploymentVersionRepository versions,
@@ -149,6 +151,15 @@ public class DeploymentAdmissionService {
         FleetPolicy policy = store.reviewed("POLICY", r.policyId(), FleetPolicy.class);
         ResourceReadback evidence = one(resourceSources, "RESOURCE_READBACK_ADAPTER_REQUIRED").read(new ReadbackContext(r, policy, r.workerToken()));
         return store.reconcile(fence, evidence, releaseCapacity, actor(), Instant.now());
+    }
+    public UnusedReservationCancellationReceipt cancelUnusedReservation(String deploymentId, String targetProfileId,
+                                                                         CancelUnusedReservation command) {
+        staff();
+        if (command == null) throw new AdmissionFailure(BAD_REQUEST, "UNUSED_CANCELLATION_COMMAND_REQUIRED");
+        Reservation reservation = owned(deploymentId, id(command.fence()), true);
+        if (!required(targetProfileId, 64).equals(reservation.targetProfileId()))
+            throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+        return store.cancelUnused(deploymentId, targetProfileId, command, actor(), unusedConsumerDetachment);
     }
     /** Only trusted accepted-work hooks may record activity; health probes/UI polling have no enum value. */
     public Reservation recordActivity(String deploymentId, Fence fence, Activity activity, String evidenceReference) {

@@ -1666,3 +1666,67 @@ write-only bindings, never this ledger.
   production. Keep Hetzner access open. Actual provider/indexing acceptance,
   measured admission, retained-index completion, production fit/promotion and
   completeP6/P7 remain open. UI extraction remains last and untouched.
+
+### 2026-10-18 Accurate Runtime Contract And Unused Admission Cancellation
+
+- Backend source `8432ec735` is verified live on both control planes at migration
+  193. The native-token runtime remains source `d2b1a9792` / AI Fabric `0.8.36`;
+  the image's framework JARs match Maven Central. No additional framework release
+  is required for the template correction or cancellation work described here.
+- The v11 configuration canary reached a real customer capacity reservation,
+  then normal apply rejected an unsupported `GOVERNED_RESOLVER` declaration.
+  Read-only reconciliation found no release, apply command, release binding or
+  model allocation. The full physical reservation remains held until explicitly
+  cancelled. This is a genuine contract defect, not an LLM routing failure.
+- Commit `1cc4beaab` adds immutable template/spec 1.9 and offer v12. Only the
+  unsupported extension declaration changes: existing in-chat confirmed actions,
+  protected test-drive action, callback, handover, plugins, resource envelope and
+  service images remain. The helper validates complete catalog-derived runtime
+  requirements rather than extension labels alone. Backend CI 39169645144 passed;
+  this source is not yet deployed at this checkpoint.
+- Generic V195 cancellation work preserves published configuration, DRAFT apps,
+  old consumer binding history, write-only secrets and external data. The staff
+  command requires exact reservation/authorization fingerprints and explicit
+  consumer/app revision expectations. Owning binding mutations, local no-effect
+  recheck, durable receipt and physical-capacity release share one transaction.
+  Concurrent apply or binding ownership returns a bounded conflict. Provisioned,
+  uncertain, release-backed or active/formerly-active workspaces cannot qualify.
+  `CANCELLED_UNUSED_NO_EFFECT` does not claim provider reclamation or reset the
+  separate cumulative model campaign. Retained-index retirement remains blocked.
+- Final parent integrated verification passed 282 tests across 12 classes with
+  no failures/errors/skips,
+  including PostgreSQL lock ordering, cancellation replay, JPA/JDBC rollback,
+  native binding and INDEX preservation. A sandbox-only attempt could not access
+  Docker and is not counted; the explicitly Docker-enabled run executed all
+  cases. Full Spring startup, customer publishing/bootstrap and the actual 195-
+  migration chain passed. Independent review closed with no open P1/P2 findings
+  after adding cancellation-only strict fence JSON validation: omitted/null,
+  overflow and coerced revisions cannot silently become revision zero. Shared
+  fence deserialization remains unchanged. No live cancellation has been
+  performed yet.
+- Fresh pre-cancellation control-plane backups were actually restored in
+  isolated local PostgreSQL 18 fixtures: staging report
+  `/private/tmp/01036-local-control-plane-restore-XicZFNZm0a3N/report.json`,
+  production report
+  `/private/tmp/01036-local-control-plane-restore-SKy21x70E9yc/report.json`.
+  These prove control-plane recovery, not deployed-runtime topology or financial
+  accounting-store recovery. All 30 paused workloads were rechecked unchanged.
+- Final fresh pre-rollout archives are in
+  `/private/tmp/01036-control-plane-pre-195-final-20261018/`. Both were actually
+  restored with the cached official PostgreSQL 18 digest, migration 193, and
+  owned-fixture cleanup passed: staging `RW06yGzAXL25`, production `Dx7nNrLCTivQ`
+  under `/private/tmp/01036-local-control-plane-restore-*/report.json`.
+  A first no-pull invocation requested a missing local tag and failed before
+  creating anything; it was not counted as successful restore evidence.
+- Owner chose one production Serverless vector cluster per tenant/dealership,
+  not a new cluster per release/version/user. The separately approved Frankfurt
+  production cluster remains; staging keeps Free-01. The eight old Default
+  Project clusters were removed by the dedicated prerequisite session under
+  direct owner approval, not this implementation process. No duplicate deletion,
+  new key/role, production model allowance or production promotion was performed.
+  The same staging USD12/200,000-token/50-request campaign remains unchanged and
+  has allocated zero so far.
+- A replacement self-service bootstrap creates a new synthetic tenant. Reusing
+  Free-01 for that tenant requires an explicit owner answer; current retained
+  binding reuse remains SAME-TENANT only. UI extraction is still last and has
+  not been advanced to hide these backend/live-readiness boundaries.

@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.tenant.service;
 
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceBindingGuard;
+import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceDeploymentSecurityProjectionService;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
@@ -57,6 +58,7 @@ public class PlatformCustomerConsumerService {
 
     private static final String ACTIVE = "ACTIVE";
     private static final String DISABLED = "DISABLED";
+    private enum BindingProjection { SYNCHRONIZE_DRAFT, RETAIN_UNUSED_PUBLISHED_DRAFT }
 
     private final PlatformConsumerRepository consumerRepository;
     private final PlatformConsumerBindingHistoryRepository bindingHistoryRepository;
@@ -73,6 +75,8 @@ public class PlatformCustomerConsumerService {
     private final DeploymentTargetProfileRepository targetProfiles;
     private final CustomerStagingAssignmentAccessGate stagingAssignmentAccessGate;
     private final CustomerReviewedBindingBoundary reviewedBindingBoundary;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager unusedCancellationEntityManager;
 
     public PlatformCustomerConsumerService(PlatformConsumerRepository consumerRepository,
                                            PlatformConsumerBindingHistoryRepository bindingHistoryRepository,
@@ -292,6 +296,54 @@ public class PlatformCustomerConsumerService {
         );
     }
 
+    public record UnusedCancellationDetachment(String consumerEntityId, long fromBindingRevision,
+                                               long toBindingRevision, String historyId, String operationKey) { }
+
+    /** Trusted cancellation transaction only. This does not retire a target or disable an app. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public UnusedCancellationDetachment detachNeverActivatedForUnusedCancellation(String customerId, String consumerEntityId,
+            String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
+            Map<String, Long> expectedDraftWorkspaces) {
+        var actor = PlatformSecurityContext.currentPrincipal();
+        if (!PlatformSecurityContext.isAuthenticated()
+            || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+            || actor == null || (actor.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN
+                && actor.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_OPERATOR))
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "UNUSED_CONSUMER_CANCELLATION_AUTHORITY_REQUIRED");
+        requireActiveCustomer(customerId);
+        unusedCancellationEntityManager.createNativeQuery("SELECT id FROM platform_consumers WHERE id=?1 FOR UPDATE NOWAIT")
+            .setParameter(1, consumerEntityId).getResultList();
+        unusedCancellationEntityManager.createNativeQuery("SELECT id FROM ai_workspace_installations WHERE consumer_entity_id=?1 ORDER BY id FOR UPDATE NOWAIT")
+            .setParameter(1, consumerEntityId).getResultList();
+        var observed = consumerRepository.findById(consumerEntityId).orElseThrow(() -> new ResponseStatusException(CONFLICT, "CONSUMER_MISSING"));
+        var consumer = requireBindingConsumer(customerId, observed.getConsumerId());
+        if (!consumerEntityId.equals(consumer.getId()) || !customerId.equals(consumer.getCustomerId())
+            || !deploymentId.equals(consumer.getBoundDeploymentId()) || !targetProfileId.equals(consumer.getBoundTargetProfileId())
+            || consumer.getBoundReleaseId() != null || expectedBindingRevision != 1 || consumer.getBindingRevision() != expectedBindingRevision
+            || !ACTIVE.equals(consumer.getStatus()))
+            throw new ResponseStatusException(CONFLICT, "UNUSED_CONSUMER_ASSIGNMENT_CHANGED");
+        var history = bindingHistoryRepository.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId);
+        if (history.size() != 1) throw new ResponseStatusException(CONFLICT, "UNUSED_CONSUMER_HISTORY_UNPROVEN");
+        var initial = history.getFirst();
+        if (!customerId.equals(initial.getCustomerId()) || initial.getFromDeploymentId() != null || initial.getFromReleaseId() != null
+            || initial.getToReleaseId() != null || initial.getFromTargetProfileId() != null
+            || !deploymentId.equals(initial.getToDeploymentId()) || !targetProfileId.equals(initial.getToTargetProfileId())
+            || !Long.valueOf(0).equals(initial.getFromBindingRevision()) || !Long.valueOf(1).equals(initial.getToBindingRevision()))
+            throw new ResponseStatusException(CONFLICT, "UNUSED_CONSUMER_HISTORY_UNPROVEN");
+        var apps = aiWorkspaceInstallations.findByConsumerEntityIdAndStatusIn(consumerEntityId,
+            List.of(AIWorkspaceInstallationStatus.values()));
+        Map<String, Long> actualDrafts = apps.stream().collect(Collectors.toMap(AIWorkspaceInstallationEntity::getId,
+            AIWorkspaceInstallationEntity::getRowVersion));
+        if (expectedDraftWorkspaces == null || !actualDrafts.equals(expectedDraftWorkspaces)
+            || apps.stream().anyMatch(app -> !customerId.equals(app.getCustomerId()) || app.getStatus() != AIWorkspaceInstallationStatus.DRAFT
+                || app.getActivatedAt() != null || app.getDisabledAt() != null))
+            throw new ResponseStatusException(CONFLICT, "UNUSED_CONSUMER_WORKSPACE_CHANGED");
+        var result = updateBindingInternal(consumer, null, null, null, "Unused reservation cancellation", true,
+            expectedBindingRevision, operationKey, true, false, BindingProjection.RETAIN_UNUSED_PUBLISHED_DRAFT);
+        var receipt = bindingHistoryRepository.findByConsumerEntityIdAndOperationKey(consumerEntityId, operationKey).orElseThrow();
+        return new UnusedCancellationDetachment(consumerEntityId, expectedBindingRevision, result.bindingRevision(), receipt.getId(), operationKey);
+    }
+
     @Transactional
     public void deleteConsumer(String customerId, String consumerId) {
         PlatformConsumerEntity consumer = requireManagedConsumer(customerId, consumerId);
@@ -454,6 +506,15 @@ public class PlatformCustomerConsumerService {
                                                           String operationKey,
                                                           boolean enforceWorkspaceGuard,
                                                           boolean enforceReviewedOfferBoundary) {
+        return updateBindingInternal(consumer, nextDeploymentId, nextReleaseId, requestedTargetProfileId, reason,
+            requireVerifiedRelease, expectedBindingRevision, operationKey, enforceWorkspaceGuard,
+            enforceReviewedOfferBoundary, BindingProjection.SYNCHRONIZE_DRAFT);
+    }
+
+    private PlatformConsumerSummary updateBindingInternal(PlatformConsumerEntity consumer, String nextDeploymentId,
+            String nextReleaseId, String requestedTargetProfileId, String reason, boolean requireVerifiedRelease,
+            Long expectedBindingRevision, String operationKey, boolean enforceWorkspaceGuard,
+            boolean enforceReviewedOfferBoundary, BindingProjection projection) {
         if (expectedBindingRevision == null || expectedBindingRevision < 0) {
             throw new ResponseStatusException(BAD_REQUEST, "expectedBindingRevision is required and must not be negative.");
         }
@@ -537,7 +598,8 @@ public class PlatformCustomerConsumerService {
         }
         bindingHistoryRepository.saveAndFlush(history);
 
-        if (changed && !java.util.Objects.equals(previousDeploymentId, nextDeploymentId)) {
+        if (changed && !java.util.Objects.equals(previousDeploymentId, nextDeploymentId)
+            && projection == BindingProjection.SYNCHRONIZE_DRAFT) {
             aiWorkspaceSecurityProjection.synchronizeBindingChange(
                 consumer.getId(), previousDeploymentId, nextDeploymentId);
         }

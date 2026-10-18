@@ -70,6 +70,16 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
     }
     @AfterEach void clearIdentity() { SecurityContextHolder.clearContext(); }
 
+    @Test void unusedCancellationRequiresStaffBeforeAnyCommandOrEvidenceRead() {
+        authenticate(PlatformRole.CUSTOMER_ADMIN);
+        assertThatThrownBy(() -> service.cancelUnusedReservation("deployment1", TARGET, null)).hasMessageContaining("STAFF_REVIEW_REQUIRED");
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> service.cancelUnusedReservation("deployment1", TARGET, null)).hasMessageContaining("ACTIVE_STAFF_REQUIRED");
+        authenticate(PlatformRole.PLATFORM_OPERATOR);
+        assertThatThrownBy(() -> service.cancelUnusedReservation("deployment1", TARGET, null)).hasMessageContaining("UNUSED_CANCELLATION_COMMAND_REQUIRED");
+        verifyNoInteractions(deployments, access);
+    }
+
     @Test
     void anonymousActorAndMissingActiveOwnerFailClosedEvenWithoutMethodProxy() {
         SecurityContextHolder.clearContext();

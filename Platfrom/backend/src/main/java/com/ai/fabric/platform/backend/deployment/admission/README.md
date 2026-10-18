@@ -1,7 +1,8 @@
 # R7 Admission And Staging Expiry Sidecar
 
-Independent control-plane primitives for `010.36` / `01036-capacity-expiry-recovery`.
-No controller, scheduler, provisioner, deletion executor or offer is installed.
+Control-plane primitives for `010.36` / `01036-capacity-expiry-recovery`.
+The ledger itself performs no remote provisioning or deletion. Explicit reviewed
+controllers, adapters and lifecycle workers provide the integration boundaries.
 No measured envelopes, resource limits, durations or customer grants are seeded.
 CPU-only observations cannot approve a policy: measured RAM/disk remain required.
 
@@ -70,6 +71,34 @@ CPU-only observations cannot approve a policy: measured RAM/disk remain required
   operation with `acknowledgeRetirementHandoff`; capacity still remains reserved.
   Only generation-bound readback after the recovery window releases it. Retry an
   uncertain R3 operation through R3, not a second expiry claim or deployment delete.
+
+## Cancel A Never-Used Reservation
+
+`POST /api/platform/deployments/{deploymentId}/targets/{targetProfileId}/admission-reservations/cancel-unused`
+is an explicit staff-only alternative to retirement when an apply was rejected
+before any release or provider effect. It is not a cleanup shortcut for failed,
+unknown, provisioned or retained-index workloads.
+
+- Supply the exact reservation ID/generation/revision, manifest and binding
+  fingerprints, published version/hash and original allocation authorization.
+  The server verifies durable no-effect evidence; callers cannot provide counts
+  or claim that external data is absent.
+- Explicitly enumerate any never-activated consumer binding at revision 1 and
+  its complete DRAFT workspace ID/revision set. Unknown, active, formerly active
+  or release-backed assignments block cancellation. The owning consumer service
+  records normal binding history; draft apps and published configuration remain.
+- No-wait row locks reject competing apply/binding/lifecycle work with a conflict.
+  The binding history, retained-handle disposition, receipt and physical-capacity
+  release commit atomically. Any failure rolls back the whole operation.
+- A retained external vector binding becomes `RETAINED_UNUSED`; its original
+  metadata, credentials, collection prefix and external data are not removed.
+  Same-tenant fresh binding requires the exact committed cancellation receipt,
+  matching owner approval and a distinct prefix. Cross-tenant reuse remains
+  prohibited. Customer-managed document storage remains untouched.
+- Replay the identical command after an uncertain response. Changed expectations
+  are not an idempotent replay. Successful cancellation reports
+  `CANCELLED_UNUSED_NO_EFFECT` and `reclamationPerformed=false`: no provider
+  deletion, credit refund, financial-allowance reset or zero-index claim occurs.
 
 ## Acceptance And Remaining Gates
 

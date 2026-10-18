@@ -158,7 +158,15 @@ class ExistingVectorBindingMigrationPostgresTest {
                 assertThat(action.path("readOnly").booleanValue()).isFalse();
             });
         assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
-
+        String correctedHistory = text("select row_to_json(v)::text from platform_marketplace_plugin_versions v where id='mkv-template-simulated-dealership-experience-v1-9'");
+        migrate("195");
+        assertThat(text("select row_to_json(v)::text from platform_marketplace_plugin_versions v where id='mkv-template-simulated-dealership-experience-v1-9'"))
+            .isEqualTo(correctedHistory);
+        assertThat(text("select json_agg(row_to_json(p) order by id)::text from deployment_target_profiles p")).isEqualTo(targets);
+        assertThat(text("select count(*)::text from deployment_admission_unused_cancellations")).isEqualTo("0");
+        assertThat(text("select count(*)::text from deployment_capacity_reservations")).isEqualTo("0");
+        assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
+        assertThat(text("select version from flyway_schema_history where success order by installed_rank desc limit 1")).isEqualTo("195");
     }
 
     @ParameterizedTest
