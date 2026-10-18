@@ -1,5 +1,16 @@
 # 010.36 Retained External Vector Canary
 
+## Hosted Native-Token Image Verified
+
+Both control planes are verified on source d2b1a9792/migration193/healthUP after
+fresh backups and successful isolated restores. Actual CI runtime digest
+`sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140`
+passed unstarted-container inspection:20 framework0.8.36 jars match Central,
+manifest matches committed source, token and all budget guards are present.
+Staging reviewed artifact: dsa-94841998. No customer runtime is applied yet.
+New spec1.8/offer v11 pin this image and template1.8; old publications are not
+rewritten. Provider binding/admission/attended canary are still required.
+
 ## Current Checkpoint: Native Token Integration
 
 Owner explicitly authorized use of the existing broader API key for Free-01

@@ -6,6 +6,31 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+Latest hosted readback, 2026-10-18: backend source `d2b1a9792` and migration193
+are verified on both control planes, with public healthUP and exact OCI revision/
+RepoDigest. Backend digest:
+`sha256:60d3992614c667af9d9d286124bdf9f529559cfb05f0beb4bbbeeadda4ebc89b`.
+Rollouts: staging `t1i0q0vpyejmte8tpo3sk9t8`, production `gy2uuzgf84h00stdxdtkx7sn`.
+Fresh pre-V193 backups both passed isolated local PostgreSQL18 restores through
+their actual migration192; reports `...restore-nDRlOyyQsbWQ/report.json` and
+`...restore-7kUaIKpz9a6q/report.json` under `/private/tmp/01036-local-control-plane-`.
+These are control-plane backup proofs, not customer-runtime/topology recovery.
+
+Runtime CI39164527840 succeeded. Exact image
+`sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140`
+was inspected in an unstarted network-disabled local container, which was then
+removed. All20 framework0.8.36 jars match Central byte-for-byte; packaged manifest
+equals committed source and includes native-token plus all provider-budget guards
+and V19/private accounting libraries. Evidence:
+`/private/tmp/01036-native-token-image-proof-S9qoQ6dRZFFj/evidence.json`.
+Artifact `dsa-94841998` / normalized manifest hash
+`abbe7561d843ef3c111bbb2702f012227e432cb6c8a2f8d6186200bd134982d6`
+is registered/promoted on staging. This is not an applied customer runtime.
+Offer v11/spec1.8 preparation passes27 synthetic tests; graph/resources/BasicInbox
+images are unchanged. Spec identity changes because lookup is template-version
+scoped, not because dependency code was rebuilt. No credit allocation/provider
+writes or production customer promotion occurred. UI extraction remains last.
+
 - P0: source contract implemented and integrated; prerequisite acceptance is in
   progress. The customer-owned S3 canary passes exact bucket posture, explicit
   unversioned state, identity separation, prefix isolation, bounded object reads

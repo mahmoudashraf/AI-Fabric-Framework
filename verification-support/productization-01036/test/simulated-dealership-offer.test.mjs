@@ -5,12 +5,14 @@ import {
   artifactFingerprint,
   buildOfferDefinition,
   hash,
+  MILVUS_TOKEN_CAPABILITY,
   OFFER_ID,
   OPENAI_MAX_TOKENS,
   profileFingerprint,
   REVIEWED_LIMITS,
   REVIEWED_TOPOLOGY,
   reviewedTopologyCapacity,
+  RUNTIME_FRAMEWORK_VERSION,
   RUNTIME_IMAGE_DIGEST,
   RUNTIME_SOURCE_COMMIT,
   TEMPLATE_PLUGIN_ID,
@@ -21,7 +23,8 @@ import {
 const auth = {projectUrl: "https://example.supabase.co", publishableKey: "public-test-key"};
 const manifest = (pluginId, version) => ({pluginId, version, contributions: pluginId === TEMPLATE_PLUGIN_ID
   ? {template: {providerConfig: {openaiMaxTokens: OPENAI_MAX_TOKENS, vectorStrategy: "milvus",
-    vectorProvisioningMode: "EXTERNAL_EXISTING", vectorStoragePosture: "SHARED", milvusExternalBindingRequired: true}}} : {}});
+    vectorProvisioningMode: "EXTERNAL_EXISTING", vectorStoragePosture: "SHARED", milvusExternalBindingRequired: true,
+    milvusAuthenticationType: "TOKEN"}}} : {}});
 const version = (pluginId, semanticVersion, id) => ({
   pluginId, version: semanticVersion, id, manifest: manifest(pluginId, semanticVersion),
 });
@@ -50,10 +53,10 @@ const artifact = {
   id: "runtime-artifact", artifactRole: "RUNTIME", artifactType: "DOCKER_IMAGE",
   serviceName: "ai-fabric-runtime", imageRepository: "registry/runtime",
   imageDigest: RUNTIME_IMAGE_DIGEST, gitCommitSha: RUNTIME_SOURCE_COMMIT,
-  promotionChannel: "staging",
+  promotionChannel: "staging", promotedAt: "2026-10-18T21:00:00Z", buildRunId: "39164527840",
   capabilityManifest: {
-    aiFabricVersion: "0.8.35",
-    capabilities: ["deployment-local-provider-budget-v1"],
+    aiFabricVersion: RUNTIME_FRAMEWORK_VERSION,
+    capabilities: ["deployment-local-provider-budget-v1", MILVUS_TOKEN_CAPABILITY],
     endpointClasses: ["provider-budget-administration"],
     migrationIds: ["provider-budget-accounting-v1"],
     verificationPackIds: ["provider-budget-hard-limit-v1"],
@@ -64,7 +67,7 @@ const artifact = {
 function offerInputs() {
   return {
     template: {
-      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
+      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
       contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
     },
     pluginVersions: [version("data", "1.0.0", "data-v1")],
@@ -75,24 +78,28 @@ function offerInputs() {
   };
 }
 
-test("v10 pins template 1.7.0 and the same guarded image as an unmeasured external staging candidate", () => {
-  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v10");
-  assert.equal(TEMPLATE_VERSION, "1.7.0");
+test("v11 pins template 1.8.0 and the verified native-token image as an unmeasured external staging candidate", () => {
+  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v11");
+  assert.equal(TEMPLATE_VERSION, "1.8.0");
+  assert.equal(RUNTIME_FRAMEWORK_VERSION, "0.8.36");
+  assert.equal(MILVUS_TOKEN_CAPABILITY, "milvus-token-authentication-v1");
   assert.equal(OPENAI_MAX_TOKENS, 2048);
   assert.match(REVIEWED_LIMITS.measuredPolicyRef, /candidate/);
-  assert.equal(RUNTIME_IMAGE_DIGEST, "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28");
-  assert.equal(RUNTIME_SOURCE_COMMIT, "600f136bf0becb9a473ff1e085bbc9896b4ef696");
+  assert.equal(RUNTIME_IMAGE_DIGEST, "sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140");
+  assert.equal(RUNTIME_SOURCE_COMMIT, "d2b1a9792dc10ec801d3ce30c170763f1f2ab301");
   for (const promotionChannel of ["staging", "production"]) {
     const input = offerInputs();
     input.artifact.promotionChannel = promotionChannel;
+    const unchanged = structuredClone(input);
     const definition = buildOfferDefinition(input);
-    assert.equal(definition.template.versionId, "template-v1-7");
+    assert.equal(definition.template.versionId, "template-v1-8");
     assert.match(definition.name, /Staging Measurement Candidate/);
     assert.deepEqual(definition.artifacts, [{
       artifactId: input.artifact.id, fingerprint: artifactFingerprint(input.artifact),
     }]);
     assert.deepEqual(definition.topology, REVIEWED_TOPOLOGY);
     assert.deepEqual(definition.limits, REVIEWED_LIMITS);
+    assert.deepEqual(input, unchanged);
   }
 });
 
@@ -104,31 +111,42 @@ test("candidate offer requires the exact explicit integer output cap without cha
   }
   const input = offerInputs();
   input.template.version = "1.5.0";
-  assert.throws(() => buildOfferDefinition(input), /exact 1.7.0 template/);
+  assert.throws(() => buildOfferDefinition(input), /exact 1.8.0 template/);
 });
 
 test("external candidate rejects unmanaged routing and implicit endpoint or secret fallback", () => {
   for (const patch of [
     {vectorStrategy: "lucene"}, {vectorProvisioningMode: "PLATFORM_MANAGED"},
     {vectorStoragePosture: "DEDICATED"}, {milvusExternalBindingRequired: false},
+    {milvusAuthenticationType: "USERNAME_PASSWORD"}, {milvusAuthenticationType: "token"},
+    {milvusAuthenticationType: "TOKEN "}, {milvusAuthenticationType: null}, {milvusAuthenticationType: undefined},
     {milvusHost: "unreviewed.example"}, {milvusRuntimeUsernameSecretName: "MILVUS_USERNAME"},
-    {milvusRuntimePasswordSecretName: "MILVUS_PASSWORD"},
+    {milvusRuntimePasswordSecretName: "MILVUS_PASSWORD"}, {milvusRuntimeTokenSecretName: "MILVUS_TOKEN"},
+    {milvusToken: "synthetic-token"}, {milvusUsername: "synthetic-user"}, {milvusPassword: "synthetic-password"},
   ]) {
     const input = offerInputs();
     Object.assign(input.template.manifest.contributions.template.providerConfig, patch);
     assert.throws(() => buildOfferDefinition(input), /retained external-vector binding contract/);
   }
+  for (const field of ["milvusHost", "milvusToken", "milvusUsername", "milvusPassword",
+    "milvusRuntimeTokenSecretName", "milvusRuntimeUsernameSecretName", "milvusRuntimePasswordSecretName"]) {
+    for (const value of ["", null, false]) {
+      const input = offerInputs();
+      input.template.manifest.contributions.template.providerConfig[field] = value;
+      assert.throws(() => buildOfferDefinition(input), /retained external-vector binding contract/);
+    }
+  }
 });
 
-test("v10 rejects legacy or mixed image pins without rewriting v7 artifact identity", () => {
+test("v11 rejects legacy or mixed image pins without rewriting published v10 artifact identity", () => {
   const legacyArtifact = {
     ...artifact,
-    imageDigest: "sha256:d7cc5b3a7d72f65da0f77c02ae50a27d836b8599908566b109b5a07bd5e6f16f",
-    gitCommitSha: "bf72080847c960c331d3ec6a2441e8d5f38ca56a",
+    imageDigest: "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28",
+    gitCommitSha: "600f136bf0becb9a473ff1e085bbc9896b4ef696",
     capabilityManifest: {aiFabricVersion: "0.8.35"},
   };
   const legacyOffer = {
-    offerId: "offer-loomai-engage-simulated-dealership-early-access-v7",
+    offerId: "offer-loomai-engage-simulated-dealership-early-access-v10",
     definition: {artifacts: [{
       artifactId: legacyArtifact.id, fingerprint: artifactFingerprint(legacyArtifact),
     }]},
@@ -141,15 +159,38 @@ test("v10 rejects legacy or mixed image pins without rewriting v7 artifact ident
   ]) {
     const input = offerInputs();
     input.artifact = {...input.artifact, ...pins};
-    assert.throws(() => buildOfferDefinition(input), /exact promoted AI Fabric 0.8.35 runtime artifact/);
+    assert.throws(() => buildOfferDefinition(input), /exact promoted AI Fabric 0.8.36 runtime artifact/);
   }
   assert.throws(() => buildOfferDefinition({...offerInputs(), artifact: legacyArtifact}),
-    /exact promoted AI Fabric 0.8.35 runtime artifact/);
+    /exact promoted AI Fabric 0.8.36 runtime artifact/);
   const next = buildOfferDefinition(offerInputs());
   assert.notEqual(OFFER_ID, legacyOffer.offerId);
   assert.notEqual(next.artifacts[0].fingerprint, legacyOffer.definition.artifacts[0].fingerprint);
   assert.deepEqual({artifact: legacyArtifact, offer: legacyOffer}, legacySnapshot);
   assert.equal(artifactFingerprint(legacyArtifact), legacyOffer.definition.artifacts[0].fingerprint);
+});
+
+test("native-token offer rejects wrong framework or incomplete immutable artifact provenance", () => {
+  for (const patch of [
+    {artifactRole: "CONNECTOR"}, {artifactType: "GIT_SOURCE"},
+    {promotionChannel: null}, {promotionChannel: "unreviewed"}, {promotedAt: null},
+    {buildRunId: null}, {buildRunId: ""}, {buildRunId: " "},
+    {capabilityManifest: {...artifact.capabilityManifest, aiFabricVersion: "0.8.35"}},
+    {capabilityManifest: {...artifact.capabilityManifest, aiFabricVersion: "0.8.36 "}},
+  ]) {
+    const input = offerInputs();
+    Object.assign(input.artifact, patch);
+    assert.throws(() => buildOfferDefinition(input), /exact promoted AI Fabric 0.8.36 runtime artifact/);
+  }
+});
+
+test("native-token offer requires the exact token capability in addition to every budget declaration", () => {
+  for (const declaration of [undefined, null, "", "MILVUS-TOKEN-AUTHENTICATION-V1",
+    "milvus-token-authentication-v1-extra", {id: MILVUS_TOKEN_CAPABILITY}, [MILVUS_TOKEN_CAPABILITY]]) {
+    const input = offerInputs();
+    input.artifact.capabilityManifest.capabilities = ["deployment-local-provider-budget-v1", declaration];
+    assert.throws(() => buildOfferDefinition(input), /required milvus-token-authentication-v1 capability/);
+  }
 });
 
 for (const [field, required] of Object.entries({
@@ -169,7 +210,8 @@ for (const [field, required] of Object.entries({
       assert.throws(() => buildOfferDefinition(input), /required provider-budget guard declaration/);
     }
     const input = offerInputs();
-    input.artifact.capabilityManifest[field] = ["unrelated-capability", required];
+    const retained = input.artifact.capabilityManifest[field].filter((declaration) => declaration !== required);
+    input.artifact.capabilityManifest[field] = ["unrelated-capability", ...retained, required];
     assert.doesNotThrow(() => buildOfferDefinition(input));
   });
 }
@@ -317,6 +359,12 @@ test("reviewed offer capacity covers the complete enforced topology", () => {
     replicas: 1, cpuMillis: 2750, memoryMiB: 5888, diskMiB: 16384,
     databases: 2, indexes: 2, dependencies: 4, concurrentApplies: 1,
   });
+  assert.deepEqual(REVIEWED_LIMITS, {
+    measuredPolicyRef: "01036-dealership-capacity-2026-10-18-external-candidate-v2",
+    activeStagingTargets: 1, replicas: 1, cpuMillis: 4000, memoryMiB: 6144, diskMiB: 16384,
+    databases: 2, indexes: 2, dependencies: 4, concurrentApplies: 1,
+    stagingExpiryHours: 24, maxExtensionHours: 24, recoveryWindowHours: 24,
+  });
 });
 
 test("offer pins exact template dependencies, runtime, targets and reviewed workspace profiles", () => {
@@ -325,7 +373,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
     version("action", "1.0.0", "action-v1"),
   ];
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0", "action@1.0.0"]},
   };
   const definition = buildOfferDefinition({
@@ -334,7 +382,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
       target("dtp-coolify-production-behavior", "production")],
     auth,
   });
-  assert.equal(definition.template.versionId, "template-v1-7");
+  assert.equal(definition.template.versionId, "template-v1-8");
   assert.equal(definition.templateId, "dev-openai-milvus");
   assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
@@ -343,6 +391,14 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
   assert.equal(definition.operations.includes("DRAFT_EDIT"), false);
   assert.equal(definition.operations.includes("INBOX_OPERATOR_ENROLL"), true);
   assert.equal(definition.operations.includes("INBOX_OPERATOR_DELIVER"), true);
+  assert.deepEqual(definition.operations, [
+    "TEMPLATE_SELECT", "BOOTSTRAP_CONFIGURATION", "BOOTSTRAP", "READ", "VERSION_PUBLISH",
+    "BINDING_REPLACE", "BINDING_REVOKE", "SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX",
+    "INBOX_OPERATOR_ENROLL", "INBOX_OPERATOR_ROTATE", "INBOX_OPERATOR_DELIVER", "INBOX_OPERATOR_REVOKE",
+    "SOURCE_REFRESH", "SOURCE_REMOVE", "APP_CONFIGURE", "DOMAIN_CONFIGURE", "AUTH_CONFIGURE",
+    "APPLY", "VERIFY", "PROMOTION_PLAN", "PROMOTION_APPLY", "ACTIVATE", "ROLLBACK",
+    "STAGING_RETAIN", "STAGING_EXTEND", "TARGET_RETIRE",
+  ]);
   assert.equal(definition.bindingSlots[0].pluginId, "mkp-data-dealership-knowledge-v1");
   assert.deepEqual(definition.topology, REVIEWED_TOPOLOGY);
   assert.deepEqual(definition.bindingSlots[1], {
@@ -364,7 +420,7 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
 test("offer refuses a target whose enforced worker capacity drifted", () => {
   const pluginVersions = [version("data", "1.0.0", "data-v1")];
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
     contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
   };
   const staging = target("dtp-coolify-staging-behavior", "staging");
@@ -378,7 +434,7 @@ test("offer refuses a target whose enforced worker capacity drifted", () => {
 
 test("offer rejects incomplete required plugin pinning", () => {
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-7"),
+    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-8"),
     contributions: {templateRequiredPluginRefs: ["missing@1.0.0"]},
   };
   assert.throws(() => buildOfferDefinition({

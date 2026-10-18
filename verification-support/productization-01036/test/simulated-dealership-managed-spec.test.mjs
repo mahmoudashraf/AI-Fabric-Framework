@@ -40,12 +40,23 @@ test("reviewed capacity includes services, database and persistent volumes", () 
   });
 });
 
-test("external-vector spec 1.7 reuses the exact reviewed 1.6 graph and retains the immutable old fixture", () => {
-  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-7");
-  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-7");
+test("native-token spec 1.8 has a new template-scoped identity and retains the exact reviewed dependency graph", () => {
+  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-8");
+  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-8");
+  assert.notEqual(SPEC_ID, "mds-simulated-dealership-experience-v1-7");
   const base = "../../../Platfrom/backend/src/test/resources/managed-dependency/";
   const old = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1.template.json`, import.meta.url), "utf8"));
   const candidate = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1-6.template.json`, import.meta.url), "utf8"));
+  const candidateSnapshot = structuredClone(candidate);
+  const expected = structuredClone(candidate);
+  for (const service of expected.services) {
+    service.image = artifacts[service.slot].image;
+    service.sourceArtifactId = artifacts[service.slot].id;
+    service.sourceCommit = artifacts[service.slot].commit;
+  }
+  assert.deepEqual(buildManagedDependencySpec(artifacts), expected);
+  assert.deepEqual(JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1-6.template.json`, import.meta.url), "utf8")),
+    candidateSnapshot);
   const legacyReceiver = old.services.find(({slot}) => slot === "receiver");
   const receiver = candidate.services.find(({slot}) => slot === "receiver");
   assert.equal(legacyReceiver.capacity.milliCpu, 500);
@@ -56,6 +67,21 @@ test("external-vector spec 1.7 reuses the exact reviewed 1.6 graph and retains t
   restored.services.find(({slot}) => slot === "receiver").capacity.milliCpu = 500;
   restored.services.find(({slot}) => slot === "receiver").database.capacity.milliCpu = 500;
   assert.deepEqual(restored, old);
+});
+
+test("native-token runtime revision does not repin BasicInbox or any managed dependency", () => {
+  assert.deepEqual(DEPENDENCY_IMAGES.inbox, {
+    serviceName: "simulated-dealership-basic-inbox",
+    repository: "ghcr.io/mahmoudashraf/loomai-basic-inbox-service",
+    digest: "sha256:d74871880950f09674e0558cdfb09bdadcce050e89ae7b33312dad7069ac3759",
+    commit: "2035dc36082fefccbfd3a757d38e493fa8f001fc",
+  });
+  const spec = buildManagedDependencySpec(artifacts);
+  assert.equal(spec.services.find(({slot}) => slot === "inbox").image,
+    "ghcr.io/mahmoudashraf/loomai-basic-inbox-service@sha256:d74871880950f09674e0558cdfb09bdadcce050e89ae7b33312dad7069ac3759");
+  for (const service of spec.services) {
+    assert.notEqual(service.sourceCommit, "d2b1a9792dc10ec801d3ce30c170763f1f2ab301");
+  }
 });
 
 test("keeps all managed template placeholders server-owned and distinct", () => {

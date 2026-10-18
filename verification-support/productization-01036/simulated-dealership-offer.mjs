@@ -2,13 +2,16 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v10";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v11";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.7.0";
+export const TEMPLATE_VERSION = "1.8.0";
 export const OPENAI_MAX_TOKENS = 2048;
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
-export const RUNTIME_IMAGE_DIGEST = "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28";
-export const RUNTIME_SOURCE_COMMIT = "600f136bf0becb9a473ff1e085bbc9896b4ef696";
+// Verified CI receipt: run 39164527840, job 117785013595. Registration and promotion are separate prerequisites.
+export const RUNTIME_IMAGE_DIGEST = "sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140";
+export const RUNTIME_SOURCE_COMMIT = "d2b1a9792dc10ec801d3ce30c170763f1f2ab301";
+export const RUNTIME_FRAMEWORK_VERSION = "0.8.36";
+export const MILVUS_TOKEN_CAPABILITY = "milvus-token-authentication-v1";
 export const STAGING_TARGET_ID = "dtp-coolify-staging-behavior";
 export const PRODUCTION_TARGET_ID = "dtp-coolify-production-behavior";
 
@@ -233,11 +236,12 @@ function requireReviewedTarget(target, targetId) {
 }
 
 function requireReviewedArtifact(artifact) {
-  if (!artifact?.id || artifact.artifactRole !== "RUNTIME"
+  if (!artifact?.id || artifact.artifactRole !== "RUNTIME" || artifact.artifactType !== "DOCKER_IMAGE"
     || artifact.imageDigest !== RUNTIME_IMAGE_DIGEST || artifact.gitCommitSha !== RUNTIME_SOURCE_COMMIT
     || !["staging", "production"].includes(artifact.promotionChannel)
-    || artifact.capabilityManifest?.aiFabricVersion !== "0.8.35") {
-    throw new Error("The exact promoted AI Fabric 0.8.35 runtime artifact is required.");
+    || !artifact.promotedAt || typeof artifact.buildRunId !== "string" || !artifact.buildRunId.trim()
+    || artifact.capabilityManifest?.aiFabricVersion !== RUNTIME_FRAMEWORK_VERSION) {
+    throw new Error("The exact promoted AI Fabric 0.8.36 runtime artifact with CI build provenance is required.");
   }
   for (const [field, required] of Object.entries({
     capabilities: "deployment-local-provider-budget-v1",
@@ -250,18 +254,23 @@ function requireReviewedArtifact(artifact) {
       throw new Error(`The reviewed runtime artifact is missing a required provider-budget guard declaration: ${field}.`);
     }
   }
+  if (!artifact.capabilityManifest.capabilities.includes(MILVUS_TOKEN_CAPABILITY)) {
+    throw new Error("The reviewed runtime artifact is missing the required milvus-token-authentication-v1 capability.");
+  }
 }
 
 export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
   if (template?.version !== TEMPLATE_VERSION
     || template.manifest?.contributions?.template?.providerConfig?.openaiMaxTokens !== OPENAI_MAX_TOKENS) {
-    throw new Error("The exact 1.7.0 template with an explicit integer 2048-token output cap is required.");
+    throw new Error("The exact 1.8.0 template with an explicit integer 2048-token output cap is required.");
   }
   const provider = template.manifest.contributions.template.providerConfig;
+  const credentialFields = ["milvusToken", "milvusUsername", "milvusPassword", "milvusHost",
+    "milvusRuntimeTokenSecretName", "milvusRuntimeUsernameSecretName", "milvusRuntimePasswordSecretName"];
   if (provider.vectorStrategy !== "milvus" || provider.vectorProvisioningMode !== "EXTERNAL_EXISTING"
     || provider.vectorStoragePosture !== "SHARED" || provider.milvusExternalBindingRequired !== true
-    || provider.milvusHost || provider.milvusRuntimeUsernameSecretName || provider.milvusRuntimePasswordSecretName) {
-    throw new Error("The exact retained external-vector binding contract is required; no implicit managed or endpoint fallback.");
+    || provider.milvusAuthenticationType !== "TOKEN" || credentialFields.some((field) => Object.hasOwn(provider, field))) {
+    throw new Error("The exact native TOKEN retained external-vector binding contract is required; no implicit managed, endpoint or credential fallback.");
   }
   const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
   const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));

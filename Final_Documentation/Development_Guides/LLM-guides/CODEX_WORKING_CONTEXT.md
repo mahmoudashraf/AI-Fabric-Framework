@@ -5581,3 +5581,58 @@ Critical fixes that made the gate pass:
   push, verifiedCIimageprovenance+archive, newimmutablev11/spec1.8, freshbackup,
   strictV193rollout, Free01binding, measuredadmission+durablegrantactivation,
   attendedcanary. Retainedindex/productionfit/P6/P7open. UIlast/SSHkeepOPEN.
+
+### 2026-10-18 Source Checkpoint Pushed And Image Builds Started
+
+- Reviewed source/evidence committed and pushed as
+  `d2b1a9792dc10ec801d3ce30c170763f1f2ab301` on Platform-V11. Native-token
+  integration, current0.8.36 defaults, safety tests and010.36 evidence only;
+  unrelated dirty UI/site/media and StrategicContext were not staged.
+- Automatic CI IN_PROGRESS for this source: core images39164527859, runtime
+  image39164527840. No unrelated matrix or manual app rebuild triggered.
+  Next inspect successful jobs/exact published digests and packaged capability;
+  localpackage proof is not deployed-image proof.
+- Both CPs confirmed dockerimage/tag58bf670de before source publication; no
+  new image selected or V193 applied. Backup/strict rollout, newimmutableoffer/
+  spec, binding/admission/attendedcanary remain. No required exec session or
+  coding agent is running; only external GitHub CI. UIlast/SSHkeepOPEN.
+
+### 2026-10-18 Continue Past Checkpoint: Both CPs V193 And Actual Image Proof
+
+- Owner explicitly asks keep working; don't end at another build/checkpoint.
+- Fresh private beforeV193 backups directory
+  `/private/tmp/01036-control-plane-pre-native-token-v193-20261018-d2b1a9792`.
+  Stage8,600,280bytes/SHA70c2a74b3c6b64d23473f16db370469086242617191a3653fb899cab17e1bb39;
+  prod7,632,672bytes/SHAc5d43adedc573ad5e58410a7e1c99b7e8d35dd790e8eefed72d70d0cd83374b8.
+  Both actual local PG18 restoresPASS, migration192, ownedfixturesremoved:
+  `/private/tmp/01036-local-control-plane-restore-nDRlOyyQsbWQ/report.json`stage,
+  `/private/tmp/01036-local-control-plane-restore-7kUaIKpz9a6q/report.json`prod.
+- BackendCI39164527859PASS/digest
+  `sha256:60d3992614c667af9d9d286124bdf9f529559cfb05f0beb4bbbeeadda4ebc89b`.
+  STRICT bothCPverificationPASS source d2b1a9792/migration193/publicUP/onecontainer/
+  OCIrevision/RepoDigest. Stagequeue t1i0q0vpyejmte8tpo3sk9t8; prodgy2uuzgf84h00stdxdtkx7sn.
+- RuntimeCI39164527840PASS/digest
+  `sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140`.
+  Local exactimagecached and unstarted/networknoneinspectionPASS, thenonlyowned
+  containerremoved. All20framework0.8.36 jars byte-equalCentral; manifestdeepEqual
+  committedsource and token+allbudgetguards/V19/privatejars present. Evidence
+  `/private/tmp/01036-native-token-image-proof-S9qoQ6dRZFFj/evidence.json`.
+- Stageartifactregistered/promoted dsa-94841998; manifestnormalizedhash
+  abbe7561d843ef3c111bbb2702f012227e432cb6c8a2f8d6186200bd134982d6.
+  `/private/tmp/01036-native-token-runtime-stage-registration-20261018.json`.
+- Amperepreparedv11/spec1.8/newimagepins,27syntheticparentPASS. Samefullgraph/
+  resources/BasicInboximage; specnewIDneededtemplate-scopedlookup. Agentclosed.
+  Parentrunningfullsupportfixturegate56726 and freshstagingbaselinesampler51226.
+  Ramanagent01a15097-a19a-7913-aca3-6e6cf6b3c315 READONLY physical-policy/ledger/
+  owner-contact/operating-evidenceproposal, no POSTs/approvals/provider calls.
+- Nextcommit/publishmetadatarecipe onstaging, freshv11customerconfig, formal
+  TOKENbindingexactFree01, genuinephysicalpolicyreview/admission, samegrant
+  allocation+durableactivation, attendedcanary. No actualbinding/model/vector
+  writes/grantallocation yet. UIlast/SSHkeepOPEN/retainallstoppedappsanddata.
+
+- Full scoped support parentgate80PASS/0skip with explicit fixture socket:
+  `/private/tmp/01036-native-token-support-socket-configured-gate-20261018.log`.
+  Priorrun79PASS/1fail omitted CP_RESTORE_TEST_DOCKER_HOST; preserved, no source
+  change/skip tohide it. Freshstagebaseline51226PASS output
+  `/private/tmp/01036-native-token-staging-host-baseline-20261018.json`,25samples/
+  120sec8cores/max806mCPU/minAvail11,078,021,120bytes; idlebaselineonly.

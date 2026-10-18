@@ -2,6 +2,13 @@
 
 ## Native Token Checkpoint
 
+Current candidate: immutable offer v11/template1.8/spec1.8 with the inspected
+CI-native-token runtime. Its20 framework jars match released0.8.36 Central bytes.
+Both control planes are on V193; the artifact is registered/promoted on staging.
+The spec's physical dependency graph and service images have not changed.
+Publication, binding, admission and actual hosted workload acceptance remain
+separate steps. Historical v10 references below are not the current token recipe.
+
 Backend476, runtime425, provider accounting140, connector76 and vectorization32
 checks pass with zero skips against public AI Fabric0.8.36 from Central. Local
 packaging passes; this is not CI-image, hosted runtime or capacity acceptance.

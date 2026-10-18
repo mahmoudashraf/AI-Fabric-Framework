@@ -9,9 +9,9 @@ const REVIEWED_TEMPLATE_PATH = resolve(
 );
 const REVIEWED_TEMPLATE = JSON.parse(readFileSync(REVIEWED_TEMPLATE_PATH, "utf8"));
 
-// The external-vector revision retains the exact reviewed 1.6 dependency graph.
-export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-7";
-export const SPEC_ID = "mds-simulated-dealership-experience-v1-7";
+// Specs are template-version scoped. Native TOKEN retains the 1.7 graph from the reviewed 1.6 fixture.
+export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-8";
+export const SPEC_ID = "mds-simulated-dealership-experience-v1-8";
 export const SOURCE_COMMIT = "8c5339901faf3dcb8c9edd73c875738461d3330b";
 export const POSTGRES_IMAGE =
   "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea";
