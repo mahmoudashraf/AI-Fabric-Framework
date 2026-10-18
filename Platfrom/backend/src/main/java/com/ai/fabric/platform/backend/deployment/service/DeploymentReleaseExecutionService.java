@@ -69,6 +69,9 @@ public class DeploymentReleaseExecutionService {
     @Autowired(required = false)
     private DeploymentExistingVectorBindingService existingVectorBindings;
 
+    @Autowired(required = false)
+    private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
+
     @Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
 
@@ -247,6 +250,10 @@ public class DeploymentReleaseExecutionService {
         DeploymentReleaseEntity release = getRelease(releaseId);
 
         JsonNode publishedProviderConfig = readJson(version.getProviderConfigJson());
+        if (MilvusTokenRuntimeArtifactGate.required(publishedProviderConfig)) {
+            if (milvusTokenArtifacts == null) throw new IllegalStateException("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
+            milvusTokenArtifacts.require(version, publishedProviderConfig, release.getSourceArtifactId());
+        }
         if (DeploymentExistingVectorBindingService.required(publishedProviderConfig)) {
             if (existingVectorBindings == null) {
                 throw new IllegalStateException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");

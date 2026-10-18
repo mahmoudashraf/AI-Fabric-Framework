@@ -49,7 +49,7 @@ class ProviderUsageRuntimeArtifactGateTest {
         artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setGitCommitSha("b".repeat(40));
         artifact.setBuildRunId("reviewed-build"); artifact.setPromotedAt(Instant.parse("2026-10-18T12:00:00Z"));
         var manifest = manifests.normalize(json.readTree("""
-            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.35",
+            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.36",
              "supportedBehaviorTypes":["CONVERSATIONAL"],"capabilities":["deployment-local-provider-budget-v1"],
              "supportedActivationSources":["USER_QUERY"],"supportedChannelBindings":["CHAT"],"supportedExecutionExtensions":[],
              "endpointClasses":["provider-budget-administration"],"migrationIds":["provider-budget-accounting-v1"],

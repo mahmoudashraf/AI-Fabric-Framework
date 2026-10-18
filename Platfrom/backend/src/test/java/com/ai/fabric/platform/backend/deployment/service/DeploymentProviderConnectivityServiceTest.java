@@ -29,6 +29,36 @@ class DeploymentProviderConnectivityServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void tokenProfileReportsOnlyReferencedRuntimeTokenWithoutGlobalFallbackOrCredentialRead() throws Exception {
+        var secrets = mock(PlatformSecretService.class);
+        var http = mock(HttpClient.class);
+        var service = new DeploymentProviderConnectivityService(secrets, objectMapper, http);
+        var provider = objectMapper.createObjectNode().put("vectorStrategy", "milvus")
+            .put("milvusAuthenticationType", "TOKEN").put("milvusExternalBindingRequired", true)
+            .put("vectorProvisioningMode", "EXTERNAL_EXISTING").put("vectorStoragePosture", "SHARED");
+        var summary = service.probe("dep-fake", "Fake deployment", provider, objectMapper.createObjectNode());
+        assertThat(summary.effectiveSecretResolutions()).filteredOn(item -> "MILVUS_TOKEN".equals(item.secretPurpose()))
+            .singleElement().satisfies(item -> {
+                assertThat(item.resolved()).isFalse();
+                assertThat(item.fallbackUsed()).isFalse();
+                assertThat(item.paired()).isFalse();
+            });
+        provider.put("milvusRuntimeTokenSecretName", "MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET");
+        when(secrets.isSecretPresent("MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET")).thenReturn(true);
+        summary = service.probe("dep-fake", "Fake deployment", provider, objectMapper.createObjectNode());
+        assertThat(summary.effectiveSecretResolutions()).filteredOn(item -> "MILVUS_TOKEN".equals(item.secretPurpose()))
+            .singleElement().satisfies(item -> {
+                assertThat(item.resolved()).isTrue();
+                assertThat(item.secretName()).isEqualTo("MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET");
+                assertThat(item.secondarySecretName()).isNull();
+            });
+        assertThat(summary.effectiveSecretResolutions()).noneMatch(item -> "MILVUS_RUNTIME_CREDENTIALS".equals(item.secretPurpose()));
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MILVUS_TOKEN");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET");
+        verifyNoInteractions(http);
+    }
+
+    @Test
     void productizedDeploymentsNeverRunUnmeteredControlPlaneInferenceProbes() {
         var secrets = mock(PlatformSecretService.class);
         var http = mock(HttpClient.class);

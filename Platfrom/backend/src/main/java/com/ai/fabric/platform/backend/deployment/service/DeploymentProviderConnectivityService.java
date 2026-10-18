@@ -1225,11 +1225,35 @@ public class DeploymentProviderConnectivityService {
                 ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig)
             );
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "WEAVIATE_API_KEY", null);
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null);
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> {
+                if (ManagedDeploymentProfileCatalog.milvusTokenAuthentication(providerConfig)
+                    || DeploymentExistingVectorBindingService.required(providerConfig)) {
+                    summaries.add(milvusRuntimeSecretSummary(deploymentId, providerConfig));
+                } else {
+                    addResolvedSecretSummary(summaries, dedupe, deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null);
+                }
+            }
             default -> {
             }
         }
         return List.copyOf(summaries);
+    }
+
+    private DeploymentSecretResolutionSummary milvusRuntimeSecretSummary(String deploymentId, JsonNode providerConfig) {
+        ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, false);
+        boolean tokenAuth = ManagedDeploymentProfileCatalog.milvusTokenAuthentication(providerConfig);
+        String primary = tokenAuth ? ManagedDeploymentProfileCatalog.milvusRuntimeTokenSecretName(providerConfig)
+            : ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
+        String secondary = tokenAuth ? null : ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
+        boolean present = !primary.isBlank() && platformSecretService.isSecretPresent(primary)
+            && (tokenAuth || (!secondary.isBlank() && platformSecretService.isSecretPresent(secondary)));
+        return new DeploymentSecretResolutionSummary(deploymentId,
+            tokenAuth ? "MILVUS_TOKEN" : "MILVUS_RUNTIME_CREDENTIALS",
+            tokenAuth ? "Milvus runtime token" : "Milvus runtime credentials", !tokenAuth, present,
+            "REQUIRE_OVERRIDE", "DEPLOYMENT_MANAGED", "PLATFORM_MANAGED", primary, secondary, false,
+            present ? "RUNTIME_REFERENCE_PRESENT" : "RUNTIME_REFERENCE_MISSING",
+            present ? "Milvus runtime credential is available at the configured secret reference."
+                : "Milvus runtime credential requires a configured secret reference; global fallback is not used.");
     }
 
     private void addResolvedSecretSummary(List<DeploymentSecretResolutionSummary> summaries,

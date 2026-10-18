@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.35",
+  "aiFabricVersion": "0.8.36",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -41,6 +41,7 @@
     "deployment-result-store",
     "deployment-local-provider-sync",
     "deployment-local-provider-budget-v1",
+    "milvus-token-authentication-v1",
     "document-ingestion-core",
     "document-source-connectors",
     "document-version-lifecycle",

@@ -2506,6 +2506,11 @@ public class DeploymentDraftValidationService {
         )) {
             return;
         }
+        try { ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerNode, false); }
+        catch (IllegalArgumentException error) {
+            issues.add(error("providers", "MILVUS_AUTHENTICATION_INVALID", "$.milvusAuthenticationType",
+                "Milvus authentication requires one valid credential mode and its reviewed external binding; literal credentials are not supported."));
+        }
         boolean platformManagedMode = ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerNode);
         if (platformManagedMode) {
             if (ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerNode).isBlank()) {

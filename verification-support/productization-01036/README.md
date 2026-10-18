@@ -1,5 +1,22 @@
 # 010.36 Productization Verification
 
+## Native Token Checkpoint
+
+Backend476, runtime425, provider accounting140, connector76 and vectorization32
+checks pass with zero skips against public AI Fabric0.8.36 from Central. Local
+packaging passes; this is not CI-image, hosted runtime or capacity acceptance.
+The published v10 offer below still pins the older immutable runtime/template1.7;
+it is not token-capable proof. A new reviewed offer/spec must pin template1.8 and
+the inspected new CI image before apply.
+
+Explicit local credential readiness:
+`GET /api/deployments/{deploymentId}/versions/{versionId}/targets/{targetProfileId}/secret-usage`.
+Operator access, owned published version and exact active target are required.
+This validates local binding/refs/fingerprint, not provider health. No Zilliz
+probe or credential value is returned. Unscoped summaries remain not-ready for
+external bindings; selected-scope caller wiring remains tracked work, not a
+reason to infer production readiness from staging credentials.
+
 This verifier proves the document-source boundary for the first dealership
 offer without provisioning or modifying an AWS resource. It is intentionally
 separate from runtime indexing and from the P6 UI extraction.

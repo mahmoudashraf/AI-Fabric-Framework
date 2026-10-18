@@ -389,6 +389,13 @@ public class DeploymentController {
         return deploymentService.getDeploymentSecretUsage(deploymentId);
     }
 
+    @GetMapping("/deployments/{deploymentId}/versions/{versionId}/targets/{targetProfileId}/secret-usage")
+    public DeploymentSecretUsageSummary getScopedDeploymentSecretUsage(@PathVariable String deploymentId,
+                                                                       @PathVariable String versionId,
+                                                                       @PathVariable String targetProfileId) {
+        return deploymentService.getScopedDeploymentSecretUsage(deploymentId, versionId, targetProfileId);
+    }
+
     @GetMapping("/deployments/{deploymentId}/provider-secret-bindings")
     public DeploymentProviderSecretBindingCatalogSummary getDeploymentProviderSecretBindings(@PathVariable String deploymentId) {
         return deploymentProviderSecretOverrideService.listBindings(deploymentId);

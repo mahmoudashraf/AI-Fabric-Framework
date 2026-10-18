@@ -46,6 +46,22 @@ class ExistingVectorBindingMigrationPostgresTest {
             .contains("UNIQUE INDEX", "provider_resource_uuid", "EXTERNAL_VECTOR_STORAGE_BINDING", "ACTIVE");
         assertThat(text("select count(*)::text from deployment_provider_resource_handles where resource_kind='EXTERNAL_VECTOR_STORAGE_BINDING'")).isEqualTo("0");
         assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
+
+        String immutableUsernamePasswordTemplate = text("select row_to_json(v)::text from platform_marketplace_plugin_versions v where id='mkv-template-simulated-dealership-experience-v1-7'");
+        migrate("193");
+        assertThat(text("select row_to_json(v)::text from platform_marketplace_plugin_versions v where id='mkv-template-simulated-dealership-experience-v1-7'"))
+            .isEqualTo(immutableUsernamePasswordTemplate);
+        assertThat(text("select json_agg(row_to_json(p) order by id)::text from deployment_target_profiles p")).isEqualTo(targets);
+        var tokenCandidate = mapper.readTree(text("select manifest_json from platform_marketplace_plugin_versions where id='mkv-template-simulated-dealership-experience-v1-8'"));
+        ObjectNode expectedToken = candidate.deepCopy(); expectedToken.put("version", "1.8.0");
+        ((ObjectNode) expectedToken.path("contributions").path("template").path("providerConfig"))
+            .put("milvusAuthenticationType", "TOKEN");
+        assertThat(tokenCandidate).isEqualTo(expectedToken);
+        version.setId("mkv-template-simulated-dealership-experience-v1-8"); version.setVersion("1.8.0");
+        version.setManifestJson(tokenCandidate.toString());
+        assertThat(new MarketplaceManifestService(mapper).parseAndValidate(plugin, version).manifest()).isEqualTo(tokenCandidate);
+        assertThat(text("select count(*)::text from deployment_provider_resource_handles where resource_kind='EXTERNAL_VECTOR_STORAGE_BINDING'")).isEqualTo("0");
+        assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
     }
 
     private void migrate(String version) {

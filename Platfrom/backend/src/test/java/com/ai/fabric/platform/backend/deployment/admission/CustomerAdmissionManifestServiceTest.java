@@ -3,11 +3,18 @@ package com.ai.fabric.platform.backend.deployment.admission;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceArtifactService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
+import com.ai.fabric.platform.backend.deployment.service.MilvusTokenRuntimeArtifactGate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -29,6 +36,17 @@ class CustomerAdmissionManifestServiceTest extends AdmissionFixture {
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
     private Authorization authorization;
+
+    @Test
+    void missingTokenArtifactGateBlocksManifestBeforeAuthorityAndSourceEffects() {
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusExternalBindingRequired":true,"milvusAuthenticationType":"TOKEN"}
+            """);
+        assertThatThrownBy(() -> service.prepare(deployment, version, authorization))
+            .hasMessageContaining("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
+        verifyNoInteractions(deployments, documentBindings, dependencyEvidence, audit);
+    }
 
     @BeforeEach
     void setup() {
@@ -123,10 +141,118 @@ class CustomerAdmissionManifestServiceTest extends AdmissionFixture {
         verifyNoInteractions(deployments);
     }
 
+    @Test
+    void realTokenGateAcceptsReviewedRuntimeBeforeManifestAndAuthorityEffects() throws Exception {
+        var fixture = tokenFixture(List.of(new ArtifactPin("runtime", "artifact-hash"),
+            new ArtifactPin("dependency", "dependency-hash")));
+        when(fixture.artifacts().require("runtime")).thenReturn(tokenArtifact("0.8.36", true));
+        var dependency = new DeploymentSourceArtifactEntity();
+        dependency.setArtifactRole("MANAGED_DEPENDENCY");
+        when(fixture.artifacts().require("dependency")).thenReturn(dependency);
+
+        Manifest manifest = service.prepare(deployment, version, authorization);
+
+        var ordered = inOrder(fixture.artifacts(), fixture.observedStore(), documentBindings,
+            dependencyEvidence, deployments, audit);
+        ordered.verify(fixture.artifacts(), times(2)).require("runtime");
+        ordered.verify(fixture.artifacts()).require("dependency");
+        ordered.verify(fixture.observedStore()).activePolicy();
+        ordered.verify(fixture.observedStore()).customerGrant("customer");
+        ordered.verify(documentBindings).snapshot(deployment, version, TARGET);
+        ordered.verify(dependencyEvidence).resolve(eq(authorization.definition()), any());
+        ordered.verify(deployments).prepareAuthorizedRuntimeAuthorityCandidate(deployment, version, TARGET);
+        ordered.verify(fixture.observedStore()).approveManifest(eq(manifest), anyString(), any());
+        ordered.verify(audit).record(eq("CUSTOMER_ADMISSION_MANIFEST_MATERIALIZED"), eq("DEPLOYMENT"),
+            eq(deployment.getId()), anyMap());
+        assertThat(store.reviewed("MANIFEST", manifest.id(), Manifest.class)).isEqualTo(manifest);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='MANIFEST'", Integer.class))
+            .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_capacity_reservations", Integer.class)).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"manifest-hash", "framework", "missing-capability", "promotion"})
+    void realTokenGateRejectsAnyStaleRuntimeBeforeAdmissionOrAuthorityEffects(String change) throws Exception {
+        var fixture = tokenFixture(List.of(new ArtifactPin("runtime", "artifact-hash"),
+            new ArtifactPin("stale-runtime", "stale-artifact-hash")));
+        when(fixture.artifacts().require("runtime")).thenReturn(tokenArtifact("0.8.36", true));
+        var stale = tokenArtifact("framework".equals(change) ? "0.8.35" : "0.8.36",
+            !"missing-capability".equals(change));
+        if ("manifest-hash".equals(change)) stale.setCapabilityManifestHash("changed");
+        if ("promotion".equals(change)) stale.setPromotedAt(null);
+        when(fixture.artifacts().require("stale-runtime")).thenReturn(stale);
+
+        assertThatThrownBy(() -> service.prepare(deployment, version, authorization))
+            .hasMessageContaining("MILVUS_TOKEN_RUNTIME_ARTIFACT_REQUIRED");
+
+        verify(fixture.artifacts(), times(2)).require("runtime");
+        verify(fixture.artifacts(), times(2)).require("stale-runtime");
+        verifyNoInteractions(fixture.observedStore(), deployments, documentBindings, dependencyEvidence, audit);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='MANIFEST'", Integer.class))
+            .isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_capacity_reservations", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_events", Integer.class)).isZero();
+    }
+
+    @Test
+    void realTokenGateRejectsCandidatesWithoutRuntimeBeforeAdmissionEffects() {
+        var fixture = tokenFixture(List.of(new ArtifactPin("dependency", "dependency-hash")));
+        var dependency = new DeploymentSourceArtifactEntity();
+        dependency.setArtifactRole("MANAGED_DEPENDENCY");
+        when(fixture.artifacts().require("dependency")).thenReturn(dependency);
+
+        assertThatThrownBy(() -> service.prepare(deployment, version, authorization))
+            .hasMessageContaining("MILVUS_TOKEN_RUNTIME_ARTIFACT_REQUIRED");
+
+        verifyNoInteractions(fixture.observedStore(), deployments, documentBindings, dependencyEvidence, audit);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='MANIFEST'", Integer.class))
+            .isZero();
+    }
+
+    private TokenFixture tokenFixture(List<ArtifactPin> pins) {
+        version.setAiFabricFrameworkVersion("0.8.36");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusExternalBindingRequired":true,"milvusAuthenticationType":"TOKEN"}
+            """);
+        authorization = new Authorization(authorization.context(), definition(authorization.context().topology(), pins));
+        var artifacts = mock(DeploymentSourceArtifactService.class);
+        var observedStore = spy(store);
+        service = new CustomerAdmissionManifestService(observedStore, json, deployments, documentBindings, dependencyEvidence, audit);
+        ReflectionTestUtils.setField(service, "milvusTokenArtifacts", new MilvusTokenRuntimeArtifactGate(artifacts,
+            new DeploymentSourceCapabilityManifestService(mapper)));
+        return new TokenFixture(artifacts, observedStore);
+    }
+
+    private DeploymentSourceArtifactEntity tokenArtifact(String frameworkVersion, boolean tokenSupport) throws Exception {
+        var manifest = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree("""
+            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.36",
+             "supportedBehaviorTypes":["CONVERSATIONAL"],"supportedActivationSources":["AUTHENTICATED_INTERACTIVE"],
+             "supportedChannelBindings":["BACKEND_API"],"supportedExecutionExtensions":[],
+             "capabilities":[],"endpointClasses":[],"migrationIds":[],"verificationPackIds":[]}
+            """);
+        manifest.put("aiFabricVersion", frameworkVersion);
+        if (tokenSupport) manifest.withArray("capabilities").add(MilvusTokenRuntimeArtifactGate.CAPABILITY);
+        var normalized = new DeploymentSourceCapabilityManifestService(mapper).normalize(manifest);
+        var artifact = new DeploymentSourceArtifactEntity();
+        artifact.setArtifactRole("RUNTIME"); artifact.setArtifactType("DOCKER_IMAGE");
+        artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setGitCommitSha("b".repeat(40));
+        artifact.setBuildRunId("reviewed-build"); artifact.setPromotionChannel("staging"); artifact.setPromotedAt(NOW);
+        artifact.setCapabilityManifestJson(normalized.manifest().toString());
+        artifact.setCapabilityManifestHash(normalized.hash());
+        return artifact;
+    }
+
+    private record TokenFixture(DeploymentSourceArtifactService artifacts, AdmissionStore observedStore) { }
+
     private Definition definition(ReviewedTopology topology) {
+        return definition(topology, List.of(new ArtifactPin("runtime", "artifact-hash")));
+    }
+
+    private Definition definition(ReviewedTopology topology, List<ArtifactPin> artifacts) {
         return new Definition("1", "Reviewed offer", "template",
             new PluginPin("template-plugin", "template-version", "manifest-hash"), List.of(),
-            List.of(new ArtifactPin("runtime", "artifact-hash")),
+            artifacts,
             List.of(new TargetPermission(TARGET, TargetIntent.CUSTOMER_STAGING, "profile-fingerprint")),
             EnumSet.of(Operation.APPLY), List.of(),
             List.of(new BindingSlot("document-storage", BindingKind.CUSTOMER_S3, Set.of("reviewed-s3"))),

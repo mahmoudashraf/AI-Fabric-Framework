@@ -49,6 +49,9 @@ public class DeploymentSecretPurposeCatalog {
             || normalized.startsWith("MANAGED_MILVUS_PASSWORD_DEP_")) {
             return "MILVUS_RUNTIME_CREDENTIALS";
         }
+        if (normalized.startsWith("MANAGED_EXTERNAL_VECTOR_TOKEN_")) {
+            return "MILVUS_TOKEN";
+        }
         if (normalized.startsWith("MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_")) {
             return "VECTORIZATION_RUNNER_REGISTRATION_TOKEN";
         }
@@ -70,6 +73,7 @@ public class DeploymentSecretPurposeCatalog {
         definitions.put("WEAVIATE_API_KEY", new SecretPurposeDefinition("WEAVIATE_API_KEY", "Weaviate API key", false, "WEAVIATE_API_KEY", null));
         definitions.put("QDRANT_API_KEY", new SecretPurposeDefinition("QDRANT_API_KEY", "Qdrant API key", false, "QDRANT_API_KEY", null));
         definitions.put("MILVUS_RUNTIME_CREDENTIALS", new SecretPurposeDefinition("MILVUS_RUNTIME_CREDENTIALS", "Milvus runtime credentials", true, "MILVUS_USERNAME", "MILVUS_PASSWORD"));
+        definitions.put("MILVUS_TOKEN", new SecretPurposeDefinition("MILVUS_TOKEN", "Milvus runtime token", false, "MILVUS_TOKEN", null));
         return Map.copyOf(definitions);
     }
 

@@ -48,6 +48,32 @@ import static org.mockito.Mockito.when;
 class DeploymentReleaseExecutionServiceTest {
 
     @Test
+    void tokenArtifactFailurePrecedesBindingReadsAdmissionDebitAndProviderEffects() {
+        var fixture = new BindingApplyFixture();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig).put("milvusAuthenticationType", "TOKEN");
+        fixture.version.setProviderConfigJson(fixture.providerConfig.toString());
+        fixture.release.setSourceArtifactId("reviewed-runtime");
+        var gate = mock(MilvusTokenRuntimeArtifactGate.class);
+        ReflectionTestUtils.setField(fixture.service, "milvusTokenArtifacts", gate);
+        var failure = new IllegalStateException("MILVUS_TOKEN_RUNTIME_ARTIFACT_REQUIRED");
+        org.mockito.Mockito.doThrow(failure).when(gate).require(fixture.version, fixture.providerConfig, "reviewed-runtime");
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).isSameAs(failure);
+        verifyNoInteractions(fixture.bindings);
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test
+    void tokenReleaseWithoutArtifactGateCannotProceedToProviderEffects() {
+        var fixture = new BindingApplyFixture();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig).put("milvusAuthenticationType", "TOKEN");
+        fixture.version.setProviderConfigJson(fixture.providerConfig.toString());
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .isInstanceOf(IllegalStateException.class).hasMessage("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
+        verifyNoInteractions(fixture.bindings);
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test
     void resolvedExternalEndpointIsPersistedInReleaseAndSharedScopeInventory() throws Exception {
         var fixture = new BindingApplyFixture();
         var resolved = ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig.deepCopy())

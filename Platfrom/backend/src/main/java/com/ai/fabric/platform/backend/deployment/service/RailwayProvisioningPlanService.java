@@ -268,6 +268,7 @@ public class RailwayProvisioningPlanService {
         JsonNode providerConfig = providerConfigOverride != null && providerConfigOverride.isObject()
             ? providerConfigOverride
             : immutableProviderConfig;
+        ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, false);
         if (DeploymentExistingVectorBindingService.required(immutableProviderConfig)) {
             if (!immutableProviderConfig.equals(providerConfig)) {
                 throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_IMMUTABLE_CONFIG_OVERRIDE");
@@ -276,9 +277,14 @@ public class RailwayProvisioningPlanService {
                 throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
             }
             providerConfig = existingVectorBindings.resolve(deployment, version, immutableProviderConfig, targetProfileId);
+            if (!ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(immutableProviderConfig)
+                .equals(ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(providerConfig))) {
+                throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_AUTHENTICATION_TYPE_CHANGED");
+            }
         } else if (DeploymentExistingVectorBindingService.required(providerConfig)) {
             throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_PUBLISHED_REQUIREMENT_MISSING");
         }
+        ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, true);
         if (StringUtils.hasText(targetProfileId)) {
             providerConfig = tenantScopedVectorHandleResolver.targetScopedProviderConfig(deployment, providerConfig, targetProfileId);
         }
@@ -1602,6 +1608,11 @@ public class RailwayProvisioningPlanService {
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_TIMEOUT", ManagedDeploymentProfileCatalog.milvusTimeout(providerConfig));
             String milvusCollectionPrefix = tenantScopedVectorHandleResolver.resolveMilvusCollectionPrefix(deployment, providerConfig);
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_COLLECTION_PREFIX", milvusCollectionPrefix);
+            if (ManagedDeploymentProfileCatalog.milvusTokenAuthentication(providerConfig)) {
+                String tokenSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeTokenSecretName(providerConfig);
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_TOKEN", "${secret:" + tokenSecretName + "}"));
+                return;
+            }
             String runtimeUsernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
             String runtimePasswordSecretName = ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
             if (DeploymentExistingVectorBindingService.required(providerConfig)) {

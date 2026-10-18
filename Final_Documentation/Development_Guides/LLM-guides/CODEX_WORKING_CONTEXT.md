@@ -5486,3 +5486,98 @@ Critical fixes that made the gate pass:
   typedauth/secretprojection/preflighttestsare nextintegrationwork, notpasswordhack.
   No frameworkchange/releaseperformed; suppliedbroadkeyneverinjected. Samecampaign
   50/200000/USD12,noresets; paidcallsNONE. Agentworkerscollected/closed,SSHkeepOPEN.
+
+### 2026-10-18 Native Token Implementation And Owner Standing Release Authorization
+
+- DirectownerapprovalverifiedinRequiredforproduction: existing BROADERAPIkey may
+  beusedONLYapprovedFree01syntheticstagingcampaign. Restrictedkey/username/password
+  areNOTpendingprerequisites. Exactapprovedendpoint/prefix/retainclusterANDdata,
+  nootherclusters/account/key/role mutations/paidinfra/prodpromotion, same50/200k/USD12.
+  Keyref `/private/tmp/01036-free01-owner-supplied-api-key-20261018.secret`,neverprint.
+- Source-nativeSDKmetadatareadbackPASS2026-10-18T20:02UTC: actualSDK2.4.1 and
+  reviewednewframeworkclasses usednativewithToken/secure443/defaultalias,
+  0collections/0writes/0modelcalls. Evidence
+  `/private/tmp/01036-native-token-readback-20261018.json`. Notpublishedimageproof.
+- Publicframeworkfix218b7b48, release0808b2d5/tagai-fabric-framework-v0.8.36pushed.
+  Addtokenprop/nativeSDKwithToken, rejectmixed/blank/paddedcredentials, config
+  tostringexclusion, sanitizedSDKconstructorfailurewithnocredentialcausechain.
+  Core819+curated5+Milvus35PASS; finalMilvus36PASSafterconstructorredactiontest.
+  GuardsPASS, criticalreviewclear. ExistingUP/selfmanaged/semanticdecisionsunchanged.
+  Logs `/private/tmp/01036-framework-token-{0.8.36-tests,final-auth-tests,release-guards}.log`.
+- Publicationfirstexplicitlyblockedbyautopermissionreview; didNOTbypass.
+  ThenownerDIRECTLYsaid: 'Releasing ai fabric does not need my approval' and
+  prefersavoidsinglechangereleases/batchreadyfeaturesfixeswhenpossible. Thisis
+  standingauthorizationforframeworkpublication, notspending/prodpromotion. Record
+  batchingpreference: inspectreadycoherentchanges; neveraddunrelated/unreadywork
+  orcountmetadataasfeatures. Thisnarrowpatchunblocksnativeauthandnootherreviewed
+  frameworkdiffwasready; existingpushedtagnotmoved. Reresubmittedwithnewhuman
+  approval; GitHubreleasecreated, MavenCentralrun39162425040 IN_PROGRESS.
+  DoNOTclaimCentralpublisheduntilBOM/core/MilvusHTTPreadbackandCIverified.
+- Privatebackendtokenbinding+projectionagentsimplemented118/117focusedPASS.
+  ParentaddedV193immutabletemplate1.8(modeTOKEN,nosecrets/endpoint), strict
+  Marketplace/Draftvalidation, artifactcapability/hash/frameworkgate atAPIapply,
+  customeradmissionmanifestandworkerbeforeallocation/provider effects. Current
+  privateframeworkdefaults/poms/runtimecapmanifestprepared0.8.36; newcapability
+  milvus-token-authentication-v1. DoNOTpushimagebuilduntilCentralavailable.
+- Parentintegratedgate running session39570, log
+  `/private/tmp/01036-native-token-parent-gate-20261018.log`; includesrealPGV193.
+  Criticalprivateintegrationreviewagent01a150a9-84c3-7fb0-9997-00029a65b86f(Ampere)
+  active. Othercodingagentscollected/closed. Noactualbind/vectorwrites/modelcalls,
+  customerapply/activation/grantallocation yet; servingauthmetadataonlyauthorized.
+  Needfinishsourcegate/review, publishimageswithCentralonly, inspectpackaged0.8.36,
+  freshbackups/rolloutV193, newimmutableoffer/spec/runtimepins thenformalbinding
+  andmeasuredadmission/attendedcanary. UIextractionLAST; SSHkeepOPEN.
+
+### 2026-10-18 Do Not Pause Independent Work On Publication
+
+- Owner asked why the whole task had paused. Treat publication/native-token
+  readiness as a dependency of actual binding/apply/indexing, not a blanket
+  implementation blocker. Existing broader Free-01 key use is approved; do not
+  revive the password/restricted-key approval request.
+- Parent gate session39570 completed with 413 tests / 3 failures / no errors or
+  skips. Only failures were stale assertions expecting explicitly blank auth
+  modes to select username/password. Source rejection is correct. Fixed tests;
+  focused parent gate61PASS/0skip, log
+  `/private/tmp/01036-native-token-blank-auth-gate-20261018.log`. Keep original
+  failed integrated log; no claim of final integrated success yet.
+- Ampere independent review found a real readiness gap: credentials live in
+  immutable target-scoped external binding, not the unchanged draft. Raman
+  agent01a15097-a19a-7913-aca3-6e6cf6b3c315 is implementing local-only validated
+  readiness with tests. Summary reads must not invoke provider probes; live
+  resolve must retain provider checks. No guessed target, global fallback or
+  broad exception masking. Parent granted limited shared binding-helper scope.
+- Ampere added API apply-before-approval/persistence and real-gate admission
+  valid/stale/no-runtime ordering tests: isolated13PASS/0skip. Parent reviewed
+  both files; final integrated rerun still required. Agent collected/closed.
+- Read-only quota confirms same sole grant0attempts/0tokens/0nanoUSD allocated.
+  No actual binding, runtime apply, model calls, vector writes or grant reset.
+  Public Central workflow39162425040 still in progress at last read. Canonical
+  plan/execution/checkpoint updated to distinguish resolved owner permission
+  from unfinished implementation/publication/hosted evidence. UI stays last.
+
+### 2026-10-18 Native Token Independent Gates Completed
+
+- Central39162425040 SUCCESS, directBOM/core/MilvusHTTP200. IsolatedMavenrepo
+  `/private/tmp/01036-native-token-central-0.8.36-m2`:41publicfiles/allCentral/
+  only0.8.36, no publicinstall. Proof
+  `/private/tmp/01036-private-central-artifact-proof-20261018.json`.
+- Parentbackend476PASS/0skip inclrealPGV193. Priorfullrun21socketerrors/1Docker
+  skipwasnotgreen; thennecessarypermissionssupplied,noguardweakened. Passinglog
+  `/private/tmp/01036-native-token-integrated-socket-enabled-gate-20261018.log`.
+- PrivateCentralonly runtime425/accounting140/connector76/vectorization32PASS,
+  zero skips. Logs `/private/tmp/01036-private-{runtime,budget,connector,runner}-central-0.8.36-gate-20261018.log`.
+  All3packagesPASS; localruntime20framework0.8.36jars+token capabilityproof
+  `/private/tmp/01036-private-runtime-local-package-proof-20261018.json`.
+  InitialinspectionwrongBOOT-INFpath; actualmanifestatrootMETA-INFverified.
+  NotCIimage/deployedproof.
+- Sharedlocalresolver/readiness108focusedPASS. Parent scopedGET
+  `/api/deployments/{dep}/versions/{ver}/targets/{target}/secret-usage` requires
+  operator/ownedPUBLISHED/exactactive-target. No providerreadsonlocalreadiness;
+  liveresolverretainsprobes. Unscopedsummary/genericscorecardremainnotready;
+  selectedscope callerwiringremains, no prodreadinessfromstaging. Amperefinal
+  criticalreviewclear, agentscollectedclosed, allneededexecsessionscompleted.
+- BothCPsconfirmedimage-source exacttag58bf670de; no migration/runtimeapply.
+  No binding/vectorwrites/modelcalls/grantallocation/reset. Next scopedcommit/
+  push, verifiedCIimageprovenance+archive, newimmutablev11/spec1.8, freshbackup,
+  strictV193rollout, Free01binding, measuredadmission+durablegrantactivation,
+  attendedcanary. Retainedindex/productionfit/P6/P7open. UIlast/SSHkeepOPEN.

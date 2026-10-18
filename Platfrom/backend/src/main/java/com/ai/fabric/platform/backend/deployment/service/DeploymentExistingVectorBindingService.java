@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.AuthenticationType;
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Request;
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Summary;
 import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
@@ -41,6 +42,7 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 public class DeploymentExistingVectorBindingService {
     public static final String RESOURCE_KIND = PreservedExternalBindingKinds.VECTOR_STORAGE;
     public static final String REQUIRED_FIELD = "milvusExternalBindingRequired";
+    public static final String AUTHENTICATION_TYPE_FIELD = "milvusAuthenticationType";
 
     private final DeploymentRepository deployments;
     private final DeploymentVersionRepository versions;
@@ -78,13 +80,13 @@ public class DeploymentExistingVectorBindingService {
             && "PUBLISHED".equals(value.getStatus())).orElseThrow(() -> failure("EXTERNAL_VECTOR_PUBLISHED_VERSION_REQUIRED"));
         var config = config(version);
         mode(config);
+        AuthenticationType authType = configuredAuthenticationType(config);
+        if (request.authType() != authType) throw failure("EXTERNAL_VECTOR_AUTH_TYPE_MISMATCH");
+        var credentials = credentials(authType, request.username(), request.password(), request.token());
         text(version.getConfigHash(), 128);
         String clusterId = text(request.clusterId(), 128);
         String database = text(request.databaseName(), 128);
         if (!"default".equals(database)) throw failure("EXTERNAL_VECTOR_DATABASE_UNSUPPORTED");
-        String username = text(request.username(), 256);
-        String password = text(request.password(), 4096);
-        if (username.contains(":")) throw failure("EXTERNAL_VECTOR_USERNAME_INVALID");
         String approval = text(request.approvalReference(), 255);
         String project = text(request.projectId(), 128);
         String region = text(request.regionId(), 128);
@@ -101,12 +103,12 @@ public class DeploymentExistingVectorBindingService {
             byte[] random = new byte[32]; new SecureRandom().nextBytes(random);
             fingerprintKey = Base64.getEncoder().encodeToString(random);
         }
-        var credentialDigest = credentialDigest(username, password, fingerprintKey);
+        var credentialDigest = credentialDigest(credentials, fingerprintKey);
         var identity = mapper.createObjectNode().put("customerId", deployment.getCustomerId()).put("tenantId", deployment.getTenantId())
             .put("deploymentId", deploymentId).put("targetProfileId", targetId).put("versionId", version.getId())
             .put("configHash", version.getConfigHash()).put("clusterId", clusterId).put("projectId", project)
             .put("regionId", region).put("deploymentOption", option).put("databaseName", database)
-            .put("approvalReference", approval).put("credentialDigest", credentialDigest);
+            .put("approvalReference", approval).put("authType", authType.name()).put("credentialDigest", credentialDigest);
         String requestFingerprint = DeploymentEvidenceFingerprint.hash(mapper, identity);
         if (existing.isPresent()) {
             var previous = existing.get();
@@ -121,7 +123,10 @@ public class DeploymentExistingVectorBindingService {
         }
         String managementKey = secrets.resolveSecret("ZILLIZ_CLOUD_API_KEY");
         if (managementKey == null || managementKey.isBlank()) throw failure("EXTERNAL_VECTOR_READBACK_CREDENTIAL_REQUIRED");
-        if (managementKey.equals(password) || managementKey.equals(username)) throw failure("EXTERNAL_VECTOR_SERVING_CREDENTIAL_REQUIRED");
+        if (authType == AuthenticationType.USERNAME_PASSWORD
+            && (managementKey.equals(credentials.password()) || managementKey.equals(credentials.username()))) {
+            throw failure("EXTERNAL_VECTOR_SERVING_CREDENTIAL_REQUIRED");
+        }
         var cluster = observe(clusterId, managementKey);
         if (cluster == null || !clusterId.equals(cluster.clusterId()) || !project.equals(cluster.projectId())
             || !region.equals(cluster.regionId()) || !option.equals(cluster.deploymentOption())
@@ -136,17 +141,23 @@ public class DeploymentExistingVectorBindingService {
             throw failure("EXTERNAL_VECTOR_ENDPOINT_INVALID");
         }
         JsonNode scoped = scopes.targetScopedProviderConfig(deployment, config, targetId);
-        verifyServingScope(version, endpoint.toString(), username, password,
+        verifyServingScope(version, endpoint.toString(), credentials,
             scoped.path("milvusCollectionPrefix").asText(), option);
-        String usernameRef = "MANAGED_EXTERNAL_VECTOR_USERNAME_" + token;
-        String passwordRef = "MANAGED_EXTERNAL_VECTOR_PASSWORD_" + token;
         Map<String, ?> ownership = Map.of("deploymentId", deploymentId, "targetProfileId", targetId,
             "resourceKind", RESOURCE_KIND, "externalResourceOwned", false);
-        secrets.upsertManagedSecret(usernameRef, username, ownership);
-        secrets.upsertManagedSecret(passwordRef, password, ownership);
+        if (authType == AuthenticationType.TOKEN) {
+            String tokenRef = "MANAGED_EXTERNAL_VECTOR_TOKEN_" + token;
+            secrets.upsertManagedSecret(tokenRef, credentials.token(), ownership);
+            identity.put("tokenSecretRef", tokenRef);
+        } else {
+            String usernameRef = "MANAGED_EXTERNAL_VECTOR_USERNAME_" + token;
+            String passwordRef = "MANAGED_EXTERNAL_VECTOR_PASSWORD_" + token;
+            secrets.upsertManagedSecret(usernameRef, credentials.username(), ownership);
+            secrets.upsertManagedSecret(passwordRef, credentials.password(), ownership);
+            identity.put("usernameSecretRef", usernameRef).put("passwordSecretRef", passwordRef);
+        }
         secrets.upsertManagedSecret(fingerprintSecretRef, fingerprintKey, ownership);
         identity.put("endpointHost", endpoint.getHost()).put("collectionPrefix", scoped.path("milvusCollectionPrefix").asText())
-            .put("usernameSecretRef", usernameRef).put("passwordSecretRef", passwordRef)
             .put("credentialFingerprintSecretRef", fingerprintSecretRef)
             .put("lifecycle", "RETAIN_EXTERNAL").put("externalResourceOwned", false).put("requestFingerprint", requestFingerprint);
         String fingerprint = DeploymentEvidenceFingerprint.hash(mapper, identity);
@@ -166,7 +177,37 @@ public class DeploymentExistingVectorBindingService {
 
     public JsonNode resolve(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
         if (!required(provider)) return provider;
+        var local = validateLocalBinding(deployment, version, provider, targetId);
+        var handle = local.handle();
+        var metadata = local.metadata();
+        var credentials = local.credentials();
+        String managementKey = secrets.resolveSecret("ZILLIZ_CLOUD_API_KEY");
+        if (managementKey == null || managementKey.isBlank()) throw failure("EXTERNAL_VECTOR_READBACK_CREDENTIAL_REQUIRED");
+        if (credentials.authType() == AuthenticationType.USERNAME_PASSWORD
+            && (managementKey.equals(credentials.username()) || managementKey.equals(credentials.password()))) {
+            throw failure("EXTERNAL_VECTOR_SERVING_CREDENTIAL_REQUIRED");
+        }
+        var observed = observe(handle.getProviderResourceUuid(), managementKey);
+        if (observed == null || !handle.getProviderResourceUuid().equals(observed.clusterId())
+            || !metadata.path("projectId").asText().equals(observed.projectId())
+            || !metadata.path("regionId").asText().equals(observed.regionId())
+            || !metadata.path("deploymentOption").asText().equals(observed.deploymentOption())
+            || !"RUNNING".equalsIgnoreCase(observed.status())
+            || !handle.getFqdn().equals(observed.connectAddress())) throw failure("EXTERNAL_VECTOR_PROVIDER_IDENTITY_CHANGED");
+        verifyServingScope(version, observed.connectAddress(), credentials, local.collectionPrefix(),
+            metadata.path("deploymentOption").asText());
+        return local.providerConfig();
+    }
+
+    /** Local credential evidence only. Provider identity, serving access and health are not checked. */
+    public JsonNode resolveLocal(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
+        if (!required(provider)) return provider;
+        return validateLocalBinding(deployment, version, provider, targetId).providerConfig();
+    }
+
+    private LocalBinding validateLocalBinding(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
         scope(deployment, targetId); mode(provider);
+        AuthenticationType authType = configuredAuthenticationType(provider);
         if (version == null || !"PUBLISHED".equals(version.getStatus()) || version.getConfigHash() == null || version.getConfigHash().isBlank()) {
             throw failure("EXTERNAL_VECTOR_PUBLISHED_VERSION_REQUIRED");
         }
@@ -178,50 +219,54 @@ public class DeploymentExistingVectorBindingService {
         if (!DeploymentEvidenceFingerprint.hash(mapper, integrity).equals(metadata.path("fingerprint").asText())) {
             throw failure("EXTERNAL_VECTOR_BINDING_CHANGED");
         }
+        if (!authType.name().equals(metadata.path("authType").asText())) throw failure("EXTERNAL_VECTOR_AUTH_TYPE_MISMATCH");
         if (!deployment.getCustomerId().equals(metadata.path("customerId").asText())
             || !deployment.getTenantId().equals(metadata.path("tenantId").asText())
             || !deployment.getId().equals(metadata.path("deploymentId").asText())
             || !targetId.equals(metadata.path("targetProfileId").asText())
             || !version.getId().equals(metadata.path("versionId").asText())
             || !deployment.getId().equals(version.getDeploymentId())
+            || !deployment.getId().equals(handle.getDeploymentId())
+            || !targetId.equals(handle.getTargetProfileId())
+            || !RESOURCE_KIND.equals(handle.getResourceKind())
             || !version.getConfigHash().equals(metadata.path("configHash").asText())
             || !"RETAIN_EXTERNAL".equals(metadata.path("lifecycle").asText())
             || metadata.path("externalResourceOwned").asBoolean(true)) throw failure("EXTERNAL_VECTOR_BINDING_SCOPE_CHANGED");
-        String managementKey = secrets.resolveSecret("ZILLIZ_CLOUD_API_KEY");
-        if (managementKey == null || managementKey.isBlank()) throw failure("EXTERNAL_VECTOR_READBACK_CREDENTIAL_REQUIRED");
-        var observed = observe(handle.getProviderResourceUuid(), managementKey);
-        if (observed == null || !handle.getProviderResourceUuid().equals(observed.clusterId())
-            || !metadata.path("projectId").asText().equals(observed.projectId())
-            || !metadata.path("regionId").asText().equals(observed.regionId())
-            || !metadata.path("deploymentOption").asText().equals(observed.deploymentOption())
-            || !"RUNNING".equalsIgnoreCase(observed.status())
-            || !handle.getFqdn().equals(observed.connectAddress())) throw failure("EXTERNAL_VECTOR_PROVIDER_IDENTITY_CHANGED");
         var effective = (ObjectNode) provider.deepCopy();
         effective.put("milvusHost", metadata.path("endpointHost").asText()).put("milvusPort", 443).put("milvusSecure", true)
             .put("milvusDatabaseName", metadata.path("databaseName").asText());
         String expectedPrefix = scopes.targetScopedProviderConfig(deployment, effective, targetId).path("milvusCollectionPrefix").asText();
         if (!expectedPrefix.equals(metadata.path("collectionPrefix").asText())) throw failure("EXTERNAL_VECTOR_PREFIX_CHANGED");
-        String username = metadata.path("usernameSecretRef").asText();
-        String password = metadata.path("passwordSecretRef").asText();
         String token = scopeToken(deployment.getId(), targetId);
-        if (!("MANAGED_EXTERNAL_VECTOR_USERNAME_" + token).equals(username)
-            || !("MANAGED_EXTERNAL_VECTOR_PASSWORD_" + token).equals(password)) throw failure("EXTERNAL_VECTOR_SECRET_SCOPE_CHANGED");
-        String usernameValue = username.isBlank() ? null : secrets.resolveSecret(username);
-        String passwordValue = password.isBlank() ? null : secrets.resolveSecret(password);
-        if (usernameValue == null || usernameValue.isBlank() || passwordValue == null || passwordValue.isBlank()) {
-            throw failure("EXTERNAL_VECTOR_RUNTIME_CREDENTIALS_REQUIRED");
+        ServingCredentials credentials;
+        effective.put(AUTHENTICATION_TYPE_FIELD, authType.name());
+        effective.remove(java.util.List.of("milvusRuntimeUsernameSecretName", "milvusRuntimePasswordSecretName", "milvusRuntimeTokenSecretName"));
+        if (authType == AuthenticationType.TOKEN) {
+            String tokenRef = metadata.path("tokenSecretRef").asText();
+            if (!("MANAGED_EXTERNAL_VECTOR_TOKEN_" + token).equals(tokenRef)
+                || metadata.has("usernameSecretRef") || metadata.has("passwordSecretRef")) throw failure("EXTERNAL_VECTOR_SECRET_SCOPE_CHANGED");
+            credentials = runtimeCredentials(authType, null, null, secrets.resolveSecret(tokenRef));
+            effective.put("milvusRuntimeTokenSecretName", tokenRef);
+        } else {
+            String username = metadata.path("usernameSecretRef").asText();
+            String password = metadata.path("passwordSecretRef").asText();
+            if (!("MANAGED_EXTERNAL_VECTOR_USERNAME_" + token).equals(username)
+                || !("MANAGED_EXTERNAL_VECTOR_PASSWORD_" + token).equals(password)
+                || metadata.has("tokenSecretRef")) throw failure("EXTERNAL_VECTOR_SECRET_SCOPE_CHANGED");
+            credentials = runtimeCredentials(authType, secrets.resolveSecret(username), secrets.resolveSecret(password), null);
+            effective.put("milvusRuntimeUsernameSecretName", username).put("milvusRuntimePasswordSecretName", password);
         }
         String fingerprintRef = metadata.path("credentialFingerprintSecretRef").asText();
         if (!("MANAGED_EXTERNAL_VECTOR_FINGERPRINT_" + token).equals(fingerprintRef)) throw failure("EXTERNAL_VECTOR_SECRET_SCOPE_CHANGED");
         String fingerprintKey = secrets.resolveSecret(fingerprintRef);
         if (fingerprintKey == null || fingerprintKey.isBlank()) throw failure("EXTERNAL_VECTOR_FINGERPRINT_KEY_REQUIRED");
-        if (!credentialDigest(usernameValue, passwordValue, fingerprintKey)
+        if (!credentialDigest(credentials, fingerprintKey)
             .equals(metadata.path("credentialDigest").asText())) throw failure("EXTERNAL_VECTOR_RUNTIME_CREDENTIALS_CHANGED");
-        verifyServingScope(version, observed.connectAddress(), usernameValue, passwordValue, expectedPrefix,
-            metadata.path("deploymentOption").asText());
-        effective.put("milvusRuntimeUsernameSecretName", username).put("milvusRuntimePasswordSecretName", password);
-        return effective;
+        return new LocalBinding(handle, metadata, effective, credentials, expectedPrefix);
     }
+
+    private record LocalBinding(DeploymentProviderResourceHandleEntity handle, JsonNode metadata, JsonNode providerConfig,
+                                ServingCredentials credentials, String collectionPrefix) { }
 
     public Summary get(String deploymentId, String targetId) {
         return handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(deploymentId, targetId, RESOURCE_KIND)
@@ -233,7 +278,7 @@ public class DeploymentExistingVectorBindingService {
         return new Summary(handle.getId(), handle.getDeploymentId(), handle.getTargetProfileId(), meta.path("versionId").asText(),
             handle.getProviderResourceUuid(), meta.path("deploymentOption").asText(), meta.path("endpointHost").asText(),
             meta.path("databaseName").asText(), meta.path("collectionPrefix").asText(), meta.path("lifecycle").asText(),
-            meta.path("fingerprint").asText(), handle.getLastObservedAt());
+            meta.path("fingerprint").asText(), handle.getLastObservedAt(), metadataAuthenticationType(meta));
     }
 
     private void scope(DeploymentEntity deployment, String targetId) {
@@ -251,6 +296,42 @@ public class DeploymentExistingVectorBindingService {
     private JsonNode config(DeploymentVersionEntity version) {
         try { return mapper.readTree(version.getProviderConfigJson()); }
         catch (Exception ex) { throw failure("EXTERNAL_VECTOR_CONFIG_INVALID"); }
+    }
+
+    private AuthenticationType configuredAuthenticationType(JsonNode config) {
+        // Published 1.7 config has no mode; an explicit malformed mode must never select another credential form.
+        JsonNode value = config.path(AUTHENTICATION_TYPE_FIELD);
+        if (value.isMissingNode()) return AuthenticationType.USERNAME_PASSWORD;
+        return authenticationType(value.asText());
+    }
+
+    private AuthenticationType metadataAuthenticationType(JsonNode metadata) {
+        return authenticationType(metadata.path("authType").asText());
+    }
+
+    private AuthenticationType authenticationType(String value) {
+        try { return AuthenticationType.valueOf(value); }
+        catch (IllegalArgumentException error) { throw failure("EXTERNAL_VECTOR_AUTH_TYPE_INVALID"); }
+    }
+
+    private ServingCredentials credentials(AuthenticationType authType, String username, String password, String token) {
+        if (authType == AuthenticationType.TOKEN) {
+            if (username != null || password != null) throw failure("EXTERNAL_VECTOR_AUTH_CREDENTIALS_MIXED");
+            return new ServingCredentials(authType, null, null, text(token, 4096));
+        }
+        if (token != null) throw failure("EXTERNAL_VECTOR_AUTH_CREDENTIALS_MIXED");
+        text(username, 256); text(password, 4096);
+        if (username.contains(":")) throw failure("EXTERNAL_VECTOR_USERNAME_INVALID");
+        return new ServingCredentials(authType, username, password, null);
+    }
+
+    private ServingCredentials runtimeCredentials(AuthenticationType authType, String username, String password, String token) {
+        try { return credentials(authType, username, password, token); }
+        catch (ResponseStatusException error) { throw failure("EXTERNAL_VECTOR_RUNTIME_CREDENTIALS_REQUIRED"); }
+    }
+
+    private record ServingCredentials(AuthenticationType authType, String username, String password, String token) {
+        @Override public String toString() { return "ServingCredentials[redacted]"; }
     }
 
     private JsonNode metadata(DeploymentProviderResourceHandleEntity handle) {
@@ -272,19 +353,25 @@ public class DeploymentExistingVectorBindingService {
             .toUpperCase(java.util.Locale.ROOT);
     }
 
-    private String credentialDigest(String username, String password, String key) {
+    private String credentialDigest(ServingCredentials credentials, String key) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(mapper.writeValueAsBytes(
-                mapper.createObjectNode().put("username", username).put("password", password))));
+            ObjectNode value = mapper.createObjectNode().put("authType", credentials.authType().name());
+            if (credentials.authType() == AuthenticationType.TOKEN) value.put("token", credentials.token());
+            else value.put("username", credentials.username()).put("password", credentials.password());
+            return HexFormat.of().formatHex(mac.doFinal(mapper.writeValueAsBytes(value)));
         } catch (Exception error) { throw failure("EXTERNAL_VECTOR_CREDENTIAL_FINGERPRINT_FAILED"); }
     }
 
-    private void verifyServingScope(DeploymentVersionEntity version, String endpoint, String username, String password,
+    private void verifyServingScope(DeploymentVersionEntity version, String endpoint, ServingCredentials credentials,
                                    String prefix, String deploymentOption) {
         java.util.List<String> collections;
-        try { collections = zilliz.listServingCollections(endpoint, username, password); }
+        try {
+            collections = credentials.authType() == AuthenticationType.TOKEN
+                ? zilliz.listServingCollections(endpoint, credentials.token())
+                : zilliz.listServingCollections(endpoint, credentials.username(), credentials.password());
+        }
         catch (RuntimeException error) { throw failure("EXTERNAL_VECTOR_SERVING_VERIFICATION_FAILED"); }
         if (collections == null || prefix.isBlank() || collections.stream().anyMatch(name -> !name.startsWith(prefix))) {
             throw failure("EXTERNAL_VECTOR_FOREIGN_COLLECTIONS_PRESENT");

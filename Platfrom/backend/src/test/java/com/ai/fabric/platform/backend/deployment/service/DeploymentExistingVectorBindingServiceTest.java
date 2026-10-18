@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResour
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.AuthenticationType;
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Request;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -19,12 +20,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -82,6 +86,7 @@ class DeploymentExistingVectorBindingServiceTest {
         var result = service.bind(deployment.getId(), TARGET, request());
         assertThat(result.lifecycle()).isEqualTo("RETAIN_EXTERNAL");
         assertThat(result.deploymentOption()).isEqualTo("Free");
+        assertThat(result.authType()).isEqualTo(AuthenticationType.USERNAME_PASSWORD);
         assertThat(result.collectionPrefix()).isEqualTo(scopes.targetScopedProviderConfig(deployment, config, TARGET).path("milvusCollectionPrefix").asText());
         assertThat(result.toString()).doesNotContain("serving-password", "control-plane-only");
         assertThat(saved.getMetadataJson()).doesNotContain("serving-password", "control-plane-only");
@@ -93,6 +98,8 @@ class DeploymentExistingVectorBindingServiceTest {
         assertThat(effective.path("milvusDatabaseName").asText()).isEqualTo("default");
         assertThat(effective.path("milvusRuntimeUsernameSecretName").asText()).startsWith("MANAGED_EXTERNAL_VECTOR_USERNAME_");
         assertThat(effective.path("milvusRuntimePasswordSecretName").asText()).startsWith("MANAGED_EXTERNAL_VECTOR_PASSWORD_");
+        assertThat(effective.path("milvusAuthenticationType").asText()).isEqualTo("USERNAME_PASSWORD");
+        assertThat(effective.has("milvusRuntimeTokenSecretName")).isFalse();
         assertThat(config.has("milvusHost")).isFalse();
         assertThat(service.bind(deployment.getId(), TARGET, request())).isEqualTo(result);
         verify(zilliz, times(3)).getCluster(CLUSTER, "control-plane-only");
@@ -102,6 +109,87 @@ class DeploymentExistingVectorBindingServiceTest {
         verify(secrets, times(3)).upsertManagedSecret(anyString(), anyString(), any());
     }
     private static final String URI_HOST = "cluster-free.serverless.aws-eu-central-1.cloud.zilliz.com";
+
+    @ParameterizedTest @ValueSource(strings = {"TOKEN", "USERNAME_PASSWORD"})
+    void localProjectionValidatesCredentialsWithoutProviderTrafficWhileLiveResolveStillChecksProvider(String authType) {
+        bindSynthetic(authType);
+        String unchangedConfig = config.toString();
+        clearInvocations(zilliz, secrets, handles, audit);
+
+        var local = service.resolveLocal(deployment, version, config, TARGET);
+        assertThat(local.path("milvusAuthenticationType").asText()).isEqualTo(authType);
+        assertThat(local.toString()).doesNotContain("synthetic-serving-token", "serving-password", "control-plane-only");
+        assertThat(config.toString()).isEqualTo(unchangedConfig);
+        verifyNoInteractions(zilliz, audit);
+        verify(secrets, never()).resolveSecret("ZILLIZ_CLOUD_API_KEY");
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, never()).saveAndFlush(any());
+
+        assertThat(service.resolve(deployment, version, config, TARGET)).isEqualTo(local);
+        verify(zilliz).getCluster(CLUSTER, "control-plane-only");
+        if (authType.equals("TOKEN")) verify(zilliz).listServingCollections(ENDPOINT, "synthetic-serving-token");
+        else verify(zilliz).listServingCollections(ENDPOINT, "db_admin", "serving-password");
+        verifyNoMoreInteractions(zilliz);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"TOKEN", "USERNAME_PASSWORD"})
+    void localCredentialEvidenceDoesNotRequireOrClaimLiveProviderReadiness(String authType) {
+        bindSynthetic(authType);
+        vault.remove("ZILLIZ_CLOUD_API_KEY");
+        clearInvocations(zilliz, secrets);
+        assertThat(service.resolveLocal(deployment, version, config, TARGET).path("milvusAuthenticationType").asText()).isEqualTo(authType);
+        verify(secrets, never()).resolveSecret("ZILLIZ_CLOUD_API_KEY");
+        denied(() -> service.resolve(deployment, version, config, TARGET), "READBACK_CREDENTIAL_REQUIRED");
+        verifyNoInteractions(zilliz);
+    }
+
+    @ParameterizedTest @MethodSource("localBindingFailures")
+    void localProjectionRejectsMissingStaleWrongTargetAndTamperedEvidenceWithoutProviderCalls(String authType, String change) throws Exception {
+        bindSynthetic(authType);
+        var metadata = (ObjectNode) mapper.readTree(saved.getMetadataJson());
+        String credentialRef = metadata.path(authType.equals("TOKEN") ? "tokenSecretRef" : "passwordSecretRef").asText();
+        String target = change.equals("target") ? "target-other" : TARGET;
+        switch (change) {
+            case "missing" -> saved = null;
+            case "credentialMissing" -> vault.remove(credentialRef);
+            case "credentialRotated" -> vault.put(credentialRef, "synthetic-changed-value");
+            case "metadata" -> saved.setMetadataJson(metadata.put("databaseName", "tampered").toString());
+            case "hash" -> version.setConfigHash("stale-config-hash");
+            case "namespace" -> saveRehashedMetadata(metadata.put("collectionPrefix", "foreign_scope__"));
+            case "reference" -> saveRehashedMetadata(metadata.put(authType.equals("TOKEN") ? "tokenSecretRef" : "passwordSecretRef", "MANAGED_EXTERNAL_VECTOR_FOREIGN"));
+            case "handleTarget" -> saved.setTargetProfileId("target-other");
+            case "handleOwner" -> saved.setDeploymentId("dep-other");
+            case "fingerprintKey" -> vault.remove(metadata.path("credentialFingerprintSecretRef").asText());
+            case "target" -> { }
+            default -> throw new IllegalArgumentException(change);
+        }
+        clearInvocations(zilliz, secrets, handles, audit);
+        assertThatThrownBy(() -> service.resolveLocal(deployment, version, config, target))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("EXTERNAL_VECTOR_")
+            .hasMessageNotContaining("synthetic-serving-token").hasMessageNotContaining("serving-password");
+        verifyNoInteractions(zilliz, audit);
+        verify(secrets, never()).resolveSecret("ZILLIZ_CLOUD_API_KEY");
+        verify(secrets, never()).resolveSecret("MILVUS_TOKEN");
+        verify(secrets, never()).resolveSecret("MILVUS_USERNAME");
+        verify(secrets, never()).resolveSecret("MILVUS_PASSWORD");
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, never()).saveAndFlush(any());
+    }
+
+    private static Stream<Arguments> localBindingFailures() {
+        return Stream.of("TOKEN", "USERNAME_PASSWORD").flatMap(auth -> Stream.of("missing", "credentialMissing",
+            "credentialRotated", "metadata", "hash", "target", "namespace", "reference", "handleTarget", "handleOwner", "fingerprintKey")
+            .map(change -> Arguments.of(auth, change)));
+    }
+
+    private void bindSynthetic(String authType) {
+        if (authType.equals("TOKEN")) {
+            useTokenConfig();
+            service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        } else {
+            service.bind(deployment.getId(), TARGET, request());
+        }
+    }
 
     @Test void usesDeploymentOptionRatherThanCommonServerlessPlanLabel() {
         when(zilliz.getCluster(CLUSTER, "control-plane-only")).thenReturn(cluster("Serverless", ENDPOINT));
@@ -260,6 +348,214 @@ class DeploymentExistingVectorBindingServiceTest {
         assertThat(service.resolve(null, null, ordinary, null)).isSameAs(ordinary);
         assertThat(request().toString()).doesNotContain("serving-password", "db_admin");
         verifyNoInteractions(zilliz, handles, secrets);
+    }
+
+    @Test void bindsTokenAndReplaysWithoutUsernamePasswordSecretsOrCredentialProjection() throws Exception {
+        useTokenConfig();
+        var request = tokenRequest("synthetic-serving-token");
+        var bound = service.bind(deployment.getId(), TARGET, request);
+        var meta = mapper.readTree(saved.getMetadataJson());
+        String tokenRef = meta.path("tokenSecretRef").asText();
+        String scopeToken = DeploymentEvidenceFingerprint.hash(mapper,
+            mapper.valueToTree(Map.of("deploymentId", deployment.getId(), "targetProfileId", TARGET))).toUpperCase(java.util.Locale.ROOT);
+        assertThat(tokenRef).isEqualTo("MANAGED_EXTERNAL_VECTOR_TOKEN_" + scopeToken);
+        assertThat(vault.get(tokenRef)).isEqualTo("synthetic-serving-token");
+        assertThat(meta.path("authType").asText()).isEqualTo("TOKEN");
+        assertThat(meta.has("usernameSecretRef")).isFalse();
+        assertThat(meta.has("passwordSecretRef")).isFalse();
+        assertThat(bound.authType()).isEqualTo(AuthenticationType.TOKEN);
+        assertThat(service.get(deployment.getId(), TARGET)).isEqualTo(bound);
+        assertThat(mapper.copy().findAndRegisterModules().writeValueAsString(bound))
+            .contains("\"authType\":\"TOKEN\"").doesNotContain("synthetic-serving-token", "SecretRef", "credentialDigest");
+        assertThat(saved.getMetadataJson()).doesNotContain("synthetic-serving-token", "control-plane-only");
+        assertThat(request.toString()).doesNotContain("synthetic-serving-token");
+        assertThat(bound.toString()).doesNotContain("synthetic-serving-token");
+        verify(audit).record(eq("EXTERNAL_VECTOR_BOUND"), eq("DEPLOYMENT"), eq(deployment.getId()),
+            argThat(details -> !details.toString().contains("synthetic-serving-token") && !details.toString().contains(tokenRef)));
+        var effective = service.resolve(deployment, version, config, TARGET);
+        assertThat(effective.path("milvusAuthenticationType").asText()).isEqualTo("TOKEN");
+        assertThat(effective.path("milvusRuntimeTokenSecretName").asText()).isEqualTo(tokenRef);
+        assertThat(effective.has("milvusRuntimeUsernameSecretName")).isFalse();
+        assertThat(effective.has("milvusRuntimePasswordSecretName")).isFalse();
+        assertThat(effective.toString()).doesNotContain("synthetic-serving-token", "control-plane-only");
+        assertThat(service.bind(deployment.getId(), TARGET, request)).isEqualTo(bound);
+        verify(secrets, times(2)).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, times(1)).saveAndFlush(any());
+        verify(zilliz, times(3)).getCluster(CLUSTER, "control-plane-only");
+        verify(zilliz, times(3)).listServingCollections(ENDPOINT, "synthetic-serving-token");
+        verifyNoMoreInteractions(zilliz);
+    }
+
+    @Test void acceptsOnlyExplicitOwnerSuppliedTokenEvenWhenItsValueMatchesTheBroaderManagementKey() {
+        useTokenConfig();
+        when(zilliz.listServingCollections(ENDPOINT, "control-plane-only")).thenReturn(java.util.List.of());
+        service.bind(deployment.getId(), TARGET, tokenRequest("control-plane-only"));
+        service.resolve(deployment, version, config, TARGET);
+        verify(zilliz, times(2)).listServingCollections(ENDPOINT, "control-plane-only");
+        verify(zilliz, never()).listServingCollections(anyString(), anyString(), anyString());
+    }
+
+    @Test void requestModeMustMatchPublishedConfigAndAbsentLegacyConfigMeansUsernamePassword() {
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "AUTH_TYPE_MISMATCH");
+        useTokenConfig();
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "AUTH_TYPE_MISMATCH");
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"token", "TOKEN ", "UNKNOWN"})
+    void invalidPublishedModeNeverDefaults(String mode) {
+        config.put("milvusAuthenticationType", mode); version.setProviderConfigJson(config.toString());
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "AUTH_TYPE_INVALID");
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"", " ", "\t"})
+    void explicitlyBlankPublishedModeNeverDefaultsOrInfersRequestMode(String mode) {
+        config.put("milvusAuthenticationType", mode); version.setProviderConfigJson(config.toString());
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "AUTH_TYPE_INVALID");
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "AUTH_TYPE_INVALID");
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @Test void nullPublishedModeNeverDefaults() {
+        config.putNull("milvusAuthenticationType"); version.setProviderConfigJson(config.toString());
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "AUTH_TYPE_INVALID");
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"username", "password", "blankUsername", "blankPassword"})
+    void tokenModeRejectsEvenBlankUsernamePasswordFields(String kind) {
+        useTokenConfig();
+        String username = kind.equals("username") ? "db_admin" : kind.equals("blankUsername") ? "" : null;
+        String password = kind.equals("password") ? "serving-password" : kind.equals("blankPassword") ? "" : null;
+        var mixed = new Request(version.getId(), CLUSTER, "project", "region", "Free", "default", username, password,
+            "owner-approved", AuthenticationType.TOKEN, "synthetic-serving-token");
+        denied(() -> service.bind(deployment.getId(), TARGET, mixed), "AUTH_CREDENTIALS_MIXED");
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"synthetic-serving-token", ""})
+    void usernamePasswordModeRejectsTokenField(String token) {
+        var mixed = new Request(version.getId(), CLUSTER, "project", "region", "Free", "default", "db_admin", "serving-password",
+            "owner-approved", AuthenticationType.USERNAME_PASSWORD, token);
+        denied(() -> service.bind(deployment.getId(), TARGET, mixed), "AUTH_CREDENTIALS_MIXED");
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @Test void missingTokenNeverUsesControlPlaneOrGlobalCredential() {
+        useTokenConfig();
+        for (String token : new String[] {null, "", " ", " padded", "synthetic\n", "x".repeat(4097)}) {
+            denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest(token)), "BINDING_FIELD_INVALID");
+        }
+        verifyNoInteractions(zilliz, secrets);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing", "blank", "rotated"})
+    void tokenSecretDriftFailsResolveAndExactReplayWithoutRepairOrFallback(String change) throws Exception {
+        useTokenConfig(); service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        String ref = mapper.readTree(saved.getMetadataJson()).path("tokenSecretRef").asText();
+        if (change.equals("missing")) vault.remove(ref);
+        else vault.put(ref, change.equals("blank") ? " " : "synthetic-rotated-token");
+        vault.put("MILVUS_TOKEN", "synthetic-global-token");
+        String error = change.equals("rotated") ? "RUNTIME_CREDENTIALS_CHANGED" : "RUNTIME_CREDENTIALS_REQUIRED";
+        denied(() -> service.resolve(deployment, version, config, TARGET), error);
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), error);
+        verify(secrets, never()).resolveSecret("MILVUS_TOKEN");
+        verify(secrets, times(2)).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, times(1)).saveAndFlush(any());
+        verify(zilliz, times(1)).listServingCollections(ENDPOINT, "synthetic-serving-token");
+        verify(zilliz, never()).listServingCollections(anyString(), anyString(), anyString());
+    }
+
+    @Test void tokenRotationOrModeChangeCannotRebindImmutableHandle() {
+        useTokenConfig(); service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-rotated-token")), "BINDING_IMMUTABLE");
+        config.put("milvusAuthenticationType", "USERNAME_PASSWORD"); version.setProviderConfigJson(config.toString());
+        denied(() -> service.bind(deployment.getId(), TARGET, request()), "BINDING_IMMUTABLE");
+        denied(() -> service.resolve(deployment, version, config, TARGET), "AUTH_TYPE_MISMATCH");
+        verify(secrets, times(2)).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, times(1)).saveAndFlush(any());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"tokenSecretRef", "credentialFingerprintSecretRef", "usernameSecretRef", "passwordSecretRef"})
+    void tokenReferencesMustBeExactAndOtherModeReferencesAreForbiddenEvenWithRehashedMetadata(String field) throws Exception {
+        useTokenConfig(); service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        ObjectNode meta = (ObjectNode) mapper.readTree(saved.getMetadataJson());
+        meta.put(field, "MANAGED_EXTERNAL_VECTOR_TOKEN_FOREIGN_SCOPE");
+        saveRehashedMetadata(meta);
+        denied(() -> service.resolve(deployment, version, config, TARGET), "SECRET_SCOPE_CHANGED");
+        verify(zilliz, times(1)).listServingCollections(ENDPOINT, "synthetic-serving-token");
+    }
+
+    @Test void tokenFingerprintCoversExactModeAndCredentialAndKeyRotationFailsClosed() throws Exception {
+        useTokenConfig(); service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        var meta = mapper.readTree(saved.getMetadataJson());
+        String fingerprintRef = meta.path("credentialFingerprintSecretRef").asText();
+        var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(vault.get(fingerprintRef).getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        String expected = java.util.HexFormat.of().formatHex(mac.doFinal(mapper.writeValueAsBytes(
+            mapper.createObjectNode().put("authType", "TOKEN").put("token", "synthetic-serving-token"))));
+        assertThat(meta.path("credentialDigest").asText()).isEqualTo(expected);
+        vault.put(fingerprintRef, "synthetic-rotated-hmac-key");
+        denied(() -> service.resolve(deployment, version, config, TARGET), "RUNTIME_CREDENTIALS_CHANGED");
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "BINDING_IMMUTABLE");
+        vault.remove(fingerprintRef);
+        denied(() -> service.resolve(deployment, version, config, TARGET), "FINGERPRINT_KEY_REQUIRED");
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "FINGERPRINT_KEY_REQUIRED");
+        verify(secrets, times(2)).upsertManagedSecret(anyString(), anyString(), any());
+    }
+
+    @Test void tokenModeTamperingFailsWithOrWithoutRehashedMetadata() throws Exception {
+        useTokenConfig(); service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        ObjectNode meta = (ObjectNode) mapper.readTree(saved.getMetadataJson());
+        meta.put("authType", "USERNAME_PASSWORD"); saved.setMetadataJson(meta.toString());
+        denied(() -> service.resolve(deployment, version, config, TARGET), "BINDING_CHANGED");
+        saveRehashedMetadata(meta);
+        denied(() -> service.resolve(deployment, version, config, TARGET), "AUTH_TYPE_MISMATCH");
+    }
+
+    @Test void resolveRemovesStaleOtherModeReferencesWithoutMutatingPublishedConfig() {
+        config.put("milvusAuthenticationType", "USERNAME_PASSWORD").put("milvusRuntimeTokenSecretName", "stale-token-ref");
+        version.setProviderConfigJson(config.toString());
+        service.bind(deployment.getId(), TARGET, request());
+        assertThat(service.resolve(deployment, version, config, TARGET).has("milvusRuntimeTokenSecretName")).isFalse();
+        assertThat(config.path("milvusRuntimeTokenSecretName").asText()).isEqualTo("stale-token-ref");
+        saved = null;
+        useTokenConfig();
+        config.put("milvusRuntimeUsernameSecretName", "stale-username-ref").put("milvusRuntimePasswordSecretName", "stale-password-ref");
+        version.setProviderConfigJson(config.toString());
+        service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token"));
+        var effective = service.resolve(deployment, version, config, TARGET);
+        assertThat(effective.has("milvusRuntimeUsernameSecretName")).isFalse();
+        assertThat(effective.has("milvusRuntimePasswordSecretName")).isFalse();
+    }
+
+    @Test void tokenServingDenialForeignCollectionsAndFreeQuotaStillFailBeforeEffects() {
+        useTokenConfig();
+        when(zilliz.listServingCollections(ENDPOINT, "synthetic-serving-token")).thenThrow(new RailwayProvisioningException("synthetic-serving-token"));
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "SERVING_VERIFICATION_FAILED");
+        doReturn(java.util.List.of("foreign_collection")).when(zilliz).listServingCollections(ENDPOINT, "synthetic-serving-token");
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "FOREIGN_COLLECTIONS_PRESENT");
+        when(zilliz.listServingCollections(ENDPOINT, "synthetic-serving-token")).thenReturn(java.util.List.of());
+        version.setEntityConfigJson("{\"ai-entities\":{\"a\":{},\"b\":{},\"c\":{},\"d\":{},\"e\":{},\"f\":{}}}");
+        denied(() -> service.bind(deployment.getId(), TARGET, tokenRequest("synthetic-serving-token")), "FREE_COLLECTION_LIMIT");
+        verify(secrets, never()).upsertManagedSecret(anyString(), anyString(), any());
+        verify(handles, never()).saveAndFlush(any());
+    }
+
+    private void useTokenConfig() {
+        config.put("milvusAuthenticationType", "TOKEN"); version.setProviderConfigJson(config.toString());
+        when(zilliz.listServingCollections(ENDPOINT, "synthetic-serving-token")).thenReturn(java.util.List.of());
+    }
+
+    private Request tokenRequest(String token) {
+        return new Request(version.getId(), CLUSTER, "project", "region", "Free", "default", null, null,
+            "owner-approved", AuthenticationType.TOKEN, token);
+    }
+
+    private void saveRehashedMetadata(ObjectNode metadata) {
+        metadata.remove("fingerprint"); metadata.put("fingerprint", DeploymentEvidenceFingerprint.hash(mapper, metadata));
+        saved.setMetadataJson(metadata.toString());
     }
 
     private Request request() { return new Request(version.getId(), CLUSTER, "project", "region", "Free", "default", "db_admin", "serving-password", "owner-approved"); }

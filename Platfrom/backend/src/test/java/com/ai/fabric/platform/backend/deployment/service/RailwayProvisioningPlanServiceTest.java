@@ -40,6 +40,98 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void requiredTokenBindingProjectsOnlyTargetTokenReferenceAndRejectsInvalidResolution() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var secrets = mock(PlatformSecretService.class);
+        var mapper = new ObjectMapper();
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), secrets, mapper);
+        var version = version();
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusAuthenticationType":"TOKEN","milvusExternalBindingRequired":true}
+            """);
+        var binding = mock(DeploymentExistingVectorBindingService.class);
+        ReflectionTestUtils.setField(service, "existingVectorBindings", binding);
+        var dep = deployment();
+        var effective = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(version.getProviderConfigJson());
+        effective.put("milvusHost", "fake.cluster.zillizcloud.com").put("milvusPort", 443).put("milvusSecure", true)
+            .put("milvusRuntimeTokenSecretName", "MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET");
+        when(binding.resolve(org.mockito.ArgumentMatchers.eq(dep), org.mockito.ArgumentMatchers.eq(version),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("target-staging"))).thenReturn(effective);
+        var plan = service.buildPlan(dep, version, null, "target-staging");
+        var env = envMap(plan.services().runtime().env());
+        assertThat(env).containsEntry("AI_PROVIDERS_MILVUS_TOKEN", "${secret:MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET}")
+            .doesNotContainKeys("AI_PROVIDERS_MILVUS_USERNAME", "AI_PROVIDERS_MILVUS_PASSWORD");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MILVUS_TOKEN");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET");
+        org.mockito.Mockito.clearInvocations(artifacts);
+        effective.remove("milvusRuntimeTokenSecretName");
+        assertThatThrownBy(() -> service.buildPlan(dep, version, null, "target-staging"))
+            .hasMessage("MILVUS_TOKEN_SECRET_REFERENCE_REQUIRED");
+        effective.put("milvusRuntimeTokenSecretName", "MILVUS_TOKEN");
+        assertThatThrownBy(() -> service.buildPlan(dep, version, null, "target-staging"))
+            .hasMessage("EXTERNAL_VECTOR_SECRET_SCOPE_CHANGED");
+        effective.put("milvusRuntimeTokenSecretName", "MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET")
+            .put("milvusRuntimePasswordSecretName", "FAKE_PASSWORD_REF");
+        assertThatThrownBy(() -> service.buildPlan(dep, version, null, "target-staging"))
+            .hasMessage("MILVUS_AUTHENTICATION_MIXED_MODE");
+        effective.remove("milvusRuntimePasswordSecretName");
+        effective.put("milvusAuthenticationType", "USERNAME_PASSWORD");
+        assertThatThrownBy(() -> service.buildPlan(dep, version, null, "target-staging"))
+            .hasMessage("EXTERNAL_VECTOR_AUTHENTICATION_TYPE_CHANGED");
+        org.mockito.Mockito.verifyNoInteractions(artifacts);
+    }
+
+    @Test
+    void invalidMilvusAuthenticationFailsBeforeBindingOrArtifactGeneration() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        var secrets = mock(PlatformSecretService.class);
+        var binding = mock(DeploymentExistingVectorBindingService.class);
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), secrets, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "existingVectorBindings", binding);
+        var version = version();
+        for (String fields : java.util.List.of(
+            "\"milvusAuthenticationType\":\"INVALID_FAKE\"",
+            "\"milvusAuthenticationType\":\"TOKEN\",\"milvusRuntimeUsernameSecretName\":\"FAKE_REF\"",
+            "\"milvusAuthenticationType\":\"TOKEN\",\"milvusToken\":\"fake-raw-credential\"")) {
+            version.setProviderConfigJson("{\"vectorStrategy\":\"milvus\",\"milvusExternalBindingRequired\":true,"
+                + "\"vectorProvisioningMode\":\"EXTERNAL_EXISTING\",\"vectorStoragePosture\":\"SHARED\"," + fields + "}");
+            assertThatThrownBy(() -> service.buildPlan(deployment(), version, null, "target-staging"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageNotContaining("fake-raw-credential");
+        }
+        org.mockito.Mockito.verifyNoInteractions(artifacts, binding, secrets);
+    }
+
+    @Test
+    void unboundTokenCannotSelectManagementOrCrossCustomerSecretReferences() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        var secrets = mock(PlatformSecretService.class);
+        var binding = mock(DeploymentExistingVectorBindingService.class);
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), secrets, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "existingVectorBindings", binding);
+        var version = version();
+        for (String ref : java.util.List.of("ZILLIZ_CLOUD_API_KEY", "MANAGED_EXTERNAL_VECTOR_TOKEN_OTHER_CUSTOMER")) {
+            version.setProviderConfigJson("""
+                {"vectorStrategy":"milvus","milvusAuthenticationType":"TOKEN",
+                 "vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+                 "milvusRuntimeTokenSecretName":"%s"}
+                """.formatted(ref));
+            assertThatThrownBy(() -> service.buildPlan(deployment(), version, null, "target-staging"))
+                .hasMessage("MILVUS_TOKEN_EXTERNAL_BINDING_REQUIRED");
+        }
+        org.mockito.Mockito.verifyNoInteractions(artifacts, secrets, binding);
+    }
+
+    @Test
     void explicitExternalBindingIsRequiredBeforePlanGenerationAndCannotUseGlobalMilvusSecrets() throws Exception {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
@@ -81,6 +173,7 @@ class RailwayProvisioningPlanServiceTest {
             org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("target-staging"))).thenReturn(effective);
         var env = envMap(service.buildPlan(dep, version, null, "target-staging").services().runtime().env());
         assertThat(env).containsEntry("AI_PROVIDERS_MILVUS_HOST", "cluster.zillizcloud.com")
+            .doesNotContainKey("AI_PROVIDERS_MILVUS_TOKEN")
             .containsEntry("AI_PROVIDERS_MILVUS_DATABASE_NAME", "default")
             .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MANAGED_EXTERNAL_VECTOR_USERNAME_TARGET}")
             .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MANAGED_EXTERNAL_VECTOR_PASSWORD_TARGET}");
@@ -300,7 +393,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
-            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.35")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.36")
             .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
@@ -2546,7 +2639,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
-        version.setAiFabricFrameworkVersion("0.8.35");
+        version.setAiFabricFrameworkVersion("0.8.36");
         version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
@@ -2573,7 +2666,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
             {
-              "aiFabricFrameworkVersion": "0.8.35",
+              "aiFabricFrameworkVersion": "0.8.36",
               "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
               "entityConfigHash": "entity-hash-123"
             }

@@ -8,7 +8,10 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.service.MilvusTokenRuntimeArtifactGate;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +34,9 @@ public class CustomerAdmissionManifestService {
     private final DeploymentDocumentBindingResolver documentBindings;
     private final ReviewedManagedDependencyEvidenceService dependencyEvidence;
     private final PlatformAuditService audit;
+
+    @Autowired(required = false)
+    private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
 
     public CustomerAdmissionManifestService(AdmissionStore store, AdmissionJson json,
                                             DeploymentService deployments,
@@ -56,6 +62,13 @@ public class CustomerAdmissionManifestService {
             throw invalid("CUSTOMER_ADMISSION_MANIFEST_SCOPE_INVALID");
         }
 
+        JsonNode provider = version.getProviderConfigJson() == null ? null
+            : json.read(version.getProviderConfigJson(), JsonNode.class);
+        if (MilvusTokenRuntimeArtifactGate.required(provider)) {
+            if (milvusTokenArtifacts == null) throw invalid("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
+            milvusTokenArtifacts.requireReviewedCandidates(version, provider,
+                authorization.definition().artifacts().stream().map(pin -> pin.artifactId()).toList());
+        }
         FleetPolicy policy = store.activePolicy();
         CustomerGrant grant = store.customerGrant(deployment.getCustomerId());
         String targetId = authorization.context().targetProfileId();

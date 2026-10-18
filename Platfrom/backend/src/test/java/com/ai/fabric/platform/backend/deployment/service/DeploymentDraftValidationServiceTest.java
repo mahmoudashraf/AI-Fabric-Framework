@@ -22,6 +22,25 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void tokenDraftRequiresExplicitModeAndRetainedBindingButNotUnresolvedSecretReferences() {
+        var provider = new ObjectMapper().createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai")
+            .put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")
+            .put("vectorStoragePosture", "SHARED").put("milvusExternalBindingRequired", true)
+            .put("milvusAuthenticationType", "TOKEN");
+        var valid = service.validate(draft("{\"actions\":[]}", "{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}",
+            "{}", provider.toString(), "{}"));
+        assertThat(valid.issues()).extracting("code").doesNotContain("MILVUS_AUTHENTICATION_INVALID", "MILVUS_HOST_REQUIRED");
+        for (String mode : java.util.List.of("token", "", "TOKEN ")) {
+            var changed = provider.deepCopy().put("milvusAuthenticationType", mode);
+            var response = service.validate(draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", changed.toString(), "{}"));
+            assertThat(response.issues()).extracting("code").contains("MILVUS_AUTHENTICATION_INVALID");
+        }
+        var raw = provider.deepCopy().put("milvusToken", "fixture-credential");
+        var rejected = service.validate(draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", raw.toString(), "{}"));
+        assertThat(rejected.issues()).extracting("code").contains("MILVUS_AUTHENTICATION_INVALID");
+    }
+
+    @Test
     void externalBindingDefersHostOnlyForExplicitScopedExistingMilvus() {
         var provider = new ObjectMapper().createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai")
             .put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")

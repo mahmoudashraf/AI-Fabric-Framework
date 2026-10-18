@@ -94,6 +94,7 @@ public class MarketplaceManifestService {
         "weaviateHost",
         "milvusHost",
         "milvusDatabaseName",
+        "milvusAuthenticationType",
         "zillizCloudProjectId",
         "zillizCloudRegionId",
         "zillizCloudClusterPlan",
@@ -914,6 +915,15 @@ public class MarketplaceManifestService {
         });
 
         String vectorStrategy = providerConfig.path("vectorStrategy").asText("").trim().toLowerCase(Locale.ROOT);
+        if (providerConfig.has("milvusAuthenticationType")) {
+            if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)) {
+                throw invalid(plugin, version, "template Milvus authentication requires an explicit Milvus vector strategy.");
+            }
+            try { ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, false); }
+            catch (IllegalArgumentException error) {
+                throw invalid(plugin, version, "template Milvus authentication configuration is invalid.");
+            }
+        }
         if (StringUtils.hasText(vectorStrategy)
             && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STRATEGIES.contains(vectorStrategy)) {
             throw invalid(plugin, version,

@@ -27,6 +27,8 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String VECTOR_STRATEGY_WEAVIATE = "weaviate";
     public static final String VECTOR_STRATEGY_QDRANT = "qdrant";
     public static final String VECTOR_STRATEGY_MILVUS = "milvus";
+    public static final String MILVUS_AUTHENTICATION_USERNAME_PASSWORD = "USERNAME_PASSWORD";
+    public static final String MILVUS_AUTHENTICATION_TOKEN = "TOKEN";
     public static final String VECTOR_PROVISIONING_MODE_LOCAL_MANAGED = "LOCAL_MANAGED";
     public static final String VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING = "EXTERNAL_EXISTING";
     public static final String VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED = "PLATFORM_MANAGED";
@@ -635,6 +637,9 @@ public final class ManagedDeploymentProfileCatalog {
         if (milvusPlatformManaged(providerConfig)) {
             return "ZILLIZ_CLOUD_API_KEY";
         }
+        if (usesMilvus(providerConfig) && milvusTokenAuthentication(providerConfig)) {
+            return "MILVUS_TOKEN";
+        }
         return "";
     }
 
@@ -659,7 +664,8 @@ public final class ManagedDeploymentProfileCatalog {
             names.add("QDRANT_API_KEY");
         } else if (VECTOR_STRATEGY_WEAVIATE.equals(normalized)) {
             names.add("WEAVIATE_API_KEY");
-        } else if (VECTOR_STRATEGY_MILVUS.equals(normalized) && !milvusPlatformManaged(providerConfig)) {
+        } else if (VECTOR_STRATEGY_MILVUS.equals(normalized) && !milvusPlatformManaged(providerConfig)
+            && !milvusTokenAuthentication(providerConfig)) {
             names.add("MILVUS_USERNAME");
             names.add("MILVUS_PASSWORD");
         }
@@ -1201,6 +1207,69 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String milvusRuntimePasswordSecretName(JsonNode providerConfig) {
         return text(providerConfig, "milvusRuntimePasswordSecretName");
+    }
+
+    public static String resolveMilvusAuthenticationType(JsonNode providerConfig) {
+        if (providerConfig == null || !providerConfig.has("milvusAuthenticationType")) {
+            return MILVUS_AUTHENTICATION_USERNAME_PASSWORD;
+        }
+        JsonNode value = providerConfig.path("milvusAuthenticationType");
+        if (value.isTextual() && (MILVUS_AUTHENTICATION_USERNAME_PASSWORD.equals(value.textValue())
+            || MILVUS_AUTHENTICATION_TOKEN.equals(value.textValue()))) {
+            return value.textValue();
+        }
+        throw new IllegalArgumentException("MILVUS_AUTHENTICATION_TYPE_INVALID");
+    }
+
+    public static boolean milvusTokenAuthentication(JsonNode providerConfig) {
+        return MILVUS_AUTHENTICATION_TOKEN.equals(resolveMilvusAuthenticationType(providerConfig));
+    }
+
+    public static String milvusRuntimeTokenSecretName(JsonNode providerConfig) {
+        return text(providerConfig, "milvusRuntimeTokenSecretName");
+    }
+
+    public static void validateMilvusAuthentication(JsonNode providerConfig, boolean requireRuntimeReferences) {
+        if (!usesMilvus(providerConfig)) {
+            return;
+        }
+        boolean token = milvusTokenAuthentication(providerConfig);
+        if (token && (!VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(providerConfig.path("vectorProvisioningMode").asText())
+            || !VECTOR_STORAGE_POSTURE_SHARED.equals(providerConfig.path("vectorStoragePosture").asText())
+            || !DeploymentExistingVectorBindingService.required(providerConfig))) {
+            throw new IllegalArgumentException("MILVUS_TOKEN_EXTERNAL_BINDING_REQUIRED");
+        }
+        String tokenRef = milvusRuntimeTokenSecretName(providerConfig);
+        String usernameRef = milvusRuntimeUsernameSecretName(providerConfig);
+        String passwordRef = milvusRuntimePasswordSecretName(providerConfig);
+        if (!tokenRef.isBlank()) {
+            requireMilvusSecretReference(tokenRef, "MILVUS_TOKEN_SECRET_REFERENCE_INVALID");
+            if (DeploymentExistingVectorBindingService.required(providerConfig)
+                && !tokenRef.matches("MANAGED_EXTERNAL_VECTOR_TOKEN_[A-Z0-9_]+")) {
+                throw new IllegalArgumentException("EXTERNAL_VECTOR_SECRET_SCOPE_CHANGED");
+            }
+        }
+        if ((token && (!usernameRef.isBlank() || !passwordRef.isBlank())) || (!token && !tokenRef.isBlank())) {
+            throw new IllegalArgumentException("MILVUS_AUTHENTICATION_MIXED_MODE");
+        }
+        for (String field : Set.of("milvusToken", "milvusUsername", "milvusPassword")) {
+            JsonNode value = providerConfig.path(field);
+            if (!value.isMissingNode() && (!value.isTextual() || !value.textValue().isBlank())) {
+                throw new IllegalArgumentException("MILVUS_LITERAL_CREDENTIAL_UNSUPPORTED");
+            }
+        }
+        if (requireRuntimeReferences && token) {
+            requireMilvusSecretReference(tokenRef, "MILVUS_TOKEN_SECRET_REFERENCE_REQUIRED");
+        } else if (requireRuntimeReferences && DeploymentExistingVectorBindingService.required(providerConfig)) {
+            requireMilvusSecretReference(usernameRef, "MILVUS_USERNAME_SECRET_REFERENCE_REQUIRED");
+            requireMilvusSecretReference(passwordRef, "MILVUS_PASSWORD_SECRET_REFERENCE_REQUIRED");
+        }
+    }
+
+    private static void requireMilvusSecretReference(String value, String diagnostic) {
+        if (!value.matches("[A-Z][A-Z0-9_]*")) {
+            throw new IllegalArgumentException(diagnostic);
+        }
     }
 
     public static String zillizCloudProjectId(JsonNode providerConfig) {

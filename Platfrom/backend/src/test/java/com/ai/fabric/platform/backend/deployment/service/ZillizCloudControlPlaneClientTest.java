@@ -2,20 +2,129 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
+import java.util.stream.Stream;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class ZillizCloudControlPlaneClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @SuppressWarnings("unchecked")
+    @ParameterizedTest @ValueSource(booleans = {true, false})
+    void servingCollectionListUsesExactBearerCredentialAndOnlyDefaultDatabaseMetadata(boolean tokenMode) throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"code\":0,\"data\":[\"scoped_vehicle\",\"scoped_document\"]}");
+        when(httpClient.<String>send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        var client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+        var collections = tokenMode ? client.listServingCollections("https://synthetic.zilliz.com", "fake-native-token")
+            : client.listServingCollections("https://synthetic.zilliz.com", "fake-user", "fake-password");
+        assertThat(collections).containsExactly("scoped_vehicle", "scoped_document");
+        assertThatThrownBy(() -> collections.add("other")).isInstanceOf(UnsupportedOperationException.class);
+        var captured = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(captured.capture(), any(HttpResponse.BodyHandler.class));
+        HttpRequest request = captured.getValue();
+        assertThat(request.method()).isEqualTo("POST");
+        assertThat(request.uri().toString()).isEqualTo("https://synthetic.zilliz.com/v2/vectordb/collections/list");
+        assertThat(request.headers().firstValue("Authorization")).contains(tokenMode ? "Bearer fake-native-token" : "Bearer fake-user:fake-password");
+        assertThat(request.headers().firstValue("Content-Type")).contains("application/json");
+        assertThat(requestBody(request)).isEqualTo("{\"dbName\":\"default\"}");
+        verifyNoMoreInteractions(httpClient);
+    }
+
+    @SuppressWarnings("unchecked")
+    @ParameterizedTest @MethodSource("invalidServingPayloads")
+    void servingModesShareStrictCodeZeroAndCollectionArrayParser(String payload) throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(payload);
+        when(httpClient.<String>send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        var client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+        assertThatThrownBy(() -> client.listServingCollections("https://synthetic.zilliz.com", "fake-native-token"))
+            .isInstanceOf(RailwayProvisioningException.class).hasMessageNotContaining("fake-native-token").hasNoCause();
+        assertThatThrownBy(() -> client.listServingCollections("https://synthetic.zilliz.com", "fake-user", "fake-password"))
+            .isInstanceOf(RailwayProvisioningException.class).hasMessageNotContaining("fake-native-token").hasNoCause();
+    }
+
+    static Stream<String> invalidServingPayloads() {
+        return Stream.of("", "null", "[]", "{\"data\":[]}", "{\"code\":\"0\",\"data\":[]}",
+            "{\"code\":0.0,\"data\":[]}", "{\"code\":false,\"data\":[]}", "{\"code\":null,\"data\":[]}",
+            "{\"code\":4294967296,\"data\":[]}", "{\"code\":1,\"data\":[],\"message\":\"fake-native-token\"}",
+            "{\"code\":0}", "{\"code\":0,\"data\":{}}", "{\"code\":0,\"data\":[null]}",
+            "{\"code\":0,\"data\":[42]}", "{\"code\":0,\"data\":[\"\"]}", "{\"code\":0,\"data\":[\" \"]}",
+            "{\"code\":0,\"data\":[{}]}", "{\"code\":0,\"fake-native-token\":",
+            "{\"code\":0,\"data\":[" + String.join(",", java.util.Collections.nCopies(101, "\"collection\"")) + "]}");
+    }
+
+    @SuppressWarnings("unchecked")
+    @ParameterizedTest @ValueSource(ints = {302, 401, 403, 500})
+    void servingHttpFailuresNeverExposeResponseBody(int status) throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(status);
+        when(response.body()).thenReturn("fake-native-token");
+        when(httpClient.<String>send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        var client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+        assertThatThrownBy(() -> client.listServingCollections("https://synthetic.zilliz.com", "fake-native-token"))
+            .hasMessageContaining("HTTP " + status).hasMessageNotContaining("fake-native-token").hasNoCause();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void servingTransportFailureOmitsCredentialBearingCause() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        when(httpClient.<String>send(any(), any(HttpResponse.BodyHandler.class))).thenThrow(new IOException("fake-native-token"));
+        var client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+        assertThatThrownBy(() -> client.listServingCollections("https://synthetic.zilliz.com", "fake-native-token"))
+            .hasMessageNotContaining("fake-native-token").hasNoCause();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"", " ", " fake-native-token", "fake-native-token\n", "fake\nnative-token"})
+    void invalidTokenNeverLeaksIntoHeaderValidationException(String token) {
+        HttpClient httpClient = mock(HttpClient.class);
+        var client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+        assertThatThrownBy(() -> client.listServingCollections("https://synthetic.zilliz.com", token))
+            .isInstanceOf(RailwayProvisioningException.class).hasMessageNotContaining("fake").hasNoCause();
+        verifyNoInteractions(httpClient);
+    }
+
+    private static String requestBody(HttpRequest request) throws Exception {
+        var result = new CompletableFuture<String>();
+        request.bodyPublisher().orElseThrow().subscribe(new Flow.Subscriber<ByteBuffer>() {
+            private final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            public void onSubscribe(Flow.Subscription subscription) { subscription.request(Long.MAX_VALUE); }
+            public void onNext(ByteBuffer item) {
+                byte[] value = new byte[item.remaining()]; item.get(value); bytes.writeBytes(value);
+            }
+            public void onError(Throwable error) { result.completeExceptionally(error); }
+            public void onComplete() { result.complete(bytes.toString(StandardCharsets.UTF_8)); }
+        });
+        return result.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    }
 
     @SuppressWarnings("unchecked")
     @Test

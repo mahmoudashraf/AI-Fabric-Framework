@@ -57,6 +57,8 @@ public class DeploymentReleaseVerificationService {
     private DeploymentDocumentBindingResolver documentBindingResolver;
     @Autowired
     private DeploymentRuntimeAuthorityService runtimeAuthorityService;
+    @Autowired(required = false)
+    private DeploymentExistingVectorBindingService existingVectorBindings;
     private static final int JSON_PROBE_MAX_ATTEMPTS = 3;
 
     private final ObjectMapper objectMapper;
@@ -390,6 +392,29 @@ public class DeploymentReleaseVerificationService {
                 "Live deployment prerequisites are skipped because this release target is " + providerType.legacyTarget() + "."
             );
             return;
+        }
+
+        if (ManagedDeploymentProfileCatalog.usesMilvus(providerConfig)) {
+            try {
+                ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, false);
+                String authenticationType = ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(providerConfig);
+                if (DeploymentExistingVectorBindingService.required(providerConfig)) {
+                    if (existingVectorBindings == null) {
+                        throw new IllegalStateException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+                    }
+                    providerConfig = existingVectorBindings.resolve(deployment, version, providerConfig, release.getTargetProfileId());
+                    if (!authenticationType.equals(ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(providerConfig))) {
+                        throw new IllegalStateException("EXTERNAL_VECTOR_AUTHENTICATION_TYPE_CHANGED");
+                    }
+                }
+                ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, true);
+                addCheck(checks, "milvus_authentication_ready", "PASSED",
+                    "Milvus authentication mode and runtime secret references are valid.", null);
+            } catch (RuntimeException ex) {
+                addCheck(checks, "milvus_authentication_ready", "FAILED",
+                    "Milvus authentication or the required target-scoped external binding is unavailable or invalid.", null);
+                return;
+            }
         }
 
         addArtifactPresenceCheck(checks, "actions_artifact_url_present", "Actions artifact URL", artifacts.actionsArtifactUrl());
@@ -2026,33 +2051,49 @@ public class DeploymentReleaseVerificationService {
             deployment.getId(),
             providerConfig
         );
-        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
-        if (hasText(requiredVectorSecretName)) {
-            addProviderSecretCheck(
-                checks,
-                deployment.getId(),
-                vectorStrategy + "_secret_available",
-                requiredVectorSecretName,
-                "Required vector database credential is available for the selected deployment profile."
-            );
-        }
-        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
-            DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
-                resolveOptionalVectorSecret(deployment.getId(), optionalVectorSecretName, providerConfig);
-            if (resolved.resolved()) {
+        if (ManagedDeploymentProfileCatalog.usesMilvus(providerConfig)
+            && (ManagedDeploymentProfileCatalog.milvusTokenAuthentication(providerConfig)
+                || DeploymentExistingVectorBindingService.required(providerConfig))) {
+            boolean tokenAuth = ManagedDeploymentProfileCatalog.milvusTokenAuthentication(providerConfig);
+            boolean present = tokenAuth
+                ? platformSecretService.isSecretPresent(ManagedDeploymentProfileCatalog.milvusRuntimeTokenSecretName(providerConfig))
+                : platformSecretService.isSecretPresent(ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig))
+                    && platformSecretService.isSecretPresent(ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig));
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("authenticationType", ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(providerConfig));
+            details.put("secretPurpose", tokenAuth ? "MILVUS_TOKEN" : "MILVUS_RUNTIME_CREDENTIALS");
+            addCheck(checks, "milvus_secret_available", present ? "PASSED" : "FAILED",
+                present ? "Milvus runtime credential is available at the configured secret reference."
+                    : "Milvus runtime credential is missing at the configured secret reference.", details);
+        } else {
+            String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
+            if (hasText(requiredVectorSecretName)) {
                 addProviderSecretCheck(
                     checks,
                     deployment.getId(),
-                    optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
-                    optionalVectorSecretName,
-                    optionalVectorSecretName + " is available for the selected vector database profile."
+                    vectorStrategy + "_secret_available",
+                    requiredVectorSecretName,
+                    "Required vector database credential is available for the selected deployment profile."
                 );
-            } else {
-                addSkippedCheck(
-                    checks,
-                    optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
-                    optionalVectorSecretName + " is optional and not present. Deployment will continue without it."
-                );
+            }
+            for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
+                DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+                    resolveOptionalVectorSecret(deployment.getId(), optionalVectorSecretName, providerConfig);
+                if (resolved.resolved()) {
+                    addProviderSecretCheck(
+                        checks,
+                        deployment.getId(),
+                        optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
+                        optionalVectorSecretName,
+                        optionalVectorSecretName + " is available for the selected vector database profile."
+                    );
+                } else {
+                    addSkippedCheck(
+                        checks,
+                        optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
+                        optionalVectorSecretName + " is optional and not present. Deployment will continue without it."
+                    );
+                }
             }
         }
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {

@@ -22,6 +22,22 @@ import static org.mockito.Mockito.when;
 class PlatformSecretServiceTest {
 
     @Test
+    void milvusTokenMetadataAndAuditNeverIncludeRawCredential() {
+        var repository = mock(PlatformSecretRepository.class);
+        var audit = mock(PlatformAuditService.class);
+        var service = new PlatformSecretService(repository, audit, new MockEnvironment());
+        String ref = "MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET";
+        when(repository.findById(ref)).thenReturn(Optional.empty());
+        var ownership = Map.of("deploymentId", "dep-fake", "targetProfileId", "target-fake");
+        var summary = service.upsertManagedSecret(ref, "fake-native-token-never-report", ownership);
+        assertThat(summary.secretPurpose()).isEqualTo("MILVUS_TOKEN");
+        assertThat(summary.toString()).doesNotContain("fake-native-token-never-report");
+        org.mockito.Mockito.verify(audit).record("MANAGED_SECRET_UPDATED", "PLATFORM_SECRET", ref, ownership);
+        assertThat(service.isSupportedSecretName("MILVUS_TOKEN")).isTrue();
+        assertThat(service.requiredSecretNames()).doesNotContain("MILVUS_TOKEN");
+    }
+
+    @Test
     void resolveSecretPrefersDatabaseValueOverEnvironmentFallback() {
         PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
         PlatformSecretEntity entity = new PlatformSecretEntity();

@@ -33,7 +33,7 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   customer request previously reached the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
   End-to-end provisioning remains unexecuted pending native serving-token
-  integration, verified Free-01-only credential scope, formal binding and
+  integration/publication, formal binding and
   measured/approved customer capacity.
 - P6: local UI implementation and fixture-based checks are in progress, but the
   extraction has not been committed or deployed. Hosted rollout remains gated
@@ -43,10 +43,12 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 - P7: not started. Fresh production-customer lifecycle certification is required
   after the external capacity prerequisite is closed.
 
-### Independent Work While Vector Authentication Is Pending
+### Independent Work While Hosted Vector Integration Is Pending
 
-The unresolved serving-authentication contract blocks actual binding,
-indexing/retrieval and dependent hosted lifecycle acceptance. It does not block
+The unfinished native-token integration blocks actual binding,
+indexing/retrieval and dependent hosted lifecycle acceptance. Owner permission
+to use the existing broader key for Free-01 is resolved; do not ask again for
+another credential or allocation approval. This dependency does not block
 all implementation or verification. Continue independent tasks without weakening
 their exit criteria or starting P6 early:
 
@@ -87,16 +89,68 @@ Final parent support gate with the isolated synthetic Docker test explicitly
 enabled:77PASS/0fail/0error/0skip. Browser gate separately9PASS/0skip. Actual
 private PostgreSQL18 archive restores are separate from the syntheticPG16 test.
 
-External auth update: owner supplied an existing API key through Required for
-production, not a console-visible username/password. That session observed
-metadata-only serving authentication but also visibility of other clusters;
-Free-01-only scope is NOT proven. Do not install that key or repeat the password
-request. Official Free/Serverless guidance supports API keys, and the actual
-pinned SDK2.4.1 exposes withToken. Framework0.8.35 does not expose/wire token
-configuration. Proper generic token support plus scoped secret projection,
-preflight, source/image verification and least-privilege evidence are the next
-integration work; no password-field workaround, framework release or key/role
-mutation occurred in this continuation.
+External auth update, 2026-10-18: owner explicitly permits the existing broader
+API key for this exact Free-01 synthetic staging campaign. Cluster-only provider
+ACLs are not claimed, but another restricted key/password is not a campaign
+prerequisite. Native SDK2.4.1 metadata authentication passed with zero collections,
+zero writes and zero model calls. Public native-token code `218b7b48` and release
+`0808b2d5` / tag `ai-fabric-framework-v0.8.36` are pushed; Central workflow
+`39162425040` remains in progress at this checkpoint. Private binding/projection,
+V193 immutable template 1.8 and pre-effect artifact gates are under integration
+verification. No published image, actual binding or hosted runtime acceptance
+is claimed. Never disguise a token as a password, use an implicit global-key
+fallback, mutate provider users/roles/keys, or reset the sole allowance.
+
+The first parent integrated run executed 413 tests and exposed three stale test
+expectations: explicitly blank authentication modes must fail closed, not select
+username/password. Corrected focused binding gate passed 61 tests, zero failures,
+errors or skips (`/private/tmp/01036-native-token-blank-auth-gate-20261018.log`).
+The original failed log is preserved. Independent review also found credential
+readiness reading only the unchanged draft instead of the target-owned binding;
+that fix and additional approval/admission ordering tests are being implemented
+in parallel. The final integrated rerun remains required before rollout.
+
+### Native Token Local Gate Completed
+
+Framework0.8.36 Central publication39162425040 passed. Direct BOM/core/Milvus
+HTTP readback returned200. Fresh isolated Maven repository
+`/private/tmp/01036-native-token-central-0.8.36-m2` contains41 public artifact
+files, all downloaded from Central and only at0.8.36. No public framework was
+locally installed. Proof:
+`/private/tmp/01036-private-central-artifact-proof-20261018.json`.
+
+Final parent gates, all zero failures/errors/skips:
+
+- Backend476, including real PostgreSQL V193 and API/admission ordering:
+  `/private/tmp/01036-native-token-integrated-socket-enabled-gate-20261018.log`.
+- Runtime425, provider accounting140, connector76 and vectorization32:
+  `/private/tmp/01036-private-{runtime,budget,connector,runner}-central-0.8.36-gate-20261018.log`.
+- Runtime/connector/runner packaging passed. Local runtime contains20
+  framework0.8.36 jars including core/execution/Milvus and the native-token
+  capability. Proof:
+  `/private/tmp/01036-private-runtime-local-package-proof-20261018.json`.
+  This is not CI-image or deployed-runtime proof.
+
+Local readiness now validates binding integrity, exact version/target/refs and
+credential fingerprint without provider probes. Live resolution retains those
+probes. The scoped GET requires operator access, owned published version and
+exact active target. No guessed scope, draft mutation or global-key fallback.
+Unscoped reads and the generic unscoped scorecard remain intentionally not-ready;
+selected-scope caller wiring is still required. Do not infer production readiness
+from staging credentials. Final independent critical review found no concrete
+P1/P2 issue in the reviewed delta.
+
+Earlier failed runs remain recorded. The first full rerun had21 socket errors
+and one skipped Docker test; it lacked local permissions and does not count as
+green. The successful476 run used the required permissions without weakening
+tests. Initial archive inspection assumed BOOT-INF/classes; exact listing found
+the manifest at root META-INF/loomai and subsequent inspection passed.
+
+Hosted control planes still select image58bf670de/migration192. No new runtime,
+binding, apply/activation, provider mutation, model call, grant reset or production
+promotion occurred. Next are exact CI images, a new immutable offer/spec, fresh
+backups, V193 rollout, formal binding, measured admission and attended canary.
+Retained-index completion and production fit remain open. UI extraction is last.
 
 UI extraction remains last. No additional vector infrastructure, allowance
 reset, paid provider traffic or stopped-workload restart is included here.

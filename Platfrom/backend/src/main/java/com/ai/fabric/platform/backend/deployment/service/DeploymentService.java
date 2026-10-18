@@ -105,6 +105,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentService {
+    @Autowired(required = false)
+    private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
@@ -690,6 +692,25 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return deploymentSecretUsageService.build(deployment.getId(), draft);
+    }
+
+    public DeploymentSecretUsageSummary getScopedDeploymentSecretUsage(String deploymentId, String versionId, String targetProfileId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+        if (versionId == null || versionId.isBlank() || targetProfileId == null || targetProfileId.isBlank()
+            || !versionId.equals(versionId.strip()) || !targetProfileId.equals(targetProfileId.strip())) {
+            throw new ResponseStatusException(BAD_REQUEST, "SECRET_USAGE_PUBLISHED_VERSION_AND_TARGET_REQUIRED");
+        }
+        DeploymentVersionEntity version = versionRepository.findById(versionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "SECRET_USAGE_VERSION_NOT_FOUND"));
+        if (!deploymentId.equals(version.getDeploymentId()) || !"PUBLISHED".equals(version.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "SECRET_USAGE_PUBLISHED_VERSION_SCOPE_REQUIRED");
+        }
+        DeploymentTargetProfileEntity target = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
+        if (target == null || !target.isActive() || !targetProfileId.equals(target.getId())) {
+            throw new ResponseStatusException(CONFLICT, "SECRET_USAGE_ACTIVE_TARGET_REQUIRED");
+        }
+        return deploymentSecretUsageService.build(deployment, resolveActiveDraft(deployment), version, targetProfileId);
     }
 
     public DeploymentProductionReadinessScorecardSummary getDeploymentProductionReadinessScorecard(String deploymentId) {
@@ -1683,6 +1704,11 @@ public class DeploymentService {
         if (retirementGates == null) throw new IllegalStateException("Target retirement interlock is required.");
         retirementGates.requireAvailableForMutation(deploymentId, targetProfile.getId());
         requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);
+        JsonNode reviewedProviderConfig = readJson(version.getProviderConfigJson());
+        if (MilvusTokenRuntimeArtifactGate.required(reviewedProviderConfig)) {
+            if (milvusTokenArtifacts == null) throw new IllegalStateException("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
+            milvusTokenArtifacts.require(version, reviewedProviderConfig, sourceArtifactId);
+        }
         deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
             deployment,
             DeploymentOperationApprovalService.APPLY_VERSION,

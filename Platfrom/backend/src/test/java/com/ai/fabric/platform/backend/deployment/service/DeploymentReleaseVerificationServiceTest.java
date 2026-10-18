@@ -57,6 +57,73 @@ import static org.mockito.Mockito.when;
 class DeploymentReleaseVerificationServiceTest {
 
     @Test
+    void tokenSecretVerificationUsesOnlyConfiguredReferenceAndSafePurposeMetadata() throws Exception {
+        var secrets = mock(PlatformSecretService.class);
+        when(secrets.isSecretPresent("MILVUS_TOKEN")).thenReturn(true);
+        var service = releaseVerificationService(secrets, mock(DeploymentArtifactService.class));
+        var provider = objectMapper.readTree("""
+            {"vectorStrategy":"milvus","milvusAuthenticationType":"TOKEN","milvusExternalBindingRequired":true,
+             "vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusRuntimeTokenSecretName":"MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET"}
+            """);
+        var checks = objectMapper.createArrayNode();
+        ReflectionTestUtils.invokeMethod(service, "verifyManagedSecrets", checks,
+            deployment("https://runtime.example", null), provider, objectMapper.createObjectNode());
+        assertThat(StreamSupport.stream(checks.spliterator(), false)
+            .filter(check -> "milvus_secret_available".equals(check.path("name").asText()))
+            .findFirst().orElseThrow().path("status").asText()).isEqualTo("FAILED");
+        when(secrets.isSecretPresent("MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET")).thenReturn(true);
+        checks.removeAll();
+        ReflectionTestUtils.invokeMethod(service, "verifyManagedSecrets", checks,
+            deployment("https://runtime.example", null), provider, objectMapper.createObjectNode());
+        assertThat(StreamSupport.stream(checks.spliterator(), false)
+            .filter(check -> "milvus_secret_available".equals(check.path("name").asText()))
+            .findFirst().orElseThrow().path("status").asText()).isEqualTo("PASSED");
+        assertThat(checks.toString()).contains("MILVUS_TOKEN", "TOKEN").doesNotContain("MILVUS_USERNAME", "MILVUS_PASSWORD");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).isSecretPresent("MILVUS_TOKEN");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MANAGED_EXTERNAL_VECTOR_TOKEN_FAKE_TARGET");
+    }
+
+    @Test
+    void preApplyRejectsInvalidMilvusAuthenticationWithoutEchoingCredentialOrFetchingArtifacts() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        var service = releaseVerificationService(mock(PlatformSecretService.class), artifacts);
+        var checks = objectMapper.createArrayNode();
+        var version = version("""
+            {"vectorStrategy":"milvus","milvusAuthenticationType":"TOKEN","milvusToken":"fake-private-token",
+             "vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED","milvusExternalBindingRequired":true}
+            """);
+        ReflectionTestUtils.invokeMethod(service, "verifyPreApply", checks,
+            deployment("https://runtime.example", null), version, release(), null);
+        assertThat(checks.toString()).contains("milvus_authentication_ready", "FAILED").doesNotContain("fake-private-token");
+        org.mockito.Mockito.verifyNoInteractions(artifacts);
+    }
+
+    @Test
+    void preApplyAllowsUnresolvedTemplateButRejectsMissingTokenReferenceFromTargetBinding() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        var secrets = mock(PlatformSecretService.class);
+        var service = releaseVerificationService(secrets, artifacts);
+        var bindings = mock(DeploymentExistingVectorBindingService.class);
+        ReflectionTestUtils.setField(service, "existingVectorBindings", bindings);
+        var version = version("""
+            {"vectorStrategy":"milvus","milvusAuthenticationType":"TOKEN","milvusExternalBindingRequired":true,
+             "vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED"}
+            """);
+        var deployment = deployment("https://runtime.example", null);
+        var release = release();
+        release.setTargetProfileId("target-fake");
+        when(bindings.resolve(org.mockito.ArgumentMatchers.eq(deployment), org.mockito.ArgumentMatchers.eq(version),
+            any(), org.mockito.ArgumentMatchers.eq("target-fake"))).thenReturn(objectMapper.readTree(version.getProviderConfigJson()));
+        var checks = objectMapper.createArrayNode();
+        ReflectionTestUtils.invokeMethod(service, "verifyPreApply", checks, deployment, version, release, null);
+        assertThat(checks.toString()).contains("milvus_authentication_ready", "FAILED");
+        org.mockito.Mockito.verify(bindings).resolve(org.mockito.ArgumentMatchers.eq(deployment), org.mockito.ArgumentMatchers.eq(version),
+            any(), org.mockito.ArgumentMatchers.eq("target-fake"));
+        org.mockito.Mockito.verifyNoInteractions(artifacts, secrets);
+    }
+
+    @Test
     void serverOwnedRuntimeActionExpectationsComeFromExplicitBehaviorBinding() throws Exception {
         JsonNode behaviorConfig = objectMapper.readTree("""
             {
@@ -140,7 +207,7 @@ class DeploymentReleaseVerificationServiceTest {
             .isEmpty();
     }
 
-    private static final String AI_FABRIC_VERSION = "0.8.35";
+    private static final String AI_FABRIC_VERSION = "0.8.36";
     private static final String ENTITY_CONFIG_CONTRACT_VERSION =
         "AI_ENTITY_CONFIG_V0_4";
     private static final String ENTITY_CONFIG_HASH = "entity-hash-123";
@@ -416,7 +483,7 @@ class DeploymentReleaseVerificationServiceTest {
                     """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.35",
+                          "aiFabricFrameworkVersion": "0.8.36",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -932,7 +999,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ? """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.35",
+                          "aiFabricFrameworkVersion": "0.8.36",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-old",
@@ -1003,7 +1070,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ) : """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.35",
+                          "aiFabricFrameworkVersion": "0.8.36",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -3005,7 +3072,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.35",
+                      "aiFabricFrameworkVersion": "0.8.36",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",
@@ -3119,7 +3186,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.35",
+                      "aiFabricFrameworkVersion": "0.8.36",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",

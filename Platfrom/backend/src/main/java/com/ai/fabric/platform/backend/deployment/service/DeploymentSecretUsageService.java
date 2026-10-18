@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretLiteralRiskSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageItemSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
@@ -13,12 +15,14 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,24 +37,38 @@ public class DeploymentSecretUsageService {
     private final DeploymentSecretPurposeCatalog deploymentSecretPurposeCatalog;
     private final PlatformDeliveryProperties deliveryProperties;
     private final ObjectMapper objectMapper;
+    private final DeploymentExistingVectorBindingService existingVectorBindings;
 
     public DeploymentSecretUsageService(PlatformSecretService platformSecretService,
                                         DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                         DeploymentSecretPurposeCatalog deploymentSecretPurposeCatalog,
                                         PlatformDeliveryProperties deliveryProperties,
-                                        ObjectMapper objectMapper) {
+                                        ObjectMapper objectMapper,
+                                        DeploymentExistingVectorBindingService existingVectorBindings) {
         this.platformSecretService = platformSecretService;
         this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
         this.deploymentSecretPurposeCatalog = deploymentSecretPurposeCatalog;
         this.deliveryProperties = deliveryProperties;
         this.objectMapper = objectMapper;
+        this.existingVectorBindings = existingVectorBindings;
     }
 
     public DeploymentSecretUsageSummary build(String deploymentId, DeploymentDraftEntity draft) {
+        return build(deploymentId, draft, null);
+    }
+
+    public DeploymentSecretUsageSummary build(DeploymentEntity deployment, DeploymentDraftEntity draft,
+                                              DeploymentVersionEntity version, String targetProfileId) {
+        Objects.requireNonNull(deployment, "Deployment context is required.");
+        return build(deployment.getId(), draft, new BindingContext(deployment, version, targetProfileId));
+    }
+
+    private DeploymentSecretUsageSummary build(String deploymentId, DeploymentDraftEntity draft, BindingContext bindingContext) {
         JsonNode routingConfig = readJson(draft.getRoutingConfigJson());
         JsonNode providerConfig = readJson(draft.getProviderConfigJson());
         JsonNode securityConfig = readJson(draft.getSecurityConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(draft.getMarketplaceDatasetConfigJson());
+        ManagedDeploymentProfileCatalog.validateMilvusAuthentication(providerConfig, false);
 
         Map<String, PlatformSecretSummary> secretCatalog = platformSecretService.listSecrets().stream()
             .collect(LinkedHashMap::new, (map, item) -> map.put(item.name(), item), Map::putAll);
@@ -72,12 +90,26 @@ public class DeploymentSecretUsageService {
         if (embeddingSecretName != null && !embeddingSecretName.isBlank()) {
             registerUsage(usages, embeddingSecretName, true, "Provider stack", "$.providerConfig.embeddingProvider");
         }
-        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
-        if (requiredVectorSecretName != null && !requiredVectorSecretName.isBlank()) {
-            registerUsage(usages, requiredVectorSecretName, true, "Vector database", "$.providerConfig.vectorStrategy");
-        }
-        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
-            registerUsage(usages, optionalVectorSecretName, false, "Vector database", "$.providerConfig.vectorStrategy");
+        if (ManagedDeploymentProfileCatalog.usesMilvus(providerConfig)
+            && DeploymentExistingVectorBindingService.required(providerConfig)) {
+            boolean tokenAuth = ManagedDeploymentProfileCatalog.milvusTokenAuthentication(providerConfig);
+            String purpose = tokenAuth ? "MILVUS_TOKEN" : "MILVUS_RUNTIME_CREDENTIALS";
+            registerUsage(usages, purpose, true, "Vector database", "$.providerConfig.milvusAuthenticationType");
+            UsageAccumulator usage = usages.get(purpose);
+            usage.bindingOnly = true;
+            usage.bindingPresent = externalVectorBindingReady(deploymentId, draft, bindingContext);
+            if (bindingContext != null && identifier(bindingContext.targetProfileId()) && bindingContext.version() != null
+                && identifier(bindingContext.version().getId())) {
+                usage.bindingScope = "target " + bindingContext.targetProfileId() + " and published version " + bindingContext.version().getId();
+            }
+        } else {
+            String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
+            if (requiredVectorSecretName != null && !requiredVectorSecretName.isBlank()) {
+                registerUsage(usages, requiredVectorSecretName, true, "Vector database", "$.providerConfig.vectorStrategy");
+            }
+            for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
+                registerUsage(usages, optionalVectorSecretName, false, "Vector database", "$.providerConfig.vectorStrategy");
+            }
         }
 
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
@@ -194,6 +226,55 @@ public class DeploymentSecretUsageService {
         );
     }
 
+    private boolean externalVectorBindingReady(String deploymentId, DeploymentDraftEntity draft, BindingContext context) {
+        if (context == null) {
+            return false;
+        }
+        var deployment = context.deployment();
+        var version = context.version();
+        if (!identifier(deploymentId) || !identifier(context.targetProfileId()) || version == null || !identifier(version.getId())
+            || !deploymentId.equals(draft.getDeploymentId()) || !deploymentId.equals(version.getDeploymentId())
+            || deployment.getArchivedAt() != null || "ARCHIVED".equals(deployment.getStatus())
+            || !"PUBLISHED".equals(version.getStatus()) || !draftMatchesVersion(draft, version)) {
+            return false;
+        }
+        try {
+            JsonNode publishedConfig = readJson(version.getProviderConfigJson());
+            JsonNode effectiveConfig = existingVectorBindings.resolveLocal(deployment, version, publishedConfig, context.targetProfileId());
+            if (!ManagedDeploymentProfileCatalog.usesMilvus(effectiveConfig)
+                || !DeploymentExistingVectorBindingService.required(effectiveConfig)
+                || !ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(publishedConfig)
+                    .equals(ManagedDeploymentProfileCatalog.resolveMilvusAuthenticationType(effectiveConfig))) {
+                return false;
+            }
+            ManagedDeploymentProfileCatalog.validateMilvusAuthentication(effectiveConfig, true);
+            return true;
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() == 412 || ex.getStatusCode().value() == 409 || ex.getStatusCode().value() == 404) {
+                return false;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean identifier(String value) {
+        return value != null && value.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
+    }
+
+    private boolean draftMatchesVersion(DeploymentDraftEntity draft, DeploymentVersionEntity version) {
+        return Objects.equals(draft.getActionsConfigJson(), version.getActionsConfigJson())
+            && Objects.equals(draft.getEntityConfigJson(), version.getEntityConfigJson())
+            && Objects.equals(draft.getEntityConfigContractVersion(), version.getEntityConfigContractVersion())
+            && Objects.equals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
+            && Objects.equals(draft.getProviderConfigJson(), version.getProviderConfigJson())
+            && Objects.equals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
+            && Objects.equals(draft.getPromptConfigJson(), version.getPromptConfigJson())
+            && Objects.equals(draft.getKnowledgeSourceConfigJson(), version.getKnowledgeSourceConfigJson())
+            && Objects.equals(draft.getShellConfigJson(), version.getShellConfigJson())
+            && Objects.equals(draft.getMarketplaceDatasetConfigJson(), version.getMarketplaceDatasetConfigJson())
+            && Objects.equals(draft.getBehaviorConfigJson(), version.getBehaviorConfigJson());
+    }
+
     private void registerHttpIntegrationSecrets(
         Map<String, UsageAccumulator> usages,
         List<DeploymentSecretLiteralRiskSummary> literalRisks,
@@ -277,9 +358,12 @@ public class DeploymentSecretUsageService {
                                                            PlatformSecretSummary summary,
                                                            String secretName,
                                                            UsageAccumulator usage) {
-        DeploymentSecretResolutionSummary effectiveResolution = effectiveResolution(deploymentId, usage.secretPurpose);
-        boolean present = effectiveResolution != null ? effectiveResolution.resolved() : summary != null && summary.present();
-        String source = effectiveResolution != null && effectiveResolution.scopeType() != null
+        DeploymentSecretResolutionSummary effectiveResolution = usage.bindingOnly
+            ? null : effectiveResolution(deploymentId, usage.secretPurpose);
+        boolean present = usage.bindingOnly
+            ? usage.bindingPresent
+            : effectiveResolution != null ? effectiveResolution.resolved() : summary != null && summary.present();
+        String source = usage.bindingOnly ? "DEPLOYMENT_MANAGED" : effectiveResolution != null && effectiveResolution.scopeType() != null
             ? effectiveResolution.scopeType()
             : summary != null ? summary.source() : "UNMANAGED";
         boolean required = usage.required || (summary != null && summary.required());
@@ -300,6 +384,13 @@ public class DeploymentSecretUsageService {
             message = effectiveResolution != null && effectiveResolution.diagnosticMessage() != null
                 ? effectiveResolution.diagnosticMessage()
                 : secretName + " is referenced, but it is outside the current managed platform secret catalog.";
+        }
+        if (usage.bindingOnly) {
+            message = usage.bindingScope == null
+                ? "An explicit published version and target are required to verify local external-vector credentials."
+                : present
+                    ? "Local external-vector credentials are ready for " + usage.bindingScope + ". Provider health has not been checked."
+                    : "Local external-vector credentials are not ready for " + usage.bindingScope + ". Binding evidence is missing or does not match this draft.";
         }
         return new DeploymentSecretUsageItemSummary(
             secretName,
@@ -369,7 +460,12 @@ public class DeploymentSecretUsageService {
     private static final class UsageAccumulator {
         private String secretPurpose;
         private boolean required;
+        private boolean bindingOnly;
+        private boolean bindingPresent;
+        private String bindingScope;
         private final Set<String> services = new LinkedHashSet<>();
         private final Set<String> paths = new LinkedHashSet<>();
     }
+
+    private record BindingContext(DeploymentEntity deployment, DeploymentVersionEntity version, String targetProfileId) { }
 }

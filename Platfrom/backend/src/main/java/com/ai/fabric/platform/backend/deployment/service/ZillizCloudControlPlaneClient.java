@@ -230,16 +230,39 @@ public class ZillizCloudControlPlaneClient {
 
     /** Metadata-only serving check; deliberately separate from the organization control-plane credential. */
     public List<String> listServingCollections(String endpoint, String username, String password) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint).resolve("/v2/vectordb/collections/list"))
-            .timeout(Duration.ofSeconds(20)).header("Authorization", "Bearer " + username + ":" + password)
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString("{\"dbName\":\"default\"}"))
-            .build();
-        HttpResponse<String> response = send(request);
+        return listServingCollections(endpoint, username + ":" + password);
+    }
+
+    /** Uses only the explicitly supplied serving token; no control-plane or global credential fallback. */
+    public List<String> listServingCollections(String endpoint, String token) {
+        if (!StringUtils.hasText(token) || !token.equals(token.trim())
+            || token.chars().anyMatch(Character::isISOControl)) {
+            throw new RailwayProvisioningException("Zilliz serving credential is invalid.");
+        }
+        HttpResponse<String> response;
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint).resolve("/v2/vectordb/collections/list"))
+                .timeout(Duration.ofSeconds(20)).header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"dbName\":\"default\"}"))
+                .build();
+            response = send(request);
+        } catch (RuntimeException error) {
+            throw new RailwayProvisioningException("Zilliz serving metadata request failed. Upstream request details omitted.");
+        }
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz serving metadata verification failed", response);
         }
-        JsonNode root = readJson(response.body());
+        return parseServingCollections(response.body());
+    }
+
+    private List<String> parseServingCollections(String body) {
+        JsonNode root;
+        try { root = readJson(body); }
+        catch (RuntimeException error) {
+            throw new RailwayProvisioningException("Zilliz serving collection metadata is invalid. Response body omitted.");
+        }
+        if (root == null) throw new RailwayProvisioningException("Zilliz serving collection metadata is invalid. Response body omitted.");
         if (!root.path("code").isIntegralNumber() || root.path("code").bigIntegerValue().signum() != 0 || !root.path("data").isArray()) {
             throw new RailwayProvisioningException("Zilliz serving metadata verification returned an invalid or denied result. Response body omitted.");
         }

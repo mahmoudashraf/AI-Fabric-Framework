@@ -19,6 +19,38 @@ class MarketplaceManifestServiceTest {
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
     @Test
+    void templateMayDeclareOnlyReviewedNativeTokenAuthenticationWithoutCredentials() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree("""
+            {"schemaVersion":1,"pluginType":"TEMPLATE",
+             "compatibility":{"requiredCapabilities":["templates"]},"pricing":{"pricingModel":"FREE"},
+             "permissions":{"contributesTemplate":true},"contributions":{"template":{
+             "templateId":"dev-openai-milvus","providerConfig":{
+              "vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING",
+              "vectorStoragePosture":"SHARED","milvusExternalBindingRequired":true,"milvusAuthenticationType":"TOKEN"}}}}
+            """);
+        assertThat(service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())).pluginType()).isEqualTo("TEMPLATE");
+        for (Object value : java.util.List.of("token", "", "TOKEN ", 5, true)) {
+            ObjectNode changed = manifest.deepCopy();
+            ((ObjectNode) changed.path("contributions").path("template").path("providerConfig"))
+                .set("milvusAuthenticationType", objectMapper.valueToTree(value));
+            assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(changed.toString())))
+                .isInstanceOf(ResponseStatusException.class);
+        }
+        for (String field : java.util.List.of("milvusToken", "milvusRuntimeTokenSecretName")) {
+            ObjectNode changed = manifest.deepCopy();
+            ((ObjectNode) changed.path("contributions").path("template").path("providerConfig"))
+                .put(field, "fixture-not-an-allowed-template-value");
+            assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(changed.toString())))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("unsupported field");
+        }
+        ObjectNode unbound = manifest.deepCopy();
+        ((ObjectNode) unbound.path("contributions").path("template").path("providerConfig"))
+            .remove("milvusExternalBindingRequired");
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(unbound.toString())))
+            .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
     void templateMayDeclareAnExplicitOutputCapWithoutAcceptingMalformedOrSecretProviderSettings() throws Exception {
         ObjectNode manifest = (ObjectNode) objectMapper.readTree("""
             {

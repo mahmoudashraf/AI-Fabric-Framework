@@ -1,5 +1,32 @@
 # 010.36 Retained External Vector Canary
 
+## Current Checkpoint: Native Token Integration
+
+Owner explicitly authorized use of the existing broader API key for Free-01
+only in the same synthetic staging campaign. Another restricted key,
+username/password or cluster approval is not pending. Earlier scope warnings
+below are historical; they do not override this later owner decision. The key
+is not claimed to provide provider-enforced tenant ACLs. All other-cluster,
+paid-infrastructure, account/key/role mutation and production-promotion limits
+still apply.
+
+Native SDK metadata authentication passed with zero collections, writes and
+model calls. Framework0.8.36 Central workflow39162425040 passed; direct BOM/core/
+Milvus readback returned200. Platform TOKEN source, template1.8 and pre-effect
+artifact guards passed476 integrated backend tests. Private Central-only
+runtime425, accounting140, connector76 and vectorization32 also passed, all zero
+skips. Local runtime contains20 framework0.8.36 jars and the token capability;
+CI-image/deployed proof remains required. Earlier failed runs remain recorded.
+Local target-scoped credential readiness and API/admission ordering tests passed.
+Unscoped scorecard/callers cannot claim readiness; selected-scope caller wiring
+remains. No actual binding, runtime rollout, provider mutation, grant allocation
+or complete hosted lifecycle acceptance is claimed.
+
+Only the live dependency chain waits: Central availability, integrated source
+gate, immutable image inspection, backup/rollout, exact binding, measured
+admission and attended provider acceptance. Continue independent source,
+security, restore and readiness verification. UI extraction remains last.
+
 ## Approved Boundary
 
 Owner approved use of existing Free-01 on 2026-10-18 for the same isolated

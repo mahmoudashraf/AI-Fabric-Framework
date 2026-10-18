@@ -264,6 +264,9 @@ public class PlatformSecretService {
         if (name.startsWith("MANAGED_MILVUS_USERNAME_DEP_") || name.startsWith("MANAGED_MILVUS_PASSWORD_DEP_")) {
             return "MILVUS_RUNTIME_CREDENTIALS";
         }
+        if (name.startsWith("MANAGED_EXTERNAL_VECTOR_TOKEN_")) {
+            return "MILVUS_TOKEN";
+        }
         if (name.startsWith("MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_")) {
             return "VECTORIZATION_RUNNER_REGISTRATION_TOKEN";
         }
@@ -600,6 +603,14 @@ public class PlatformSecretService {
             new SecretDefinition(
                 "Zilliz Cloud API Key",
                 "Management credential used by the platform when it provisions or cleans up platform-managed Zilliz Cloud clusters for Milvus deployments.",
+                false
+            )
+        );
+        secrets.put(
+            "MILVUS_TOKEN",
+            new SecretDefinition(
+                "Milvus Token",
+                "Runtime token for Milvus token-authenticated profiles. Required external bindings use target-scoped secrets only.",
                 false
             )
         );

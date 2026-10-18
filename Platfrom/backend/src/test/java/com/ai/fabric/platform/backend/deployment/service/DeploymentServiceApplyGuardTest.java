@@ -3,9 +3,15 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -18,7 +24,10 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfSe
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -29,48 +38,63 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 class DeploymentServiceApplyGuardTest {
+    private DeploymentRepository deploymentRepository;
+    private DeploymentDraftRepository draftRepository;
+    private DeploymentVersionRepository versionRepository;
+    private DeploymentReleaseRepository releaseRepository;
+    private DeploymentProvisioningService deploymentProvisioningService;
+    private DeploymentReleaseExecutionService deploymentReleaseExecutionService;
+    private DeploymentOperationApprovalService deploymentOperationApprovalService;
+    private DeploymentSecretUsageService deploymentSecretUsageService;
+    private DeploymentAccessService deploymentAccessService;
+    private PlatformAuditService platformAuditService;
+    private DeploymentSourceArtifactService sourceArtifactService;
+    private DeploymentSourceCapabilityManifestService capabilityManifestService;
+    private ObjectMapper objectMapper;
+    private DeploymentService service;
+    private DeploymentEntity deployment;
+    private DeploymentVersionEntity version;
 
-    @Test
-    void applyVersionRejectsOverlappingRelease() {
-        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
-        DeploymentDraftRepository draftRepository = mock(DeploymentDraftRepository.class);
+    @BeforeEach
+    void setup() {
+        deploymentRepository = mock(DeploymentRepository.class);
+        draftRepository = mock(DeploymentDraftRepository.class);
         DeploymentPromptRevisionRepository promptRevisionRepository = mock(DeploymentPromptRevisionRepository.class);
-        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
-        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        versionRepository = mock(DeploymentVersionRepository.class);
+        releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
         DeploymentConfigCompiler deploymentConfigCompiler = mock(DeploymentConfigCompiler.class);
         DeploymentDraftValidationService deploymentDraftValidationService = mock(DeploymentDraftValidationService.class);
-        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        deploymentProvisioningService = mock(DeploymentProvisioningService.class);
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
-        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentServiceConfigModelService deploymentServiceConfigModelService = mock(DeploymentServiceConfigModelService.class);
         DeploymentServiceNavigationService deploymentServiceNavigationService = mock(DeploymentServiceNavigationService.class);
         DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService = mock(DeploymentProductionReadinessScorecardService.class);
         DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
-        DeploymentSecretUsageService deploymentSecretUsageService = mock(DeploymentSecretUsageService.class);
+        deploymentSecretUsageService = mock(DeploymentSecretUsageService.class);
         DeploymentSecurityGovernanceService deploymentSecurityGovernanceService = mock(DeploymentSecurityGovernanceService.class);
         DeploymentSourceOfTruthService deploymentSourceOfTruthService = mock(DeploymentSourceOfTruthService.class);
-        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
-        DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
+        deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
         DeploymentDeletionService deploymentDeletionService = mock(DeploymentDeletionService.class);
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
         PlatformCustomerTenantService platformCustomerTenantService = mock(PlatformCustomerTenantService.class);
         PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
-        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        platformAuditService = mock(PlatformAuditService.class);
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
-        DeploymentSourceCapabilityManifestService capabilityManifestService =
+        objectMapper = new ObjectMapper();
+        sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        capabilityManifestService =
             new DeploymentSourceCapabilityManifestService(objectMapper);
-        DeploymentService service = new DeploymentService(
+        service = new DeploymentService(
             deploymentRepository,
             draftRepository,
             promptRevisionRepository,
@@ -111,7 +135,7 @@ class DeploymentServiceApplyGuardTest {
         );
         ReflectionTestUtils.setField(service, "offerBoundary", mock(CustomerSelfServiceOperationBoundary.class));
 
-        DeploymentEntity deployment = new DeploymentEntity();
+        deployment = new DeploymentEntity();
         deployment.setId("dep-123");
         deployment.setTemplateId("dev-openai-lucene");
         deployment.setName("Smoke deployment");
@@ -123,7 +147,7 @@ class DeploymentServiceApplyGuardTest {
         deployment.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         deployment.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
 
-        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version = new DeploymentVersionEntity();
         version.setId("ver-123");
         version.setDeploymentId("dep-123");
         version.setVersionLabel("v1");
@@ -147,7 +171,10 @@ class DeploymentServiceApplyGuardTest {
         when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
         when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+    }
 
+    @Test
+    void applyVersionRejectsOverlappingRelease() {
         assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123"))
             .isInstanceOf(ResponseStatusException.class)
             .satisfies(ex -> {
@@ -157,6 +184,137 @@ class DeploymentServiceApplyGuardTest {
             });
 
         verifyNoInteractions(deploymentReleaseExecutionService);
+    }
+
+    @Test
+    void scopedSecretUsageRequiresOperatorBeforeVersionOrTargetLookup() {
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN)).when(deploymentAccessService)
+            .requireDeploymentOperatorAccess(deployment);
+        assertThatThrownBy(() -> service.getScopedDeploymentSecretUsage("dep-123", "ver-123", "target-staging"))
+            .isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(versionRepository, deploymentProvisioningService, deploymentSecretUsageService);
+    }
+
+    @Test
+    void scopedSecretUsageUsesOnlyExactPublishedVersionAndActiveTarget() {
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        var draft = new DeploymentDraftEntity(); draft.setId("draft"); draft.setDeploymentId("dep-123");
+        deployment.setActiveDraftId("draft");
+        when(draftRepository.findById("draft")).thenReturn(Optional.of(draft));
+        var target = new DeploymentTargetProfileEntity(); target.setId("target-staging"); target.setActive(true);
+        when(deploymentProvisioningService.selectedTargetProfile("target-staging")).thenReturn(target);
+        service.getScopedDeploymentSecretUsage("dep-123", "ver-123", "target-staging");
+        verify(deploymentSecretUsageService).build(deployment, draft, version, "target-staging");
+        verifyNoMoreInteractions(deploymentSecretUsageService);
+        verifyNoInteractions(deploymentReleaseExecutionService, deploymentOperationApprovalService, platformAuditService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"foreign", "unpublished"})
+    void scopedSecretUsageRejectsForeignOrUnpublishedVersion(String change) {
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        if ("foreign".equals(change)) version.setDeploymentId("another-deployment");
+        else version.setStatus("DRAFT");
+        assertThatThrownBy(() -> service.getScopedDeploymentSecretUsage("dep-123", "ver-123", "target-staging"))
+            .hasMessageContaining("SECRET_USAGE_PUBLISHED_VERSION_SCOPE_REQUIRED");
+        verifyNoInteractions(deploymentProvisioningService, deploymentSecretUsageService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", " target-staging", "target-staging "})
+    void scopedSecretUsageNeverDefaultsOrNormalizesRequestedTarget(String targetId) {
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        assertThatThrownBy(() -> service.getScopedDeploymentSecretUsage("dep-123", "ver-123", targetId))
+            .hasMessageContaining("SECRET_USAGE_PUBLISHED_VERSION_AND_TARGET_REQUIRED");
+        verifyNoInteractions(versionRepository, deploymentProvisioningService, deploymentSecretUsageService);
+    }
+
+    @Test
+    void scopedSecretUsageRejectsInactiveOrDifferentTarget() {
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        var target = new DeploymentTargetProfileEntity(); target.setId("target-staging"); target.setActive(false);
+        when(deploymentProvisioningService.selectedTargetProfile("target-staging")).thenReturn(target);
+        assertThatThrownBy(() -> service.getScopedDeploymentSecretUsage("dep-123", "ver-123", "target-staging"))
+            .hasMessageContaining("SECRET_USAGE_ACTIVE_TARGET_REQUIRED");
+        target.setActive(true); target.setId("another-target");
+        assertThatThrownBy(() -> service.getScopedDeploymentSecretUsage("dep-123", "ver-123", "target-staging"))
+            .hasMessageContaining("SECRET_USAGE_ACTIVE_TARGET_REQUIRED");
+        verifyNoInteractions(deploymentSecretUsageService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-capability", "missing-build"})
+    void tokenArtifactRejectionPrecedesApprovalConsumptionAndReleasePersistence(String change) throws Exception {
+        var artifact = prepareTokenApply();
+        if ("missing-build".equals(change)) {
+            artifact.setBuildRunId(null);
+            var manifest = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(artifact.getCapabilityManifestJson());
+            ((com.fasterxml.jackson.databind.node.ArrayNode) manifest.path("capabilities"))
+                .add(MilvusTokenRuntimeArtifactGate.CAPABILITY);
+            var normalized = capabilityManifestService.normalize(manifest);
+            artifact.setCapabilityManifestJson(normalized.manifest().toString());
+            artifact.setCapabilityManifestHash(normalized.hash());
+        }
+        var gate = spy(new MilvusTokenRuntimeArtifactGate(sourceArtifactService, capabilityManifestService));
+        ReflectionTestUtils.setField(service, "milvusTokenArtifacts", gate);
+        var admission = mock(AdmissionReleaseCoordinator.class);
+        ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
+
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("MILVUS_TOKEN_RUNTIME_ARTIFACT_REQUIRED");
+
+        verify(gate).require(version, objectMapper.readTree(version.getProviderConfigJson()), "runtime");
+        verifyNoInteractions(deploymentOperationApprovalService, admission,
+            deploymentReleaseExecutionService, platformAuditService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+        verify(deploymentRepository, never()).save(any());
+        verify(deploymentProvisioningService).selectedTargetProfile("target-staging");
+        verifyNoMoreInteractions(deploymentProvisioningService);
+        assertThat(deployment.getStatus()).isEqualTo("PROVISIONING");
+    }
+
+    private DeploymentSourceArtifactEntity prepareTokenApply() throws Exception {
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
+        deployment.setApprovalRequiredForApply(true);
+        deployment.setBehaviorType("CONVERSATIONAL");
+        version.setAiFabricFrameworkVersion("0.8.36");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusExternalBindingRequired":true,"milvusAuthenticationType":"TOKEN"}
+            """);
+        var behaviors = new DeploymentBehaviorCatalogService(objectMapper);
+        var behavior = behaviors.defaultConfig("CONVERSATIONAL");
+        version.setBehaviorConfigJson(behavior.toString());
+        var requirements = behaviors.releaseRequirements(behavior);
+        var manifest = objectMapper.createObjectNode().put("schemaVersion", DeploymentSourceCapabilityManifestService.SCHEMA_VERSION)
+            .put("aiFabricVersion", version.getAiFabricFrameworkVersion());
+        manifest.set("supportedBehaviorTypes", objectMapper.valueToTree(java.util.List.of(requirements.behaviorType())));
+        manifest.set("supportedActivationSources", objectMapper.valueToTree(requirements.activationSources()));
+        manifest.set("supportedChannelBindings", objectMapper.valueToTree(requirements.channelBindings()));
+        manifest.set("supportedExecutionExtensions", objectMapper.valueToTree(requirements.executionExtensions()));
+        manifest.set("capabilities", objectMapper.valueToTree(requirements.capabilities()));
+        manifest.set("endpointClasses", objectMapper.valueToTree(requirements.endpointClasses()));
+        manifest.set("migrationIds", objectMapper.valueToTree(requirements.migrationIds()));
+        manifest.set("verificationPackIds", objectMapper.valueToTree(requirements.verificationPackIds()));
+        var normalized = capabilityManifestService.normalize(manifest);
+        var artifact = new DeploymentSourceArtifactEntity();
+        artifact.setArtifactRole("RUNTIME"); artifact.setArtifactType("DOCKER_IMAGE");
+        artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setGitCommitSha("b".repeat(40));
+        artifact.setBuildRunId("reviewed-build"); artifact.setPromotionChannel("staging");
+        artifact.setPromotedAt(Instant.parse("2026-10-18T00:00:00Z"));
+        artifact.setCapabilityManifestJson(normalized.manifest().toString());
+        artifact.setCapabilityManifestHash(normalized.hash());
+        when(sourceArtifactService.require("runtime")).thenReturn(artifact);
+        var target = new DeploymentTargetProfileEntity();
+        target.setId("target-staging"); target.setProviderType(DeploymentProviderType.COOLIFY);
+        target.setEnvironmentName("staging"); target.setSourceStrategy("IMAGE_SOURCE");
+        target.setResourceDefaultsJson("{\"sourceStrategy\":\"IMAGE_SOURCE\"}");
+        when(deploymentProvisioningService.selectedTargetProfile("target-staging")).thenReturn(target);
+        ReflectionTestUtils.setField(service, "retirementGates", mock(TargetRetirementGateService.class));
+        return artifact;
     }
 
     private PlatformProvisioningProperties provisioningProperties() {
