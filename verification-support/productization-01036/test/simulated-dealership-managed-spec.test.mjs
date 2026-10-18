@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import test from "node:test";
 
 import {
@@ -6,6 +7,8 @@ import {
   DEPENDENCY_IMAGES,
   POSTGRES_IMAGE,
   reviewedManagedDependencyCapacity,
+  SPEC_ID,
+  TEMPLATE_VERSION_ID,
 } from "../simulated-dealership-managed-spec.mjs";
 import {
   comparableJson,
@@ -30,11 +33,29 @@ test("builds the exact three-service reviewed topology", () => {
 
 test("reviewed capacity includes services, database and persistent volumes", () => {
   assert.deepEqual(reviewedManagedDependencyCapacity(), {
-    milliCpu: 1500,
+    milliCpu: 1000,
     memoryMiB: 2816,
     diskMiB: 14336,
     resources: 4,
   });
+});
+
+test("candidate spec 1.6 changes only receiver and database CPU, retaining the immutable old fixture", () => {
+  assert.equal(TEMPLATE_VERSION_ID, "mkv-template-simulated-dealership-experience-v1-6");
+  assert.equal(SPEC_ID, "mds-simulated-dealership-experience-v1-6");
+  const base = "../../../Platfrom/backend/src/test/resources/managed-dependency/";
+  const old = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1.template.json`, import.meta.url), "utf8"));
+  const candidate = JSON.parse(readFileSync(new URL(`${base}simulated-dealership-experience-v1-6.template.json`, import.meta.url), "utf8"));
+  const legacyReceiver = old.services.find(({slot}) => slot === "receiver");
+  const receiver = candidate.services.find(({slot}) => slot === "receiver");
+  assert.equal(legacyReceiver.capacity.milliCpu, 500);
+  assert.equal(legacyReceiver.database.capacity.milliCpu, 500);
+  assert.equal(receiver.capacity.milliCpu, 250);
+  assert.equal(receiver.database.capacity.milliCpu, 250);
+  const restored = structuredClone(candidate);
+  restored.services.find(({slot}) => slot === "receiver").capacity.milliCpu = 500;
+  restored.services.find(({slot}) => slot === "receiver").database.capacity.milliCpu = 500;
+  assert.deepEqual(restored, old);
 });
 
 test("keeps all managed template placeholders server-owned and distinct", () => {

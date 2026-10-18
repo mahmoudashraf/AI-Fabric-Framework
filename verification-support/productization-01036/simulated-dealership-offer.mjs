@@ -2,9 +2,10 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v8";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v9";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.5.0";
+export const TEMPLATE_VERSION = "1.6.0";
+export const OPENAI_MAX_TOKENS = 2048;
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
 export const RUNTIME_IMAGE_DIGEST = "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28";
 export const RUNTIME_SOURCE_COMMIT = "600f136bf0becb9a473ff1e085bbc9896b4ef696";
@@ -13,8 +14,8 @@ export const PRODUCTION_TARGET_ID = "dtp-coolify-production-behavior";
 
 export const REVIEWED_PLATFORM_CAPACITY = Object.freeze({
   runtime: Object.freeze({milliCpu: 1000, memoryMiB: 1024, diskMiB: 0}),
-  connector: Object.freeze({milliCpu: 500, memoryMiB: 768, diskMiB: 0}),
-  vectorizationRunner: Object.freeze({milliCpu: 500, memoryMiB: 768, diskMiB: 0}),
+  connector: Object.freeze({milliCpu: 250, memoryMiB: 768, diskMiB: 0}),
+  vectorizationRunner: Object.freeze({milliCpu: 250, memoryMiB: 768, diskMiB: 0}),
   runtimeDatabase: Object.freeze({milliCpu: 250, memoryMiB: 512, diskMiB: 2048}),
 });
 
@@ -52,8 +53,9 @@ export const REVIEWED_TOPOLOGY = Object.freeze({
   concurrentApplies: 1,
 });
 
+// A proposed cap envelope, not measured capacity or production admission.
 export const REVIEWED_LIMITS = Object.freeze({
-  measuredPolicyRef: "01036-dealership-capacity-2026-10-15-v2",
+  measuredPolicyRef: "01036-dealership-capacity-2026-10-18-candidate-v1",
   activeStagingTargets: 1,
   replicas: 1,
   cpuMillis: 4000,
@@ -197,12 +199,12 @@ const REVIEWED_RESOURCE_DEFAULTS = Object.freeze({
   runtimeLimitsMemorySwap: "1g",
   runtimeLimitsMemoryReservation: "512m",
   runtimeJavaOpts: "-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m",
-  connectorLimitsCpus: "0.5",
+  connectorLimitsCpus: "0.25",
   connectorLimitsMemory: "768m",
   connectorLimitsMemorySwap: "768m",
   connectorLimitsMemoryReservation: "384m",
   connectorJavaOpts: "-XX:ActiveProcessorCount=1 -Xms128m -Xmx512m",
-  vectorizationRunnerLimitsCpus: "0.5",
+  vectorizationRunnerLimitsCpus: "0.25",
   vectorizationRunnerLimitsMemory: "768m",
   vectorizationRunnerLimitsMemorySwap: "768m",
   vectorizationRunnerLimitsMemoryReservation: "384m",
@@ -251,6 +253,10 @@ function requireReviewedArtifact(artifact) {
 }
 
 export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth}) {
+  if (template?.version !== TEMPLATE_VERSION
+    || template.manifest?.contributions?.template?.providerConfig?.openaiMaxTokens !== OPENAI_MAX_TOKENS) {
+    throw new Error("The exact 1.6.0 template with an explicit integer 2048-token output cap is required.");
+  }
   const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
   const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));
   if (requiredRefs.length === 0 || requiredRefs.some((reference) => !byRef.has(reference))) {
@@ -265,7 +271,7 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
   const workspace = workspaceProfile(auth);
   return {
     schemaVersion: "1",
-    name: "LoomAI Engage Dealership Experience (Simulated Auto Trader)",
+    name: "LoomAI Engage Dealership Experience (Staging Measurement Candidate)",
     templateId: BASE_TEMPLATE_ID,
     template: pluginPin(template),
     plugins: requiredRefs.map((reference) => pluginPin(byRef.get(reference))),
@@ -322,7 +328,7 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
     ],
     limits: REVIEWED_LIMITS,
     topology: REVIEWED_TOPOLOGY,
-    approvedPolicyRef: "01036-simulated-dealership-offer-review-2026-10-15",
+    approvedPolicyRef: "01036-dealership-staging-measurement-candidate-2026-10-18",
     operatingPolicyRef: "01036-customer-staging-lifecycle-v1",
     identityPolicyRef: "01036-supabase-mixed-auth-v1",
     storagePolicyRef: "01036-s3-read-only-text-json-v1",

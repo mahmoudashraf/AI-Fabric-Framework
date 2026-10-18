@@ -5,12 +5,12 @@ import {fileURLToPath} from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REVIEWED_TEMPLATE_PATH = resolve(
   HERE,
-  "../../Platfrom/backend/src/test/resources/managed-dependency/simulated-dealership-experience-v1.template.json",
+  "../../Platfrom/backend/src/test/resources/managed-dependency/simulated-dealership-experience-v1-6.template.json",
 );
 const REVIEWED_TEMPLATE = JSON.parse(readFileSync(REVIEWED_TEMPLATE_PATH, "utf8"));
 
-export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-5";
-export const SPEC_ID = "mds-simulated-dealership-experience-v1-5";
+export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-6";
+export const SPEC_ID = "mds-simulated-dealership-experience-v1-6";
 export const SOURCE_COMMIT = "8c5339901faf3dcb8c9edd73c875738461d3330b";
 export const POSTGRES_IMAGE =
   "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea";
