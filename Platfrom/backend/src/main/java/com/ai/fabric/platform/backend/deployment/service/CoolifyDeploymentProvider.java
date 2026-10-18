@@ -60,6 +60,8 @@ import java.util.function.Supplier;
 
 @Service
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
 
     private static final Logger log = LoggerFactory.getLogger(CoolifyDeploymentProvider.class);
     private static final Duration TRACKED_STEP_HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
@@ -857,6 +859,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 progressTracker
             )
         );
+
+        if (source.sourceArtifact() != null) requireImmutableRuntimeImage(source.sourceArtifact(), observedRuntime);
 
         if (generationCheckpoint != null
             && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.STOP_CONFIRMED) {
@@ -2060,7 +2064,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             scope.environmentName(),
             scope.environmentUuid(),
             artifact.getImageRepository(),
-            artifact.getImageTag(),
+            sourceImageTag(artifact),
             portsExposes,
             connection.config().destinationUuid(),
             appName,
@@ -2571,6 +2575,22 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
     }
 
+    static String sourceImageTag(DeploymentSourceArtifactEntity artifact) {
+        String digest = artifact.getImageDigest();
+        if (!StringUtils.hasText(digest)) return artifact.getImageTag();
+        if (!digest.matches("sha256:[a-f0-9]{64}")) throw new IllegalStateException("COOLIFY_SOURCE_IMAGE_DIGEST_INVALID");
+        // Coolify converts its documented hash-tag form into repository@sha256:<digest>.
+        return "sha256-" + digest.substring("sha256:".length());
+    }
+
+    static void requireImmutableRuntimeImage(DeploymentSourceArtifactEntity artifact, CoolifyApplicationSummary application) {
+        if (!StringUtils.hasText(artifact.getImageDigest())) return;
+        if (application == null || !artifact.getImageRepository().equals(application.imageRepository())
+            || !sourceImageTag(artifact).equals(application.imageTag())) {
+            throw new IllegalStateException("COOLIFY_SOURCE_IMAGE_DIGEST_DRIFT");
+        }
+    }
+
     private String connectorBaseDirectory(RailwayServicePlanSummary connectorPlan, JsonNode resourceDefaults) {
         return serviceBaseDirectory(connectorPlan, resourceDefaults, "connectorBaseDirectory");
     }
@@ -2686,6 +2706,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         mergeFrozenRuntimeAuthorityEnvironment(deployment, version, release, serviceRole, env);
         if (SERVICE_ROLE_RUNTIME.equals(serviceRole)) {
+            if (providerUsageReleaseCoordinator != null) {
+                providerUsageReleaseCoordinator.environment(deployment, release)
+                    .forEach((key, value) -> putEnv(env, key, value));
+            } else if (customerOfferDeploymentRepository != null
+                && customerOfferDeploymentRepository.existsById(deployment.getId())) {
+                throw new IllegalStateException("Customer provider-usage accounting coordinator is required.");
+            }
             boolean durableTargetStore = runtimeDatabaseBinding != null;
             requireDurableRuntimeStoreForProductizedDeployment(deployment, durableTargetStore);
             boolean attestedTarget = durableTargetStore && StringUtils.hasText(release.getRuntimeAuthoritySnapshotId());

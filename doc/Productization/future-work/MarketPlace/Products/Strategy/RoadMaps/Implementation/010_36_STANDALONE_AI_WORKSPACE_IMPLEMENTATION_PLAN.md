@@ -1664,3 +1664,40 @@ no global grant or engineering repair. Publish the exact supported formats,
 auth/operator model, limits, simulation status and remaining exclusions. A green
 scoped offer does not relabel an unrelated failed full Platform gate as green,
 and successful plan editing does not certify production or external readiness.
+
+##### Provider Allowance Enforcement
+
+Provider allowances are distinct from releasable physical capacity. A reviewed
+customer campaign grant allocates finite credits to an exact deployment and
+target. Those credits are not automatically refunded by retirement, expiry,
+recreation or a different deployment ID. The control plane retains the grant
+and allocation history; it does not proxy every inference request. This is a
+core operating-policy capability, not an optional customer-removable plugin or
+a separate commercial-billing product.
+
+Actual request/token/cost enforcement remains deployment-local, using one
+durable atomic ledger shared by every enabled paid execution path. Reserve
+conservative verified bounds before transmission, including retries, query and
+indexing embeddings. Settle once from trustworthy native usage; uncertain
+attempts keep their full holds. Counters must survive restarts and redeploys.
+Unknown providers, billing modes or unprovable bounds fail explicitly rather
+than switching providers, estimating tokens from text length or inventing a
+successful response. Accounted cost may deliberately overstate invoice cost;
+the UI and evidence must identify that distinction.
+
+Provisioning initializes the local ledger with paid calls blocked, records its
+store identity durably in the control plane, then activates it through existing
+deployment-private authorization. A missing store cannot silently initialize a
+fresh allowance from environment variables. Recovery needs explicit matching
+evidence and must not replay an older balance as unused credit. Normal hold
+contention denies that attempt without destroying legitimate outstanding work.
+Any interrupted response must retain genuine action-effect receipts.
+
+The first guarded provider profile is explicitly scoped to verified OpenAI
+text generation and embeddings under a dated reviewed rate card. Other paths
+remain unavailable in that hard-budget profile until verified; this does not
+change framework semantic routing or pretend to support an untested adapter.
+Limits apply to this deployment's calls, not unrelated applications sharing a
+provider account. Approvals, safe readback and failure modes belong in the
+existing staff/customer authorization and readiness surfaces. Keep final UI
+extraction last, after enforcement and hosted acceptance.

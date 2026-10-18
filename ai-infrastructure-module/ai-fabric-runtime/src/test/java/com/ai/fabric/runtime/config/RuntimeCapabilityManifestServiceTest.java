@@ -32,6 +32,7 @@ class RuntimeCapabilityManifestServiceTest {
             "canonical-conversation-orchestration-state",
             "conversation-channel-outbox",
             "conversation-event-stream"
+            ,"deployment-local-provider-budget-v1"
         );
         assertThat(strings(manifest.path("migrationIds"))).contains(
             "ai-specialist-chain-execution-v1",
@@ -41,13 +42,16 @@ class RuntimeCapabilityManifestServiceTest {
             "ai-review-dispatch-v1",
             "loomai-conversation-handover-v1",
             "loomai-conversation-orchestration-state-v1"
+            ,"provider-budget-accounting-v1"
         );
         assertThat(strings(manifest.path("verificationPackIds"))).contains(
             "agentic-specialist-team-v1",
             "smart-brain-behavior-v1",
             "human-review-action-proposal-v1",
             "conversation-handover-v1"
+            ,"provider-budget-hard-limit-v1"
         );
+        assertThat(strings(manifest.path("endpointClasses"))).contains("provider-budget-administration");
         Map<String, Object> projection = service.manifestProjection();
         assertThat(projection).containsEntry("schemaVersion", "loomai-runtime-capabilities-v1");
         assertThat(projection.get("supportedBehaviorTypes")).isEqualTo(List.of(

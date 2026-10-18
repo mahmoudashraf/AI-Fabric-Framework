@@ -40,6 +40,7 @@
     "customer-backend-ingestion",
     "deployment-result-store",
     "deployment-local-provider-sync",
+    "deployment-local-provider-budget-v1",
     "document-ingestion-core",
     "document-source-connectors",
     "document-version-lifecycle",
@@ -87,6 +88,7 @@
     ,"customer-ingestion-readiness"
     ,"integration-operations"
     ,"provider-webhook-ingress"
+    ,"provider-budget-administration"
   ],
   "migrationIds": [
     "ai-action-proposal-receipt-v1",
@@ -101,6 +103,7 @@
     ,"loomai-conversation-orchestration-state-v1"
     ,"loomai-document-ingestion-v1"
     ,"integration-connector-state-v1"
+    ,"provider-budget-accounting-v1"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",
@@ -110,6 +113,7 @@
     ,"conversation-handover-v1"
     ,"document-knowledge-operations-v1"
     ,"external-http-integration-v1"
+    ,"provider-budget-hard-limit-v1"
   ],
   "specialistBundles": [
     {

@@ -28,6 +28,29 @@ class DeploymentProviderConnectivityServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Test
+    void productizedDeploymentsNeverRunUnmeteredControlPlaneInferenceProbes() {
+        var secrets = mock(PlatformSecretService.class);
+        var http = mock(HttpClient.class);
+        var offers = mock(com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository.class);
+        when(offers.existsById("dep-bounded")).thenReturn(true);
+        var service = new DeploymentProviderConnectivityService(secrets, objectMapper, http);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "customerOffers", offers);
+
+        var summary = service.probe(deployment("dep-bounded", "Bounded customer"), draft("""
+            {"llmProvider":"openai","embeddingProvider":"openai","vectorStrategy":"lucene",
+             "openAiBaseUrl":"https://api.openai.com/v1","openAiEmbeddingBaseUrl":"https://api.openai.com/v1"}
+            """));
+
+        verifyNoInteractions(http);
+        assertThat(summary.probes()).filteredOn(probe -> probe.key().endsWith("_inference_endpoint"))
+            .hasSize(3).allSatisfy(probe -> {
+                assertThat(probe.status()).isEqualTo("SKIPPED");
+                assertThat(probe.message()).contains("metered deployment runtime");
+            });
+        assertThat(summary.probes()).noneMatch(probe -> "READY".equals(probe.status()));
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     void probeMarksPineconeControlPlaneReadyWhenCredentialWorks() throws Exception {

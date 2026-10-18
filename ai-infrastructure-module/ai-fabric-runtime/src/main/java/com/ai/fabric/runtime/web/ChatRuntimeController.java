@@ -5,6 +5,7 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
 import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
+import com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
 import com.ai.fabric.runtime.lifecycle.retirement.RuntimeTargetRetirementService;
@@ -46,6 +47,7 @@ import ai.fabric.intent.orchestration.OrchestrationContext;
 import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
 import ai.fabric.intent.orchestration.OrchestrationResult;
 import ai.fabric.intent.orchestration.RAGOrchestrator;
+import ai.fabric.intent.orchestration.control.OrchestrationControlException;
 import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
 import ai.fabric.intent.orchestration.conversation.ConversationStateBinding;
 import ai.fabric.intent.orchestration.request.ConversationPersistencePolicy;
@@ -155,6 +157,7 @@ public class ChatRuntimeController {
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     private RuntimeTargetRetirementService targetRetirementService;
+    private RuntimeBudgetTurnScopes providerBudgetTurns;
     private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -165,6 +168,11 @@ public class ChatRuntimeController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setTargetRetirementService(RuntimeTargetRetirementService service) {
         this.targetRetirementService = service;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setProviderBudgetTurns(RuntimeBudgetTurnScopes service) {
+        this.providerBudgetTurns = service;
     }
 
     @Value("${ai.fabric.runtime.transient-file-url.allowed-hosts:}")
@@ -270,37 +278,52 @@ public class ChatRuntimeController {
                 context.setOrchestrationTurnGuard(targetRetirementService.guard(
                     retirementPermit, controlledTurn == null ? null : controlledTurn.guard()));
             }
-            long orchestrationStartTime = System.currentTimeMillis();
-            OrchestrationResult result = controlledTurn == null
-                ? orchestrator.orchestrate(request.getQuery(), context)
-                : orchestrator.orchestrate(new OrchestrationRequest(
-                    request.getQuery(),
-                    context,
-                    trustedConversationContext(identity, controlledTurn),
-                    ConversationPersistencePolicy.READ_ONLY,
-                    null,
-                    null,
-                    null,
-                    OrchestrationRequestPurpose.GENERAL,
-                    OrchestrationIntentPolicy.MODEL_DIRECTED,
-                    new ConversationStateBinding(
-                        controlledTurn.scope().tenantId(),
-                        controlledTurn.scope().deploymentId(),
-                        controlledTurn.scope().conversationId(),
-                        controlledTurn.scope().ownerId(),
-                        controlledTurn.lease().controlEpoch()
-                    )
-                ));
-            if (retirementPermit != null) targetRetirementService.verifyTurn(retirementPermit);
-            long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
-            long requestDurationMs = System.currentTimeMillis() - requestStartTime;
-            attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
-
-            ChatQueryResponse response = toCanonicalChatResponse(request, conversationId, context, result, identity);
-            if (admissionActivity != null && result != null && result.isSuccess()) {
-                admissionActivity.accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.ACCEPTED_SESSION);
+            RuntimeBudgetTurnScopes.Turn budgetTurn;
+            try {
+                budgetTurn = providerBudgetTurns == null ? null
+                    : providerBudgetTurns.openChat(identity, context.getOrchestrationTurnGuard());
+            } catch (OrchestrationControlException denied) {
+                return okWithAuthHeaders(ChatQueryResponse.builder()
+                    .success(false).type("ERROR").conversationId(conversationId)
+                    .answer("Provider budget admission was denied.")
+                    .safeSummary("Provider budget admission was denied.")
+                    .fallbackReason(denied.code()).build(), identity, requestPath);
             }
-            return okWithAuthHeaders(response, identity, requestPath);
+            try (budgetTurn) {
+                if (budgetTurn != null) context.setOrchestrationTurnGuard(budgetTurn);
+                long orchestrationStartTime = System.currentTimeMillis();
+                OrchestrationResult result = controlledTurn == null
+                    ? orchestrator.orchestrate(request.getQuery(), context)
+                    : orchestrator.orchestrate(new OrchestrationRequest(
+                        request.getQuery(),
+                        context,
+                        trustedConversationContext(identity, controlledTurn),
+                        ConversationPersistencePolicy.READ_ONLY,
+                        null,
+                        null,
+                        null,
+                        OrchestrationRequestPurpose.GENERAL,
+                        OrchestrationIntentPolicy.MODEL_DIRECTED,
+                        new ConversationStateBinding(
+                            controlledTurn.scope().tenantId(),
+                            controlledTurn.scope().deploymentId(),
+                            controlledTurn.scope().conversationId(),
+                            controlledTurn.scope().ownerId(),
+                            controlledTurn.lease().controlEpoch()
+                        )
+                    ));
+                if (budgetTurn != null) budgetTurn.verifyBeforeResultCommit(result);
+                if (retirementPermit != null) targetRetirementService.verifyTurn(retirementPermit);
+                long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
+                long requestDurationMs = System.currentTimeMillis() - requestStartTime;
+                attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
+
+                ChatQueryResponse response = toCanonicalChatResponse(request, conversationId, context, result, identity);
+                if (admissionActivity != null && result != null && result.isSuccess()) {
+                    admissionActivity.accepted(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.Kind.ACCEPTED_SESSION);
+                }
+                return okWithAuthHeaders(response, identity, requestPath);
+            }
         } finally {
             if (targetRetirementService != null) targetRetirementService.finishTurn(retirementPermit);
         }
@@ -364,8 +387,7 @@ public class ChatRuntimeController {
         Map<String, Object> sanitizedData = firstMap(sanitizedPayload.get("data"));
         Map<String, Object> data = enrichCanonicalData(
             firstMap(sanitizedData, rawData),
-            rawData,
-            result
+            rawData
         );
         String answer = firstText(
             sanitizedPayload.get("safeSummary"),
@@ -389,7 +411,7 @@ public class ChatRuntimeController {
             ? result.getType().name()
             : (result != null && result.isSuccess() ? "INFORMATION_PROVIDED" : "ERROR");
         List<Object> actions = firstList(sanitizedPayload.get("actions"), sanitizedData.get("actions"));
-        actions = enrichCanonicalActions(actions, firstList(rawData.get("actions")), rawData, result);
+        actions = enrichCanonicalActions(actions, firstList(rawData.get("actions")));
         if (actions.isEmpty() && containsActionLikeEvidence(data)) {
             actions = List.of(data);
         }
@@ -586,8 +608,7 @@ public class ChatRuntimeController {
     }
 
     private Map<String, Object> enrichCanonicalData(Map<String, Object> data,
-                                                    Map<String, Object> rawData,
-                                                    OrchestrationResult result) {
+                                                    Map<String, Object> rawData) {
         if ((data == null || data.isEmpty()) && (rawData == null || rawData.isEmpty())) {
             return Map.of();
         }
@@ -596,27 +617,26 @@ public class ChatRuntimeController {
             enriched.get("errorCode"),
             actionResultErrorCode(enriched.get("actionResult")),
             rawData == null ? null : rawData.get("errorCode"),
-            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")),
-            result == null ? null : result.getErrorCode()
+            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult"))
         );
         if (StringUtils.hasText(errorCode) && !StringUtils.hasText(firstText(enriched.get("errorCode")))) {
             enriched.put("errorCode", errorCode);
         }
         Object actionResult = enriched.get("actionResult");
+        String actionErrorCode = firstText(actionResultErrorCode(actionResult),
+            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")));
         if (actionResult instanceof Map<?, ?> actionResultMap
-            && StringUtils.hasText(errorCode)
+            && StringUtils.hasText(actionErrorCode)
             && !StringUtils.hasText(actionResultErrorCode(actionResultMap))) {
             Map<String, Object> safeActionResult = normalizeMap(actionResultMap);
-            safeActionResult.put("errorCode", errorCode);
+            safeActionResult.put("errorCode", actionErrorCode);
             enriched.put("actionResult", Collections.unmodifiableMap(safeActionResult));
         }
         return Collections.unmodifiableMap(enriched);
     }
 
     private List<Object> enrichCanonicalActions(List<Object> actions,
-                                                List<Object> rawActions,
-                                                Map<String, Object> rawData,
-                                                OrchestrationResult result) {
+                                                List<Object> rawActions) {
         if (actions == null || actions.isEmpty()) {
             return List.of();
         }
@@ -625,7 +645,7 @@ public class ChatRuntimeController {
             Object action = actions.get(i);
             Object rawAction = rawActions != null && i < rawActions.size() ? rawActions.get(i) : null;
             if (action instanceof Map<?, ?> actionMap) {
-                enriched.add(enrichCanonicalAction(normalizeMap(actionMap), rawAction, rawData, result));
+                enriched.add(enrichCanonicalAction(normalizeMap(actionMap), rawAction));
             } else {
                 enriched.add(action);
             }
@@ -634,17 +654,12 @@ public class ChatRuntimeController {
     }
 
     private Map<String, Object> enrichCanonicalAction(Map<String, Object> action,
-                                                      Object rawAction,
-                                                      Map<String, Object> rawData,
-                                                      OrchestrationResult result) {
+                                                      Object rawAction) {
         Map<String, Object> enriched = new LinkedHashMap<>(action);
         String errorCode = firstText(
             enriched.get("errorCode"),
             actionResultErrorCode(enriched.get("actionResult")),
-            actionMapErrorCode(rawAction),
-            rawData == null ? null : rawData.get("errorCode"),
-            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")),
-            result == null ? null : result.getErrorCode()
+            actionMapErrorCode(rawAction)
         );
         if (StringUtils.hasText(errorCode) && !StringUtils.hasText(firstText(enriched.get("errorCode")))) {
             enriched.put("errorCode", errorCode);
@@ -825,59 +840,83 @@ public class ChatRuntimeController {
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, requestPath);
 
-        AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
-        List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
-        List<OrchestrationAttachment> attachments = request.getAttachments() != null ? request.getAttachments() : List.of();
-        Map<String, Object> requestContext = sanitizeRequestContext(request.getContext());
-
-        String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, requestContext, n);
-
-        AICoreService aiCoreService = aiCoreServiceProvider.getIfAvailable();
-        if (aiCoreService == null) {
-            return okWithAuthHeaders(SuggestionsResponse.builder()
-                .success(true)
-                .message("AI provider not configured; returning fallback suggestions")
-                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
-                .raw(null)
-                .authContext(toResponseAuthContext(identity))
-                .build(), identity, requestPath);
-        }
-
+        RuntimeBudgetTurnScopes.Turn budgetTurn;
         try {
-            AIGenerationResponse response = aiCoreService.generateContent(AIGenerationRequest.builder()
-                .entityType("suggestions")
-                .entityId("adhoc")
-                .generationType("suggestions")
-                .systemPrompt(SUGGESTIONS_SYSTEM_PROMPT_TEMPLATE.formatted(n))
-                .prompt(prompt)
-                .maxTokens(300)
-                .temperature(0.4)
-                .authContext(toAccessSubjectContext(identity))
-                .build(), LlmPurpose.GENERATION);
+            budgetTurn = providerBudgetTurns == null ? null : providerBudgetTurns.openSuggestions(identity);
+        } catch (OrchestrationControlException denied) {
+            return deniedSuggestions(denied.code(), identity, requestPath);
+        }
+        try (budgetTurn) {
 
-            String raw = response != null ? response.getContent() : null;
-            List<String> suggestions = normalizeSuggestions(parseSuggestions(raw), n);
+            AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
+            List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
+            List<OrchestrationAttachment> attachments = request.getAttachments() != null ? request.getAttachments() : List.of();
+            Map<String, Object> requestContext = sanitizeRequestContext(request.getContext());
 
-            if (suggestions.isEmpty()) {
-                suggestions = buildFallbackSuggestions(request.getContent(), actions, attachments, n);
+            String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, requestContext, n);
+
+            AICoreService aiCoreService = aiCoreServiceProvider.getIfAvailable();
+            if (aiCoreService == null) {
+                if (budgetTurn != null) return deniedSuggestions("AI_SUGGESTIONS_UNAVAILABLE", identity, requestPath);
+                return okWithAuthHeaders(SuggestionsResponse.builder()
+                    .success(true)
+                    .message("AI provider not configured; returning fallback suggestions")
+                    .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
+                    .raw(null)
+                    .authContext(toResponseAuthContext(identity))
+                    .build(), identity, requestPath);
             }
 
-            return okWithAuthHeaders(SuggestionsResponse.builder()
-                .success(true)
-                .message(null)
-                .suggestions(suggestions)
-                .raw(raw)
-                .authContext(toResponseAuthContext(identity))
-                .build(), identity, requestPath);
-        } catch (Exception ex) {
-            return okWithAuthHeaders(SuggestionsResponse.builder()
-                .success(true)
-                .message("AI suggestions unavailable; returning fallback suggestions")
-                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
-                .raw(null)
-                .authContext(toResponseAuthContext(identity))
-                .build(), identity, requestPath);
+            try {
+                AIGenerationResponse response = aiCoreService.generateContent(AIGenerationRequest.builder()
+                    .entityType("suggestions")
+                    .entityId("adhoc")
+                    .generationType("suggestions")
+                    .systemPrompt(SUGGESTIONS_SYSTEM_PROMPT_TEMPLATE.formatted(n))
+                    .prompt(prompt)
+                    .maxTokens(300)
+                    .temperature(0.4)
+                    .authContext(toAccessSubjectContext(identity))
+                    .build(), LlmPurpose.GENERATION);
+
+                String raw = response != null ? response.getContent() : null;
+                if (budgetTurn != null && budgetTurn.interruption().isPresent()) {
+                    return deniedSuggestions(RuntimeBudgetTurnScopes.INTERRUPTION_CODE, identity, requestPath);
+                }
+                List<String> suggestions = normalizeSuggestions(parseSuggestions(raw), n);
+
+                if (suggestions.isEmpty()) {
+                    if (budgetTurn != null) return deniedSuggestions("AI_SUGGESTIONS_OUTPUT_INVALID", identity, requestPath);
+                    suggestions = buildFallbackSuggestions(request.getContent(), actions, attachments, n);
+                }
+
+                return okWithAuthHeaders(SuggestionsResponse.builder()
+                    .success(true)
+                    .message(null)
+                    .suggestions(suggestions)
+                    .raw(raw)
+                    .authContext(toResponseAuthContext(identity))
+                    .build(), identity, requestPath);
+            } catch (Exception ex) {
+                if (budgetTurn != null) {
+                    return deniedSuggestions(budgetTurn.interruption().isPresent()
+                        ? RuntimeBudgetTurnScopes.INTERRUPTION_CODE : "AI_SUGGESTIONS_UNAVAILABLE", identity, requestPath);
+                }
+                return okWithAuthHeaders(SuggestionsResponse.builder()
+                    .success(true)
+                    .message("AI suggestions unavailable; returning fallback suggestions")
+                    .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
+                    .raw(null)
+                    .authContext(toResponseAuthContext(identity))
+                    .build(), identity, requestPath);
+            }
         }
+    }
+
+    private ResponseEntity<SuggestionsResponse> deniedSuggestions(String code,
+        RuntimeResolvedIdentity identity, String requestPath) {
+        return okWithAuthHeaders(SuggestionsResponse.builder().success(false).message(code)
+            .suggestions(List.of()).raw(null).authContext(toResponseAuthContext(identity)).build(), identity, requestPath);
     }
 
     @GetMapping("/me/auth-context")

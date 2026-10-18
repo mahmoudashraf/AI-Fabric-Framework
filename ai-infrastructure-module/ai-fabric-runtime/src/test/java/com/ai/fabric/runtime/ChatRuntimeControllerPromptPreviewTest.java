@@ -55,6 +55,83 @@ class ChatRuntimeControllerPromptPreviewTest {
     private static final List<String> QUERY_WITH_PROMPT_PREVIEW_SCOPES = List.of("chat:query", "chat:prompt-preview");
 
     @Test
+    void providerBudgetDenialDoesNotEnterOrchestration() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator);
+        var budgets = mock(com.ai.fabric.runtime.budget.RuntimeBudgetBindingService.class);
+        when(budgets.recordVerifiedChatIngress(any())).thenThrow(
+            new com.ai.fabric.budget.BudgetException(com.ai.fabric.budget.BudgetException.Code.LIMIT_EXCEEDED));
+        controller.setProviderBudgetTurns(new com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes(budgets));
+        var servlet = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servlet, "user", "session", BASE_QUERY_SCOPES);
+        var request = new ChatQueryRequest(); request.setQuery("Question");
+
+        var response = controller.query(request, servlet).getBody();
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getFallbackReason()).isEqualTo("PROVIDER_BUDGET_LIMIT_EXCEEDED");
+        verifyNoInteractions(orchestrator);
+    }
+
+    @Test
+    void swallowedProviderBudgetDenialIsExplicitAndPreservesTheOriginalActionReceipt() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator);
+        var budgets = mock(com.ai.fabric.runtime.budget.RuntimeBudgetBindingService.class);
+        var turns = new com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes(budgets);
+        controller.setProviderBudgetTurns(turns);
+        var receipt = Map.<String, Object>of("action", "create_request", "success", true,
+            "data", Map.of("receiptCode", "receipt-1"));
+        OrchestrationResult original = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED).success(true)
+            .data(Map.of("actions", List.of(receipt)))
+            .sanitizedPayload(Map.of("safeSummary", "Request created.", "actions", List.of(receipt)))
+            .build();
+        when(orchestrator.orchestrate(any(String.class), any(OrchestrationContext.class))).thenAnswer(call -> {
+            var invocation = turns.capture(com.ai.fabric.budget.openai.OpenAiBudgetInvocation.Operation.CHAT_COMPLETION);
+            invocation.observer().onDenied(new com.ai.fabric.budget.openai.OpenAiBudgetInvocation.Denial(
+                invocation.operationId(), java.util.UUID.randomUUID(),
+                com.ai.fabric.budget.BudgetException.Code.LIMIT_EXCEEDED, null));
+            return original;
+        });
+        var servlet = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servlet, "user", "session", BASE_QUERY_SCOPES);
+        var request = new ChatQueryRequest(); request.setQuery("Question");
+
+        var response = controller.query(request, servlet).getBody();
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getFallbackReason()).isEqualTo("PROVIDER_BUDGET_INTERRUPTED");
+        assertThat(response.getActions()).containsExactly(receipt);
+        assertThat(original.getData()).isEqualTo(Map.of("actions", List.of(receipt)));
+        assertThat(response.getMetadata()).containsKey("budgetInterruption");
+        assertThatThrownBy(() -> turns.capture(com.ai.fabric.budget.openai.OpenAiBudgetInvocation.Operation.CHAT_COMPLETION))
+            .isInstanceOf(com.ai.fabric.budget.openai.OpenAiBudgetException.class);
+    }
+
+    @Test
+    void turnErrorsDoNotBecomeErrorsOnSuccessfulNestedActionResults() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        var successful = Map.<String, Object>of("success", true, "data", Map.of("receiptCode", "receipt-2"));
+        var result = OrchestrationResult.builder().type(OrchestrationResultType.ERROR).success(false)
+            .errorCode("TURN_INTERRUPTED").data(Map.of("action", "create_request", "actionResult", successful))
+            .sanitizedPayload(Map.of("data", Map.of("action", "create_request", "actionResult", successful)))
+            .build();
+        when(orchestrator.orchestrate(any(String.class), any(OrchestrationContext.class))).thenReturn(result);
+        var controller = controllerFor(orchestrator);
+        var servlet = new MockHttpServletRequest(); addVerifiedAuthHeaders(servlet, "user", "session", BASE_QUERY_SCOPES);
+        var request = new ChatQueryRequest(); request.setQuery("Question");
+
+        var response = controller.query(request, servlet).getBody();
+
+        assertThat(response.getFallbackReason()).isEqualTo("TURN_INTERRUPTED");
+        assertThat(response.getActions()).singleElement().satisfies(value -> {
+            assertThat(((Map<?, ?>) value).get("actionResult")).isEqualTo(successful);
+            assertThat(((Map<?, ?>) value).containsKey("errorCode")).isFalse();
+        });
+    }
+
+    @Test
     void onlySuccessfulChatTurnsAdvanceAcceptedActivity() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(

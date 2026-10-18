@@ -12,6 +12,8 @@ on:
       - "ai-fabric-product/ai-fabric-vectorization-core/**"
       - "ai-fabric-product/ai-fabric-vectorization-runner/**"
       - "ai-fabric-product/pom.xml"
+      - "ai-fabric-product/ai-fabric-provider-budget/**"
+      - "ai-fabric-product/ai-fabric-provider-budget-openai/**"
   workflow_dispatch:
 
 permissions:
@@ -27,8 +29,30 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/ai-fabric-runtime
 
 jobs:
+  verify:
+    name: Verify runtime and private provider accounting
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Verify and install private provider accounting modules
+        run: mvn -B -ntp -f ai-fabric-product/pom.xml -pl ai-fabric-provider-budget-openai -am install
+
+      - name: Verify runtime against released framework dependencies
+        run: mvn -B -ntp -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -am test
+
   publish:
     name: Build and publish immutable runtime image
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

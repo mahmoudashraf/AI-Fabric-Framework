@@ -43,6 +43,31 @@ import static org.mockito.Mockito.when;
 class ChatRuntimeControllerSuggestionsTest {
 
     @Test
+    void guardedSuggestionsNeverHideProviderFailureWithSuccessfulFallbackOptions() {
+        AICoreService core = mock(AICoreService.class);
+        when(core.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenThrow(new IllegalStateException("synthetic provider failure"));
+        var budgets = mock(com.ai.fabric.runtime.budget.RuntimeBudgetBindingService.class);
+        when(budgets.requireVerifiedDeployment(org.mockito.ArgumentMatchers.any())).thenAnswer(call ->
+            ((com.ai.fabric.runtime.auth.RuntimeResolvedIdentity) call.getArgument(0)).getAuthContext());
+        var turns = new com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes(budgets);
+        ChatRuntimeController controller = instantiateController(provider(null), mock(RuntimeConversationGateway.class),
+            provider(core), provider(null), provider(null), provider(null), strictAuthResolver());
+        controller.setProviderBudgetTurns(turns);
+        var servlet = new MockHttpServletRequest(); addVerifiedAuthHeaders(servlet, "user", "session");
+        var request = new SuggestionsRequest(); request.setContent("Show options");
+
+        var response = controller.suggestions(request, servlet).getBody();
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getMessage()).isEqualTo("AI_SUGGESTIONS_UNAVAILABLE");
+        assertThat(response.getSuggestions()).isEmpty();
+        assertThat(response.getRaw()).isNull();
+        assertThatThrownBy(() -> turns.capture(com.ai.fabric.budget.openai.OpenAiBudgetInvocation.Operation.CHAT_COMPLETION))
+            .isInstanceOf(com.ai.fabric.budget.openai.OpenAiBudgetException.class);
+    }
+
+    @Test
     void suggestionsPromptTreatsUserContentAndAttachmentsAsUntrustedJsonData() {
         AICoreService aiCoreService = mock(AICoreService.class);
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))

@@ -41,6 +41,9 @@ public class DeploymentProviderConnectivityService {
     private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
 
     @Autowired
+    private com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository customerOffers;
+
+    @Autowired
     public DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
                                                  DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                                  ObjectMapper objectMapper,
@@ -501,6 +504,10 @@ public class DeploymentProviderConnectivityService {
         if (!StringUtils.hasText(provider)) {
             return null;
         }
+        if (customerOffers != null && customerOffers.existsById(deploymentId)) {
+            return skippedInferenceProbe(purpose,
+                "Paid inference is not probed from the control plane for customer offers. Verify through the metered deployment runtime after activation.");
+        }
         String normalizedProvider = provider.trim().toLowerCase();
         if ("onnx".equals(normalizedProvider)) {
             return hasExplicitInferenceLlmEndpointConfiguration(
@@ -747,6 +754,10 @@ public class DeploymentProviderConnectivityService {
     private DeploymentProviderConnectivityProbeSummary probeInferenceEmbeddingEndpoint(String deploymentId,
                                                                                        JsonNode providerConfig,
                                                                                        JsonNode entityConfig) {
+        if (customerOffers != null && customerOffers.existsById(deploymentId)) {
+            return skippedInferenceProbe("embedding",
+                "Paid embedding inference is not probed from the control plane for customer offers. Verify through the metered deployment runtime after activation.");
+        }
         String provider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String endpointProfile = ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig);
         String serviceMode = ManagedDeploymentProfileCatalog.embeddingServiceMode(providerConfig);

@@ -12,6 +12,10 @@ COPY ai-infrastructure-module ai-infrastructure-module
 COPY ai-fabric-product ai-fabric-product
 
 RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -U --no-transfer-progress -f ai-fabric-product/pom.xml \
+    -pl ai-fabric-provider-budget-openai -am -DskipTests install
+
+RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -U --no-transfer-progress -f ai-infrastructure-module/pom.xml \
     -pl ai-fabric-runtime,ai-infrastructure-generic-rest-connector -am -DskipTests package
 

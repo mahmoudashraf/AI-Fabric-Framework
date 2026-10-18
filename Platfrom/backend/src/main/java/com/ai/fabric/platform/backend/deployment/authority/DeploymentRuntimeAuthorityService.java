@@ -243,6 +243,19 @@ public class DeploymentRuntimeAuthorityService {
             false, grantedScopes, ttl);
     }
 
+    /** Fixed-scope worker boundary, only after actual provisioning of the exact frozen release. */
+    @Transactional
+    public Map<String, String> issueProviderBudgetProvisioningHeaders(DeploymentEntity deployment,
+        DeploymentVersionEntity version, DeploymentReleaseEntity release) {
+        releaseEnvironmentPlanForProvisioning(deployment, version, release);
+        requireProvisioned(release);
+        var snapshot = snapshots.findById(release.getRuntimeAuthoritySnapshotId()).orElseThrow();
+        var checked = checkedSnapshot(deployment, authority(deployment, release.getTargetProfileId()),
+            snapshot, release.getRuntimeAuthorityFingerprint());
+        return headers(checked.binding(), "platform-provider-budget", "SYSTEM_PROCESS", release.getId(), false,
+            List.of("runtime:admin:overview", "runtime:admin:provider-budget:write"), Duration.ofMinutes(2));
+    }
+
     /**
      * Scheduler-only authority for an exact frozen release. Unlike the browser path this does not
      * consult a request principal; the caller must already hold the durable target-retirement fence.

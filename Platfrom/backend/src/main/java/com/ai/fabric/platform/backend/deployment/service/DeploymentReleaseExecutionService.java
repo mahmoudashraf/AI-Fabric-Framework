@@ -66,6 +66,9 @@ public class DeploymentReleaseExecutionService {
     private ManagedDependencyReleaseCoordinator managedDependencyReleaseCoordinator;
 
     @Autowired
+    private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
+
+    @Autowired
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
                                              DeploymentVersionRepository versionRepository,
                                              DeploymentReleaseRepository releaseRepository,
@@ -242,6 +245,7 @@ public class DeploymentReleaseExecutionService {
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
 
+        if (providerUsageReleaseCoordinator != null) providerUsageReleaseCoordinator.prepare(deployment, release);
         if (documentBindingResolver != null) documentBindingResolver.requireUnchanged(deployment, version, release);
         else if (StringUtils.hasText(release.getDocumentBindingFingerprint())) {
             throw new IllegalStateException("Document binding resolver is required.");
@@ -259,6 +263,10 @@ public class DeploymentReleaseExecutionService {
         );
 
         applyProvisioningResult(deploymentId, versionId, releaseId, provisioningResult);
+        if (providerUsageReleaseCoordinator != null) {
+            providerUsageReleaseCoordinator.initializeAndActivate(
+                getDeployment(deploymentId), getVersion(versionId), getRelease(releaseId));
+        }
         refreshProviderResourceHandlesAfterProvisioning(deploymentId, releaseId);
         if (managedDependencyReleaseCoordinator != null) {
             managedDependencyReleaseCoordinator.completeRuntimeBound(deployment, version, release);

@@ -66,6 +66,22 @@ class CoolifyDeploymentProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void reviewedImageDigestControlsTheActualCoolifyPullAndRejectsTagDrift() {
+        var image = artifact(); image.setImageDigest("sha256:" + "a".repeat(64));
+        assertThat(CoolifyDeploymentProvider.sourceImageTag(image)).isEqualTo("sha256-" + "a".repeat(64));
+        var exact = new CoolifyApplicationSummary("app", "runtime", null, "running:healthy", image.getImageRepository(),
+            "sha256-" + "a".repeat(64), objectMapper.createObjectNode());
+        CoolifyDeploymentProvider.requireImmutableRuntimeImage(image, exact);
+        var mutableTag = new CoolifyApplicationSummary("app", "runtime", null, "running:healthy", image.getImageRepository(),
+            image.getImageTag(), objectMapper.createObjectNode());
+        assertThatThrownBy(() -> CoolifyDeploymentProvider.requireImmutableRuntimeImage(image, mutableTag))
+            .hasMessage("COOLIFY_SOURCE_IMAGE_DIGEST_DRIFT");
+        image.setImageDigest("sha256:not-a-digest");
+        assertThatThrownBy(() -> CoolifyDeploymentProvider.sourceImageTag(image))
+            .hasMessage("COOLIFY_SOURCE_IMAGE_DIGEST_INVALID");
+    }
+
+    @Test
     void productizedRuntimeDatabaseRequiresProfileCapacityCoveredByAdmission() throws Exception {
         var offers = mock(CustomerOfferDeploymentRepository.class);
         var admission = mock(CustomerAdmissionDatabaseCapacityVerifier.class);
@@ -746,6 +762,7 @@ class CoolifyDeploymentProviderTest {
             }
             """);
         DeploymentSourceArtifactEntity artifact = artifact();
+        artifact.setImageDigest("sha256:" + "a".repeat(64));
         CoolifyConnection connection = connection();
         CoolifyApplicationSummary runtimeApplication = new CoolifyApplicationSummary(
             "runtime-uuid",
@@ -753,7 +770,7 @@ class CoolifyDeploymentProviderTest {
             "http://dep-123.runtime.example.test",
             "running:healthy",
             artifact.getImageRepository(),
-            artifact.getImageTag(),
+            "sha256-" + "a".repeat(64),
             objectMapper.readTree("{\"uuid\":\"runtime-uuid\",\"status\":\"running:healthy\"}")
         );
         CoolifyApplicationSummary connectorApplication = new CoolifyApplicationSummary(
@@ -762,7 +779,7 @@ class CoolifyDeploymentProviderTest {
             "http://dep-123-connector.runtime.example.test",
             "running:healthy",
             artifact.getImageRepository(),
-            artifact.getImageTag(),
+            "sha256-" + "a".repeat(64),
             objectMapper.readTree("{\"uuid\":\"connector-uuid\",\"status\":\"running:healthy\"}")
         );
         CoolifyApplicationSummary runnerApplication = new CoolifyApplicationSummary(
@@ -771,7 +788,7 @@ class CoolifyDeploymentProviderTest {
             null,
             "running:healthy",
             artifact.getImageRepository(),
-            artifact.getImageTag(),
+            "sha256-" + "a".repeat(64),
             objectMapper.readTree("{\"uuid\":\"runner-uuid\",\"status\":\"running:healthy\"}")
         );
 
@@ -844,7 +861,7 @@ class CoolifyDeploymentProviderTest {
             .containsOnly("ghcr.io/example/runtime");
         assertThat(requests.getAllValues())
             .extracting(CoolifyCreateDockerImageApplicationRequest::imageTag)
-            .containsOnly("sha");
+            .containsOnly("sha256-" + "a".repeat(64));
         assertThat(requests.getAllValues())
             .extracting(CoolifyCreateDockerImageApplicationRequest::portsExposes)
             .containsExactly("8097", "8082", "8099");

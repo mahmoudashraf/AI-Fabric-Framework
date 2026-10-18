@@ -22,6 +22,11 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.ai.fabric.product</groupId>
+            <artifactId>ai-fabric-provider-budget-openai</artifactId>
+            <version>1.0.0</version>
+        </dependency>
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

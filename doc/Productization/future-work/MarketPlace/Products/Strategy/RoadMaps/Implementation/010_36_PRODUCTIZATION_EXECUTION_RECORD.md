@@ -1029,3 +1029,77 @@ write-only bindings, never this ledger.
   `/private/tmp/01036-operating-proof-path-20261018.md`. Genuine hosted budget,
   restore/rebuild, lifecycle delivery and customer-runtime/promotion checks
   remain open. This is continued implementation, not full 010.36 completion.
+
+### 2026-10-18 Retained Stops And Guard Integration Checkpoint
+
+- Paused auto-deploy for exactly the thirty already-stopped applications:
+  twelve framework demos on staging and eighteen ProdUS/Shopify components
+  across both hosts. Only that flag changed; actual settings and exact
+  container/image/writable-layer/mount readbacks passed. Private prior settings
+  and restoration evidence are under
+  `/private/tmp/01036-stopped-auto-deploy-preservation-20261018/`.
+  Restore them only with the productization return-to-service/capacity plan.
+- The two Shopify bridges remain running to preserve their actual memory-only
+  business records. Their source watch path is
+  `product-services/shopify-bridge-service/**`, outside the pending changes.
+  No bridge, database, dealership or shared-service deletion/recreation occurred.
+- Fresh post-stop readback passed: all eight audited databases and all running
+  health-checked dealership/shared services are healthy. Available physical RAM
+  was 10,608 MiB staging and 12,014 MiB production; swap is excluded. Production
+  still has four CPUs. Neither these samples nor spare RAM approve promotion.
+- Private accounting implementation now includes the durable neutral ledger,
+  captured native OpenAI exchange guard, CP lifetime allowance issuer, explicit
+  output-cap mode, private two-phase initialization/activation, runtime turn
+  and indexing integration, and a local-only bounded embedding-worker profile.
+  No public framework source or release was changed. These changes are not yet
+  deployed or evidence of a completed hosted canary.
+- Verified local results so far: ledger 52 H2/PostgreSQL cases, native adapter
+  88 fake-HTTP cases, embedding-worker four cases, CP issuer 79 cases and parent
+  focused backend integration 158 cases. The full backend run found a genuine
+  Spring constructor-selection regression in the new runtime client; explicit
+  production-constructor injection is fixed in source and awaits its rerun.
+  Do not label that initial full run green. Runtime integration and independent
+  review remain in progress.
+- Paid control-plane inference probes are explicitly deferred for customer
+  offers; their result is `SKIPPED`, not provider success. Genuine inference
+  verification must use the activated, metered deployment runtime. Queries and
+  suggestions must share the approved interactive-request limit. Unknown paid
+  attempts retain their full reservation; resource retirement does not refund
+  financial credits or authorize a new runtime store.
+- The original approved 50-request, 100,000-token, USD 2 staging allowance is
+  still binding. The token-only 200,000 amendment remains unanswered. No paid
+  provider request, lifecycle email, live financial grant or runtime apply has
+  been made. Receipt-loss characterization in the current framework still
+  needs proof against the actual enabled profile before any broad claim of
+  effect-preserving error handling. UI extraction/deployment remains last.
+
+### 2026-10-18 Provider Guard Combined Verification
+
+- Full backend rerun passed 2,189 tests, and the full private runtime reactor
+  passed 425 tests, with no failures, errors or skips. The earlier missing
+  constructor annotation and test compilation failure were corrected, not
+  waived. Logs are `/private/tmp/01036-provider-budget-full-backend-rerun.log`
+  and `/private/tmp/01036-provider-budget-full-runtime-rerun.log`.
+- Final runtime capability, action-receipt, suggestions and real PostgreSQL
+  migration regressions passed after the packaged capability declarations were
+  added: 43 passed. Final backend regressions for the subsequent immutable-
+  artifact and image-pull corrections also passed: 173, with no failures,
+  errors or skips. Logs end in `final-focused-runtime.log` and
+  `final-focused-backend.log` under `/private/tmp/01036-provider-budget-`.
+- Independent review found that the runtime provisioner validated an artifact
+  digest but still requested its mutable image tag. It now requests Coolify's
+  digest-specific image reference and checks the observed repository/digest
+  setting before continuing. The guarded-offer gate also rejects old runtime
+  artifacts before financial allocation; enabling an environment variable on
+  an older image is not accepted as installing enforcement.
+- Runtime normalization now keeps a later turn interruption separate from
+  successful individual action receipts. Focused regressions preserve genuine
+  receipts and report the interruption without inventing effects. Review of
+  ordinary conversational execution found no confirmed provider exception
+  escape requiring a public framework release. Synthetic broader pipeline
+  limitations remain outside that bounded proof; framework stays 0.8.35.
+- The ledger/native modules are in local commit `66d1ec2c3`; host integration
+  is not yet committed or deployed at this checkpoint. Both live control-plane
+  backends remain `65b522a2d` / migration 189. No paid call, financial grant,
+  lifecycle email or new customer runtime apply occurred. UI extraction stays
+  last and the original approved financial limits still apply.

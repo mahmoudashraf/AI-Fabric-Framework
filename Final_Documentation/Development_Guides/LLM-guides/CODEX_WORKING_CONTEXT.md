@@ -5127,3 +5127,62 @@ Critical fixes that made the gate pass:
   unrelatedframeworkmatrix. UsepublicSPI/nativeHTTPprooforraiseconcretegap.
   Track /private/tmp/01036-provider-budget-execution-track-20261018.md.
   UIlast;firewallstaysOPEN;nopaidinfraorfull010.43DRwork.
+
+### 2026-10-18 Guard Integration And Retained-Stop Checkpoint
+
+- Exactly 30 stopped apps now have auto-deploy paused, with prior flags/private
+  snapshots and unchanged container/image/layer/mount proof in
+  `/private/tmp/01036-stopped-auto-deploy-preservation-20261018/`. Restore only
+  through the agreed return-to-service/capacity plan. The two actual memory-DB
+  Shopify bridges remain running; their watch paths do not match this work.
+  Eight audited DBs and all health-checked running shared/dealership services
+  are healthy. Latest physical RAM: staging 10,608 MiB, production 12,014 MiB;
+  swap excluded. Production four-CPU admission remains open. Keep SSH open.
+- New uncommitted private accounting code: budget ledger and native guard
+  modules, CP `deployment/budget` plus V190, runtime `budget` plus V19/controller
+  integration, bounded local-ONNX embedding-worker guard, Docker/CI wiring.
+  Public framework remains 0.8.35. Existing backends remain on `65b522a2d`;
+  none of the new accounting code is live yet. UI extraction remains last.
+- Local verification: ledger 52, native fake HTTP 88, worker four, CP issuer 79,
+  focused parent backend 158 passed. First full backend run exposed missing
+  constructor selection on `ProviderUsageRuntimeClient`; source now has
+  explicit `@Autowired`. Full rerun and runtime integration are still required.
+  Real PostgreSQL Flyway-V19 restart/ambiguous-hold test added outside the
+  runtime agent's package. Do not call the initial full run successful.
+- CP/runtime use one runtime allocation hash, separate from the CP terms hash.
+  Async release workers validate durable R7 release authorization, not a
+  fabricated staff principal. CP commits store UUID before private activation;
+  a missing/replaced active store must never receive automatic fresh credits.
+  Direct paid CP probes for customer offers are explicitly SKIPPED. Actual
+  paid proof must use the guarded runtime; no fake provider-success label.
+- Review follow-ups: count suggestions together with queries; verify genuine
+  action receipts survive the actual enabled profile's later provider failure,
+  not just a synthetic or swallowed-exception fixture. Original owner limits
+  remain 50 requests / 100,000 tokens / USD 2 including embeddings; token-only
+  200,000 amendment pending in Required for production. No paid calls/mail or
+  live financial approvals have occurred.
+- Active agents: Dewey read-only CP/runtime/native review; Bohr native adapter
+  complete and inspecting real compound-action receipt behavior; Ramanujan
+  runtime wiring/counter/startup integration and tests. Parent owns existing
+  files, final combined verification, scoped commits and hosted rollout.
+
+### 2026-10-18 Combined Provider Guard Verification
+
+- Full backend rerun passed 2189 tests; full private runtime reactor passed425,
+  zero failures/errors/skips. The constructor-selection and wildcard-test
+  compile regressions were fixed, not waived. Final runtime manifest/receipt/
+  suggestions/PostgreSQL migration tests also pass43. Final backend tests after
+  artifact/digest changes passed173, zero failures/errors/skips; both exited0.
+- Independent review identified mutable image-tag use after digest validation.
+  Main runtime provisioning now requests Coolify's digest-specific reference
+  and checks its observed repository/digest setting. Guarded customer offers
+  require the exact promoted artifact with packaged budget declarations before
+  financial allocation. Old v7 artifacts remain ineligible and immutable.
+- Generic action normalization no longer copies a turn-level interruption onto
+  successful individual action receipts. Actual ordinary conversational source
+  tracing and regressions preserve receipts; broader synthetic pipeline gaps
+  are not a claim that all framework paths are covered. No framework release.
+- Private modules committed locally66d1ec2c3; host changes not yet committed,
+  pushed or live. Existing live backends65b522a2d/schema189. Owner token-only
+  amendment still pending;100k/50/USD2 remains binding. No paid requests, live
+  grant, runtime apply or lifecycle email. UI last, retained stops unchanged.
