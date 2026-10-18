@@ -67,7 +67,7 @@ final class DeploymentPrivateVectorSearchSource implements SearchSource {
             response,
             source,
             source.getFilters(),
-            activeVersionFilter == null ? ignored -> true : activeVersionFilter::accepts
+            activeVersionFilter == null ? ignored -> true : metadata -> activeVersionFilter.accepts(scopedRequest.getEntityType(), metadata)
         );
     }
 

@@ -14,10 +14,39 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RuntimeConnectorAdminProxyServiceTest {
 
     private HttpServer server;
+
+    @Test
+    void mutationForwardsCallerKeyAlongsideOnlyTheConfiguredAdminCredential() throws Exception {
+        AtomicReference<String> key = new AtomicReference<>();
+        AtomicReference<String> admin = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/admin/integrations/sources/source-1/reconcile", exchange -> {
+            key.set(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+            admin.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
+            writeJson(exchange, 200, "{}");
+        });
+        server.start();
+        var service = instantiateService("http://localhost:" + server.getAddress().getPort(),
+            Duration.ofSeconds(2), Duration.ofSeconds(2), null, null, "X-ADMIN-API-KEY", "admin-secret");
+
+        var response = service.forwardPost("/api/admin/integrations/sources/source-1/reconcile", "{}", "stable-1");
+
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(key.get()).isEqualTo("stable-1");
+        assertThat(admin.get()).isEqualTo("admin-secret");
+    }
+
+    @Test
+    void mutationsRejectMissingKeysEvenWithoutAConfiguredUpstream() throws Exception {
+        var service = instantiateService(null, Duration.ofSeconds(1), Duration.ofSeconds(1), null, null, null, null);
+        assertThatThrownBy(() -> service.forwardPost("/api/admin/integrations", "{}", null))
+            .hasMessageContaining("Idempotency-Key is required");
+    }
 
     @AfterEach
     void tearDown() {

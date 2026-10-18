@@ -28,6 +28,24 @@ import static org.mockito.Mockito.when;
 class RuntimeConnectorAdminProxyControllerTest {
 
     @Test
+    void mutationsPassTheCallerKeyToTheConnectorProxyAfterScopeAuthorization() {
+        RuntimeConnectorAdminProxyService proxy = mock(RuntimeConnectorAdminProxyService.class);
+        when(proxy.forwardPost("/api/admin/integrations/sources/source-1/reconcile", "{}", "reconcile-1"))
+            .thenReturn(proxyResponse(200, "{}", "application/json"));
+        when(proxy.forwardPost("/api/admin/integrations/webhooks/hook-1/events/event-1/replay", "{}", "replay-1"))
+            .thenReturn(proxyResponse(202, "{}", "application/json"));
+        var auth = authProperties();
+        var controller = new RuntimeConnectorAdminProxyController(proxy, new RuntimeRequestAuthResolver(auth));
+        var request = authorizedRequest(auth, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_WRITE);
+
+        assertThat(controller.reconcileIntegrationSource("source-1", "reconcile-1", request).getStatusCode().value()).isEqualTo(200);
+        assertThat(controller.replayIntegrationWebhook("hook-1", "event-1", "replay-1", request).getStatusCode().value()).isEqualTo(202);
+
+        verify(proxy).forwardPost("/api/admin/integrations/sources/source-1/reconcile", "{}", "reconcile-1");
+        verify(proxy).forwardPost("/api/admin/integrations/webhooks/hook-1/events/event-1/replay", "{}", "replay-1");
+    }
+
+    @Test
     void overviewRequiresAdminApiKey() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
         RuntimeAuthProperties authProperties = authProperties();

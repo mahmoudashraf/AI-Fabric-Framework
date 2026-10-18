@@ -44,6 +44,12 @@ public class DocumentSourceEntity {
     @Column(name = "deployment_id", nullable = false, length = 128)
     private String deploymentId;
 
+    @Column(name = "target_profile_id", nullable = false, length = 128)
+    private String targetProfileId;
+
+    @Column(name = "release_id", nullable = false, length = 128)
+    private String releaseId;
+
     @Column(name = "connector_type", nullable = false, length = 64)
     private String connectorType;
 

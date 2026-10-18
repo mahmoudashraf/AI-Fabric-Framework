@@ -318,7 +318,7 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             );
         }
         if (KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType())) {
-            return new SharedIndexSearchSource(source, searchService, vectorDatabaseService);
+            return new SharedIndexSearchSource(source, searchService, vectorDatabaseService, documentActiveVersionFilter);
         }
         return null;
     }

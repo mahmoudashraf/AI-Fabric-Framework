@@ -17,7 +17,7 @@ import java.time.Instant;
     name = "loomai_document_command",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_loomai_document_command_idempotency",
-        columnNames = {"tenant_id", "deployment_id", "operation", "idempotency_key"}
+        columnNames = {"tenant_id", "customer_id", "deployment_id", "target_profile_id", "release_id", "operation", "idempotency_key"}
     )
 )
 public class DocumentCommandEntity {
@@ -29,8 +29,17 @@ public class DocumentCommandEntity {
     @Column(name = "tenant_id", nullable = false, length = 128)
     private String tenantId;
 
+    @Column(name = "customer_id", nullable = false, length = 128)
+    private String customerId;
+
     @Column(name = "deployment_id", nullable = false, length = 128)
     private String deploymentId;
+
+    @Column(name = "target_profile_id", nullable = false, length = 128)
+    private String targetProfileId;
+
+    @Column(name = "release_id", nullable = false, length = 128)
+    private String releaseId;
 
     @Column(name = "operation", nullable = false, length = 64)
     private String operation;

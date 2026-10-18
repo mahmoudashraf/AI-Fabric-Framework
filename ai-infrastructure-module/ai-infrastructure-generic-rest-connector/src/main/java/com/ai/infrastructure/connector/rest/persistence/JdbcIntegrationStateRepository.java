@@ -17,12 +17,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class JdbcIntegrationStateRepository implements IntegrationStateRepository {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final JdbcIntegrationAdminCommands adminCommands;
 
     public JdbcIntegrationStateRepository(JdbcTemplate jdbc) {
         this(jdbc, new ObjectMapper());
@@ -31,9 +33,16 @@ public class JdbcIntegrationStateRepository implements IntegrationStateRepositor
     public JdbcIntegrationStateRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.adminCommands = new JdbcIntegrationAdminCommands(jdbc, objectMapper);
         this.transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(
             Objects.requireNonNull(jdbc.getDataSource(), "JdbcTemplate DataSource is required")
         ));
+    }
+
+    @Override
+    public <T> T executeAdminCommand(String idempotencyKey, String operation, String resource,
+                                     Class<T> resultType, Supplier<T> mutation) {
+        return adminCommands.execute(idempotencyKey, operation, resource, resultType, mutation);
     }
 
     @Override

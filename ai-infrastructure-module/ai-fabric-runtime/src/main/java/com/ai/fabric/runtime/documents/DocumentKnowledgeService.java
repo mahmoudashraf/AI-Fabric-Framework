@@ -20,8 +20,8 @@ import ai.fabric.indexing.document.springai.SpringAiDocumentIndexingAdapter;
 import ai.fabric.indexing.document.springai.SpringAiDocumentIndexingOptions;
 import ai.fabric.indexing.document.springai.SpringAiDocumentReaderFactory;
 import ai.fabric.indexing.document.springai.SpringAiTrustedResourcePolicy;
-import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
+import com.ai.fabric.runtime.documents.DocumentRuntimeIdentity.Boundary;
 import com.ai.fabric.runtime.documents.DocumentSourceConnector.DiscoveryPage;
 import com.ai.fabric.runtime.documents.DocumentSourceConnector.MaterializedDocument;
 import com.ai.fabric.runtime.documents.DocumentSourceConnector.SourceObject;
@@ -75,6 +75,8 @@ public class DocumentKnowledgeService {
         "tenantId",
         "customerId",
         "deploymentId",
+        "targetProfileId",
+        "releaseId",
         "datasetId",
         "knowledgeSourceHandleRef"
     );
@@ -92,6 +94,7 @@ public class DocumentKnowledgeService {
     private final IndexingWorkQuery workQuery;
     private final AICoreService coreService;
     private final DocumentActiveVersionFilter activeVersionFilter;
+    private final DocumentRuntimeIdentity runtimeIdentity;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private volatile RetentionCleanupResult lastRetentionCleanup;
@@ -110,6 +113,7 @@ public class DocumentKnowledgeService {
         IndexingWorkQuery workQuery,
         AICoreService coreService,
         DocumentActiveVersionFilter activeVersionFilter,
+        DocumentRuntimeIdentity runtimeIdentity,
         ObjectMapper objectMapper,
         Clock clock
     ) {
@@ -126,6 +130,8 @@ public class DocumentKnowledgeService {
         this.workQuery = workQuery;
         this.coreService = coreService;
         this.activeVersionFilter = activeVersionFilter;
+        this.runtimeIdentity = runtimeIdentity;
+        runtimeIdentity.requireConfiguredBoundary();
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -205,6 +211,8 @@ public class DocumentKnowledgeService {
         source.setTenantId(boundary.tenantId());
         source.setCustomerId(boundary.customerId());
         source.setDeploymentId(boundary.deploymentId());
+        source.setTargetProfileId(boundary.targetProfileId());
+        source.setReleaseId(boundary.releaseId());
         source.setConnectorType(connector.type().name());
         source.setConnectorBindingRef(bounded(properties.getConnector().getBindingRef(), 128));
         source.setObjectLocator(object.objectReference());
@@ -228,7 +236,8 @@ public class DocumentKnowledgeService {
     public synchronized List<SourceSummary> list(RuntimeResolvedIdentity identity) {
         Boundary boundary = requireBoundary(identity);
         List<DocumentSourceEntity> sources = sourceRepository
-            .findByTenantIdAndDeploymentIdOrderByUpdatedAtDesc(boundary.tenantId(), boundary.deploymentId());
+            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdOrderByUpdatedAtDesc(
+                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId());
         return sources.stream().map(this::toSummary).toList();
     }
 
@@ -483,10 +492,7 @@ public class DocumentKnowledgeService {
                 .entityType(properties.getEntityType())
                 .limit(Math.min(100, limit * 5))
                 .threshold(0.0d)
-                .metadata(Map.of(
-                    "tenantId", boundary.tenantId(),
-                    "deploymentId", boundary.deploymentId()
-                ))
+                .metadata(boundary.metadata())
                 .build()
         );
         List<RetrievalEvidence> evidence = response == null || response.getResults() == null
@@ -494,9 +500,9 @@ public class DocumentKnowledgeService {
             : response.getResults().stream()
                 .map(this::toRetrievalEvidence)
                 .filter(Objects::nonNull)
+                .filter(item -> StringUtils.hasText(item.sourceId()))
                 .filter(item -> activeVersionFilter.accepts(item.metadata()))
-                .filter(item -> boundary.tenantId().equals(text(item.metadata().get("tenantId"))))
-                .filter(item -> boundary.deploymentId().equals(text(item.metadata().get("deploymentId"))))
+                .filter(item -> boundary.matches(item.metadata()))
                 .limit(limit)
                 .toList();
         return new RetrievalProof(
@@ -520,13 +526,13 @@ public class DocumentKnowledgeService {
     @Transactional
     public synchronized RetentionCleanupResult cleanupRetention(RuntimeResolvedIdentity identity) {
         Boundary boundary = requireBoundary(identity);
-        return cleanupRetentionInternal(boundary);
+        return cleanupRetentionInternal(boundary, "VERIFIED_BOUNDARY");
     }
 
     @Scheduled(fixedDelayString = "${loomai.documents.retention-cleanup-interval:PT6H}")
     @Transactional
     public synchronized void cleanupRetentionScheduled() {
-        cleanupRetentionInternal(null);
+        cleanupRetentionInternal(runtimeIdentity.requireConfiguredBoundary(), "DEPLOYMENT_SCHEDULED");
     }
 
     @Scheduled(fixedDelayString = "${loomai.documents.reconcile-interval:PT15S}")
@@ -539,24 +545,25 @@ public class DocumentKnowledgeService {
             DocumentManifestEntity.State.DELETE_PARTIAL
         );
         LinkedHashSet<String> sourceIds = new LinkedHashSet<>();
-        manifestRepository.findByStateIn(pendingStates).forEach(manifest -> sourceIds.add(manifest.getSourceId()));
-        sourceIds.stream().limit(100).forEach(sourceId -> sourceRepository.findById(sourceId)
+        Boundary boundary = runtimeIdentity.requireConfiguredBoundary();
+        manifestRepository.findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStateIn(
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), pendingStates
+        ).forEach(manifest -> sourceIds.add(manifest.getSourceId()));
+        sourceIds.stream().limit(100).forEach(sourceId -> ownedSource(boundary, sourceId)
             .ifPresent(source -> reconcileSource(source, false)));
     }
 
-    private RetentionCleanupResult cleanupRetentionInternal(Boundary boundary) {
+    private RetentionCleanupResult cleanupRetentionInternal(Boundary boundary, String scope) {
         Instant evidenceCutoff = now().minus(retention(properties.getEvidenceRetention(), "evidence retention"));
         Instant commandCutoff = now().minus(retention(properties.getCommandRetention(), "command retention"));
         PageRequest batch = PageRequest.of(0, retentionBatchSize());
-        List<DocumentManifestEntity> candidates = boundary == null
-            ? manifestRepository.findByStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
-                DocumentManifestEntity.State.DELETED,
-                evidenceCutoff,
-                batch
-            )
-            : manifestRepository.findByTenantIdAndDeploymentIdAndStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
+        List<DocumentManifestEntity> candidates = manifestRepository
+            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
                 boundary.tenantId(),
+                boundary.customerId(),
                 boundary.deploymentId(),
+                boundary.targetProfileId(),
+                boundary.releaseId(),
                 DocumentManifestEntity.State.DELETED,
                 evidenceCutoff,
                 batch
@@ -565,7 +572,7 @@ public class DocumentKnowledgeService {
         long chunksDeleted = 0;
         long workDeleted = 0;
         for (DocumentManifestEntity manifest : candidates) {
-            DocumentSourceEntity source = sourceRepository.findById(manifest.getSourceId()).orElse(null);
+            DocumentSourceEntity source = ownedSource(boundary, manifest.getSourceId()).orElse(null);
             if (source == null || Objects.equals(source.getActiveSourceVersion(), manifest.getSourceVersion())) {
                 continue;
             }
@@ -576,13 +583,12 @@ public class DocumentKnowledgeService {
             manifestRepository.delete(manifest);
             manifestsDeleted++;
         }
-        long commandsDeleted = boundary == null
-            ? commandRepository.deleteByCreatedAtBefore(commandCutoff)
-            : commandRepository.deleteByTenantIdAndDeploymentIdAndCreatedAtBefore(
-                boundary.tenantId(), boundary.deploymentId(), commandCutoff
+        long commandsDeleted = commandRepository
+            .deleteByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndCreatedAtBefore(
+                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), commandCutoff
             );
         RetentionCleanupResult result = new RetentionCleanupResult(
-            boundary == null ? "DEPLOYMENT_SCHEDULED" : "VERIFIED_BOUNDARY",
+            scope,
             evidenceCutoff,
             commandCutoff,
             manifestsDeleted,
@@ -763,14 +769,21 @@ public class DocumentKnowledgeService {
                     properties.getPolicy().getJsonContentKeys().toArray(String[]::new)
                 )
                 : readerFactory.textReader(resource, policy);
-            Map<String, Object> metadata = readMetadata(source.getMetadataJson());
-            metadata = new LinkedHashMap<>(metadata);
-            metadata.put("originalFilename", source.getDisplayName());
+            Map<String, Object> optionalMetadata = new LinkedHashMap<>(readMetadata(source.getMetadataJson()));
+            optionalMetadata.keySet().removeAll(SYSTEM_METADATA_KEYS);
+            optionalMetadata.keySet().removeAll(DocumentMetadataKeys.ALL);
+            optionalMetadata.remove("originalFilename");
+            // Ownership is budgeted first; persisted optional metadata never supplies reserved fields.
+            Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("tenantId", source.getTenantId());
             metadata.put("customerId", source.getCustomerId());
             metadata.put("deploymentId", source.getDeploymentId());
+            metadata.put("targetProfileId", source.getTargetProfileId());
+            metadata.put("releaseId", source.getReleaseId());
             metadata.put("datasetId", source.getDatasetId());
             metadata.put("knowledgeSourceHandleRef", datasetHandleRef(source.getDatasetId()));
+            metadata.put("originalFilename", source.getDisplayName());
+            metadata.putAll(optionalMetadata);
             Set<String> allowedKeys = new LinkedHashSet<>(properties.getPolicy().getAllowedMetadataKeys());
             allowedKeys.addAll(SYSTEM_METADATA_KEYS);
             allowedKeys.add("originalFilename");
@@ -795,6 +808,13 @@ public class DocumentKnowledgeService {
                 .occurredAt(now());
             metadata.forEach(options::metadata);
             DocumentIngestionPlan plan = planningAdapter.plan(reader, options.build());
+            Boundary boundary = runtimeIdentity.requireConfiguredBoundary();
+            if (plan.chunks().stream().anyMatch(chunk -> !boundary.matches(chunk.indexDocument().vectorMetadata()))) {
+                throw new DocumentKnowledgeException(
+                    "DOCUMENT_INDEX_SCOPE_INVALID", HttpStatus.SERVICE_UNAVAILABLE,
+                    "Document preparation did not preserve runtime ownership metadata."
+                );
+            }
             DocumentIngestionManifest manifest = planningAdapter.manifest(plan);
             return new PreparedDocument(plan, manifest, materialized.contentFingerprint());
         }
@@ -815,6 +835,8 @@ public class DocumentKnowledgeService {
         entity.setTenantId(source.getTenantId());
         entity.setCustomerId(source.getCustomerId());
         entity.setDeploymentId(source.getDeploymentId());
+        entity.setTargetProfileId(source.getTargetProfileId());
+        entity.setReleaseId(source.getReleaseId());
         entity.setVisibility(framework.visibility());
         entity.setState(DocumentManifestEntity.State.DRAFT);
         entity.setChunkCount(framework.chunks().size());
@@ -1077,8 +1099,8 @@ public class DocumentKnowledgeService {
     ) {
         String key = required(idempotencyKey, "Idempotency-Key", 128);
         Optional<DocumentCommandEntity> existing = commandRepository
-            .findByTenantIdAndDeploymentIdAndOperationAndIdempotencyKey(
-                boundary.tenantId(), boundary.deploymentId(), operation, key
+            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndOperationAndIdempotencyKey(
+                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), operation, key
             );
         if (existing.isPresent()) {
             if (!Objects.equals(existing.get().getRequestHash(), requestHash)
@@ -1090,7 +1112,10 @@ public class DocumentKnowledgeService {
         DocumentCommandEntity command = new DocumentCommandEntity();
         command.setId(uuid());
         command.setTenantId(boundary.tenantId());
+        command.setCustomerId(boundary.customerId());
         command.setDeploymentId(boundary.deploymentId());
+        command.setTargetProfileId(boundary.targetProfileId());
+        command.setReleaseId(boundary.releaseId());
         command.setOperation(operation);
         command.setResourceKey(bounded(resourceKey, 256));
         command.setIdempotencyKey(key);
@@ -1187,7 +1212,8 @@ public class DocumentKnowledgeService {
         Set<String> allowed = new LinkedHashSet<>(properties.getPolicy().getAllowedMetadataKeys());
         Map<String, Object> normalized = new LinkedHashMap<>();
         metadata.forEach((key, value) -> {
-            if (!StringUtils.hasText(key) || !allowed.contains(key) || SYSTEM_METADATA_KEYS.contains(key)) {
+            if (!StringUtils.hasText(key) || !allowed.contains(key) || SYSTEM_METADATA_KEYS.contains(key)
+                || DocumentMetadataKeys.ALL.contains(key) || "originalFilename".equals(key)) {
                 throw badRequest("Document metadata key is not allowed: " + bounded(key, 64));
             }
             if (!(value instanceof String || value instanceof Number || value instanceof Boolean)) {
@@ -1271,8 +1297,8 @@ public class DocumentKnowledgeService {
     }
 
     private void enforceRegistrationLimits(Boundary boundary, long bytes) {
-        long sourceCount = sourceRepository.countByTenantIdAndDeploymentIdAndStatusNot(
-            boundary.tenantId(), boundary.deploymentId(), DocumentSourceEntity.Status.DELETED
+        long sourceCount = sourceRepository.countByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStatusNot(
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), DocumentSourceEntity.Status.DELETED
         );
         if (sourceCount >= properties.getPolicy().getMaxSources()) {
             throw new DocumentKnowledgeException(
@@ -1281,7 +1307,8 @@ public class DocumentKnowledgeService {
                 "Document source count exceeds the configured deployment limit."
             );
         }
-        long currentBytes = sourceRepository.sumContentLengthForBoundary(boundary.tenantId(), boundary.deploymentId());
+        long currentBytes = sourceRepository.sumContentLengthForBoundary(
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId());
         if (currentBytes + bytes > properties.getPolicy().getMaxTotalIndexedBytes()) {
             throw new DocumentKnowledgeException(
                 "DOCUMENT_BYTE_LIMIT_EXCEEDED",
@@ -1293,8 +1320,13 @@ public class DocumentKnowledgeService {
 
     private DocumentSourceEntity requireSource(Boundary boundary, String sourceId) {
         String id = required(sourceId, "sourceId", 64);
-        return sourceRepository.findByIdAndTenantIdAndDeploymentId(id, boundary.tenantId(), boundary.deploymentId())
+        return ownedSource(boundary, id)
             .orElseThrow(() -> new EntityNotFoundException("Document source was not found."));
+    }
+
+    private Optional<DocumentSourceEntity> ownedSource(Boundary boundary, String sourceId) {
+        return sourceRepository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseId(
+            sourceId, boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId());
     }
 
     private void requireMutable(DocumentSourceEntity source) {
@@ -1310,19 +1342,7 @@ public class DocumentKnowledgeService {
     }
 
     private Boundary requireBoundary(RuntimeResolvedIdentity identity) {
-        RuntimeAuthContext context = identity != null ? identity.getAuthContext() : null;
-        if (context == null) {
-            throw new DocumentKnowledgeException(
-                "DOCUMENT_AUTH_CONTEXT_REQUIRED",
-                HttpStatus.UNAUTHORIZED,
-                "Verified document administration context is required."
-            );
-        }
-        return new Boundary(
-            required(context.getTenantId(), "verified tenantId", 128),
-            required(context.getCustomerId(), "verified customerId", 128),
-            required(context.getDeploymentId(), "verified deploymentId", 128)
-        );
+        return runtimeIdentity.requireBoundary(identity);
     }
 
     private void failManifest(DocumentManifestEntity manifest, String code, String message) {
@@ -1496,7 +1516,7 @@ public class DocumentKnowledgeService {
     private String logicalKey(Boundary boundary, String datasetId, String reference) {
         return DocumentConnectorSupport.sha256(
             boundary.tenantId() + "|" + boundary.customerId() + "|" + boundary.deploymentId()
-                + "|" + datasetId + "|" + reference
+                + "|" + boundary.targetProfileId() + "|" + boundary.releaseId() + "|" + datasetId + "|" + reference
         );
     }
 
@@ -1805,7 +1825,6 @@ public class DocumentKnowledgeService {
         boolean customerSourceObjectsDeleted
     ) { }
 
-    private record Boundary(String tenantId, String customerId, String deploymentId) { }
     private record PreparedDocument(DocumentIngestionPlan plan, DocumentIngestionManifest manifest, String contentFingerprint) { }
     private record WorkEvaluation(
         boolean terminal,

@@ -24,7 +24,7 @@ import java.time.Instant;
     ),
     indexes = {
         @Index(name = "idx_loomai_document_manifest_source_state", columnList = "source_id,lifecycle_state"),
-        @Index(name = "idx_loomai_document_manifest_boundary", columnList = "tenant_id,deployment_id,lifecycle_state")
+        @Index(name = "idx_loomai_document_manifest_boundary", columnList = "tenant_id,customer_id,deployment_id,target_profile_id,release_id,lifecycle_state")
     }
 )
 public class DocumentManifestEntity {
@@ -62,6 +62,12 @@ public class DocumentManifestEntity {
 
     @Column(name = "deployment_id", nullable = false, length = 128)
     private String deploymentId;
+
+    @Column(name = "target_profile_id", nullable = false, length = 128)
+    private String targetProfileId;
+
+    @Column(name = "release_id", nullable = false, length = 128)
+    private String releaseId;
 
     @Column(name = "visibility", nullable = false, length = 64)
     private String visibility;

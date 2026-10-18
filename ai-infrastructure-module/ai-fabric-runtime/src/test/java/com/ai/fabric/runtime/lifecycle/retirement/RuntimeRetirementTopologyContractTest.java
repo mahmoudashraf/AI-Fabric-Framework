@@ -15,6 +15,19 @@ import org.springframework.mock.env.MockEnvironment;
 class RuntimeRetirementTopologyContractTest {
 
     @Test
+    void canonicalConversationTopologyRequiresOrchestrationStateFenceCoverage() {
+        var f = new RuntimeRetirementTestFixture(true, true, java.util.List.of(), true);
+        var coverage = new RuntimeRetirementFencingCoverage();
+        coverage.installed("conversation-control");
+        coverage.installed("RuntimeConversationHandoverService.scheduledMaintenance");
+
+        assertThat(f.topology.fencingBlockers(true, coverage)).contains("HANDOVER_LOCAL_EFFECT_FENCE_UNVERIFIED");
+
+        coverage.installed("conversation-orchestration-state");
+        assertThat(f.topology.fencingBlockers(true, coverage)).isEmpty();
+    }
+
+    @Test
     void acceptsPlatformVectorizationRunnerObligationWithoutDroppingIt() throws Exception {
         String json = """
             {"contractVersion":"LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_V2","target":{"deploymentId":"dep-1","targetProfileId":"target-1","releaseId":"release-1"},"tenantId":"tenant-1","features":{"CHAT_SESSIONS":"PRESENT","CONVERSATION_HANDOVER":"ABSENT","HUMAN_REVIEW":"ABSENT","SPECIALIST_EXECUTION":"ABSENT","SPECIALIST_CHAINS":"ABSENT","SMART_BRAIN":"ABSENT","ACTION_WEBHOOK":"PRESENT","INDEXING":"PRESENT","DOCUMENTS":"PRESENT","SCHEDULER":"ABSENT"},"remoteDependencies":["CONNECTOR","VECTORIZATION_RUNNER"],"vectorScope":{"provider":"qdrant","scopeType":"COLLECTION_PREFIX","scopeValue":"dep-1-target-1","entityTypes":["dealer-vehicle","document"]}}

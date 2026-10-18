@@ -12,7 +12,8 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 class RuntimeTargetDrainInventoryTest {
     @Test
     void countsOpenConversationUnionAndEveryConfirmationIncludingClosedSessions() {
-        var f = new RuntimeRetirementTestFixture();
+        var f = new RuntimeRetirementTestFixture(true, true,
+            List.of(RuntimeRetirementTopology.Dependency.CONNECTOR, RuntimeRetirementTopology.Dependency.HUMAN_INBOX), true);
         f.session("owned", "alice", "ACTIVE", "{\"confirmationStack\":[{\"action\":\"one\"},{\"action\":\"two\"}]}");
         f.session("closed", "alice", "CLOSED", "{\"confirmationStack\":[{\"action\":\"three\"}]}");
         f.jdbc.update("INSERT INTO ai_conversation_control VALUES ('tenant-1','dep-123','owned','alice','AI_ACTIVE',NULL)");
@@ -73,7 +74,7 @@ class RuntimeTargetDrainInventoryTest {
 
     @Test
     void expiredDeadlineDoesNotCloseDeleteExpireOrDropOutstandingWork() {
-        var f = new RuntimeRetirementTestFixture();
+        var f = new RuntimeRetirementTestFixture(true, true, List.of(), true);
         f.session("owned", "alice", "ACTIVE", "{\"confirmationStack\":[{\"action\":\"one\"}]}");
         f.service.command(new Command(f.binding(1), 0, CommandType.BEGIN_DRAIN, java.time.Instant.EPOCH, null));
         Snapshot snapshot = f.service.snapshot(f.binding(1));
@@ -140,6 +141,104 @@ class RuntimeTargetDrainInventoryTest {
         Snapshot snapshot = f.service.snapshot(f.binding(1));
         assertThat(snapshot.openConversations().count()).isNull();
         assertThat(snapshot.blockers()).contains("FOREIGN_OR_UNBOUND_RUNTIME_STORE_SCOPE:ai_conversation_control");
+        assertThat(snapshot.localDrainComplete()).isFalse();
+    }
+
+    @Test
+    void countsCanonicalConfirmationsAndDraftsWithoutLegacyShadowRows() {
+        var f = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+        f.canonicalState("owned", "alice", """
+            {"confirmationStack":[{"action":"first"},{"action":"second"}],
+             "actionDraft":{"action":"collect_contact","params":{"name":"Alice"}}}
+            """);
+        f.service.command(new Command(f.binding(1), 0, CommandType.BEGIN_DRAIN, java.time.Instant.EPOCH, null));
+
+        Snapshot snapshot = f.service.snapshot(f.binding(1));
+
+        assertThat(snapshot.pendingConfirmations().count()).isEqualTo(2);
+        assertThat(observed(snapshot.backgroundWork(), "ai_conversation_orchestration_state.actionDraft")).isEqualTo(1);
+        assertThat(snapshot.deadlineElapsed()).isTrue();
+        assertThat(snapshot.inventoryComplete()).isTrue();
+        assertThat(snapshot.blockers()).contains("DRAIN_WORK_REMAINS");
+        assertThat(snapshot.localDrainComplete()).isFalse();
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM chat_sessions", Long.class)).isZero();
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_orchestration_state", Long.class)).isOne();
+        assertThat(f.restart().snapshot(f.binding(1)).pendingConfirmations().count()).isEqualTo(2);
+    }
+
+    @Test
+    void canonicalEmptyStateIsCompleteButMalformedStateNeverBecomesEmptyEvidence() {
+        var empty = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+        empty.service.command(empty.command(1, 0, CommandType.BEGIN_DRAIN));
+        assertThat(empty.service.snapshot(empty.binding(1)).localDrainComplete()).isTrue();
+
+        for (String state : List.of("broken-json", "[]", "{} {}", "{\"confirmationStack\":{}}",
+            "{\"confirmationStack\":[{}]}", "{\"confirmationStack\":[{\"action\":\"a\"}],\"confirmationStack\":[]}",
+            "{\"actionDraft\":null}", "{\"actionDraft\":{\"action\":\"a\",\"params\":[]}}")) {
+            var f = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+            f.canonicalState("owned", "alice", state);
+            f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+            Snapshot snapshot = f.service.snapshot(f.binding(1));
+            assertThat(snapshot.inventoryComplete()).as(state).isFalse();
+            assertThat(snapshot.blockers()).as(state).contains("MALFORMED_CANONICAL_ORCHESTRATION_STATE");
+            assertThat(snapshot.localDrainComplete()).isFalse();
+        }
+    }
+
+    @Test
+    void missingCanonicalSchemaAndUnsupportedProviderFailClosed() {
+        var f = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+        f.jdbc.execute("DROP TABLE ai_conversation_orchestration_state");
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        Snapshot missing = f.service.snapshot(f.binding(1));
+        assertThat(missing.pendingConfirmations().count()).isNull();
+        assertThat(missing.blockers()).contains("DRAIN_STORE_SCHEMA_UNAVAILABLE:ai_conversation_orchestration_state");
+
+        var supported = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+        var beans = new DefaultListableBeanFactory();
+        var inventory = new RuntimeTargetDrainInventory(supported.jdbc, supported.schema, supported.identity, supported.mapper,
+            beans.getBeanProvider(ChatSessionStorageProvider.class), beans.getBeanProvider(PendingActionStore.class),
+            supported.topology, supported.coverage, supported.stores);
+        Snapshot unsupported = inventory.inspect(supported.service.status(RuntimeRetirementTestFixture.TARGET), 0);
+        assertThat(unsupported.pendingConfirmations().count()).isNull();
+        assertThat(unsupported.blockers()).contains("CANONICAL_PENDING_CONFIRMATION_STORE_ENUMERATION_UNSUPPORTED");
+    }
+
+    @Test
+    void canonicalOwnerMismatchInvalidRevisionAndForeignScopeBlockDrain() {
+        for (String update : List.of("owner_id = 'mallory'", "state_revision = 0")) {
+            var f = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+            f.canonicalState("owned", "alice", "{}");
+            f.jdbc.update("UPDATE ai_conversation_orchestration_state SET " + update);
+            f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+            assertThat(f.service.snapshot(f.binding(1)).blockers())
+                .contains("CANONICAL_ORCHESTRATION_STATE_OWNERSHIP_OR_REVISION_INVALID");
+        }
+        var foreign = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+        foreign.jdbc.update("INSERT INTO ai_conversation_control VALUES ('other-tenant','other-deployment','foreign','alice','CLOSED',NULL)");
+        foreign.jdbc.update("INSERT INTO ai_conversation_orchestration_state VALUES ('other-tenant','other-deployment','foreign','alice',1,'{}',CURRENT_TIMESTAMP)");
+        foreign.service.command(foreign.command(1, 0, CommandType.BEGIN_DRAIN));
+        assertThat(foreign.service.snapshot(foreign.binding(1)).blockers())
+            .contains("FOREIGN_OR_UNBOUND_RUNTIME_STORE_SCOPE:ai_conversation_orchestration_state");
+
+        var orphan = new RuntimeRetirementTestFixture(true, true, List.of(), true);
+        orphan.jdbc.execute("SET REFERENTIAL_INTEGRITY FALSE");
+        orphan.jdbc.update("INSERT INTO ai_conversation_orchestration_state VALUES ('tenant-1','dep-123','orphan','alice',1,'{}',CURRENT_TIMESTAMP)");
+        orphan.service.command(orphan.command(1, 0, CommandType.BEGIN_DRAIN));
+        assertThat(orphan.service.snapshot(orphan.binding(1)).blockers())
+            .contains("CANONICAL_ORCHESTRATION_STATE_OWNERSHIP_OR_REVISION_INVALID");
+    }
+
+    @Test
+    void canonicalResidualWorkCannotBeHiddenByAbsentTopologyAndLegacyDraftsAlsoBlock() {
+        var f = new RuntimeRetirementTestFixture(true, true, List.of());
+        f.canonicalState("owned", "alice", "{\"actionDraft\":{\"action\":\"draft\"}}");
+        f.session("legacy", "alice", "CLOSED", "{\"actionDraft\":{\"action\":\"legacy_draft\"}}");
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+        Snapshot snapshot = f.service.snapshot(f.binding(1));
+        assertThat(observed(snapshot.backgroundWork(), "chat_sessions.session_metadata.actionDraft")).isOne();
+        assertThat(observed(snapshot.backgroundWork(), "ai_conversation_orchestration_state.actionDraft")).isOne();
+        assertThat(snapshot.blockers()).contains("ATTESTED_ABSENT_CAPABILITY_HAS_PERSISTED_WORK:CONVERSATION_HANDOVER");
         assertThat(snapshot.localDrainComplete()).isFalse();
     }
 }

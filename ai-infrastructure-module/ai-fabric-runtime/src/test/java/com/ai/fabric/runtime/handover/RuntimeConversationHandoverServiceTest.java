@@ -55,7 +55,8 @@ class RuntimeConversationHandoverServiceTest {
                 + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1"
         );
         new ResourceDatabasePopulator(
-            new ClassPathResource("db/runtime-migration/V10__conversation_handover.sql")
+            new ClassPathResource("db/runtime-migration/V10__conversation_handover.sql"),
+            new ClassPathResource("db/runtime-migration/V16__conversation_orchestration_state.sql")
         ).execute(dataSource);
 
         objectMapper = new ObjectMapper().findAndRegisterModules();

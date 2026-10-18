@@ -7,18 +7,22 @@ import java.time.Instant;
 import java.util.Optional;
 
 public interface DocumentCommandRepository extends JpaRepository<DocumentCommandEntity, String> {
-    Optional<DocumentCommandEntity> findByTenantIdAndDeploymentIdAndOperationAndIdempotencyKey(
+    Optional<DocumentCommandEntity> findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndOperationAndIdempotencyKey(
         String tenantId,
+        String customerId,
         String deploymentId,
+        String targetProfileId,
+        String releaseId,
         String operation,
         String idempotencyKey
     );
 
-    long deleteByTenantIdAndDeploymentIdAndCreatedAtBefore(
+    long deleteByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndCreatedAtBefore(
         String tenantId,
+        String customerId,
         String deploymentId,
+        String targetProfileId,
+        String releaseId,
         Instant cutoff
     );
-
-    long deleteByCreatedAtBefore(Instant cutoff);
 }

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriUtils;
 
@@ -102,11 +103,12 @@ public class RuntimeConnectorAdminProxyController {
     }
 
     @PostMapping("/integrations/sources/{sourceId}/reconcile")
-    public ResponseEntity<String> reconcileIntegrationSource(@PathVariable String sourceId, HttpServletRequest request) {
+    public ResponseEntity<String> reconcileIntegrationSource(@PathVariable String sourceId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey, HttpServletRequest request) {
         authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_WRITE, "/api/admin/connector/integrations/sources/{sourceId}/reconcile");
         return toResponse(proxyService.forwardPost(
             "/api/admin/integrations/sources/" + encoded(sourceId) + "/reconcile",
-            "{}"
+            "{}", idempotencyKey
         ));
     }
 
@@ -122,12 +124,13 @@ public class RuntimeConnectorAdminProxyController {
     public ResponseEntity<String> replayIntegrationWebhook(
         @PathVariable String sourceId,
         @PathVariable String eventId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
         HttpServletRequest request
     ) {
         authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_WRITE, "/api/admin/connector/integrations/webhooks/{sourceId}/events/{eventId}/replay");
         return toResponse(proxyService.forwardPost(
             "/api/admin/integrations/webhooks/" + encoded(sourceId) + "/events/" + encoded(eventId) + "/replay",
-            "{}"
+            "{}", idempotencyKey
         ));
     }
 

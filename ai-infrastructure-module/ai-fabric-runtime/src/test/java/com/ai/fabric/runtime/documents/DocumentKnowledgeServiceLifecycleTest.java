@@ -6,6 +6,8 @@ import ai.fabric.core.AICoreService;
 import ai.fabric.dto.AIEntityConfig;
 import ai.fabric.dto.AIEntityIndexingPolicy;
 import ai.fabric.dto.AIMetadataField;
+import ai.fabric.dto.AISearchRequest;
+import ai.fabric.dto.AISearchResponse;
 import ai.fabric.entity.IndexingQueueEntry;
 import ai.fabric.indexing.api.AIIndexWorkType;
 import ai.fabric.indexing.api.IndexingStrategy;
@@ -36,6 +38,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -62,6 +65,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
@@ -169,6 +173,10 @@ class DocumentKnowledgeServiceLifecycleTest {
     }
 
     private DocumentKnowledgeService newService() {
+        return newService(new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-a", "staging", "release-a"));
+    }
+
+    private DocumentKnowledgeService newService(DocumentRuntimeIdentity runtimeIdentity) {
         return new DocumentKnowledgeService(
             documentProperties,
             documentConnector,
@@ -182,7 +190,8 @@ class DocumentKnowledgeServiceLifecycleTest {
             queueAdapter,
             workQuery,
             coreService,
-            new DocumentActiveVersionFilter(sourceRepository),
+            new DocumentActiveVersionFilter(sourceRepository, runtimeIdentity, "document"),
+            runtimeIdentity,
             new ObjectMapper(),
             CLOCK
         );
@@ -450,7 +459,7 @@ class DocumentKnowledgeServiceLifecycleTest {
         complete(indexWorkIds(activeIndex));
         service.reconcile(tenantA(), activeSource.sourceId(), "reconcile-active-retention");
 
-        service.register(
+        newService(new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-b", "staging", "release-a")).register(
             deploymentB(),
             new DocumentKnowledgeService.RegisterSourceCommand(
                 "document-knowledge", "retained-customer-source.txt", "tenant", Map.of()
@@ -491,9 +500,11 @@ class DocumentKnowledgeServiceLifecycleTest {
         var source = register("isolated.txt", "register-isolated");
 
         assertThatThrownBy(() -> service.detail(tenantB(), source.sourceId()))
-            .isInstanceOf(EntityNotFoundException.class);
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(exception -> ((DocumentKnowledgeException) exception).code()).isEqualTo("DOCUMENT_SCOPE_MISMATCH");
         assertThatThrownBy(() -> service.detail(deploymentB(), source.sourceId()))
-            .isInstanceOf(EntityNotFoundException.class);
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(exception -> ((DocumentKnowledgeException) exception).code()).isEqualTo("DOCUMENT_SCOPE_MISMATCH");
         assertThatThrownBy(() -> service.register(
             tenantA(),
             new DocumentKnowledgeService.RegisterSourceCommand(
@@ -513,6 +524,201 @@ class DocumentKnowledgeServiceLifecycleTest {
         var replay = service.refresh(tenantA(), source.sourceId(), "stable-refresh-key");
         assertThat(replay.outcome()).isEqualTo("IDEMPOTENT_REPLAY");
         assertThat(replay.source().candidateVersion()).isEqualTo(1L);
+    }
+
+    @Test
+    void registrationDiscoveryAndCommandKeysAreOwnedByTheExactRuntimeGeneration() throws Exception {
+        writeSource("shared-policy.txt", "The same customer object is independently indexed by each release.", 1);
+        List<DocumentKnowledgeService> generations = List.of(service,
+            generation("staging", "release-b"), generation("production", "release-a"));
+        List<String> ids = new ArrayList<>();
+        documentProperties.getPolicy().setMaxSources(1);
+        documentProperties.getPolicy().setMaxTotalIndexedBytes(Files.size(sourceRoot.resolve("shared-policy.txt")));
+
+        for (DocumentKnowledgeService generation : generations) {
+            var source = register(generation, "shared-policy.txt", "same-register-key");
+            ids.add(source.sourceId());
+            assertThat(register(generation, "shared-policy.txt", "same-register-key").sourceId()).isEqualTo(source.sourceId());
+            assertThat(generation.list(tenantA())).extracting(DocumentKnowledgeService.SourceSummary::sourceId)
+                .containsExactly(source.sourceId());
+            assertThat(generation.discover(tenantA(), "document-knowledge", null, 10).sources())
+                .extracting(DocumentKnowledgeService.DiscoveredSource::registeredSourceId).containsExactly(source.sourceId());
+        }
+        assertThat(ids).doesNotHaveDuplicates();
+        assertThat(commandRepository.count()).isEqualTo(3);
+        assertThat(commandRepository.findAll()).allSatisfy(command -> {
+            assertThat(command.getCustomerId()).isEqualTo("customer-a");
+            assertThat(command.getTargetProfileId()).isNotBlank();
+            assertThat(command.getReleaseId()).isNotBlank();
+        });
+    }
+
+    @Test
+    void otherReleasesAndTargetsCannotDetailPreviewOrMutateAnOwnedSource() throws Exception {
+        writeSource("generation-private.txt", "Private document lifecycle evidence", 1);
+        var source = register("generation-private.txt", "register-private");
+        var pending = service.index(tenantA(), source.sourceId(), "index-private");
+        long commandsBefore = commandRepository.count();
+        int queueBefore = queuedDocuments.size();
+
+        for (DocumentKnowledgeService other : List.of(generation("staging", "release-b"), generation("production", "release-a"))) {
+            assertThat(other.list(tenantA())).isEmpty();
+            assertThat(other.discover(tenantA(), "document-knowledge", null, 10).sources().getFirst().registeredSourceId()).isNull();
+            assertThatThrownBy(() -> other.detail(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.preview(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.refresh(tenantA(), source.sourceId(), "foreign-refresh")).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.index(tenantA(), source.sourceId(), "foreign-index")).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.reconcile(tenantA(), source.sourceId(), "foreign-reconcile")).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.removeIndex(tenantA(), source.sourceId(), "foreign-delete")).isInstanceOf(EntityNotFoundException.class);
+            assertThat(other.detail(tenantA(), register(other, "generation-private.txt", "own-register").sourceId()).manifests()).isEmpty();
+        }
+        assertThat(commandRepository.count()).isEqualTo(commandsBefore + 2);
+        assertThat(queuedDocuments).hasSize(queueBefore);
+        assertThat(service.detail(tenantA(), source.sourceId()).manifests()).hasSize(1);
+        assertThat(manifestRepository.findById(pending.manifest().manifestId())).get().satisfies(manifest -> {
+            assertThat(manifest.getTargetProfileId()).isEqualTo("staging");
+            assertThat(manifest.getReleaseId()).isEqualTo("release-a");
+        });
+    }
+
+    @Test
+    void scheduledReconciliationCannotActivateOrDeleteAnotherGeneration() throws Exception {
+        writeSource("scheduled-policy.txt", "Only the runtime owning this work may reconcile it.", 1);
+        var source = register("scheduled-policy.txt", "register-scheduled");
+        var pending = service.index(tenantA(), source.sourceId(), "index-scheduled");
+        complete(indexWorkIds(pending));
+        var nextGeneration = generation("staging", "release-b");
+
+        nextGeneration.reconcilePending();
+        assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("INDEXING");
+        service.reconcilePending();
+        assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("ACTIVE");
+
+        var deletion = service.removeIndex(tenantA(), source.sourceId(), "delete-scheduled");
+        complete(deleteWorkIds(deletion.manifest()));
+        nextGeneration.reconcilePending();
+        assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("DELETING");
+        service.reconcilePending();
+        assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("DELETED");
+
+        Instant expired = CLOCK.instant().minus(Duration.ofDays(31));
+        var manifest = manifestRepository.findById(pending.manifest().manifestId()).orElseThrow();
+        manifest.setUpdatedAt(expired);
+        manifestRepository.saveAndFlush(manifest);
+        commandRepository.findAll().forEach(command -> command.setCreatedAt(expired));
+        commandRepository.flush();
+
+        assertThat(nextGeneration.cleanupRetention(tenantA()).manifestsDeleted()).isZero();
+        nextGeneration.cleanupRetentionScheduled();
+        assertThat(manifestRepository.findById(manifest.getManifestId())).isPresent();
+        assertThat(commandRepository.count()).isPositive();
+        service.cleanupRetentionScheduled();
+        assertThat(manifestRepository.findById(manifest.getManifestId())).isEmpty();
+        assertThat(commandRepository.count()).isZero();
+    }
+
+    @Test
+    void retrievalProofFiltersMixedProviderHitsByTrustedTargetAndRelease() throws Exception {
+        writeSource("retrieval-policy.txt", "Delivery is arranged through the dealership team.", 1);
+        var nextIdentity = new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-a", "staging", "release-b");
+        var nextGeneration = newService(nextIdentity);
+        var previous = register("retrieval-policy.txt", "same-key");
+        var current = register(nextGeneration, "retrieval-policy.txt", "same-key");
+        var previousWork = service.index(tenantA(), previous.sourceId(), "same-index-key");
+        var currentWork = nextGeneration.index(tenantA(), current.sourceId(), "same-index-key");
+        complete(indexWorkIds(previousWork));
+        complete(indexWorkIds(currentWork));
+        service.reconcilePending();
+        nextGeneration.reconcilePending();
+
+        List<Map<String, Object>> hits = queuedDocuments.stream().filter(document -> document.workType() == AIIndexWorkType.UPSERT)
+            .map(document -> Map.<String, Object>of("id", document.entityId(), "content", document.semanticSearchText(),
+                "metadata", document.vectorMetadata(), "score", 0.9d)).toList();
+        when(coreService.performSearch(any(AISearchRequest.class))).thenReturn(AISearchResponse.builder()
+            .results(hits).totalResults(hits.size()).build());
+
+        var proof = nextGeneration.retrievalProof(tenantA(), "delivery", 10);
+        assertThat(proof.evidence()).isNotEmpty().allSatisfy(evidence -> {
+            assertThat(evidence.sourceId()).isEqualTo(current.sourceId());
+            assertThat(evidence.metadata()).containsEntry("targetProfileId", "staging").containsEntry("releaseId", "release-b");
+        });
+        var request = ArgumentCaptor.forClass(AISearchRequest.class);
+        verify(coreService).performSearch(request.capture());
+        assertThat(request.getValue().getMetadata()).containsAllEntriesOf(nextIdentity.requireConfiguredBoundary().metadata());
+
+        var filter = new DocumentActiveVersionFilter(sourceRepository, nextIdentity, "document");
+        var oldMetadata = new LinkedHashMap<>(queuedDocuments.getFirst().vectorMetadata());
+        assertThat(filter.accepts(oldMetadata)).isFalse();
+        oldMetadata.put("releaseId", "release-b");
+        assertThat(filter.accepts(oldMetadata)).isFalse();
+        assertThat(queuedDocuments).allSatisfy(document -> assertThat(document.vectorMetadata())
+            .containsEntry("targetProfileId", "staging").containsKey("releaseId"));
+    }
+
+    @Test
+    void callerMetadataCannotSupplyOrReplaceTrustedGenerationOwnership() throws Exception {
+        writeSource("forged-generation.txt", "Server-controlled ownership", 1);
+        documentProperties.getPolicy().setAllowedMetadataKeys(List.of("targetProfileId", "releaseId"));
+        for (String key : List.of("targetProfileId", "releaseId")) {
+            assertThatThrownBy(() -> service.register(tenantA(), new DocumentKnowledgeService.RegisterSourceCommand(
+                "document-knowledge", "forged-generation.txt", "tenant", Map.of(key, "foreign")), "forged-" + key))
+                .isInstanceOf(DocumentKnowledgeException.class)
+                .extracting(exception -> ((DocumentKnowledgeException) exception).code()).isEqualTo("INVALID_DOCUMENT_REQUEST");
+        }
+        assertThatThrownBy(() -> newService(new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-a", "", "")))
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(exception -> ((DocumentKnowledgeException) exception).code()).isEqualTo("DOCUMENT_RUNTIME_SCOPE_REQUIRED");
+        assertThat(sourceRepository.count()).isZero();
+        assertThat(commandRepository.count()).isZero();
+    }
+
+    @Test
+    void optionalMetadataCannotCrowdOwnershipOutOfTheChunkMetadataBudget() throws Exception {
+        writeSource("metadata-budget.txt", "Ownership must survive bounded document metadata projection.", 1);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        for (int index = 0; index < 16; index++) metadata.put("custom" + index, "value" + index);
+        documentProperties.getPolicy().setAllowedMetadataKeys(new ArrayList<>(metadata.keySet()));
+        var source = service.register(tenantA(), new DocumentKnowledgeService.RegisterSourceCommand(
+            "document-knowledge", "metadata-budget.txt", "tenant", metadata), "register-metadata-budget");
+
+        var indexed = service.index(tenantA(), source.sourceId(), "index-metadata-budget");
+
+        assertThat(indexed.outcome()).isEqualTo("ACCEPTED");
+        assertThat(queuedDocuments).isNotEmpty().allSatisfy(document -> assertThat(document.vectorMetadata())
+            .containsEntry("tenantId", "tenant-a").containsEntry("customerId", "customer-a")
+            .containsEntry("deploymentId", "deployment-a").containsEntry("targetProfileId", "staging")
+            .containsEntry("releaseId", "release-a"));
+    }
+
+    @Test
+    void storedOptionalMetadataCannotOverwriteSystemFieldsEvenAtTheMetadataBudgetLimit() throws Exception {
+        writeSource("stored-metadata.txt", "Trusted ownership must win over every persisted optional field.", 1);
+        var source = register("stored-metadata.txt", "register-stored-metadata");
+        Map<String, Object> stored = new LinkedHashMap<>();
+        for (int index = 0; index < 16; index++) stored.put("custom" + index, "value" + index);
+        documentProperties.getPolicy().setAllowedMetadataKeys(new ArrayList<>(stored.keySet()));
+        for (String key : List.of("tenantId", "customerId", "deploymentId", "targetProfileId", "releaseId",
+            "datasetId", "knowledgeSourceHandleRef", "originalFilename")) stored.put(key, "forged");
+        DocumentMetadataKeys.ALL.forEach(key -> stored.put(key, "forged"));
+        var row = sourceRepository.findById(source.sourceId()).orElseThrow();
+        row.setMetadataJson(new ObjectMapper().writeValueAsString(stored));
+        sourceRepository.saveAndFlush(row);
+
+        var indexed = service.index(tenantA(), source.sourceId(), "index-stored-metadata");
+
+        assertThat(indexed.outcome()).isEqualTo("ACCEPTED");
+        assertThat(queuedDocuments).isNotEmpty().allSatisfy(document -> assertThat(document.vectorMetadata())
+            .containsEntry("tenantId", "tenant-a").containsEntry("customerId", "customer-a")
+            .containsEntry("deploymentId", "deployment-a").containsEntry("targetProfileId", "staging")
+            .containsEntry("releaseId", "release-a").containsEntry("datasetId", "document-knowledge")
+            .containsEntry("knowledgeSourceHandleRef", "kh-document-test").containsEntry("originalFilename", "stored-metadata.txt")
+            .containsEntry(DocumentMetadataKeys.SOURCE_ID, source.sourceId())
+            .containsEntry(DocumentMetadataKeys.TENANT_ID, "tenant-a")
+            .doesNotContainValue("forged"));
+    }
+
+    private DocumentKnowledgeService generation(String target, String release) {
+        return newService(new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-a", target, release));
     }
 
     private DocumentKnowledgeProperties properties() {
@@ -539,7 +745,11 @@ class DocumentKnowledgeServiceLifecycleTest {
     }
 
     private DocumentKnowledgeService.SourceSummary register(String reference, String key) {
-        return service.register(
+        return register(service, reference, key);
+    }
+
+    private DocumentKnowledgeService.SourceSummary register(DocumentKnowledgeService generation, String reference, String key) {
+        return generation.register(
             tenantA(),
             new DocumentKnowledgeService.RegisterSourceCommand(
                 "document-knowledge",

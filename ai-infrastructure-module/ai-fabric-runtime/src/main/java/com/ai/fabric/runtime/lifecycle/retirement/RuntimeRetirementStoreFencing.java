@@ -6,8 +6,10 @@ import ai.fabric.chat.spi.ChatSessionStorageProvider;
 import ai.fabric.chat.storage.DefaultDatabaseChatSessionStorage;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
@@ -26,6 +28,7 @@ public class RuntimeRetirementStoreFencing {
                 }
                 if (bean instanceof ConversationControlGateway gateway && !(bean instanceof FencedControl)) {
                     coverage.installed("conversation-control");
+                    coverage.installed("conversation-orchestration-state");
                     return new FencedControl(gateway, service);
                 }
                 return bean;
@@ -90,6 +93,29 @@ public class RuntimeRetirementStoreFencing {
         public List<ConversationMessage> messages(ConversationScope scope, long afterSequence, int limit) {
             service.getObject().requireConversationScope(scope.deploymentId(), scope.tenantId());
             return delegate.messages(scope, afterSequence, limit);
+        }
+        public Optional<ConversationOrchestrationState> orchestrationState(
+            ConversationScope scope,
+            long expectedControlEpoch
+        ) {
+            return existing(scope, () -> delegate.orchestrationState(scope, expectedControlEpoch));
+        }
+        public ConversationOrchestrationState updateOrchestrationState(
+            ConversationScope scope,
+            long expectedControlEpoch,
+            UnaryOperator<Map<String, Object>> mutation
+        ) {
+            return write(scope, () -> delegate.updateOrchestrationState(
+                scope,
+                expectedControlEpoch,
+                mutation
+            ));
+        }
+        public void clearOrchestrationState(ConversationScope scope, long expectedControlEpoch) {
+            existing(scope, () -> {
+                delegate.clearOrchestrationState(scope, expectedControlEpoch);
+                return null;
+            });
         }
     }
 }

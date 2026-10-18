@@ -3,7 +3,12 @@ package com.ai.fabric.runtime.lifecycle.retirement;
 import static com.ai.fabric.runtime.lifecycle.retirement.RuntimeTargetRetirementContracts.*;
 
 import ai.fabric.chat.spi.ChatSessionStorageProvider;
+import ai.fabric.chat.control.ConversationControlGateway;
+import ai.fabric.chat.control.JdbcConversationControlStore;
+import ai.fabric.chat.storage.ChatSessionActionDraftStore;
 import ai.fabric.chat.storage.ChatSessionPendingActionStore;
+import ai.fabric.chat.storage.ConversationAwareActionDraftStore;
+import ai.fabric.chat.storage.ConversationAwarePendingActionStore;
 import ai.fabric.chat.storage.DefaultDatabaseChatSessionStorage;
 import ai.fabric.intent.action.PendingActionStore;
 import com.ai.fabric.runtime.auth.*;
@@ -36,14 +41,22 @@ final class RuntimeRetirementTestFixture {
     RuntimeRetirementTestFixture() { this(true); }
     RuntimeRetirementTestFixture(boolean dedicated) { this(dedicated, false, List.of()); }
     RuntimeRetirementTestFixture(boolean dedicated, boolean certified, List<RuntimeRetirementTopology.Dependency> dependencies) {
+        this(dedicated, certified, dependencies, false);
+    }
+    RuntimeRetirementTestFixture(boolean dedicated, boolean certified, List<RuntimeRetirementTopology.Dependency> dependencies, boolean canonical) {
         dataSource = new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=3000", "sa", "");
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V12__runtime_target_retirement.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V13__runtime_generation_transition.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V14__runtime_target_index_retirement.sql")).execute(dataSource);
         jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("CREATE TABLE chat_sessions (id VARCHAR(160) PRIMARY KEY, owner_id VARCHAR(256), status VARCHAR(32), session_metadata TEXT)");
-        jdbc.execute("CREATE TABLE ai_conversation_control (tenant_id VARCHAR(128), deployment_id VARCHAR(128), conversation_id VARCHAR(160), owner_id VARCHAR(256), control_state VARCHAR(32), active_handover_id VARCHAR(160))");
+        jdbc.execute("CREATE TABLE ai_conversation_control (tenant_id VARCHAR(128), deployment_id VARCHAR(128), conversation_id VARCHAR(160), owner_id VARCHAR(256), control_state VARCHAR(32), active_handover_id VARCHAR(160), PRIMARY KEY (tenant_id, deployment_id, conversation_id))");
+        new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V16__conversation_orchestration_state.sql")).execute(dataSource);
         jdbc.execute("CREATE TABLE ai_conversation_handover (handover_id VARCHAR(160), status VARCHAR(40))");
+        if (canonical) {
+            jdbc.execute("CREATE TABLE ai_conversation_ai_interaction (status VARCHAR(40))");
+            jdbc.execute("CREATE TABLE ai_conversation_handover_dispatch (status VARCHAR(40))");
+        }
         jdbc.execute("CREATE TABLE ai_review_task (status VARCHAR(40))");
         jdbc.execute("CREATE TABLE loomai_document_work (terminal BOOLEAN)");
         jdbc.execute("CREATE TABLE loomai_document_source (lifecycle_status VARCHAR(40))");
@@ -53,12 +66,24 @@ final class RuntimeRetirementTestFixture {
         DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
         DefaultDatabaseChatSessionStorage store = new DefaultDatabaseChatSessionStorage(null);
         beans.registerSingleton("sessions", new RuntimeRetirementStoreFencing.FencedSessions(store, beans.getBeanProvider(RuntimeTargetRetirementService.class)));
-        beans.registerSingleton("pending", new ChatSessionPendingActionStore(store));
+        beans.registerSingleton("pending", canonical
+            ? new ConversationAwarePendingActionStore(new ChatSessionPendingActionStore(store), beans.getBeanProvider(ConversationControlGateway.class), 5)
+            : new ChatSessionPendingActionStore(store));
+        beans.registerSingleton("drafts", canonical
+            ? new ConversationAwareActionDraftStore(new ChatSessionActionDraftStore(store), beans.getBeanProvider(ConversationControlGateway.class))
+            : new ChatSessionActionDraftStore(store));
+        if (canonical) {
+            beans.registerSingleton("controlStore", new JdbcConversationControlStore(dataSource, mapper, false));
+            coverage.installed("conversation-control");
+            coverage.installed("conversation-orchestration-state");
+            coverage.installed("RuntimeConversationHandoverService.scheduledMaintenance");
+        }
         var environment = new org.springframework.mock.env.MockEnvironment();
         if (certified) {
             var features = new java.util.EnumMap<RuntimeRetirementTopology.Feature, RuntimeRetirementTopology.Presence>(RuntimeRetirementTopology.Feature.class);
             for (var feature : RuntimeRetirementTopology.Feature.values()) features.put(feature, RuntimeRetirementTopology.Presence.ABSENT);
             features.put(RuntimeRetirementTopology.Feature.CHAT_SESSIONS, RuntimeRetirementTopology.Presence.PRESENT);
+            if (canonical) features.put(RuntimeRetirementTopology.Feature.CONVERSATION_HANDOVER, RuntimeRetirementTopology.Presence.PRESENT);
             try {
                 String raw = mapper.writeValueAsString(new RuntimeRetirementTopology.Contract(RuntimeRetirementTopology.VERSION, TARGET, "tenant-1", features, dependencies, null));
                 environment.withProperty("loomai.runtime.target-retirement.topology-json", raw)
@@ -89,6 +114,7 @@ final class RuntimeRetirementTestFixture {
         beans.registerSingleton("sessions", new RuntimeRetirementStoreFencing.FencedSessions(
             store, beans.getBeanProvider(RuntimeTargetRetirementService.class)));
         beans.registerSingleton("pending", new ChatSessionPendingActionStore(store));
+        beans.registerSingleton("drafts", new ChatSessionActionDraftStore(store));
         RuntimeRetirementTopology nextTopology = certifiedTopology(nextIdentity, nextTarget, List.of());
         RuntimeRetirementFencingCoverage nextCoverage = new RuntimeRetirementFencingCoverage();
         RuntimeRetirementStoreVerification nextStores = new RuntimeRetirementStoreVerification(beans);
@@ -131,7 +157,18 @@ final class RuntimeRetirementTestFixture {
             type == CommandType.RECORD_AUTHORITY_REVOCATION || type == CommandType.RECORD_RECLAIM_STARTED ? "platform-audit:1" : null);
     }
     void session(String id, String owner, String status, String metadata) {
-        jdbc.update("INSERT INTO chat_sessions VALUES (?, ?, ?, ?)", id, owner, status, metadata);
+        jdbc.update(
+            "INSERT INTO chat_sessions (id, owner_id, status, session_metadata) VALUES (?, ?, ?, ?)",
+            id,
+            owner,
+            status,
+            metadata
+        );
+    }
+    void canonicalState(String conversationId, String ownerId, String state) {
+        jdbc.update("INSERT INTO ai_conversation_control VALUES ('tenant-1','dep-123',?,?,'AI_ACTIVE',NULL)", conversationId, ownerId);
+        jdbc.update("INSERT INTO ai_conversation_orchestration_state VALUES ('tenant-1','dep-123',?,?,1,?,CURRENT_TIMESTAMP)",
+            conversationId, ownerId, state);
     }
     RuntimeResolvedIdentity caller(String owner) {
         return RuntimeResolvedIdentity.builder().authContext(RuntimeAuthContext.builder()

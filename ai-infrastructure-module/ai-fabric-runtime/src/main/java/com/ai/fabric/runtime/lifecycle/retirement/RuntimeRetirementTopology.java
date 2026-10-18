@@ -83,7 +83,8 @@ public class RuntimeRetirementTopology {
         if (contract == null) return List.copyOf(result);
         for (Feature feature : Feature.values()) {
             if (feature == Feature.CHAT_SESSIONS || absent(feature)) continue;
-            if (feature == Feature.CONVERSATION_HANDOVER && coverage.covers("conversation-control", "RuntimeConversationHandoverService.scheduledMaintenance")) continue;
+            if (feature == Feature.CONVERSATION_HANDOVER && coverage.covers("conversation-control", "conversation-orchestration-state",
+                "RuntimeConversationHandoverService.scheduledMaintenance")) continue;
             if (feature == Feature.DOCUMENTS && coverage.covers("DocumentKnowledgeService.cleanupRetentionScheduled", "DocumentKnowledgeService.reconcilePending")) continue;
             if (feature == Feature.ACTION_WEBHOOK && coverage.covers("RuntimeActionWebhookDeliveryWorker.dispatchReadyDeliveries")) continue;
             if (feature == Feature.SMART_BRAIN && coverage.covers("SmartBrainOperationWorker.process", "SmartBrainDeliveryWorker.deliver")) continue;

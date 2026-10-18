@@ -2,6 +2,8 @@ package com.ai.fabric.runtime.web;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
@@ -27,6 +29,11 @@ import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.fabric.runtime.web.dto.TurnResponse;
 import ai.fabric.core.AICoreService;
 import ai.fabric.core.LlmPurpose;
+import ai.fabric.execution.context.ExecutionPrincipal;
+import ai.fabric.execution.context.ExecutionPrincipalType;
+import ai.fabric.execution.context.ExecutionSource;
+import ai.fabric.execution.context.ExecutionSubjectRef;
+import ai.fabric.execution.context.TrustedExecutionContext;
 import ai.fabric.dto.AIAccessSubjectContext;
 import ai.fabric.dto.AIGenerationRequest;
 import ai.fabric.dto.AIGenerationResponse;
@@ -40,8 +47,11 @@ import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
 import ai.fabric.intent.orchestration.OrchestrationResult;
 import ai.fabric.intent.orchestration.RAGOrchestrator;
 import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
+import ai.fabric.intent.orchestration.conversation.ConversationStateBinding;
 import ai.fabric.intent.orchestration.request.ConversationPersistencePolicy;
+import ai.fabric.intent.orchestration.request.OrchestrationIntentPolicy;
 import ai.fabric.intent.orchestration.request.OrchestrationRequest;
+import ai.fabric.intent.orchestration.request.OrchestrationRequestPurpose;
 import ai.fabric.prompt.PromptPreviewOverlaySupport;
 import ai.fabric.shell.BuiltInShellCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -266,8 +276,20 @@ public class ChatRuntimeController {
                 : orchestrator.orchestrate(new OrchestrationRequest(
                     request.getQuery(),
                     context,
+                    trustedConversationContext(identity, controlledTurn),
+                    ConversationPersistencePolicy.READ_ONLY,
                     null,
-                    ConversationPersistencePolicy.READ_ONLY
+                    null,
+                    null,
+                    OrchestrationRequestPurpose.GENERAL,
+                    OrchestrationIntentPolicy.MODEL_DIRECTED,
+                    new ConversationStateBinding(
+                        controlledTurn.scope().tenantId(),
+                        controlledTurn.scope().deploymentId(),
+                        controlledTurn.scope().conversationId(),
+                        controlledTurn.scope().ownerId(),
+                        controlledTurn.lease().controlEpoch()
+                    )
                 ));
             if (retirementPermit != null) targetRetirementService.verifyTurn(retirementPermit);
             long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
@@ -282,6 +304,43 @@ public class ChatRuntimeController {
         } finally {
             if (targetRetirementService != null) targetRetirementService.finishTurn(retirementPermit);
         }
+    }
+
+    private TrustedExecutionContext trustedConversationContext(
+        RuntimeResolvedIdentity identity,
+        RuntimeConversationTurn controlledTurn
+    ) {
+        RuntimeAuthContext auth = identity != null ? identity.getAuthContext() : null;
+        if (auth == null || controlledTurn == null
+            || !StringUtils.hasText(auth.getTenantId())
+            || !StringUtils.hasText(auth.getDeploymentId())
+            || !auth.getTenantId().equals(controlledTurn.scope().tenantId())
+            || !auth.getDeploymentId().equals(controlledTurn.scope().deploymentId())
+            || !controlledTurn.scope().ownerId().equals(identity.ownerId())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Verified conversation ownership is required."
+            );
+        }
+        boolean interactive = auth.getCallerType() == RuntimeAuthCallerType.PUBLIC_BROWSER;
+        String principalId = StringUtils.hasText(auth.getSubjectId())
+            ? auth.getSubjectId().trim()
+            : interactive ? "runtime-user" : "loomai-runtime-service";
+        return new TrustedExecutionContext(
+            new ExecutionPrincipal(
+                principalId,
+                interactive
+                    ? ExecutionPrincipalType.END_USER
+                    : ExecutionPrincipalType.SERVICE
+            ),
+            new ExecutionSubjectRef("conversation", controlledTurn.scope().conversationId()),
+            interactive ? ExecutionSource.INTERACTIVE : ExecutionSource.APPLICATION,
+            auth.getTenantId(),
+            auth.getDeploymentId(),
+            auth.getGrantedScopes() == null ? Set.of() : Set.copyOf(auth.getGrantedScopes()),
+            null,
+            Instant.now()
+        );
     }
 
     private void rejectLegacyQueryWhenConversationControlEnabled() {

@@ -5,10 +5,14 @@ import static com.ai.fabric.runtime.lifecycle.retirement.RuntimeRetirementTopolo
 
 import ai.fabric.chat.spi.ChatSessionStorageProvider;
 import ai.fabric.chat.storage.ChatSessionPendingActionStore;
+import ai.fabric.chat.storage.ConversationAwarePendingActionStore;
 import ai.fabric.chat.storage.DefaultDatabaseChatSessionStorage;
+import ai.fabric.chat.util.ActionDraftMetadata;
 import ai.fabric.chat.util.ConfirmationStack;
 import ai.fabric.intent.action.PendingActionStore;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -74,14 +78,25 @@ public class RuntimeTargetDrainInventory {
         }
 
         List<Observation> confirmations = new ArrayList<>();
-        if (chatSchema && ((databaseSessions && pending.getIfAvailable() instanceof ChatSessionPendingActionStore)
+        List<Observation> drafts = new ArrayList<>();
+        PendingActionStore pendingStore = pending.getIfAvailable();
+        boolean canonicalPendingStore = pendingStore instanceof ConversationAwarePendingActionStore;
+        if (chatSchema && ((databaseSessions && (pendingStore instanceof ChatSessionPendingActionStore || canonicalPendingStore))
             || topology.absent(CHAT_SESSIONS))) {
-            confirmations.add(confirmations());
+            MetadataCounts legacy = metadataCounts("SELECT session_metadata FROM chat_sessions", false);
+            confirmations.add(observation("chat_sessions.session_metadata.confirmationStack", legacy.confirmations,
+                legacy.confirmationsValid, "MALFORMED_CONFIRMATION_METADATA"));
+            drafts.add(observation("chat_sessions.session_metadata.actionDraft", legacy.drafts,
+                legacy.draftsValid && (topology.absent(CHAT_SESSIONS) || stores.actionDraftsSupported(false)),
+                legacy.draftsValid ? "ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED" : "MALFORMED_ACTION_DRAFT_METADATA"));
         } else if (!chatSchema && !schema.supports("chat_sessions") && topology.absent(CHAT_SESSIONS)) {
             confirmations.add(absent(CHAT_SESSIONS, "pending-action-store"));
+            drafts.add(absent(CHAT_SESSIONS, "action-draft-store"));
         } else {
             confirmations.add(unknown("pending-action-store", "PENDING_CONFIRMATION_STORE_ENUMERATION_UNSUPPORTED"));
+            drafts.add(unknown("action-draft-store", "ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED"));
         }
+        canonicalState(confirmations, drafts, canonicalPendingStore);
 
         List<Observation> human = new ArrayList<>();
         // One handover work item per persisted handover; orphan control references remain blockers.
@@ -99,6 +114,7 @@ public class RuntimeTargetDrainInventory {
         else human.add(unknown("human-control", "HUMAN_CONTROL_REFERENCES_INCOMPLETE"));
 
         List<Observation> background = new ArrayList<>();
+        background.addAll(drafts);
         background.add(count(CONVERSATION_HANDOVER, "ai_conversation_ai_interaction", "status", "status NOT IN ('COMPLETED','FAILED') OR status IS NULL"));
         background.add(count(CONVERSATION_HANDOVER, "ai_conversation_handover_dispatch", "status", "status NOT IN ('DELIVERED','SKIPPED') OR status IS NULL"));
         background.add(count(HUMAN_REVIEW, "ai_review_dispatch", "status", "status <> 'ACCEPTED' OR status IS NULL"));
@@ -159,7 +175,7 @@ public class RuntimeTargetDrainInventory {
 
     private List<String> foreignScopes() {
         List<String> result = new ArrayList<>();
-        for (String table : List.of("ai_conversation_control", "ai_conversation_handover", "ai_conversation_ai_interaction",
+        for (String table : List.of("ai_conversation_control", "ai_conversation_orchestration_state", "ai_conversation_handover", "ai_conversation_ai_interaction",
             "loomai_smart_brain_operation", "loomai_smart_brain_delivery", "loomai_document_source", "loomai_document_manifest")) {
             if (!schema.supports(table, "tenant_id", "deployment_id")) continue;
             Long count = jdbc.queryForObject("SELECT COUNT(*) FROM " + table
@@ -170,26 +186,87 @@ public class RuntimeTargetDrainInventory {
         return result;
     }
 
-    private Observation confirmations() {
-        long[] count = {0};
-        boolean[] valid = {true};
-        jdbc.query("SELECT session_metadata FROM chat_sessions", (org.springframework.jdbc.core.RowCallbackHandler) rs -> {
+    private void canonicalState(List<Observation> confirmations, List<Observation> drafts, boolean pendingSupported) {
+        String table = "ai_conversation_orchestration_state";
+        if (!schema.supports(table, "tenant_id", "deployment_id", "conversation_id", "owner_id", "state_revision", "state_json", "updated_at")) {
+            Observation missing = topology.absent(CONVERSATION_HANDOVER) && !schema.supports(table)
+                ? absent(CONVERSATION_HANDOVER, table) : unknown(table, "DRAIN_STORE_SCHEMA_UNAVAILABLE:" + table);
+            confirmations.add(missing);
+            drafts.add(missing);
+            return;
+        }
+        if (!schema.supports("ai_conversation_control", "tenant_id", "deployment_id", "conversation_id", "owner_id")) {
+            confirmations.add(unknown(table, "CANONICAL_ORCHESTRATION_STATE_OWNERSHIP_UNAVAILABLE"));
+            drafts.add(unknown(table, "CANONICAL_ORCHESTRATION_STATE_OWNERSHIP_UNAVAILABLE"));
+            return;
+        }
+        MetadataCounts canonical = metadataCounts("SELECT state_json FROM " + table, true);
+        boolean providerSupported = topology.absent(CONVERSATION_HANDOVER) || stores.supported(CONVERSATION_HANDOVER);
+        confirmations.add(observation(table + ".confirmationStack", canonical.confirmations,
+            canonical.confirmationsValid && providerSupported && (topology.absent(CONVERSATION_HANDOVER) || pendingSupported),
+            canonical.confirmationsValid ? "CANONICAL_PENDING_CONFIRMATION_STORE_ENUMERATION_UNSUPPORTED" : "MALFORMED_CANONICAL_ORCHESTRATION_STATE"));
+        drafts.add(observation(table + ".actionDraft", canonical.drafts,
+            canonical.draftsValid && providerSupported && (topology.absent(CONVERSATION_HANDOVER) || stores.actionDraftsSupported(true)),
+            canonical.draftsValid ? "CANONICAL_ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED" : "MALFORMED_CANONICAL_ORCHESTRATION_STATE"));
+        Long invalid = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM ai_conversation_orchestration_state s
+            LEFT JOIN ai_conversation_control c ON c.tenant_id = s.tenant_id
+                AND c.deployment_id = s.deployment_id AND c.conversation_id = s.conversation_id
+            WHERE c.conversation_id IS NULL OR s.owner_id IS NULL OR TRIM(s.owner_id) = ''
+                OR c.owner_id IS NULL OR c.owner_id <> s.owner_id
+                OR s.state_revision IS NULL OR s.state_revision < 1 OR s.updated_at IS NULL
+            """, Long.class);
+        if (invalid == null || invalid > 0) {
+            confirmations.add(unknown(table, "CANONICAL_ORCHESTRATION_STATE_OWNERSHIP_OR_REVISION_INVALID"));
+            drafts.add(unknown(table, "CANONICAL_ORCHESTRATION_STATE_OWNERSHIP_OR_REVISION_INVALID"));
+        }
+        if (topology.absent(CONVERSATION_HANDOVER) && (canonical.confirmations > 0 || canonical.drafts > 0)) {
+            confirmations.add(unknown(table, "ATTESTED_ABSENT_CAPABILITY_HAS_PERSISTED_WORK:CONVERSATION_HANDOVER"));
+            drafts.add(unknown(table, "ATTESTED_ABSENT_CAPABILITY_HAS_PERSISTED_WORK:CONVERSATION_HANDOVER"));
+        }
+    }
+
+    private MetadataCounts metadataCounts(String sql, boolean canonical) {
+        MetadataCounts counts = new MetadataCounts();
+        jdbc.query(sql, (org.springframework.jdbc.core.RowCallbackHandler) rs -> {
             String raw = rs.getString(1);
-            if (raw == null) return;
+            if (raw == null && !canonical) return;
             try {
-                JsonNode metadata = mapper.readTree(raw);
-                if (metadata == null || !metadata.isObject()) { valid[0] = false; return; }
+                if (raw == null || (canonical && raw.length() > 262144)) throw new IllegalArgumentException("Invalid state payload");
+                JsonNode metadata = mapper.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readTree(raw);
+                if (metadata == null || !metadata.isObject()) throw new IllegalArgumentException("State must be an object");
                 JsonNode stack = metadata.get(ConfirmationStack.METADATA_KEY_STACK);
-                if (stack == null) return;
-                if (!stack.isArray()) { valid[0] = false; return; }
-                count[0] += stack.size();
-                for (JsonNode action : stack) {
-                    if (!action.isObject() || !action.path("action").isTextual()
-                        || action.path("action").asText().isBlank()) valid[0] = false;
+                if (stack != null) {
+                    if (!stack.isArray()) counts.confirmationsValid = false;
+                    else {
+                        counts.confirmations += stack.size();
+                        for (JsonNode action : stack) if (!validAction(action)) counts.confirmationsValid = false;
+                    }
                 }
-            } catch (Exception exception) { valid[0] = false; }
+                JsonNode draft = metadata.get(ActionDraftMetadata.METADATA_KEY_DRAFT);
+                if (draft != null) {
+                    counts.drafts++;
+                    if (!validAction(draft)) counts.draftsValid = false;
+                }
+            } catch (Exception exception) {
+                counts.confirmationsValid = false;
+                counts.draftsValid = false;
+            }
         });
-        return observation("chat_sessions.session_metadata.confirmationStack", count[0], valid[0], "MALFORMED_CONFIRMATION_METADATA");
+        return counts;
+    }
+
+    private boolean validAction(JsonNode action) {
+        return action.isObject() && action.path("action").isTextual() && !action.path("action").asText().isBlank()
+            && (!action.has("params") || action.get("params").isObject());
+    }
+
+    private static final class MetadataCounts {
+        private long confirmations;
+        private long drafts;
+        private boolean confirmationsValid = true;
+        private boolean draftsValid = true;
     }
 
     private Observation count(RuntimeRetirementTopology.Feature feature, String table, String column, String predicate) {

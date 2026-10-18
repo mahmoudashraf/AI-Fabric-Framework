@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.documents;
 import ai.fabric.indexing.document.model.DocumentMetadataKeys;
 import com.ai.fabric.runtime.documents.entity.DocumentSourceEntity;
 import com.ai.fabric.runtime.documents.repository.DocumentSourceRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -12,9 +13,22 @@ import java.util.Map;
 public class DocumentActiveVersionFilter {
 
     private final DocumentSourceRepository sourceRepository;
+    private final DocumentRuntimeIdentity runtimeIdentity;
+    private final String documentEntityType;
 
-    public DocumentActiveVersionFilter(DocumentSourceRepository sourceRepository) {
+    public DocumentActiveVersionFilter(DocumentSourceRepository sourceRepository, DocumentRuntimeIdentity runtimeIdentity,
+                                      @Value("${loomai.documents.entity-type:document}") String documentEntityType) {
         this.sourceRepository = sourceRepository;
+        this.runtimeIdentity = runtimeIdentity;
+        this.documentEntityType = documentEntityType;
+    }
+
+    public boolean accepts(String entityType, Map<String, Object> metadata) {
+        if (documentEntityType.equals(entityType)
+            && (metadata == null || !StringUtils.hasText(text(metadata.get(DocumentMetadataKeys.SOURCE_ID))))) {
+            return false;
+        }
+        return accepts(metadata);
     }
 
     public boolean accepts(Map<String, Object> metadata) {
@@ -29,24 +43,17 @@ public class DocumentActiveVersionFilter {
         if (version == null) {
             return false;
         }
-        return sourceRepository.findById(sourceId)
+        var boundary = runtimeIdentity.configuredBoundary().orElse(null);
+        if (boundary == null || !boundary.matches(metadata)) {
+            return false;
+        }
+        return sourceRepository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseId(
+                sourceId, boundary.tenantId(), boundary.customerId(), boundary.deploymentId(),
+                boundary.targetProfileId(), boundary.releaseId())
             .filter(source -> source.getStatus() != DocumentSourceEntity.Status.DELETED)
             .filter(source -> source.getActiveSourceVersion() != null)
             .filter(source -> source.getActiveSourceVersion().equals(version))
-            .filter(source -> boundaryMatches(source, metadata))
             .isPresent();
-    }
-
-    private boolean boundaryMatches(DocumentSourceEntity source, Map<String, Object> metadata) {
-        String tenant = text(metadata.get("tenantId"));
-        String customer = text(metadata.get("customerId"));
-        String deployment = text(metadata.get("deploymentId"));
-        return StringUtils.hasText(tenant)
-            && StringUtils.hasText(customer)
-            && StringUtils.hasText(deployment)
-            && source.getTenantId().equals(tenant)
-            && source.getCustomerId().equals(customer)
-            && source.getDeploymentId().equals(deployment);
     }
 
     private String text(Object value) {

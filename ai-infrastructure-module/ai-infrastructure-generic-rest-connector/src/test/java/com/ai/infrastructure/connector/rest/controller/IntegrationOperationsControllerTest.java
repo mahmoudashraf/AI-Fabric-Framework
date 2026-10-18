@@ -8,6 +8,7 @@ import com.ai.infrastructure.connector.rest.service.ProviderTokenService;
 import com.ai.infrastructure.connector.rest.service.ProviderWebhookService;
 import com.ai.infrastructure.connector.rest.service.ProtectedResourceService;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
@@ -16,8 +17,24 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class IntegrationOperationsControllerTest {
+
+    @Test
+    void mutationsRejectMissingOrInvalidKeysAtTheHttpBoundary() throws Exception {
+        Fixture fixture = fixture();
+        var mvc = MockMvcBuilders.standaloneSetup(fixture.controller)
+            .setControllerAdvice(new RestConnectorErrorHandler()).build();
+        for (String path : List.of("/api/admin/integrations/sources/source-1/reconcile",
+            "/api/admin/integrations/webhooks/hook-1/events/event-1/replay")) {
+            mvc.perform(post(path)).andExpect(status().isBadRequest());
+            mvc.perform(post(path).header("Idempotency-Key", " ")).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(fixture.repository, fixture.syncService, fixture.webhookService);
+    }
 
     @Test
     void webhookProjectionOmitsPayloadAndProtectedResourceFingerprints() {

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -15,6 +16,11 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class RestConnectorErrorHandler {
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ActionResultDto> handleMissingHeader(MissingRequestHeaderException ex) {
+        return ResponseEntity.badRequest().body(ActionResultDto.failure("INVALID_REQUEST", "A required request header is missing."));
+    }
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ActionResultDto> handleNotFound(NoHandlerFoundException ex) {

@@ -29,6 +29,7 @@ class RuntimeCapabilityManifestServiceTest {
             "jdbc-review-state",
             "durable-conversation-handover",
             "conversation-control",
+            "canonical-conversation-orchestration-state",
             "conversation-channel-outbox",
             "conversation-event-stream"
         );
@@ -38,7 +39,8 @@ class RuntimeCapabilityManifestServiceTest {
             "ai-action-proposal-receipt-v1",
             "ai-review-task-v1",
             "ai-review-dispatch-v1",
-            "loomai-conversation-handover-v1"
+            "loomai-conversation-handover-v1",
+            "loomai-conversation-orchestration-state-v1"
         );
         assertThat(strings(manifest.path("verificationPackIds"))).contains(
             "agentic-specialist-team-v1",

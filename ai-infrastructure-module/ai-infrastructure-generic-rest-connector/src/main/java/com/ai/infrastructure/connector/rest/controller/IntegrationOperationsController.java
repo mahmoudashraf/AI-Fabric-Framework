@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
@@ -79,8 +80,11 @@ public class IntegrationOperationsController {
     }
 
     @PostMapping("/sources/{sourceId}/reconcile")
-    public ResponseEntity<?> reconcile(@PathVariable String sourceId) {
-        IntegrationStateRepository.SyncState state = syncService.reconcile(sourceId);
+    public ResponseEntity<?> reconcile(@PathVariable String sourceId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        String key = IntegrationStateRepository.requireAdminCommandKey(idempotencyKey);
+        IntegrationStateRepository.SyncState state = repository.executeAdminCommand(key, "SOURCE_RECONCILE", sourceId,
+            IntegrationStateRepository.SyncState.class, () -> syncService.reconcile(sourceId));
         return ResponseEntity.status(state.counts().failedWorkCount() > 0 ? HttpStatus.MULTI_STATUS : HttpStatus.OK).body(state);
     }
 
@@ -90,8 +94,13 @@ public class IntegrationOperationsController {
     }
 
     @PostMapping("/webhooks/{sourceId}/events/{eventId}/replay")
-    public ResponseEntity<?> replay(@PathVariable String sourceId, @PathVariable String eventId) {
-        return ResponseEntity.accepted().body(webhookService.replay(sourceId, eventId));
+    public ResponseEntity<?> replay(@PathVariable String sourceId, @PathVariable String eventId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        String key = IntegrationStateRepository.requireAdminCommandKey(idempotencyKey);
+        ProviderWebhookService.WebhookReceipt receipt = repository.executeAdminCommand(key, "WEBHOOK_REPLAY",
+            sourceId.length() + ":" + sourceId + eventId, ProviderWebhookService.WebhookReceipt.class,
+            () -> webhookService.replay(sourceId, eventId));
+        return ResponseEntity.accepted().body(receipt);
     }
 
     private List<Map<String, Object>> connectionProfiles() {

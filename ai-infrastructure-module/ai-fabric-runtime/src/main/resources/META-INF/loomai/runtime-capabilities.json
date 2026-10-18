@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.33",
+  "aiFabricVersion": "0.8.35",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -31,6 +31,7 @@
     "conversation-control",
     "participant-messages",
     "conversation-turn-leases",
+    "canonical-conversation-orchestration-state",
     "durable-conversation-handover",
     "conversation-channel-outbox",
     "conversation-event-stream",
@@ -97,6 +98,7 @@
     "loomai-smart-brain-operation-v1",
     "loomai-smart-brain-scheduler-v1"
     ,"loomai-conversation-handover-v1"
+    ,"loomai-conversation-orchestration-state-v1"
     ,"loomai-document-ingestion-v1"
     ,"integration-connector-state-v1"
   ],

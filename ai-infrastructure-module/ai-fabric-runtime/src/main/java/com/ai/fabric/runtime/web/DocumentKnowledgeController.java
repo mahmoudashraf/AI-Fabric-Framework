@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.web;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.auth.RuntimeScopeCatalog;
+import com.ai.fabric.runtime.admin.RuntimeAdminMutationService;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService.DiscoveryResult;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService.OperationResult;
@@ -41,13 +42,16 @@ public class DocumentKnowledgeController {
 
     private final RuntimeRequestAuthResolver authResolver;
     private final DocumentKnowledgeService service;
+    private final RuntimeAdminMutationService mutations;
 
     public DocumentKnowledgeController(
         RuntimeRequestAuthResolver authResolver,
-        DocumentKnowledgeService service
+        DocumentKnowledgeService service,
+        RuntimeAdminMutationService mutations
     ) {
         this.authResolver = authResolver;
         this.service = service;
+        this.mutations = mutations;
     }
 
     @GetMapping("/source-connector/status")
@@ -177,10 +181,11 @@ public class DocumentKnowledgeController {
     }
 
     @PostMapping("/retention/cleanup")
-    public DocumentKnowledgeService.RetentionCleanupResult cleanupRetention(HttpServletRequest request) {
-        return service.cleanupRetention(
-            authorize(request, RuntimeScopeCatalog.DOCUMENTS_INDEX, "document retention cleanup")
-        );
+    public DocumentKnowledgeService.RetentionCleanupResult cleanupRetention(
+        @RequestHeader("Idempotency-Key") String idempotencyKey, HttpServletRequest request) {
+        RuntimeResolvedIdentity identity = authorize(request, RuntimeScopeCatalog.DOCUMENTS_INDEX, "document retention cleanup");
+        return mutations.execute(identity, "DOCUMENT_RETENTION_CLEANUP", "document-retention", idempotencyKey,
+            DocumentKnowledgeService.RetentionCleanupResult.class, () -> service.cleanupRetention(identity));
     }
 
     private RuntimeResolvedIdentity authorize(HttpServletRequest request, String scope, String surface) {

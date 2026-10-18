@@ -2,6 +2,9 @@ package com.ai.fabric.runtime.lifecycle.retirement;
 
 import ai.fabric.chat.control.ConversationControlStore;
 import ai.fabric.chat.control.JdbcConversationControlStore;
+import ai.fabric.chat.storage.ChatSessionActionDraftStore;
+import ai.fabric.chat.storage.ConversationAwareActionDraftStore;
+import ai.fabric.intent.actiondraft.ActionDraftStore;
 import ai.fabric.execution.chain.state.JdbcSpecialistChainExecutionRepository;
 import ai.fabric.execution.chain.state.SpecialistChainExecutionRepository;
 import ai.fabric.execution.review.persistence.*;
@@ -37,6 +40,10 @@ public class RuntimeRetirementStoreVerification {
             case INDEXING -> provider(ai.fabric.repository.IndexingQueueRepository.class, SimpleJpaRepository.class);
             case SCHEDULER -> persistentScheduler();
         };
+    }
+    public boolean actionDraftsSupported(boolean canonical) {
+        return provider(ActionDraftStore.class, ConversationAwareActionDraftStore.class)
+            || !canonical && provider(ActionDraftStore.class, ChatSessionActionDraftStore.class);
     }
     private boolean provider(Class<?> type, Class<?> supportedType) {
         String[] names = beans.getBeanNamesForType(type);

@@ -5,8 +5,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import com.ai.infrastructure.connector.rest.service.ProviderCallException;
+import com.ai.infrastructure.connector.rest.service.ProviderErrorClass;
 
 public interface IntegrationStateRepository {
+
+    default <T> T executeAdminCommand(String idempotencyKey, String operation, String resource,
+                                      Class<T> resultType, Supplier<T> mutation) {
+        throw new ProviderCallException(ProviderErrorClass.SERVICE_UNAVAILABLE, 0,
+            "DURABLE_INTEGRATION_COMMAND_STORE_REQUIRED");
+    }
+
+    static String requireAdminCommandKey(String value) {
+        if (value == null || value.isEmpty() || value.length() > 128
+            || value.chars().anyMatch(character -> character < 33 || character > 126)) {
+            throw new ProviderCallException(ProviderErrorClass.BAD_REQUEST, 0,
+                "Idempotency-Key is required and must contain 1 to 128 visible ASCII characters.");
+        }
+        return value;
+    }
 
     void startSync(String sourceId, String runId, String sourceVersion);
 

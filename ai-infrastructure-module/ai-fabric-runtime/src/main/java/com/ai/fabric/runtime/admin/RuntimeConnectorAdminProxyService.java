@@ -32,14 +32,14 @@ public class RuntimeConnectorAdminProxyService {
     }
 
     public ProxyResponse forwardGet(String upstreamPath) {
-        return forward("GET", upstreamPath, null);
+        return forward("GET", upstreamPath, null, null);
     }
 
-    public ProxyResponse forwardPost(String upstreamPath, String body) {
-        return forward("POST", upstreamPath, body);
+    public ProxyResponse forwardPost(String upstreamPath, String body, String idempotencyKey) {
+        return forward("POST", upstreamPath, body, RuntimeAdminMutationService.requireKey(idempotencyKey));
     }
 
-    private ProxyResponse forward(String method, String upstreamPath, String body) {
+    private ProxyResponse forward(String method, String upstreamPath, String body, String idempotencyKey) {
         String baseUrl = trimToNull(connectorProperties.getBaseUrl());
         if (!StringUtils.hasText(baseUrl)) {
             return ProxyResponse.json(503, "{\"success\":false,\"message\":\"Connector admin proxy baseUrl is not configured.\"}");
@@ -55,7 +55,8 @@ public class RuntimeConnectorAdminProxyService {
         HttpRequest.Builder builder = HttpRequest.newBuilder(target)
             .timeout(connectorProperties.getReadTimeout() != null ? connectorProperties.getReadTimeout() : Duration.ofSeconds(15));
         if ("POST".equals(method)) {
-            builder.header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+            builder.header("Idempotency-Key", idempotencyKey)
+                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .POST(HttpRequest.BodyPublishers.ofString(StringUtils.hasText(body) ? body : "{}"));
         } else {
             builder.GET();

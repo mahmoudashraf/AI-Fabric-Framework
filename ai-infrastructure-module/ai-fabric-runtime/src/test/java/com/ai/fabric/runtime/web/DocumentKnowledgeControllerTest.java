@@ -4,6 +4,7 @@ import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.auth.RuntimeScopeCatalog;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService;
+import com.ai.fabric.runtime.admin.RuntimeAdminMutationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 
@@ -20,10 +21,11 @@ class DocumentKnowledgeControllerTest {
     void everyDocumentOperationRequiresPrivateContextAndItsExactLeastPrivilegeScope() {
         RuntimeRequestAuthResolver authResolver = mock(RuntimeRequestAuthResolver.class);
         DocumentKnowledgeService service = mock(DocumentKnowledgeService.class);
+        RuntimeAdminMutationService mutations = mock(RuntimeAdminMutationService.class);
         RuntimeResolvedIdentity identity = mock(RuntimeResolvedIdentity.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(authResolver.resolveVerifiedPrivateContext(any(), any())).thenReturn(identity);
-        DocumentKnowledgeController controller = new DocumentKnowledgeController(authResolver, service);
+        DocumentKnowledgeController controller = new DocumentKnowledgeController(authResolver, service, mutations);
 
         controller.connectorStatus(request);
         controller.discover(new DocumentKnowledgeController.DiscoverRequest("documents", null, 10), request);
@@ -38,7 +40,7 @@ class DocumentKnowledgeControllerTest {
         controller.reconcile("source-1", "reconcile-1", request);
         controller.retrievalProof(new DocumentKnowledgeController.RetrievalProofRequest("service policy", 5), request);
         controller.retentionStatus(request);
-        controller.cleanupRetention(request);
+        controller.cleanupRetention("cleanup-1", request);
         controller.removeIndex("source-1", "delete-1", request);
 
         var ordered = inOrder(authResolver);
