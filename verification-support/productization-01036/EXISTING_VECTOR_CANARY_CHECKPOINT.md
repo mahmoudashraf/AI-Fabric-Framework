@@ -24,10 +24,12 @@ embeddings; prior use and holds count. No production allocation is authorized.
   exact guarded runtime image. Migration V192 seeds template 1.7 on both control
   planes; spec/offer publication was staging-only. No endpoint, cluster ID or
   credential is hardcoded into generic code or seeded into the template.
-- Open: missing Free-01 serving username/password, requested through Required
-  for production. Do not reuse unrelated stopped-service credentials or send a
-  control-plane management key into the runtime. No password reset, new user,
-  role, key or permission mutation is authorized by this checkpoint.
+- Open: a verified Free-01-only serving credential and native token-authentication
+  integration. Owner supplied an existing API key through Required for production,
+  but its visible access is broader than Free-01. Do not inject it into a runtime,
+  disguise it as a password, or repeat a request for a password not available in
+  the console. No password reset, new user, role, key or permission mutation is
+  authorized by this checkpoint.
 - Open: first real hosted apply/activation/indexing/provider acceptance,
   measured physical policy and production fit. UI extraction remains last.
 
@@ -144,3 +146,53 @@ authentication, vector binding, provider writes, customer-runtime apply,
 activation, paid call, allowance reset or lifecycle email occurred. Full 010.36,
 retained-index lifecycle completion and production fit remain open. Keep
 Hetzner access open as instructed; UI extraction remains last.
+
+## Retained-Index Lifecycle Follow-Up Assessment
+
+Independent source review confirms this is separate from the missing serving
+credential. The existing non-clearing runtime index readback can supply actual
+counts; no new public framework endpoint is structurally required. However,
+ordinary R3 COMPLETE and R7 release free the whole reservation, so neither is a
+safe label for owned services removed while the external index remains retained.
+RETAIN_UNTIL currently delays whole-target cleanup, not partial reclamation.
+
+The follow-up needs an explicit reviewed retained outcome, a durable receipt
+binding actual counts and topology to the exact operation/fence/external binding,
+and retained allocation accounting. Keep the binding ACTIVE and exclusive, with
+its provenance intact. Persist the receipt before deleting the runtime so retry
+does not require an already removed service. A conservative first contract can
+keep the entire reservation charged; releasing only proved CPU/RAM/dependency
+capacity needs a separate partial-reclamation ledger transition. Neither option
+may invent zero index counts, make retained data available to another deployment,
+or reinterpret a prior plan as authorization for a new disposition.
+
+Required regression scope: nonzero retained counts without clear calls,
+crash/replay after runtime removal, stale/foreign binding denial, proved owned
+resource absence, charged retained quota/exclusivity, and unchanged ordinary
+reclamation proofs. This is a reviewed implementation direction, not an
+implemented or authorized new accounting contract. The current explicit
+retention blocker remains in place.
+
+## Serving API Key Follow-Up
+
+After the password-input checkpoint, owner supplied an API key and the exact
+Free-01 endpoint through Required for production. That session verified only
+control-plane metadata and collection-list authentication, not entity data or
+writes. The key can list other clusters; Free-01-only scope is not established.
+The credential remains private and is not installed into any runtime.
+
+[Official serving connection guidance](https://docs.zilliz.com/docs/connect-to-serving-cluster)
+supports API keys for Free/Serverless. The actual cached Milvus SDK2.4.1 exposes
+`ConnectParam.Builder.withToken`, verified locally with javap. Framework0.8.35
+`AIProviderConfig.MilvusConfig` exposes username/password but no token, and
+`MilvusVectorDatabaseService.buildConnectParam` only wires username/password.
+Therefore token support needs a proper generic configuration/adapter change,
+plus Platform binding, secret projection, preflight and image/version verification.
+Do not use a password-field workaround or replace immutable published templates.
+
+Before runtime use, verify a narrowly scoped serving credential for this exact
+cluster and required data-plane operations. [Official API-key guidance](https://docs.zilliz.com/docs/manage-api-keys)
+describes customized cluster access; an API-key label is not scope evidence.
+Required for production owns the external credential/scope input. Native token
+support and least-privilege evidence are open; no new framework release or
+provider mutation was performed by this assessment.

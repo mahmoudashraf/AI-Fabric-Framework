@@ -14,23 +14,27 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   transport is explicitly configured on staging. Fresh guest measurements prove
   a prior capacity shortfall. Authorized retained workload stops have since
   cleared the staging RAM minimum; complete measured policy, workload and
-  recovery acceptance remain open. Production still lacks safe CPU headroom
-  for the unchanged complete topology. No policy or grant was fabricated to
-  bypass that result.
+  recovery acceptance remain open. Fresh short-window baselines after the
+  pauses show lower current CPU load on both hosts, but do not certify the
+  unchanged topology under workload/startup/promotion overlap. Production fit
+  remains unapproved. No policy or grant was fabricated to bypass that gate.
 - P1-P5: source foundations are integrated. The immutable three-service managed
   dependency package is published and read back on both hosted control planes.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `2bf8b3aaba2e9bb1b5a1a188938f4faf872ec0f4` is live on both Platform
-  backends at migration 190, with template 1.5.0 and guarded offer v8 published.
+  Source `58bf670de00d3477a3d91b2f78d4d9fe4d9cd7db` is live on both Platform
+  backends at migration 192, including retained-external vector binding.
+  Template 1.7 is seeded on both; dependent spec 1.7 and guarded offer v10
+  are published on staging only.
   The inspected runtime image remains pinned to `600f136bf`; its source did
   not change in the narrow backend correction. Older offer pins are unchanged.
   The hosted legal
   customer request previously reached the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
-  End-to-end provisioning remains intentionally unexecuted until sufficient
-  customer capacity is measured and approved.
+  End-to-end provisioning remains unexecuted pending native serving-token
+  integration, verified Free-01-only credential scope, formal binding and
+  measured/approved customer capacity.
 - P6: local UI implementation and fixture-based checks are in progress, but the
   extraction has not been committed or deployed. Hosted rollout remains gated
   on the verified functional baseline. Preserve the frozen STAFF-001 through
@@ -38,6 +42,64 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   independent from backend and runtime corrections.
 - P7: not started. Fresh production-customer lifecycle certification is required
   after the external capacity prerequisite is closed.
+
+### Independent Work While Vector Authentication Is Pending
+
+The unresolved serving-authentication contract blocks actual binding,
+indexing/retrieval and dependent hosted lifecycle acceptance. It does not block
+all implementation or verification. Continue independent tasks without weakening
+their exit criteria or starting P6 early:
+
+- Host baseline: reusable bounded read-only sampler committed `bdae9f3b7`.
+  Four focused tests and the final combined 77-check support gate passed. Fresh
+  25-sample/120-second staging and production observations passed at
+  19:37-19:39 UTC. Raw private reports are
+  `/private/tmp/01036-independent-staging-host-baseline-20261018.json` and
+  `/private/tmp/01036-independent-production-host-baseline-20261018.json`.
+  These are current-fleet baselines, not workload certification or approval.
+- Control-plane backup recovery: committed `e4f8b6d53`; BOTH actual private
+  pre-V192 archives restored on local isolated PostgreSQL18. Each passed
+  120 public tables, 37 selected typed columns, counts across15core tables,
+  191 successful migrations, constraint/index validity, unchanged archive hash
+  and exact owned-fixture cleanup. Reports:
+  `/private/tmp/01036-local-control-plane-restore-kCMCy4RB3Cya/report.json`
+  (staging) and `/private/tmp/01036-local-control-plane-restore-HNJhpHp3jH1j/report.json`
+  (production). Official image was cached separately at immutable digest;
+  verifier remains no-pull/network-none/no-ports/no-backend/no-workers.
+  This is not V192/current-head recovery, hosted recovery, key availability,
+  owner/ACL parity or application bootstrap. An initial missing-image failure
+  is preserved; the matching image prerequisite was resolved, not bypassed.
+- P4 authentication: committed `143070ddb`; nine actual-module browser-fixture
+  scenarios passed independently in the parent, zero skips, including delayed
+  login cancellation, logout/account switching, renewal, expiry and no replay.
+  Evidence `/private/var/folders/vb/pk83dvvx58v6dpw66mcsn9sr0000gn/T/01036-p4-auth-hj27hsdt4nxY/report.json`.
+  Real runtime protected-capability selection/effects, real-provider cancellation
+  and bearer revocation latency remain open. P4 is not labelled complete.
+- Retained-index lifecycle: source review completed. Existing runtime readback
+  can supply actual nonzero counts without clearing, but R3 COMPLETE/R7 release
+  would incorrectly release the whole reservation. A distinct reviewed retained
+  outcome, durable receipt and charged-retention accounting are required.
+  Partial CPU/RAM/dependency reclamation needs its own ledger transition.
+  No framework endpoint is structurally required. Existing blocker remains;
+  this review is not authorization to invent new accounting semantics.
+
+Final parent support gate with the isolated synthetic Docker test explicitly
+enabled:77PASS/0fail/0error/0skip. Browser gate separately9PASS/0skip. Actual
+private PostgreSQL18 archive restores are separate from the syntheticPG16 test.
+
+External auth update: owner supplied an existing API key through Required for
+production, not a console-visible username/password. That session observed
+metadata-only serving authentication but also visibility of other clusters;
+Free-01-only scope is NOT proven. Do not install that key or repeat the password
+request. Official Free/Serverless guidance supports API keys, and the actual
+pinned SDK2.4.1 exposes withToken. Framework0.8.35 does not expose/wire token
+configuration. Proper generic token support plus scoped secret projection,
+preflight, source/image verification and least-privilege evidence are the next
+integration work; no password-field workaround, framework release or key/role
+mutation occurred in this continuation.
+
+UI extraction remains last. No additional vector infrastructure, allowance
+reset, paid provider traffic or stopped-workload restart is included here.
 
 ## Initial Readback
 

@@ -5447,3 +5447,42 @@ Critical fixes that made the gate pass:
   servingauth/vectorbinding/runtimeapply/activation/paidcall/email/grantreset.
   Actualhosted acceptance, retainedindexcompletion, measuredpolicy, productionfit,
   promotion andP6/P7 remainOPEN. UIextractionLAST; SSHkeepOPEN asownerinstructed.
+
+### 2026-10-18 Continue Independent Work Instead Of A Blanket Credential Pause
+
+- Owner correctly challenged stoppingallwork on vectorauth. Continued three
+  disjoint paths with authorizedagents; UIextraction untouched/last. Committed
+  andpushed `bdae9f3b7` hostbaseline, `143070ddb` actualfrontendauthbrowsergate,
+  `e4f8b6d53` isolatedcontrolplanerestore. No runtime/framework/backend/UIrelease.
+- Actualbothhost25sample120sbaselinePASS, reports
+  `/private/tmp/01036-independent-{staging,production}-host-baseline-20261018.json`.
+  Currentfleetonly, no policyapproval/workloadclaim. StageCPU p95~657mCPU,
+  minavailableRAM~10.21GiB; prod~280mCPU/~11.76GiB. Swapnotcapacity.
+- BOTHactualprivatepreV192archivesrestoredonPG18PASS:120tables/37selectedtyped
+  columns/15corecounts/191successfulmigrations/validconstraintsindexes/hashesunchanged.
+  Localnetworknone/noports/noapps/workers; labelledfixturesremoved. Reports
+  `/private/tmp/01036-local-control-plane-restore-kCMCy4RB3Cya/report.json`stage,
+  `...-HNJhpHp3jH1j/report.json`prod. Image
+  postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+  separatelycachedafterexplicitmissingimagefailure; reusableverifiernopull.
+  NotV192currenthead/hostedrestore/keys/applicationbootstrap/ownerACLparity.
+- Parentcombinedsupportgate77PASS/0skip incloptinrealsyntheticDockerfixture;
+  separateparentauthbrowsergate9PASS/0skip. Authactualshell/installer/pack/widget
+  withloopbackprovider/broker/runtimeonly:cancel/fail/delayedloginfence/newconversation/
+  noreplay/accountswitch/logout/renew/expiry/brokerdenial. Evidence
+  `/private/var/folders/vb/pk83dvvx58v6dpw66mcsn9sr0000gn/T/01036-p4-auth-hj27hsdt4nxY/report.json`.
+  Actualruntimeauthorization/realproviderrevocationlatencystillOPEN,P4notcomplete.
+- Retainedindexreview: no newframeworkendpointstructurallyneeded; existingreadback
+  canretainactualcounts. Needexplicitdistinctretainedoutcome+durablereceipt+charged
+  retention; existingR3COMPLETE/R7releasewouldfreewholevector. Partialreclaimneeds
+  ledgertransition. No unapprovedsemanticchange; existingblockerunchanged.
+- NEWexternalinputviaRequiredforproduction: ownersuppliedAPIkeynotusername/password.
+  Secretref `/private/tmp/01036-free01-owner-supplied-api-key-20261018.secret`, neverprint.
+  Dedicatedread-onlymetadatafoundservingauthworksbutkeylistsotherclusters; NOTscoped.
+  Stoprepeatpasswordrequest. DedicatedownsFree01-onlyservingkey/scopeevidenceinput;
+  no newkey/role/user/permissionmutationauthorized. Managementkeynotruntimeauth.
+- Framework7b593da4/0.8.35sourcehasMilvususername/passwordonly; pinnedSDK2.4.1
+  javapconfirmswithToken. Propergenericframeworktokenconfig+SDKwiringandPlatform
+  typedauth/secretprojection/preflighttestsare nextintegrationwork, notpasswordhack.
+  No frameworkchange/releaseperformed; suppliedbroadkeyneverinjected. Samecampaign
+  50/200000/USD12,noresets; paidcallsNONE. Agentworkerscollected/closed,SSHkeepOPEN.
