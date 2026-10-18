@@ -23,6 +23,30 @@ class DeploymentTenantScopedVectorServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void explicitExternalScopeStaysBlockedUntilEndpointResolvedAndNeverClaimsDatabaseIsolation() {
+        var tenantService = mock(PlatformCustomerTenantService.class);
+        var registry = mock(DeploymentTenantScopedVectorRegistryService.class);
+        var managed = mock(DeploymentManagedVectorResourceService.class);
+        var deployment = deployment("cust-test", "tenant-test");
+        var binding = mock(DeploymentTenantBindingSummary.class);
+        when(binding.customerId()).thenReturn("cust-test"); when(binding.tenantId()).thenReturn("tenant-test");
+        when(tenantService.summarizeBinding(deployment)).thenReturn(binding);
+        when(registry.summarizeForDeployment(any(), any())).thenReturn(registrySummary("INFO"));
+        var service = new DeploymentTenantScopedVectorService(tenantService, new TenantScopedVectorHandleResolver(), registry, managed);
+        var config = objectMapper.createObjectNode().put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")
+            .put("vectorStoragePosture", "SHARED").put("milvusExternalBindingRequired", true);
+        var missing = service.build(deployment, config, "target-stage");
+        assertThat(missing.status()).isEqualTo("BLOCKED");
+        assertThat(missing.rootResourceValue()).isNull();
+        config.put("milvusHost", "approved.cluster.zillizcloud.com").put("milvusDatabaseName", "default");
+        var resolved = service.build(deployment, config, "target-stage");
+        assertThat(resolved.status()).isEqualTo("READY");
+        assertThat(resolved.rootResourceValue()).isEqualTo("approved.cluster.zillizcloud.com");
+        assertThat(resolved.scopeType()).isEqualTo("COLLECTION_PREFIX");
+        assertThat(resolved.summaryMessage()).contains("Provider-enforced tenant ACLs are not inferred");
+    }
+
+    @Test
     void buildSharedPineconeSummaryDerivesTenantScopedNamespaceHandle() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);

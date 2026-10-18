@@ -96,3 +96,21 @@ is a distinct prerequisite, not a request to approve the cluster again.
 - No serving authentication, binding registration, vector mutation, customer
   runtime apply/activation, model call or lifecycle email occurred. Production
   readiness, external retained-index completion and full 010.36 remain open.
+
+## Hosted Rollout In Progress
+
+Backend implementation `2f5fb8132` and support checkpoint `d023f5b30` were pushed.
+CI 39152376107 passed; UI image was skipped. Staging deployment
+`tjban1t2uu5gbdm4100q4wuw` finished and passed exact source/digest, migration
+192 and public-UP verification. Its digest is
+`sha256:d3210f1123193c18e16f88f5ce4bac4832b29f025bebe770261226b9867952f5`.
+Production was deliberately not moved to this intermediate image.
+
+A narrow follow-up fixes inventory projection: release evidence and the shared
+scope registry must use the resolved target binding, while an unbound template
+remains BLOCKED instead of claiming an endpoint or database isolation. The
+107-check inventory/binding regression gate passed with zero skips at
+`/private/tmp/01036-external-binding-inventory-projection-gate-20261018.log`.
+Roll this reviewed follow-up to staging, run the configuration-only canary,
+then verify the same backend image on production. No customer runtime or
+external binding is applied by these backend rollouts.

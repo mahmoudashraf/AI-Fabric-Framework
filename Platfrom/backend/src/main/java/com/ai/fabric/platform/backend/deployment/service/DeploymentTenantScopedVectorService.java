@@ -324,6 +324,14 @@ public class DeploymentTenantScopedVectorService {
                                                               String lifecycleOwner,
                                                               String backupRestorePosture) {
         String collectionPrefix = tenantScopedVectorHandleResolver.resolveMilvusCollectionPrefix(deployment, providerConfig);
+        boolean externalBinding = DeploymentExistingVectorBindingService.required(providerConfig);
+        if (externalBinding && ManagedDeploymentProfileCatalog.milvusHost(providerConfig).isBlank()) {
+            return blocked(binding, ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS,
+                ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig),
+                ManagedDeploymentProfileCatalog.resolveVectorStoragePosture(providerConfig), migrationLocked, migrationMessage,
+                "An explicit retained external vector binding is required; the template does not resolve a provider endpoint.",
+                lifecycleOwner, backupRestorePosture);
+        }
         String databaseName = blankToFallback(
             ManagedDeploymentProfileCatalog.milvusDatabaseName(providerConfig),
             "default"
@@ -339,7 +347,7 @@ public class DeploymentTenantScopedVectorService {
             binding.customerName(),
             binding.tenantId(),
             binding.tenantName(),
-            "DATABASE_AND_COLLECTION_PREFIX",
+            externalBinding ? "COLLECTION_PREFIX" : "DATABASE_AND_COLLECTION_PREFIX",
             "Host",
             blankToFallback(ManagedDeploymentProfileCatalog.milvusHost(providerConfig), "Configured Milvus cluster"),
             collectionPrefix,
@@ -349,7 +357,9 @@ public class DeploymentTenantScopedVectorService {
             migrationMessage,
             backupRestorePosture,
             null,
-            "Tenant scope is enforced through a customer-bounded Milvus cluster plus database and collection boundaries."
+            externalBinding
+                ? "The retained external cluster uses a unique target collection prefix. Provider-enforced tenant ACLs are not inferred."
+                : "Tenant scope is enforced through a customer-bounded Milvus cluster plus database and collection boundaries."
         );
     }
 

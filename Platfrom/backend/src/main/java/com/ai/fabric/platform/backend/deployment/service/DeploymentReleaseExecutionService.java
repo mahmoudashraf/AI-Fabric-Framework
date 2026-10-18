@@ -435,6 +435,11 @@ public class DeploymentReleaseExecutionService {
         releaseRepository.save(release);
 
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        if (DeploymentExistingVectorBindingService.required(providerConfig)) {
+            if (existingVectorBindings == null) throw new IllegalStateException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+            providerConfig = existingVectorBindings.resolve(deployment, version, providerConfig, release.getTargetProfileId());
+            endpointEvidence.set("effectiveProviderConfig", providerConfig);
+        }
         deploymentTenantScopedVectorRegistryService.syncResolvedHandle(
             deployment,
             version,

@@ -47,6 +47,23 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
 
+    @Test
+    void resolvedExternalEndpointIsPersistedInReleaseAndSharedScopeInventory() throws Exception {
+        var fixture = new BindingApplyFixture();
+        var resolved = ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig.deepCopy())
+            .put("milvusHost", "approved.cluster.zillizcloud.com").put("milvusDatabaseName", "default");
+        when(fixture.bindings.resolve(fixture.deployment, fixture.version, fixture.providerConfig, "target-stage")).thenReturn(resolved);
+        var scoped = (DeploymentTenantScopedVectorService) ReflectionTestUtils.getField(fixture.service, "deploymentTenantScopedVectorService");
+        ReflectionTestUtils.invokeMethod(fixture.service, "applyProvisioningResult", "dep-123", "ver-123", "rel-123",
+            new ProvisioningResult("ACTIVE", "COOLIFY", "https://runtime.example", "https://connector.example", "{}"));
+        verify(scoped).build(fixture.deployment, resolved, "target-stage");
+        var details = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(fixture.progress).mergeProvisioningDetails(eq("rel-123"), details.capture());
+        assertThat(fixture.mapper.readTree(details.getValue()).path("effectiveProviderConfig").path("milvusHost").asText())
+            .isEqualTo("approved.cluster.zillizcloud.com");
+        assertThat(fixture.version.getProviderConfigJson()).isEqualTo(fixture.providerConfig.toString());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"EXTERNAL_VECTOR_BINDING_REQUIRED", "EXTERNAL_VECTOR_RUNTIME_CREDENTIALS_REQUIRED",
         "EXTERNAL_VECTOR_PROVIDER_IDENTITY_CHANGED"})
