@@ -1,4 +1,4 @@
-# 010.36 customer-owned S3 canary
+# 010.36 Productization Verification
 
 This verifier proves the document-source boundary for the first dealership
 offer without provisioning or modifying an AWS resource. It is intentionally
@@ -90,6 +90,76 @@ Run fixture tests without AWS access:
 ```bash
 node --test verification-support/productization-01036/test/*.test.mjs
 ```
+
+## Configuration-only customer canary
+
+`verify-customer-configuration.mjs` uses a real, already-entitled customer
+owner session. It checks reviewed-profile first-app creation before a runtime
+exists, exact-command retries, origin projection, early activation denial,
+target-scoped read-only S3 binding, immutable-version publication, and direct
+foreign-customer denial. It never invites a customer, grants entitlements,
+approves capacity, calls runtime apply, provisions a provider resource, or
+modifies a source object. Run it only against a designated staging canary.
+
+This **does write control-plane metadata** and persists the supplied staging
+storage credentials through the Platform's write-only secret boundary. An
+explicit `--allow-metadata-writes` flag is required. The accepted offer and
+staging target must already exist. The foreign IDs must identify existing,
+authorized-for-testing resources owned by another customer; invented IDs are
+not evidence of cross-customer isolation. Keep the same run identity, names,
+slug and payload when retrying. Do not choose another operation key to conceal
+a conflict or a partial run. The resulting draft/app remain unactivated and
+must not be mistaken for a live customer deployment.
+
+Supply these values through the process environment or a private regular
+`0600` env file:
+
+```dotenv
+ENGAGE_CANARY_PLATFORM_URL=https://your-staging-control-plane.example
+ENGAGE_CANARY_EMAIL=<existing-canary-owner-email>
+ENGAGE_CANARY_PASSWORD=<private-password>
+ENGAGE_CANARY_CUSTOMER_ID=<existing-customer-id>
+ENGAGE_CANARY_OFFER_ID=<reviewed-offer-id>
+ENGAGE_CANARY_TARGET_PROFILE_ID=<customer-staging-target-id>
+ENGAGE_CANARY_OPERATION_PREFIX=<stable-canary-operation-prefix>
+ENGAGE_CANARY_RUN_ID=<stable-run-id>
+ENGAGE_CANARY_DEPLOYMENT_NAME=<stable-deployment-name>
+ENGAGE_CANARY_CONSUMER_ID=<stable-consumer-id>
+ENGAGE_CANARY_APP_NAME=<stable-app-name>
+ENGAGE_CANARY_APP_SLUG=<stable-app-slug>
+ENGAGE_CANARY_FOREIGN_DEPLOYMENT_ID=<existing-other-customer-deployment-id>
+ENGAGE_CANARY_FOREIGN_CUSTOMER_ID=<existing-other-customer-id>
+# Optional only when the reviewed offer publishes multiple profiles:
+ENGAGE_CANARY_WORKSPACE_PROFILE_ID=<exact-reviewed-profile-id>
+```
+
+Use the S3 env contract above for the separate `--s3-env-file`. The customer
+canary reads only its **staging** credential pair. Node.js 20.12 or later is
+required for the built-in env-file parser. Example:
+
+```bash
+node verification-support/productization-01036/verify-customer-configuration.mjs \
+  --env-file /private/path/customer-canary.env \
+  --s3-env-file /private/path/s3-canary.env \
+  --allow-metadata-writes \
+  --output /private/path/customer-configuration-evidence.json
+```
+
+`--verify-admission-denial` is an additional, explicit probe for an environment
+known to have **no approved measured policy**. It expects the exact `412` /
+`MEASURED_POLICY_REQUIRED` response and zero reservations before and after.
+Another denial is a failed test, not a substitute pass. If reservation
+unexpectedly succeeds, the verifier records its ID, stops, and never calls
+apply or cleanup. Inspect that reservation before retrying; this option is not
+appropriate once measured admission has been approved.
+
+Evidence is checkpointed after accepted stages and contains only identifiers,
+configuration hashes and named checks, never cookies, passwords, credentials,
+public auth configuration or source content. A partial run is explicitly
+`FAIL`. Fixture tests cover drift, denied ownership, secret leakage, unexpected
+reservation success, and transport-error sanitization. A passing canary proves
+these control-plane contracts, **not** hosted indexing, runtime functionality,
+capacity readiness, production promotion, or full 010.36 certification.
 
 ## Reviewed simulated-dealership dependency package
 
