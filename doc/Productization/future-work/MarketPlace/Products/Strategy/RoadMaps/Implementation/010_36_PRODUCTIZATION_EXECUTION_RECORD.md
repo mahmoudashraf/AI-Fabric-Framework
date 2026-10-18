@@ -1229,3 +1229,127 @@ write-only bindings, never this ledger.
   lifecycle notices, production sizing and promotion acceptance remain open.
   Keep Hetzner access open as instructed; P6 UI extraction and P7 certification
   remain last and incomplete. Full 010.36 is NOT declared green.
+
+### 2026-10-18 Verified Owner Allowance Amendment
+
+- Verified the owner's direct reply in Required for production, turn
+  `01a14f8a-55a4-7cf3-b62c-ee2c8f91b5d7`, and its private handoff record. The
+  same attended synthetic staging campaign now has cumulative ceilings of
+  50 interactive requests, 200,000 model tokens and USD 12 total provider spend,
+  including embeddings. USD 12 replaces USD 2, not additional credit. No
+  counter resets, expanded dataset, new provider account or production approval.
+- Fresh read-only staging database counts: zero financial grants, zero
+  allocations, no active measured policy, zero held reservations and zero
+  in-flight releases. No paid call or financial grant was made during this
+  readback. Keep durable pre-send enforcement and first-limit stopping mandatory.
+- Reopened the existing three coding agents for bounded enforcement, admission
+  and acceptance audits. Parent owns all hosted mutations and paid calls.
+  A read-only 15-minute staging baseline sample is running; this is not a
+  candidate workload result or approved operating policy. UI extraction stays
+  last and the production capacity/promotion gates remain open.
+
+### 2026-10-18 Dormant Grant And Pre-Debit Configuration Correction
+
+- The staff-only financial API recorded the one approved staging campaign grant
+  `pug-01036-dealership-staging-20261018`. Exact retry and quota readback passed:
+  50 interactive requests, 200,000 tokens, USD 12 including embeddings, expiry
+  2026-10-19 15:00 UTC, zero allocated. No provider calls or runtime activation.
+  CP allocation is assignment of credits, not a claim of measured spending;
+  the deployment-local ledger remains the authoritative paid-attempt counter.
+- Source audit found an availability/configuration defect, not a spending
+  bypass: v8's published provider configuration lacks the explicit output cap
+  required by the guarded runtime. It must not be applied as-is. Generic
+  pre-debit validation now rejects missing/invalid output caps and unsupported
+  effective provider/model configuration before credits are assigned. The
+  focused H2/PostgreSQL contract passes 98 checks. No runtime guard, public
+  framework behavior or staff split-allocation contract was weakened.
+- A new immutable template 1.6/spec 1.6/offer v9 candidate is being prepared.
+  It declares a 2048-token output cap and a complete 2,750mCPU topology while
+  retaining every service, binding, RAM/disk allocation and image pin. This is
+  a staging-first measurement candidate, not measured production capacity;
+  old published templates/offers remain unchanged. The sole financial grant
+  remains unallocated while this replacement composition is verified.
+- The staging 15-minute baseline has 180 five-second observations: CPU p50
+  400m, p95 640m and maximum 1040m across eight cores; ending MemAvailable
+  11,102,191,616 bytes. Maximum runnable count 36 and brief swap-in 16KiB/s
+  are retained honestly; no observed swap-out, I/O wait or steal. Memory was
+  observed at endpoints, not measured as a candidate workload peak. Evidence:
+  `/private/tmp/01036-staging-host-baseline-20261018/evidence.json`.
+- Fresh pre-migration backups in
+  `/private/tmp/01036-control-plane-pre-runtime-cap-and-rightsize-20261018/`
+  pass checksum and matching-client catalog checks, 723 lines each. This is
+  not restore proof. Separate synthetic runtime export/restore work is still
+  in progress; its initial local internal-network/port harness failure is
+  preserved rather than relabelled as a successful product check.
+
+### 2026-10-18 Immutable Candidate And Vector Preservation
+
+- Pushed separate scoped commits: `4b8c80e0a` validates effective runtime
+  provider/output-cap configuration before allowance allocation; `97fa5f9f6`
+  accepts explicit positive-integer output caps in the generic Marketplace
+  template contract; `6de589ce2` adds immutable template/spec 1.6 and staging
+  offer v9. The combined backend gate passed 272 checks with no failures,
+  errors or skips, including real PostgreSQL V190-to-V191 migration and
+  template compilation; support fixtures passed 56 checks. No public framework
+  source, release or runtime image was changed.
+- Both backends first passed exact-image, migration 191 and public-UP checks
+  on `6de589ce2b6bbf095f2990e52cf1d4f4f916a4a7`, digest
+  `sha256:d4d59933e1c29fb005124a10112df1033de8a19a713e15be9f5241374f2ada9c`.
+  CI 39141112248 passed with UI deployment skipped. This supersedes the older
+  V190 checkpoint above, without claiming hosted customer-runtime acceptance.
+- The 1.6 candidate explicitly declares `openaiMaxTokens=2048` and all eight
+  services at 2,750mCPU, 5,888MiB RAM and 16,384MiB disk. Only bounded CPU
+  requests changed; services, features, bindings, RAM/disk and exact image pins
+  remain. This is a full-feature measurement candidate, not measured production
+  fit. The old published composition remains immutable.
+- Published spec 1.6 and offer v9 on staging only, with fingerprints
+  `45948e39d82f17196b3712941a2f70ef6255e30532bd839b1cf819a9577416c4`
+  and `d0e9fa9d4e39b1db26a0b7a9364048f7fd025e3ec4d5241582f81d9f6bb84ea6`.
+  Nine real-owner configuration-only checks passed for `dep-0d7fc676`, version
+  `ver-66489d48`, config hash
+  `5d27f48409fe095612c767431e855cd1ea6b9ec2702ef620bb0ee693a34b524e`.
+  App `awi_pub_67237efb5086ffedcc2af2d58424b752` remains DRAFT. Actual immutable
+  database readback proves the 2048 cap and Serverless plan. The expected
+  `MEASURED_POLICY_REQUIRED` denial created no reservation or release.
+- The template's managed Zilliz Serverless allocation is a separate external
+  effect, not authorized by the USD 12 model/embedding budget. Read-only account
+  checks distinguish eight Serverless clusters and one existing Free cluster
+  using `deploymentOption`, not the misleading common `plan` label. Free-01
+  has one database and no collections, and neither control plane has a matching
+  resource handle. Those observations do not prove ownership or authorize reuse.
+  Required for production is awaiting the owner's bounded Free-01 decision;
+  safe scoped adoption, credentials and retain-not-owned cleanup would still
+  need implementation and verification. No cluster or credential was changed.
+- Fixed a discovered preservation defect in `6d32eb2be`: missing stored runtime
+  credentials now return `MANAGED_ZILLIZ_RUNTIME_CREDENTIALS_REQUIRED` rather
+  than implicitly deleting/recreating an existing cluster. All three missing-
+  secret variants and restored-credential reuse pass the 26-test focused gate;
+  independent critical review passed. CI 39142840789 published the exact backend
+  digest `sha256:8c40c28449c1e27664c6e3b53ed6f38d996cffe7b4d36f051381199eabaa8b6c`.
+- The reproducible local exact-image budget-store export/restore rehearsal is
+  committed separately as `877b9fcb9`, outside image watch paths. The parent run
+  passed at `/private/tmp/01036-local-budget-restore-hRJhles2QIpc/report.json`:
+  actual V19 owning services, pg_dump, removal of the source database, restore
+  into another database, exact typed identity/expiry/counter/hold checks and
+  owned-resource cleanup. No provider client or live database was used. This
+  is subsystem-local proof, not hosted whole-topology recovery or permission
+  to reactivate a stale financial snapshot without usage reconciliation.
+- Fresh preservation-fix backups at
+  `/private/tmp/01036-control-plane-pre-vector-preservation-20261018/` passed
+  checksum and matching-client catalog validation, 723 lines each. Actual
+  control-plane restore remains unperformed. Read-only retained-stop verification
+  at 16:02:55 UTC passed all 30 apps, unchanged with auto-deploy paused.
+- Read-only allowance verification at 16:08:39 UTC still reports zero allocated
+  across all three cumulative ceilings. No customer runtime was applied or
+  activated, paid canary run, or lifecycle email sent in this continuation.
+  Measured admission, safe vector binding, hosted acceptance, production fit,
+  promotion, P6 UI extraction and P7 certification remain open. Keep Hetzner
+  access open as instructed; do not restart retained stopped workloads.
+- Final preservation-fix rollout verified on both control planes: source
+  `6d32eb2beae23283d60a1615eb0430fd0708ecdb`, exact published digest above,
+  migration 191 and public health UP. Staging deployment
+  `hqxpt8e80xdwez4ibz44s8p8` and production deployment
+  `ibj1syauyqq3z22q6yhzk34s` both finished. Verification required exactly one
+  backend container and matching OCI source revision/repository digest; no
+  overlap or health assertion was weakened. This is a control-plane rollout,
+  not customer-runtime acceptance or vector-provider mutation.

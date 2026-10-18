@@ -163,9 +163,13 @@ capacity readiness, production promotion, or full 010.36 certification.
 
 ## Guarded runtime and financial allowances
 
-The current offer publisher prepares a new immutable v8 offer pinned to the
-inspected guarded runtime image. It does not rewrite v7 or provision a runtime.
-Template 1.5.0 and its complete resource topology remain unchanged. The four
+The current offer publisher prepares a new immutable v9 staging measurement
+candidate, using template/spec 1.6 and the same inspected guarded runtime image.
+It does not rewrite old offers or provision a runtime. The candidate declares
+an explicit integer `openaiMaxTokens=2048`, now accepted by the generic
+Marketplace template contract, and retains every service, binding and RAM/disk
+allocation. Its complete 2,750mCPU topology is a candidate to be measured, not
+approved production capacity. The four
 provider-budget capability, endpoint, migration and verification declarations
 are required in addition to the exact reviewed image digest and source commit.
 Publishing an offer is not approval of host capacity or provider spending.
@@ -191,16 +195,34 @@ Verify archive/image provenance, private authorization, uninitialized readiness,
 actual restart persistence and native pre-send bounds before an attended live
 canary. Use only the real approved limits. A skipped provider probe, a healthy
 control plane or successful offer publication is not evidence of paid runtime
-verification. The existing 100,000-token campaign cannot admit the guard's
-conservative full-context chat reservation; the proposed token-only increase
-must not be used until explicitly approved.
+verification. On 2026-10-18 the owner approved the pending 200,000-token ceiling
+and revised the same staging campaign's total provider spending cap to USD 12,
+including embeddings. The 50 interactive-request limit remains. Prior usage,
+retries and reservations still count; this is not a new campaign or a reset.
+These historical canary limits are not default customer entitlements or
+authority for another run. The exact scope and current counters must be
+verified before any provider call.
+
+The template's dedicated managed Zilliz Serverless cluster is a separate
+provider effect. Model-token approval does not authorize new paid vector
+infrastructure, existing-cluster adoption or deletion/recreation. Resolve that
+permission and formal binding boundary before apply. An existing Free cluster
+with no collections is not automatically an unowned resource or permission to
+reuse it. Missing runtime credentials must leave an existing cluster and its
+remaining secrets intact; recovery requires explicit operator reconciliation.
+
+For an opt-in synthetic export/restore of the actual guarded image's budget
+store, see [the local rehearsal guide](java/README.md). It uses cached exact
+images and an internal network, without provider calls or live database access.
+This proves only that subsystem, not hosted whole-topology recovery or safe
+reactivation after restoring an older financial snapshot.
 
 ## Reviewed simulated-dealership dependency package
 
 `publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
 digests as `MANAGED_DEPENDENCY` source artifacts, promotes them through the
 production review channel, and publishes one immutable dependency topology for
-`mkv-template-simulated-dealership-experience-v1-5`. This template establishes
+`mkv-template-simulated-dealership-experience-v1-6`. This template establishes
 the reviewed platform-managed Zilliz/Milvus baseline before customer-owned
 document storage is enabled. A production-reviewed
 artifact is valid in customer staging and production; a staging-only artifact

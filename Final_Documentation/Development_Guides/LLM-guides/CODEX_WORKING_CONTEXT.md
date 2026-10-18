@@ -5262,3 +5262,99 @@ Critical fixes that made the gate pass:
   includingembeddingremainsbinding. Next: owneramendment, genuineguardedhosted
   canary+index/recovery/lifecycle/privateactivation, measuredproductionfit,
   promotion, thenUIextractionlast/P7. DoNOTclaimfullgate/01036green. SSH staysOPEN.
+
+### 2026-10-18 Owner Budget Amendment Verified
+
+- Read the direct human reply in Required for production, turn
+  `01a14f8a-55a4-7cf3-b62c-ee2c8f91b5d7`: USD 12 total provider testing budget.
+  Apply the pending 200,000 cumulative token amendment, existing 50 interactive
+  request cap and same attended synthetic staging scope. USD 12 includes
+  embeddings and replaces USD 2; it is not additional credit or a spending
+  target. Prior applicable usage, retries and reservations count; never reset.
+- Resume hosted acceptance only after exact guard/campaign identity and durable
+  counter/automatic-stop verification. No provider calls or financial grants
+  made at this checkpoint. Reopened the three existing coding agents for bounded
+  read-only enforcement/admission/acceptance audits; parent owns live mutations.
+- Started read-only 15-minute staging baseline sampler under
+  `/private/tmp/01036-staging-host-baseline-20261018/`. It is not candidate
+  workload evidence or policy approval. UI extraction remains last; Hetzner
+  access stays open and retained stopped workloads must not be recreated.
+
+### 2026-10-18 Dormant Campaign Grant And Configuration Gap
+
+- Recorded sole approved staging grant
+  `pug-01036-dealership-staging-20261018`, campaign
+  `01036-dealership-staging-provider-20261018`, expires 2026-10-19 15:00 UTC.
+  Quota/readback/exact retry PASS: 50 interactive / 200,000 tokens / USD 12,
+  allocated zero, provider calls zero, no runtime activation. Private evidence:
+  `/private/tmp/01036-staging-provider-campaign-grant-20261018.json`.
+- Guard audit found no new paid-send bypass, but published v8 lacks the explicit
+  output cap required by its guard. Do NOT apply that metadata-only version.
+  New generic pre-debit immutable-config validation passes 98 H2/PostgreSQL
+  checks; parent review/source guard pass. No invented defaults or guard bypass.
+- Fresh immutable template 1.6/spec 1.6/offer v9 are being prepared with explicit
+  2048-token cap and full-feature 2,750mCPU candidate, unchanged RAM/disk/images.
+  It is a staging-first measurement candidate, not production fit approval.
+  Financial grant is still unallocated, so no credits are stranded on v8.
+- Staging baseline complete: 180 five-second samples, CPU p50 400/p95 640/max
+  1040mCPU, eight cores, MemAvailable 11,102,191,616 bytes at end. Peak swap-in
+  16KiB/s, swap-out zero; no I/O wait/steal. Candidate workload NOT included.
+  Evidence `/private/tmp/01036-staging-host-baseline-20261018/evidence.json`.
+- Fresh private backups before follow-up migration are checksum/catalog-valid
+  at `/private/tmp/01036-control-plane-pre-runtime-cap-and-rightsize-20261018/`,
+  723 catalog lines each; actual restore false. Separate synthetic runtime
+  export/restore rehearsal is in progress; first internal-network harness
+  failure is retained and is not a product failure or successful restore.
+
+### 2026-10-18 Output Caps Live, Vector Effect Boundary Still Open
+
+- Separate pushed commits: `4b8c80e0a` pre-debit provider/output-cap validation;
+  `97fa5f9f6` generic Marketplace positive-integer output-cap contract;
+  `6de589ce2` immutable full-feature 1.6/v9 measurement candidate. Combined
+  backend 272 PASS, zero skips, real V191 PG; support fixtures 56 PASS. Public
+  framework/runtime sources unchanged. Initial V191 test caught the real
+  Marketplace unsupported-field gap; it was corrected, not waived.
+- Both backends now `6de589ce2b6bbf095f2990e52cf1d4f4f916a4a7`, digest
+  `sha256:d4d59933e1c29fb005124a10112df1033de8a19a713e15be9f5241374f2ada9c`,
+  migration191/publicUP/exactimageverified. CI39141112248 PASS/UI skipped;
+  stage `dm71nycovfejo5krg7fsqnrl`, prod `gqufj40et6vhpilsi4y68o9h` finished.
+- Staging spec1.6/v9 metadata published: spec fingerprint
+  `45948e39d82f17196b3712941a2f70ef6255e30532bd839b1cf819a9577416c4`,
+  offer `d0e9fa9d4e39b1db26a0b7a9364048f7fd025e3ec4d5241582f81d9f6bb84ea6`.
+  Nine real-owner configuration checks PASS: dep-0d7fc676/ver-66489d48,
+  hash5d27f48409fe095612c767431e855cd1ea6b9ec2702ef620bb0ee693a34b524e,
+  appawi_pub_67237efb5086ffedcc2af2d58424b752. Published DB readback2048 cap,
+  Serverless plan. No release, physical admission, financial allocation or paid
+  call. `/private/tmp/01036-v9-configuration-private/state.json`.
+- Actual cached600f runtime classes/V19 proved PG dump -> drop original ->
+  restore different DB, exact typed store/expiry/usage/holds/six scope denials.
+  Parent reproducible runner PASS with owned-resource cleanup at
+  `/private/tmp/01036-local-budget-restore-hRJhles2QIpc/report.json`.
+  Test moved to verification-support outside image watch paths; no runtime
+  rebuild. Stale-backup counter rollback is NOT certified; paid reactivation
+  requires authoritative reconciliation. Hosted full topology remains open.
+- Actual external prerequisite sent to Required for production: current
+  template creates Zilliz Serverless, not authorized by USD12 model budget.
+  Read-only account evidence reports8Serverless+1Free (deploymentOption, not
+  plan label). Free-01 has one DB/zero collections but no reuse approval. Both
+  CPs have zero matching handles; absence is not proof unowned. Formal scoped
+  adoption/credentials/retain cleanup must be implemented before any reuse.
+- Found and removed unsafe implicit delete/recreate on missing Zilliz runtime
+  credentials. New typed denial preserves cluster/secrets; three missing-secret
+  variants and restored-credential reuse pass26mockedprovider tests. Initial
+  test import/stubbing failures retained. Independent critical review clear.
+  Pushed `6d32eb2beae23283d60a1615eb0430fd0708ecdb`; both backend rollouts
+  FINISHED and strictly verified: stage `hqxpt8e80xdwez4ibz44s8p8`, production
+  `ibj1syauyqq3z22q6yhzk34s`, digest
+  `sha256:8c40c28449c1e27664c6e3b53ed6f38d996cffe7b4d36f051381199eabaa8b6c`,
+  migration191/publicUP/exactOCIrevision+RepoDigest. Fresh private backups in
+  `/private/tmp/01036-control-plane-pre-vector-preservation-20261018/` have
+  valid checksums/catalogs723lines each; actualCPrestorefalse. No cluster or
+  credential mutation performed. CI39142840789 PASS/UI skipped.
+- Local restore runner committed `877b9fcb9`, outside image build paths.
+  At16:08:39UTC sole staging campaign grant remains allocatedZERO across
+  chat/token/cost ceilings. No paidprovider/customer-runtimeapply/activation.
+- Coding agents collected/closed. UI extraction still last, thirty retained
+  app stops and two protected memory-backed bridges unchanged. Keep Hetzner
+  access open. Owner token amendment is RESOLVED, vector effect prerequisite,
+  hosted acceptance, production capacity/promotion and P6/P7 are not green.
