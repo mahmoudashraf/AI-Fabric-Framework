@@ -14,6 +14,8 @@
     <description>Closed product modules for vectorization, product integration, and deployment-scoped runner execution.</description>
 
     <modules>
+        <module>ai-fabric-provider-budget</module>
+        <module>ai-fabric-provider-budget-openai</module>
         <module>ai-fabric-product-integration-core</module>
         <module>ai-fabric-vectorization-core</module>
         <module>ai-fabric-vectorization-runner</module>
