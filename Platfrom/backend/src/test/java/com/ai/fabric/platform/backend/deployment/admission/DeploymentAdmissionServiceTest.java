@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
@@ -209,9 +210,7 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
         target.setProviderType(DeploymentProviderType.COOLIFY); target.setEnvironmentName("customer-staging"); target.setSourceStrategy("IMMUTABLE_IMAGE");
         target.setProviderConfigJson(mapper.writeValueAsString(Map.of("serverUuid", STAGING.serverUuid(), "destinationUuid", STAGING.destinationUuid())));
         target.setNetworkPolicyJson("{}"); target.setResourceDefaultsJson("{}"); when(targets.findById(TARGET)).thenReturn(Optional.of(target));
-        String fingerprint = json.fingerprint(Map.of("id", TARGET, "provider", DeploymentProviderType.COOLIFY, "environment", "customer-staging",
-            "sourceStrategy", "IMMUTABLE_IMAGE", "credentialReference", "", "providerConfig", mapper.readTree(target.getProviderConfigJson()),
-            "networkPolicy", mapper.readTree("{}"), "resourceDefaults", mapper.readTree("{}")));
+        String fingerprint = DeploymentTargetProfileIdentity.fingerprint(mapper, target);
         var p = policy(2); Budget live = new Budget(vector(2), vector(0), vector(0), "measurement", now.minusSeconds(1), now.plusSeconds(10000));
         service.approvePolicy(new FleetPolicy(p.id(), live, Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_STAGING, STAGING, fingerprint, live)),
             p.lifecycle(), p.restoreEvidenceReference(), p.privacyEvidenceReference(), p.supportReference()));

@@ -195,11 +195,21 @@ topology. Sanitized evidence is written under the ignored `evidence/` folder.
 
 ## Reviewed customer offer
 
-`publish-simulated-dealership-offer.mjs` publishes the immutable v6 customer
+`publish-simulated-dealership-offer.mjs` publishes the immutable v7 customer
 offer only after reading both target profiles and confirming the complete
 reviewed runtime envelope: runtime, connector, vectorization runner, runtime
 PostgreSQL capacity and distinct CPU assignments. Missing or drifted target
 settings fail before offer publication.
+
+Target pins share one canonical identity with placement and admission, including
+the provider, environment, credential reference and complete configuration.
+The v7 offer is a new immutable publication; it does not rewrite earlier offer,
+placement or canary records and does not accept earlier fingerprint recipes.
+Target configuration numbers in this shared identity must be exact JavaScript-
+safe integers. Decimal resource quantities remain explicit strings (for example,
+CPU `"0.5"`); fractional/unsafe JSON numbers fail instead of being rounded or
+producing different hashes. This restriction is local to target identity, not
+other evidence or workspace-profile hashing.
 
 The runtime is pinned to the CI-published AI Fabric `0.8.35` image, and the
 managed dependency specification pins the matching Basic Inbox image. The

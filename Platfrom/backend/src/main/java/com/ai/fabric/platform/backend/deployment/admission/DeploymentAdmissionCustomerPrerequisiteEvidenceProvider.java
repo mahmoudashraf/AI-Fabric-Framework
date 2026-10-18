@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetContextService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -302,11 +303,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
             || "dtp-coolify-prod-staging".equals(profile.getId())) throw unavailable("CUSTOMER_TARGET_NOT_ADMISSIBLE");
         try {
             var config = mapper.readTree(profile.getProviderConfigJson());
-            String fingerprint = json.fingerprint(Map.of("id", profile.getId(), "provider", profile.getProviderType(),
-                "environment", profile.getEnvironmentName(), "sourceStrategy", profile.getSourceStrategy(),
-                "credentialReference", profile.getCredentialRefId() == null ? "" : profile.getCredentialRefId(),
-                "providerConfig", config, "networkPolicy", mapper.readTree(profile.getNetworkPolicyJson()),
-                "resourceDefaults", mapper.readTree(profile.getResourceDefaultsJson())));
+            String fingerprint = DeploymentTargetProfileIdentity.fingerprint(mapper, profile);
             if (!target.placement().serverUuid().equals(config.path("serverUuid").asText())
                 || !target.placement().destinationUuid().equals(config.path("destinationUuid").asText())
                 || !fingerprint.equals(target.profileFingerprint())) throw unavailable("CUSTOMER_TARGET_PROFILE_CHANGED");

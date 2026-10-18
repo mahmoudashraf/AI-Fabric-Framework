@@ -62,18 +62,24 @@ async function main() {
   const artifact = artifacts.find((candidate) => candidate.imageDigest === RUNTIME_IMAGE_DIGEST
     && candidate.gitCommitSha === RUNTIME_SOURCE_COMMIT && candidate.artifactRole === "RUNTIME");
   const selectedTargets = targets.filter(({id}) => id === STAGING_TARGET_ID || id === PRODUCTION_TARGET_ID);
+  const definition = buildOfferDefinition({template, pluginVersions, artifact, targets: selectedTargets, auth});
 
   const placement = [];
   for (const [targetProfileId, intent] of [
     [STAGING_TARGET_ID, "CUSTOMER_STAGING"], [PRODUCTION_TARGET_ID, "CUSTOMER_PRODUCTION"],
   ]) {
-    placement.push(await request(baseUrl, apiKey,
+    const evidence = await request(baseUrl, apiKey,
       `/api/customer-self-service/staff/targets/${targetProfileId}/placement-evidence`, {
         method: "POST", body: {intent}, operation: `probe ${intent} placement`,
-      }));
+      });
+    const permission = definition.targets.find((target) => target.targetProfileId === targetProfileId);
+    if (evidence.targetProfileId !== targetProfileId || evidence.intent !== intent
+      || evidence.profileFingerprint !== permission.profileFingerprint) {
+      throw new Error(`Placement identity for ${targetProfileId} differs from the reviewed target pin.`);
+    }
+    placement.push(evidence);
   }
 
-  const definition = buildOfferDefinition({template, pluginVersions, artifact, targets: selectedTargets, auth});
   const reviewReference = required("CUSTOMER_OFFER_REVIEW_REFERENCE");
   const published = await request(baseUrl, apiKey, "/api/customer-self-service/staff/offers", {
     method: "POST",
@@ -100,8 +106,8 @@ async function main() {
     targets: selectedTargets.map(({id, providerType, environmentName, sourceStrategy}) => ({
       id, providerType, environmentName, sourceStrategy,
     })).sort((left, right) => left.id.localeCompare(right.id)),
-    placementEvidence: placement.map(({id, targetProfileId, intent, checkedAt, expiresAt}) => ({
-      id, targetProfileId, intent, checkedAt, expiresAt,
+    placementEvidence: placement.map(({id, targetProfileId, intent, profileFingerprint, checkedAt, expiresAt}) => ({
+      id, targetProfileId, intent, profileFingerprint, checkedAt, expiresAt,
     })),
     workspaceProfileIds: {
       interactionProfileId: profiles.interactionProfileId,

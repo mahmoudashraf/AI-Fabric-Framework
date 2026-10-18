@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetContextService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -81,10 +82,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         targetProfile.setResourceDefaultsJson("{}");
         when(targets.findById(TARGET)).thenReturn(Optional.of(targetProfile));
 
-        reviewedProfileFingerprint = json.fingerprint(Map.of("id", TARGET, "provider", DeploymentProviderType.COOLIFY,
-            "environment", "customer-staging", "sourceStrategy", "IMAGE_SOURCE", "credentialReference", "",
-            "providerConfig", mapper.readTree(targetProfile.getProviderConfigJson()),
-            "networkPolicy", mapper.readTree("{}"), "resourceDefaults", mapper.readTree("{}")));
+        reviewedProfileFingerprint = DeploymentTargetProfileIdentity.fingerprint(mapper, targetProfile);
         Budget budget = new Budget(capacity(4), vector(0), vector(0), "measurement-proof",
             NOW.minusSeconds(1), NOW.plusSeconds(10_000));
         reviewedPolicy = new FleetPolicy("policy1", budget,
@@ -549,10 +547,7 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
     }
 
     private void bridgeAfterDatabaseReset() throws Exception {
-        String profileFingerprint = json.fingerprint(Map.of("id", TARGET, "provider", DeploymentProviderType.COOLIFY,
-            "environment", "customer-staging", "sourceStrategy", "IMAGE_SOURCE", "credentialReference", "",
-            "providerConfig", mapper.readTree(targetProfile.getProviderConfigJson()),
-            "networkPolicy", mapper.readTree("{}"), "resourceDefaults", mapper.readTree("{}")));
+        String profileFingerprint = DeploymentTargetProfileIdentity.fingerprint(mapper, targetProfile);
         Budget budget = new Budget(capacity(4), vector(0), vector(0), "measurement-proof", NOW.minusSeconds(1), NOW.plusSeconds(10_000));
         reviewedPolicy = new FleetPolicy("policy1", budget,
             Map.of(TARGET, new TargetBudget(TARGET, Intent.CUSTOMER_STAGING, STAGING, profileFingerprint, budget)),

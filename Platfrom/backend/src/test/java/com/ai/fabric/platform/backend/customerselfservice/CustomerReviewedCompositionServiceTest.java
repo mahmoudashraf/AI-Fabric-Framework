@@ -36,7 +36,7 @@ class CustomerReviewedCompositionServiceTest {
 
     @BeforeEach void setup() {
         service = new CustomerReviewedCompositionService(codec, validatorFactory.getValidator(), plugins, versions, manifests, artifacts, profiles,
-            mock(CustomerWorkspaceProfileValidator.class));
+            mock(CustomerWorkspaceProfileValidator.class), new com.fasterxml.jackson.databind.ObjectMapper());
         var template = new MarketplacePluginEntity(); template.setId("template-plugin"); template.setStatus("ACTIVE"); template.setPluginType("TEMPLATE");
         version = new MarketplacePluginVersionEntity(); version.setId("template-v1"); version.setPluginId(template.getId());
         version.setVersion("1.0.0"); version.setStatus("PUBLISHED");

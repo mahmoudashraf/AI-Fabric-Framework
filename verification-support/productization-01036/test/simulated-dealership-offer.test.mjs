@@ -52,6 +52,83 @@ test("canonical hashes do not depend on object insertion order", () => {
   assert.equal(hash({b: 2, a: {d: 4, c: 3}}), hash({a: {c: 3, d: 4}, b: 2}));
 });
 
+test("target identity uses the shared admission field names and binds every field", () => {
+  const staging = target("dtp-coolify-staging-behavior", "staging");
+  const fingerprint = profileFingerprint(staging);
+  assert.equal(fingerprint, hash({
+    id: staging.id,
+    provider: staging.providerType,
+    environment: staging.environmentName,
+    sourceStrategy: staging.sourceStrategy,
+    credentialReference: staging.credentialRefId,
+    providerConfig: staging.providerConfig,
+    networkPolicy: staging.networkPolicy,
+    resourceDefaults: staging.resourceDefaults,
+  }));
+  for (const [field, value] of Object.entries({
+    id: "other-target", providerType: "OTHER", environmentName: "production",
+    sourceStrategy: "GIT_SOURCE", credentialRefId: "other-credential",
+    providerConfig: {...staging.providerConfig, serverUuid: "other-server"},
+    networkPolicy: {...staging.networkPolicy, publicHttps: false},
+    resourceDefaults: {...staging.resourceDefaults, runtimeLimitsMemory: "2g"},
+  })) {
+    assert.notEqual(profileFingerprint({...staging, [field]: value}), fingerprint, field);
+  }
+  assert.notEqual(fingerprint, hash({
+    id: staging.id, providerType: staging.providerType, sourceStrategy: staging.sourceStrategy,
+    credentialRefId: staging.credentialRefId, providerConfig: staging.providerConfig,
+    networkPolicy: staging.networkPolicy, resourceDefaults: staging.resourceDefaults,
+  }), "earlier offer identity is not accepted");
+});
+
+test("target identity rejects missing identity fields and non-object configurations", () => {
+  const staging = target("dtp-coolify-staging-behavior", "staging");
+  for (const field of ["id", "providerType", "environmentName", "sourceStrategy"]) {
+    for (const value of [undefined, null, "", " \t\n", 123]) {
+      assert.throws(() => profileFingerprint({...staging, [field]: value}), /TARGET_PROFILE_IDENTITY_INVALID/);
+    }
+  }
+  for (const field of ["providerConfig", "networkPolicy", "resourceDefaults"]) {
+    for (const value of [undefined, null, [], "{}", true]) {
+      assert.throws(() => profileFingerprint({...staging, [field]: value}), /TARGET_PROFILE_IDENTITY_INVALID/);
+    }
+  }
+  assert.equal(profileFingerprint({...staging, credentialRefId: null}),
+    profileFingerprint({...staging, credentialRefId: ""}));
+});
+
+test("target identity matches the Java golden vector with nested configuration and exact numbers", () => {
+  const golden = {
+    id: "target-golden", providerType: "COOLIFY", environmentName: "customer-staging",
+    sourceStrategy: "IMAGE_SOURCE", credentialRefId: "credential-golden",
+    providerConfig: {
+      serverUuid: "server-golden", destinationUuid: "destination-golden",
+      options: {tls: true, labels: ["alpha", "beta"], limits: {retries: 2, timeout: 30}},
+      callbackPath: "/api/hooks/a?x=1&y=2",
+    },
+    networkPolicy: {
+      allowedOrigins: ["https://workspace.example", "https://dealer.example"],
+      policy: {credentials: false, methods: ["GET", "POST"]},
+    },
+    resourceDefaults: {
+      sourceStrategy: "IMAGE_SOURCE", limits: {cpuMillis: 1000, memoryMiB: 1024}, flags: {inbox: true},
+    },
+  };
+  assert.equal(profileFingerprint(golden), "e5e3ee7463654d36663577109db633685027c5b0c51dae0c5bd7ce99c71b4d2a");
+  const reordered = structuredClone(golden);
+  reordered.providerConfig.options.limits = JSON.parse('{"timeout":3e1,"retries":2.0}');
+  reordered.resourceDefaults.limits = JSON.parse('{"memoryMiB":1.024e3,"cpuMillis":1000.0}');
+  assert.equal(profileFingerprint(reordered), profileFingerprint(golden));
+  for (const number of [0.5, -0.1, 9007199254740992, -9007199254740992, Infinity, NaN]) {
+    assert.throws(() => profileFingerprint({...golden, providerConfig: {nested: [{value: number}]}}),
+      /TARGET_PROFILE_IDENTITY_NUMBER_UNSUPPORTED/);
+  }
+  assert.equal(profileFingerprint({...golden, networkPolicy: {zero: -0}}),
+    profileFingerprint({...golden, networkPolicy: {zero: 0}}));
+  assert.notEqual(profileFingerprint({...golden, networkPolicy: {allowedOrigins: ["https://dealer.example", "https://workspace.example"]}}),
+    profileFingerprint(golden));
+});
+
 test("provider and runtime fingerprint changes are observable", () => {
   const staging = target("dtp-coolify-staging-behavior", "staging");
   assert.notEqual(profileFingerprint(staging), profileFingerprint({...staging, providerConfig: {...staging.providerConfig, serverUuid: "other"}}));

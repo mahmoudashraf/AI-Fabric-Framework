@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
@@ -21,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionRules.*;
@@ -244,11 +244,7 @@ public class DeploymentAdmissionService {
             if (!target.placement().serverUuid().equals(config.path("serverUuid").asText())
                 || !target.placement().destinationUuid().equals(config.path("destinationUuid").asText()))
                 throw new AdmissionFailure(PRECONDITION_FAILED, "PHYSICAL_PLACEMENT_FORBIDDEN");
-            String fingerprint = json.fingerprint(Map.of("id", profile.getId(), "provider", profile.getProviderType(),
-                "environment", profile.getEnvironmentName(), "sourceStrategy", profile.getSourceStrategy(),
-                "credentialReference", profile.getCredentialRefId() == null ? "" : profile.getCredentialRefId(),
-                "providerConfig", config, "networkPolicy", mapper.readTree(profile.getNetworkPolicyJson()),
-                "resourceDefaults", mapper.readTree(profile.getResourceDefaultsJson())));
+            String fingerprint = DeploymentTargetProfileIdentity.fingerprint(mapper, profile);
             if (!fingerprint.equals(target.profileFingerprint())) throw new AdmissionFailure(CONFLICT, "TARGET_PROFILE_CHANGED");
             placement(target.intent(), target.placement());
         } catch (AdmissionFailure ex) { throw ex; }

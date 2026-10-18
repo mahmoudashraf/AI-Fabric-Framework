@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v6";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v7";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
 export const TEMPLATE_VERSION = "1.5.0";
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
@@ -81,11 +81,33 @@ export function hash(value) {
 }
 
 export function profileFingerprint(profile) {
+  function validateNumbers(value) {
+    if (typeof value === "number" && !Number.isSafeInteger(value)) {
+      throw new Error("TARGET_PROFILE_IDENTITY_NUMBER_UNSUPPORTED");
+    }
+    if (value && typeof value === "object") Object.values(value).forEach(validateNumbers);
+  }
+  for (const field of ["id", "providerType", "environmentName", "sourceStrategy"]) {
+    if (typeof profile?.[field] !== "string" || !profile[field].trim()) {
+      throw new Error("TARGET_PROFILE_IDENTITY_INVALID");
+    }
+  }
+  if (profile.credentialRefId != null && typeof profile.credentialRefId !== "string") {
+    throw new Error("TARGET_PROFILE_IDENTITY_INVALID");
+  }
+  for (const field of ["providerConfig", "networkPolicy", "resourceDefaults"]) {
+    if (!profile[field] || typeof profile[field] !== "object" || Array.isArray(profile[field])) {
+      throw new Error("TARGET_PROFILE_IDENTITY_INVALID");
+    }
+    validateNumbers(profile[field]);
+  }
+  // Match DeploymentTargetProfileIdentity, including the target environment.
   return hash({
     id: profile.id,
-    providerType: profile.providerType,
+    provider: profile.providerType,
+    environment: profile.environmentName,
     sourceStrategy: profile.sourceStrategy,
-    credentialRefId: profile.credentialRefId ?? "",
+    credentialReference: profile.credentialRefId ?? "",
     providerConfig: profile.providerConfig,
     networkPolicy: profile.networkPolicy,
     resourceDefaults: profile.resourceDefaults,

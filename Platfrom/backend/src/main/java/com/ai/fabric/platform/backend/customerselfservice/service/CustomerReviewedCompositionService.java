@@ -7,6 +7,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
@@ -27,6 +29,7 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 @Service
 public class CustomerReviewedCompositionService {
     private final CustomerOfferCodec codec;
+    private final ObjectMapper mapper;
     private final Validator validator;
     private final MarketplacePluginRepository plugins;
     private final MarketplacePluginVersionRepository versions;
@@ -38,8 +41,9 @@ public class CustomerReviewedCompositionService {
     public CustomerReviewedCompositionService(CustomerOfferCodec codec, Validator validator,
         MarketplacePluginRepository plugins, MarketplacePluginVersionRepository versions,
         MarketplaceManifestService manifests, DeploymentSourceArtifactRepository artifacts,
-        DeploymentTargetProfileRepository profiles, CustomerWorkspaceProfileValidator workspaceProfiles) {
+        DeploymentTargetProfileRepository profiles, CustomerWorkspaceProfileValidator workspaceProfiles, ObjectMapper mapper) {
         this.codec = codec;
+        this.mapper = mapper;
         this.validator = validator;
         this.plugins = plugins;
         this.versions = versions;
@@ -184,11 +188,8 @@ public class CustomerReviewedCompositionService {
     }
 
     public String profileFingerprint(DeploymentTargetProfileEntity profile) {
-        return codec.hash(Map.of("id", profile.getId(), "providerType", profile.getProviderType(),
-            "sourceStrategy", profile.getSourceStrategy(), "credentialRefId", nonNull(profile.getCredentialRefId()),
-            "providerConfig", codec.tree(profile.getProviderConfigJson()),
-            "networkPolicy", codec.tree(profile.getNetworkPolicyJson()),
-            "resourceDefaults", codec.tree(profile.getResourceDefaultsJson())));
+        try { return DeploymentTargetProfileIdentity.fingerprint(mapper, profile); }
+        catch (IllegalArgumentException ex) { throw invalid(); }
     }
 
     public String artifactFingerprint(DeploymentSourceArtifactEntity artifact) {
