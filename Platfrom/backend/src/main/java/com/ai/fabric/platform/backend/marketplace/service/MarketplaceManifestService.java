@@ -119,7 +119,8 @@ public class MarketplaceManifestService {
         "weaviateConsistencyLevelStrong",
         "weaviateNativeMultiTenancyEnabled",
         "milvusSecure",
-        "milvusFlushOnWrite"
+        "milvusFlushOnWrite",
+        "milvusExternalBindingRequired"
     );
     private static final Set<String> TEMPLATE_PROVIDER_FIELDS = java.util.stream.Stream.of(
         TEMPLATE_PROVIDER_STRING_FIELDS,

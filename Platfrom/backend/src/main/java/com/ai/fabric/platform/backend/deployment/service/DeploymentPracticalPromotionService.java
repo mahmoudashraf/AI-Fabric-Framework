@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPracticalPromot
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLifecycleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceOrphanScanSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -544,7 +545,7 @@ public class DeploymentPracticalPromotionService {
     }
 
     private boolean providerLifecycleResource(DeploymentProviderResourceHandleEntity handle) {
-        return !DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind());
+        return !PreservedExternalBindingKinds.isPreserved(handle.getResourceKind());
     }
 
     private String normalizeLifecycleStatus(String status) {

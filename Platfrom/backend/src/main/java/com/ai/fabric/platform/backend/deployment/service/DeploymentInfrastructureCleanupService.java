@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,6 +37,9 @@ import java.util.Set;
 public class DeploymentInfrastructureCleanupService {
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentInfrastructureCleanupService.class);
+    private static final Set<String> DELETABLE_PROVIDER_RESOURCE_KINDS = Set.of(
+        "APPLICATION", "CONNECTOR_APPLICATION", "VECTORIZATION_RUNNER_APPLICATION", "RUNTIME_POSTGRES_DATABASE"
+    );
 
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
@@ -321,11 +325,18 @@ public class DeploymentInfrastructureCleanupService {
         if (handles.isEmpty()) {
             return new ProviderResourceCleanupResult(List.of(), Map.of());
         }
+        for (DeploymentProviderResourceHandleEntity handle : handles) {
+            if (!PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())
+                && (handle.getResourceKind() == null || !DELETABLE_PROVIDER_RESOURCE_KINDS.contains(handle.getResourceKind()))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Provider resource cleanup requires a supported owned resource kind.");
+            }
+        }
 
         List<String> deletedHandleIds = new ArrayList<>();
         Map<String, String> failures = new LinkedHashMap<>();
         for (DeploymentProviderResourceHandleEntity handle : handles) {
-            if (DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind())) {
+            if (PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())) {
                 continue;
             }
             try {

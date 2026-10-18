@@ -22,6 +22,25 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void externalBindingDefersHostOnlyForExplicitScopedExistingMilvus() {
+        var provider = new ObjectMapper().createObjectNode().put("llmProvider", "openai").put("embeddingProvider", "openai")
+            .put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")
+            .put("vectorStoragePosture", "SHARED").put("milvusExternalBindingRequired", true);
+        var valid = service.validate(draft("{\"actions\":[]}", "{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}",
+            "{}", provider.toString(), "{}"));
+        assertThat(valid.issues()).extracting("code").doesNotContain("MILVUS_HOST_REQUIRED", "MILVUS_EXTERNAL_BINDING_MODE_INVALID");
+        provider.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        var managed = service.validate(draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", provider.toString(), "{}"));
+        assertThat(managed.issues()).extracting("code").contains("MILVUS_EXTERNAL_BINDING_MODE_INVALID");
+        provider.put("vectorProvisioningMode", "EXTERNAL_EXISTING").put("milvusExternalBindingRequired", "true");
+        var textual = service.validate(draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", provider.toString(), "{}"));
+        assertThat(textual.issues()).extracting("code").contains("MILVUS_EXTERNAL_BINDING_MODE_INVALID", "MILVUS_HOST_REQUIRED");
+        provider.put("milvusExternalBindingRequired", true).put("vectorStrategy", "pinecone");
+        var wrongProvider = service.validate(draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", provider.toString(), "{}"));
+        assertThat(wrongProvider.issues()).extracting("code").contains("MILVUS_EXTERNAL_BINDING_MODE_INVALID");
+    }
+
+    @Test
     void validateRequiresDurableVectorStorageForCustomerDocumentStorage() {
         DeploymentDraftEntity draft = draft(
             "{\"actions\":[]}",

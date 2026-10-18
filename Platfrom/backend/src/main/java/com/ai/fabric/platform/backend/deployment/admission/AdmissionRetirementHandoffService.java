@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.admission;
 
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationEntity;
@@ -24,7 +25,6 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 /** Bridges an admission expiry claim to one exact persisted R3 operation. */
 @Service
 final class AdmissionRetirementHandoffService {
-    private static final String PRESERVED_SOURCE_BINDING = "EXTERNAL_DOCUMENT_STORAGE_BINDING";
     private static final String ACTOR = "system:admission-lifecycle";
     private final AdmissionStore admissions;
     private final DeploymentProviderResourceHandleRepository handles;
@@ -156,7 +156,7 @@ final class AdmissionRetirementHandoffService {
     private TargetRetirementOperationEntity plan(Reservation reservation, ExpiryWork work, String operationKey) {
         var ownedHandles = handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
             reservation.deploymentId(), reservation.targetProfileId()).stream()
-            .filter(handle -> !PRESERVED_SOURCE_BINDING.equals(handle.getResourceKind())).toList();
+            .filter(handle -> !PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())).toList();
         if (ownedHandles.isEmpty()) throw failure("RETIREMENT_RESOURCE_INVENTORY_EMPTY");
         if (ownedHandles.stream().anyMatch(handle -> handle.getReleaseId() == null || handle.getReleaseId().isBlank())) {
             throw failure("RETIREMENT_RELEASE_INVENTORY_INCOMPLETE");

@@ -1,7 +1,12 @@
 package com.ai.fabric.platform.backend.deployment.retirement;
 
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
 import java.util.List;
@@ -15,8 +20,80 @@ import static org.mockito.Mockito.*;
 class TargetIndexRetirementParticipantTest {
     private final TargetRetirementRuntimeGateway runtime = mock(TargetRetirementRuntimeGateway.class);
     private final TargetRetirementRuntimeIndexGateway indexes = mock(TargetRetirementRuntimeIndexGateway.class);
-    private final TargetIndexRetirementParticipant participant = new TargetIndexRetirementParticipant(runtime, indexes);
+    private final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
+    private final TargetIndexRetirementParticipant participant = new TargetIndexRetirementParticipant(runtime, indexes, handles);
     private final Context retirement = context();
+
+    @Test void frozenExternalVectorBindingBlocksEveryIndexEntryPointEvenIfItsRowDisappears() {
+        var binding = new ResourceGeneration("external-binding", null, DeploymentProviderType.COOLIFY,
+            "EXTERNAL_VECTOR_STORAGE_BINDING", "external-cluster", null, "binding-generation", true);
+        var snapshot = retirement.snapshot();
+        var scoped = new Snapshot(snapshot.customerId(), snapshot.tenantId(), snapshot.deploymentId(),
+            snapshot.targetProfileId(), snapshot.targetGeneration(), snapshot.targetEpoch(),
+            snapshot.releases(), List.of(binding), snapshot.consumers());
+        var context = new Context(retirement.operationId(), retirement.operationKey(), retirement.requestFingerprint(),
+            scoped, retirement.fenceEpoch(), retirement.workerToken(), retirement.requestedByActorId(),
+            retirement.requestedByRole(), retirement.drainDeadline(), retirement.retention());
+
+        assertBlocked(context);
+        verifyNoInteractions(runtime, indexes, handles);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"RETAIN_EXTERNAL", "", "DELETE"})
+    void currentExactTargetBindingBlocksAndChangedLifecycleCannotAuthorizeClear(String lifecycle) {
+        var binding = binding("deployment", "target");
+        binding.setMetadataJson(new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode()
+            .put("lifecycle", lifecycle).toString());
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "target"))
+            .thenReturn(List.of(binding));
+
+        assertBlocked(retirement);
+        verifyNoInteractions(runtime, indexes);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"foreign-target", "foreign-deployment"})
+    void aForeignExternalBindingDoesNotBlockThisTargetsActualIndexReadback(String foreignScope) {
+        var binding = binding("deployment", "target");
+        if (foreignScope.equals("foreign-target")) binding.setTargetProfileId("other-target");
+        else binding.setDeploymentId("other-deployment");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "target"))
+            .thenReturn(List.of(binding));
+        when(runtime.status(retirement)).thenReturn(status(true,
+            RuntimeGenerationTransitionContracts.State.AUTHORITY_REVOKED));
+        when(indexes.readback(retirement)).thenReturn(readback(false, Map.of("document", 12L)));
+
+        Evidence evidence = participant.inspect(retirement);
+
+        assertThat(evidence.blockers()).isEmpty();
+        assertThat(evidence.complete()).isFalse();
+        verify(indexes).readback(retirement);
+        verify(indexes, never()).retire(any());
+    }
+
+    private void assertBlocked(Context context) {
+        var evidence = participant.inspect(context);
+        assertThat(evidence.blockers()).containsExactly("EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED");
+        assertThat(evidence.complete()).isFalse();
+        assertThat(evidence.inventoryComplete()).isFalse();
+        assertThat(evidence.retentionApproved()).isFalse();
+        assertThat(evidence.durable()).isFalse();
+        assertThat(evidence.conversations()).isNull();
+        assertThat(evidence.backgroundWork()).isNull();
+        assertThatThrownBy(() -> participant.apply(context, Step.INDEX, "effect"))
+            .isInstanceOf(TargetRetirementFailure.class).hasMessageContaining("EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED");
+        assertThatThrownBy(() -> participant.readback(context, Step.INDEX, "effect"))
+            .isInstanceOf(TargetRetirementFailure.class).hasMessageContaining("EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED");
+    }
+
+    private DeploymentProviderResourceHandleEntity binding(String deploymentId, String targetId) {
+        var binding = new DeploymentProviderResourceHandleEntity();
+        binding.setId("external-binding"); binding.setDeploymentId(deploymentId); binding.setTargetProfileId(targetId);
+        binding.setResourceKind("EXTERNAL_VECTOR_STORAGE_BINDING"); binding.setStatus("ACTIVE");
+        binding.setMetadataJson("{\"lifecycle\":\"RETAIN_EXTERNAL\"}");
+        return binding;
+    }
 
     @Test void inspectionWaitsUntilRuntimeAuthorityIsRevoked() {
         when(runtime.status(retirement)).thenReturn(status(false,

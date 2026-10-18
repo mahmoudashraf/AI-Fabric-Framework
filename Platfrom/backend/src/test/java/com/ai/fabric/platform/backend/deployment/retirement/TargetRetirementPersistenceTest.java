@@ -133,6 +133,47 @@ class TargetRetirementPersistenceTest {
         assertThat(operations.count()).isEqualTo(1);
     }
 
+    @Test void retainedExternalIndexesPersistABlockerBeforeIndexEffectAndNeverReleaseCapacity() {
+        var resources = new ArrayList<>(snapshot.resources());
+        resources.add(new ResourceGeneration("external-vector", null,
+            com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType.COOLIFY,
+            "EXTERNAL_VECTOR_STORAGE_BINDING", "external-cluster", null, "retained-generation", true));
+        snapshot = new Snapshot(snapshot.customerId(), snapshot.tenantId(), snapshot.deploymentId(),
+            snapshot.targetProfileId(), snapshot.targetGeneration(), snapshot.targetEpoch(),
+            snapshot.releases(), List.copyOf(resources), snapshot.consumers());
+        var runtimeGateway = mock(TargetRetirementRuntimeGateway.class);
+        var indexGateway = mock(TargetRetirementRuntimeIndexGateway.class);
+        var guardedIndex = new TargetIndexRetirementParticipant(runtimeGateway, indexGateway,
+            mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository.class));
+        var guardedParticipants = new ArrayList<TargetRetirementParticipant>();
+        participants.stream().filter(value -> value.kind() != ParticipantKind.INDEX).forEach(guardedParticipants::add);
+        guardedParticipants.add(guardedIndex);
+        var guarded = new TargetRetirementParticipation(guardedParticipants, List.of(interlock));
+        var guardedWorker = new TargetRetirementWorker(store, guarded, provider);
+        Summary operation = execute();
+        worker.runNext(operation.id());
+        worker.runNext(operation.id());
+        assertThat(status(operation).step()).isEqualTo(Step.INDEX);
+
+        guardedWorker.runNext(operation.id());
+        guardedWorker.runNext(operation.id());
+        Summary blocked = status(operation);
+
+        assertThat(blocked.state()).isEqualTo(State.BLOCKED);
+        assertThat(blocked.consumesCapacity()).isTrue();
+        var indexProof = blocked.result().evidence().get(ParticipantKind.INDEX);
+        assertThat(indexProof.complete()).isFalse();
+        assertThat(indexProof.inventoryComplete()).isFalse();
+        assertThat(indexProof.blockers()).containsExactly("EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED");
+        assertThat(blocked.result().effects()).doesNotContainKey(TargetRetirementWorker.effectKey(
+            store.context(store.require(operation.id())), Step.INDEX, "target"));
+        assertThat(gates.findAll()).noneSatisfy(gate -> assertThat(gate.getState()).isEqualTo("RETIRED"));
+        verifyNoInteractions(runtimeGateway, indexGateway);
+        verify(provider, never()).delete(any(), any());
+        assertThat(snapshot.resources()).filteredOn(ResourceGeneration::preserved)
+            .extracting(ResourceGeneration::providerResourceUuid).contains("external-cluster");
+    }
+
     @Test void duplicateCommandsReturnPersistedIdentityButDifferentPayloadConflicts() {
         var request = request("same-key", Instant.now().plusSeconds(120));
         Summary first = service.plan("deployment", "staging", request);

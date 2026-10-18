@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
 import java.util.List;
@@ -95,6 +97,48 @@ class TargetRetirementInventoryTest {
         assertThatThrownBy(() -> service.recheck(snapshot, request)).hasMessageContaining("CONSUMER_REVISION_CHANGED");
         verify(consumers, never()).save(any());
         verify(releases, never()).delete(any());
+    }
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void externalBindingsAreFrozenButNeverObservedDeletedOrCountedAsOwned(String resourceKind) {
+        var binding = externalBinding(resourceKind);
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "staging"))
+            .thenReturn(List.of(handle, binding));
+        when(handles.findById(binding.getId())).thenReturn(Optional.of(binding));
+        when(handles.findAll()).thenReturn(List.of(handle, binding));
+
+        var snapshot = capture();
+        var retained = snapshot.resources().stream().filter(ResourceGeneration::preserved).toList();
+        assertThat(retained).singleElement().satisfies(resource -> {
+            assertThat(resource.handleId()).isEqualTo(binding.getId());
+            assertThat(resource.volumes()).isEmpty();
+            assertThat(resource.providerIdentityFingerprint()).isNull();
+            assertThatThrownBy(() -> service.recordReclaimed(resource, Instant.now()))
+                .hasMessageContaining("CUSTOMER_SOURCE_PRESERVED");
+        });
+        assertThat(snapshot.resources().stream().filter(resource -> !resource.preserved()).map(ResourceGeneration::handleId))
+            .containsExactly(handle.getId());
+        service.recheck(snapshot, request);
+        verify(client, never()).getApplication(any(), eq("external-resource"));
+        verify(client, never()).getDatabase(any(), eq("external-resource"));
+        verify(handles, never()).save(binding);
+
+        binding.setMetadataJson("{\"bindingFingerprint\":\"changed\"}");
+        assertThatThrownBy(() -> service.recheck(snapshot, request)).hasMessageContaining("SNAPSHOT_GENERATION_CHANGED");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "staging"))
+            .thenReturn(List.of(binding));
+        assertThatThrownBy(this::capture).hasMessageContaining("RESOURCE_INVENTORY_EMPTY");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_OTHER_STORAGE_BINDING", "external_vector_storage_binding",
+        "EXTERNAL_VECTOR_STORAGE_BINDING ", "EXTERNAL_VECTOR_STORAGE_BINDING_V2"})
+    void unknownBindingKindsCannotBeRelabeledAsPreserved(String resourceKind) {
+        var binding = externalBinding(resourceKind);
+        binding.setReleaseId(release.getId());
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "staging"))
+            .thenReturn(List.of(handle, binding));
+        assertThatThrownBy(this::capture).hasMessageContaining("RESOURCE_INVENTORY_UNSUPPORTED");
     }
     @Test void frozenTargetAssignmentCanDrainButAmbiguousAssignmentBlocksRetirement() {
         consumer.setBoundTargetProfileId("staging");
@@ -273,5 +317,14 @@ class TargetRetirementInventoryTest {
 
         assertThatThrownBy(this::capture).hasMessageContaining("SHARED_PERSISTENT_VOLUME_REFERENCE");
     }
+    private DeploymentProviderResourceHandleEntity externalBinding(String resourceKind) {
+        var binding = new DeploymentProviderResourceHandleEntity();
+        binding.setId("external-binding"); binding.setDeploymentId("deployment"); binding.setTargetProfileId("staging");
+        binding.setResourceKind(resourceKind); binding.setProviderType(DeploymentProviderType.COOLIFY);
+        binding.setProviderResourceUuid("external-resource"); binding.setCreatedAt(Instant.now());
+        binding.setStatus("CONFIGURED"); binding.setMetadataJson("{\"bindingFingerprint\":\"original\"}");
+        return binding;
+    }
+
     private Snapshot capture() { return service.capture("deployment", "staging", request, 0); }
 }

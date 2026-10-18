@@ -12,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourc
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLogsSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,6 +37,9 @@ import java.util.Set;
 public class DeploymentProviderResourceActionService {
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentProviderResourceActionService.class);
+    private static final Set<String> PROVIDER_LIFECYCLE_RESOURCE_KINDS = Set.of(
+        "APPLICATION", "CONNECTOR_APPLICATION", "VECTORIZATION_RUNNER_APPLICATION", "RUNTIME_POSTGRES_DATABASE"
+    );
     private static final Set<String> RESOURCE_LIFECYCLE_STATUSES = Set.of(
         "ACTIVE",
         "SUPERSEDED",
@@ -166,6 +170,7 @@ public class DeploymentProviderResourceActionService {
     public DeploymentProviderResourceLifecycleSummary markLifecycleStatus(String handleId,
                                                                           DeploymentProviderResourceLifecycleRequest request) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
+        requireProviderManagedLifecycle(handle);
         String previousStatus = handle.getStatus();
         String status = normalizeLifecycleStatus(request == null ? null : request.status());
         String reason = reason(request == null ? null : new DeploymentProviderResourceActionRequest(request.reason()));
@@ -266,10 +271,11 @@ public class DeploymentProviderResourceActionService {
     }
 
     private void refreshHandleSafely(DeploymentProviderResourceHandleEntity handle) {
-        if (DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind())) {
+        if (PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())) {
             return;
         }
         try {
+            requireProviderManagedLifecycle(handle);
             DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
             handle.setStatus(status.status());
             handle.setLastObservedStatus(status.observedStatus());
@@ -290,11 +296,14 @@ public class DeploymentProviderResourceActionService {
     }
 
     private void requireProviderManagedLifecycle(DeploymentProviderResourceHandleEntity handle) {
-        if (DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind())) {
+        if (PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "Customer-owned document storage bindings are configured references, not provider-managed lifecycle resources."
+                "External storage bindings are retained references, not provider-managed lifecycle resources."
             );
+        }
+        if (handle.getResourceKind() == null || !PROVIDER_LIFECYCLE_RESOURCE_KINDS.contains(handle.getResourceKind())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Unsupported provider-managed lifecycle resource kind.");
         }
     }
 

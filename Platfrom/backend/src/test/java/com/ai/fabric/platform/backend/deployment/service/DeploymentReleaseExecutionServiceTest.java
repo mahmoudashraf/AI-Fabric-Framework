@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator;
+import com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -16,26 +18,148 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetSyncService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.task.TaskRejectedException;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
+
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_VECTOR_BINDING_REQUIRED", "EXTERNAL_VECTOR_RUNTIME_CREDENTIALS_REQUIRED",
+        "EXTERNAL_VECTOR_PROVIDER_IDENTITY_CHANGED"})
+    void externalBindingFailurePrecedesAdmissionGrantDebitAndProviderEffects(String code) {
+        var fixture = new BindingApplyFixture();
+        var denial = new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, code);
+        when(fixture.bindings.resolve(fixture.deployment, fixture.version, fixture.providerConfig, "target-stage"))
+            .thenThrow(denial);
+
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).isSameAs(denial);
+
+        verify(fixture.bindings).resolve(fixture.deployment, fixture.version, fixture.providerConfig, "target-stage");
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test
+    void externalBindingRequiredWithoutServiceFailsBeforeAdmissionOrProviderEffects() {
+        var fixture = new BindingApplyFixture();
+        ReflectionTestUtils.setField(fixture.service, "existingVectorBindings", null);
+
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .isInstanceOf(IllegalStateException.class).hasMessage("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+
+        verifyNoInteractions(fixture.bindings);
+        fixture.assertNoProviderEffects();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"version-deployment", "release-version", "unpublished", "target"})
+    void externalBindingRequiresExactPublishedReleaseScopeBeforeEffects(String change) {
+        var fixture = new BindingApplyFixture();
+        switch (change) {
+            case "version-deployment" -> fixture.version.setDeploymentId("foreign-deployment");
+            case "release-version" -> fixture.release.setDeploymentVersionId("foreign-version");
+            case "unpublished" -> fixture.version.setStatus("DRAFT");
+            case "target" -> fixture.release.setTargetProfileId(null);
+        }
+
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .isInstanceOf(IllegalStateException.class).hasMessage("EXTERNAL_VECTOR_RELEASE_SCOPE_CHANGED");
+
+        verifyNoInteractions(fixture.bindings);
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test
+    void externalBindingResolvesPublishedConfigAndExactTargetBeforeAdmissionAndGrantDebit() {
+        var fixture = new BindingApplyFixture();
+        var reachedProvisioning = new IllegalStateException("test provisioning boundary");
+        when(fixture.provisioning.provision(any(), any(), any(), any())).thenThrow(reachedProvisioning);
+
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .isSameAs(reachedProvisioning);
+
+        var order = inOrder(fixture.bindings, fixture.admission, fixture.budget, fixture.dependencies, fixture.provisioning);
+        order.verify(fixture.bindings).resolve(fixture.deployment, fixture.version, fixture.providerConfig, "target-stage");
+        order.verify(fixture.admission).beginProvisioning("rel-123");
+        order.verify(fixture.budget).prepare(fixture.deployment, fixture.release);
+        order.verify(fixture.dependencies).prepareFoundation(fixture.deployment, fixture.version, fixture.release);
+        order.verify(fixture.provisioning).provision(any(), any(), any(), any());
+    }
+
+    @Test
+    void ordinaryReleaseDoesNotResolveExternalBinding() {
+        var fixture = new BindingApplyFixture();
+        fixture.version.setProviderConfigJson("{\"vectorStrategy\":\"lucene\"}");
+        var reachedProvisioning = new IllegalStateException("test provisioning boundary");
+        when(fixture.provisioning.provision(any(), any(), any(), any())).thenThrow(reachedProvisioning);
+
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .isSameAs(reachedProvisioning);
+
+        verifyNoInteractions(fixture.bindings);
+        verify(fixture.admission).beginProvisioning("rel-123");
+        verify(fixture.budget).prepare(fixture.deployment, fixture.release);
+        verify(fixture.dependencies).prepareFoundation(fixture.deployment, fixture.version, fixture.release);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void refreshRetainedExternalBindingsNeverCallsProviderStatus(String kind) {
+        var fixture = new BindingApplyFixture();
+        var handle = providerHandle("dep-123", null, "ACTIVE");
+        handle.setResourceKind(kind);
+        handle.setFqdn("https://retained.example");
+        when(fixture.handles.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(handle));
+
+        fixture.service.refreshProviderResourceHandlesAfterProvisioning("dep-123", "rel-123");
+
+        verifyNoInteractions(fixture.providers);
+        verify(fixture.handles, never()).save(any());
+        assertThat(handle.getStatus()).isEqualTo("ACTIVE");
+        assertThat(handle.getFqdn()).isEqualTo("https://retained.example");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"EXTERNAL_VECTOR_STORAGE_BINDING_V2", "UNKNOWN_RESOURCE"})
+    void refreshDoesNotSilentlyTreatUnknownKindsAsRetained(String kind) {
+        var fixture = new BindingApplyFixture();
+        var handle = providerHandle("dep-123", null, "PENDING");
+        handle.setResourceKind(kind);
+        var provider = mock(DeploymentProvisioningProvider.class);
+        when(fixture.handles.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(handle));
+        when(fixture.providers.require(DeploymentProviderType.COOLIFY)).thenReturn(provider);
+        when(provider.status(handle)).thenThrow(new IllegalStateException("unsupported resource kind"));
+
+        fixture.service.refreshProviderResourceHandlesAfterProvisioning("dep-123", "rel-123");
+
+        verify(provider).status(handle);
+        verify(fixture.handles, never()).save(any());
+        assertThat(handle.getStatus()).isEqualTo("PENDING");
+    }
 
     @Test
     void runApplyStopsBeforeProvisioningWhenPreflightVerificationFails() {
@@ -558,6 +682,60 @@ class DeploymentReleaseExecutionServiceTest {
         verify(deploymentReleaseVerificationService, never()).verify(any(), any(), any(), any());
         verify(deploymentProvisioningService, never()).provision(any(), any(), any(), any());
         verify(deploymentRepository, never()).save(any(DeploymentEntity.class));
+    }
+
+    private static final class BindingApplyFixture {
+        final DeploymentRepository deployments = mock(DeploymentRepository.class);
+        final DeploymentVersionRepository versions = mock(DeploymentVersionRepository.class);
+        final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
+        final DeploymentVerificationRunRepository verifications = mock(DeploymentVerificationRunRepository.class);
+        final DeploymentProvisioningService provisioning = mock(DeploymentProvisioningService.class);
+        final DeploymentReleaseProgressService progress = mock(DeploymentReleaseProgressService.class);
+        final DeploymentReleaseVerificationService verification = mock(DeploymentReleaseVerificationService.class);
+        final MarketplaceDatasetSyncService datasets = mock(MarketplaceDatasetSyncService.class);
+        final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
+        final DeploymentProviderRegistry providers = mock(DeploymentProviderRegistry.class);
+        final DeploymentExistingVectorBindingService bindings = mock(DeploymentExistingVectorBindingService.class);
+        final AdmissionReleaseCoordinator admission = mock(AdmissionReleaseCoordinator.class);
+        final ProviderUsageReleaseCoordinator budget = mock(ProviderUsageReleaseCoordinator.class);
+        final ManagedDependencyReleaseCoordinator dependencies = mock(ManagedDependencyReleaseCoordinator.class);
+        final DeploymentEntity deployment = new DeploymentEntity();
+        final DeploymentVersionEntity version = new DeploymentVersionEntity();
+        final DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        final ObjectMapper mapper = new ObjectMapper();
+        final JsonNode providerConfig = mapper.createObjectNode().put("vectorStrategy", "milvus")
+            .put("vectorProvisioningMode", "EXTERNAL_EXISTING").put("vectorStoragePosture", "SHARED")
+            .put("milvusExternalBindingRequired", true);
+        final DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deployments, versions, releases, verifications, provisioning, progress, verification,
+            mock(DeploymentTenantScopedVectorService.class), mock(DeploymentTenantScopedVectorRegistryService.class),
+            datasets, handles, providers, Runnable::run, TransactionOperations.withoutTransaction(), mapper);
+
+        BindingApplyFixture() {
+            deployment.setId("dep-123"); deployment.setCustomerId("customer-123"); deployment.setTenantId("tenant-123");
+            deployment.setEnvironmentName("deployment-default"); deployment.setStatus("APPLY_REQUESTED");
+            version.setId("ver-123"); version.setDeploymentId(deployment.getId()); version.setStatus("PUBLISHED");
+            version.setConfigHash("hash-123"); version.setProviderConfigJson(providerConfig.toString());
+            release.setId("rel-123"); release.setDeploymentId(deployment.getId()); release.setDeploymentVersionId(version.getId());
+            release.setTargetProfileId("target-stage"); release.setStatus("APPLY_REQUESTED"); release.setCurrentStepKey("queue_release");
+            var preflight = new DeploymentVerificationRunEntity(); preflight.setId("vrf-pre"); preflight.setStatus("PASSED");
+            when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+            when(versions.findById(version.getId())).thenReturn(Optional.of(version));
+            when(releases.findById(release.getId())).thenReturn(Optional.of(release));
+            when(releases.findByIdForUpdate(release.getId())).thenReturn(Optional.of(release));
+            when(verification.verify(deployment, version, release, "PRE_APPLY")).thenReturn(preflight);
+            when(bindings.resolve(deployment, version, providerConfig, "target-stage")).thenReturn(providerConfig);
+            ReflectionTestUtils.setField(service, "existingVectorBindings", bindings);
+            ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
+            ReflectionTestUtils.setField(service, "providerUsageReleaseCoordinator", budget);
+            ReflectionTestUtils.setField(service, "managedDependencyReleaseCoordinator", dependencies);
+        }
+
+        void assertNoProviderEffects() {
+            verify(admission, never()).beginProvisioning(any());
+            verifyNoInteractions(budget, dependencies, provisioning, datasets);
+            assertThat(deployment.getStatus()).isNotEqualTo("PROVISIONING");
+        }
     }
 
     private static DeploymentProviderResourceHandleEntity providerHandle(String deploymentId,

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.retirement;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -32,7 +33,6 @@ import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirem
 
 @Service
 public class TargetRetirementInventory {
-    private static final String SOURCE_BINDING = "EXTERNAL_DOCUMENT_STORAGE_BINDING";
     private static final Set<String> APPLICATION_KINDS = Set.of(
         "APPLICATION", "CONNECTOR_APPLICATION", "VECTORIZATION_RUNNER_APPLICATION"
     );
@@ -93,7 +93,7 @@ public class TargetRetirementInventory {
         var resources = handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(deploymentId, targetId).stream()
             .sorted(Comparator.comparing(DeploymentProviderResourceHandleEntity::getId))
             .map(handle -> {
-                boolean preserved = SOURCE_BINDING.equals(handle.getResourceKind());
+                boolean preserved = PreservedExternalBindingKinds.isPreserved(handle.getResourceKind());
                 if (!preserved && (handle.getReleaseId() == null || !request.releaseIds().contains(handle.getReleaseId())
                     || !PROVIDER_KINDS.contains(handle.getResourceKind()))) throw failure("RESOURCE_INVENTORY_UNSUPPORTED");
                 if (handle.getProviderType() != target.getProviderType()) throw failure("RESOURCE_PROVIDER_CHANGED");

@@ -9,6 +9,8 @@ import com.ai.fabric.platform.backend.deployment.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
@@ -131,10 +133,13 @@ class TargetRetirementProviderResourcesTest {
         verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
     }
 
-    @Test void customerSourcesAndUnsupportedProvidersAreNeverLifecycleResources() {
-        var source = new ResourceGeneration("source", null, DeploymentProviderType.COOLIFY, "EXTERNAL_DOCUMENT_STORAGE_BINDING",
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void customerSourcesAndUnsupportedProvidersAreNeverLifecycleResources(String resourceKind) {
+        var source = new ResourceGeneration("source", null, DeploymentProviderType.COOLIFY, resourceKind,
             "customer-bucket", null, "generation", true);
         assertThatThrownBy(() -> service.delete(context, source)).hasMessageContaining("PROVIDER_RESOURCE_UNSUPPORTED");
+        assertThatThrownBy(() -> service.readback(context, source)).hasMessageContaining("PROVIDER_RESOURCE_UNSUPPORTED");
         verifyNoInteractions(client, resolver);
     }
 

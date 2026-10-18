@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementStor
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
@@ -23,6 +25,7 @@ import java.util.Optional;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -204,6 +207,10 @@ class AdmissionRetirementHandoffServiceTest {
         handle.setTargetProfileId(reservation.targetProfileId());
         handle.setReleaseId("staging-release");
         handle.setResourceKind("APPLICATION");
+        var documentBinding = new DeploymentProviderResourceHandleEntity();
+        documentBinding.setResourceKind("EXTERNAL_DOCUMENT_STORAGE_BINDING");
+        var vectorBinding = new DeploymentProviderResourceHandleEntity();
+        vectorBinding.setResourceKind("EXTERNAL_VECTOR_STORAGE_BINDING");
         var release = new DeploymentReleaseEntity();
         release.setId("staging-release");
         release.setDeploymentId(reservation.deploymentId());
@@ -219,7 +226,7 @@ class AdmissionRetirementHandoffServiceTest {
         when(planned.id()).thenReturn(operation.getId());
         when(admissions.expiryWork(reservation)).thenReturn(work);
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
-            reservation.deploymentId(), reservation.targetProfileId())).thenReturn(List.of(handle));
+            reservation.deploymentId(), reservation.targetProfileId())).thenReturn(List.of(handle, documentBinding, vectorBinding));
         when(releases.findById("staging-release")).thenReturn(Optional.of(release));
         when(consumers.findAll()).thenReturn(List.of(productionConsumer));
         when(admissions.reviewed("POLICY", reservation.policyId(), FleetPolicy.class)).thenReturn(
@@ -244,6 +251,29 @@ class AdmissionRetirementHandoffServiceTest {
             request.capture());
         assertThat(request.getValue().consumers()).containsExactly(
             new TargetRetirementContracts.ConsumerExpectation("consumer-entity", 12L));
+        assertThat(request.getValue().releaseIds()).containsExactly("staging-release");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void retainedBindingsAloneCannotBecomeAnOwnedRetirementInventory(String resourceKind) {
+        Reservation reservation = reservation(ExpiryState.CLAIMED, null);
+        when(admissions.expiryWork(reservation)).thenReturn(expiryWork(reservation));
+        when(operations.findByDeploymentIdAndTargetProfileIdAndOperationKey(
+            reservation.deploymentId(), reservation.targetProfileId(),
+            "admission-expiry:" + reservation.id() + ":" + reservation.generation())).thenReturn(Optional.empty());
+        var binding = new DeploymentProviderResourceHandleEntity();
+        binding.setResourceKind(resourceKind);
+        binding.setReleaseId("not-an-owned-release");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
+            reservation.deploymentId(), reservation.targetProfileId())).thenReturn(List.of(binding));
+
+        assertThatThrownBy(() -> service.handoff(reservation))
+            .isInstanceOf(AdmissionFailure.class).hasMessageContaining("RETIREMENT_RESOURCE_INVENTORY_EMPTY");
+        verify(retirements, never()).planForAdmissionExpiry(org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        verify(retirements, never()).execute(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
     private TargetRetirementOperationEntity operation(Reservation reservation, TargetRetirementContracts.State state) {

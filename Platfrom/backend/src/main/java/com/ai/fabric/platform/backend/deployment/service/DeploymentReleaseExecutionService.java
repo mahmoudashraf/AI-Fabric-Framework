@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyReleaseCoordinator;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -64,6 +65,9 @@ public class DeploymentReleaseExecutionService {
 
     @Autowired(required = false)
     private ManagedDependencyReleaseCoordinator managedDependencyReleaseCoordinator;
+
+    @Autowired(required = false)
+    private DeploymentExistingVectorBindingService existingVectorBindings;
 
     @Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
@@ -238,12 +242,28 @@ public class DeploymentReleaseExecutionService {
             return;
         }
 
-        if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
-        transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
-
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
+
+        JsonNode publishedProviderConfig = readJson(version.getProviderConfigJson());
+        if (DeploymentExistingVectorBindingService.required(publishedProviderConfig)) {
+            if (existingVectorBindings == null) {
+                throw new IllegalStateException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+            }
+            if (!deployment.getId().equals(version.getDeploymentId())
+                || !deployment.getId().equals(release.getDeploymentId())
+                || !version.getId().equals(release.getDeploymentVersionId())
+                || !"PUBLISHED".equals(version.getStatus())
+                || !StringUtils.hasText(release.getTargetProfileId())) {
+                throw new IllegalStateException("EXTERNAL_VECTOR_RELEASE_SCOPE_CHANGED");
+            }
+            // Validate the immutable binding before admission, grant debit or provider effects.
+            existingVectorBindings.resolve(deployment, version, publishedProviderConfig, release.getTargetProfileId());
+        }
+
+        if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
+        transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
 
         if (providerUsageReleaseCoordinator != null) providerUsageReleaseCoordinator.prepare(deployment, release);
         if (documentBindingResolver != null) documentBindingResolver.requireUnchanged(deployment, version, release);
@@ -286,6 +306,7 @@ public class DeploymentReleaseExecutionService {
     }
 
     private void refreshProviderHandleSafely(DeploymentProviderResourceHandleEntity handle) {
+        if (PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())) return;
         try {
             DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
             handle.setStatus(status.status());

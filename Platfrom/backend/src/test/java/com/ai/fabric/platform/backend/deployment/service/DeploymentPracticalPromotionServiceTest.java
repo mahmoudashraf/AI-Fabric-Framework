@@ -23,6 +23,8 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerReposito
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -36,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 class DeploymentPracticalPromotionServiceTest {
@@ -101,8 +104,9 @@ class DeploymentPracticalPromotionServiceTest {
             .hasMessageContaining("Release must be verified");
     }
 
-    @Test
-    void activateProductionConsumerBindsVerifiedReleaseAndMarksRollbackReserve() {
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void activateProductionConsumerBindsVerifiedReleaseAndMarksRollbackReserve(String retainedKind) {
         TestFixture fixture = fixture();
         DeploymentEntity deployment = deployment();
         DeploymentReleaseEntity productionRelease = release(
@@ -122,7 +126,10 @@ class DeploymentPracticalPromotionServiceTest {
         DeploymentProviderResourceHandleEntity productionHandle = handle("h-prod", deployment.getId(), productionRelease.getId(), "dtp-coolify-production", "ACTIVE");
         DeploymentProviderResourceHandleEntity previousHandle = handle("h-old", deployment.getId(), "rel-staging", "dtp-coolify-prod-staging", "ACTIVE");
         DeploymentProviderResourceHandleEntity sourceBinding = handle("h-source", deployment.getId(), null, "dtp-coolify-prod-staging", "CONFIGURED");
-        sourceBinding.setResourceKind(DeploymentDocumentStorageBindingService.RESOURCE_KIND);
+        sourceBinding.setResourceKind(retainedKind);
+        var productionBinding = handle("h-production-source", deployment.getId(), null,
+            "dtp-coolify-production", "CONFIGURED");
+        productionBinding.setResourceKind(retainedKind);
         PlatformConsumerSummary updatedConsumer = new PlatformConsumerSummary(
             consumer.getConsumerId(),
             consumer.getCustomerId(),
@@ -165,7 +172,8 @@ class DeploymentPracticalPromotionServiceTest {
             eq(0L),
             anyString()
         )).thenReturn(updatedConsumer);
-        when(fixture.resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc(productionRelease.getId())).thenReturn(List.of(productionHandle));
+        when(fixture.resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc(productionRelease.getId()))
+            .thenReturn(List.of(productionHandle, productionBinding));
         when(fixture.resourceHandleRepository.findByReleaseIdOrderByUpdatedAtDesc("rel-staging")).thenReturn(List.of(previousHandle));
         when(fixture.resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
             deployment.getId(), "dtp-coolify-prod-staging")).thenReturn(List.of(previousHandle, sourceBinding));
@@ -182,6 +190,11 @@ class DeploymentPracticalPromotionServiceTest {
         assertThat(productionHandle.getStatus()).isEqualTo("ACTIVE");
         assertThat(previousHandle.getStatus()).isEqualTo("SUPERSEDED");
         assertThat(sourceBinding.getStatus()).isEqualTo("CONFIGURED");
+        assertThat(productionBinding.getStatus()).isEqualTo("CONFIGURED");
+        assertThat(summary.resources()).extracting("handleId")
+            .doesNotContain(sourceBinding.getId(), productionBinding.getId());
+        verify(fixture.resourceHandleRepository, never()).save(sourceBinding);
+        verify(fixture.resourceHandleRepository, never()).save(productionBinding);
         verify(fixture.goLiveReadiness).requireActivationReady(deployment, productionRelease, consumer);
         verify(fixture.consumerService).updateBindingForTrustedPromotion(
             deployment.getCustomerId(),

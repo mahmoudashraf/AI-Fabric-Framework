@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
@@ -36,7 +37,6 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 /** Reads active inventory or a completed, fully evidenced R3 retirement. It performs no provider mutation. */
 @Component
 final class ProductionAdmissionResourceReadbackSource implements AdmissionResourceReadbackSource {
-    private static final String PRESERVED_SOURCE_BINDING = "EXTERNAL_DOCUMENT_STORAGE_BINDING";
     private final AdmissionStore admissions;
     private final DeploymentTargetProfileRepository targets;
     private final DeploymentReleaseRepository releases;
@@ -147,7 +147,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
 
         List<DeploymentProviderResourceHandleEntity> owned = handles
             .findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(reservation.deploymentId(), reservation.targetProfileId())
-            .stream().filter(handle -> !PRESERVED_SOURCE_BINDING.equals(handle.getResourceKind())).toList();
+            .stream().filter(handle -> !PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())).toList();
         if (owned.isEmpty()) throw failure(PRECONDITION_FAILED, "ACTIVE_INVENTORY_UNPROVEN");
         Instant now = clock.instant();
         Set<String> releaseIds = Set.of(exactRelease.getId());

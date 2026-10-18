@@ -228,6 +228,31 @@ public class ZillizCloudControlPlaneClient {
         return cluster;
     }
 
+    /** Metadata-only serving check; deliberately separate from the organization control-plane credential. */
+    public List<String> listServingCollections(String endpoint, String username, String password) {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint).resolve("/v2/vectordb/collections/list"))
+            .timeout(Duration.ofSeconds(20)).header("Authorization", "Bearer " + username + ":" + password)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("{\"dbName\":\"default\"}"))
+            .build();
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw failure("Zilliz serving metadata verification failed", response);
+        }
+        JsonNode root = readJson(response.body());
+        if (!root.path("code").isIntegralNumber() || root.path("code").bigIntegerValue().signum() != 0 || !root.path("data").isArray()) {
+            throw new RailwayProvisioningException("Zilliz serving metadata verification returned an invalid or denied result. Response body omitted.");
+        }
+        List<String> collections = new ArrayList<>();
+        for (JsonNode name : root.path("data")) {
+            if (!name.isTextual() || name.asText().isBlank() || collections.size() >= 100) {
+                throw new RailwayProvisioningException("Zilliz serving collection metadata is invalid.");
+            }
+            collections.add(name.asText());
+        }
+        return List.copyOf(collections);
+    }
+
     public void deleteCluster(String clusterId,
                               String apiKey) {
         Instant deadline = Instant.now().plus(Duration.ofMinutes(2));

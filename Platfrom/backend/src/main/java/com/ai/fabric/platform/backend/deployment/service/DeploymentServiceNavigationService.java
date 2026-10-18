@@ -61,7 +61,9 @@ public class DeploymentServiceNavigationService {
             .collect(Collectors.toMap(DeploymentServiceConfigSummary::key, service -> service));
 
         DeploymentVersionEntity referenceVersion = liveVersion != null ? liveVersion : latestPublishedVersion;
+        // Navigation has no authorized target and must not resolve an executable external binding.
         RailwayProvisioningPlanSummary plan = referenceVersion == null
+            || DeploymentExistingVectorBindingService.required(readJson(referenceVersion.getProviderConfigJson()))
             ? null
             : railwayProvisioningPlanService.buildPlan(deployment, referenceVersion);
         JsonNode provisioningDetails = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());

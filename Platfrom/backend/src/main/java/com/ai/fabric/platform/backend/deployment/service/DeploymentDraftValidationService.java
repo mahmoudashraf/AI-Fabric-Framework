@@ -2494,6 +2494,13 @@ public class DeploymentDraftValidationService {
     }
 
     private void validateMilvusVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        JsonNode bindingRequired = providerNode.path(DeploymentExistingVectorBindingService.REQUIRED_FIELD);
+        if (!bindingRequired.isMissingNode() && (!bindingRequired.isBoolean()
+            || bindingRequired.booleanValue() && (!ManagedDeploymentProfileCatalog.milvusExternalExisting(providerNode)
+                || !ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerNode)))) {
+            issues.add(error("providers", "MILVUS_EXTERNAL_BINDING_MODE_INVALID", "$.milvusExternalBindingRequired",
+                "An explicit external binding requires a boolean flag, external-existing Milvus and scoped shared storage."));
+        }
         if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(
             ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode)
         )) {
@@ -2552,7 +2559,8 @@ public class DeploymentDraftValidationService {
                     "zillizCloudCuSize must be a positive integer when zillizCloudClusterPlan is Standard or Enterprise."
                 ));
             }
-        } else if (ManagedDeploymentProfileCatalog.milvusHost(providerNode).isBlank()) {
+        } else if (ManagedDeploymentProfileCatalog.milvusHost(providerNode).isBlank()
+            && !DeploymentExistingVectorBindingService.required(providerNode)) {
             issues.add(error(
                 "providers",
                 "MILVUS_HOST_REQUIRED",

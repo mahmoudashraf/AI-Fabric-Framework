@@ -21,6 +21,8 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerReposito
 import com.ai.fabric.platform.backend.deployment.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -36,6 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 class ProductionAdmissionResourceReadbackSourceTest {
     @Test
@@ -73,8 +77,9 @@ class ProductionAdmissionResourceReadbackSourceTest {
             .hasMessageContaining("RETIREMENT_OUTCOME_UNSETTLED");
     }
 
-    @Test
-    void activeReadbackRequiresFreshExactCoolifyResourceEvidence() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void activeReadbackRequiresFreshExactCoolifyResourceEvidence(String retainedKind) throws Exception {
         AdmissionStore admissions = mock(AdmissionStore.class);
         DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
         DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
@@ -111,8 +116,11 @@ class ProductionAdmissionResourceReadbackSourceTest {
         handle.setReleaseId("release"); handle.setProviderType(DeploymentProviderType.COOLIFY);
         handle.setResourceKind("APPLICATION"); handle.setProviderResourceUuid("runtime-app");
         handle.setProviderServerUuid(AdmissionFixture.STAGING.serverUuid()); handle.setStatus("ACTIVE");
+        var retained = new DeploymentProviderResourceHandleEntity();
+        retained.setId("retained-binding"); retained.setResourceKind(retainedKind);
+        retained.setProviderResourceUuid("external-resource"); retained.setStatus("CONFIGURED");
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
-            .thenReturn(List.of(handle));
+            .thenReturn(List.of(handle, retained));
         var config = new CoolifyTargetProfileConfig("https://coolify.test", "project", "staging", "environment",
             AdmissionFixture.STAGING.serverUuid(), AdmissionFixture.STAGING.destinationUuid(), "example.test", "4.0.0",
             5, 600, false, true, "8097", "/actuator/health", "8097");
@@ -130,6 +138,23 @@ class ProductionAdmissionResourceReadbackSourceTest {
         var readback = source.read(new ReadbackContext(reservation, policy(), "worker-1"));
         assertThat(readback.inventoryComplete()).isTrue();
         assertThat(readback.evidenceReference()).startsWith("admission-active:");
+        assertThat(readback.resourcesAbsent()).isFalse();
+        verify(client, never()).getApplication(connection, "external-resource");
+        verify(client, never()).getDatabase(connection, "external-resource");
+
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
+            .thenReturn(List.of(retained));
+        assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
+            .isInstanceOf(AdmissionFailure.class).hasMessageContaining("ACTIVE_INVENTORY_UNPROVEN");
+
+        retained.setResourceKind("EXTERNAL_VECTOR_STORAGE_BINDING_V2");
+        retained.setReleaseId("release"); retained.setProviderType(DeploymentProviderType.COOLIFY);
+        retained.setProviderServerUuid(AdmissionFixture.STAGING.serverUuid());
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
+            .thenReturn(List.of(handle, retained));
+        assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
+            .isInstanceOf(AdmissionFailure.class).hasMessageContaining("ACTIVE_PROVIDER_RESOURCE_UNSUPPORTED");
+        retained.setResourceKind(retainedKind);
 
         when(client.getApplication(connection, "runtime-app")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
@@ -137,8 +162,9 @@ class ProductionAdmissionResourceReadbackSourceTest {
             .hasMessageContaining("ACTIVE_PROVIDER_RESOURCE_ABSENT");
     }
 
-    @Test
-    void completedRetirementMustStillMatchTheEntireFrozenInventorySnapshot() {
+    @ParameterizedTest
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    void completedRetirementMustStillMatchTheEntireFrozenInventorySnapshot(String retainedKind) {
         AdmissionStore admissions = mock(AdmissionStore.class);
         DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
@@ -158,14 +184,22 @@ class ProductionAdmissionResourceReadbackSourceTest {
         operation.setId("retirement-1");
         operation.setFenceEpoch(7);
         when(operations.findById(operation.getId())).thenReturn(Optional.of(operation));
+        var owned = new TargetRetirementContracts.ResourceGeneration("owned", "release", DeploymentProviderType.COOLIFY,
+            "APPLICATION", "runtime-app", AdmissionFixture.STAGING.serverUuid(), "owned-generation", false);
+        var retained = new TargetRetirementContracts.ResourceGeneration("retained", null, DeploymentProviderType.COOLIFY,
+            retainedKind, "external-resource", null, "retained-generation", true);
         var snapshot = new TargetRetirementContracts.Snapshot("customer", "tenant", "deployment",
-            AdmissionFixture.TARGET, "target-generation", 1, List.of(), List.of(), List.of());
+            AdmissionFixture.TARGET, "target-generation", 1,
+            List.of(new TargetRetirementContracts.ReleaseGeneration("release", "version", "release-generation")),
+            List.of(owned, retained), List.of());
         var evidence = new TargetRetirementContracts.Evidence("request", 7, AdmissionFixture.NOW.minusSeconds(1),
             "durable-proof", true, true, true, true, 0L, 0L, 0L, 0L, true, List.of());
         var evidenceByKind = new EnumMap<TargetRetirementContracts.ParticipantKind, TargetRetirementContracts.Evidence>(
             TargetRetirementContracts.ParticipantKind.class);
         for (var kind : TargetRetirementContracts.ParticipantKind.values()) evidenceByKind.put(kind, evidence);
-        var progress = new TargetRetirementContracts.Progress(Map.of(), Map.copyOf(evidenceByKind), evidence, List.of());
+        var progress = new TargetRetirementContracts.Progress(Map.of("retirement-1:7:RESOURCES:owned",
+            new TargetRetirementContracts.EffectResult(true, "owned-absent", AdmissionFixture.NOW.minusSeconds(1))),
+            Map.copyOf(evidenceByKind), evidence, List.of());
         var retention = new TargetRetirementContracts.Retention(TargetRetirementContracts.RetentionDecision.RECLAIM,
             null, null, "backup-proof");
         var summary = new TargetRetirementContracts.Summary("retirement-1", "deployment", AdmissionFixture.TARGET,
@@ -175,6 +209,33 @@ class ProductionAdmissionResourceReadbackSourceTest {
             AdmissionFixture.NOW.minusSeconds(20), AdmissionFixture.NOW.minusSeconds(10),
             AdmissionFixture.NOW.minusSeconds(1), AdmissionFixture.NOW.minusSeconds(1));
         when(retirements.summary(operation)).thenReturn(summary);
+        var ownedHandle = new DeploymentProviderResourceHandleEntity();
+        ownedHandle.setId("owned"); ownedHandle.setProviderType(DeploymentProviderType.COOLIFY);
+        ownedHandle.setProviderResourceUuid("runtime-app"); ownedHandle.setStatus("DELETED");
+        ownedHandle.setLastObservedStatus("ABSENT"); ownedHandle.setLastObservedAt(AdmissionFixture.NOW.minusSeconds(1));
+        var retainedHandle = new DeploymentProviderResourceHandleEntity();
+        retainedHandle.setId("retained"); retainedHandle.setProviderType(DeploymentProviderType.COOLIFY);
+        retainedHandle.setResourceKind(retainedKind); retainedHandle.setProviderResourceUuid("external-resource");
+        retainedHandle.setStatus("CONFIGURED");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
+            .thenReturn(List.of(ownedHandle, retainedHandle));
+        when(consumers.findAll()).thenReturn(List.of());
+
+        var readback = source.read(new ReadbackContext(reservation, policy(), "worker-1"));
+        assertThat(readback.resourcesAbsent()).isTrue();
+        assertThat(retainedHandle.getStatus()).isEqualTo("CONFIGURED");
+        verify(handles, never()).save(retainedHandle);
+
+        ownedHandle.setStatus("ACTIVE");
+        assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
+            .isInstanceOf(AdmissionFailure.class).hasMessageContaining("RETIREMENT_INVENTORY_INCOMPLETE");
+        ownedHandle.setStatus("DELETED");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
+            .thenReturn(List.of(ownedHandle));
+        assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
+            .isInstanceOf(AdmissionFailure.class).hasMessageContaining("RETIREMENT_INVENTORY_INCOMPLETE");
+        when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
+            .thenReturn(List.of(ownedHandle, retainedHandle));
         doThrow(new TargetRetirementFailure("SNAPSHOT_GENERATION_CHANGED"))
             .when(retirementInventory).recheck(org.mockito.ArgumentMatchers.eq(snapshot), org.mockito.ArgumentMatchers.any());
 

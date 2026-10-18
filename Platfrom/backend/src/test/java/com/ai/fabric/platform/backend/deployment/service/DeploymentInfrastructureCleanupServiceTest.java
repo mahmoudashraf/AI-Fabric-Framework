@@ -138,10 +138,13 @@ class DeploymentInfrastructureCleanupServiceTest {
             "dsh-documents",
             DeploymentDocumentStorageBindingService.RESOURCE_KIND
         );
+        DeploymentProviderResourceHandleEntity vectorBinding = providerHandle(
+            "dsh-vectors", "EXTERNAL_VECTOR_STORAGE_BINDING"
+        );
 
         when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
         when(providerResourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-cleanup"))
-            .thenReturn(List.of(runtimeHandle, connectorHandle, documentBinding));
+            .thenReturn(List.of(runtimeHandle, connectorHandle, documentBinding, vectorBinding));
         when(providerRegistry.require(DeploymentProviderType.COOLIFY)).thenReturn(coolifyProvider);
 
         DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
@@ -152,7 +155,21 @@ class DeploymentInfrastructureCleanupServiceTest {
         verify(coolifyProvider).delete(runtimeHandle, "retire deployment");
         verify(coolifyProvider).delete(connectorHandle, "retire deployment");
         verify(coolifyProvider, never()).delete(documentBinding, "retire deployment");
+        verify(coolifyProvider, never()).delete(vectorBinding, "retire deployment");
+        assertThat(documentBinding.getStatus()).isEqualTo("ACTIVE");
+        assertThat(vectorBinding.getStatus()).isEqualTo("ACTIVE");
         verify(railwayGraphqlClient, never()).deleteProject(any());
+
+        DeploymentProviderResourceHandleEntity unknownBinding = providerHandle(
+            "unknown", "EXTERNAL_VECTOR_STORAGE_BINDING_V2"
+        );
+        when(providerResourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-cleanup"))
+            .thenReturn(List.of(runtimeHandle, unknownBinding));
+        assertThatThrownBy(() -> service.cleanupForHardDelete(deployment, release, "retire deployment"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("supported owned resource kind");
+        verify(coolifyProvider, times(1)).delete(runtimeHandle, "retire deployment");
+        verify(coolifyProvider, never()).delete(unknownBinding, "retire deployment");
     }
 
     @Test

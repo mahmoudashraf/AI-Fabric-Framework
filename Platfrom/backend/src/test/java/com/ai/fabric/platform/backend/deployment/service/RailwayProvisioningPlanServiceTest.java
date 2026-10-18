@@ -40,6 +40,56 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void explicitExternalBindingIsRequiredBeforePlanGenerationAndCannotUseGlobalMilvusSecrets() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var secrets = mock(PlatformSecretService.class);
+        when(secrets.isSecretPresent("MILVUS_USERNAME")).thenReturn(true);
+        when(secrets.isSecretPresent("MILVUS_PASSWORD")).thenReturn(true);
+        var mapper = new ObjectMapper();
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifacts, new DeploymentSourceResolver(properties()), secrets, mapper);
+        var version = version();
+        version.setProviderConfigJson("""
+            {"llmProvider":"openai","embeddingProvider":"openai","vectorStrategy":"milvus",
+             "vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusExternalBindingRequired":true}
+            """);
+        assertThatThrownBy(() -> service.buildPlan(deployment(), version, null, "target-staging"))
+            .hasMessageContaining("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+        var immutable = mapper.readTree(version.getProviderConfigJson());
+        var stripped = (com.fasterxml.jackson.databind.node.ObjectNode) immutable.deepCopy();
+        stripped.remove("milvusExternalBindingRequired");
+        assertThatThrownBy(() -> service.buildPlan(deployment(), version, stripped, "target-staging"))
+            .hasMessageContaining("EXTERNAL_VECTOR_IMMUTABLE_CONFIG_OVERRIDE");
+        var disabled = (com.fasterxml.jackson.databind.node.ObjectNode) immutable.deepCopy();
+        disabled.put("milvusExternalBindingRequired", false);
+        assertThatThrownBy(() -> service.buildPlan(deployment(), version, disabled, "target-staging"))
+            .hasMessageContaining("EXTERNAL_VECTOR_IMMUTABLE_CONFIG_OVERRIDE");
+        var binding = mock(DeploymentExistingVectorBindingService.class);
+        ReflectionTestUtils.setField(service, "existingVectorBindings", binding);
+        var dep = deployment();
+        JsonNode effective = mapper.readTree(version.getProviderConfigJson());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) effective).put("milvusHost", "cluster.zillizcloud.com")
+            .put("milvusPort", 443).put("milvusSecure", true).put("milvusDatabaseName", "default")
+            .put("milvusRuntimeUsernameSecretName", "MANAGED_EXTERNAL_VECTOR_USERNAME_TARGET")
+            .put("milvusRuntimePasswordSecretName", "MANAGED_EXTERNAL_VECTOR_PASSWORD_TARGET");
+        when(binding.resolve(org.mockito.ArgumentMatchers.eq(dep), org.mockito.ArgumentMatchers.eq(version),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("target-staging"))).thenReturn(effective);
+        var env = envMap(service.buildPlan(dep, version, null, "target-staging").services().runtime().env());
+        assertThat(env).containsEntry("AI_PROVIDERS_MILVUS_HOST", "cluster.zillizcloud.com")
+            .containsEntry("AI_PROVIDERS_MILVUS_DATABASE_NAME", "default")
+            .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MANAGED_EXTERNAL_VECTOR_USERNAME_TARGET}")
+            .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MANAGED_EXTERNAL_VECTOR_PASSWORD_TARGET}");
+        assertThat(env.get("AI_PROVIDERS_MILVUS_COLLECTION_PREFIX")).contains("customer_default__tenant_default__").endsWith("__");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MILVUS_USERNAME");
+        org.mockito.Mockito.verify(secrets, org.mockito.Mockito.never()).resolveSecret("MILVUS_PASSWORD");
+    }
+
+    @Test
     void buildPlanAddsPrivateVectorizationRunnerServiceWhenManagedRunnerModeIsActive() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

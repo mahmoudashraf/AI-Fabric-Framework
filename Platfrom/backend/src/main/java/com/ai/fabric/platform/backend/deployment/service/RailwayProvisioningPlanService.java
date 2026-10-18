@@ -83,6 +83,9 @@ public class RailwayProvisioningPlanService {
     @Autowired(required = false)
     private ManagedDependencyRuntimeEnvironmentResolver managedDependencyRuntimeEnvironmentResolver;
 
+    @Autowired(required = false)
+    private DeploymentExistingVectorBindingService existingVectorBindings;
+
     RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
                                    DeploymentArtifactService artifactService,
@@ -261,9 +264,21 @@ public class RailwayProvisioningPlanService {
         String connectorBaseUrl = deployment.getConnectorBaseUrl() != null
             ? deployment.getConnectorBaseUrl()
             : "https://connector-" + deployment.getId() + ".placeholder.local";
+        JsonNode immutableProviderConfig = readJson(version.getProviderConfigJson());
         JsonNode providerConfig = providerConfigOverride != null && providerConfigOverride.isObject()
             ? providerConfigOverride
-            : readJson(version.getProviderConfigJson());
+            : immutableProviderConfig;
+        if (DeploymentExistingVectorBindingService.required(immutableProviderConfig)) {
+            if (!immutableProviderConfig.equals(providerConfig)) {
+                throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_IMMUTABLE_CONFIG_OVERRIDE");
+            }
+            if (existingVectorBindings == null) {
+                throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+            }
+            providerConfig = existingVectorBindings.resolve(deployment, version, immutableProviderConfig, targetProfileId);
+        } else if (DeploymentExistingVectorBindingService.required(providerConfig)) {
+            throw new RailwayProvisioningConfigurationException("EXTERNAL_VECTOR_PUBLISHED_REQUIREMENT_MISSING");
+        }
         if (StringUtils.hasText(targetProfileId)) {
             providerConfig = tenantScopedVectorHandleResolver.targetScopedProviderConfig(deployment, providerConfig, targetProfileId);
         }
@@ -1589,6 +1604,11 @@ public class RailwayProvisioningPlanService {
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_COLLECTION_PREFIX", milvusCollectionPrefix);
             String runtimeUsernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
             String runtimePasswordSecretName = ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
+            if (DeploymentExistingVectorBindingService.required(providerConfig)) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:" + runtimeUsernameSecretName + "}"));
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:" + runtimePasswordSecretName + "}"));
+                return;
+            }
             addResolvedPairedSecretEnv(
                 runtimeEnv,
                 deployment,
