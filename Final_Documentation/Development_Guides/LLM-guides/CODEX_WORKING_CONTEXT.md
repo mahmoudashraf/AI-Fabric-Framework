@@ -4968,3 +4968,72 @@ Critical fixes that made the gate pass:
   inspected, overflow/navigation/Escape checks pass. UI source remains separate
   and uncommitted/undeployed; frozen staff baseline unchanged. Hosted P0-P5
   lifecycle proof still precedes P6 rollout and fresh-customer P7 certification.
+
+### 2026-10-18 Configuration-Only Live Continuation
+
+- Reawakened parallel workers for UI parity and exact old-six runtime dependency
+  audit. None of the six is proven disposable; ProdUS has active staging
+  discovery plus failure fallback. Two old expired-session runners are only
+  conditional pause candidates (~488MiB), not approved cleanup. Earlier seven-
+  demo proposal is on hold in `Required for production`; no resources changed.
+- Real existing staging owner accepted v6, created/replayed configuration-only
+  dep-64759f9f, consumer01036-v6-config-canary and first app
+  awi_pub_eb4ed68061ae02d4d2b15c5f6222a232. Staging-only read-only S3 binding and
+  immutable ver-a789620e publish/replay passed. Three foreign-resource HTTP
+  denials passed. Both early discovery/activation fail closed. Zero releases,
+  reservations or provider resources; legal admission returned412
+  MEASURED_POLICY_REQUIRED. This is not hosted runtime or production certification.
+- Reusable owner-auth canary added under verification-support/productization-01036
+  with explicit metadata-write permission, sanitized checkpoints, no staff-key/
+  grant/policy/apply path and optional exact missing-policy denial. All nine
+  live checks replayed successfully at09:47UTC. Initial support tests38pass.
+- Discovered live catalogue gap: targets disappear after placement TTL, leaving
+  no target to select for re-verification. Dewey owns narrow backend discovery
+  fix/tests; mutations must still require fresh evidence. Ohm owns two UI scope
+  fixes: selection/deep-link consistency and one-time credential stale-response
+  suppression. Reviewer checks reusable canary. None of these new fixes is yet
+  committed/deployed. Keep UI rollout last; backend8c35eb3 remains live on both.
+
+### 2026-10-18 Placement Fix Live
+
+- Backend c41c02ace594a094f5afb446685904fa8382534d is now verified live on both
+  hosts. Image digest15f75d4aeae3add02927691af8097ad79fdfa4186aa0923e736a6e685a4acf6c;
+  CI39117062370 passed backend-only/UI-skipped. Staging rollout
+  l79muxbk8jcgx0abnluit9i4 then production w6pz6jpodigau1yhti3wbjqe finished;
+  actual OCIsource/digest, migration189, Coolifyhealthy and public200UP pass.
+- Reviewed targets remain visible only for typed missing/stale placement evidence,
+  with PLACEMENT_RECHECK_REQUIRED blockers. Mutation checks still fail closed.
+  86 focused backend tests passed. Live stale-target publish denied409 with one
+  version before/after; nine real-owner checks passed again after restart.
+- Reusable verifier/guide/tests committed+pushed c6aa7de31. Full support suite45
+  passes, independent review corrected customer-before-write, complete version
+  receipts and both binding-response checks; no remaining serious issue found.
+  No framework/runtime/customer-deployment rollout was done in this continuation.
+- Fresh private DB archives +checksum/catalog verification retained at
+  /private/tmp/01036-control-plane-pre-catalogue-fix-20261018, not tested restore.
+  No active applies before backend restart. Staging33apps/5DB, production17/3;
+  availableRAM2528/8194MiB, staging4264MiBswap, rootdisk35%/12% in pre-rollout
+  snapshot. Capacity remains unapproved. UI source remains uncommitted/undeployed.
+- Current parallel work: Ohm finishing local selection/credential/placement UI
+  regressions and rollback-hunk split; Bohr preparing a viable framework-demo-
+  ONLY temporary-outage option, leaving every old-six/customer component intact.
+  No workload pause, cleanup, paid upgrade or firewall cycling is authorized.
+
+- Ohm completed the two local UI fixes and placement refresh: shared URL/
+  preference selection, explicit unknown-ID state, generic one-time credential
+  tokens that suppress stale handler/response and A-to-B-to-A leaks.18 local
+  browser scenarios pass; parent production UI build and31 helper/API tests
+  pass. Existing bundle/runtime-config warnings remain. Scope/rollback audit is
+  /private/tmp/01036-ui-rollback-split-20261018.md. UI remains uncommitted and
+  undeployed; compatible functional UI artifact plus hosted parity/rollback
+  proof are still open, not implied by source retention of STAFF001..039.
+
+- Final capacity audit produced a framework-only twelve-demo outage option,
+  leaving ALL old-six/customer components untouched. Conservative math:
+  2800MiB available+4747MiB resident credit-5888MiBtopology=1659MiB remaining,
+  635MiB beyond1024MiBreserve. Exactset/UUIDs/persistence/reset risks and return
+  condition at /private/tmp/01036-framework-only-outage-option-20261018.md,
+  sent to Required for production for explicit owner decision. No stop/delete
+  or approval inferred; prior7-demo/old-six option superseded. Capacity and
+  CPU/disk/startup/operatingpolicy remain gates. All bounded agents completed
+  andclosed. LeaveHetzneraccessOPENuntilfullimplementation perowner.

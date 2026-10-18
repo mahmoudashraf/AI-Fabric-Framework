@@ -20,7 +20,7 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `8c35eb3bc419cc61cb42a19941bb1238c3decac0` is live on both Platform
+  Source `c41c02ace594a094f5afb446685904fa8382534d` is live on both Platform
   backends, with template 1.5.0 and reviewed offer v6 published. The hosted legal
   customer request previously reached the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
@@ -759,3 +759,157 @@ write-only bindings, never this ledger.
   clear before any pause. Hosted repeated-generation, customer-owned S3 indexing,
   real-provider protected-action, fresh-customer lifecycle and P6/P7 certification
   remain open. UI extraction source stays separate and undeployed.
+
+### 2026-10-18 Live Configuration-Only Customer Follow-Up
+
+- The existing dedicated staging canary owner accepted reviewed offer v6 using
+  the normal authenticated customer flow. This is a later metadata-only check,
+  not an implicit side effect of the preceding backend rollout or publication.
+  Its isolated draft is `dep-64759f9f`, consumer `01036-v6-config-canary`, first
+  app `awi_pub_eb4ed68061ae02d4d2b15c5f6222a232`, and immutable version
+  `ver-a789620e` with configuration hash
+  `09ccd35eb6608b10214ab85d85aa3e0615482a02309d4d00313cbb60ff7283ef`.
+- Real CUSTOMER_ADMIN checks passed bootstrap, configuration-only consumer and
+  first-app replay; exact reviewed profile use; app-origin CORS projection;
+  and pre-activation runtime-discovery/app-activation denial. The app remains
+  DRAFT and not ready. No runtime release, provider service or database was
+  created. This is not a first production customer app.
+- Target-scoped customer-owned S3 binding passed with the staging identity,
+  read-only metadata, secret-free response, stable command replay and no source
+  object modification. Immutable version publication/replay passed. Separate
+  direct HTTP requests for another customer's draft, admission reservations and
+  installations returned 404/403/403. No hidden privileged customer role was
+  introduced to obtain these results.
+- The legal `APPLY` admission request returned HTTP 412 with
+  `MEASURED_POLICY_REQUIRED`. Reservations were empty before and after; releases
+  remained empty. The verifier never called apply. An initial verification
+  script used the invalid operation enum `APPLY_STAGING_VERSION`; a GET-only
+  state check proved zero reservations before the corrected contract was used.
+  This script correction was not a product or admission-policy change.
+- Reusable `verify-customer-configuration.mjs` now preserves the nine live
+  control-plane checks without accepting staff keys or approving policy. Its
+  optional missing-policy probe fails on any different denial, records an
+  unexpected successful reservation for inspection, and never applies or
+  cleans it up. Initial fixture/support suite: 38 passed. The reusable live
+  run at 09:47 UTC passed all nine checks using the same operation keys and
+  configuration, without creating another canary. Evidence is private at
+  `/private/tmp/01036-v6-reusable-configuration-evidence.json`.
+- Live readback also exposed a real catalogue usability gap: missing/expired
+  placement evidence removes otherwise reviewed targets from discovery, so the
+  customer cannot select a target to recheck placement. A focused correction is
+  in progress; it must preserve explicit blocked readiness and keep fresh
+  evidence mandatory for mutations. Do not mark that source correction live
+  until its own tests, image and readback complete.
+- Resumed parallel audits found no confirmed loss of STAFF001..039 source
+  capabilities, but full role/hosted parity and a compatible UI-only rollback
+  artifact remain unproved. Two resource-scope UI defects are being corrected:
+  customer deep-link/selection consistency and one-time Inbox credential display
+  across target changes. UI source remains separate and undeployed.
+- The old-six dependency audit disproves blanket fixture cleanup: ProdUS has
+  active staging discovery and real fallback dependencies; old Shopify services
+  retain owned release/mutual references. Two expired-session runners are only
+  conditional pause candidates, about 488 MiB combined, not approved disposable
+  resources. A stale Shopify runner handle identifies a different app UUID;
+  any future operation must use exact physical ownership readback. No pause,
+  delete, rebind, paid upgrade or firewall cycling occurred. The earlier seven-
+  demo outage proposal is on hold pending a complete viable owner decision.
+
+### 2026-10-18 Placement Discovery Correction And Rollout
+
+- Focused backend commit `c41c02ace594a094f5afb446685904fa8382534d` retains
+  an entitled, composition/profile-validated target when its placement evidence
+  is missing or expired. Its readiness is `PLACEMENT_RECHECK_REQUIRED` with the
+  exact blocker. Untrusted placement, profile drift, missing profiles and other
+  denials still hide the target; mutation authorization is unchanged. This is
+  explicit typed recovery of infrastructure evidence, not text matching or an
+  override of an LLM decision.
+- The 86 focused backend tests pass, zero failures/errors/skips, including
+  catalogue discovery, existing authorization, reviewed composition and trusted
+  placement. The earlier complete 2,030-test baseline remains distinct from
+  this scoped delta; it was not relabelled as a full rerun of this commit.
+- GitHub Actions run `39117062370` succeeded. Only the backend image was built;
+  the UI job was skipped. Immutable digest:
+  `sha256:15f75d4aeae3add02927691af8097ad79fdfa4186aa0923e736a6e685a4acf6c`.
+  Staging rollout `l79muxbk8jcgx0abnluit9i4` and production rollout
+  `w6pz6jpodigau1yhti3wbjqe` finished in that order. Actual running OCI source
+  and digest, migration 189, Coolify health and public `200 UP` were verified
+  on each host. No active apply existed in either release inventory before the
+  backend restarts.
+- The staging live regression retained the expired production target in the
+  catalogue, then returned `409 PLACEMENT_EVIDENCE_STALE` for a publish attempt.
+  Published version count stayed one. No placement evidence was modified and
+  no runtime apply was called. All nine configuration-only customer checks then
+  passed again after the backend restart using their original keys, proving
+  their persisted receipts remained usable.
+- Verification-only commit `c6aa7de31` contains the reusable canary and guide.
+  After independent review, it validates session/entitlement customer scope
+  before writes, requires complete scoped immutable-version receipts, and checks
+  redaction/read-only metadata on both binding responses. Twenty canary fixture
+  tests plus the prior 25 support tests pass: 45 total, no failures/skips. The
+  final independent readback found no remaining serious issue in that scope.
+- Fresh private Platform database archives were taken before this correction
+  under `/private/tmp/01036-control-plane-pre-catalogue-fix-20261018/`.
+  Checksums and matching-host catalogs pass for both. No restore, Coolify
+  backup, managed source-object storage or new infrastructure was introduced.
+- Latest pre-rollout read-only operating snapshot: staging 2,528 MiB available
+  physical RAM, 4,264 MiB swap used, load 3.33/2.12/1.76 on eight cores;
+  production 8,194 MiB available, no swap used, load 1.12/0.57/0.51 on four
+  cores. Root disk use was 35%/12%; app/database counts remain 33/5 staging and
+  17/3 production. These are observations, not an approved admission envelope.
+  The new customer runtime still has not been admitted.
+
+### 2026-10-18 Local Functional UI Corrections
+
+- Customer deployment controls now resolve their selection through the shared
+  workspace URL context and existing persisted preferences. Explicit unknown
+  deployment IDs remain unresolved rather than silently selecting another owned
+  deployment. Sidebar links, browser history, reload and the selected resource
+  stay aligned; preference-save failure exposes a retry.
+- One-time Basic Inbox credentials use a generic scope-token hook covering
+  actor, customer, auth mode, role, deployment, target and release. Every scope
+  transition invalidates old completions, including A-to-B-to-A navigation.
+  Stale handlers retain their original rendered token; delivery from an old
+  request cannot become visible under a newer target or account.
+- The placement selector recognizes the explicit recheck state. A successful
+  probe refreshes the catalogue and cannot publish its local evidence into a
+  different selected target. Bootstrap remains blocked on fresh evidence.
+- Eighteen browser scenarios pass using local fake APIs/credentials. The final
+  parent UI production build and 31 helper/API tests also pass. Existing
+  runtime-config and large-bundle build warnings remain. These checks are not
+  hosted UI parity or a real protected-capability sign-in journey.
+- UI files remain uncommitted and undeployed, preserving the final extraction
+  gate. The rollback-split audit separates mandatory API/auth/profile/lifecycle
+  adapters from AppShell presentation hunks; reverting all dirty UI files would
+  remove functional compatibility work. A verified compatible functional UI
+  artifact and its hosted rollback proof still must be produced. Frozen
+  STAFF001..039 inventory stays unchanged, and full role/behavior parity is open.
+
+### 2026-10-18 Revised External Capacity Decision
+
+- The complete replacement proposal uses only twelve advertised framework demo
+  backends: Account Resolver, Agentic Action Resolver, AI Shopping Experience,
+  Behavior Signals, Conversation Handover, Deployment Knowledge Guard, Document
+  Knowledge Operations, Incident Investigation, Live Data Sync, MCP Operations,
+  Privacy Shield and Tenant Guard. All legacy/customer services, the dealership
+  chain, shared Engage, control planes, databases and MCP Reference Server remain
+  outside the proposal. This supersedes the earlier seven-demo/old-six option.
+- Two fresh physical-memory samples support a conservative estimate of
+  2,800 MiB available plus 4,747 MiB reclaimable anonymous resident memory,
+  excluding swap/cache/shared-RSS credit. After the 5,888 MiB topology, projected
+  remainder is 1,659 MiB: 1,024 MiB operating reserve plus 635 MiB extra. This is
+  a RAM option, not approved admission; actual post-outage memory, CPU, disk,
+  startup and operating-policy evidence must all pass independently.
+- Owner approval must explicitly cover all twelve public-demo outages, possible
+  session/in-memory database resets, retained exact containers/layers/volumes,
+  and return to service. Some file-backed demos lack mounted volumes. No drain,
+  state backup or stop/start/restore test was performed. The temporary customer
+  allocation cannot coexist with all twelve restarted demos at this estimate;
+  separately authorized canary retirement or other real capacity is required
+  before full restoration. No permanent public availability is claimed.
+- Exact UUIDs, links, reference checks, per-demo persistence qualifications and
+  sample math are in
+  `/private/tmp/01036-framework-only-outage-option-20261018.md`. Sent to the
+  dedicated `Required for production` owner thread for a decision. No approval
+  is inferred, no workload was stopped/deleted, no policy weakened, and no paid
+  resource or firewall change occurred. All bounded parallel workers completed
+  and were closed; the external owner decision remains pending.
