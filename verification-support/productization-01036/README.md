@@ -183,6 +183,28 @@ usable RAM. Every report explicitly says `candidateWorkloadIncluded=false` and
 startup/promotion overlap, vector quota or database capacity, and it never
 publishes admission policy or allocates a grant.
 
+## Local Authentication Browser Acceptance
+
+```sh
+node --test verification-support/productization-01036/auth-acceptance-browser.test.mjs
+```
+
+This separate nine-scenario gate builds the actual standalone shell, installer,
+generic experience pack and widget into a temporary directory. It requires
+existing workspace dependencies and Playwright Chromium; it does not install
+them or overwrite production assets. Browser traffic outside its loopback
+fixture server is blocked. The fixture provider/broker/runtime exercise typed
+protected-capability challenges, cancelled/failed/delayed login, new authenticated
+conversations without replay, logout/account switching, renewal, expiry and
+broker denial. Foreign-installation state is checked for preservation.
+
+Reports retain asset hashes, requests and explicit live gaps. Passing proves
+actual frontend behavior against fixtures, not real-provider cancellation,
+runtime authorization/effects or bearer revocation latency. P4 remains open
+until that hosted evidence exists. The harness is outside image-build watch
+paths and the lightweight `test/*.test.mjs` gate, so adding verification does
+not publish replacement backend/runtime images.
+
 ## Guarded runtime and financial allowances
 
 The current offer publisher prepares a new immutable v10 staging measurement
