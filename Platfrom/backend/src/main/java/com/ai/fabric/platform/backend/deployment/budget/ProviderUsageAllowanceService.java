@@ -225,6 +225,9 @@ public class ProviderUsageAllowanceService {
         return transaction(() -> {
             lockR7();
             var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.PREPARE);
+            var version = versions.findById(authorized.reviewed().versionId())
+                .orElseThrow(() -> missing("PROVIDER_USAGE_VERSION_NOT_FOUND"));
+            ProviderUsageRuntimeConfiguration.require(version.getProviderConfigJson(), codec);
             var grant = grantForRelease(authorized);
             ProviderUsageRuntimeProfile.require(grant.grant().binding(), grant.grant().rateCardReference());
             var command = commandForRelease(authorized, grant);

@@ -68,6 +68,10 @@ import static org.mockito.Mockito.*;
 
 abstract class ProviderUsageAllowanceContract {
     static final Instant NOW = Instant.parse("2026-10-18T12:00:00.123456789Z");
+    static final String DECLARED_PROVIDER_CONFIG = """
+        {"llmProvider":"openai","embeddingProvider":"openai","openaiModel":"gpt-4o-mini",
+         "openaiEmbeddingModel":"text-embedding-3-small","openaiMaxTokens":2048,"enableFallback":false}
+        """;
     final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     final ProviderUsageAllowanceCodec codec = new ProviderUsageAllowanceCodec(mapper);
     final DeploymentRepository deployments = mock(DeploymentRepository.class);
@@ -148,6 +152,7 @@ abstract class ProviderUsageAllowanceContract {
         deployment.setStatus("ACTIVE"); deployment.setEnvironmentName("control-plane-label-not-authority"); deploymentRows.put(id, deployment);
         var version = new DeploymentVersionEntity(); version.setId("version-" + id); version.setDeploymentId(id); version.setStatus("PUBLISHED");
         version.setConfigHash("config-hash"); versionRows.put(version.getId(), version);
+        version.setProviderConfigJson(DECLARED_PROVIDER_CONFIG);
         // Match the customer manifest producer: physical topology only; no financial authorization in R7 demand.
         var amounts = new EnumMap<AdmissionContracts.Dimension, Long>(AdmissionContracts.Dimension.class);
         for (var dimension : AdmissionContracts.Dimension.values()) amounts.put(dimension, 0L);
@@ -682,6 +687,136 @@ abstract class ProviderUsageAllowanceContract {
         var split = new Limits(7, 1_000, 1_234_000);
         assertThat(service.allocate(command("deployment", split), r7("deployment")).caps()).isEqualTo(split);
         assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(split);
+    }
+
+    @Test void automaticPreparationUsesExplicitPublishedCapAndPurposeInheritanceWithoutChangingConfiguration() {
+        var version = versionRows.get("version-deployment"); String original = version.getProviderConfigJson();
+        assertThat(ProviderUsageRuntimeConfiguration.require(original, codec))
+            .isEqualTo(new ProviderUsageRuntimeConfiguration.OutputCaps(2048, 2048, 2048));
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        var allowance = service.prepareForAuthorizedRelease("release-deployment");
+        assertThat(allowance.caps()).isEqualTo(runtimeGrant().credits());
+        assertThat(version.getProviderConfigJson()).isEqualTo(original);
+        assertThat(service.findForAuthorizedRelease("release-deployment")).contains(allowance);
+    }
+
+    @Test void automaticPreparationAcceptsExplicitPurposeCapsAndSupportedProviderModels() {
+        var config = providerConfiguration();
+        config.put("orchestrationLlmProvider", "openai").put("orchestrationModel", "gpt-4o-mini")
+            .put("orchestrationMaxTokens", 1024).put("generationLlmProvider", "openai")
+            .put("generationModel", "gpt-4o-mini").put("generationMaxTokens", 300);
+        String original = codec.write(config); versionRows.get("version-deployment").setProviderConfigJson(original);
+        assertThat(ProviderUsageRuntimeConfiguration.require(original, codec))
+            .isEqualTo(new ProviderUsageRuntimeConfiguration.OutputCaps(2048, 1024, 300));
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        assertThat(service.prepareForAuthorizedRelease("release-deployment").caps()).isEqualTo(runtimeGrant().credits());
+        assertThat(versionRows.get("version-deployment").getProviderConfigJson()).isEqualTo(original);
+    }
+
+    @Test void automaticPreparationRejectsMissingAndNullPrimaryCapBeforeAnyDebit() {
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        var missing = providerConfiguration(); missing.remove("openaiMaxTokens");
+        for (var config : List.of(missing, missing.deepCopy().putNull("openaiMaxTokens"))) {
+            versionRows.get("version-deployment").setProviderConfigJson(codec.write(config));
+            assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
+                .isInstanceOf(ProviderUsageAllowanceFailure.class).hasMessageContaining("RUNTIME_OUTPUT_CAP_REQUIRED");
+            assertNoAutomaticDebit();
+        }
+    }
+
+    @Test void automaticPreparationRejectsInvalidDeclaredCapsIncludingZeroOverflowAndPurposeOverrides() {
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        for (String field : List.of("openaiMaxTokens", "orchestrationMaxTokens", "generationMaxTokens")) {
+            for (Object value : List.of(0, -1, 16_385, Long.MAX_VALUE, 2048.5, "not-a-number", "99999999999999999999", true)) {
+                var config = providerConfiguration(); config.put("openaiMaxTokens", 2048);
+                config.set(field, mapper.valueToTree(value));
+                versionRows.get("version-deployment").setProviderConfigJson(codec.write(config));
+                assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
+                    .as("%s=%s", field, value).isInstanceOf(ProviderUsageAllowanceFailure.class)
+                    .hasMessageContaining("RUNTIME_OUTPUT_CAP_INVALID");
+                assertNoAutomaticDebit();
+            }
+        }
+    }
+
+    @Test void automaticPreparationAcceptsTokenCapBoundariesAndNullPurposeInheritance() {
+        var config = providerConfiguration();
+        config.put("openaiMaxTokens", "2048").put("orchestrationMaxTokens", 1).put("generationMaxTokens", 16_384);
+        assertThat(ProviderUsageRuntimeConfiguration.require(codec.write(config), codec))
+            .isEqualTo(new ProviderUsageRuntimeConfiguration.OutputCaps(2048, 1, 16_384));
+        config.putNull("orchestrationMaxTokens").putNull("generationMaxTokens");
+        assertThat(ProviderUsageRuntimeConfiguration.require(codec.write(config), codec))
+            .isEqualTo(new ProviderUsageRuntimeConfiguration.OutputCaps(2048, 2048, 2048));
+        versionRows.get("version-deployment").setProviderConfigJson(codec.write(config));
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        assertThat(service.prepareForAuthorizedRelease("release-deployment").caps()).isEqualTo(runtimeGrant().credits());
+    }
+
+    @Test void automaticPreparationRejectsUnsupportedVersionProviderOrModelBeforeDebit() {
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        var cases = List.of(Map.entry("llmProvider", "anthropic"), Map.entry("llmProvider", "unrecognized-provider"),
+            Map.entry("orchestrationLlmProvider", "gemini"), Map.entry("generationLlmProvider", "unrecognized-provider"),
+            Map.entry("embeddingProvider", "worker"), Map.entry("embeddingProvider", "azure"),
+            Map.entry("openaiModel", "gpt-4o"), Map.entry("orchestrationModel", "gpt-5.4-nano"),
+            Map.entry("generationModel", "gpt-5.4-mini"), Map.entry("openaiEmbeddingModel", "text-embedding-3-large"));
+        for (var entry : cases) {
+            var config = providerConfiguration(); config.put(entry.getKey(), entry.getValue());
+            versionRows.get("version-deployment").setProviderConfigJson(codec.write(config));
+            assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
+                .as("%s=%s", entry.getKey(), entry.getValue()).isInstanceOf(ProviderUsageAllowanceFailure.class)
+                .hasMessageContaining(entry.getKey().endsWith("Model") ? "RUNTIME_MODEL_NOT_REVIEWED" : "RUNTIME_PROVIDER_NOT_REVIEWED");
+            assertNoAutomaticDebit();
+        }
+    }
+
+    @Test void automaticPreparationRejectsUnreviewedRecoveryAndEndpointsBeforeDebit() {
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        var fallback = providerConfiguration(); fallback.put("enableFallback", true);
+        var recovery = providerConfiguration(); recovery.putArray("generationFallbackProviders").add("openai");
+        var embeddingRecovery = providerConfiguration(); embeddingRecovery.putArray("embeddingFallbackProviders").add("onnx");
+        for (var config : List.of(fallback, recovery, embeddingRecovery)) {
+            versionRows.get("version-deployment").setProviderConfigJson(codec.write(config));
+            assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
+                .isInstanceOf(ProviderUsageAllowanceFailure.class).hasMessageContaining("RUNTIME_RECOVERY_NOT_REVIEWED");
+            assertNoAutomaticDebit();
+        }
+        for (String field : List.of("openaiBaseUrl", "openaiEmbeddingBaseUrl", "embeddingBaseUrl", "orchestrationBaseUrl", "generationBaseUrl")) {
+            var config = providerConfiguration(); config.put(field, "https://not-reviewed.example.test/v1");
+            versionRows.get("version-deployment").setProviderConfigJson(codec.write(config));
+            assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
+                .isInstanceOf(ProviderUsageAllowanceFailure.class).hasMessageContaining("RUNTIME_ENDPOINT_NOT_REVIEWED");
+            assertNoAutomaticDebit();
+        }
+    }
+
+    @Test void automaticPreparationRejectsMalformedProviderConfigurationWithoutInventingDefaults() {
+        service.approveGrant(runtimeGrant()); authorizeRelease("deployment"); SecurityContextHolder.clearContext();
+        for (String value : List.of("not-json", "null", "[]", "true")) {
+            versionRows.get("version-deployment").setProviderConfigJson(value);
+            assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment"))
+                .isInstanceOf(ProviderUsageAllowanceFailure.class).hasMessageContaining("RUNTIME_CONFIG_INVALID");
+            assertNoAutomaticDebit();
+        }
+    }
+
+    @Test void staffGenericSplitAllocationDoesNotAdoptAutomaticRuntimeConfigurationRestrictions() {
+        versionRows.get("version-deployment").setProviderConfigJson("{}"); service.approveGrant(grant());
+        var split = new Limits(7, 1000, 1_234_000);
+        assertThat(service.allocate(command("deployment", split), r7("deployment")).caps()).isEqualTo(split);
+        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(split);
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode providerConfiguration() {
+        return (com.fasterxml.jackson.databind.node.ObjectNode) codec.read(
+            DECLARED_PROVIDER_CONFIG, com.fasterxml.jackson.databind.JsonNode.class);
+    }
+
+    private void assertNoAutomaticDebit() {
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allowance_events WHERE event_type='ALLOWANCE_ALLOCATED'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT allocated_chat_attempts FROM provider_usage_grants WHERE id='grant'", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT allocated_total_tokens FROM provider_usage_grants WHERE id='grant'", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT allocated_cost_nano_usd FROM provider_usage_grants WHERE id='grant'", Long.class)).isZero();
     }
 
     @Test void stillProvisioningButNoLongerCurrentReleaseCannotAcquireOrInitializeCredits() {
