@@ -39,6 +39,13 @@ It is not owner acceptance of a production service, an SLA, or a launch gate.
 - Use fictional inventory, test identities and the three fictional policies in
   the owner's private `dealership/staging/` S3 prefix. No real customer content,
   real shopper contact details or real Auto Trader credentials are introduced.
+- Approved inventory/policy excerpts may reach the configured OpenAI models
+  for embeddings and grounded generation under the unchanged campaign. Derived
+  vectors go only to this deployment's Free-01 prefix. This does not attest to
+  the provider's retention or training terms or authorize real personal data.
+- Test requests and human replies use fictional contact values in the isolated
+  receiver/Basic Inbox databases. No real lead, booking or Auto Trader write
+  is performed, and no real shopper is contacted.
 - Keep S3 private, read-only, prefix-scoped and customer-owned. Do not mutate
   source objects or claim LoomAI-managed document storage.
 - Secrets remain in private files and target-owned secret storage. Evidence
@@ -74,3 +81,10 @@ control-plane database restores only. They do not prove customer-runtime,
 whole-topology, provider-index or financial-ledger recovery. In particular,
 never reactivate a stale financial snapshot without reconciling external use.
 Those broader gates remain open and cannot be inferred from this review.
+If runtime, receiver or inbox recovery is needed, stop further canary attempts
+and preserve their actual handles, volumes, credentials and operation receipts.
+Source inventory/policies can rebuild derived evidence only after scope and
+retained-index reconciliation; they cannot restore conversations, request
+receipts or budget counters. Do not rebuild those stores from empty defaults,
+clear the retained index, or claim whole-topology recovery without an actual
+scoped export/restore and financial reconciliation.
