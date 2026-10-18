@@ -5186,3 +5186,39 @@ Critical fixes that made the gate pass:
   pushed or live. Existing live backends65b522a2d/schema189. Owner token-only
   amendment still pending;100k/50/USD2 remains binding. No paid requests, live
   grant, runtime apply or lifecycle email. UI last, retained stops unchanged.
+
+### 2026-10-18 Guarded Images Live And Financial Handoff Correction
+
+- 66d1ec2c3 and600f136bf pushed. Both backends now600f136bf0becb9a473ff1e085bbc9896b4ef696,
+  digest4cabac7a30bf5f26860e998c8e25962d8695df8674c56b67f80ccab8fc1c837c,
+  migration190/publicUP. Stagewswm25do7whkrc1u0852ejlo then production
+  yh59j4qzgu6sly0p7696ua5y bothfinished. Backend CI39134142560 PASS/UI skipped;
+  runtime39134142561 PASSverifythenpublish. Fresh private backup/archive catalog
+  validation /private/tmp/01036-control-plane-pre-provider-budget-20261018,
+  both706lines, actualrestorefalse. No public framework release.
+- Runtime600f image digestd3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28
+  inspectedneverstarted: execution0.8.35, bothprivate1.0.0guardJARs,V19,
+  packagedMETA-INFmanifest exactcommittedsource. Initialharnessnestedpathwrong;
+  actualrootMETA-INFverifiedandrerunPASS. Jarsha71f09f1b894d5e5006a2bee26136946d8db53fb9895de7b651ba34d2cb693e65.
+  Evidence /private/tmp/01036-guarded-runtime-inspection-SFLBm7iSBWUt/evidence.json.
+  Newmetadataartifactsstagedsa-df79db5e/proddsa-c92fc189, manifesthash
+  f14a2e45a46e9e10a3485143241b973162b723ac582b52ed258d65ea9e37de18.
+  No oldoffer/template/release repin, customerapply oractivation.
+- Found real financial handoff defect: CustomerAdmissionManifestService emits
+  physical topology with zero financial demand, while first issuer/fixtures
+  incorrectly read positive financial R7 caps. Correction uses complete
+  matching staff lifetime grant once, keeps R7 auth/lifecycle prerequisite,
+  validates supported runtime profile BEFORE debit. Staff split API unchanged;
+  partial grants cannot silently supply remainder/new allowance. No refunds,
+  schema or fingerprint changes. 80 H2/PG tests plus131 parent gate PASS,
+  includingactualproducerbridge/concurrenttwo-release/no-reset. Follow-up not
+  yet live; parent owns scopedcommit/backend-only rollout.
+- Short hostreadback:18service stopsretained,8DBhealthy,2memorybridgesrunning,
+  RAM10615/12142MiBstage/prod.15-minuteproductionbaseline180samples:
+  CPUmedian160m,p95440m,max720m,noobservedswapIO/IOwait/steal. Full-feature
+  2750mCPUcandidate stillunmeasured, notapproved. KeepSSHopen/UIlast.
+- v8offer sourcepreparation pins guarded image, template1.5/fulltopologyunchanged;
+  54offlinefixturesPASS, notyetpublished. Do not rerun oldv7wrapper expectingv7
+  withnewsourceconstants. No paidcalls/grants/emails/runtimeapply;100k/50/USD2
+  stillbinding,200kdelta pending in Required for production. No status messages
+  there unless actualmissingexternalmaterialrequest; generalstatuswasblocked.

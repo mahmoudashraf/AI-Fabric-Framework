@@ -15,8 +15,6 @@ import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageRunt
 /** Provisioning-time coordination only; customer inference traffic never passes through this service. */
 @Service
 public class ProviderUsageReleaseCoordinator {
-    private static final String REVIEWED_RATE_CARD = "openai-gpt4omini-embedding3small-20261018-v1";
-    private static final java.util.Set<String> REVIEWED_MODELS = java.util.Set.of("gpt-4o-mini", "text-embedding-3-small");
     private final CustomerOfferDeploymentRepository offers;
     private final ProviderUsageAllowanceService allowances;
     private final ProviderUsageRuntimeClient runtime;
@@ -92,11 +90,10 @@ public class ProviderUsageReleaseCoordinator {
 
     private static SafeAllowanceProjection supported(SafeAllowanceProjection allowance) {
         // Exact capability authorization, not a provider/model choice or a fallback.
-        if (allowance == null || !"openai".equals(allowance.binding().provider())
-            || !REVIEWED_MODELS.equals(java.util.Set.copyOf(allowance.binding().modelIds()))
-            || !REVIEWED_RATE_CARD.equals(allowance.pricingReference())) {
+        if (allowance == null) {
             throw new IllegalStateException("PROVIDER_USAGE_RUNTIME_PROFILE_NOT_REVIEWED");
         }
+        ProviderUsageRuntimeProfile.require(allowance.binding(), allowance.pricingReference());
         return allowance;
     }
 

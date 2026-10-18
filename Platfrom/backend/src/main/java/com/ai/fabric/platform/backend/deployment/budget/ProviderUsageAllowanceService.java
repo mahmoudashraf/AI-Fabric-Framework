@@ -226,6 +226,7 @@ public class ProviderUsageAllowanceService {
             lockR7();
             var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.PREPARE);
             var grant = grantForRelease(authorized);
+            ProviderUsageRuntimeProfile.require(grant.grant().binding(), grant.grant().rateCardReference());
             var command = commandForRelease(authorized, grant);
             return allocateLocked(command, authorized.reviewed(), SYSTEM_ACTOR);
         });
@@ -273,7 +274,7 @@ public class ProviderUsageAllowanceService {
         var manifest = validateR7(reservation, reviewed, deployment, profile);
         if (!Objects.equals(manifest.demand(), reservation.demand())) throw conflict("PROVIDER_USAGE_R7_MANIFEST_DEMAND_CHANGED");
         reader.validate(release, binding, reservation, manifest, phase);
-        return new AuthorizedRelease(binding, reviewed, deployment, profile, manifestCaps(manifest));
+        return new AuthorizedRelease(binding, reviewed, deployment, profile);
     }
 
     private GrantRow grantForRelease(AuthorizedRelease authorized) {
@@ -288,7 +289,8 @@ public class ProviderUsageAllowanceService {
 
     private AllocationCommand commandForRelease(AuthorizedRelease authorized, GrantRow row) {
         var grant = row.grant();
-        return new AllocationCommand(grant.id(), authorized.deployment().getId(), authorized.profile().getId(), authorized.caps(),
+        // Physical admission authorizes the release; only the immutable staff grant authorizes provider credits.
+        return new AllocationCommand(grant.id(), authorized.deployment().getId(), authorized.profile().getId(), grant.credits(),
             grant.binding(), grant.rateCardReference(), actualCredentialSha(authorized.deployment().getId(), grant.binding()));
     }
 
@@ -304,18 +306,6 @@ public class ProviderUsageAllowanceService {
             || !terms.binding().equals(expected.binding()) || !terms.pricingReference().equals(expected.rateCardReference())
             || !terms.credentialSha256().equals(expected.expectedCredentialSha256())) throw conflict("PROVIDER_USAGE_ALLOCATION_IMMUTABLE");
         return Optional.of(row);
-    }
-
-    private Limits manifestCaps(AdmissionContracts.Manifest manifest) {
-        if (manifest.demand() == null || manifest.demand().amounts() == null) throw conflict("PROVIDER_USAGE_MANIFEST_LIMITS_REQUIRED");
-        var amounts = manifest.demand().amounts();
-        Long chats = amounts.get(AdmissionContracts.Dimension.API_REQUESTS_PER_WINDOW);
-        Long tokens = amounts.get(AdmissionContracts.Dimension.PROVIDER_TOKENS_PER_WINDOW);
-        Long micros = amounts.get(AdmissionContracts.Dimension.PROVIDER_SPEND_MICROS_PER_WINDOW);
-        if (chats == null || tokens == null || micros == null || chats < 0 || tokens < 0 || micros < 0)
-            throw conflict("PROVIDER_USAGE_MANIFEST_LIMITS_REQUIRED");
-        try { return new Limits(chats, tokens, Math.multiplyExact(micros, 1000L)); }
-        catch (ArithmeticException overflow) { throw conflict("PROVIDER_USAGE_MANIFEST_LIMIT_OVERFLOW"); }
     }
 
     public SafeAllowanceProjection readAllocation(AllocationScope scope) {
@@ -525,5 +515,5 @@ public class ProviderUsageAllowanceService {
     private record AllocationRow(AllocationTerms terms, String fingerprint, InitializationState state, UUID storeUuid, String initializationFingerprint) { }
     private record AuditActor(String id, String role) { }
     private record AuthorizedRelease(AdmissionContracts.ReleaseBinding binding, ReviewedR7Context reviewed,
-                                     DeploymentEntity deployment, DeploymentTargetProfileEntity profile, Limits caps) { }
+                                     DeploymentEntity deployment, DeploymentTargetProfileEntity profile) { }
 }

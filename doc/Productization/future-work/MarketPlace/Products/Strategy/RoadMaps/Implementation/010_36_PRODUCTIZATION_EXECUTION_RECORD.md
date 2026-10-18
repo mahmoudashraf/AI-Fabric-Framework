@@ -12,16 +12,20 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
   and write/delete denial. The staging S3 binding is persisted for the fresh v5
   customer lifecycle. SMTP authentication is live and the admission notice
   transport is explicitly configured on staging. Fresh guest measurements prove
-  that neither current host has an admissible complete topology envelope with
-  headroom: staging lacks RAM and production lacks CPU. No policy or grant was
-  fabricated to bypass that result.
+  a prior capacity shortfall. Authorized retained workload stops have since
+  cleared the staging RAM minimum; complete measured policy, workload and
+  recovery acceptance remain open. Production still lacks safe CPU headroom
+  for the unchanged complete topology. No policy or grant was fabricated to
+  bypass that result.
 - P1-P5: source foundations are integrated. The immutable three-service managed
   dependency package is published and read back on both hosted control planes.
   Customer admission no longer accepts a manifest identity or capacity material:
   the backend derives an immutable manifest from the exact offer, version,
   target storage, runtime authority and reviewed managed dependency topology.
-  Source `c41c02ace594a094f5afb446685904fa8382534d` is live on both Platform
-  backends, with template 1.5.0 and reviewed offer v6 published. The hosted legal
+  Source `600f136bf0becb9a473ff1e085bbc9896b4ef696` is live on both Platform
+  backends at migration 190, with template 1.5.0 and reviewed offer v7 published.
+  The guarded runtime artifact is registered separately; existing offer pins
+  remain unchanged until a fresh offer is published. The hosted legal
   customer request previously reached the measured-policy gate;
   an old client-supplied `manifestId` is rejected as an invalid contract.
   End-to-end provisioning remains intentionally unexecuted until sufficient
@@ -1103,3 +1107,60 @@ write-only bindings, never this ledger.
   backends remain `65b522a2d` / migration 189. No paid call, financial grant,
   lifecycle email or new customer runtime apply occurred. UI extraction stays
   last and the original approved financial limits still apply.
+
+### 2026-10-18 Guarded Images Published And Control Planes Upgraded
+
+- Pushed `66d1ec2c3` and `600f136bf`. Runtime CI `39134142561` completed
+  verification before publication. Backend CI `39134142560` passed and skipped
+  its UI image job. No public framework release or stopped-workload rebuild was
+  triggered by these image workflows.
+- Staging rollout `wswm25do7whkrc1u0852ejlo`, then production rollout
+  `yh59j4qzgu6sly0p7696ua5y`, both finished. Both running backends match source
+  `600f136bf0becb9a473ff1e085bbc9896b4ef696` and digest
+  `sha256:4cabac7a30bf5f26860e998c8e25962d8695df8674c56b67f80ccab8fc1c837c`;
+  both databases report migration 190 and public health returns UP.
+- Fresh private archives in
+  `/private/tmp/01036-control-plane-pre-provider-budget-20261018/` passed
+  SHA-256 and matching PostgreSQL-client catalog validation, 706 lines each.
+  This was archive validation, not an actual restore or a customer-runtime
+  recovery rehearsal.
+- The cached runtime image digest is
+  `sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28`.
+  Never-started local image inspection verified OCI source, AI Fabric execution
+  0.8.35, both private guard JARs, runtime V19 and complete packaged manifest.
+  The temporary inspection container was removed. The first harness run used
+  an incorrect nested META-INF path; actual root META-INF content matched the
+  committed source, and all exact checks then passed.
+- Exact artifacts are registered/promoted on staging `dsa-df79db5e` and
+  production `dsa-c92fc189`, capability manifest hash
+  `f14a2e45a46e9e10a3485143241b973162b723ac582b52ed258d65ea9e37de18`.
+  Registration did not repin old offers, apply a runtime or initialize credits.
+- HTTP budget readback passed anonymous denial, staff authentication and exact
+  authenticated missing-grant handling on both hosts. Customer-owner denial is
+  not yet proven: the test initially confused the session's email actor ID
+  with the persisted user ID. Keep its initial failed result separate from
+  the passing staff/anonymous checks.
+- Real handoff review found a functional accounting gap before activation:
+  customer admission manifests populate physical topology but zero financial
+  dimensions. The first issuer implementation/tests incorrectly assumed those
+  dimensions contained the approved financial allowance. A focused correction
+  now uses the explicit staff-reviewed lifetime grant as the financial source,
+  with whole-grant automatic allocation, exact replay and no refunds. Unsupported
+  provider profiles fail before debit. Verification passed 80 H2/PostgreSQL
+  cases and a 131-test parent integration gate. The real customer-manifest
+  producer feeds the issuer in both databases; concurrent authorized releases,
+  partial staff allocations, replay, retirement and recreation are covered.
+  Initial fixture wiring errors were corrected without disabling constraints.
+  The correction is not live merely because migration 190 is installed.
+- Latest short readback retains the eighteen ProdUS/Shopify application stops,
+  eight healthy databases and two running memory-backed Shopify bridges.
+  Physical available RAM: staging 10,615 MiB, production 12,142 MiB. Swap is not
+  capacity. A separate 15-minute production baseline completed with 180
+  five-second intervals: median 160mCPU, p95 440mCPU, peak 720mCPU, no observed
+  swap I/O, I/O wait or steal. It includes control-plane operational work but
+  no candidate customer workload. The proposed 2,750mCPU full-feature topology
+  is unmeasured, not an approved offer. Evidence is under
+  `/private/tmp/01036-production-baseline-20261018/`.
+  No paid call, grant, lifecycle email, customer runtime apply or UI extraction
+  deployment has occurred. The token amendment and remaining acceptance gates
+  remain open.

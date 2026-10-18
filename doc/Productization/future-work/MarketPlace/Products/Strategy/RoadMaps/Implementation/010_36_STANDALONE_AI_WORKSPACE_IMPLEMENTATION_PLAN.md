@@ -1675,6 +1675,15 @@ and allocation history; it does not proxy every inference request. This is a
 core operating-policy capability, not an optional customer-removable plugin or
 a separate commercial-billing product.
 
+Automatic customer release preparation allocates one complete, explicitly
+staff-reviewed financial grant to the deployment. Physical admission remains
+mandatory but does not supply financial credits from its topology dimensions.
+Same-deployment replay reuses that allocation; another deployment cannot claim
+the same full grant, and a partially allocated grant cannot silently provide
+its remaining balance as a new automatic allowance. Staff-only explicit split
+allocation is a separate boundary. Provider/model/rate compatibility is checked
+before the financial debit, with no compensating automatic refund.
+
 Actual request/token/cost enforcement remains deployment-local, using one
 durable atomic ledger shared by every enabled paid execution path. Reserve
 conservative verified bounds before transmission, including retries, query and
