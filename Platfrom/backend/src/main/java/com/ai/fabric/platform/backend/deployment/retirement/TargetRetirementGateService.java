@@ -16,9 +16,12 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class TargetRetirementGateService {
     private final DeploymentRepository deployments;
     private final TargetRetirementGateRepository gates;
-    public TargetRetirementGateService(DeploymentRepository deployments, TargetRetirementGateRepository gates) {
+    private final TargetRetirementOperationRepository operations;
+    public TargetRetirementGateService(DeploymentRepository deployments, TargetRetirementGateRepository gates,
+                                       TargetRetirementOperationRepository operations) {
         this.deployments = deployments;
         this.gates = gates;
+        this.operations = operations;
     }
 
     /** Call in the SAME short transaction as every activation/rebind/apply/resource-generation mutation. */
@@ -28,6 +31,11 @@ public class TargetRetirementGateService {
         if (!"AVAILABLE".equals(gate.getState())) {
             throw new ResponseStatusException(CONFLICT, "TARGET_RETIREMENT_FENCED");
         }
+        boolean plannedOrRunning = operations.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(
+                deploymentId, targetProfileId).stream()
+            .anyMatch(operation -> operation.getState() != TargetRetirementContracts.State.COMPLETE
+                && operation.getState() != TargetRetirementContracts.State.CANCELLED);
+        if (plannedOrRunning) throw new ResponseStatusException(CONFLICT, "TARGET_RETIREMENT_FENCED");
         gate.setEpoch(gate.getEpoch() + 1);
         gate.setUpdatedAt(Instant.now());
         gates.save(gate);

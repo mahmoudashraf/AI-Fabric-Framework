@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileE
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
@@ -32,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
@@ -53,6 +55,8 @@ public class DeploymentReleaseVerificationService {
 
     @Autowired
     private DeploymentDocumentBindingResolver documentBindingResolver;
+    @Autowired
+    private DeploymentRuntimeAuthorityService runtimeAuthorityService;
     private static final int JSON_PROBE_MAX_ATTEMPTS = 3;
 
     private final ObjectMapper objectMapper;
@@ -479,6 +483,10 @@ public class DeploymentReleaseVerificationService {
                 "Runtime indexing overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "document_source_connector_ready",
                 "Document source connector readiness skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "document_active_sources_ready",
+                "Document source activation verification skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "document_retrieval_evidence_ready",
+                "Document retrieval evidence verification skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_admin_overview_http_probe",
                 "Connector admin overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_actions_overview_http_probe",
@@ -522,7 +530,7 @@ public class DeploymentReleaseVerificationService {
             "Runtime"
         );
 
-        Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment);
+        Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment, release);
         if (connectorVerificationRequired) {
             JsonProbeResult connectorHealth = awaitSuccessfulJsonProbe(
                 deployment.getRuntimeBaseUrl(),
@@ -572,7 +580,7 @@ public class DeploymentReleaseVerificationService {
         );
         addProbeCheck(checks, "runtime_indexing_overview_http_probe", "Runtime indexing overview", runtimeIndexingOverview);
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
-        verifyDocumentSourceConnector(checks, deployment, expectations);
+        verifyDocumentSourceConnector(checks, deployment, release, expectations);
 
         if (connectorVerificationRequired) {
             JsonProbeResult connectorOverview = settledOverviews.connectorOverview();
@@ -940,7 +948,16 @@ public class DeploymentReleaseVerificationService {
             && hasText(runnerService.path("deploymentStatus").asText(""));
     }
 
-    private Map<String, String> runtimeAdminHeaders(DeploymentEntity deployment) {
+    private Map<String, String> runtimeAdminHeaders(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        if (runtimeAuthorityService != null) {
+            return runtimeAuthorityService.issueSystemHeaders(
+                deployment.getId(), release.getTargetProfileId(), release.getId(),
+                release.getRuntimeAuthorityFingerprint(), "platform-release-verification",
+                "release-verification-" + release.getId(), RuntimePrivateAccessSupport.adminReadScopes(),
+                Duration.ofMinutes(15)
+            );
+        }
+        // Direct-constructor unit fixtures predate target authority injection; Spring production always injects it.
         return RuntimePrivateAccessSupport.issueSystemHeaders(
             platformSecretService,
             objectMapper,
@@ -953,7 +970,15 @@ public class DeploymentReleaseVerificationService {
         );
     }
 
-    private Map<String, String> runtimeDocumentReadHeaders(DeploymentEntity deployment) {
+    private Map<String, String> runtimeDocumentReadHeaders(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        if (runtimeAuthorityService != null) {
+            return runtimeAuthorityService.issueSystemHeaders(
+                deployment.getId(), release.getTargetProfileId(), release.getId(),
+                release.getRuntimeAuthorityFingerprint(), "platform-release-verification",
+                "document-release-verification-" + release.getId(), RuntimePrivateAccessSupport.documentReadScopes(),
+                Duration.ofMinutes(15)
+            );
+        }
         return RuntimePrivateAccessSupport.issueSystemHeaders(
             platformSecretService,
             objectMapper,
@@ -968,6 +993,7 @@ public class DeploymentReleaseVerificationService {
 
     private void verifyDocumentSourceConnector(ArrayNode checks,
                                                DeploymentEntity deployment,
+                                               DeploymentReleaseEntity release,
                                                VerificationExpectations expectations) {
         if (!hasExternalDocumentDataset(expectations.marketplaceDatasetConfig())) {
             addSkippedCheck(
@@ -975,13 +1001,23 @@ public class DeploymentReleaseVerificationService {
                 "document_source_connector_ready",
                 "Document source connector readiness is not required because the immutable version does not claim external document storage."
             );
+            addSkippedCheck(
+                checks,
+                "document_active_sources_ready",
+                "Active document source verification is not required because the immutable version does not claim external document storage."
+            );
+            addSkippedCheck(
+                checks,
+                "document_retrieval_evidence_ready",
+                "Document retrieval evidence is not required because the immutable version does not claim external document storage."
+            );
             return;
         }
 
         JsonProbeResult probe = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             "/api/documents/source-connector/status",
-            runtimeDocumentReadHeaders(deployment)
+            runtimeDocumentReadHeaders(deployment, release)
         );
         Set<String> expectedConnectorTypes = expectedDocumentSourceConnectorValues(
             expectations.marketplaceDatasetConfig(),
@@ -1028,6 +1064,168 @@ public class DeploymentReleaseVerificationService {
                 : "Deployment-local document source connector is unavailable or does not match the immutable source binding.",
             details
         );
+        if (!passed) {
+            addDependentCheckSkipped(
+                checks,
+                "document_active_sources_ready",
+                "Active document source verification was skipped because the document connector readiness check failed."
+            );
+            addDependentCheckSkipped(
+                checks,
+                "document_retrieval_evidence_ready",
+                "Document retrieval evidence verification was skipped because the document connector readiness check failed."
+            );
+            return;
+        }
+        verifyActiveDocumentEvidence(checks, deployment, release, expectations);
+    }
+
+    private void verifyActiveDocumentEvidence(ArrayNode checks,
+                                              DeploymentEntity deployment,
+                                              DeploymentReleaseEntity release,
+                                              VerificationExpectations expectations) {
+        Map<String, String> headers = runtimeDocumentReadHeaders(deployment, release);
+        Set<String> expectedDatasetIds = externalDocumentDatasetIds(expectations.marketplaceDatasetConfig());
+        JsonProbeResult sourcesProbe = awaitSuccessfulJsonProbe(
+            deployment.getRuntimeBaseUrl(),
+            "/api/documents/sources",
+            headers
+        );
+        Map<String, JsonNode> activeSourceByDataset = new LinkedHashMap<>();
+        if (sourcesProbe.success() && sourcesProbe.body() != null && sourcesProbe.body().isArray()) {
+            for (JsonNode source : sourcesProbe.body()) {
+                String datasetId = source.path("datasetId").asText("").trim();
+                if (expectedDatasetIds.contains(datasetId)
+                    && "ACTIVE".equalsIgnoreCase(source.path("status").asText(""))
+                    && source.path("activeVersion").canConvertToLong()
+                    && source.path("activeVersion").asLong() > 0
+                    && hasText(source.path("sourceId").asText(""))) {
+                    activeSourceByDataset.putIfAbsent(datasetId, source);
+                }
+            }
+        }
+
+        ObjectNode sourceDetails = objectMapper.createObjectNode();
+        sourceDetails.set("expectedDatasetIds", toArrayNode(expectedDatasetIds));
+        sourceDetails.set("activeDatasetIds", toArrayNode(activeSourceByDataset.keySet()));
+        sourceDetails.put("activeSourceCount", activeSourceByDataset.size());
+        if (sourcesProbe.httpStatus() != null) sourceDetails.put("httpStatus", sourcesProbe.httpStatus());
+        if (sourcesProbe.errorMessage() != null) sourceDetails.put("error", sourcesProbe.errorMessage());
+        boolean activeSourcesReady = !expectedDatasetIds.isEmpty()
+            && activeSourceByDataset.keySet().containsAll(expectedDatasetIds);
+        addCheck(
+            checks,
+            "document_active_sources_ready",
+            activeSourcesReady ? "PASSED" : "FAILED",
+            activeSourcesReady
+                ? "Every external document dataset has an active deployment-local source version."
+                : "One or more external document datasets do not have an active deployment-local source version.",
+            sourceDetails
+        );
+        if (!activeSourcesReady) {
+            addDependentCheckSkipped(
+                checks,
+                "document_retrieval_evidence_ready",
+                "Document retrieval evidence verification was skipped because an active source is missing."
+            );
+            return;
+        }
+
+        ObjectNode retrievalDetails = objectMapper.createObjectNode();
+        ArrayNode datasetResults = objectMapper.createArrayNode();
+        boolean retrievalReady = true;
+        for (String datasetId : expectedDatasetIds) {
+            JsonNode source = activeSourceByDataset.get(datasetId);
+            String sourceId = source.path("sourceId").asText();
+            long activeVersion = source.path("activeVersion").asLong();
+            JsonProbeResult previewProbe = awaitSuccessfulJsonProbe(
+                deployment.getRuntimeBaseUrl(),
+                "/api/documents/sources/" + encodePathSegment(sourceId) + "/preview",
+                headers
+            );
+            String query = firstContentPreview(previewProbe.body());
+            JsonProbeResult retrievalProbe = hasText(query)
+                ? probeJsonPost(
+                    deployment.getRuntimeBaseUrl(),
+                    "/api/documents/retrieval-proof",
+                    headers,
+                    objectMapper.createObjectNode().put("query", query).put("limit", 20),
+                    verificationProperties.runtimeIndexingOverviewTimeout()
+                )
+                : JsonProbeResult.failure("The active source preview did not contain a usable evidence canary.");
+            boolean datasetReady = retrievalProbe.success()
+                && retrievalProofContains(
+                    retrievalProbe.body(), datasetId, sourceId, activeVersion,
+                    deployment.getId(), release.getTargetProfileId(), release.getId()
+                );
+            retrievalReady &= datasetReady;
+            ObjectNode datasetResult = objectMapper.createObjectNode();
+            datasetResult.put("datasetId", datasetId);
+            datasetResult.put("previewReady", hasText(query));
+            datasetResult.put("retrievalReady", datasetReady);
+            datasetResult.put("evidenceCount", retrievalProbe.body() == null
+                ? 0 : retrievalProbe.body().path("evidenceCount").asInt(0));
+            if (retrievalProbe.httpStatus() != null) datasetResult.put("httpStatus", retrievalProbe.httpStatus());
+            if (retrievalProbe.errorMessage() != null) datasetResult.put("error", retrievalProbe.errorMessage());
+            datasetResults.add(datasetResult);
+        }
+        retrievalDetails.set("datasets", datasetResults);
+        addCheck(
+            checks,
+            "document_retrieval_evidence_ready",
+            retrievalReady ? "PASSED" : "FAILED",
+            retrievalReady
+                ? "Every external document dataset returned evidence for its active source and release boundary."
+                : "One or more external document datasets did not return evidence for its active source and release boundary.",
+            retrievalDetails
+        );
+    }
+
+    private Set<String> externalDocumentDatasetIds(JsonNode marketplaceDatasetConfig) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        if (marketplaceDatasetConfig == null || !marketplaceDatasetConfig.path("datasets").isArray()) return Set.of();
+        for (JsonNode dataset : marketplaceDatasetConfig.path("datasets")) {
+            if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText(""))) {
+                String datasetId = dataset.path("datasetId").asText("").trim();
+                if (hasText(datasetId)) values.add(datasetId);
+            }
+        }
+        return Set.copyOf(values);
+    }
+
+    private String firstContentPreview(JsonNode preview) {
+        if (preview == null || !preview.path("chunks").isArray()) return null;
+        for (JsonNode chunk : preview.path("chunks")) {
+            String content = chunk.path("contentPreview").asText("").trim();
+            if (hasText(content)) return content.substring(0, Math.min(content.length(), 1000));
+        }
+        return null;
+    }
+
+    private boolean retrievalProofContains(JsonNode proof,
+                                           String datasetId,
+                                           String sourceId,
+                                           long sourceVersion,
+                                           String deploymentId,
+                                           String targetProfileId,
+                                           String releaseId) {
+        if (proof == null || proof.path("evidenceCount").asInt(0) < 1 || !proof.path("evidence").isArray()) return false;
+        for (JsonNode evidence : proof.path("evidence")) {
+            JsonNode metadata = evidence.path("metadata");
+            if (sourceId.equals(evidence.path("sourceId").asText(""))
+                && sourceVersion == evidence.path("sourceVersion").asLong(-1)
+                && datasetId.equals(metadata.path("datasetId").asText(""))
+                && deploymentId.equals(metadata.path("deploymentId").asText(""))
+                && targetProfileId.equals(metadata.path("targetProfileId").asText(""))
+                && releaseId.equals(metadata.path("releaseId").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String encodePathSegment(String value) {
+        return URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private Set<String> expectedDocumentSourceConnectorValues(JsonNode marketplaceDatasetConfig, String field) {
@@ -2555,6 +2753,50 @@ public class DeploymentReleaseVerificationService {
                                       String path,
                                       Map<String, String> headers) {
         return probeJson(baseUrl, path, headers, verificationProperties.timeout());
+    }
+
+    private JsonProbeResult probeJsonPost(String baseUrl,
+                                          String path,
+                                          Map<String, String> headers,
+                                          JsonNode body,
+                                          Duration timeout) {
+        if (!hasText(baseUrl)) return JsonProbeResult.failure("Base URL is missing.");
+        URI uri;
+        try {
+            uri = buildProbeUri(baseUrl, path);
+        } catch (IllegalArgumentException ex) {
+            return JsonProbeResult.failure("Probe URI is invalid: " + ex.getMessage());
+        }
+        long startedAt = System.nanoTime();
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri)
+            .timeout(timeout)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body == null ? "{}" : body.toString()));
+        headers.forEach(requestBuilder::header);
+        int attempts = 0;
+        while (true) {
+            attempts++;
+            try {
+                HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
+                JsonNode responseBody = null;
+                String parseError = null;
+                String rawBody = response.body();
+                if (hasText(rawBody)) {
+                    try { responseBody = objectMapper.readTree(rawBody); }
+                    catch (Exception ex) { parseError = ex.getMessage(); }
+                }
+                return new JsonProbeResult(uri, response.statusCode(), durationMs, responseBody, rawBody,
+                    parseError, null, response.headers());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return JsonProbeResult.failure(uri, "Probe was interrupted.");
+            } catch (Exception ex) {
+                if (isRetryableJsonProbeException(ex) && attempts < JSON_PROBE_MAX_ATTEMPTS) continue;
+                return JsonProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
+            }
+        }
     }
 
     private JsonProbeResult probeJson(String baseUrl,

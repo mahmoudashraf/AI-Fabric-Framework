@@ -44,7 +44,7 @@ public class DeploymentDocumentKnowledgeController {
     public ResponseEntity<JsonNode> register(
         @PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId,
         @RequestBody JsonNode body,
-        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
+        @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return response(service.register(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), body, idempotencyKey));
     }
@@ -63,7 +63,7 @@ public class DeploymentDocumentKnowledgeController {
     public ResponseEntity<JsonNode> refresh(
         @PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId,
         @PathVariable String sourceId,
-        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
+        @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return response(service.refresh(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), sourceId, idempotencyKey));
     }
@@ -72,7 +72,7 @@ public class DeploymentDocumentKnowledgeController {
     public ResponseEntity<JsonNode> index(
         @PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId,
         @PathVariable String sourceId,
-        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
+        @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return response(service.index(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), sourceId, idempotencyKey));
     }
@@ -81,7 +81,7 @@ public class DeploymentDocumentKnowledgeController {
     public ResponseEntity<JsonNode> reconcile(
         @PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId,
         @PathVariable String sourceId,
-        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
+        @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return response(service.reconcile(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), sourceId, idempotencyKey));
     }
@@ -90,7 +90,7 @@ public class DeploymentDocumentKnowledgeController {
     public ResponseEntity<JsonNode> removeIndex(
         @PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId,
         @PathVariable String sourceId,
-        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
+        @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return response(service.removeIndex(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), sourceId, idempotencyKey));
     }
@@ -108,7 +108,7 @@ public class DeploymentDocumentKnowledgeController {
     @PostMapping("/retention/cleanup")
     public ResponseEntity<JsonNode> cleanupRetention(@PathVariable String deploymentId, @PathVariable String targetProfileId,
                                                     @PathVariable String releaseId,
-                                                    @RequestHeader(name = "Idempotency-Key", required = false) String operationKey) {
+                                                    @RequestHeader("Idempotency-Key") String operationKey) {
         return response(service.cleanupRetention(new DeploymentTargetReference(deploymentId, targetProfileId, releaseId), operationKey));
     }
 

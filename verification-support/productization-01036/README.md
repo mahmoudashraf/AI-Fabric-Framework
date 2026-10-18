@@ -96,7 +96,7 @@ node --test verification-support/productization-01036/test/*.test.mjs
 `publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
 digests as `MANAGED_DEPENDENCY` source artifacts, promotes them through the
 production review channel, and publishes one immutable dependency topology for
-`mkv-template-simulated-dealership-experience-v1-4`. This template establishes
+`mkv-template-simulated-dealership-experience-v1-5`. This template establishes
 the reviewed platform-managed Zilliz/Milvus baseline before customer-owned
 document storage is enabled. A production-reviewed
 artifact is valid in customer staging and production; a staging-only artifact
@@ -125,11 +125,18 @@ topology. Sanitized evidence is written under the ignored `evidence/` folder.
 
 ## Reviewed customer offer
 
-`publish-simulated-dealership-offer.mjs` publishes the immutable v5 customer
+`publish-simulated-dealership-offer.mjs` publishes the immutable v6 customer
 offer only after reading both target profiles and confirming the complete
 reviewed runtime envelope: runtime, connector, vectorization runner, runtime
 PostgreSQL capacity and distinct CPU assignments. Missing or drifted target
 settings fail before offer publication.
+
+The runtime is pinned to the CI-published AI Fabric `0.8.35` image, and the
+managed dependency specification pins the matching Basic Inbox image. The
+offer carries reviewed public workspace profile payloads as well as their
+canonical setting hashes. An entitled new customer can therefore configure
+its first Engage app without copying a previous customer's installation.
+Private credentials remain write-only bindings and are never profile payloads.
 
 The offer stores two separate capacity contracts. `topology` is the exact
 minimum full-deployment demand that every admission manifest must cover;

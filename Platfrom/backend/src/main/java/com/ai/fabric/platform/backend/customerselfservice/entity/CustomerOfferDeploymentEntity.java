@@ -19,6 +19,7 @@ public class CustomerOfferDeploymentEntity {
     @Column(nullable = false, length = 64) private String customerId;
     @Column(nullable = false, length = 64) private String tenantId;
     @Column(nullable = false, length = 64) private String offerId;
+    @Column(nullable = false, length = 64) private String bootstrapTargetProfileId;
     @Column(nullable = false, length = 64) private String offerFingerprint;
     @Column(nullable = false) private long authorizationEntitlementRevision;
     @Column(nullable = false, length = 128) private String operationKey;

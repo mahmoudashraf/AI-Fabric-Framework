@@ -41,11 +41,13 @@ class CustomerSelfServiceControllerTest {
     @Autowired CustomerSelfServiceCatalogueService catalogue;
     @Autowired CustomerDeploymentBootstrapService bootstrap;
     @Autowired CustomerDeploymentVersionService versions;
+    @Autowired CustomerDeploymentApplyService applies;
     @Autowired CustomerAdmissionReservationService reservations;
+    @Autowired CustomerDeploymentPortfolioService deploymentPortfolio;
     private MockMvc mvc;
 
     @BeforeEach void setup() {
-        reset(entitlements, catalogue, bootstrap, versions, reservations);
+        reset(entitlements, catalogue, bootstrap, versions, applies, reservations, deploymentPortfolio);
         mvc = webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -55,6 +57,22 @@ class CustomerSelfServiceControllerTest {
             mvc.perform(as(get("/api/customer-self-service/catalogue"), role)).andExpect(status().isForbidden());
         }
         mvc.perform(get("/api/customer-self-service/catalogue")).andExpect(status().isForbidden());
+    }
+
+    @Test void customerDeploymentPortfolioIsOwnerOnlyAndUsesServerOwnedAssociations() throws Exception {
+        when(deploymentPortfolio.deployments()).thenReturn(List.of(new CustomerDeploymentSummary(
+            "deployment", "Northfield", "staging", "DRAFT", "tenant", "offer", "staging-target", "fingerprint", 2, null,
+            java.time.Instant.parse("2026-10-16T00:00:00Z"))));
+        mvc.perform(as(get("/api/customer-self-service/deployments"), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].deploymentId").value("deployment"))
+            .andExpect(jsonPath("$[0].offerId").value("offer"))
+            .andExpect(jsonPath("$[0].bootstrapTargetProfileId").value("staging-target"));
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR,
+            PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(as(get("/api/customer-self-service/deployments"), role)).andExpect(status().isForbidden());
+        }
+        verify(deploymentPortfolio, times(1)).deployments();
     }
 
     @Test void reviewedVersionPublicationIsCustomerOnlyAndUsesTheDedicatedContract() throws Exception {
@@ -69,6 +87,24 @@ class CustomerSelfServiceControllerTest {
             .contentType("application/json").content(body), PlatformRole.PLATFORM_OPERATOR))
             .andExpect(status().isForbidden());
         verify(versions, times(1)).publish(eq("offer"), eq("deployment"), any());
+    }
+
+    @Test void stagingApplyIsCustomerOnlyAndRejectsCallerSelectedTargetOrArtifact() throws Exception {
+        String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/staging-releases";
+        String body = "{\"versionId\":\"version\",\"expectedEntitlementRevision\":2,\"operationKey\":\"apply-key\"}";
+        mvc.perform(as(post(route).contentType("application/json").content(body), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk());
+        verify(applies).apply(eq("offer"), eq("deployment"), any());
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR,
+            PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(as(post(route).contentType("application/json").content(body), role)).andExpect(status().isForbidden());
+        }
+        clearInvocations(applies);
+        mvc.perform(as(post(route).contentType("application/json").content(
+            "{\"versionId\":\"version\",\"expectedEntitlementRevision\":2,\"operationKey\":\"apply-key\","
+                + "\"targetProfileId\":\"foreign\",\"sourceArtifactId\":\"private\"}"), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(applies);
     }
 
     @Test void grantRevokeRoutesAreAdminOnlyAndCannotBeReachedThroughCustomerOrOperatorRoles() throws Exception {
@@ -139,6 +175,9 @@ class CustomerSelfServiceControllerTest {
         verifyNoInteractions(reservations);
         mvc.perform(as(get(route + "/reservation"), PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isOk());
         verify(reservations).status("offer", "deployment", "reservation");
+        mvc.perform(as(get(route).queryParam("targetProfileId", "staging-target"), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk());
+        verify(reservations).list("offer", "deployment", "staging-target");
     }
 
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder request, PlatformRole role) {
@@ -154,16 +193,20 @@ class CustomerSelfServiceControllerTest {
         @Bean CustomerPlacementProbeService placementProbes() { return mock(CustomerPlacementProbeService.class); }
         @Bean CustomerDeploymentBootstrapService bootstrap() { return mock(CustomerDeploymentBootstrapService.class); }
         @Bean CustomerDeploymentVersionService versions() { return mock(CustomerDeploymentVersionService.class); }
+        @Bean CustomerDeploymentApplyService applies() { return mock(CustomerDeploymentApplyService.class); }
         @Bean CustomerDocumentStorageBindingService documentStorageBindings() {
             return mock(CustomerDocumentStorageBindingService.class);
         }
         @Bean CustomerAdmissionReservationService reservations() { return mock(CustomerAdmissionReservationService.class); }
+        @Bean CustomerDeploymentPortfolioService deploymentPortfolio() { return mock(CustomerDeploymentPortfolioService.class); }
         @Bean CustomerSelfServiceController controller(CustomerSelfServiceCatalogueService catalogue,
             CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec, CustomerPlacementProbeService placementProbes,
             CustomerDeploymentBootstrapService bootstrap, CustomerDeploymentVersionService versions,
-            CustomerDocumentStorageBindingService documentStorageBindings) {
+            CustomerDeploymentApplyService applies,
+            CustomerDocumentStorageBindingService documentStorageBindings,
+            CustomerDeploymentPortfolioService deploymentPortfolio) {
             return new CustomerSelfServiceController(catalogue, entitlements, codec, placementProbes, bootstrap, versions,
-                documentStorageBindings);
+                applies, documentStorageBindings, deploymentPortfolio);
         }
         @Bean CustomerSelfServiceExceptionHandler errors() { return new CustomerSelfServiceExceptionHandler(); }
         @Bean CustomerAdmissionReservationController admissionReservationController(CustomerAdmissionReservationService reservations,

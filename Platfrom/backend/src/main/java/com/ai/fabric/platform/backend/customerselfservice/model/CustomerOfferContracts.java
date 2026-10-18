@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.customerselfservice.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -47,6 +48,9 @@ public final class CustomerOfferContracts {
                               @Positive int maxLength, @NotNull Set<String> allowedValues) {
         public SettingRule { allowedValues = ordered(allowedValues); }
     }
+    public record WorkspaceProfile(@NotBlank String id, @NotBlank String label,
+                                   @NotNull JsonNode interaction, @NotNull JsonNode theme,
+                                   @NotNull JsonNode authentication) { }
     public record BindingSlot(@NotBlank String id, @NotNull BindingKind kind,
                               @NotNull Set<String> supportedProfileIds,
                               String pluginId, String installConfigField) {
@@ -81,7 +85,18 @@ public final class CustomerOfferContracts {
                              @NotNull Set<Prerequisite> admissionPrerequisites,
                              @NotNull @Valid ReviewedLimits limits, @NotNull @Valid ReviewedTopology topology,
                              @NotBlank String approvedPolicyRef, @NotBlank String operatingPolicyRef,
-                             @NotBlank String identityPolicyRef, @NotBlank String storagePolicyRef) {
+                             @NotBlank String identityPolicyRef, @NotBlank String storagePolicyRef,
+                             @JsonInclude(JsonInclude.Include.NON_EMPTY) @Valid List<WorkspaceProfile> workspaceProfiles) {
+        public Definition(String schemaVersion, String name, String templateId, PluginPin template,
+                          List<PluginPin> plugins, List<ArtifactPin> artifacts, List<TargetPermission> targets,
+                          Set<Operation> operations, List<SettingRule> settings, List<BindingSlot> bindingSlots,
+                          Set<DocumentAudience> documentAudiences, Set<Prerequisite> admissionPrerequisites,
+                          ReviewedLimits limits, ReviewedTopology topology, String approvedPolicyRef,
+                          String operatingPolicyRef, String identityPolicyRef, String storagePolicyRef) {
+            this(schemaVersion, name, templateId, template, plugins, artifacts, targets, operations, settings,
+                bindingSlots, documentAudiences, admissionPrerequisites, limits, topology, approvedPolicyRef,
+                operatingPolicyRef, identityPolicyRef, storagePolicyRef, List.of());
+        }
         public Definition {
             plugins = plugins == null ? List.of() : List.copyOf(plugins);
             artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);
@@ -91,6 +106,7 @@ public final class CustomerOfferContracts {
             bindingSlots = bindingSlots == null ? List.of() : List.copyOf(bindingSlots);
             documentAudiences = ordered(documentAudiences);
             admissionPrerequisites = ordered(admissionPrerequisites);
+            workspaceProfiles = workspaceProfiles == null ? List.of() : List.copyOf(workspaceProfiles);
         }
     }
     public record PublishOfferRequest(@NotBlank String offerId, @NotNull @Valid Definition definition,
@@ -133,7 +149,13 @@ public final class CustomerOfferContracts {
                                String fingerprint, EntitlementSummary entitlement,
                                List<TargetSummary> targets, List<PermissionRow> permissions,
                                List<SettingRule> settings, List<BindingSlot> bindingSlots,
-                               Set<DocumentAudience> documentAudiences, List<String> blockers) { }
+                               Set<DocumentAudience> documentAudiences, List<String> blockers,
+                               List<WorkspaceProfile> workspaceProfiles) { }
+    public record CustomerDeploymentSummary(String deploymentId, String name, String environmentName,
+                                            String status, String tenantId, String offerId,
+                                            String bootstrapTargetProfileId,
+                                            String offerFingerprint, long authorizationEntitlementRevision,
+                                            String activeVersionId, Instant createdAt) { }
     public record SettingsPatch(@NotNull Map<Setting, JsonNode> values) { }
     public record PlacementProbeRequest(@NotNull TargetIntent intent) { }
     public record PlacementEvidenceSummary(String id, String targetProfileId, TargetIntent intent,

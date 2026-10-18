@@ -84,7 +84,8 @@ public class CustomerStagingLifecycleService {
 
     private Summary summary(Reservation value, Operation operation) {
         return new Summary(value.id(), value.deploymentId(), value.targetProfileId(), TargetIntent.CUSTOMER_STAGING,
-            operation, value.state().name(), value.revision(), value.expiresAt());
+            operation, value.state().name(), value.revision(), value.expiresAt(), value.expiryState().name(),
+            value.keepUntil());
     }
 
     private AdmissionFailure invalid() {

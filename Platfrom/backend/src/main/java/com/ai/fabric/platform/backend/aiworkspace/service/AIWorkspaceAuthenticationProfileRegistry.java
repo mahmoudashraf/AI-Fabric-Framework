@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbusds.jwt.SignedJWT;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -90,6 +91,7 @@ public class AIWorkspaceAuthenticationProfileRegistry {
         if (publishableKey.chars().anyMatch(Character::isWhitespace)) {
             throw new ResponseStatusException(BAD_REQUEST, "Supabase publishableKey is invalid.");
         }
+        validatePublicKey(publishableKey);
         JsonNode methodsNode = configuration.path("methods");
         if (!methodsNode.isArray() || methodsNode.isEmpty() || methodsNode.size() > SUPPORTED_METHODS.size()) {
             throw new ResponseStatusException(BAD_REQUEST, "Supabase methods must contain supported sign-in methods.");
@@ -107,6 +109,18 @@ public class AIWorkspaceAuthenticationProfileRegistry {
         ArrayNode publicMethods = publicConfiguration.putArray("methods");
         methods.forEach(publicMethods::add);
         return new AuthenticationProfile(SUPABASE, VERSION, "loomai-workspace-auth-supabase-v1", publicConfiguration);
+    }
+
+    private void validatePublicKey(String key) {
+        if (key.startsWith("sb_publishable_") && key.length() > "sb_publishable_".length()) return;
+        // Legacy keys are JWTs: inspect the role only to prevent publishing a privileged credential.
+        // This is not token authentication; the identity provider still verifies its signature.
+        try {
+            if ("anon".equals(SignedJWT.parse(key).getJWTClaimsSet().getStringClaim("role"))) return;
+        } catch (java.text.ParseException ignored) {
+            // Malformed or unrecognized credentials must not enter browser configuration.
+        }
+        throw new ResponseStatusException(BAD_REQUEST, "Supabase publishableKey must be a publishable key or legacy anon key.");
     }
 
     private ObjectNode requireObject(JsonNode node) {

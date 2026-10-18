@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -44,6 +45,7 @@ public class DeploymentAdmissionService {
     private final ObjectProvider<AdmissionEvidenceSource> evidenceSources;
     private final ObjectProvider<AdmissionResourceReadbackSource> resourceSources;
     private final ObjectProvider<AdmissionNoticeDeliverySource> noticeSources;
+    private final TargetRetirementGateService retirementGates;
 
     public DeploymentAdmissionService(AdmissionStore store, AdmissionJson json, ObjectMapper mapper,
                                       DeploymentRepository deployments, DeploymentVersionRepository versions,
@@ -51,10 +53,12 @@ public class DeploymentAdmissionService {
                                       PlatformCustomerAccessService customersAccess, PlatformCustomerRepository customers,
                                       PlatformTenantRepository tenants, ObjectProvider<AdmissionEvidenceSource> evidenceSources,
                                       ObjectProvider<AdmissionResourceReadbackSource> resourceSources,
-                                      ObjectProvider<AdmissionNoticeDeliverySource> noticeSources) {
+                                      ObjectProvider<AdmissionNoticeDeliverySource> noticeSources,
+                                      TargetRetirementGateService retirementGates) {
         this.store = store; this.json = json; this.mapper = mapper; this.deployments = deployments; this.versions = versions;
         this.targets = targets; this.access = access; this.customersAccess = customersAccess; this.customers = customers;
         this.tenants = tenants; this.evidenceSources = evidenceSources; this.resourceSources = resourceSources; this.noticeSources = noticeSources;
+        this.retirementGates = retirementGates;
     }
 
     /** Staff reviews measured policy; there are no defaults and registration does not publish the offer. */
@@ -104,6 +108,22 @@ public class DeploymentAdmissionService {
     }
     public Reservation status(String deploymentId, String reservationId) {
         return owned(deploymentId, reservationId, false);
+    }
+    /** Customer-safe callers use this only through their bounded projection service. */
+    public List<Reservation> activeCustomerReservations(String deploymentId, String targetProfileId) {
+        DeploymentEntity deployment = authorize(deploymentId, false);
+        required(targetProfileId, 64);
+        return store.held(deploymentId, targetProfileId).stream()
+            .filter(reservation -> deployment.getCustomerId().equals(reservation.customerId()))
+            .filter(reservation -> deployment.getTenantId().equals(reservation.tenantId()))
+            .filter(reservation -> reservation.customerOperation() != null)
+            .toList();
+    }
+    /** Resolve capacity through the exact release/apply receipt, including allocations first reserved during planning. */
+    public Reservation activeCustomerReleaseReservation(String deploymentId, String releaseId) {
+        DeploymentEntity deployment = authorize(deploymentId, false);
+        required(releaseId, 64);
+        return store.activeCustomerReleaseReservation(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, releaseId);
     }
     /** Call and commit before initiating ANY provisioning; persist generation markers in every owned handle. */
     public Reservation beginProvisioning(String deploymentId, Fence fence) {
@@ -188,6 +208,7 @@ public class DeploymentAdmissionService {
     }
     private void localGuard(String deploymentId, AdmissionContext context) {
         store.lockAuthoritativeRows(context);
+        retirementGates.requireAvailableForMutation(deploymentId, context.target().targetProfileId());
         DeploymentEntity current = authorize(deploymentId, true);
         if (!context.customerId().equals(current.getCustomerId()) || !context.tenantId().equals(current.getTenantId()))
             throw new AdmissionFailure(CONFLICT, "ADMISSION_OWNERSHIP_CHANGED");

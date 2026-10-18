@@ -20,6 +20,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
@@ -28,8 +29,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
@@ -64,6 +67,7 @@ class TargetRetirementPersistenceTest {
     @Autowired TargetRetirementWorker worker;
     @Autowired FakeInterlock interlock;
     @Autowired PlatformTransactionManager transactions;
+    @Autowired JdbcTemplate jdbc;
     @Autowired List<TargetRetirementParticipant> participants;
     private boolean absent;
     private Snapshot snapshot;
@@ -71,7 +75,9 @@ class TargetRetirementPersistenceTest {
     @BeforeEach void setup() {
         operations.deleteAll();
         gates.deleteAll();
-        reset(inventory, provider, deployments, access);
+        jdbc.update("DELETE FROM deployment_capacity_reservations");
+        TargetRetirementInventory inventoryTarget = AopTestUtils.getUltimateTargetObject(inventory);
+        reset(inventoryTarget, provider, deployments, access);
         interlock.reset();
         participants.forEach(p -> ((FakeParticipant) p).reset());
         absent = false;
@@ -88,9 +94,19 @@ class TargetRetirementPersistenceTest {
         snapshot = new Snapshot("customer", "tenant", "deployment", "staging", "target-generation", 0,
             List.of(new ReleaseGeneration("staging-release", "version", "release-generation")), List.of(owned, source),
             List.of(new ConsumerExpectation("consumer", 7)));
-        when(inventory.capture(eq("deployment"), eq("staging"), any(), anyLong())).thenAnswer(call ->
-            new Snapshot(snapshot.customerId(), snapshot.tenantId(), snapshot.deploymentId(), snapshot.targetProfileId(), snapshot.targetGeneration(),
-                call.getArgument(3), snapshot.releases(), snapshot.resources(), snapshot.consumers()));
+        when(inventoryTarget.capture(eq("deployment"), eq("staging"), any(), anyLong())).thenAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new Snapshot(snapshot.customerId(), snapshot.tenantId(), snapshot.deploymentId(), snapshot.targetProfileId(), snapshot.targetGeneration(),
+                call.getArgument(3), snapshot.releases(), snapshot.resources(), snapshot.consumers());
+        });
+        doAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return null;
+        }).when(inventoryTarget).recheck(any(), any());
+        doAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+            return null;
+        }).when(inventoryTarget).recheckLocal(any(), any());
         when(provider.readback(any(), any())).thenAnswer(call -> new EffectResult(absent, "provider-readback", Instant.now()));
         when(provider.delete(any(), any())).thenAnswer(call -> { absent = true; return new EffectResult(true, "provider-absent", Instant.now()); });
         var principal = new PlatformPrincipal("customer-owner", PlatformRole.CUSTOMER_ADMIN, "Owner", "SESSION");
@@ -128,6 +144,39 @@ class TargetRetirementPersistenceTest {
         assertThat(service.execute("deployment", "staging", first.id(), command).attempt()).isEqualTo(1);
         assertThatThrownBy(() -> service.execute("deployment", "staging", first.id(), new Command("wrong")))
             .hasMessageContaining("REQUEST_FINGERPRINT_CHANGED");
+    }
+
+    @Test void activeAdmissionReservationBlocksPlanningInsideTheRetirementTransaction() {
+        jdbc.update("""
+            INSERT INTO deployment_capacity_reservations(
+                id,customer_id,deployment_id,target_profile_id,operation_key,request_fingerprint,
+                generation,revision,state,current_slot,expires_at,expiry_state,payload_json,updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, "reservation", "customer", "deployment", "staging", "admission-key", "admission-fingerprint",
+            "generation-1", 0L, "RESERVED", "deployment|staging", Instant.now().plusSeconds(120), "ACTIVE", "{}", Instant.now());
+
+        assertThatThrownBy(() -> service.plan("deployment", "staging",
+            request("blocked-by-admission", Instant.now().plusSeconds(120))))
+            .hasMessageContaining("ACTIVE_ADMISSION_RESERVATION");
+        assertThat(operations.count()).isZero();
+    }
+
+    @Test void admissionExpiryCanPlanOnlyForItsExactClaimedReservation() {
+        jdbc.update("""
+            INSERT INTO deployment_capacity_reservations(
+                id,customer_id,deployment_id,target_profile_id,operation_key,request_fingerprint,
+                generation,revision,state,current_slot,expires_at,expiry_state,payload_json,updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, "reservation", "customer", "deployment", "staging", "admission-key", "admission-fingerprint",
+            "generation-1", 0L, "ACTIVE", "deployment|staging", Instant.now().minusSeconds(1), "CLAIMED", "{}", Instant.now());
+
+        Summary planned = store.planForAdmissionExpiry("deployment", "staging", "reservation", "generation-1",
+            request("admission-expiry:reservation:generation-1", Instant.now().plusSeconds(120)));
+
+        assertThat(planned.state()).isEqualTo(State.PLANNED);
+        assertThatThrownBy(() -> store.planForAdmissionExpiry("deployment", "staging", "another-reservation",
+            "generation-1", request("different-expiry", Instant.now().plusSeconds(120))))
+            .hasMessageContaining("ACTIVE_ADMISSION_RESERVATION");
     }
 
     @Test void missingParticipantAndInterlockFailClosedWithoutProviderCalls() {
@@ -175,15 +224,14 @@ class TargetRetirementPersistenceTest {
         verify(provider, never()).delete(any(), any());
     }
 
-    @Test void mutationEpochInvalidatesPlanAndActiveRetirementRejectsReactivation() {
+    @Test void plannedAndActiveRetirementBothFenceNewMutations() {
         Summary op = service.plan("deployment", "staging", request("epoch", Instant.now().plusSeconds(120)));
-        new TransactionTemplate(transactions).executeWithoutResult(tx -> gateService.requireAvailableForMutation("deployment", "staging"));
-        assertThatThrownBy(() -> service.execute("deployment", "staging", op.id(), new Command(op.requestFingerprint())))
-            .hasMessageContaining("TARGET_GENERATION_CHANGED");
-        var fresh = execute();
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(
             tx -> gateService.requireAvailableForMutation("deployment", "staging"))).hasMessageContaining("TARGET_RETIREMENT_FENCED");
-        assertThat(status(fresh).state()).isEqualTo(State.QUEUED);
+        var active = service.execute("deployment", "staging", op.id(), new Command(op.requestFingerprint()));
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(
+            tx -> gateService.requireAvailableForMutation("deployment", "staging"))).hasMessageContaining("TARGET_RETIREMENT_FENCED");
+        assertThat(status(active).state()).isEqualTo(State.QUEUED);
     }
 
     @Test void staleWorkersCannotAdvanceAfterTimeoutOrRecovery() {
@@ -455,11 +503,15 @@ class TargetRetirementPersistenceTest {
     @EnableMethodSecurity
     @EnableJpaRepositories(basePackageClasses = TargetRetirementOperationRepository.class)
     @Import({TargetRetirementStore.class, TargetRetirementGateService.class, TargetRetirementJson.class,
+        com.ai.fabric.platform.backend.deployment.admission.AdmissionTargetLifecycleInterlock.class,
         TargetRetirementService.class, TargetRetirementWorker.class, TargetRetirementParticipation.class})
     static class Config {
         @Bean DataSource dataSource() {
             var source = new DriverManagerDataSource("jdbc:h2:mem:retirement;DB_CLOSE_DELAY=-1", "sa", "");
-            new ResourceDatabasePopulator(new ClassPathResource("db/test-migration/V120_9__target_retirement_operations_test.sql")).execute(source);
+            new ResourceDatabasePopulator(
+                new ClassPathResource("db/test-migration/V120_9__target_retirement_operations_test.sql"),
+                new ClassPathResource("db/test-migration/V120_13__durable_capacity_admission_and_staging_expiry_test.sql")
+            ).execute(source);
             return source;
         }
         @Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource source) {
@@ -472,6 +524,7 @@ class TargetRetirementPersistenceTest {
             return factory;
         }
         @Bean PlatformTransactionManager transactionManager(EntityManagerFactory factory) { return new JpaTransactionManager(factory); }
+        @Bean JdbcTemplate jdbcTemplate(DataSource source) { return new JdbcTemplate(source); }
         @Bean ObjectMapper objectMapper() { return new ObjectMapper().registerModule(new JavaTimeModule()); }
         @Bean DeploymentRepository deployments() { return mock(DeploymentRepository.class); }
         @Bean DeploymentAccessService access() { return mock(DeploymentAccessService.class); }

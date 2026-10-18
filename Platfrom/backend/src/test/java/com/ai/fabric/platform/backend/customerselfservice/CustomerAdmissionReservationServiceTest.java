@@ -27,6 +27,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.RESOURCE_SCOPE_MISMATCH;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,10 +80,15 @@ class CustomerAdmissionReservationServiceTest {
         when(reservation.state()).thenReturn(com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.State.RESERVED);
         when(reservation.revision()).thenReturn(0L);
         when(reservation.expiresAt()).thenReturn(Instant.parse("2026-10-16T00:00:00Z"));
+        when(reservation.expiryState()).thenReturn(
+            com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.ExpiryState.CURRENT);
+        when(reservation.keepUntil()).thenReturn(null);
+        when(reservation.updatedAt()).thenReturn(Instant.parse("2026-10-15T23:00:00Z"));
         when(admissions.reserveCustomer(eq("deployment"), eq("version"), any())).thenReturn(reservation);
         when(admissions.status("deployment", "reservation")).thenReturn(reservation);
+        when(admissions.activeCustomerReservations("deployment", "staging-target")).thenReturn(List.of(reservation));
         when(associations.findById("deployment")).thenReturn(Optional.of(new CustomerOfferDeploymentEntity(
-            "deployment", "customer", "tenant", "offer", "offer-fingerprint", 2, "bootstrap", Instant.now())));
+            "deployment", "customer", "tenant", "offer", "staging-target", "offer-fingerprint", 2, "bootstrap", Instant.now())));
     }
 
     @Test
@@ -91,8 +97,12 @@ class CustomerAdmissionReservationServiceTest {
 
         assertThat(result.id()).isEqualTo("reservation");
         assertThat(result.intent()).isEqualTo(TargetIntent.CUSTOMER_STAGING);
+        assertThat(result.expiryState()).isEqualTo("CURRENT");
+        assertThat(result.keepUntil()).isNull();
         ArgumentCaptor<AuthorizationRequest> authorizationRequest = ArgumentCaptor.forClass(AuthorizationRequest.class);
         verify(authorization).prepareAdmission(eq("customer"), authorizationRequest.capture());
+        var reviewedVersion = versions.findById("version").orElseThrow();
+        verify(authorization).requireReviewedVersion(eq(prepared), same(reviewedVersion));
         assertThat(authorizationRequest.getValue().tenantId()).isEqualTo("tenant");
         ArgumentCaptor<Reserve> reserve = ArgumentCaptor.forClass(Reserve.class);
         verify(admissions).reserveCustomer(eq("deployment"), eq("version"), reserve.capture());
@@ -124,6 +134,7 @@ class CustomerAdmissionReservationServiceTest {
     @Test
     void statusRequiresTheOwnedOfferAssociationAndReturnsOnlySafeFields() {
         assertThat(service.status("offer", "deployment", "reservation").state()).isEqualTo("RESERVED");
+        verifyReadAuthorization("staging-target");
         when(associations.findById("deployment")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.status("offer", "deployment", "reservation"))
             .isInstanceOfSatisfying(CustomerSelfServiceException.class,
@@ -137,6 +148,31 @@ class CustomerAdmissionReservationServiceTest {
         assertThatThrownBy(() -> service.status("offer", "deployment", "reservation"))
             .isInstanceOfSatisfying(CustomerSelfServiceException.class,
                 error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
+    }
+
+    @Test
+    void listsOnlyTheOwnedActiveCustomerReservationProjection() {
+        var result = service.list("offer", "deployment", "staging-target");
+
+        assertThat(result).singleElement().satisfies(summary -> {
+            assertThat(summary.id()).isEqualTo("reservation");
+            assertThat(summary.targetProfileId()).isEqualTo("staging-target");
+        });
+        verifyReadAuthorization("staging-target");
+        verify(admissions).activeCustomerReservations("deployment", "staging-target");
+    }
+
+    private void verifyReadAuthorization(String targetProfileId) {
+        ArgumentCaptor<AuthorizationRequest> request = ArgumentCaptor.forClass(AuthorizationRequest.class);
+        verify(authorization, atLeastOnce()).authorize(eq("customer"), request.capture());
+        assertThat(request.getAllValues()).anySatisfy(value -> {
+            assertThat(value.offerId()).isEqualTo("offer");
+            assertThat(value.deploymentId()).isEqualTo("deployment");
+            assertThat(value.tenantId()).isEqualTo("tenant");
+            assertThat(value.targetProfileId()).isEqualTo(targetProfileId);
+            assertThat(value.operation()).isEqualTo(Operation.READ);
+        });
+        verify(transactions, atLeastOnce()).commit(any());
     }
 
     private Request request() {

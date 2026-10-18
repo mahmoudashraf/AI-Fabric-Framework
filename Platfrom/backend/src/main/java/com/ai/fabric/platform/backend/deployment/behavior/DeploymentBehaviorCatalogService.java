@@ -853,6 +853,7 @@ public class DeploymentBehaviorCatalogService {
             List.of(
                 "ai-fabric-chat-session",
                 "conversation-control",
+                "canonical-conversation-orchestration-state",
                 "participant-messages",
                 "conversation-turn-leases",
                 "durable-conversation-handover",
@@ -867,7 +868,10 @@ public class DeploymentBehaviorCatalogService {
                 "conversation-channel-callback",
                 "explicit-ai-resume"
             ),
-            List.of("loomai-conversation-handover-v1"),
+            List.of(
+                "loomai-conversation-handover-v1",
+                "loomai-conversation-orchestration-state-v1"
+            ),
             List.of("conversation-handover-v1")
         ));
         return Collections.unmodifiableMap(new LinkedHashMap<>(result));

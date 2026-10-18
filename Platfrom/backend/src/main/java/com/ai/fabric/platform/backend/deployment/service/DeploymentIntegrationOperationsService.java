@@ -1,12 +1,17 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.BindingKind;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.DocumentAudience;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -24,12 +29,13 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentIntegrationOperationsService {
@@ -37,69 +43,72 @@ public class DeploymentIntegrationOperationsService {
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
-    private final DeploymentRepository deploymentRepository;
-    private final DeploymentVersionRepository versionRepository;
-    private final DeploymentAccessService accessService;
-    private final PlatformSecretService secretService;
+    private final DeploymentTargetContextService targetContexts;
+    private final DeploymentRuntimeAuthorityService runtimeAuthority;
+    private final CustomerSelfServiceOperationBoundary offerBoundary;
+    private final CustomerSourcePrerequisiteRefreshService sourcePrerequisites;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
     public DeploymentIntegrationOperationsService(
-        DeploymentRepository deploymentRepository,
-        DeploymentVersionRepository versionRepository,
-        DeploymentAccessService accessService,
-        PlatformSecretService secretService,
+        DeploymentTargetContextService targetContexts,
+        DeploymentRuntimeAuthorityService runtimeAuthority,
+        CustomerSelfServiceOperationBoundary offerBoundary,
+        CustomerSourcePrerequisiteRefreshService sourcePrerequisites,
         PlatformAuditService auditService,
         ObjectMapper objectMapper
     ) {
-        this.deploymentRepository = deploymentRepository;
-        this.versionRepository = versionRepository;
-        this.accessService = accessService;
-        this.secretService = secretService;
+        this.targetContexts = targetContexts;
+        this.runtimeAuthority = runtimeAuthority;
+        this.offerBoundary = offerBoundary;
+        this.sourcePrerequisites = sourcePrerequisites;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
-    public RuntimeResponse overview(String deploymentId) {
-        return send(requireAccess(deploymentId, false), "GET", "/api/admin/connector/integrations", false);
+    public RuntimeResponse overview(DeploymentTargetReference target) {
+        return send(requireAccess(target, false, Capability.EXTERNAL_HTTP, Operation.READ, null), "GET", "/api/admin/connector/integrations", false);
     }
 
-    public RuntimeResponse source(String deploymentId, String sourceId) {
-        return send(requireAccess(deploymentId, false), "GET", sourcePath(sourceId), false);
+    public RuntimeResponse source(DeploymentTargetReference target, String sourceId) {
+        return send(requireAccess(target, false, Capability.EXTERNAL_HTTP, Operation.READ, null), "GET", sourcePath(sourceId), false);
     }
 
-    public RuntimeResponse reconcile(String deploymentId, String sourceId) {
-        OperationAccess access = requireAccess(deploymentId, true);
-        RuntimeResponse response = send(access, "POST", sourcePath(sourceId) + "/reconcile", true);
-        auditSuccess("DEPLOYMENT_INTEGRATION_RECONCILE_REQUESTED", access.deployment(), response, Map.of(
-            "sourceId", required(sourceId, "sourceId")
+    public RuntimeResponse reconcile(DeploymentTargetReference target, String sourceId, String operationKey) {
+        String key = DeploymentOperationIdempotencyKey.require(operationKey);
+        String normalizedSource = required(sourceId, "sourceId");
+        OperationAccess access = requireSourceAccess(target, normalizedSource, key);
+        RuntimeResponse response = send(access, "POST", sourcePath(normalizedSource) + "/reconcile", true, key);
+        auditSuccess("DEPLOYMENT_INTEGRATION_RECONCILE_REQUESTED", access, response, Map.of(
+            "sourceId", normalizedSource
         ));
         return response;
     }
 
-    public RuntimeResponse webhookEvents(String deploymentId, String sourceId) {
+    public RuntimeResponse webhookEvents(DeploymentTargetReference target, String sourceId) {
         String path = "/api/admin/connector/integrations/webhooks/" + encode(required(sourceId, "sourceId")) + "/events";
-        return send(requireAccess(deploymentId, false), "GET", path, false);
+        return send(requireAccess(target, false, Capability.EXTERNAL_HTTP, Operation.READ, null), "GET", path, false);
     }
 
-    public RuntimeResponse replayWebhook(String deploymentId, String sourceId, String eventId) {
-        OperationAccess access = requireAccess(deploymentId, true);
+    public RuntimeResponse replayWebhook(DeploymentTargetReference target, String sourceId, String eventId, String operationKey) {
+        String key = DeploymentOperationIdempotencyKey.require(operationKey);
         String normalizedSource = required(sourceId, "sourceId");
         String normalizedEvent = required(eventId, "eventId");
+        OperationAccess access = requireSourceAccess(target, normalizedSource, key);
         String path = "/api/admin/connector/integrations/webhooks/" + encode(normalizedSource)
             + "/events/" + encode(normalizedEvent) + "/replay";
-        RuntimeResponse response = send(access, "POST", path, true);
-        auditSuccess("DEPLOYMENT_INTEGRATION_WEBHOOK_REPLAY_REQUESTED", access.deployment(), response, Map.of(
+        RuntimeResponse response = send(access, "POST", path, true, key);
+        auditSuccess("DEPLOYMENT_INTEGRATION_WEBHOOK_REPLAY_REQUESTED", access, response, Map.of(
             "sourceId", normalizedSource,
             "eventId", normalizedEvent
         ));
         return response;
     }
 
-    public RuntimeResponse conversationHandoverOverview(String deploymentId) {
-        OperationAccess access = requireConversationHandoverAccess(deploymentId, false);
+    public RuntimeResponse conversationHandoverOverview(DeploymentTargetReference target) {
+        OperationAccess access = requireAccess(target, false, Capability.CONVERSATION_HANDOVER, Operation.READ, null);
         RuntimeResponse runtime = send(
             access,
             "GET",
@@ -131,86 +140,139 @@ public class DeploymentIntegrationOperationsService {
         return new RuntimeResponse(200, body);
     }
 
-    public RuntimeResponse retryConversationHandoverDispatch(String deploymentId, String dispatchId) {
-        OperationAccess access = requireConversationHandoverAccess(deploymentId, true);
+    public RuntimeResponse retryConversationHandoverDispatch(DeploymentTargetReference target, String dispatchId,
+                                                               String operationKey) {
+        String key = DeploymentOperationIdempotencyKey.require(operationKey);
+        OperationAccess access = requireAccess(target, true, Capability.CONVERSATION_HANDOVER,
+            Operation.INBOX_OPERATOR_DELIVER, key);
         String normalizedDispatch = required(dispatchId, "dispatchId");
         RuntimeResponse response = send(
             access,
             "POST",
             "/api/admin/conversation-handover/dispatches/" + encode(normalizedDispatch) + "/retry",
-            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER)
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER), key
         );
-        auditSuccess("CONVERSATION_HANDOVER_DISPATCH_RETRY_REQUESTED", access.deployment(), response, Map.of(
+        auditSuccess("CONVERSATION_HANDOVER_DISPATCH_RETRY_REQUESTED", access, response, Map.of(
             "dispatchId", normalizedDispatch
         ));
         return response;
     }
 
-    public RuntimeResponse expireConversationHandover(String deploymentId, String handoverId) {
-        OperationAccess access = requireConversationHandoverAccess(deploymentId, true);
+    public RuntimeResponse expireConversationHandover(DeploymentTargetReference target, String handoverId,
+                                                       String operationKey) {
+        String key = DeploymentOperationIdempotencyKey.require(operationKey);
+        OperationAccess access = requireAccess(target, true, Capability.CONVERSATION_HANDOVER,
+            Operation.INBOX_OPERATOR_DELIVER, key);
         String normalizedHandover = required(handoverId, "handoverId");
         RuntimeResponse response = send(
             access,
             "POST",
             "/api/admin/conversation-handover/handovers/" + encode(normalizedHandover) + "/expire",
-            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER)
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_RECOVER), key
         );
-        auditSuccess("CONVERSATION_HANDOVER_EXPIRE_REQUESTED", access.deployment(), response, Map.of(
+        auditSuccess("CONVERSATION_HANDOVER_EXPIRE_REQUESTED", access, response, Map.of(
             "handoverId", normalizedHandover
         ));
         return response;
     }
 
-    private OperationAccess requireAccess(String deploymentId, boolean mutate) {
-        DeploymentEntity deployment = deploymentRepository.findById(required(deploymentId, "deploymentId"))
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
-        if (mutate) {
-            accessService.requireDeploymentOperatorAccess(deployment);
+    private OperationAccess requireAccess(DeploymentTargetReference target, boolean mutate, Capability capability,
+                                          Operation operation, String operationKey) {
+        if (target == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Explicit target and release context is required.");
+        }
+        DeploymentTargetContextService.Context context = targetContexts.resolve(
+            target.deploymentId(), target.targetProfileId(), target.releaseId(), mutate
+        );
+        boolean claimed = capability == Capability.EXTERNAL_HTTP
+            ? claimsExternalHttpIntegration(context.version())
+            : claimsConversationHandover(context.version());
+        if (!claimed) {
+            String label = capability == Capability.EXTERNAL_HTTP
+                ? "an external HTTP integration"
+                : "Conversation Handover";
+            throw new ResponseStatusException(BAD_REQUEST, "The selected release version does not claim " + label + ".");
+        }
+        if (operation == Operation.INBOX_OPERATOR_DELIVER) {
+            offerBoundary.requireBindingKind(context.deployment(), target.targetProfileId(), target.releaseId(),
+                operation, operationKey, BindingKind.INBOX_OPERATOR);
         } else {
-            accessService.requireDeploymentAccess(deployment);
+            offerBoundary.require(context.deployment(), target.targetProfileId(), target.releaseId(), operation,
+                operationKey, Map.of(), null, null, null);
         }
-        if (!StringUtils.hasText(deployment.getActiveVersionId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Apply an integration-enabled deployment version first.");
-        }
-        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
-            .filter(candidate -> deployment.getId().equals(candidate.getDeploymentId()))
-            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "The active deployment version is unavailable."));
-        if (!claimsExternalHttpIntegration(version)) {
-            throw new ResponseStatusException(BAD_REQUEST, "The active deployment version does not claim an external HTTP integration.");
-        }
-        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
-            throw new ResponseStatusException(BAD_REQUEST, "The deployment runtime URL is unavailable.");
-        }
-        if (!RuntimePrivateAccessSupport.isConfigured(secretService, objectMapper)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Secure private-runtime integration administration is not configured.");
-        }
-        return new OperationAccess(deployment, version);
+        return new OperationAccess(context);
     }
 
-    private OperationAccess requireConversationHandoverAccess(String deploymentId, boolean mutate) {
-        DeploymentEntity deployment = deploymentRepository.findById(required(deploymentId, "deploymentId"))
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
-        if (mutate) {
-            accessService.requireDeploymentOperatorAccess(deployment);
-        } else {
-            accessService.requireDeploymentAccess(deployment);
+    private OperationAccess requireSourceAccess(DeploymentTargetReference target, String sourceId, String operationKey) {
+        if (target == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Explicit target and release context is required.");
         }
-        if (!StringUtils.hasText(deployment.getActiveVersionId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Apply a conversation-handover-enabled version first.");
+        DeploymentTargetContextService.Context context = targetContexts.resolve(
+            target.deploymentId(), target.targetProfileId(), target.releaseId(), true
+        );
+        if (!claimsExternalHttpIntegration(context.version())) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                "The selected release version does not claim an external HTTP integration.");
         }
-        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
-            .filter(candidate -> deployment.getId().equals(candidate.getDeploymentId()))
-            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "The active deployment version is unavailable."));
-        if (!claimsConversationHandover(version)) {
-            throw new ResponseStatusException(BAD_REQUEST, "The active deployment version does not claim Conversation Handover.");
+        Set<DocumentAudience> audiences = configuredSourceAudiences(context.version(), sourceId);
+        Set<DocumentAudience> reviewedAudiences = offerBoundary.reviewedDocumentAudiences(context.deployment());
+        if (audiences.isEmpty()) {
+            if (reviewedAudiences.size() == 1) {
+                audiences = reviewedAudiences;
+            } else if (!reviewedAudiences.isEmpty()) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                    "The selected integration source does not declare a unique reviewed document audience.");
+            }
         }
-        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
-            throw new ResponseStatusException(BAD_REQUEST, "The deployment runtime URL is unavailable.");
+        if (audiences.isEmpty()) {
+            offerBoundary.require(context.deployment(), target.targetProfileId(), target.releaseId(),
+                Operation.SOURCE_REFRESH, operationKey, Map.of(), null, null, null);
+            return new OperationAccess(context);
         }
-        if (!RuntimePrivateAccessSupport.isConfigured(secretService, objectMapper)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Secure private-runtime integration administration is not configured.");
+        sourcePrerequisites.ensureFresh(target, Operation.SOURCE_REFRESH, operationKey, audiences);
+        for (DocumentAudience audience : audiences) {
+            offerBoundary.require(context.deployment(), target.targetProfileId(), target.releaseId(),
+                Operation.SOURCE_REFRESH, operationKey,
+                Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode(audience.name())),
+                null, null, audience);
         }
-        return new OperationAccess(deployment, version);
+        return new OperationAccess(context);
+    }
+
+    private Set<DocumentAudience> configuredSourceAudiences(DeploymentVersionEntity version, String sourceId) {
+        Set<String> datasetIds = new LinkedHashSet<>();
+        JsonNode datasets = readJson(version.getMarketplaceDatasetConfigJson()).path("datasets");
+        if (datasets.isArray()) {
+            for (JsonNode dataset : datasets) {
+                if (!"EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText(""))) continue;
+                JsonNode connector = dataset.path("syncConnector");
+                String httpSourceId = connector.path("httpSource").path("sourceId").asText("").trim();
+                String webhookSourceId = connector.path("webhook").path("sourceId").asText("").trim();
+                if (sourceId.equals(httpSourceId) || sourceId.equals(webhookSourceId)) {
+                    String datasetId = dataset.path("datasetId").asText("").trim();
+                    if (StringUtils.hasText(datasetId)) datasetIds.add(datasetId);
+                }
+            }
+        }
+        if (datasetIds.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                "The selected integration source is not present in the immutable release configuration.");
+        }
+        Set<DocumentAudience> audiences = new LinkedHashSet<>();
+        JsonNode sources = readJson(version.getKnowledgeSourceConfigJson()).path("sources");
+        if (!sources.isArray()) return Set.of();
+        for (JsonNode source : sources) {
+            if (!datasetIds.contains(source.path("datasetRef").asText(""))) continue;
+            for (JsonNode mode : source.path("authModes")) {
+                String value = mode.asText("");
+                if ("PUBLIC_RUNTIME_ANONYMOUS".equals(value)) audiences.add(DocumentAudience.PUBLIC);
+                if ("PUBLIC_RUNTIME_AUTHENTICATED".equals(value)
+                    || "PRIVATE_RUNTIME_BACKEND_MEDIATED".equals(value)) {
+                    audiences.add(DocumentAudience.AUTHENTICATED);
+                }
+            }
+        }
+        return Set.copyOf(audiences);
     }
 
     private boolean claimsExternalHttpIntegration(DeploymentVersionEntity version) {
@@ -234,27 +296,37 @@ public class DeploymentIntegrationOperationsService {
     }
 
     private RuntimeResponse send(OperationAccess access, String method, String path, boolean mutate) {
+        return send(access, method, path, mutate, null);
+    }
+
+    private RuntimeResponse send(OperationAccess access, String method, String path, boolean mutate, String operationKey) {
         List<String> scopes = mutate
             ? List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_WRITE)
             : List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_READ);
-        return send(access, method, path, scopes);
+        return send(access, method, path, scopes, operationKey);
     }
 
     private RuntimeResponse send(OperationAccess access, String method, String path, List<String> scopes) {
+        return send(access, method, path, scopes, null);
+    }
+
+    private RuntimeResponse send(OperationAccess access, String method, String path, List<String> scopes, String operationKey) {
+        String key = "POST".equals(method) ? DeploymentOperationIdempotencyKey.require(operationKey) : null;
         try {
-            HttpRequest.Builder request = HttpRequest.newBuilder(runtimeUri(access.deployment().getRuntimeBaseUrl(), path))
+            HttpRequest.Builder request = HttpRequest.newBuilder(runtimeUri(access.context().runtimeBaseUrl(), path))
                 .timeout(TIMEOUT)
                 .header("Accept", "application/json");
-            RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
-                secretService,
-                objectMapper,
-                access.deployment(),
-                RuntimePrivateAccessSupport.ISSUER_PLATFORM_INTEGRATION_OPERATIONS,
+            runtimeAuthority.issuePlatformProxyHeaders(
+                access.deployment().getId(),
+                access.context().target().getId(),
+                access.context().release().getId(),
+                access.context().release().getRuntimeAuthorityFingerprint(),
                 scopes,
                 Duration.ofMinutes(5)
             ).forEach(request::header);
             if ("POST".equals(method)) {
-                request.header("Content-Type", "application/json")
+                request.header("Idempotency-Key", key)
+                    .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString("{}"));
             } else {
                 request.GET();
@@ -331,17 +403,31 @@ public class DeploymentIntegrationOperationsService {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
-    private void auditSuccess(String action, DeploymentEntity deployment, RuntimeResponse response, Map<String, ?> details) {
+    private void auditSuccess(String action, OperationAccess access, RuntimeResponse response, Map<String, ?> details) {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             return;
         }
         Map<String, Object> safe = new LinkedHashMap<>();
         details.forEach(safe::put);
         safe.put("runtimeStatus", response.statusCode());
-        auditService.record(action, "DEPLOYMENT", deployment.getId(), safe);
+        safe.put("targetProfileId", access.context().target().getId());
+        safe.put("releaseId", access.context().release().getId());
+        auditService.record(action, "DEPLOYMENT", access.deployment().getId(), safe);
     }
 
-    private record OperationAccess(DeploymentEntity deployment, DeploymentVersionEntity version) {
+    private enum Capability {
+        EXTERNAL_HTTP,
+        CONVERSATION_HANDOVER
+    }
+
+    private record OperationAccess(DeploymentTargetContextService.Context context) {
+        DeploymentEntity deployment() {
+            return context.deployment();
+        }
+
+        DeploymentVersionEntity version() {
+            return context.version();
+        }
     }
 
     public record RuntimeResponse(int statusCode, JsonNode body) {

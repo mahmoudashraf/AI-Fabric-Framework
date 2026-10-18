@@ -23,6 +23,10 @@ public interface PlatformConsumerRepository extends JpaRepository<PlatformConsum
     @Query("select c from PlatformConsumerEntity c where c.customerId = :customerId and lower(c.consumerId) = lower(:consumerId)")
     Optional<PlatformConsumerEntity> findBindingForUpdate(@Param("customerId") String customerId, @Param("consumerId") String consumerId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from PlatformConsumerEntity c where c.id in :ids order by c.id")
+    List<PlatformConsumerEntity> findAllByIdForUpdate(@Param("ids") Collection<String> ids);
+
     Optional<PlatformConsumerEntity> findByConsumerIdIgnoreCase(String consumerId);
 
     List<PlatformConsumerEntity> findByBoundDeploymentIdOrderByUpdatedAtDesc(String deploymentId);

@@ -89,6 +89,7 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
     @Autowired PlatformAuditEventRepository auditEvents;
     @Autowired PlatformTransactionManager transactionManager;
     @MockBean MarketplaceTemplateBootstrapService templates;
+    @MockBean CustomerWorkspaceProfileValidator workspaceProfiles;
     private String customerId;
     private String ownerId;
     private String email;

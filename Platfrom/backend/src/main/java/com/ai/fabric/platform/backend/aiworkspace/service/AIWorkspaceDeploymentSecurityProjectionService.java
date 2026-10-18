@@ -93,11 +93,7 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
     public void synchronizeBindingChange(String consumerEntityId,
                                          String previousDeploymentId,
                                          String nextDeploymentId) {
-        if (!StringUtils.hasText(consumerEntityId)
-            || installations.findByConsumerEntityIdAndStatusIn(consumerEntityId,
-                List.of(AIWorkspaceInstallationStatus.DRAFT, AIWorkspaceInstallationStatus.ACTIVE)).isEmpty()) {
-            return;
-        }
+        if (!StringUtils.hasText(consumerEntityId)) return;
         TreeSet<String> affectedDeployments = new TreeSet<>();
         if (StringUtils.hasText(previousDeploymentId)) affectedDeployments.add(previousDeploymentId);
         if (StringUtils.hasText(nextDeploymentId)) affectedDeployments.add(nextDeploymentId);

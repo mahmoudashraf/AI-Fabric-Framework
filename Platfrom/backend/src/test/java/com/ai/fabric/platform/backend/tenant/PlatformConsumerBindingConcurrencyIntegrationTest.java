@@ -1,5 +1,11 @@
 package com.ai.fabric.platform.backend.tenant;
 
+import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceConnectionMode;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDeliveryMode;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy;
+import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
@@ -9,6 +15,8 @@ import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerBindingHistoryRepository;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -32,6 +41,9 @@ class PlatformConsumerBindingConcurrencyIntegrationTest {
     @Autowired private PlatformCustomerTenantService customers;
     @Autowired private PlatformCustomerConsumerService consumers;
     @Autowired private DeploymentService deployments;
+    @Autowired private PlatformConsumerRepository consumerRepository;
+    @Autowired private PlatformConsumerBindingHistoryRepository bindingHistoryRepository;
+    @Autowired private AIWorkspaceInstallationRepository workspaceRepository;
     private String customerId;
     private String consumerId;
     private String firstDeploymentId;
@@ -132,6 +144,59 @@ class PlatformConsumerBindingConcurrencyIntegrationTest {
         }
         assertThat(current().bindingRevision()).isEqualTo(1);
         assertThat(consumers.listBindingHistory(customerId, consumerId)).hasSize(1);
+    }
+
+    @Test
+    void retirementAtomicallyDisablesWorkspaceUnbindsConsumerAndPersistsReceipt() {
+        var consumer = consumerRepository.findByCustomerIdAndConsumerIdIgnoreCase(customerId, consumerId).orElseThrow();
+        consumer.setBoundDeploymentId(firstDeploymentId);
+        consumer.setBoundTargetProfileId("customer-staging");
+        consumer.setBoundReleaseId("staging-release");
+        consumer.setBindingRevision(7);
+        consumerRepository.saveAndFlush(consumer);
+
+        var installation = new AIWorkspaceInstallationEntity();
+        installation.setId("awi-" + UUID.randomUUID());
+        installation.setInstallationId("awi_pub_" + UUID.randomUUID().toString().replace("-", ""));
+        installation.setCustomerId(customerId);
+        installation.setConsumerEntityId(consumer.getId());
+        installation.setDisplayName("Retirement verification");
+        installation.setStatus(AIWorkspaceInstallationStatus.ACTIVE);
+        installation.setExperiencePackCode("generic-workspace");
+        installation.setExperiencePackVersion("1.0.0");
+        installation.setConnectionMode(AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS);
+        installation.setConnectionProfileCode("runtime-anonymous-direct");
+        installation.setConnectionProfileVersion("1.0.0");
+        installation.setDeliveryMode(AIWorkspaceDeliveryMode.EMBEDDED);
+        installation.setInteractionPolicy(AIWorkspaceInteractionPolicy.PUBLIC);
+        installation.setAuthProfileCode("none");
+        installation.setAuthProfileVersion("1.0.0");
+        installation.setAuthConfigurationJson("{}");
+        installation.setConnectionConfigurationJson("{}");
+        installation.setAllowedOriginsJson("[]");
+        installation.setConfigurationJson("{}");
+        installation.setCreatedAt(java.time.Instant.now());
+        installation.setUpdatedAt(java.time.Instant.now());
+        installation.setActivatedAt(java.time.Instant.now());
+        workspaceRepository.saveAndFlush(installation);
+
+        var detached = consumers.detachTargetForRetirement(customerId, consumer.getId(), firstDeploymentId,
+            "customer-staging", Set.of("staging-release"), 7, "retire-staging-1");
+
+        assertThat(detached.boundDeploymentId()).isNull();
+        assertThat(detached.boundReleaseId()).isNull();
+        assertThat(detached.boundTargetProfileId()).isNull();
+        assertThat(detached.bindingRevision()).isEqualTo(8);
+        assertThat(workspaceRepository.findById(installation.getId()).orElseThrow().getStatus())
+            .isEqualTo(AIWorkspaceInstallationStatus.DISABLED);
+        var receipt = bindingHistoryRepository
+            .findByConsumerEntityIdAndOperationKey(consumer.getId(), "retire-staging-1").orElseThrow();
+        assertThat(receipt.getFromBindingRevision()).isEqualTo(7);
+        assertThat(receipt.getToBindingRevision()).isEqualTo(8);
+
+        assertThat(consumers.detachTargetForRetirement(customerId, consumer.getId(), firstDeploymentId,
+            "customer-staging", Set.of("staging-release"), 7, "retire-staging-1"))
+            .isEqualTo(detached);
     }
 
     private PlatformConsumerSummary current() {

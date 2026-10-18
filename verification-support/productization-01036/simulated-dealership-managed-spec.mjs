@@ -9,8 +9,8 @@ const REVIEWED_TEMPLATE_PATH = resolve(
 );
 const REVIEWED_TEMPLATE = JSON.parse(readFileSync(REVIEWED_TEMPLATE_PATH, "utf8"));
 
-export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-4";
-export const SPEC_ID = "mds-simulated-dealership-experience-v1-4";
+export const TEMPLATE_VERSION_ID = "mkv-template-simulated-dealership-experience-v1-5";
+export const SPEC_ID = "mds-simulated-dealership-experience-v1-5";
 export const SOURCE_COMMIT = "8c5339901faf3dcb8c9edd73c875738461d3330b";
 export const POSTGRES_IMAGE =
   "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea";
@@ -25,8 +25,8 @@ export const DEPENDENCY_IMAGES = Object.freeze({
   inbox: Object.freeze({
     serviceName: "simulated-dealership-basic-inbox",
     repository: "ghcr.io/mahmoudashraf/loomai-basic-inbox-service",
-    digest: "sha256:089f780acd79b4db515be6df34049423546894d1df417fc11be1a0bcf1d0135b",
-    commit: SOURCE_COMMIT,
+    digest: "sha256:d74871880950f09674e0558cdfb09bdadcce050e89ae7b33312dad7069ac3759",
+    commit: "2035dc36082fefccbfd3a757d38e493fa8f001fc",
   }),
   receiver: Object.freeze({
     serviceName: "simulated-dealership-engagement-receiver",

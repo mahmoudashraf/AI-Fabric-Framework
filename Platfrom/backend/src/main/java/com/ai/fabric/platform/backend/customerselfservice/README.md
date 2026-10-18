@@ -34,6 +34,7 @@ No P0-P7 acceptance gate is closed by these source changes or unit tests.
 All routes are under `/api/customer-self-service`. Bodies reject unknown fields.
 
 - Customer session: `GET /catalogue`, `GET /catalogue/{offerId}`,
+  `GET /deployments`,
   `GET /invitations`, `POST /invitations/{entitlementId}/accept`,
   `POST /catalogue/{offerId}/targets/{targetProfileId}/placement-evidence`,
   `POST /catalogue/{offerId}/deployments`, and
@@ -49,6 +50,41 @@ All routes are under `/api/customer-self-service`. Bodies reject unknown fields.
   Missing/stale/invalid durable placement evidence excludes the target.
   `PLACEMENT_VERIFIED_ADMISSION_REQUIRED` is
   deliberately not apply readiness: catalogue reads perform no remote calls or capacity reservation.
+- The deployment portfolio is reconstructed from immutable offer/deployment
+  associations for the authenticated customer. It exposes deployment lifecycle
+  identity and the reviewed offer fingerprint/revision, but never bootstrap
+  operation keys, provider configuration, or credentials. Ownership divergence
+  between the association and deployment fails closed.
+- Customer retirement planning uses
+  `POST /catalogue/{offerId}/deployments/{deploymentId}/retirements/plan`.
+  Its body contains `targetProfileId`, `releaseIds`, `drainDeadline`, `retention`
+  (`decision`, `expiresAt`, `entitlementReference`, `backupDecisionReference`),
+  `operationKey`, and `reason`. It rejects caller-supplied `consumers`, internal
+  consumer IDs, binding revisions and ownership fields. The server verifies the
+  owned offer/deployment/releases, locks and refreshes the bound consumers in
+  deterministic order, and derives their exact binding revisions. The complete
+  deployment assignment set is frozen because retirement also protects consumers
+  already assigned to other targets. The generic retirement service rechecks the
+  snapshot after the short preparation transaction commits; no participant or
+  provider work runs while these locks are held. Identical retries reuse the
+  persisted expectations, including after assignment detachment; changed requests
+  or actors cannot reuse the key. The response contains progress, blockers and the
+  planned `requestFingerprint`, without consumer IDs or provider inventory.
+- The same customer retirement base path also exposes
+  `GET ?targetProfileId={targetProfileId}`, `GET /{operationId}`, and
+  `POST /{operationId}/execute`, `/retry`, and `/cancel`. Each command body
+  contains only the planned `requestFingerprint`; target and consumer authority
+  come from the persisted operation. Every access revalidates the active customer
+  session, owned deployment/offer association, entitled target, and selected
+  release ownership. Commands require current `TARGET_RETIRE` permission and the
+  exact saved fingerprint, including on replay. Read access requires `READ` and
+  can show customer-owned scheduled retirements regardless of their initiating
+  staff/system actor. Operation locks are released before the existing engine
+  runs; its own fingerprint/generation/ownership checks remain authoritative for
+  intervening changes. All responses use the customer-safe projection. The generic
+  `/api/deployments/{deploymentId}/targets/{targetProfileId}/retirements` controller
+  is staff-only; customers cannot read its inventory or submit internal consumer
+  expectations through it.
 - `400 INVALID_CONTRACT`; `403` for scope, ownership, entitlement or permission
   denials; `409` for stale revisions/operation conflicts and missing or stale
   policy/artifact/placement/prerequisite evidence. Responses contain stable typed
@@ -149,10 +185,37 @@ Changing profile contents without a new reviewed digest denies; no arbitrary
 JSON is treated as a harmless profile label. Removed domains and clearing a
 theme are checked too. Existing creation/configuration validation still runs.
 
+The entitled catalogue also returns the offer's reviewed `workspaceProfiles`:
+stable ID/label, normalized interaction payload, theme and authentication
+payload. The publisher validates those public payloads through the existing
+workspace registries/configuration validator and checks all three hashes against
+the offer's setting choices. Credentials and private adapter endpoints are not
+published. A fresh customer selects one of these payloads directly; an existing
+customer may also reuse an owned configuration that matches the same pins.
+The browser does not synthesize configuration from a hash.
+
+Configure the staging app assignment before publishing its first runtime
+version. `POST .../deployments/{deploymentId}/staging-consumer-assignments`
+accepts an omitted `releaseId` to create an offer-authorized, configuration-only
+binding to the deployment's reviewed staging target. It grants no runtime
+access and does not activate an Engage installation. Creating the Engage app
+then projects its exact origin into the draft. Publish and admit that version,
+wait for verification, authorize `ACTIVATE` against its existing allocation,
+and activate the staging assignment. Providing `releaseId` on creation retains
+the atomic verified-release path. Both creation paths persist an exact-request
+receipt and roll back creation/binding if that receipt cannot be saved.
+
+Every admission reservation and its owning command use the same operation key.
+Promotion planning reserves one production allocation; apply and activation
+reuse its allocation ID with separate exact operation receipts. A lost response
+must retry the original reservation payload, including its original allocation
+choice. Go-live readiness resolves capacity through the exact release's apply
+receipt, regardless of whether its allocation was first created during planning.
+
 For apply/promotion/activation use explicit target and release identities, not
 the deployment's latest runtime URL. `requireOwnedConsumer` checks app ownership;
 the parent must still enforce candidate/version/consumer-binding revision and
-provider-handle generation through R1/R2. Keep framework selection at `0.8.33`.
+provider-handle generation through R1/R2. Keep framework selection at `0.8.35`.
 
 Binding writes must resolve the slot under the authorized customer/deployment/
 target/release and replace/revoke only that owned binding. Accept secret values
@@ -223,6 +286,25 @@ server UUIDs, identity evidence, measured capacity/lifecycle policy, working
 notification/recovery evidence, and owning-service wiring. Private S3
 credentials must not be copied into source or deployment-readable manifests.
 Do not substitute demo fixtures for these prerequisites.
+
+## Retry And Replacement Contracts
+
+AI Workspace creation persists a whole-command receipt in the same transaction
+as the installation, domains and draft origin projection. The browser must reuse
+its `Idempotency-Key` after an unknown outcome. The receipt pins the customer,
+actor and exact canonical request; replay rechecks current owner, consumer and
+offer authorization before returning the original response. A changed request
+or actor cannot reuse the key. Deleted or reassigned installations are not
+silently recreated. Slug availability is checked only when changing resources,
+not when acknowledging a completed command whose former slug was reused.
+
+A reviewed new version can reuse an idle owned target allocation without
+expanding its held capacity or topology. Promotion planning stores a separate
+candidate receipt and prerequisite proof, leaving the old active release's
+readiness and rollback authority intact. Only the exact unconsumed apply receipt
+may commit the candidate manifest and bind a new release in the owning apply
+transaction. Busy, expired, retiring, foreign or expanded allocations fail
+closed. These source contracts still require hosted repeated-release evidence.
 
 ## Verification
 

@@ -13,9 +13,22 @@ class DeploymentBehaviorCatalogServiceTest {
     private final DeploymentBehaviorCatalogService service = new DeploymentBehaviorCatalogService(mapper);
 
     @Test
+    void conversationHandoverRequiresCanonicalOrchestrationState() {
+        var requirements = service.releaseRequirements(handoverConfig());
+
+        assertThat(requirements.capabilities()).contains(
+            "conversation-control",
+            "canonical-conversation-orchestration-state"
+        );
+        assertThat(requirements.migrationIds()).contains(
+            "loomai-conversation-handover-v1",
+            "loomai-conversation-orchestration-state-v1"
+        );
+    }
+
+    @Test
     void acceptsReviewedManagedBindingReferenceBeforeTargetProvisioningResolvesIt() {
-        ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
-        behavior.withArray("executionExtensions").add("CONVERSATION_HANDOVER");
+        ObjectNode behavior = handoverConfig();
         ObjectNode handover = behavior.putObject("conversationHandover");
         handover.put("contractVersion", "LOOMAI_CONVERSATION_HANDOVER_CONFIG_V1");
         handover.put("enabled", true);
@@ -47,6 +60,12 @@ class DeploymentBehaviorCatalogServiceTest {
         channel.put("providerWebhookSigningSecretRef", "MANAGED_INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET");
 
         assertThat(service.validate(behavior, "CONVERSATIONAL").valid()).isTrue();
+    }
+
+    private ObjectNode handoverConfig() {
+        ObjectNode behavior = (ObjectNode) service.defaultConfig("CONVERSATIONAL");
+        behavior.withArray("executionExtensions").add("CONVERSATION_HANDOVER");
+        return behavior;
     }
 
     @Test

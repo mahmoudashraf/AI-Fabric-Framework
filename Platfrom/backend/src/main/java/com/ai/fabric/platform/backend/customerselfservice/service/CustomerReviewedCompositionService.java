@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.customerselfservice.service;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
@@ -32,11 +33,12 @@ public class CustomerReviewedCompositionService {
     private final MarketplaceManifestService manifests;
     private final DeploymentSourceArtifactRepository artifacts;
     private final DeploymentTargetProfileRepository profiles;
+    private final CustomerWorkspaceProfileValidator workspaceProfiles;
 
     public CustomerReviewedCompositionService(CustomerOfferCodec codec, Validator validator,
         MarketplacePluginRepository plugins, MarketplacePluginVersionRepository versions,
         MarketplaceManifestService manifests, DeploymentSourceArtifactRepository artifacts,
-        DeploymentTargetProfileRepository profiles) {
+        DeploymentTargetProfileRepository profiles, CustomerWorkspaceProfileValidator workspaceProfiles) {
         this.codec = codec;
         this.validator = validator;
         this.plugins = plugins;
@@ -44,6 +46,7 @@ public class CustomerReviewedCompositionService {
         this.manifests = manifests;
         this.artifacts = artifacts;
         this.profiles = profiles;
+        this.workspaceProfiles = workspaceProfiles;
     }
 
     public void validate(Definition definition) {
@@ -60,6 +63,7 @@ public class CustomerReviewedCompositionService {
         unique(definition.artifacts(), ArtifactPin::artifactId);
         unique(definition.settings(), SettingRule::setting);
         unique(definition.bindingSlots(), BindingSlot::id);
+        workspaceProfiles.validate(definition);
         requireTopologyWithinLimits(definition.topology(), definition.limits());
         if (!definition.targets().stream().map(TargetPermission::intent).collect(java.util.stream.Collectors.toSet())
             .containsAll(Set.of(TargetIntent.CUSTOMER_STAGING, TargetIntent.CUSTOMER_PRODUCTION))) throw invalid();
@@ -127,6 +131,37 @@ public class CustomerReviewedCompositionService {
             .noneMatch(slot -> slot.kind() == BindingKind.CUSTOMER_S3)) throw invalid();
     }
 
+    /** Resolve the sole reviewed runtime image without exposing private artifact identifiers to customer clients. */
+    public String runtimeArtifactId(Definition definition) {
+        validate(definition);
+        var runtimeArtifacts = definition.artifacts().stream().filter(pin -> artifacts.findById(pin.artifactId())
+            .filter(artifact -> "RUNTIME".equals(artifact.getArtifactRole()))
+            .isPresent()).toList();
+        if (runtimeArtifacts.size() != 1) throw conflict(ARTIFACT_REQUIRED);
+        return runtimeArtifacts.getFirst().artifactId();
+    }
+
+    /** Require an immutable deployment version to contain exactly the reviewed template and plugin pins. */
+    public void requireVersion(Definition definition, DeploymentVersionEntity version) {
+        if (definition == null || version == null) throw deny(REVIEWED_COMPOSITION_CHANGED);
+        var provenance = codec.tree(version.getCompositionProvenanceJson());
+        var expected = new HashSet<>(definition.plugins());
+        expected.add(definition.template());
+        var actual = new HashSet<PluginPin>();
+        var installs = provenance.path("marketplaceInstalls");
+        if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())
+            || !definition.templateId().equals(provenance.path("templateId").asText()) || !installs.isArray()) {
+            throw deny(REVIEWED_COMPOSITION_CHANGED);
+        }
+        for (var install : installs) {
+            var match = expected.stream().filter(pin -> pin.pluginId().equals(install.path("pluginId").asText())
+                && pin.versionId().equals(install.path("pluginVersionId").asText())
+                && ("sha256:" + pin.manifestSha256()).equals(install.path("manifestSha256").asText())).findFirst();
+            if (match.isEmpty() || !actual.add(match.get())) throw deny(REVIEWED_COMPOSITION_CHANGED);
+        }
+        if (!expected.equals(actual)) throw deny(REVIEWED_COMPOSITION_CHANGED);
+    }
+
     private MarketplacePluginVersionEntity requirePlugin(PluginPin pin) {
         var plugin = plugins.findById(pin.pluginId()).orElseThrow(() -> conflict(APPROVED_POLICY_REQUIRED));
         var version = versions.findById(pin.versionId()).orElseThrow(() -> conflict(APPROVED_POLICY_REQUIRED));
@@ -158,7 +193,8 @@ public class CustomerReviewedCompositionService {
 
     public String artifactFingerprint(DeploymentSourceArtifactEntity artifact) {
         return codec.hash(Map.of("id", artifact.getId(), "serviceName", artifact.getServiceName(),
-            "artifactType", artifact.getArtifactType(), "imageRepository", nonNull(artifact.getImageRepository()),
+            "artifactType", artifact.getArtifactType(), "artifactRole", nonNull(artifact.getArtifactRole()),
+            "imageRepository", nonNull(artifact.getImageRepository()),
             "imageDigest", nonNull(artifact.getImageDigest()), "gitCommitSha", nonNull(artifact.getGitCommitSha()),
             "capabilityManifest", codec.tree(artifact.getCapabilityManifestJson()),
             "capabilityManifestHash", nonNull(artifact.getCapabilityManifestHash())));

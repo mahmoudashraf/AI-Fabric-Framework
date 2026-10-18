@@ -118,7 +118,7 @@ class PublicAIWorkspaceManifestServiceTest {
         installation.setAuthProfileCode(AIWorkspaceAuthenticationProfileRegistry.SUPABASE);
         installation.setAuthProfileVersion(AIWorkspaceAuthenticationProfileRegistry.VERSION);
         installation.setAuthConfigurationJson("""
-            {"projectUrl":"https://identity.example","publishableKey":"publishable-test-key","methods":["email-password"]}
+            {"projectUrl":"https://identity.example","publishableKey":"sb_publishable_fixture","methods":["email-password"]}
             """);
 
         var result = service(authenticatedProperties).resolve(

@@ -224,8 +224,10 @@ class AdmissionRetirementHandoffServiceTest {
         when(consumers.findAll()).thenReturn(List.of(productionConsumer));
         when(admissions.reviewed("POLICY", reservation.policyId(), FleetPolicy.class)).thenReturn(
             new FleetPolicy("policy1", null, Map.of(), null, "restore-proof", null, null));
-        when(retirements.plan(org.mockito.ArgumentMatchers.eq(reservation.deploymentId()),
-            org.mockito.ArgumentMatchers.eq(reservation.targetProfileId()), org.mockito.ArgumentMatchers.any()))
+        when(retirements.planForAdmissionExpiry(org.mockito.ArgumentMatchers.eq(reservation.deploymentId()),
+            org.mockito.ArgumentMatchers.eq(reservation.targetProfileId()),
+            org.mockito.ArgumentMatchers.eq(reservation.id()), org.mockito.ArgumentMatchers.eq(reservation.generation()),
+            org.mockito.ArgumentMatchers.any()))
             .thenReturn(planned);
         when(retirements.require(operation.getId())).thenReturn(operation);
         when(admissions.handoff(org.mockito.ArgumentMatchers.eq(work), org.mockito.ArgumentMatchers.eq(operation.getId()),
@@ -236,8 +238,10 @@ class AdmissionRetirementHandoffServiceTest {
 
         ArgumentCaptor<TargetRetirementContracts.PlanRequest> request =
             ArgumentCaptor.forClass(TargetRetirementContracts.PlanRequest.class);
-        verify(retirements).plan(org.mockito.ArgumentMatchers.eq(reservation.deploymentId()),
-            org.mockito.ArgumentMatchers.eq(reservation.targetProfileId()), request.capture());
+        verify(retirements).planForAdmissionExpiry(org.mockito.ArgumentMatchers.eq(reservation.deploymentId()),
+            org.mockito.ArgumentMatchers.eq(reservation.targetProfileId()),
+            org.mockito.ArgumentMatchers.eq(reservation.id()), org.mockito.ArgumentMatchers.eq(reservation.generation()),
+            request.capture());
         assertThat(request.getValue().consumers()).containsExactly(
             new TargetRetirementContracts.ConsumerExpectation("consumer-entity", 12L));
     }

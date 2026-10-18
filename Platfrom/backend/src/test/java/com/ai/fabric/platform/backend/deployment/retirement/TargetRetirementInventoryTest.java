@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.deployment.service.*;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerBindingHistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ class TargetRetirementInventoryTest {
     private final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
     private final DeploymentProviderResourceHandleRepository handles = mock(DeploymentProviderResourceHandleRepository.class);
     private final PlatformConsumerRepository consumers = mock(PlatformConsumerRepository.class);
+    private final PlatformConsumerBindingHistoryRepository bindingHistory = mock(PlatformConsumerBindingHistoryRepository.class);
     private final CoolifyTargetProfileResolver resolver = mock(CoolifyTargetProfileResolver.class);
     private final CoolifyApiClient client = mock(CoolifyApiClient.class);
     private final TargetRetirementJson json = new TargetRetirementJson(
@@ -38,7 +40,7 @@ class TargetRetirementInventoryTest {
     private DeploymentTargetProfileEntity target;
 
     @BeforeEach void setup() {
-        service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers,
+        service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers, bindingHistory,
             json, resolver, client, List.of());
         var deployment = new DeploymentEntity();
         deployment.setId("deployment"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
@@ -94,9 +96,9 @@ class TargetRetirementInventoryTest {
         verify(consumers, never()).save(any());
         verify(releases, never()).delete(any());
     }
-    @Test void activeOrAmbiguousTargetAssignmentBlocksRetirement() {
+    @Test void frozenTargetAssignmentCanDrainButAmbiguousAssignmentBlocksRetirement() {
         consumer.setBoundTargetProfileId("staging");
-        assertThatThrownBy(this::capture).hasMessageContaining("TARGET_STILL_ASSIGNED");
+        assertThat(capture().consumers()).containsExactly(new ConsumerExpectation("consumer", 7));
         consumer.setBoundTargetProfileId(null);
         assertThatThrownBy(this::capture).hasMessageContaining("TARGET_STILL_ASSIGNED");
     }
@@ -207,7 +209,7 @@ class TargetRetirementInventoryTest {
         when(client.listApplicationStorages(connection, "staging-app")).thenReturn(List.of(mounted));
         assertThatThrownBy(this::capture).hasMessageContaining("PERSISTENT_VOLUME_RETENTION_UNAPPROVED");
 
-        service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers,
+        service = new TargetRetirementInventory(deployments, targets, releases, handles, consumers, bindingHistory,
             json, resolver, client, List.of("/app/document-sources"));
         var resource = capture().resources().getFirst();
         assertThat(resource.volumes()).singleElement()

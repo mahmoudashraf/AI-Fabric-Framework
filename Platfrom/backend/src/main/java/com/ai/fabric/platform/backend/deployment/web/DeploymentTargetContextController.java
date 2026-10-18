@@ -31,25 +31,36 @@ public class DeploymentTargetContextController {
     public Summary context(@PathVariable String deploymentId, @PathVariable String targetProfileId, @PathVariable String releaseId) {
         var context = service.resolve(deploymentId, targetProfileId, releaseId, false);
         List<String> documentDatasetIds = new ArrayList<>();
+        boolean externalIntegrationConfigured = false;
+        boolean conversationHandoverConfigured;
         try {
             JsonNode config = objectMapper.readTree(context.version().getMarketplaceDatasetConfigJson());
             for (JsonNode dataset : config.path("datasets")) {
+                if ("EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText())) {
+                    externalIntegrationConfigured = true;
+                }
                 if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText())) {
                     String id = dataset.path("datasetId").asText();
                     if (id.isBlank()) throw new IllegalArgumentException();
                     documentDatasetIds.add(id);
                 }
             }
+            conversationHandoverConfigured = objectMapper.readTree(context.version().getBehaviorConfigJson())
+                .path("conversationHandover")
+                .path("enabled")
+                .asBoolean(false);
         } catch (Exception error) {
-            throw new ResponseStatusException(CONFLICT, "Selected release dataset configuration is invalid.");
+            throw new ResponseStatusException(CONFLICT, "Selected release capability configuration is invalid.");
         }
         return new Summary(deploymentId, targetProfileId, releaseId, context.version().getId(),
             context.target().getEnvironmentName(), context.release().getStatus(),
-            context.version().getConfigHash(), context.runtimeBaseUrl(), context.connectorBaseUrl(), List.copyOf(documentDatasetIds));
+            context.version().getConfigHash(), context.runtimeBaseUrl(), context.connectorBaseUrl(),
+            List.copyOf(documentDatasetIds), externalIntegrationConfigured, conversationHandoverConfigured);
     }
 
     public record Summary(String deploymentId, String targetProfileId, String releaseId, String versionId,
                           String environmentName, String releaseStatus, String configHash,
-                          String runtimeBaseUrl, String connectorBaseUrl, List<String> documentDatasetIds) {
+                          String runtimeBaseUrl, String connectorBaseUrl, List<String> documentDatasetIds,
+                          boolean externalIntegrationConfigured, boolean conversationHandoverConfigured) {
     }
 }

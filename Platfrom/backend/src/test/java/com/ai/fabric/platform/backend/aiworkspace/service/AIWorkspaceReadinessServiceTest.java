@@ -140,7 +140,7 @@ class AIWorkspaceReadinessServiceTest {
         installation.setAuthProfileCode("supabase");
         installation.setAuthProfileVersion("1.0.0");
         installation.setAuthConfigurationJson("""
-            {"projectUrl":"https://example.supabase.co","publishableKey":"publishable-test-key","methods":["email-password"]}
+            {"projectUrl":"https://example.supabase.co","publishableKey":"sb_publishable_fixture","methods":["email-password"]}
             """);
         return installation;
     }

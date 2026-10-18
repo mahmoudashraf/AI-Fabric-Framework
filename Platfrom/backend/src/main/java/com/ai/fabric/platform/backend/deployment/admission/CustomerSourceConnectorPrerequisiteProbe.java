@@ -2,10 +2,8 @@ package com.ai.fabric.platform.backend.deployment.admission;
 
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentStorageBindingService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRuntimeJsonTransport;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
-import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -15,32 +13,32 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 
 import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 
 @Component
 class CustomerSourceConnectorPrerequisiteProbe {
     private final PlatformSecretService secrets;
-    private final RuntimePrivateAssertionSigningService assertions;
+    private final DeploymentRuntimeAuthorityService runtimeAuthority;
     private final DeploymentRuntimeJsonTransport transport;
     private final AdmissionJson json;
     private final Clock clock;
 
     @Autowired
     CustomerSourceConnectorPrerequisiteProbe(PlatformSecretService secrets,
-        RuntimePrivateAssertionSigningService assertions, DeploymentRuntimeJsonTransport transport, AdmissionJson json) {
-        this(secrets, assertions, transport, json, Clock.systemUTC());
+        DeploymentRuntimeAuthorityService runtimeAuthority, DeploymentRuntimeJsonTransport transport, AdmissionJson json) {
+        this(secrets, runtimeAuthority, transport, json, Clock.systemUTC());
     }
 
     CustomerSourceConnectorPrerequisiteProbe(PlatformSecretService secrets,
-        RuntimePrivateAssertionSigningService assertions, DeploymentRuntimeJsonTransport transport, AdmissionJson json, Clock clock) {
+        DeploymentRuntimeAuthorityService runtimeAuthority, DeploymentRuntimeJsonTransport transport, AdmissionJson json, Clock clock) {
         this.secrets = secrets;
-        this.assertions = assertions;
+        this.runtimeAuthority = runtimeAuthority;
         this.transport = transport;
         this.json = json;
         this.clock = clock;
@@ -52,20 +50,13 @@ class CustomerSourceConnectorPrerequisiteProbe {
             throw new IllegalStateException("Source connector probes cannot run inside a transaction.");
         }
         var scope = snapshot.scope();
-        var principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null || !assertions.isConfigured()) throw failure();
-        String backendKey = secrets.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME);
-        if (backendKey == null || backendKey.isBlank()) throw failure();
         String expectedDigest = expectedScopeDigest(snapshot);
-        var claims = new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
-            principal.actorId(), "INTERNAL_PLATFORM_USER", "PRIVATE_RUNTIME_BACKEND_MEDIATED", "TRUSTED_BACKEND",
-            "source-prerequisite-" + scope.releaseId(), scope.deploymentId(), scope.customerId(), scope.tenantId(),
-            RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS, clock.instant().plusSeconds(60),
-            List.of(scope.deploymentId()), List.of("documents:read"));
+        var runtime = snapshot.runtime();
+        var headers = runtimeAuthority.issuePlatformProxyHeaders(
+            scope.deploymentId(), scope.targetProfileId(), scope.releaseId(),
+            runtime.release().getRuntimeAuthorityFingerprint(), List.of("documents:read"), Duration.ofMinutes(1));
         var response = transport.send(snapshot.runtime().runtimeBaseUrl(), "GET", "/api/documents/source-connector/status",
-            Map.of(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER, backendKey.trim(),
-                RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER, assertions.toAuthorizationHeaderValue(claims)),
-            null, null);
+            headers, null, null);
         var body = response.body();
         if (response.statusCode() != 200 || body == null || !body.path("ready").isBoolean() || !body.path("ready").asBoolean()
             || !snapshot.connectorType().equals(body.path("connectorType").asText())

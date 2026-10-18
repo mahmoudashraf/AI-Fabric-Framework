@@ -68,7 +68,7 @@ class ReviewedManagedDependencyEvidenceServiceTest {
     void resolvesExactOfferTemplateSpecAndRevalidatesItForDeployment() {
         var envelope = envelope(3_750, 5_888, 16_384, 2, 4);
         var association = new CustomerOfferDeploymentEntity("deployment", "customer", "tenant", "offer",
-            "offer-fingerprint", 1, "operation", Instant.parse("2026-10-15T12:00:00Z"));
+            "target", "offer-fingerprint", 1, "operation", Instant.parse("2026-10-15T12:00:00Z"));
         var offer = new CustomerOfferEntity("offer", codec.write(definition), "offer-fingerprint", "review",
             "operator", Instant.parse("2026-10-15T12:00:00Z"));
         when(associations.findById("deployment")).thenReturn(Optional.of(association));

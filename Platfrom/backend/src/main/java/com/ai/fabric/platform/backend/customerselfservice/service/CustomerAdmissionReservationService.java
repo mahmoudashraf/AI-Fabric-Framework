@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissio
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Summary;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AuthorizationRequest;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
@@ -22,6 +23,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.RESOURCE_SCOPE_MISMATCH;
@@ -75,15 +78,39 @@ public class CustomerAdmissionReservationService {
             new Reserve(request.operationKey(), manifest.id(), prepared.context(), request.allocationId()));
         Summary result = summary(reservation);
         return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), result.intent(),
-            request.operation(), result.state(), result.revision(), result.expiresAt());
+            request.operation(), result.state(), result.revision(), result.expiresAt(), result.expiryState(),
+            result.keepUntil());
     }
 
     public Summary status(String offerId, String deploymentId, String reservationId) {
         if (blank(offerId, 64) || blank(deploymentId, 64) || blank(reservationId, 64)) throw invalid();
         var actor = entitlements.requireCustomerActor();
         DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
-        requireAssociation(offerId, deployment);
-        return summary(admissions.status(deploymentId, reservationId));
+        Reservation reservation = admissions.status(deploymentId, reservationId);
+        authorizeRead(actor.customerId(), offerId, deployment, reservation.targetProfileId());
+        return summary(reservation);
+    }
+
+    public List<Summary> list(String offerId, String deploymentId, String targetProfileId) {
+        if (blank(offerId, 64) || blank(deploymentId, 64) || blank(targetProfileId, 64)) throw invalid();
+        var actor = entitlements.requireCustomerActor();
+        DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
+        authorizeRead(actor.customerId(), offerId, deployment, targetProfileId);
+        return admissions.activeCustomerReservations(deploymentId, targetProfileId).stream()
+            .sorted(Comparator.comparing(Reservation::updatedAt).reversed())
+            .map(this::summary)
+            .toList();
+    }
+
+    private void authorizeRead(String customerId, String offerId, DeploymentEntity deployment, String targetProfileId) {
+        if (blank(targetProfileId, 64)) throw deny(RESOURCE_SCOPE_MISMATCH);
+        Boolean authorized = preparation.execute(status -> {
+            requireAssociation(offerId, deployment);
+            authorization.authorize(customerId, new AuthorizationRequest(offerId, targetProfileId,
+                deployment.getId(), deployment.getTenantId(), null, Operation.READ, null, Set.of(), null, null, null));
+            return Boolean.TRUE;
+        });
+        if (!Boolean.TRUE.equals(authorized)) throw deny(RESOURCE_SCOPE_MISMATCH);
     }
 
     private Authorization prepare(String offerId, DeploymentEntity deployment, Request request) {
@@ -94,6 +121,7 @@ public class CustomerAdmissionReservationService {
         if (!deployment.getId().equals(version.getDeploymentId()) || !"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
             throw deny(RESOURCE_SCOPE_MISMATCH);
         }
+        authorization.requireReviewedVersion(prepared, version);
         if (request.releaseId() != null) {
             var release = releases.findById(request.releaseId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
             if (!deployment.getId().equals(release.getDeploymentId())
@@ -124,7 +152,8 @@ public class CustomerAdmissionReservationService {
         try { intent = TargetIntent.valueOf(reservation.intent().name()); }
         catch (RuntimeException ex) { throw deny(RESOURCE_SCOPE_MISMATCH); }
         return new Summary(reservation.id(), reservation.deploymentId(), reservation.targetProfileId(), intent,
-            reservation.customerOperation(), reservation.state().name(), reservation.revision(), reservation.expiresAt());
+            reservation.customerOperation(), reservation.state().name(), reservation.revision(), reservation.expiresAt(),
+            reservation.expiryState().name(), reservation.keepUntil());
     }
 
     private void validate(Request request) {

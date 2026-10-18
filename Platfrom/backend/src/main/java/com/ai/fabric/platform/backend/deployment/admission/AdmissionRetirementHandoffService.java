@@ -169,17 +169,9 @@ final class AdmissionRetirementHandoffService {
                 throw failure("RETIREMENT_RELEASE_INVENTORY_CHANGED");
             }
         }
-        Set<String> releaseSet = Set.copyOf(releaseIds);
         var deploymentConsumers = consumers.findAll().stream()
             .filter(consumer -> reservation.deploymentId().equals(consumer.getBoundDeploymentId()))
             .toList();
-        boolean assigned = deploymentConsumers.stream().anyMatch(consumer -> {
-            boolean target = reservation.deploymentId().equals(consumer.getBoundDeploymentId())
-                && (consumer.getBoundTargetProfileId() == null
-                    || reservation.targetProfileId().equals(consumer.getBoundTargetProfileId()));
-            return target || releaseSet.contains(consumer.getBoundReleaseId());
-        });
-        if (assigned) throw failure("TARGET_STILL_ASSIGNED");
         List<ConsumerExpectation> expectations = deploymentConsumers.stream()
             .map(consumer -> new ConsumerExpectation(consumer.getId(), consumer.getBindingRevision()))
             .sorted(Comparator.comparing(ConsumerExpectation::consumerEntityId))
@@ -187,7 +179,8 @@ final class AdmissionRetirementHandoffService {
         FleetPolicy policy = admissions.reviewed("POLICY", reservation.policyId(), FleetPolicy.class);
         PlanRequest request = new PlanRequest(operationKey, releaseIds, expectations, work.drainDeadline(),
             new Retention(RetentionDecision.RECLAIM, null, null, policy.restoreEvidenceReference()), work.reason());
-        var planned = retirements.plan(reservation.deploymentId(), reservation.targetProfileId(), request);
+        var planned = retirements.planForAdmissionExpiry(reservation.deploymentId(), reservation.targetProfileId(),
+            reservation.id(), reservation.generation(), request);
         return retirements.require(planned.id());
     }
 

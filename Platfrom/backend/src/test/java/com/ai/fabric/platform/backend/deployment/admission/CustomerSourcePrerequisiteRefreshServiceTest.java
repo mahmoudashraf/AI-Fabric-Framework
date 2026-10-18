@@ -55,7 +55,7 @@ class CustomerSourcePrerequisiteRefreshServiceTest extends AdmissionFixture {
             "https://runtime.example", "https://connector.example");
         when(targets.resolve("deployment", "target", "release", false)).thenReturn(runtime);
         when(associations.findById("deployment")).thenReturn(Optional.of(new CustomerOfferDeploymentEntity(
-            "deployment", "customer", "tenant", "offer", "offer-hash", 2, "bootstrap", NOW)));
+            "deployment", "customer", "tenant", "offer", "target", "offer-hash", 2, "bootstrap", NOW)));
         context = new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment", "release", "target",
             TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, null, Operation.SOURCE_DISCOVER, null, null, null);
         when(authorization.prepareSourcePrerequisiteRefresh(eq("customer"), any())).thenAnswer(call -> {

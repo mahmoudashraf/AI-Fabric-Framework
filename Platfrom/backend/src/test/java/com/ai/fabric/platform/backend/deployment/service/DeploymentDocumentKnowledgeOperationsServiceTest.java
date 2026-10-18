@@ -1,19 +1,20 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,8 +26,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
+
+import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,9 +45,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
     private final DeploymentTargetContextService targetContextService = mock(DeploymentTargetContextService.class);
     private final DeploymentTargetReference target = new DeploymentTargetReference("dep-1", "target-1", "rel-1");
-    private final PlatformSecretService secretService = mock(PlatformSecretService.class);
-    private final RuntimePrivateAssertionSigningService assertionSigningService =
-        mock(RuntimePrivateAssertionSigningService.class);
+    private final DeploymentRuntimeAuthorityService runtimeAuthority = mock(DeploymentRuntimeAuthorityService.class);
     private final PlatformAuditService auditService = mock(PlatformAuditService.class);
     private final HttpClient httpClient = mock(HttpClient.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -52,6 +53,106 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
     private final com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService sourcePrerequisites =
         mock(com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService.class);
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void mixedModesRequireBothAudiencesBeforeTheRuntimeWrite() throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"datasetRef":"document-knowledge","authModes":[
+              "PUBLIC_RUNTIME_ANONYMOUS","PUBLIC_RUNTIME_AUTHENTICATED","PRIVATE_RUNTIME_BACKEND_MEDIATED"]}]}
+            """);
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+        doReturn(runtimeResponse(202, "{}")).when(httpClient).send(any(), any());
+
+        service().index(target, "source-1", "mixed-modes-1");
+
+        verify(sourcePrerequisites).ensureFresh(target, Operation.SOURCE_INDEX, "mixed-modes-1",
+            java.util.Set.of(DocumentAudience.PUBLIC, DocumentAudience.AUTHENTICATED));
+        for (DocumentAudience audience : DocumentAudience.values()) {
+            verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"), eq(Operation.SOURCE_INDEX),
+                eq("mixed-modes-1"), eq(java.util.Map.of(Setting.DOCUMENT_AUDIENCE,
+                    objectMapper.getNodeFactory().textNode(audience.name()))), any(), any(), eq(audience));
+        }
+    }
+
+    @Test
+    void publicAuthorizationCannotMaskAnAuthenticatedAudienceRejection() throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"datasetRef":"document-knowledge","authModes":[
+              "PUBLIC_RUNTIME_ANONYMOUS","PUBLIC_RUNTIME_AUTHENTICATED"]}]}
+            """);
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+        org.mockito.Mockito.doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "AUDIENCE_FORBIDDEN"))
+            .when(offerBoundary).require(any(), any(), any(), any(), any(), any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
+
+        assertThatThrownBy(() -> service().index(target, "source-1", "mixed-deny-1"))
+            .hasMessageContaining("AUDIENCE_FORBIDDEN");
+        verify(httpClient, never()).send(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"null", "[]", "{}", "\"PUBLIC_RUNTIME_ANONYMOUS\"", "[\"UNKNOWN\"]",
+        "[\"PUBLIC_RUNTIME_ANONYMOUS\",\"UNKNOWN\"]", "[null]", "[\"\"]"})
+    void invalidOrMissingSourceModesFailBeforePrerequisiteOrRuntimeCalls(String modes) throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("{\"sources\":[{\"datasetRef\":\"document-knowledge\",\"authModes\":" + modes + "}]}");
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+
+        assertThatThrownBy(() -> service().index(target, "source-1", "invalid-modes-1"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("authModes");
+        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites, offerBoundary, runtimeAuthority);
+        verify(httpClient, never()).send(any(), any());
+    }
+
+    @Test
+    void missingKnowledgeSourceMappingFailsClosed() throws Exception {
+        configureDocumentDeployment();
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("{\"sources\":[]}");
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", false)).thenReturn(context(version));
+        assertThatThrownBy(() -> service().list(target)).hasMessageContaining("audience evidence is required");
+        verify(httpClient, never()).send(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"register", "refresh", "index", "reconcile", "remove", "cleanup"})
+    void everyMutationRequiresACallerKeyBeforeResolvingAnyRuntime(String operation) throws Exception {
+        for (String key : new String[] {null, "", " ", " key", "key ", "key\n", "x".repeat(129)}) {
+            assertThatThrownBy(() -> mutate(operation, key)).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Idempotency-Key is required");
+        }
+        org.mockito.Mockito.verifyNoInteractions(targetContextService, sourcePrerequisites, offerBoundary, runtimeAuthority, httpClient);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"register", "refresh", "index", "reconcile", "remove", "cleanup"})
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void everyMutationPropagatesTheExactCallerKey(String operation) throws Exception {
+        configureDocumentDeployment();
+        doReturn(runtimeResponse(200, "{}")).when(httpClient).send(any(), any());
+        mutate(operation, "stable-key-1");
+        ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(request.capture(), any());
+        assertThat(request.getValue().headers().firstValue("Idempotency-Key")).contains("stable-key-1");
+    }
+
+    private Object mutate(String operation, String key) throws Exception {
+        var service = service();
+        return switch (operation) {
+            case "register" -> service.register(target, objectMapper.readTree("{\"datasetId\":\"document-knowledge\",\"objectReference\":\"policy.txt\"}"), key);
+            case "refresh" -> service.refresh(target, "source-1", key);
+            case "index" -> service.index(target, "source-1", key);
+            case "reconcile" -> service.reconcile(target, "source-1", key);
+            case "remove" -> service.removeIndex(target, "source-1", key);
+            case "cleanup" -> service.cleanupRetention(target, key);
+            default -> throw new IllegalArgumentException(operation);
+        };
+    }
 
     @Test
     void rejectedSourceOperationNeverCallsTheDeploymentRuntime() throws Exception {
@@ -127,14 +228,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         assertThat(request.getValue().headers().firstValue(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER))
             .contains("private-runtime-key");
 
-        ArgumentCaptor<RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims> claims =
-            ArgumentCaptor.forClass(RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims.class);
-        verify(assertionSigningService).toAuthorizationHeaderValue(claims.capture());
-        assertThat(claims.getValue().audiences()).containsExactly("dep-1");
-        assertThat(claims.getValue().tenantId()).isEqualTo("tenant-1");
-        assertThat(claims.getValue().issuer())
-            .isEqualTo(RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS);
-        assertThat(claims.getValue().grantedScopes()).containsExactly("documents:index");
+        verify(runtimeAuthority).issuePlatformProxyHeaders(
+            "dep-1", "target-1", "rel-1", "sha256:authority-1", List.of("documents:index"), Duration.ofMinutes(5));
         verify(auditService).record(eq("DOCUMENT_SOURCE_INDEX_REQUESTED"), eq("DEPLOYMENT"), eq("dep-1"), any());
     }
 
@@ -147,10 +242,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
 
         service().connectorStatus(target);
 
-        ArgumentCaptor<RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims> claims =
-            ArgumentCaptor.forClass(RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims.class);
-        verify(assertionSigningService).toAuthorizationHeaderValue(claims.capture());
-        assertThat(claims.getValue().grantedScopes()).containsExactly("documents:read");
+        verify(runtimeAuthority).issuePlatformProxyHeaders(
+            "dep-1", "target-1", "rel-1", "sha256:authority-1", List.of("documents:read"), Duration.ofMinutes(5));
         verify(auditService, never()).record(any(), any(), any(), any());
     }
 
@@ -161,17 +254,16 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         doReturn(runtimeResponse(200, "{\"manifestsDeleted\":2,\"customerSourceObjectsDeleted\":false}"))
             .when(httpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
 
-        var result = service().cleanupRetention(target);
+        var result = service().cleanupRetention(target, "cleanup-1");
 
         assertThat(result.statusCode()).isEqualTo(200);
         ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
         verify(httpClient).send(request.capture(), any(HttpResponse.BodyHandler.class));
         assertThat(request.getValue().uri().toString())
             .isEqualTo("https://runtime.example/api/documents/retention/cleanup");
-        ArgumentCaptor<RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims> claims =
-            ArgumentCaptor.forClass(RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims.class);
-        verify(assertionSigningService).toAuthorizationHeaderValue(claims.capture());
-        assertThat(claims.getValue().grantedScopes()).containsExactly("documents:index");
+        assertThat(request.getValue().headers().firstValue("Idempotency-Key")).contains("cleanup-1");
+        verify(runtimeAuthority).issuePlatformProxyHeaders(
+            "dep-1", "target-1", "rel-1", "sha256:authority-1", List.of("documents:index"), Duration.ofMinutes(5));
         verify(auditService).record(eq("DOCUMENT_RETENTION_CLEANUP_COMPLETED"), eq("DEPLOYMENT"), eq("dep-1"), any());
     }
 
@@ -222,8 +314,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     private DeploymentDocumentKnowledgeOperationsService service() {
         return new DeploymentDocumentKnowledgeOperationsService(
             targetContextService,
-            secretService,
-            assertionSigningService,
+            runtimeAuthority,
             auditService,
             objectMapper,
             httpClient,
@@ -236,10 +327,10 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         authenticate();
         when(targetContextService.resolve("dep-1", "target-1", "rel-1", false)).thenReturn(context(documentVersion()));
         when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(documentVersion()));
-        when(secretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
-            .thenReturn("private-runtime-key");
-        when(assertionSigningService.isConfigured()).thenReturn(true);
-        when(assertionSigningService.toAuthorizationHeaderValue(any())).thenReturn("Bearer signed-assertion");
+        when(runtimeAuthority.issuePlatformProxyHeaders(any(), any(), any(), any(), any(), any()))
+            .thenReturn(java.util.Map.of(
+                RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER, "private-runtime-key",
+                RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER, "Bearer signed-assertion"));
     }
 
     private DeploymentTargetContextService.Context context(DeploymentVersionEntity version) {
@@ -247,6 +338,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         profile.setId("target-1");
         DeploymentReleaseEntity release = new DeploymentReleaseEntity();
         release.setId("rel-1");
+        release.setRuntimeAuthorityFingerprint("sha256:authority-1");
         return new DeploymentTargetContextService.Context(deployment(), profile, release, version, "https://runtime.example", null);
     }
 
@@ -266,6 +358,9 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         version.setDeploymentId("dep-1");
         version.setMarketplaceDatasetConfigJson("""
             {"datasets":[{"datasetId":"document-knowledge","ingestionMode":"EXTERNAL_DOCUMENT_STORAGE"}]}
+            """);
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"datasetRef":"document-knowledge","authModes":["PUBLIC_RUNTIME_ANONYMOUS"]}]}
             """);
         return version;
     }

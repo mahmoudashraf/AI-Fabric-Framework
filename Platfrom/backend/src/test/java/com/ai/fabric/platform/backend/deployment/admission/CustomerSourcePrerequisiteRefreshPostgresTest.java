@@ -129,7 +129,7 @@ class CustomerSourcePrerequisiteRefreshPostgresTest extends AdmissionFixture {
             allocation.expiresAt(), 60);
         when(targets.resolve("deployment", TARGET, "release", false)).thenReturn(runtime);
         when(associations.findById("deployment")).thenReturn(Optional.of(new CustomerOfferDeploymentEntity(
-            "deployment", "customer", "tenant", "offer", "offer-hash", 2, "bootstrap", NOW)));
+            "deployment", "customer", "tenant", "offer", TARGET, "offer-hash", 2, "bootstrap", NOW)));
         when(authorization.prepareSourcePrerequisiteRefresh(eq("customer"), any())).thenAnswer(call -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
             return new Authorization(sourceContext, null);

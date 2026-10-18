@@ -15,6 +15,7 @@ import static org.mockito.Mockito.*;
 
 class RuntimeTargetRetirementParticipantTest {
     private final TargetRetirementRuntimeGateway runtime = mock(TargetRetirementRuntimeGateway.class);
+    private final TargetRetirementConsumerAssignments assignments = mock(TargetRetirementConsumerAssignments.class);
     private final Context context = context();
     private final Target target = new Target("deployment", "target", "release");
     private RuntimeDrainTargetRetirementParticipant drain;
@@ -22,7 +23,9 @@ class RuntimeTargetRetirementParticipantTest {
 
     @BeforeEach void setup() {
         drain = new RuntimeDrainTargetRetirementParticipant(runtime);
-        authority = new RuntimeAuthorityTargetRetirementParticipant(runtime);
+        when(assignments.inspect(context)).thenReturn(
+            new TargetRetirementConsumerAssignments.Inspection(true, List.of(), "assignment-proof"));
+        authority = new RuntimeAuthorityTargetRetirementParticipant(runtime, assignments);
     }
 
     @Test void activeWorkRemainsExplicitAndIsNotHiddenByDynamicRuntimeBlockers() {
@@ -70,6 +73,17 @@ class RuntimeTargetRetirementParticipantTest {
 
         assertThat(drain.apply(context, Step.DRAIN, "effect").complete()).isTrue();
         assertThat(drain.readback(context, Step.DRAIN, "effect").complete()).isTrue();
+    }
+
+    @Test void authorityRecoveryIsSafeOnlyWhenTheFrozenAssignmentHasNoBlocker() {
+        assertThat(authority.recoverySafe(context, Step.AUTHORITY, "effect")).isTrue();
+        assertThat(authority.recoverySafe(context, Step.INDEX, "effect")).isFalse();
+
+        when(assignments.inspect(context)).thenReturn(
+            new TargetRetirementConsumerAssignments.Inspection(false,
+                List.of("CONSUMER_REVISION_CHANGED"), "assignment-proof"));
+
+        assertThat(authority.recoverySafe(context, Step.AUTHORITY, "effect")).isFalse();
     }
 
     private TargetRetirementParticipant mockParticipant(ParticipantKind kind) {

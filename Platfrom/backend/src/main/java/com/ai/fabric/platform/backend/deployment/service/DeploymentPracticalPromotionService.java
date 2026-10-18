@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerGoLiveReadinessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -87,6 +88,7 @@ public class DeploymentPracticalPromotionService {
     private final DeploymentTargetContextService targets;
     private final CustomerSelfServicePromotionBoundary customerBoundary;
     private final AdmissionPromotionRetirementScheduler retirementScheduler;
+    private final CustomerGoLiveReadinessService goLiveReadiness;
 
     public DeploymentPracticalPromotionService(DeploymentRepository deploymentRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
@@ -103,7 +105,8 @@ public class DeploymentPracticalPromotionService {
                                                DeploymentPromotionCommandService commands,
                                                DeploymentTargetContextService targets,
                                                CustomerSelfServicePromotionBoundary customerBoundary,
-                                               AdmissionPromotionRetirementScheduler retirementScheduler) {
+                                               AdmissionPromotionRetirementScheduler retirementScheduler,
+                                               CustomerGoLiveReadinessService goLiveReadiness) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
@@ -120,6 +123,7 @@ public class DeploymentPracticalPromotionService {
         this.targets = targets;
         this.customerBoundary = customerBoundary;
         this.retirementScheduler = retirementScheduler;
+        this.goLiveReadiness = goLiveReadiness;
     }
 
     @Transactional
@@ -228,6 +232,7 @@ public class DeploymentPracticalPromotionService {
         }
         targets.resolve(deployment.getId(), productionRelease.getTargetProfileId(), productionRelease.getId(), true);
         candidates.requireFreshVerification(deployment, context.version(), productionRelease, productionTarget);
+        goLiveReadiness.requireActivationReady(deployment, productionRelease, consumer);
         String previousDeploymentId = consumer.getBoundDeploymentId();
         String previousReleaseId = consumer.getBoundReleaseId();
         PlatformConsumerSummary updatedConsumer = platformCustomerConsumerService.updateBindingForTrustedPromotion(

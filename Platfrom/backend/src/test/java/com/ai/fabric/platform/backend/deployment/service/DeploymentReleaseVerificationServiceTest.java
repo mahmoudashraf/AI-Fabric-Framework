@@ -140,7 +140,7 @@ class DeploymentReleaseVerificationServiceTest {
             .isEmpty();
     }
 
-    private static final String AI_FABRIC_VERSION = "0.8.30";
+    private static final String AI_FABRIC_VERSION = "0.8.35";
     private static final String ENTITY_CONFIG_CONTRACT_VERSION =
         "AI_ENTITY_CONFIG_V0_4";
     private static final String ENTITY_CONFIG_HASH = "entity-hash-123";
@@ -349,7 +349,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service, deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("29 passed, 0 failed, 2 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("29 passed, 0 failed, 4 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -360,7 +360,7 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(31);
+            assertThat(statuses).hasSize(33);
             assertThat(statuses.values()).contains("SKIPPED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
@@ -379,6 +379,8 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("connector_actions_match_expected", "PASSED")
                 .containsEntry("connector_authz_configuration_matches_expected", "PASSED")
                 .containsEntry("document_source_connector_ready", "SKIPPED")
+                .containsEntry("document_active_sources_ready", "SKIPPED")
+                .containsEntry("document_retrieval_evidence_ready", "SKIPPED")
                 .containsEntry("marketplace_dataset_sync_matches_expected", "SKIPPED")
                 .containsEntry("vectorization_control_plane_ready", "PASSED")
                 .containsEntry("vectorization_runner_registration_ready", "PASSED")
@@ -414,7 +416,7 @@ class DeploymentReleaseVerificationServiceTest {
                     """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.30",
+                          "aiFabricFrameworkVersion": "0.8.35",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -667,6 +669,7 @@ class DeploymentReleaseVerificationServiceTest {
                 "documents-primary",
                 assertionClaims
             );
+            registerActiveDocumentEvidenceHandlers(runtimeServer);
             runtimeServer.start();
 
             PlatformSecretService platformSecretService = runtimePrivateSecrets();
@@ -687,6 +690,8 @@ class DeploymentReleaseVerificationServiceTest {
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(checkStatus(run, "document_source_connector_ready")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "document_active_sources_ready")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "document_retrieval_evidence_ready")).isEqualTo("PASSED");
             assertThat(assertionClaims.get()).isNotNull();
             assertThat(assertionClaims.get().path("iss").asText())
                 .isEqualTo("platform-release-verification");
@@ -694,6 +699,47 @@ class DeploymentReleaseVerificationServiceTest {
                 .map(JsonNode::asText)
                 .toList())
                 .containsExactly(RuntimePrivateAccessSupport.SCOPE_DOCUMENTS_READ);
+        } finally {
+            runtimeServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyFailsWhenDocumentConnectorIsReadyButNoActiveIndexedSourceExists() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary artifacts = artifactBundle();
+            registerRuntimeOnlyImageHandlers(runtimeServer, artifacts);
+            registerDocumentConnectorStatusHandler(
+                runtimeServer,
+                true,
+                "S3_COMPATIBLE_OBJECT_STORAGE",
+                "documents-primary",
+                new AtomicReference<>()
+            );
+            runtimeServer.createContext("/api/documents/sources", privateRuntimeJsonHandler("[]"));
+            runtimeServer.start();
+
+            PlatformSecretService platformSecretService = runtimePrivateSecrets();
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            DeploymentReleaseVerificationService service = releaseVerificationService(
+                platformSecretService,
+                artifactService
+            );
+
+            String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
+            DeploymentVerificationRunEntity run = verifyWithTargetEvidence(service,
+                deployment(runtimeBaseUrl, runtimeBaseUrl),
+                documentEnabledRuntimeOnlyVersion(),
+                runtimeOnlyImageRelease(),
+                "POST_DEPLOY"
+            );
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+            assertThat(checkStatus(run, "document_source_connector_ready")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "document_active_sources_ready")).isEqualTo("FAILED");
+            assertThat(checkStatus(run, "document_retrieval_evidence_ready")).isEqualTo("SKIPPED");
         } finally {
             runtimeServer.stop(0);
         }
@@ -886,7 +932,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ? """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.30",
+                          "aiFabricFrameworkVersion": "0.8.35",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-old",
@@ -957,7 +1003,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ) : """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.30",
+                          "aiFabricFrameworkVersion": "0.8.35",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -2907,6 +2953,43 @@ class DeploymentReleaseVerificationServiceTest {
         });
     }
 
+    private void registerActiveDocumentEvidenceHandlers(HttpServer server) {
+        server.createContext("/api/documents/sources/doc-source-1/preview", privateRuntimeJsonHandler("""
+            {
+              "source": {"sourceId":"doc-source-1","datasetId":"documents-primary","status":"ACTIVE","activeVersion":1},
+              "chunks": [{"contentPreview":"Approved collection policy allows a customer to arrange collection after identity verification."}]
+            }
+            """));
+        server.createContext("/api/documents/sources", privateRuntimeJsonHandler("""
+            [
+              {
+                "sourceId":"doc-source-1",
+                "datasetId":"documents-primary",
+                "status":"ACTIVE",
+                "activeVersion":1
+              }
+            ]
+            """));
+        server.createContext("/api/documents/retrieval-proof", privateRuntimeJsonHandler("""
+            {
+              "query":"redacted by the verifier",
+              "evidenceCount":1,
+              "evidence":[
+                {
+                  "sourceId":"doc-source-1",
+                  "sourceVersion":1,
+                  "metadata":{
+                    "datasetId":"documents-primary",
+                    "deploymentId":"dep-123",
+                    "targetProfileId":"dtp-coolify-staging",
+                    "releaseId":"rel-123"
+                  }
+                }
+              ]
+            }
+            """));
+    }
+
     private void registerRuntimeOnlyImageHandlers(HttpServer server, DeploymentArtifactBundleSummary artifacts) {
         registerRuntimeHandlers(server, artifacts);
         server.removeContext("/api/admin/overview");
@@ -2922,7 +3005,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.30",
+                      "aiFabricFrameworkVersion": "0.8.35",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",
@@ -3036,7 +3119,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.30",
+                      "aiFabricFrameworkVersion": "0.8.35",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",

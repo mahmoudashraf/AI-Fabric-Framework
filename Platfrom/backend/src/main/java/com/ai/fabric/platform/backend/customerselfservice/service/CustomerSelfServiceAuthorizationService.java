@@ -34,6 +34,7 @@ public class CustomerSelfServiceAuthorizationService {
     private final CustomerTargetPlacementService placement;
     private final DeploymentRepository deployments;
     private final DeploymentReleaseRepository releases;
+    private final DeploymentVersionRepository versions;
     private final DeploymentTargetProfileRepository profiles;
     private final PlatformTenantRepository tenants;
     private final PlatformConsumerRepository consumers;
@@ -44,7 +45,8 @@ public class CustomerSelfServiceAuthorizationService {
 
     public CustomerSelfServiceAuthorizationService(CustomerOfferEntitlementService entitlements,
         CustomerReviewedCompositionService composition, CustomerTargetPlacementService placement,
-        DeploymentRepository deployments, DeploymentReleaseRepository releases, DeploymentTargetProfileRepository profiles,
+        DeploymentRepository deployments, DeploymentReleaseRepository releases, DeploymentVersionRepository versions,
+        DeploymentTargetProfileRepository profiles,
         PlatformTenantRepository tenants, PlatformConsumerRepository consumers, DeploymentAccessService access,
         ObjectProvider<CustomerPrerequisiteEvidenceProvider> evidenceProviders, CustomerSelfServiceProperties properties,
         CustomerOfferDeploymentRepository offerDeployments) {
@@ -53,6 +55,7 @@ public class CustomerSelfServiceAuthorizationService {
         this.placement = placement;
         this.deployments = deployments;
         this.releases = releases;
+        this.versions = versions;
         this.profiles = profiles;
         this.tenants = tenants;
         this.consumers = consumers;
@@ -151,6 +154,10 @@ public class CustomerSelfServiceAuthorizationService {
                 || definition.artifacts().stream().noneMatch(pin -> pin.artifactId().equals(release.getSourceArtifactId()))) {
                 throw deny(RESOURCE_SCOPE_MISMATCH);
             }
+            var version = versions.findById(release.getDeploymentVersionId())
+                .orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+            if (!deployment.getId().equals(version.getDeploymentId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+            composition.requireVersion(definition, version);
         } else if (request.operation() == Operation.ACTIVATE || request.operation() == Operation.ROLLBACK
             || request.operation() == Operation.TARGET_RETIRE || request.operation() == Operation.VERIFY
             || isSourceOperation(request.operation())) throw deny(RESOURCE_SCOPE_MISMATCH);
@@ -250,6 +257,15 @@ public class CustomerSelfServiceAuthorizationService {
         }
     }
 
+    public void requireReviewedVersion(Authorization authorization,
+                                       com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity version) {
+        if (authorization == null || version == null
+            || !authorization.context().deploymentId().equals(version.getDeploymentId())) {
+            throw deny(RESOURCE_SCOPE_MISMATCH);
+        }
+        composition.requireVersion(authorization.definition(), version);
+    }
+
     public void requireOwnedConsumer(Authorization authorization, String consumerEntityId) {
         var consumer = consumers.findById(consumerEntityId).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
         if (!authorization.context().customerId().equals(consumer.getCustomerId()) || !"ACTIVE".equals(consumer.getStatus())
@@ -291,11 +307,13 @@ public class CustomerSelfServiceAuthorizationService {
         var previous = offerDeployments.findById(deploymentId).orElse(null);
         if (previous != null) {
             if (!context.offerId().equals(previous.getOfferId()) || !context.operationKey().equals(previous.getOperationKey())
+                || !context.targetProfileId().equals(previous.getBootstrapTargetProfileId())
                 || !context.offerFingerprint().equals(previous.getOfferFingerprint())) throw conflict(OPERATION_KEY_CONFLICT);
             return;
         }
         offerDeployments.saveAndFlush(new CustomerOfferDeploymentEntity(deploymentId, context.customerId(), deployment.getTenantId(),
-            context.offerId(), context.offerFingerprint(), context.entitlementRevision(), context.operationKey(), Instant.now()));
+            context.offerId(), context.targetProfileId(), context.offerFingerprint(), context.entitlementRevision(),
+            context.operationKey(), Instant.now()));
     }
 
     private CustomerSelfServiceException.Code error(Prerequisite prerequisite) {

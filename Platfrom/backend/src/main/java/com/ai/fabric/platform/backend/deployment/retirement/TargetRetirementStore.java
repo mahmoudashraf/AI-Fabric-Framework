@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.retirement;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionTargetLifecycleInterlock;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -31,21 +32,53 @@ public class TargetRetirementStore {
     private final TargetRetirementInventory inventory;
     private final TargetRetirementJson json;
     private final PlatformAuditService audit;
+    private final AdmissionTargetLifecycleInterlock admissionInterlock;
     private final TransactionTemplate transactions;
 
     public TargetRetirementStore(TargetRetirementOperationRepository operations, TargetRetirementGateService gates,
                                  TargetRetirementGateRepository gateRepository, TargetRetirementInventory inventory,
-                                 TargetRetirementJson json, PlatformAuditService audit, PlatformTransactionManager manager) {
+                                 TargetRetirementJson json, PlatformAuditService audit,
+                                 AdmissionTargetLifecycleInterlock admissionInterlock,
+                                 PlatformTransactionManager manager) {
         this.operations = operations;
         this.gates = gates;
         this.gateRepository = gateRepository;
         this.inventory = inventory;
         this.json = json;
         this.audit = audit;
+        this.admissionInterlock = admissionInterlock;
         this.transactions = new TransactionTemplate(manager);
     }
 
     public Summary plan(String deploymentId, String targetId, PlanRequest request) {
+        return plan(deploymentId, targetId, request, null);
+    }
+
+    public Summary planForAdmissionExpiry(String deploymentId, String targetId, String reservationId,
+                                          String generation, PlanRequest request) {
+        if (reservationId == null || reservationId.isBlank() || generation == null || generation.isBlank()) {
+            throw conflict("ACTIVE_ADMISSION_RESERVATION");
+        }
+        return plan(deploymentId, targetId, request, new AdmissionExpiryReservation(reservationId, generation));
+    }
+
+    private Summary plan(String deploymentId, String targetId, PlanRequest request,
+                         AdmissionExpiryReservation expiryReservation) {
+        var preparation = transactions.execute(tx -> {
+            var gate = gates.lock(deploymentId, targetId);
+            var existing = operations.findByDeploymentIdAndTargetProfileIdAndOperationKey(deploymentId, targetId, request.operationKey());
+            if (existing.isPresent()) {
+                if (!json.fingerprint(request).equals(json.fingerprint(request(existing.get())))) throw conflict("OPERATION_KEY_REUSED");
+                return new PlanPreparation(summary(existing.get()), gate.getEpoch());
+            }
+            if (!"AVAILABLE".equals(gate.getState())) throw conflict("TARGET_RETIREMENT_FENCED");
+            requireAdmissionInterlock(deploymentId, targetId, expiryReservation);
+            return new PlanPreparation(null, gate.getEpoch());
+        });
+        if (preparation.existing() != null) return preparation.existing();
+        Snapshot snapshot;
+        try { snapshot = inventory.capture(deploymentId, targetId, request, preparation.epoch()); }
+        catch (TargetRetirementFailure ex) { throw conflict(ex.code()); }
         return transactions.execute(tx -> {
             var gate = gates.lock(deploymentId, targetId);
             var existing = operations.findByDeploymentIdAndTargetProfileIdAndOperationKey(deploymentId, targetId, request.operationKey());
@@ -53,9 +86,11 @@ public class TargetRetirementStore {
                 if (!json.fingerprint(request).equals(json.fingerprint(request(existing.get())))) throw conflict("OPERATION_KEY_REUSED");
                 return summary(existing.get());
             }
-            if (!"AVAILABLE".equals(gate.getState())) throw conflict("TARGET_RETIREMENT_FENCED");
-            Snapshot snapshot;
-            try { snapshot = inventory.capture(deploymentId, targetId, request, gate.getEpoch()); }
+            if (!"AVAILABLE".equals(gate.getState()) || gate.getEpoch() != preparation.epoch()) {
+                throw conflict("TARGET_GENERATION_CHANGED");
+            }
+            requireAdmissionInterlock(deploymentId, targetId, expiryReservation);
+            try { inventory.recheckLocal(snapshot, request); }
             catch (TargetRetirementFailure ex) { throw conflict(ex.code()); }
             var operation = new TargetRetirementOperationEntity();
             operation.setId(UUID.randomUUID().toString());
@@ -80,16 +115,30 @@ public class TargetRetirementStore {
         });
     }
 
+    private record AdmissionExpiryReservation(String id, String generation) { }
+    private record PlanPreparation(Summary existing, long epoch) { }
+    private record ObservedOperation(Snapshot snapshot, PlanRequest request) { }
+
+    private void requireAdmissionInterlock(String deploymentId, String targetId,
+                                           AdmissionExpiryReservation expiryReservation) {
+        if (expiryReservation == null) {
+            admissionInterlock.requireNoActiveReservation(deploymentId, targetId);
+        } else {
+            admissionInterlock.requireOnlyClaimedReservation(deploymentId, targetId,
+                expiryReservation.id(), expiryReservation.generation());
+        }
+    }
+
     public Summary execute(String id, Command command) {
+        var observed = observe(id, State.PLANNED);
         return change(id, operation -> {
             requireCommand(operation, command);
             if (operation.getState() != State.PLANNED) return summary(operation);
+            requireObserved(operation, observed);
             var snapshot = snapshot(operation);
             var gate = gates.lock(operation.getDeploymentId(), operation.getTargetProfileId());
             if (!"AVAILABLE".equals(gate.getState()) || gate.getEpoch() != snapshot.targetEpoch())
                 throw conflict("TARGET_GENERATION_CHANGED");
-            try { inventory.recheck(snapshot, request(operation)); }
-            catch (TargetRetirementFailure ex) { throw conflict(ex.code()); }
             gate.setEpoch(gate.getEpoch() + 1);
             gate.setState("RETIRING");
             gate.setOperationId(id);
@@ -193,11 +242,12 @@ public class TargetRetirementStore {
     }
 
     public void prepareEffect(Context context, String effectKey, boolean destructive) {
+        var observed = observe(context.operationId(), State.RUNNING, State.CANCEL_REQUESTED);
         change(context.operationId(), operation -> {
             requireWorker(operation, context);
             if (operation.getState() == State.CANCEL_REQUESTED && destructive) throw new TargetRetirementFailure("CANCEL_PENDING");
             requireFence(operation);
-            inventory.recheck(snapshot(operation), request(operation));
+            requireObserved(operation, observed);
             operation.setInFlightEffect(effectKey);
             operation.setDestructiveStarted(operation.isDestructiveStarted() || destructive);
             return null;
@@ -205,10 +255,11 @@ public class TargetRetirementStore {
     }
 
     public void recheck(Context context) {
+        var observed = observe(context.operationId(), State.RUNNING, State.CANCEL_REQUESTED);
         change(context.operationId(), operation -> {
             requireWorker(operation, context);
             requireFence(operation);
-            inventory.recheck(snapshot(operation), request(operation));
+            requireObserved(operation, observed);
             return null;
         });
     }
@@ -242,10 +293,11 @@ public class TargetRetirementStore {
     }
 
     public void finish(Context context, boolean cancelled) {
+        var observed = observe(context.operationId(), State.RUNNING, State.CANCEL_REQUESTED);
         change(context.operationId(), operation -> {
             requireWorker(operation, context);
             requireFence(operation);
-            inventory.recheck(snapshot(operation), request(operation));
+            requireObserved(operation, observed);
             var gate = gates.lock(operation.getDeploymentId(), operation.getTargetProfileId());
             gate.setState(cancelled ? "AVAILABLE" : "RETIRED");
             gate.setEpoch(gate.getEpoch() + 1);
@@ -321,6 +373,25 @@ public class TargetRetirementStore {
             operations.saveAndFlush(operation);
             return result;
         });
+    }
+
+    private ObservedOperation observe(String id, State... eligibleStates) {
+        var operation = require(id);
+        if (eligibleStates.length > 0 && java.util.Arrays.stream(eligibleStates)
+            .noneMatch(state -> state == operation.getState())) return null;
+        var snapshot = snapshot(operation);
+        var request = request(operation);
+        inventory.recheck(snapshot, request);
+        return new ObservedOperation(snapshot, request);
+    }
+
+    private void requireObserved(TargetRetirementOperationEntity operation, ObservedOperation observed) {
+        if (observed == null
+            || !json.fingerprint(snapshot(operation)).equals(json.fingerprint(observed.snapshot()))
+            || !json.fingerprint(request(operation)).equals(json.fingerprint(observed.request()))) {
+            throw new TargetRetirementFailure("SNAPSHOT_GENERATION_CHANGED");
+        }
+        inventory.recheckLocal(observed.snapshot(), observed.request());
     }
 
     public void evidence(Context context, Map<ParticipantKind, Evidence> evidence, Evidence interlockEvidence) {

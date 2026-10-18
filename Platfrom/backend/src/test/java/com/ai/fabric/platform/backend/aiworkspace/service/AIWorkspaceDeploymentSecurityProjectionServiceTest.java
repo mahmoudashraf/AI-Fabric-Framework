@@ -179,11 +179,7 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
     }
 
     @Test
-    void bindingChangeSynchronizesOldAndNewDeploymentsOnlyWhenWorkspaceIsCurrent() {
-        when(installations.findByConsumerEntityIdAndStatusIn("consumer-a",
-            List.of(AIWorkspaceInstallationStatus.DRAFT, AIWorkspaceInstallationStatus.ACTIVE)))
-            .thenReturn(List.of(installation("consumer-a", AIWorkspaceInstallationStatus.DRAFT,
-                "[\"https://app.example\"]")));
+    void bindingChangeSynchronizesOldAndNewDeployments() {
         DeploymentEntity oldDeployment = deployment("deployment-old", "draft-old");
         DeploymentEntity newDeployment = deployment("deployment-new", "draft-new");
         when(deployments.findByIdForUpdate("deployment-old")).thenReturn(Optional.of(oldDeployment));
@@ -204,6 +200,23 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
 
         verify(drafts).save(org.mockito.ArgumentMatchers.argThat(value -> "draft-old".equals(value.getId())));
         verify(drafts).save(org.mockito.ArgumentMatchers.argThat(value -> "draft-new".equals(value.getId())));
+    }
+
+    @Test
+    void bindingDetachRemovesManagedOriginsAfterAllInstallationsAreDisabled() throws Exception {
+        DeploymentEntity oldDeployment = deployment("deployment-old", "draft-old");
+        DeploymentDraftEntity oldDraft = draft("draft-old", "deployment-old", """
+            {"corsAllowedOrigins":"https://retired.apps.example","aiWorkspaceManagedCorsOrigins":["https://retired.apps.example"]}
+            """);
+        when(deployments.findByIdForUpdate("deployment-old")).thenReturn(Optional.of(oldDeployment));
+        when(drafts.findByIdForUpdate("draft-old")).thenReturn(Optional.of(oldDraft));
+        when(consumers.findByBoundDeploymentIdOrderByUpdatedAtDesc("deployment-old")).thenReturn(List.of());
+
+        service().synchronizeBindingChange("consumer-a", "deployment-old", null);
+
+        var security = objectMapper.readTree(oldDraft.getSecurityConfigJson());
+        assertThat(security.has("corsAllowedOrigins")).isFalse();
+        assertThat(security.path("aiWorkspaceManagedCorsOrigins")).isEmpty();
     }
 
     private AIWorkspaceDeploymentSecurityProjectionService service() {

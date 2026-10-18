@@ -53,7 +53,7 @@ class ManagedDependencyReleaseCoordinatorTest {
         release.setTargetProfileId("target-1"); release.setRuntimeAuthorityFingerprint("a".repeat(64));
 
         var association = new CustomerOfferDeploymentEntity("dep-1", "customer-1", "tenant-1", "offer-1",
-            "offer-fingerprint", 3, "bootstrap", Instant.now());
+            "target-1", "offer-fingerprint", 3, "bootstrap", Instant.now());
         var offer = new CustomerOfferEntity("offer-1", "{}", "offer-fingerprint", "review", "reviewer",
             Instant.now());
         var entitlement = new CustomerOfferEntitlementEntity();

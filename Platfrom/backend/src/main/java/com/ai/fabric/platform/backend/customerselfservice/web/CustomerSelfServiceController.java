@@ -21,21 +21,27 @@ public class CustomerSelfServiceController {
     private final CustomerPlacementProbeService placementProbes;
     private final CustomerDeploymentBootstrapService bootstrap;
     private final CustomerDeploymentVersionService versions;
+    private final CustomerDeploymentApplyService applies;
     private final CustomerDocumentStorageBindingService documentStorageBindings;
+    private final CustomerDeploymentPortfolioService deploymentPortfolio;
 
     public CustomerSelfServiceController(CustomerSelfServiceCatalogueService catalogue,
                                          CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec,
                                          CustomerPlacementProbeService placementProbes,
                                          CustomerDeploymentBootstrapService bootstrap,
                                          CustomerDeploymentVersionService versions,
-                                         CustomerDocumentStorageBindingService documentStorageBindings) {
+                                         CustomerDeploymentApplyService applies,
+                                         CustomerDocumentStorageBindingService documentStorageBindings,
+                                         CustomerDeploymentPortfolioService deploymentPortfolio) {
         this.catalogue = catalogue;
         this.entitlements = entitlements;
         this.codec = codec;
         this.placementProbes = placementProbes;
         this.bootstrap = bootstrap;
         this.versions = versions;
+        this.applies = applies;
         this.documentStorageBindings = documentStorageBindings;
+        this.deploymentPortfolio = deploymentPortfolio;
     }
 
     @GetMapping("/catalogue")
@@ -43,6 +49,9 @@ public class CustomerSelfServiceController {
 
     @GetMapping("/catalogue/{offerId}")
     public OfferSummary offer(@PathVariable String offerId) { return catalogue.offer(offerId); }
+
+    @GetMapping("/deployments")
+    public List<CustomerDeploymentSummary> deployments() { return deploymentPortfolio.deployments(); }
 
     @PostMapping("/catalogue/{offerId}/deployments")
     public com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentBootstrapContracts.Result bootstrap(
@@ -56,6 +65,13 @@ public class CustomerSelfServiceController {
         @PathVariable String offerId, @PathVariable String deploymentId, @RequestBody JsonNode body) {
         return versions.publish(offerId, deploymentId, decode(body,
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentVersionContracts.PublishRequest.class));
+    }
+
+    @PostMapping("/catalogue/{offerId}/deployments/{deploymentId}/staging-releases")
+    public com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary applyStagingVersion(
+        @PathVariable String offerId, @PathVariable String deploymentId, @RequestBody JsonNode body) {
+        return applies.apply(offerId, deploymentId, decode(body,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerDeploymentApplyContracts.Request.class));
     }
 
     @PostMapping("/catalogue/{offerId}/deployments/{deploymentId}/document-storage-binding")

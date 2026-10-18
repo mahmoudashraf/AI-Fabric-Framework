@@ -35,7 +35,8 @@ class CustomerReviewedCompositionServiceTest {
     private MarketplaceManifestService.ParsedMarketplaceManifest templateManifest;
 
     @BeforeEach void setup() {
-        service = new CustomerReviewedCompositionService(codec, validatorFactory.getValidator(), plugins, versions, manifests, artifacts, profiles);
+        service = new CustomerReviewedCompositionService(codec, validatorFactory.getValidator(), plugins, versions, manifests, artifacts, profiles,
+            mock(CustomerWorkspaceProfileValidator.class));
         var template = new MarketplacePluginEntity(); template.setId("template-plugin"); template.setStatus("ACTIVE"); template.setPluginType("TEMPLATE");
         version = new MarketplacePluginVersionEntity(); version.setId("template-v1"); version.setPluginId(template.getId());
         version.setVersion("1.0.0"); version.setStatus("PUBLISHED");
@@ -47,6 +48,7 @@ class CustomerReviewedCompositionServiceTest {
         when(templateManifest.contributions().templateRequiredPluginRefs()).thenReturn(List.of());
         when(manifests.parseAndValidate(template, version)).thenReturn(templateManifest);
         artifact = new DeploymentSourceArtifactEntity(); artifact.setId("runtime-artifact"); artifact.setServiceName("runtime");
+        artifact.setArtifactRole("RUNTIME");
         artifact.setArtifactType("DOCKER_IMAGE"); artifact.setImageRepository("PRIVATE_REPOSITORY");
         artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setPromotedAt(Instant.now());
         artifact.setCapabilityManifestJson("{\"schemaVersion\":\"1\"}"); artifact.setCapabilityManifestHash("approved-manifest-hash");
@@ -68,6 +70,56 @@ class CustomerReviewedCompositionServiceTest {
     @AfterEach void close() { validatorFactory.close(); }
 
     @Test void explicitReviewedPublishedImmutableCompositionPasses() { service.validate(definition); }
+
+    @Test void deploymentVersionMustContainExactlyTheReviewedTemplateAndPluginPins() {
+        var deploymentVersion = new DeploymentVersionEntity();
+        deploymentVersion.setStatus("PUBLISHED");
+        var pin = definition.template();
+        var install = Map.of("pluginId", pin.pluginId(), "pluginVersionId", pin.versionId(),
+            "manifestSha256", "sha256:" + pin.manifestSha256());
+        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(install))));
+        service.requireVersion(definition, deploymentVersion);
+
+        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(install, install))));
+        assertThatThrownBy(() -> service.requireVersion(definition, deploymentVersion))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(REVIEWED_COMPOSITION_CHANGED));
+
+        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(Map.of("pluginId", pin.pluginId(), "pluginVersionId", "unreviewed-version",
+                "manifestSha256", "sha256:" + pin.manifestSha256())))));
+        assertVersionDenied(deploymentVersion);
+
+        deploymentVersion.setCompositionProvenanceJson("{}");
+        assertVersionDenied(deploymentVersion);
+
+        deploymentVersion.setCompositionProvenanceJson(codec.write(Map.of("templateId", definition.templateId(),
+            "marketplaceInstalls", List.of(install))));
+        deploymentVersion.setStatus("DRAFT");
+        assertVersionDenied(deploymentVersion);
+    }
+
+    private void assertVersionDenied(DeploymentVersionEntity deploymentVersion) {
+        assertThatThrownBy(() -> service.requireVersion(definition, deploymentVersion))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(REVIEWED_COMPOSITION_CHANGED));
+    }
+
+    @Test void resolvesOnlyTheSoleReviewedRuntimeArtifactAndRejectsRoleDrift() {
+        assertThat(service.runtimeArtifactId(definition)).isEqualTo("runtime-artifact");
+
+        artifact.setArtifactRole("CONNECTOR");
+        assertThatThrownBy(() -> service.runtimeArtifactId(definition))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(REVIEWED_COMPOSITION_CHANGED));
+    }
+
+    @Test void artifactRoleIsPartOfTheReviewedFingerprint() {
+        artifact.setArtifactRole("CONNECTOR");
+        assertCode(REVIEWED_COMPOSITION_CHANGED);
+    }
 
     @Test void changedManifestArtifactProfileOrUnpublishedVersionDenies() {
         version.setManifestJson("{\"different\":true}"); assertCode(REVIEWED_COMPOSITION_CHANGED);

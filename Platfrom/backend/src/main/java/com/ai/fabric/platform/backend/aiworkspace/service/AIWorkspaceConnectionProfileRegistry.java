@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -33,6 +34,7 @@ public class AIWorkspaceConnectionProfileRegistry {
         if (!VERSION.equals(version)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported AI Workspace connection-profile version.");
         }
+        validateConfiguration(code, configuration);
         ConnectionProfile profile = switch (code == null ? "" : code) {
             case ANONYMOUS -> new ConnectionProfile(
                 ANONYMOUS, VERSION, "Direct anonymous runtime", AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS,
@@ -53,6 +55,18 @@ public class AIWorkspaceConnectionProfileRegistry {
             throw new ResponseStatusException(BAD_REQUEST, "Selected connection profile is not configured on this Platform.");
         }
         return profile;
+    }
+
+    private void validateConfiguration(String code, JsonNode configuration) {
+        if (configuration == null || !configuration.isObject()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Connection configuration must be an object.");
+        }
+        Set<String> allowed = SHOPIFY.equals(code) ? Set.of("shopDomain") : Set.of();
+        configuration.fieldNames().forEachRemaining(field -> {
+            if (!allowed.contains(field)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Unknown connection configuration field: " + field);
+            }
+        });
     }
 
     public List<AIWorkspaceCatalogSummary.ConnectionProfileSummary> summaries() {

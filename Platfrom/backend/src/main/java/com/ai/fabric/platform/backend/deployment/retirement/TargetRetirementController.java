@@ -9,7 +9,7 @@ import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirem
 
 @RestController
 @RequestMapping("/api/deployments/{deploymentId}/targets/{targetProfileId}/retirements")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
 public class TargetRetirementController {
     private final TargetRetirementService service;
     public TargetRetirementController(TargetRetirementService service) { this.service = service; }

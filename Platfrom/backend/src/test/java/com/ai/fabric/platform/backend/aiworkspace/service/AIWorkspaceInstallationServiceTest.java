@@ -67,13 +67,15 @@ class AIWorkspaceInstallationServiceTest {
     private final CustomerSelfServiceOperationBoundary offerBoundary = mock(CustomerSelfServiceOperationBoundary.class);
     private final AIWorkspaceDeploymentSecurityProjectionService deploymentSecurityProjection =
         mock(AIWorkspaceDeploymentSecurityProjectionService.class);
+    private final AIWorkspaceCreateReceiptService createReceipts = mock(AIWorkspaceCreateReceiptService.class);
 
     @ParameterizedTest
     @EnumSource(value = Operation.class, names = {"APP_CONFIGURE", "AUTH_CONFIGURE", "DOMAIN_CONFIGURE"})
     void offerConfigurationDenialsStopBeforeInstallationOrDomainMutation(Operation operation) throws Exception {
         when(customers.existsById("customer-1")).thenReturn(true);
+        PlatformConsumerEntity consumer = consumer();
         when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "northfield-web"))
-            .thenReturn(Optional.of(consumer()));
+            .thenReturn(Optional.of(consumer));
         when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
         when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
         when(offerBoundary.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
@@ -166,6 +168,60 @@ class AIWorkspaceInstallationServiceTest {
     }
 
     @Test
+    void wholeCreateReplayReauthorizesAllReviewedSettingsWithoutRepeatingMutations() throws Exception {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        var consumer = consumer();
+        var original = configuredInstallation();
+        when(repository.findByCustomerIdAndInstallationId("customer-1", original.getInstallationId()))
+            .thenReturn(Optional.of(original));
+        when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
+        when(offerBoundary.requireConsumer(any(), any(), any(), any())).thenReturn(new Authorization(null, null));
+        when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
+        var request = createRequest();
+        var receipt = new AIWorkspaceCreateReceiptService.Receipt("customer-1", "create-app", "fingerprint",
+            original.getInstallationId(), "stored-result");
+        when(createReceipts.begin("customer-1", request, "create-app")).thenReturn(receipt);
+
+        service().create("customer-1", request, "create-app");
+
+        var order = inOrder(access, createReceipts, consumers, offerBoundary);
+        order.verify(access).requireCustomerManagementAccess("customer-1");
+        order.verify(createReceipts).begin("customer-1", request, "create-app");
+        order.verify(consumers).findBindingForUpdate("customer-1", "northfield-web");
+        order.verify(offerBoundary).requireConsumer(eq(consumer), eq(Operation.APP_CONFIGURE), eq("create-app"), any());
+        order.verify(offerBoundary).requireConsumer(eq(consumer), eq(Operation.AUTH_CONFIGURE), eq("create-app"), any());
+        order.verify(offerBoundary).requireConsumer(eq(consumer), eq(Operation.DOMAIN_CONFIGURE), eq("create-app"), any());
+        order.verify(createReceipts).replay(receipt);
+        verify(repository, never()).saveAndFlush(any());
+        verify(domains, never()).synchronize(any(), any(), any(), any(), any());
+        verify(deploymentSecurityProjection, never()).synchronizeForConsumer(any());
+        verify(audit, never()).record(any(), any(), any(), any());
+        verify(createReceipts, never()).complete(any(), any());
+    }
+
+    @Test
+    void createReplayCannotRecreateADeletedInstallation() throws Exception {
+        when(customers.existsById("customer-1")).thenReturn(true);
+        consumer();
+        var request = createRequest();
+        when(createReceipts.begin("customer-1", request, "create-app"))
+            .thenReturn(new AIWorkspaceCreateReceiptService.Receipt("customer-1", "create-app", "fingerprint",
+                "deleted-installation", "stored-result"));
+
+        assertThatThrownBy(() -> service().create("customer-1", request, "create-app"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("installation not found");
+        verify(repository, never()).saveAndFlush(any());
+        verify(createReceipts, never()).replay(any());
+    }
+
+    private CreateAIWorkspaceInstallationRequest createRequest() throws Exception {
+        return new CreateAIWorkspaceInstallationRequest("northfield-web", "Northfield", "dealership", "1.1.0",
+            "public-runtime-anonymous", "runtime-anonymous-direct", "1.0.0", objectMapper.createObjectNode(),
+            List.of("https://dealer.example"), dealershipConfiguration(), "embedded", null, List.of(),
+            "public", "none", "1.0.0", objectMapper.createObjectNode());
+    }
+
+    @Test
     void rejectsConsumerFromAnotherCustomerAndPreventsEditingActiveInstallation() throws Exception {
         when(customers.existsById("customer-1")).thenReturn(true);
         when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer-1", "other-consumer"))
@@ -252,7 +308,7 @@ class AIWorkspaceInstallationServiceTest {
         return new AIWorkspaceInstallationService(
             repository, customers, consumers, access, packs, profiles, authenticationProfiles, validator,
             domains, readiness, assets, audit, objectMapper,
-            offerBoundary, deploymentSecurityProjection
+            offerBoundary, deploymentSecurityProjection, createReceipts
         );
     }
 
@@ -271,6 +327,10 @@ class AIWorkspaceInstallationServiceTest {
         consumer.setCustomerId("customer-1");
         consumer.setConsumerId("northfield-web");
         consumer.setStatus("ACTIVE");
+        consumer.setBoundDeploymentId("deployment-1");
+        when(consumers.findBindingForUpdate("customer-1", "northfield-web"))
+            .thenReturn(Optional.of(consumer));
+        when(consumers.findAllByIdForUpdate(any())).thenReturn(List.of(consumer));
         return consumer;
     }
 

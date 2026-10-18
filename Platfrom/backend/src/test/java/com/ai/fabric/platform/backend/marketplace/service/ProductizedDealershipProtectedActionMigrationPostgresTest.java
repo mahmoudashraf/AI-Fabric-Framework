@@ -33,7 +33,7 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
         Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("184"))
+            .target(MigrationVersion.fromVersion("186"))
             .load()
             .migrate();
 
@@ -73,6 +73,11 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
             manifests.parseAndValidate(plugin(durableTemplate), version(durableTemplate));
             assertThat(durableTemplate.version()).isEqualTo("1.4.0");
             JsonNode durableManifest = mapper.readTree(durableTemplate.manifestJson());
+            Seed currentTemplate = seed(connection, "mkv-template-simulated-dealership-experience-v1-5");
+            manifests.parseAndValidate(plugin(currentTemplate), version(currentTemplate));
+            assertThat(currentTemplate.version()).isEqualTo("1.5.0");
+            JsonNode currentManifest = mapper.readTree(currentTemplate.manifestJson());
+            assertThat(currentManifest.path("compatibility")).isEqualTo(durableManifest.path("compatibility"));
             assertThat(durableManifest.path("compatibility").path("supportedDeploymentTargets"))
                 .extracting(JsonNode::asText)
                 .containsExactly("dev-openai-milvus");
@@ -108,6 +113,28 @@ class ProductizedDealershipProtectedActionMigrationPostgresTest {
             assertThat(durableDefaults.has("mkp-data-simulated-dealership-stock-v1@1.0.0")).isFalse();
             assertThat(durableDefaults.has("mkp-action-dealership-engagement-v1@1.1.0")).isFalse();
             assertThat(durableDefaults.has("mkp-integration-basic-loomai-inbox@1.1.0")).isFalse();
+
+            Seed canonicalInbox = seed(connection, "mkv-integration-basic-loomai-inbox-v1-3");
+            manifests.parseAndValidate(plugin(canonicalInbox), version(canonicalInbox));
+            JsonNode canonicalChannel = mapper.readTree(canonicalInbox.manifestJson())
+                .path("contributions").path("conversationChannel");
+            assertThat(canonicalChannel.path("requiredRuntimeCapabilityIds"))
+                .extracting(JsonNode::asText)
+                .contains("canonical-conversation-orchestration-state");
+            assertThat(canonicalChannel.path("requiredMigrationIds"))
+                .extracting(JsonNode::asText)
+                .contains("loomai-conversation-orchestration-state-v1");
+
+            Seed canonicalTemplate = seed(connection, "mkv-template-simulated-dealership-experience-v1-5");
+            manifests.parseAndValidate(plugin(canonicalTemplate), version(canonicalTemplate));
+            JsonNode canonicalContribution = mapper.readTree(canonicalTemplate.manifestJson())
+                .path("contributions").path("template");
+            assertThat(canonicalContribution.path("requiredPluginRefs"))
+                .extracting(JsonNode::asText)
+                .contains("mkp-integration-basic-loomai-inbox@1.3.0")
+                .doesNotContain("mkp-integration-basic-loomai-inbox@1.2.0");
+            assertThat(canonicalContribution.path("requiredPluginInstallDefaults")
+                .has("mkp-integration-basic-loomai-inbox@1.3.0")).isTrue();
 
             for (String versionId : List.of(
                 "mkv-data-simulated-dealership-stock-v1-1",

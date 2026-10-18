@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
-import java.util.HashSet;
 import java.util.Set;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
@@ -26,13 +25,16 @@ public class CustomerSelfServiceOperationBoundary {
     private final CustomerOfferDeploymentRepository associations;
     private final DeploymentRepository deployments;
     private final CustomerSelfServiceAuthorizationService authorization;
+    private final CustomerOfferEntitlementService entitlements;
     private final CustomerOfferCodec codec;
 
     public CustomerSelfServiceOperationBoundary(CustomerOfferDeploymentRepository associations,
-        DeploymentRepository deployments, CustomerSelfServiceAuthorizationService authorization, CustomerOfferCodec codec) {
+        DeploymentRepository deployments, CustomerSelfServiceAuthorizationService authorization,
+        CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec) {
         this.associations = associations;
         this.deployments = deployments;
         this.authorization = authorization;
+        this.entitlements = entitlements;
         this.codec = codec;
     }
 
@@ -88,6 +90,28 @@ public class CustomerSelfServiceOperationBoundary {
         return result;
     }
 
+    /** Resolve customer source audiences from the immutable reviewed offer, never from browser input. */
+    @Transactional(readOnly = true)
+    public Set<DocumentAudience> reviewedDocumentAudiences(DeploymentEntity deployment) {
+        Definition definition = reviewedDefinition(deployment);
+        return definition == null ? Set.of() : Set.copyOf(definition.documentAudiences());
+    }
+
+    /** Authorize an operation against the sole reviewed binding of the requested kind. */
+    @Transactional
+    public Authorization requireBindingKind(DeploymentEntity deployment, String targetProfileId, String releaseId,
+                                            Operation operation, String operationKey, BindingKind bindingKind) {
+        Definition definition = reviewedDefinition(deployment);
+        if (definition == null) {
+            return require(deployment, targetProfileId, releaseId, operation, operationKey,
+                Map.of(), null, null, null);
+        }
+        var slots = definition.bindingSlots().stream().filter(slot -> slot.kind() == bindingKind).toList();
+        if (slots.size() != 1) throw deny(BINDING_SLOT_FORBIDDEN);
+        return require(deployment, targetProfileId, releaseId, operation, operationKey,
+            Map.of(), slots.getFirst().id(), null, null);
+    }
+
     public void requireArtifact(Authorization approved, String artifactId) {
         if (approved != null && (artifactId == null
             || approved.definition().artifacts().stream().noneMatch(pin -> artifactId.equals(pin.artifactId())))) {
@@ -97,22 +121,18 @@ public class CustomerSelfServiceOperationBoundary {
 
     public void requireVersion(Authorization approved, DeploymentVersionEntity version) {
         if (approved == null) return;
-        var provenance = codec.tree(version.getCompositionProvenanceJson());
-        var expected = new HashSet<>(approved.definition().plugins());
-        expected.add(approved.definition().template());
-        var actual = new HashSet<PluginPin>();
-        var installs = provenance.path("marketplaceInstalls");
-        if (!"PUBLISHED".equals(version.getStatus())
-            || !approved.definition().templateId().equals(provenance.path("templateId").asText()) || !installs.isArray()) {
-            throw deny(REVIEWED_COMPOSITION_CHANGED);
+        authorization.requireReviewedVersion(approved, version);
+    }
+
+    private Definition reviewedDefinition(DeploymentEntity deployment) {
+        if (deployment == null) throw deny(RESOURCE_SCOPE_MISMATCH);
+        var association = associations.findById(deployment.getId());
+        if (association.isEmpty()) {
+            var principal = PlatformSecurityContext.currentPrincipal();
+            if (principal != null && principal.role() == PlatformRole.CUSTOMER_ADMIN) throw deny(ENTITLEMENT_REQUIRED);
+            return null;
         }
-        for (var install : installs) {
-            var match = expected.stream().filter(pin -> pin.pluginId().equals(install.path("pluginId").asText())
-                && pin.versionId().equals(install.path("pluginVersionId").asText())
-                && ("sha256:" + pin.manifestSha256()).equals(install.path("manifestSha256").asText())).findFirst();
-            if (match.isEmpty() || !actual.add(match.get())) throw deny(REVIEWED_COMPOSITION_CHANGED);
-        }
-        if (!expected.equals(actual)) throw deny(REVIEWED_COMPOSITION_CHANGED);
+        return entitlements.definition(entitlements.requireOffer(association.get().getOfferId()));
     }
 
     public void requireS3(Authorization approved, String slotId, String connectorType) {

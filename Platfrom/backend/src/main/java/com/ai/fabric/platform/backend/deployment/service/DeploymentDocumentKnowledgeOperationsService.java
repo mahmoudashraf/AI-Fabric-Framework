@@ -4,14 +4,12 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.deployment.admission.CustomerSourcePrerequisiteRefreshService;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
-import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,12 +22,10 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -43,8 +39,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     private static final String DELETE_SCOPE = "documents:delete-index";
 
     private final DeploymentTargetContextService targetContextService;
-    private final PlatformSecretService secretService;
-    private final RuntimePrivateAssertionSigningService assertionSigningService;
+    private final DeploymentRuntimeAuthorityService runtimeAuthority;
     private final PlatformAuditService auditService;
     private final ObjectMapper objectMapper;
     private final DeploymentRuntimeJsonTransport transport;
@@ -54,8 +49,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
     @Autowired
     public DeploymentDocumentKnowledgeOperationsService(
         DeploymentTargetContextService targetContextService,
-        PlatformSecretService secretService,
-        RuntimePrivateAssertionSigningService assertionSigningService,
+        DeploymentRuntimeAuthorityService runtimeAuthority,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
         DeploymentRuntimeJsonTransport transport,
@@ -63,8 +57,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         CustomerSourcePrerequisiteRefreshService sourcePrerequisites
     ) {
         this.targetContextService = targetContextService;
-        this.secretService = secretService;
-        this.assertionSigningService = assertionSigningService;
+        this.runtimeAuthority = runtimeAuthority;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.transport = transport;
@@ -74,8 +67,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
 
     DeploymentDocumentKnowledgeOperationsService(
         DeploymentTargetContextService targetContextService,
-        PlatformSecretService secretService,
-        RuntimePrivateAssertionSigningService assertionSigningService,
+        DeploymentRuntimeAuthorityService runtimeAuthority,
         PlatformAuditService auditService,
         ObjectMapper objectMapper,
         HttpClient httpClient,
@@ -83,8 +75,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
         CustomerSourcePrerequisiteRefreshService sourcePrerequisites
     ) {
         this.targetContextService = targetContextService;
-        this.secretService = secretService;
-        this.assertionSigningService = assertionSigningService;
+        this.runtimeAuthority = runtimeAuthority;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
         this.transport = new DeploymentRuntimeJsonTransport(objectMapper, httpClient);
@@ -122,18 +113,15 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return send(requireAccess(target, false, Operation.READ, null), "GET", "/api/documents/retention", null, null, READ_SCOPE);
     }
 
-    public RuntimeResponse cleanupRetention(DeploymentTargetReference target) {
-        return cleanupRetention(target, null);
-    }
-
     public RuntimeResponse cleanupRetention(DeploymentTargetReference target, String operationKey) {
-        OperationAccess access = requireAccess(target, true, Operation.SOURCE_REMOVE, operationKey);
+        String key = DeploymentOperationIdempotencyKey.require(operationKey);
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_REMOVE, key);
         RuntimeResponse response = send(
             access,
             "POST",
             "/api/documents/retention/cleanup",
             objectMapper.createObjectNode(),
-            null,
+            key,
             INDEX_SCOPE
         );
         auditSuccess("DOCUMENT_RETENTION_CLEANUP_COMPLETED", access, response, Map.of(
@@ -143,9 +131,9 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
 
     public RuntimeResponse register(DeploymentTargetReference target, JsonNode body, String idempotencyKey) {
-        OperationAccess access = requireAccess(target, true, Operation.SOURCE_INDEX, idempotencyKey);
+        String key = DeploymentOperationIdempotencyKey.require(idempotencyKey);
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_INDEX, key);
         JsonNode safe = boundedBody(body, Set.of("datasetId", "objectReference", "visibility", "metadata"));
-        String key = idempotencyKey(idempotencyKey, "document-register");
         RuntimeResponse response = send(access, "POST", "/api/documents/sources", safe, key, REGISTER_SCOPE);
         auditSuccess("DOCUMENT_SOURCE_REGISTERED", access, response, Map.of("idempotencyKey", key));
         return response;
@@ -164,8 +152,8 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
 
     public RuntimeResponse removeIndex(DeploymentTargetReference target, String sourceId, String idempotencyKey) {
-        OperationAccess access = requireAccess(target, true, Operation.SOURCE_REMOVE, idempotencyKey);
-        String key = idempotencyKey(idempotencyKey, "document-delete-index");
+        String key = DeploymentOperationIdempotencyKey.require(idempotencyKey);
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_REMOVE, key);
         RuntimeResponse response = send(access, "DELETE", sourcePath(sourceId), null, key, DELETE_SCOPE);
         auditSuccess("DOCUMENT_INDEX_REMOVAL_REQUESTED", access, response, Map.of(
             "sourceId", bounded(sourceId, 64),
@@ -181,9 +169,9 @@ public class DeploymentDocumentKnowledgeOperationsService {
                                     String idempotencyKey,
                                     String scope,
                                     String auditAction) {
+        String key = DeploymentOperationIdempotencyKey.require(idempotencyKey);
         OperationAccess access = requireAccess(target, true,
-            "refresh".equals(operation) ? Operation.SOURCE_REFRESH : Operation.SOURCE_INDEX, idempotencyKey);
-        String key = idempotencyKey(idempotencyKey, "document-" + operation);
+            "refresh".equals(operation) ? Operation.SOURCE_REFRESH : Operation.SOURCE_INDEX, key);
         RuntimeResponse response = send(
             access,
             "POST",
@@ -219,33 +207,33 @@ public class DeploymentDocumentKnowledgeOperationsService {
         }
         for (JsonNode source : readJson(version.getKnowledgeSourceConfigJson()).path("sources")) {
             if (!documentDatasets.contains(source.path("datasetRef").asText())) continue;
-            boolean publicAudience = false;
-            for (JsonNode mode : source.path("authModes")) {
-                if ("PUBLIC_RUNTIME_ANONYMOUS".equals(mode.asText())) publicAudience = true;
+            JsonNode modes = source.path("authModes");
+            if (!modes.isArray() || modes.isEmpty()) {
+                throw new ResponseStatusException(BAD_REQUEST, "Document source authModes must be a nonempty array.");
             }
-            audiences.add(publicAudience ? DocumentAudience.PUBLIC : DocumentAudience.AUTHENTICATED);
+            for (JsonNode mode : modes) {
+                switch (mode.asText("")) {
+                    case "PUBLIC_RUNTIME_ANONYMOUS" -> audiences.add(DocumentAudience.PUBLIC);
+                    case "PUBLIC_RUNTIME_AUTHENTICATED", "PRIVATE_RUNTIME_BACKEND_MEDIATED" ->
+                        audiences.add(DocumentAudience.AUTHENTICATED);
+                    default -> throw new ResponseStatusException(BAD_REQUEST, "Document source authModes contains an unsupported mode.");
+                }
+            }
         }
-        if (!audiences.isEmpty() && switch (operation) {
+        if (audiences.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document source audience evidence is required.");
+        }
+        if (switch (operation) {
             case SOURCE_DISCOVER, SOURCE_PREVIEW, SOURCE_INDEX, SOURCE_REFRESH, SOURCE_REMOVE -> true;
             default -> false;
         }) {
             sourcePrerequisites.ensureFresh(target, operation, operationKey, Set.copyOf(audiences));
         }
-        if (audiences.isEmpty()) {
-            var approved = offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,
-                operationKey, Map.of(), null, null, null);
-            if (approved != null) throw new ResponseStatusException(BAD_REQUEST, "Reviewed document audience evidence is required.");
-        } else {
-            for (DocumentAudience audience : audiences) {
-                Map<Setting, JsonNode> settings = operation == Operation.SOURCE_INDEX || operation == Operation.SOURCE_REFRESH
-                    ? Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode(audience.name())) : Map.of();
-                offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,
-                    operationKey, settings, null, null, audience);
-            }
-        }
-        if (!StringUtils.hasText(secretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
-            || !assertionSigningService.isConfigured()) {
-            throw new ResponseStatusException(BAD_REQUEST, "Secure private-runtime document administration is not configured.");
+        for (DocumentAudience audience : audiences) {
+            Map<Setting, JsonNode> settings = operation == Operation.SOURCE_INDEX || operation == Operation.SOURCE_REFRESH
+                ? Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode(audience.name())) : Map.of();
+            offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,
+                operationKey, settings, null, null, audience);
         }
         return new OperationAccess(context, principal);
     }
@@ -277,33 +265,15 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
 
     private Map<String, String> runtimeHeaders(OperationAccess access, List<String> scopes) {
-        PlatformPrincipal principal = access.principal();
-        DeploymentEntity deployment = access.deployment();
-        RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims claims =
-            new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
-                principal.actorId(),
-                "INTERNAL_PLATFORM_USER",
-                "PRIVATE_RUNTIME_BACKEND_MEDIATED",
-                "TRUSTED_BACKEND",
-                "platform-documents-" + deployment.getId() + "-" + shortHash(principal.actorId()),
-                deployment.getId(),
-                deployment.getCustomerId(),
-                deployment.getTenantId(),
-                RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS,
-                Instant.now().plus(Duration.ofMinutes(5)),
-                List.of(deployment.getId()),
-                scopes
-            );
-        Map<String, String> headers = new LinkedHashMap<>();
-        headers.put(
-            RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER,
-            secretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME).trim()
+        DeploymentTargetContextService.Context context = access.context();
+        return runtimeAuthority.issuePlatformProxyHeaders(
+            access.deployment().getId(),
+            context.target().getId(),
+            context.release().getId(),
+            context.release().getRuntimeAuthorityFingerprint(),
+            scopes,
+            Duration.ofMinutes(5)
         );
-        headers.put(
-            RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER,
-            assertionSigningService.toAuthorizationHeaderValue(claims)
-        );
-        return headers;
     }
 
     private JsonNode boundedBody(JsonNode body, Set<String> allowedFields) {
@@ -346,12 +316,6 @@ public class DeploymentDocumentKnowledgeOperationsService {
         }
     }
 
-    private String idempotencyKey(String value, String prefix) {
-        return StringUtils.hasText(value)
-            ? required(value, "Idempotency-Key", 160)
-            : prefix + "-" + UUID.randomUUID();
-    }
-
     private String required(String value, String field, int max) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isEmpty() || normalized.length() > max) {
@@ -367,16 +331,6 @@ public class DeploymentDocumentKnowledgeOperationsService {
 
     private String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
-    }
-
-    private String shortHash(String value) {
-        try {
-            byte[] hash = java.security.MessageDigest.getInstance("SHA-256")
-                .digest(value.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash, 0, 12);
-        } catch (Exception exception) {
-            throw new IllegalStateException("Unable to derive document operator session id.", exception);
-        }
     }
 
     private record OperationAccess(DeploymentTargetContextService.Context context, PlatformPrincipal principal) {

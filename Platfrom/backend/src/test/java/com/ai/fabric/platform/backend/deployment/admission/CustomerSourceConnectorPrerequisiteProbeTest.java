@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.admission;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.deployment.entity.*;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentStorageBindingService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRuntimeJsonTransport;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetContextService;
@@ -31,7 +32,7 @@ class CustomerSourceConnectorPrerequisiteProbeTest {
     private static final Instant NOW = Instant.parse("2026-10-15T12:00:00Z");
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final PlatformSecretService secrets = mock(PlatformSecretService.class);
-    private final RuntimePrivateAssertionSigningService assertions = mock(RuntimePrivateAssertionSigningService.class);
+    private final DeploymentRuntimeAuthorityService runtimeAuthority = mock(DeploymentRuntimeAuthorityService.class);
     private final DeploymentRuntimeJsonTransport transport = mock(DeploymentRuntimeJsonTransport.class);
     private CustomerSourceConnectorPrerequisiteProbe probe;
     private DeploymentAdmissionCustomerPrerequisiteEvidenceProvider.SourceSnapshot snapshot;
@@ -41,17 +42,21 @@ class CustomerSourceConnectorPrerequisiteProbeTest {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
             new PlatformPrincipal("owner@example.test", PlatformRole.CUSTOMER_ADMIN, "owner@example.test", "SESSION"), null,
             List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(PlatformRole.CUSTOMER_ADMIN.authority()))));
-        when(assertions.isConfigured()).thenReturn(true);
-        when(assertions.toAuthorizationHeaderValue(any())).thenReturn("Bearer signed-assertion");
-        when(secrets.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("backend-key");
+        when(runtimeAuthority.issuePlatformProxyHeaders(any(), any(), any(), any(), any(), any()))
+            .thenReturn(java.util.Map.of(
+                RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER, "backend-key",
+                RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER, "Bearer target-bound-assertion"));
         String key = DeploymentDocumentStorageBindingService.secretKey("deployment", "target");
         when(secrets.resolveSecret(key + "_BUCKET")).thenReturn("private-bucket");
         when(secrets.resolveSecret(key + "_PREFIX")).thenReturn("policies/");
         var scope = new CustomerSourcePrerequisiteEvidence.Scope("customer", "tenant", "deployment", "target", "release",
             TargetIntent.CUSTOMER_STAGING, "offer", "offer-hash", 2, "reservation", "generation", "manifest", "binding",
             "version", "config", "profile", "document-binding", 1, "credentials", "runtime");
+        var release = new DeploymentReleaseEntity();
+        release.setId("release");
+        release.setRuntimeAuthorityFingerprint("sha256:authority");
         var runtime = new DeploymentTargetContextService.Context(new DeploymentEntity(), new DeploymentTargetProfileEntity(),
-            new DeploymentReleaseEntity(), new DeploymentVersionEntity(), "https://exact-runtime.example", "https://connector.example");
+            release, new DeploymentVersionEntity(), "https://exact-runtime.example", "https://connector.example");
         snapshot = new DeploymentAdmissionCustomerPrerequisiteEvidenceProvider.SourceSnapshot(scope, runtime,
             null, "S3_COMPATIBLE_OBJECT_STORAGE", "storage-handle", Set.of(Prerequisite.STORAGE), NOW.plusSeconds(60), 60);
         response = mapper.createObjectNode().put("ready", true).put("connectorType", "S3_COMPATIBLE_OBJECT_STORAGE")
@@ -60,7 +65,7 @@ class CustomerSourceConnectorPrerequisiteProbeTest {
             .put("checkedAt", NOW.toString());
         when(transport.send(anyString(), anyString(), anyString(), anyMap(), isNull(), isNull()))
             .thenReturn(new DeploymentRuntimeJsonTransport.Response(200, response));
-        probe = new CustomerSourceConnectorPrerequisiteProbe(secrets, assertions, transport, new AdmissionJson(mapper),
+        probe = new CustomerSourceConnectorPrerequisiteProbe(secrets, runtimeAuthority, transport, new AdmissionJson(mapper),
             Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -70,12 +75,8 @@ class CustomerSourceConnectorPrerequisiteProbeTest {
         var result = probe.probe(snapshot);
         assertThat(result.checkedAt()).isEqualTo(NOW);
         assertThat(result.digest()).hasSize(64);
-        var claims = org.mockito.ArgumentCaptor.forClass(RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims.class);
-        verify(assertions).toAuthorizationHeaderValue(claims.capture());
-        assertThat(claims.getValue().deploymentId()).isEqualTo("deployment");
-        assertThat(claims.getValue().tenantId()).isEqualTo("tenant");
-        assertThat(claims.getValue().audiences()).isEqualTo(List.of("deployment"));
-        assertThat(claims.getValue().grantedScopes()).isEqualTo(List.of("documents:read"));
+        verify(runtimeAuthority).issuePlatformProxyHeaders("deployment", "target", "release", "sha256:authority",
+            List.of("documents:read"), java.time.Duration.ofMinutes(1));
         verify(transport).send(eq("https://exact-runtime.example"), eq("GET"),
             eq("/api/documents/source-connector/status"), anyMap(), isNull(), isNull());
     }

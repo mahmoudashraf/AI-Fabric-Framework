@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromotionCommandRepository;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerGoLiveReadinessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -181,6 +182,7 @@ class DeploymentPracticalPromotionServiceTest {
         assertThat(productionHandle.getStatus()).isEqualTo("ACTIVE");
         assertThat(previousHandle.getStatus()).isEqualTo("SUPERSEDED");
         assertThat(sourceBinding.getStatus()).isEqualTo("CONFIGURED");
+        verify(fixture.goLiveReadiness).requireActivationReady(deployment, productionRelease, consumer);
         verify(fixture.consumerService).updateBindingForTrustedPromotion(
             deployment.getCustomerId(),
             consumer.getConsumerId(),
@@ -214,6 +216,7 @@ class DeploymentPracticalPromotionServiceTest {
         when(candidates.fingerprint(any())).thenReturn(DeploymentEvidenceFingerprint.hash(mapper, candidate));
         var commands = new DeploymentPromotionCommandService(mock(DeploymentPromotionCommandRepository.class), consumerRepository, mapper);
         var retirementScheduler = mock(AdmissionPromotionRetirementScheduler.class);
+        var goLiveReadiness = mock(CustomerGoLiveReadinessService.class);
         DeploymentPracticalPromotionService service = new DeploymentPracticalPromotionService(
             deploymentRepository,
             versionRepository,
@@ -230,7 +233,8 @@ class DeploymentPracticalPromotionServiceTest {
             commands,
             mock(DeploymentTargetContextService.class),
             mock(CustomerSelfServicePromotionBoundary.class),
-            retirementScheduler
+            retirementScheduler,
+            goLiveReadiness
         );
         return new TestFixture(
             service,
@@ -242,7 +246,8 @@ class DeploymentPracticalPromotionServiceTest {
             consumerRepository,
             deploymentAccessService,
             consumerService,
-            retirementScheduler
+            retirementScheduler,
+            goLiveReadiness
         );
     }
 
@@ -349,7 +354,8 @@ class DeploymentPracticalPromotionServiceTest {
         PlatformConsumerRepository consumerRepository,
         DeploymentAccessService deploymentAccessService,
         PlatformCustomerConsumerService consumerService,
-        AdmissionPromotionRetirementScheduler retirementScheduler
+        AdmissionPromotionRetirementScheduler retirementScheduler,
+        CustomerGoLiveReadinessService goLiveReadiness
     ) {
     }
 }

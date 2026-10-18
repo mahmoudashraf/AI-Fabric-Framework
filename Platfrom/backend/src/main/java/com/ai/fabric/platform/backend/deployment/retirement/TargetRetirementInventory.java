@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationStorageSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerBindingHistoryRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class TargetRetirementInventory {
     private final DeploymentReleaseRepository releases;
     private final DeploymentProviderResourceHandleRepository handles;
     private final PlatformConsumerRepository consumers;
+    private final PlatformConsumerBindingHistoryRepository consumerBindingHistory;
     private final TargetRetirementJson json;
     private final CoolifyTargetProfileResolver resolver;
     private final CoolifyApiClient client;
@@ -50,7 +52,9 @@ public class TargetRetirementInventory {
 
     public TargetRetirementInventory(DeploymentRepository deployments, DeploymentTargetProfileRepository targets,
                                      DeploymentReleaseRepository releases, DeploymentProviderResourceHandleRepository handles,
-                                     PlatformConsumerRepository consumers, TargetRetirementJson json,
+                                     PlatformConsumerRepository consumers,
+                                     PlatformConsumerBindingHistoryRepository consumerBindingHistory,
+                                     TargetRetirementJson json,
                                      CoolifyTargetProfileResolver resolver, CoolifyApiClient client,
                                      @Value("${platform.target-retirement.approved-retained-volume-mounts:}") List<String> retainedMounts) {
         this.deployments = deployments;
@@ -58,18 +62,20 @@ public class TargetRetirementInventory {
         this.releases = releases;
         this.handles = handles;
         this.consumers = consumers;
+        this.consumerBindingHistory = consumerBindingHistory;
         this.json = json;
         this.resolver = resolver;
         this.client = client;
         this.approvedRetainedVolumeMounts = List.copyOf(retainedMounts);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Snapshot capture(String deploymentId, String targetId, PlanRequest request, long epoch) {
-        return capture(deploymentId, targetId, request, epoch, null);
+        return capture(deploymentId, targetId, request, epoch, null, true);
     }
 
-    private Snapshot capture(String deploymentId, String targetId, PlanRequest request, long epoch, Snapshot expected) {
+    private Snapshot capture(String deploymentId, String targetId, PlanRequest request, long epoch, Snapshot expected,
+                             boolean observeProvider) {
         var deployment = deployments.findById(deploymentId).orElseThrow(() -> failure("DEPLOYMENT_MISSING"));
         if (deployment.getCustomerId() == null || deployment.getCustomerId().isBlank()
             || deployment.getTenantId() == null || deployment.getTenantId().isBlank()
@@ -93,7 +99,7 @@ public class TargetRetirementInventory {
                 if (handle.getProviderType() != target.getProviderType()) throw failure("RESOURCE_PROVIDER_CHANGED");
                 if (handle.getCreatedAt() == null || handle.getProviderResourceUuid() == null)
                     throw failure("RESOURCE_GENERATION_UNAVAILABLE");
-                return resource(handle, preserved, target, expectedResources.get(handle.getId()));
+                return resource(handle, preserved, target, expectedResources.get(handle.getId()), observeProvider);
             }).toList();
         if (resources.stream().noneMatch(r -> !r.preserved())) throw failure("RESOURCE_INVENTORY_EMPTY");
         var targetFields = new TreeMap<String, Object>();
@@ -105,30 +111,54 @@ public class TargetRetirementInventory {
         targetFields.put("resourceDefaults", json.read(target.getResourceDefaultsJson(), Object.class));
         var snapshot = new Snapshot(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, targetId,
             json.fingerprint(targetFields), epoch, selected, resources, request.consumers());
-        checkReferences(snapshot);
+        checkReferences(snapshot, request, observeProvider);
         return snapshot;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void recheck(Snapshot snapshot, PlanRequest request) {
-        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot);
+        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, true);
         if (!json.fingerprint(snapshot).equals(json.fingerprint(current))) throw failure("SNAPSHOT_GENERATION_CHANGED");
     }
 
-    private void checkReferences(Snapshot snapshot) {
+    @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
+    public void recheckLocal(Snapshot snapshot, PlanRequest request) {
+        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, false);
+        if (!json.fingerprint(snapshot).equals(json.fingerprint(current))) throw failure("SNAPSHOT_GENERATION_CHANGED");
+    }
+
+    private void checkReferences(Snapshot snapshot, PlanRequest request, boolean observeProvider) {
         var expected = snapshot.consumers().stream().collect(Collectors.toMap(ConsumerExpectation::consumerEntityId,
             ConsumerExpectation::expectedBindingRevision));
+        Set<String> releaseIds = snapshot.releases().stream().map(ReleaseGeneration::releaseId).collect(Collectors.toSet());
         for (var entry : expected.entrySet()) {
             var consumer = consumers.findById(entry.getKey()).orElseThrow(() -> failure("CONSUMER_MISSING"));
-            if (!snapshot.customerId().equals(consumer.getCustomerId())
-                || consumer.getBindingRevision() != entry.getValue()) throw failure("CONSUMER_REVISION_CHANGED");
+            if (!snapshot.customerId().equals(consumer.getCustomerId())) throw failure("CONSUMER_REVISION_CHANGED");
+            if (consumer.getBindingRevision() == entry.getValue()) continue;
+            boolean detached = consumer.getBindingRevision() == entry.getValue() + 1
+                && consumer.getBoundDeploymentId() == null && consumer.getBoundReleaseId() == null
+                && consumer.getBoundTargetProfileId() == null
+                && consumerBindingHistory.findByConsumerEntityIdAndOperationKey(consumer.getId(), request.operationKey())
+                    .filter(receipt -> snapshot.deploymentId().equals(receipt.getFromDeploymentId())
+                        && snapshot.targetProfileId().equals(receipt.getFromTargetProfileId())
+                        && receipt.getToDeploymentId() == null && receipt.getToReleaseId() == null
+                        && receipt.getToTargetProfileId() == null
+                        && Long.valueOf(entry.getValue()).equals(receipt.getFromBindingRevision())
+                        && Long.valueOf(entry.getValue() + 1).equals(receipt.getToBindingRevision()))
+                    .isPresent();
+            if (!detached) throw failure("CONSUMER_REVISION_CHANGED");
         }
-        Set<String> releaseIds = snapshot.releases().stream().map(ReleaseGeneration::releaseId).collect(Collectors.toSet());
         for (var consumer : consumers.findAll()) {
-            boolean targetReference = snapshot.deploymentId().equals(consumer.getBoundDeploymentId())
-                && (consumer.getBoundTargetProfileId() == null || snapshot.targetProfileId().equals(consumer.getBoundTargetProfileId()));
-            if (targetReference || releaseIds.contains(consumer.getBoundReleaseId())) throw failure("TARGET_STILL_ASSIGNED");
-            if (snapshot.deploymentId().equals(consumer.getBoundDeploymentId()) && !expected.containsKey(consumer.getId()))
+            boolean sameDeployment = snapshot.deploymentId().equals(consumer.getBoundDeploymentId());
+            boolean exactTargetReference = sameDeployment
+                && snapshot.targetProfileId().equals(consumer.getBoundTargetProfileId());
+            boolean exactReleaseReference = releaseIds.contains(consumer.getBoundReleaseId());
+            boolean ambiguousTargetReference = sameDeployment && consumer.getBoundTargetProfileId() == null
+                && !exactReleaseReference;
+            if (ambiguousTargetReference) throw failure("TARGET_STILL_ASSIGNED");
+            if ((exactTargetReference || exactReleaseReference) && !expected.containsKey(consumer.getId()))
+                throw failure("TARGET_STILL_ASSIGNED");
+            if (sameDeployment && !expected.containsKey(consumer.getId()))
                 throw failure("CONSUMER_EXPECTATION_MISSING");
         }
         var allHandles = handles.findAll();
@@ -144,12 +174,13 @@ public class TargetRetirementInventory {
                     throw failure("SHARED_RELEASE_REFERENCE");
             }
         }
-        requireExclusiveDatabaseVolumes(snapshot.resources(), allHandles);
+        requireExclusiveDatabaseVolumes(snapshot.resources(), allHandles, observeProvider);
         // Opaque provider/config/index/dependency references are proved by the mandatory interlock/participants.
     }
 
     private void requireExclusiveDatabaseVolumes(List<ResourceGeneration> resources,
-                                                 List<DeploymentProviderResourceHandleEntity> allHandles) {
+                                                 List<DeploymentProviderResourceHandleEntity> allHandles,
+                                                 boolean observeProvider) {
         var databaseResources = resources.stream()
             .filter(resource -> "RUNTIME_POSTGRES_DATABASE".equals(resource.resourceKind()))
             .toList();
@@ -162,6 +193,7 @@ public class TargetRetirementInventory {
                 if (volume.name() == null || volume.name().isBlank()) {
                     throw failure("DATABASE_VOLUME_OWNERSHIP_UNPROVEN");
                 }
+                if (!observeProvider) continue;
                 for (var other : allHandles) {
                     if (database.handleId().equals(other.getId()) || other.getProviderType() != database.providerType()
                         || !Objects.equals(other.getProviderServerUuid(), database.serverUuid())
@@ -341,14 +373,8 @@ public class TargetRetirementInventory {
 
     private ResourceGeneration resource(DeploymentProviderResourceHandleEntity handle, boolean preserved,
                                         com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity target,
-                                        ResourceGeneration expected) {
-        return resource(handle, preserved, target, expected, true);
-    }
-
-    private ResourceGeneration resource(DeploymentProviderResourceHandleEntity handle, boolean preserved,
-                                        com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity target,
-                                        ResourceGeneration expected, boolean observeVolumes) {
-        List<ProviderVolumeGeneration> volumes = observeVolumes ? volumes(handle, target, expected) : expected.volumes();
+                                        ResourceGeneration expected, boolean observeProvider) {
+        List<ProviderVolumeGeneration> volumes = observeProvider ? volumes(handle, target, expected) : expected.volumes();
         var fields = new TreeMap<String, Object>();
         fields.put("id", handle.getId());
         fields.put("deploymentId", handle.getDeploymentId());
@@ -376,7 +402,7 @@ public class TargetRetirementInventory {
         String destinationUuid = preserved ? null : resolver.requireConnection(target).config().destinationUuid();
         String providerFingerprint = expected == null ? observeProviderIdentity(handle, target, generation,
             providerName, marker, destinationUuid) : expected.providerIdentityFingerprint();
-        if (expected != null && observeVolumes && !"DELETED".equals(handle.getStatus())) {
+        if (expected != null && observeProvider && !"DELETED".equals(handle.getStatus())) {
             String observedFingerprint = observeProviderIdentity(handle, target, generation,
                 providerName, marker, destinationUuid);
             if (observedFingerprint != null) providerFingerprint = observedFingerprint;

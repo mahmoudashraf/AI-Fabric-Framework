@@ -23,7 +23,7 @@ class AIWorkspaceAuthenticationProfileRegistryTest {
             objectMapper.readTree("""
                 {
                   "projectUrl":"https://Example.Supabase.co/",
-                  "publishableKey":"publishable-test-key",
+                  "publishableKey":"sb_publishable_fixture",
                   "methods":["email-password","magic-link"]
                 }
                 """)
@@ -48,7 +48,7 @@ class AIWorkspaceAuthenticationProfileRegistryTest {
         assertThatThrownBy(() -> registry.resolve(
             "supabase", "1.0.0", AIWorkspaceInteractionPolicy.PUBLIC,
             objectMapper.readTree("""
-                {"projectUrl":"https://example.supabase.co","publishableKey":"publishable-test-key","methods":["magic-link"]}
+                {"projectUrl":"https://example.supabase.co","publishableKey":"sb_publishable_fixture","methods":["magic-link"]}
                 """)))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Public-only");
@@ -61,12 +61,33 @@ class AIWorkspaceAuthenticationProfileRegistryTest {
             objectMapper.readTree("""
                 {
                   "projectUrl":"http://example.supabase.co",
-                  "publishableKey":"publishable-test-key",
+                  "publishableKey":"sb_publishable_fixture",
                   "methods":["email-password"],
                   "serviceRoleKey":"must-not-be-accepted"
                 }
                 """)))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Unknown authentication configuration field");
+    }
+
+    @Test
+    void rejectsSecretAndServiceRoleKeysButAcceptsLegacyAnonKeys() throws Exception {
+        var configuration = objectMapper.createObjectNode();
+        configuration.put("projectUrl", "https://example.supabase.co");
+        configuration.putArray("methods").add("email-password");
+        for (String key : java.util.List.of("sb_secret_fixture", jwt("service_role"), jwt("authenticated"), "unknown-key")) {
+            configuration.put("publishableKey", key);
+            assertThatThrownBy(() -> registry.resolve("supabase", "1.0.0",
+                AIWorkspaceInteractionPolicy.LOGIN_REQUIRED, configuration))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("legacy anon key");
+        }
+        configuration.put("publishableKey", jwt("anon"));
+        assertThat(registry.resolve("supabase", "1.0.0", AIWorkspaceInteractionPolicy.LOGIN_REQUIRED, configuration)
+            .publicConfiguration().path("publishableKey").asText()).isEqualTo(jwt("anon"));
+    }
+
+    private String jwt(String role) {
+        return "eyJhbGciOiJIUzI1NiJ9." + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+            ("{\"role\":\"" + role + "\"}").getBytes(java.nio.charset.StandardCharsets.UTF_8)) + ".c2lnbmF0dXJl";
     }
 }

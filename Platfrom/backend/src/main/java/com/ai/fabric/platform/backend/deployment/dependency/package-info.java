@@ -93,6 +93,6 @@
  * Owner S3 canary remains a parent gate. Actual staging placement is only 46.224.145.148 and
  * production only 46.225.162.106; dtp-coolify-prod-staging is not accepted based on its name.
  * Provider ownership/digest/healthy status evidence must match exact current API shapes; missing
- * evidence is a conflict. Nothing here certifies P0/P1/P3/P5/P7 or changes framework 0.8.33.
+ * evidence is a conflict. Nothing here certifies P0/P1/P3/P5/P7 or changes framework 0.8.35.
  */
 package com.ai.fabric.platform.backend.deployment.dependency;

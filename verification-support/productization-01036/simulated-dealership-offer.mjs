@@ -2,12 +2,12 @@ import {createHash} from "node:crypto";
 
 import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v5";
+export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v6";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.4.0";
+export const TEMPLATE_VERSION = "1.5.0";
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
-export const RUNTIME_IMAGE_DIGEST = "sha256:c15853a59ad2f7d7b7b42fc9ba0a8e77c7c5b6007419ac755be2b5e2ac11af0f";
-export const RUNTIME_SOURCE_COMMIT = "980fc9d75bfea761d07808f86af9e0386e90ab66";
+export const RUNTIME_IMAGE_DIGEST = "sha256:d7cc5b3a7d72f65da0f77c02ae50a27d836b8599908566b109b5a07bd5e6f16f";
+export const RUNTIME_SOURCE_COMMIT = "bf72080847c960c331d3ec6a2441e8d5f38ca56a";
 export const STAGING_TARGET_ID = "dtp-coolify-staging-behavior";
 export const PRODUCTION_TARGET_ID = "dtp-coolify-production-behavior";
 
@@ -97,6 +97,7 @@ export function artifactFingerprint(artifact) {
     id: artifact.id,
     serviceName: artifact.serviceName,
     artifactType: artifact.artifactType,
+    artifactRole: artifact.artifactRole ?? "",
     imageRepository: artifact.imageRepository ?? "",
     imageDigest: artifact.imageDigest ?? "",
     gitCommitSha: artifact.gitCommitSha ?? "",
@@ -149,6 +150,9 @@ export function workspaceProfile({projectUrl, publishableKey}) {
     configuration: {projectUrl, publishableKey, methods: ["email-password"]},
   };
   return {
+    interaction,
+    theme,
+    authentication,
     configuration: {...configuration, theme},
     authConfiguration: authentication.configuration,
     interactionPolicy: authentication.interactionPolicy,
@@ -213,8 +217,8 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
   if (!artifact?.id || artifact.artifactRole !== "RUNTIME"
     || artifact.imageDigest !== RUNTIME_IMAGE_DIGEST || artifact.gitCommitSha !== RUNTIME_SOURCE_COMMIT
     || !["staging", "production"].includes(artifact.promotionChannel)
-    || artifact.capabilityManifest?.aiFabricVersion !== "0.8.33") {
-    throw new Error("The exact promoted AI Fabric 0.8.33 runtime artifact is required.");
+    || artifact.capabilityManifest?.aiFabricVersion !== "0.8.35") {
+    throw new Error("The exact promoted AI Fabric 0.8.35 runtime artifact is required.");
   }
   const targetById = new Map(targets.map((target) => [target.id, target]));
   const staging = targetById.get(STAGING_TARGET_ID);
@@ -253,6 +257,13 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
       {setting: "APP_DOMAIN", type: "TEXT", maxLength: 255, allowedValues: []},
       {setting: "DOCUMENT_AUDIENCE", type: "CHOICE", maxLength: 32, allowedValues: ["PUBLIC"]},
     ],
+    workspaceProfiles: [{
+      id: "dealership-standalone-mixed",
+      label: "Dealership workspace with public browsing and protected capabilities",
+      interaction: workspace.interaction,
+      theme: workspace.theme,
+      authentication: workspace.authentication,
+    }],
     bindingSlots: [
       {
         id: "document-storage",

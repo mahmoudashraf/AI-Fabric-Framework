@@ -34,5 +34,7 @@ public final class CustomerAdmissionReservationContracts {
                           Operation operation,
                           String state,
                           long revision,
-                          Instant expiresAt) { }
+                          Instant expiresAt,
+                          String expiryState,
+                          Instant keepUntil) { }
 }

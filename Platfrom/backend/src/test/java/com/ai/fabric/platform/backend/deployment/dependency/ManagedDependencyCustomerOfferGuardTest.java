@@ -117,7 +117,7 @@ class ManagedDependencyCustomerOfferGuardTest {
 
     private CustomerOfferDeploymentEntity association() {
         return new CustomerOfferDeploymentEntity("dep-1", "customer-1", "tenant-1", "offer-1",
-            "fingerprint-1", 7, "bootstrap-1", NOW);
+            "target-1", "fingerprint-1", 7, "bootstrap-1", NOW);
     }
 
     private DeploymentReleaseEntity release() {

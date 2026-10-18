@@ -163,7 +163,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         artifact.setImageDigest("sha256:" + "1".repeat(64)); artifact.setGitCommitSha("2".repeat(40));
         artifact.setPromotionChannel("production"); artifact.setPromotedAt(Instant.now());
         var candidate = mapper.readTree("""
-            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.33",
+            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.35",
              "supportedBehaviorTypes":["CONVERSATIONAL"],"supportedActivationSources":[],"supportedChannelBindings":[],
              "supportedExecutionExtensions":[],"capabilities":[],"endpointClasses":[],
              "migrationIds":[],"verificationPackIds":[],"specialistBundles":[]}

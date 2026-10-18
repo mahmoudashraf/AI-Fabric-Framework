@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
@@ -42,6 +43,7 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
     PlatformUserRepository users;
     DefaultListableBeanFactory adapters;
     DeploymentAdmissionService service;
+    TargetRetirementGateService retirementGates;
     DeploymentEntity deployment;
     PlatformCustomerEntity customer;
     PlatformTenantEntity tenant;
@@ -52,9 +54,11 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
         targets = mock(DeploymentTargetProfileRepository.class); access = mock(DeploymentAccessService.class);
         customers = mock(PlatformCustomerRepository.class); tenants = mock(PlatformTenantRepository.class); users = mock(PlatformUserRepository.class);
         adapters = new DefaultListableBeanFactory();
+        retirementGates = mock(TargetRetirementGateService.class);
         service = new DeploymentAdmissionService(store, json, mapper, deployments, versions, targets, access,
             new PlatformCustomerAccessService(users, customers), customers, tenants, adapters.getBeanProvider(AdmissionEvidenceSource.class),
-            adapters.getBeanProvider(AdmissionResourceReadbackSource.class), adapters.getBeanProvider(AdmissionNoticeDeliverySource.class));
+            adapters.getBeanProvider(AdmissionResourceReadbackSource.class), adapters.getBeanProvider(AdmissionNoticeDeliverySource.class),
+            retirementGates);
         deployment = new DeploymentEntity(); deployment.setId("deployment1"); deployment.setCustomerId("customer"); deployment.setTenantId("tenant");
         deployment.setStatus("ACTIVE"); when(deployments.findById("deployment1")).thenReturn(Optional.of(deployment));
         customer = new PlatformCustomerEntity(); customer.setId("customer"); customer.setStatus("ACTIVE");
@@ -171,6 +175,20 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
         AdmissionEvidenceSource source = context -> { customer.setStatus("DISABLED"); return evidence(context, Instant.now()); };
         adapters.registerSingleton("readback", source);
         assertThatThrownBy(() -> service.reserve("deployment1", new Reserve("op", "manifest1"))).hasMessageContaining("ACTIVE_CUSTOMER_REQUIRED");
+        assertThat(store.held()).isEmpty();
+    }
+    @Test
+    void retirementPlannedBeforeTheFinalAdmissionGuardCannotCommitReservation() throws Exception {
+        approveLiveInputs();
+        AdmissionEvidenceSource source = mock(AdmissionEvidenceSource.class);
+        when(source.read(any())).thenAnswer(invocation -> evidence(invocation.getArgument(0), Instant.now()));
+        adapters.registerSingleton("readback", source);
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT, "TARGET_RETIREMENT_FENCED"))
+            .when(retirementGates).requireAvailableForMutation("deployment1", TARGET);
+
+        assertThatThrownBy(() -> service.reserve("deployment1", new Reserve("op", "manifest1")))
+            .hasMessageContaining("TARGET_RETIREMENT_FENCED");
         assertThat(store.held()).isEmpty();
     }
     @Test

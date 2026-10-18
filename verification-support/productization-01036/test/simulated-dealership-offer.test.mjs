@@ -44,7 +44,7 @@ const artifact = {
   id: "runtime-artifact", artifactRole: "RUNTIME", artifactType: "DOCKER_IMAGE",
   serviceName: "ai-fabric-runtime", imageRepository: "registry/runtime",
   imageDigest: RUNTIME_IMAGE_DIGEST, gitCommitSha: RUNTIME_SOURCE_COMMIT,
-  promotionChannel: "staging", capabilityManifest: {aiFabricVersion: "0.8.33"},
+  promotionChannel: "staging", capabilityManifest: {aiFabricVersion: "0.8.35"},
   capabilityManifestHash: "manifest-hash",
 };
 
@@ -56,6 +56,13 @@ test("provider and runtime fingerprint changes are observable", () => {
   const staging = target("dtp-coolify-staging-behavior", "staging");
   assert.notEqual(profileFingerprint(staging), profileFingerprint({...staging, providerConfig: {...staging.providerConfig, serverUuid: "other"}}));
   assert.notEqual(artifactFingerprint(artifact), artifactFingerprint({...artifact, imageDigest: `sha256:${"c".repeat(64)}`}));
+  assert.notEqual(artifactFingerprint(artifact), artifactFingerprint({...artifact, artifactRole: "CONNECTOR"}));
+  assert.equal(artifactFingerprint(artifact), hash({
+    id: artifact.id, serviceName: artifact.serviceName, artifactType: artifact.artifactType,
+    artifactRole: artifact.artifactRole, imageRepository: artifact.imageRepository,
+    imageDigest: artifact.imageDigest, gitCommitSha: artifact.gitCommitSha,
+    capabilityManifest: artifact.capabilityManifest, capabilityManifestHash: artifact.capabilityManifestHash,
+  }));
 });
 
 test("workspace profile IDs use the backend normalized enum representation", () => {
@@ -139,6 +146,16 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
     id: "inbox", kind: "INBOX_OPERATOR", supportedProfileIds: ["managed-basic-inbox-keys-v1"],
   });
   assert.equal(definition.settings.filter(({type}) => type === "CHOICE").every(({allowedValues}) => allowedValues.length > 0), true);
+  assert.equal(definition.workspaceProfiles.length, 1);
+  const profile = definition.workspaceProfiles[0];
+  for (const [setting, prefix, payload] of [
+    ["INTERACTION_PROFILE_ID", "workspace", profile.interaction],
+    ["THEME_PROFILE_ID", "theme", profile.theme],
+    ["AUTH_PROFILE_ID", "auth", profile.authentication],
+  ]) {
+    assert.deepEqual(definition.settings.find((value) => value.setting === setting).allowedValues,
+      [`${prefix}:${hash(payload)}`]);
+  }
 });
 
 test("offer refuses a target whose enforced worker capacity drifted", () => {

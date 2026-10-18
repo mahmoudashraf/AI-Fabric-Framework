@@ -47,8 +47,10 @@ public class CustomerSelfServiceCatalogueService {
         var definition = access.definition(offer);
         List<String> blockers = new ArrayList<>();
         List<TargetSummary> targets = new ArrayList<>();
+        boolean compositionReady = false;
         try {
             composition.validate(definition);
+            compositionReady = true;
             for (TargetPermission permission : definition.targets()) {
                 try {
                     var profile = profiles.findById(permission.targetProfileId()).orElseThrow(() -> conflict(UNENTITLED_TARGET));
@@ -65,6 +67,7 @@ public class CustomerSelfServiceCatalogueService {
         } catch (CustomerSelfServiceException ex) { blockers.add(ex.code().name()); }
         return new OfferSummary(offer.getId(), definition.name(), definition.templateId(), definition.template().versionId(),
             offer.getFingerprint(), access.summary(entitlement), List.copyOf(targets), CustomerPermissionMatrix.rows(definition.operations()),
-            definition.settings(), definition.bindingSlots(), definition.documentAudiences(), blockers.stream().distinct().toList());
+            definition.settings(), definition.bindingSlots(), definition.documentAudiences(), blockers.stream().distinct().toList(),
+            compositionReady ? definition.workspaceProfiles() : List.of());
     }
 }
