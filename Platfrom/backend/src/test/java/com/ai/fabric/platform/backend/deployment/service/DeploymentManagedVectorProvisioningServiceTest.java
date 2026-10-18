@@ -12,10 +12,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -911,7 +914,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
     }
 
     @Test
-    void ensureProvisionedRecreatesManagedZillizCloudClusterWhenRuntimeCredentialsAreMissing() throws Exception {
+    void ensureProvisionedPreservesExistingZillizClusterAndSecretsWhenRuntimeCredentialsAreMissing() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz-key");
         when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn("stale-user");
@@ -936,34 +939,6 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 "Serverless"
             )
         );
-        when(zillizClient.createCluster(
-            "aifabric-123",
-            "project-1",
-            "gcp-us-west1",
-            "Serverless",
-            "",
-            0,
-            "zilliz-key"
-        )).thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterCreateResult(
-            "cluster-new",
-            "db-user",
-            "db-password"
-        ));
-        when(zillizClient.awaitClusterReady("cluster-new", "zilliz-key")).thenReturn(
-            new ZillizCloudControlPlaneClient.ZillizClusterSummary(
-                "cluster-new",
-                "aifabric-123",
-                "project-1",
-                "gcp-us-west1",
-                "Serverless",
-                "",
-                0,
-                "RUNNING",
-                "https://cluster-new.gcp-us-west1.zillizcloud.com",
-                "Serverless"
-            )
-        );
-
         DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
             secretService,
             objectMapper,
@@ -988,23 +963,34 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        for (String[] credentials : List.of(
+            new String[] {"stale-user", null}, new String[] {null, "retained-password"}, new String[] {"", ""}
+        )) {
+            when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(credentials[0]);
+            when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(credentials[1]);
+            assertThatThrownBy(() -> service.ensureProvisioned("dep-123", providerConfig, entityConfig))
+                .isInstanceOf(RailwayProvisioningConfigurationException.class)
+                .hasMessageContaining("MANAGED_ZILLIZ_RUNTIME_CREDENTIALS_REQUIRED");
+        }
+        verify(zillizClient, never()).deleteCluster(any(), any());
+        verify(zillizClient, never()).awaitClusterDeleted(any(), any());
+        verify(zillizClient, never()).createCluster(any(), any(), any(), any(), any(), anyInt(), any());
+        verify(zillizClient, never()).awaitClusterReady(any(), any());
+        verify(secretService, never()).clearManagedSecret(any(), any(Map.class));
+        verify(secretService, never()).upsertManagedSecret(any(), any(), any(Map.class));
 
-        assertThat(result.details().path("clusterId").asText()).isEqualTo("cluster-new");
-        assertThat(result.details().path("clusterState").asText()).isEqualTo("RECREATED");
-        verify(zillizClient).deleteCluster("cluster-old", "zilliz-key");
-        verify(zillizClient).awaitClusterDeleted("cluster-old", "zilliz-key");
-        verify(secretService, times(2)).clearManagedSecret(any(), any(Map.class));
-        verify(secretService).upsertManagedSecret(
-            eq("MANAGED_MILVUS_USERNAME_DEP_DEP_123"),
-            eq("db-user"),
-            any(Map.class)
-        );
-        verify(secretService).upsertManagedSecret(
-            eq("MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
-            eq("db-password"),
-            any(Map.class)
-        );
+        when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn("restored-user");
+        when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn("restored-password");
+        var retainedCluster = zillizClient.findClusterByName("aifabric-123", "zilliz-key");
+        when(zillizClient.awaitClusterReady("cluster-old", "zilliz-key"))
+            .thenReturn(retainedCluster);
+        ManagedVectorProvisioningResult reused = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        assertThat(reused.details().path("clusterId").asText()).isEqualTo("cluster-old");
+        assertThat(reused.details().path("clusterState").asText()).isEqualTo("REUSED");
+        verify(zillizClient, never()).deleteCluster(any(), any());
+        verify(zillizClient, never()).createCluster(any(), any(), any(), any(), any(), anyInt(), any());
+        verify(secretService, never()).clearManagedSecret(any(), any(Map.class));
+        verify(secretService, never()).upsertManagedSecret(any(), any(), any(Map.class));
     }
 
     @SuppressWarnings("unchecked")

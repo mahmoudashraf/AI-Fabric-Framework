@@ -554,21 +554,10 @@ public class DeploymentManagedVectorProvisioningService {
                 cluster = zillizCloudControlPlaneClient.awaitClusterReady(existingCluster.clusterId(), apiKey);
                 clusterState = "REUSED";
             } else {
-                clearManagedZillizRuntimeCredentials(deploymentId, clusterName);
-                zillizCloudControlPlaneClient.deleteCluster(existingCluster.clusterId(), apiKey);
-                zillizCloudControlPlaneClient.awaitClusterDeleted(existingCluster.clusterId(), apiKey);
-                ZillizCloudControlPlaneClient.ZillizClusterCreateResult recreated = zillizCloudControlPlaneClient.createCluster(
-                    clusterName,
-                    project.projectId(),
-                    regionId,
-                    clusterPlan,
-                    cuType,
-                    cuSize,
-                    apiKey
+                throw new RailwayProvisioningConfigurationException(
+                    "MANAGED_ZILLIZ_RUNTIME_CREDENTIALS_REQUIRED: existing cluster runtime credentials are missing. "
+                        + "Operator reconciliation is required; the cluster and remaining secrets were not changed."
                 );
-                cluster = zillizCloudControlPlaneClient.awaitClusterReady(recreated.clusterId(), apiKey);
-                storeManagedZillizRuntimeCredentials(deploymentId, clusterName, recreated);
-                clusterState = "RECREATED";
             }
         }
 
@@ -778,19 +767,6 @@ public class DeploymentManagedVectorProvisioningService {
         String passwordSecretName = managedMilvusPasswordSecretName(deploymentId);
         return StringUtils.hasText(platformSecretService.resolveSecret(usernameSecretName))
             && StringUtils.hasText(platformSecretService.resolveSecret(passwordSecretName));
-    }
-
-    private void clearManagedZillizRuntimeCredentials(String deploymentId,
-                                                      String clusterName) {
-        Map<String, String> auditDetails = Map.of(
-            "deploymentId", deploymentId,
-            "vendor", "zilliz",
-            "resourceType", "CLUSTER_CREDENTIAL",
-            "resourceName", clusterName,
-            "reason", "RECREATE_MISSING_RUNTIME_CREDENTIALS"
-        );
-        platformSecretService.clearManagedSecret(managedMilvusUsernameSecretName(deploymentId), auditDetails);
-        platformSecretService.clearManagedSecret(managedMilvusPasswordSecretName(deploymentId), auditDetails);
     }
 
     private void validateExistingZillizCluster(ZillizCloudControlPlaneClient.ZillizClusterSummary cluster,
