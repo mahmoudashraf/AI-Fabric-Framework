@@ -31,6 +31,26 @@ images are unchanged. Spec identity changes because lookup is template-version
 scoped, not because dependency code was rebuilt. No credit allocation/provider
 writes or production customer promotion occurred. UI extraction remains last.
 
+Staging spec1.8 and offer v11 are now published. The real CUSTOMER_ADMIN
+configuration-only canary passed9 checks for `dep-6e29bab9` / `ver-3c0e3b88`,
+config hash `c54fc56cfd5060c625ec1f0997df4059bf9a643e7a16311e0651062a658a75cc`.
+Installation `awi_pub_10aefdad2b85e09d0a2bca3588298c4b` remains inactive; no
+runtime or reservation exists. Evidence `/private/tmp/01036-v11-configuration-evidence.json`.
+Formal TOKEN binding to approved Free-01 was created and local scoped credentials
+are READY. Six read-only checks prove anonymous/customer denial, exact staging
+readiness, no production/unscoped reuse and unchanged zero grant allocation:
+`/private/tmp/01036-v11-binding-access-and-scope-20261018.json`.
+
+Do not mark exact first-bind replay green yet: live verification found initial
+nanoseconds versus PostgreSQL microseconds in `checkedAt`. Identity/fingerprint
+and credentials did not change. A narrow backend fix stores the shared timestamp
+at database precision before returning the first response;89 service and3 real
+PostgreSQL tests pass, including the reported value and a second-boundary case.
+No timestamp is ignored, refreshed or rewritten to conceal the mismatch. The
+fix still needs publication/rollout and hosted replay readback. Three declared
+managed-simulator credentials are not provisioned yet; they are not missing
+owner OpenAI inputs. Scoped managed-dependency reporting is under separate review.
+
 - P0: source contract implemented and integrated; prerequisite acceptance is in
   progress. The customer-owned S3 canary passes exact bucket posture, explicit
   unversioned state, identity separation, prefix isolation, bounded object reads

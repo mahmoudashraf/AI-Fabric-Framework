@@ -1,20 +1,48 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.AuthenticationType;
+import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Request;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestService;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.BeanUtils;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 @Testcontainers(disabledWithoutDocker = true)
 class ExistingVectorBindingMigrationPostgresTest {
@@ -62,6 +90,85 @@ class ExistingVectorBindingMigrationPostgresTest {
         assertThat(new MarketplaceManifestService(mapper).parseAndValidate(plugin, version).manifest()).isEqualTo(tokenCandidate);
         assertThat(text("select count(*)::text from deployment_provider_resource_handles where resource_kind='EXTERNAL_VECTOR_STORAGE_BINDING'")).isEqualTo("0");
         assertThat(text("select count(*)::text from provider_usage_allocations")).isEqualTo("0");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-10-18T21:03:25.799299238Z", "2026-10-18T21:03:25.999999999Z"})
+    void bindingSummaryRemainsExactlyEqualAfterPostgresTimestampRoundTrip(String timestamp) throws Exception {
+        var deployment = new DeploymentEntity();
+        deployment.setId("dep-timestamp-test"); deployment.setCustomerId("customer-test"); deployment.setTenantId("tenant-test");
+        var version = new DeploymentVersionEntity();
+        version.setId("ver-timestamp-test"); version.setDeploymentId(deployment.getId());
+        version.setStatus("PUBLISHED"); version.setConfigHash("timestamp-config-hash");
+        version.setEntityConfigJson("{\"ai-entities\":{\"vehicle\":{}}}");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
+             "milvusExternalBindingRequired":true,"milvusAuthenticationType":"TOKEN"}
+            """);
+        var target = new DeploymentTargetProfileEntity();
+        target.setId("target-timestamp-test"); target.setActive(true); target.setProviderType(DeploymentProviderType.COOLIFY);
+        var deployments = mock(DeploymentRepository.class);
+        var versions = mock(DeploymentVersionRepository.class);
+        var targets = mock(DeploymentTargetProfileRepository.class);
+        var handles = mock(DeploymentProviderResourceHandleRepository.class);
+        var secrets = mock(PlatformSecretService.class);
+        var zilliz = mock(ZillizCloudControlPlaneClient.class);
+        var saved = new AtomicReference<DeploymentProviderResourceHandleEntity>();
+        var vault = new HashMap<String, String>();
+        vault.put("ZILLIZ_CLOUD_API_KEY", "synthetic-control-plane-credential");
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(versions.findById(version.getId())).thenReturn(Optional.of(version));
+        when(targets.findById(target.getId())).thenReturn(Optional.of(target));
+        when(handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq(deployment.getId()), eq(target.getId()), anyString())).thenAnswer(call -> Optional.ofNullable(saved.get()));
+        when(handles.saveAndFlush(any())).thenAnswer(call -> { saved.set(call.getArgument(0)); return saved.get(); });
+        when(secrets.resolveSecret(anyString())).thenAnswer(call -> vault.get(call.getArgument(0)));
+        when(secrets.upsertManagedSecret(anyString(), anyString(), any())).thenAnswer(call -> {
+            vault.put(call.getArgument(0), call.getArgument(1)); return null;
+        });
+        String endpoint = "https://synthetic-timestamps.zilliz.com";
+        when(zilliz.getCluster("synthetic-cluster", "synthetic-control-plane-credential")).thenReturn(
+            new ZillizCloudControlPlaneClient.ZillizClusterSummary("synthetic-cluster", "Free", "project-test", "region-test",
+                "Serverless", "", 0, "RUNNING", endpoint, "Free"));
+        when(zilliz.listServingCollections(endpoint, "synthetic-serving-token")).thenReturn(java.util.List.of());
+        var service = new DeploymentExistingVectorBindingService(deployments, versions, targets, handles, secrets, zilliz,
+            new TenantScopedVectorHandleResolver(), mock(TargetRetirementGateService.class), mock(PlatformAuditService.class), mapper);
+        var request = new Request(version.getId(), "synthetic-cluster", "project-test", "region-test", "Free", "default",
+            null, null, "synthetic-approval", AuthenticationType.TOKEN, "synthetic-serving-token");
+        Instant observedAt = Instant.parse(timestamp);
+        try (var time = mockStatic(Instant.class, CALLS_REAL_METHODS); Connection connection = POSTGRES.createConnection("")) {
+            time.when(Instant::now).thenReturn(observedAt);
+            var first = service.bind(deployment.getId(), target.getId(), request);
+            try (var statement = connection.createStatement()) {
+                statement.execute("create temporary table binding_timestamps (last_observed_at timestamp with time zone, "
+                    + "created_at timestamp with time zone not null, updated_at timestamp with time zone not null)");
+            }
+            try (var insert = connection.prepareStatement("insert into binding_timestamps values (?, ?, ?)")) {
+                insert.setObject(1, saved.get().getLastObservedAt().atOffset(ZoneOffset.UTC));
+                insert.setObject(2, saved.get().getCreatedAt().atOffset(ZoneOffset.UTC));
+                insert.setObject(3, saved.get().getUpdatedAt().atOffset(ZoneOffset.UTC));
+                assertThat(insert.executeUpdate()).isEqualTo(1);
+            }
+            var reloaded = new DeploymentProviderResourceHandleEntity();
+            BeanUtils.copyProperties(saved.get(), reloaded);
+            try (var statement = connection.createStatement(); var result = statement.executeQuery("select * from binding_timestamps")) {
+                assertThat(result.next()).isTrue();
+                reloaded.setLastObservedAt(result.getObject("last_observed_at", OffsetDateTime.class).toInstant());
+                reloaded.setCreatedAt(result.getObject("created_at", OffsetDateTime.class).toInstant());
+                reloaded.setUpdatedAt(result.getObject("updated_at", OffsetDateTime.class).toInstant());
+                assertThat(result.next()).isFalse();
+            }
+            saved.set(reloaded);
+            Instant expected = observedAt.truncatedTo(ChronoUnit.MICROS);
+            assertThat(first.checkedAt()).isEqualTo(expected);
+            assertThat(reloaded.getLastObservedAt()).isEqualTo(expected);
+            assertThat(reloaded.getCreatedAt()).isEqualTo(expected);
+            assertThat(reloaded.getUpdatedAt()).isEqualTo(expected);
+            assertThat(service.get(deployment.getId(), target.getId())).isEqualTo(first);
+            assertThat(service.bind(deployment.getId(), target.getId(), request)).isEqualTo(first);
+            verify(handles, times(1)).saveAndFlush(any());
+            verify(secrets, times(2)).upsertManagedSecret(anyString(), anyString(), any());
+        }
     }
 
     private void migrate(String version) {

@@ -5636,3 +5636,35 @@ Critical fixes that made the gate pass:
   change/skip tohide it. Freshstagebaseline51226PASS output
   `/private/tmp/01036-native-token-staging-host-baseline-20261018.json`,25samples/
   120sec8cores/max806mCPU/minAvail11,078,021,120bytes; idlebaselineonly.
+
+### 2026-10-18 v11 Published, Customer Metadata And Native Binding Proven
+
+- 46fc6b8d5 committed/pushed helperv11/spec1.8 +actualrollout/imageproof.
+  StagepublicationsPASS in /private/tmp/01036-staging-v11-{package,offer}-publication-20261018.json.
+  Specfingerprint45948e39d82f17196b3712941a2f70ef6255e30532bd839b1cf819a9577416c4;
+  offerfingerprintff500d7276d373cf7bfbc8e8b8614dcbd02cbbf7794cc99a6d2292f060ff29b2.
+- Customerconfig9PASS: dep-6e29bab9/ver-3c0e3b88/hash
+  c54fc56cfd5060c625ec1f0997df4059bf9a643e7a16311e0651062a658a75cc;
+  draftawi_pub_10aefdad2b85e09d0a2bca3588298c4b; consumer01036-v11-config-canary.
+  Evidence /private/tmp/01036-v11-configuration-evidence.json; privatecookie/state
+  /private/tmp/01036-v11-configuration-private/state.json, NEVERprint.
+- NativeFree01bindingcreated evb-567503cd-f948-429f-bb46-dc5d728c44e8. Exact
+  approvedcluster/project/region/default/Free/TOKEN/RETAIN_EXTERNAL. Nativekey
+  persistedonlywrite-onlyvault, no vectors/models/credits. LocalMILVUS_TOKENREADY.
+  Readonly6scopechecksPASS /private/tmp/01036-v11-binding-access-and-scope-20261018.json.
+- OriginalexactfirstreplayFAILEDonlytimestampprecision:
+  firstcheckedAt2026-10-18T21:03:25.799299238Z vsPG.799299Z. DO NOTignorefield,
+  rebind/changeapproval/resetkey. AmperechangedsingleInstanttoMICROS before
+  persistence/firstresponse +regressions,92PASS(89service+3realPG). Parentreviewed.
+  Threeownedfilesawaitcommit/CI/backup/rollout(migrationstill193). Livefailed
+  initialoutputpreserved; readonlyboundreceipt
+  /private/tmp/01036-v11-free01-binding-readback-before-precision-fix-20261018.json.
+  Tempbinder /private/tmp/01036-bind-v11-free01.mjs remainsstrictallfields.
+- Missing3genericsecretsummaryitems are MANAGED_SIMULATOR_PROVIDER_KEY/SECRET/
+  NOTIFICATION_SECRET, declaredR5bindings notyetprovisioned; NOTownerinputs.
+  Menciusagent01a150d7-2c0a-7db0-8437-eb009fd6eb45(gpt6.1sol/max) owns ONLY
+  DeploymentSecretUsageService+test, genericlocaldependencyprojectionifneeded;
+  no domain-prefix bypass. Ramanpolicyread-onlyproposalstillactive.
+- Dedicated Requiredforproduction informed of LATERP7productionvectorboundary/
+  model-useallowanceinput; existingFree01/$12/200k/50grantstagingonly unchanged,
+  no productionpromotionauthorized. Do NOTstallstagingforthatquestion.

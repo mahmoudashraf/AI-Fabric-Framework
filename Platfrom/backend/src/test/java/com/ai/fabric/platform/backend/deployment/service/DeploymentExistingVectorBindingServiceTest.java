@@ -23,8 +23,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.BeanUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -109,6 +112,37 @@ class DeploymentExistingVectorBindingServiceTest {
         verify(secrets, times(3)).upsertManagedSecret(anyString(), anyString(), any());
     }
     private static final String URI_HOST = "cluster-free.serverless.aws-eu-central-1.cloud.zilliz.com";
+
+    @ParameterizedTest @ValueSource(strings = {"TOKEN", "USERNAME_PASSWORD"})
+    void firstResponseAndExactReplayKeepPostgresPrecisionWithoutRefreshingTimestamps(String authType) {
+        if (authType.equals("TOKEN")) useTokenConfig();
+        var request = authType.equals("TOKEN") ? tokenRequest("synthetic-serving-token") : request();
+        Instant observedAt = Instant.parse("2026-10-18T21:03:25.799299238Z");
+        Instant expected = observedAt.truncatedTo(ChronoUnit.MICROS);
+        try (var time = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+            time.when(Instant::now).thenReturn(observedAt);
+            time.clearInvocations();
+            var first = service.bind(deployment.getId(), TARGET, request);
+            assertThat(first.checkedAt()).isEqualTo(expected);
+            assertThat(saved.getLastObservedAt()).isEqualTo(expected);
+            assertThat(saved.getCreatedAt()).isEqualTo(expected);
+            assertThat(saved.getUpdatedAt()).isEqualTo(expected);
+            var persisted = new DeploymentProviderResourceHandleEntity();
+            BeanUtils.copyProperties(saved, persisted);
+            persisted.setLastObservedAt(saved.getLastObservedAt().truncatedTo(ChronoUnit.MICROS));
+            persisted.setCreatedAt(saved.getCreatedAt().truncatedTo(ChronoUnit.MICROS));
+            persisted.setUpdatedAt(saved.getUpdatedAt().truncatedTo(ChronoUnit.MICROS));
+            saved = persisted;
+            var unchangedSecrets = Map.copyOf(vault);
+
+            assertThat(service.get(deployment.getId(), TARGET)).isEqualTo(first);
+            assertThat(service.bind(deployment.getId(), TARGET, request)).isEqualTo(first);
+            assertThat(vault).isEqualTo(unchangedSecrets);
+            verify(handles, times(1)).saveAndFlush(any());
+            verify(secrets, times(authType.equals("TOKEN") ? 2 : 3)).upsertManagedSecret(anyString(), anyString(), any());
+            time.verify(Instant::now, times(1));
+        }
+    }
 
     @ParameterizedTest @ValueSource(strings = {"TOKEN", "USERNAME_PASSWORD"})
     void localProjectionValidatesCredentialsWithoutProviderTrafficWhileLiveResolveStillChecksProvider(String authType) {

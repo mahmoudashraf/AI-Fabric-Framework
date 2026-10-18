@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
@@ -162,7 +163,7 @@ public class DeploymentExistingVectorBindingService {
             .put("lifecycle", "RETAIN_EXTERNAL").put("externalResourceOwned", false).put("requestFingerprint", requestFingerprint);
         String fingerprint = DeploymentEvidenceFingerprint.hash(mapper, identity);
         identity.put("fingerprint", fingerprint);
-        var now = Instant.now();
+        var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         var handle = new DeploymentProviderResourceHandleEntity();
         handle.setId("evb-" + UUID.randomUUID()); handle.setDeploymentId(deploymentId); handle.setTargetProfileId(targetId);
         handle.setProviderType(target.getProviderType()); handle.setResourceKind(RESOURCE_KIND); handle.setProviderResourceUuid(clusterId);
