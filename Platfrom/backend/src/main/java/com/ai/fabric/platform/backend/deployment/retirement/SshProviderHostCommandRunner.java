@@ -67,9 +67,8 @@ public class SshProviderHostCommandRunner implements ProviderHostCommandRunner {
             setPermissions(directory, "rwx------");
             Path keyFile = directory.resolve("identity");
             Path knownHostsFile = directory.resolve("known_hosts");
-            Files.writeString(keyFile, privateKey, StandardCharsets.UTF_8);
+            writePrivateKey(keyFile, privateKey);
             Files.writeString(knownHostsFile, knownHosts, StandardCharsets.UTF_8);
-            setPermissions(keyFile, "rw-------");
             setPermissions(knownHostsFile, "rw-------");
 
             List<String> invocation = new ArrayList<>(List.of(
@@ -105,6 +104,16 @@ public class SshProviderHostCommandRunner implements ProviderHostCommandRunner {
             if (process != null && process.isAlive()) process.destroyForcibly();
             delete(directory);
         }
+    }
+
+    static void writePrivateKey(Path keyFile, String privateKey) throws IOException {
+        if (blank(privateKey)) {
+            throw new TargetRetirementFailure("PROVIDER_HOST_VERIFICATION_CREDENTIAL_MISSING");
+        }
+        // Managed-secret storage trims the terminal LF required by OpenSSH private-key parsing.
+        Files.writeString(keyFile, privateKey.endsWith("\n") ? privateKey : privateKey + "\n",
+            StandardCharsets.UTF_8);
+        setPermissions(keyFile, "rw-------");
     }
 
     private static void setPermissions(Path path, String permissions) throws IOException {
