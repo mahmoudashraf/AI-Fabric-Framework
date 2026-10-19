@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,18 @@ public class DeploymentReleaseRecoveryService {
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformProvisioningProperties provisioningProperties;
     private final ObjectMapper objectMapper;
+    private DeploymentAiStateStorageBindingService aiStateStorageBindings;
+    private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
+
+    @Autowired
+    void setExternalIntegrations(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver service) {
+        this.externalIntegrations = service;
+    }
+
+    @Autowired(required = false)
+    void setAiStateStorageBindings(DeploymentAiStateStorageBindingService service) {
+        this.aiStateStorageBindings = service;
+    }
 
     public DeploymentReleaseRecoveryService(DeploymentRepository deploymentRepository,
                                             DeploymentReleaseRepository releaseRepository,
@@ -107,6 +120,15 @@ public class DeploymentReleaseRecoveryService {
         DeploymentReleaseEntity latestRelease = releaseRepository
             .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElse(null);
+        if (latestRelease != null && ("APPLIED_VERIFICATION_FAILED".equals(latestRelease.getStatus())
+            || isRecoveryCandidate(latestRelease) || force && isStaleCoolifyProvisioningCandidate(latestRelease))) {
+            if (aiStateStorageBindings != null) aiStateStorageBindings.requireForRecovery(deployment, latestRelease);
+            else if (latestRelease.getAiStateStorageFingerprint() != null || latestRelease.getAiStateStorageSnapshotJson() != null)
+                throw new IllegalStateException("AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
+            if (externalIntegrations != null) externalIntegrations.requireForRecovery(deployment, latestRelease);
+            else if (latestRelease.getRuntimeAuthorityFingerprint() != null)
+                throw new IllegalStateException("EXTERNAL_INTEGRATION_RESOLVER_REQUIRED");
+        }
         if (latestRelease != null && reconcilePassedVerificationForFailedRelease(deployment, latestRelease)) {
             return true;
         }
@@ -188,6 +210,9 @@ public class DeploymentReleaseRecoveryService {
         if (latestRelease == null || !isQueuedApplyCandidate(latestRelease) || !isStale(latestRelease)) {
             return false;
         }
+        if (externalIntegrations != null) externalIntegrations.requireForRecovery(deployment, latestRelease);
+        else if (latestRelease.getRuntimeAuthorityFingerprint() != null)
+            throw new IllegalStateException("EXTERNAL_INTEGRATION_RESOLVER_REQUIRED");
         return reconcileQueuedApply(deployment, latestRelease);
     }
 

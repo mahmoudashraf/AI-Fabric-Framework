@@ -38,6 +38,9 @@ public class CustomerAdmissionManifestService {
     @Autowired(required = false)
     private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
 
+    @Autowired
+    private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
+
     public CustomerAdmissionManifestService(AdmissionStore store, AdmissionJson json,
                                             DeploymentService deployments,
                                             DeploymentDocumentBindingResolver documentBindings,
@@ -81,9 +84,12 @@ public class CustomerAdmissionManifestService {
             && documentBinding.isEmpty()) {
             throw invalid("CUSTOMER_ADMISSION_STORAGE_BINDING_REQUIRED");
         }
-        Vector demand = demand(authorization.context().topology());
+        Vector demand = demand(selectedTopology(authorization, provider));
         var dependency = dependencyEvidence.resolve(authorization.definition(), demand);
         var authority = deployments.prepareAuthorizedRuntimeAuthorityCandidate(deployment, version, targetId);
+        var externalBindings = authorization.definition().externalIntegrationProfiles().isEmpty()
+            ? java.util.List.<com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.Projection>of()
+            : externalIntegrations.resolveLocal(deployment.getId(), version.getId(), targetId);
 
         String policyReference = "policy:" + policy.id();
         String versionReference = "deployment-version:" + version.getId() + ":" + version.getConfigHash();
@@ -113,6 +119,7 @@ public class CustomerAdmissionManifestService {
         }
 
         Set<String> prerequisiteReferences = new LinkedHashSet<>(customerReferences.values());
+        externalBindings.forEach(binding -> prerequisiteReferences.add("external-integration:" + binding.fingerprint()));
         prerequisiteReferences.add(topologyReference);
         dependency.ifPresent(value -> prerequisiteReferences.add(value.reference()));
         prerequisiteReferences.add(policy.restoreEvidenceReference());
@@ -159,6 +166,29 @@ public class CustomerAdmissionManifestService {
         amounts.put(Dimension.DEPENDENCIES, (long) topology.dependencies());
         amounts.put(Dimension.CONCURRENT_APPLIES, (long) topology.concurrentApplies());
         return new Vector(amounts);
+    }
+
+    private ReviewedTopology selectedTopology(Authorization authorization, JsonNode provider) {
+        boolean required = authorization.definition().settings().stream()
+            .anyMatch(rule -> rule.setting() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Setting.AI_STATE_STORAGE_MODE);
+        if (!required) {
+            if (!authorization.definition().aiStateStorageTopologies().isEmpty()) {
+                throw invalid("CUSTOMER_AI_STATE_STORAGE_TOPOLOGY_INVALID");
+            }
+            return authorization.context().topology();
+        }
+        try {
+            if (provider == null || !provider.path("aiStateStorageMode").isTextual()) {
+                throw invalid("CUSTOMER_AI_STATE_STORAGE_CHOICE_REQUIRED");
+            }
+            var mode = com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode.valueOf(
+                provider.path("aiStateStorageMode").asText());
+            var topology = authorization.definition().aiStateStorageTopologies().get(mode);
+            if (topology == null) throw invalid("CUSTOMER_AI_STATE_STORAGE_TOPOLOGY_REQUIRED");
+            return topology;
+        } catch (IllegalArgumentException error) {
+            throw invalid("CUSTOMER_AI_STATE_STORAGE_CHOICE_INVALID");
+        }
     }
 
     private long bytes(long mebibytes) {

@@ -10,8 +10,10 @@ import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplat
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.node.TextNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,12 +39,17 @@ public class CustomerDeploymentBootstrapService {
     private final DeploymentRepository deployments;
     private final CustomerOfferCodec codec;
     private final PlatformAuditService audit;
+    private final CustomerDeploymentStorageSelectionService storage;
+    private final DeploymentMarketplaceDraftCompilerService compiler;
+    private final com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationInstallInitializer externalInstalls;
 
     public CustomerDeploymentBootstrapService(CustomerOfferEntitlementService entitlements,
         CustomerSelfServiceAuthorizationService authorization, CustomerEntitlementCommandRepository commands,
         MarketplacePluginVersionRepository versions, DeploymentMarketplacePluginInstallRepository installs,
         MarketplaceTemplateBootstrapService templates, DeploymentRepository deployments,
-        CustomerOfferCodec codec, PlatformAuditService audit) {
+        CustomerOfferCodec codec, PlatformAuditService audit, CustomerDeploymentStorageSelectionService storage,
+        DeploymentMarketplaceDraftCompilerService compiler,
+        com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationInstallInitializer externalInstalls) {
         this.entitlements = entitlements;
         this.authorization = authorization;
         this.commands = commands;
@@ -52,6 +59,9 @@ public class CustomerDeploymentBootstrapService {
         this.deployments = deployments;
         this.codec = codec;
         this.audit = audit;
+        this.storage = storage;
+        this.compiler = compiler;
+        this.externalInstalls = externalInstalls;
     }
 
     @Transactional
@@ -73,12 +83,22 @@ public class CustomerDeploymentBootstrapService {
             return codec.read(previous.getResultJson(), Result.class);
         }
         if (grant.getRevision() != request.expectedEntitlementRevision()) throw conflict(REVISION_CONFLICT);
+        Map<Setting, JsonNode> changedSettings = new java.util.LinkedHashMap<>();
+        changedSettings.put(Setting.DEPLOYMENT_NAME, TextNode.valueOf(request.name()));
+        if (request.aiStateStorageMode() != null) {
+            try {
+                com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode.valueOf(request.aiStateStorageMode());
+            } catch (RuntimeException error) { throw invalid(); }
+            changedSettings.put(Setting.AI_STATE_STORAGE_MODE, TextNode.valueOf(request.aiStateStorageMode()));
+        }
         var approved = authorization.authorize(actor.customerId(), new AuthorizationRequest(offerId,
             request.targetProfileId(), null, null, null, Operation.BOOTSTRAP_CONFIGURATION,
-            request.operationKey(), Set.of(Setting.DEPLOYMENT_NAME), null, null, null));
-        authorization.validateSettings(approved, new SettingsPatch(Map.of(Setting.DEPLOYMENT_NAME,
-            TextNode.valueOf(request.name()))));
+            request.operationKey(), changedSettings.keySet(), null, null, null));
+        authorization.validateSettings(approved, new SettingsPatch(changedSettings));
         var definition = approved.definition();
+        boolean storageChoiceRequired = definition.settings().stream()
+            .anyMatch(rule -> rule.setting() == Setting.AI_STATE_STORAGE_MODE);
+        if (storageChoiceRequired != (request.aiStateStorageMode() != null)) throw invalid();
         var pin = definition.template();
         var version = versions.findById(pin.versionId()).orElseThrow(() -> conflict(REVIEWED_COMPOSITION_CHANGED));
         if (!pin.pluginId().equals(version.getPluginId()) || !"PUBLISHED".equals(version.getStatus())) {
@@ -100,9 +120,15 @@ public class CustomerDeploymentBootstrapService {
             installed.stream().filter(install -> !pin.pluginId().equals(install.getPluginId()))
                 .map(install -> install.getPluginVersionId()).collect(Collectors.toSet()),
             definition.artifacts().stream().map(ArtifactPin::artifactId).collect(Collectors.toSet()));
+        if (request.aiStateStorageMode() != null) storage.initialize(deployment, request.aiStateStorageMode());
         authorization.registerBootstrap(approved, deployment.getId());
+        if (!definition.externalIntegrationProfiles().isEmpty()) {
+            externalInstalls.initialize(deployment);
+            compiler.syncDeploymentDraftForTrustedTemplateBootstrap(deployment.getId());
+        }
         var result = new Result(deployment.getId(), deployment.getTenantId(), offerId,
-            approved.context().offerFingerprint(), request.targetProfileId(), grant.getRevision(), "CONFIGURATION_ONLY");
+            approved.context().offerFingerprint(), request.targetProfileId(), grant.getRevision(), "CONFIGURATION_ONLY",
+            request.aiStateStorageMode());
         commands.saveAndFlush(new CustomerEntitlementCommandEntity("cec-" + UUID.randomUUID(), grant.getId(),
             request.operationKey(), fingerprint, COMMAND, actorId, codec.write(result), Instant.now()));
         audit.record("CUSTOMER_OFFER_CONFIGURATION_BOOTSTRAPPED", "DEPLOYMENT", deployment.getId(),

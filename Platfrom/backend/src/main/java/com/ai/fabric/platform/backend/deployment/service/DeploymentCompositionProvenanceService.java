@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationCompositionService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
@@ -29,18 +31,25 @@ public class DeploymentCompositionProvenanceService {
     private final MarketplacePluginRepository pluginRepository;
     private final MarketplacePluginVersionRepository versionRepository;
     private final ObjectMapper objectMapper;
+    private final ExternalIntegrationCompositionService externalIntegrations;
 
     @Autowired
     public DeploymentCompositionProvenanceService(
         DeploymentMarketplacePluginInstallRepository installRepository,
         MarketplacePluginRepository pluginRepository,
         MarketplacePluginVersionRepository versionRepository,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        ExternalIntegrationCompositionService externalIntegrations
     ) {
         this.installRepository = installRepository;
         this.pluginRepository = pluginRepository;
         this.versionRepository = versionRepository;
         this.objectMapper = objectMapper;
+        this.externalIntegrations = externalIntegrations;
+    }
+
+    ArrayNode externalIntegrationProfiles(DeploymentEntity deployment) {
+        return externalIntegrations.evidence(deployment);
     }
 
     ArrayNode marketplaceInstalls(String deploymentId) {

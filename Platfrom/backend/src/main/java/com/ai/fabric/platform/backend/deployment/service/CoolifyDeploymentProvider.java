@@ -17,6 +17,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourc
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLogsSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode;
+import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
@@ -59,7 +61,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @Service
-public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider {
+public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider, CoolifyRetirementOwnership {
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
 
@@ -124,6 +126,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private DeploymentRuntimeGenerationService deploymentRuntimeGenerationService;
     private RuntimeGenerationCheckpointService runtimeGenerationCheckpointService;
     private RuntimeGenerationRemoteEvidenceProvider runtimeGenerationRemoteEvidenceProvider;
+    private DeploymentAiStateStorageBindingService aiStateStorageBindings;
+    @Autowired
+    private CoolifyResourceOwnership resourceOwnership;
 
     @Autowired
     public CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -199,6 +204,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         if (providers.size() != 1) throw new IllegalStateException("Duplicate runtime generation remote evidence providers.");
         this.runtimeGenerationRemoteEvidenceProvider = providers.getFirst();
     }
+
+    @Autowired(required = false)
+    void setAiStateStorageBindings(DeploymentAiStateStorageBindingService aiStateStorageBindings) {
+        this.aiStateStorageBindings = aiStateStorageBindings;
+    }
+
+    @Autowired
+    private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
 
     CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
                               DeploymentProviderResourceHandleRepository resourceHandleRepository,
@@ -288,6 +301,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
         DeploymentTargetProfileEntity profile = requireActiveProfile(release.getTargetProfileId());
+        CoolifyRuntimeDatabaseBinding externalAiState = validateAiStateStorageBeforeEffects(deployment, version, release, profile);
         RuntimeGenerationCheckpointService.PriorRuntime previousRuntime = resourceHandleRepository
             .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
                 deployment.getId(), profile.getId(), RESOURCE_KIND_APPLICATION
@@ -300,6 +314,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 normalizeRuntimeBaseUrl(handle.getFqdn())
             ))
             .orElse(null);
+        if (externalAiState != null) {
+            previousRuntime = runtimeGenerationPriorRuntime(release.getId(), previousRuntime);
+            requireAiStateSequentialReplacement(release, previousRuntime);
+        }
         CoolifyConnection connection = tracked(
             progressTracker,
             "coolify_preflight",
@@ -664,16 +682,18 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         CoolifyRuntimeDatabaseBinding runtimeDatabaseBinding = tracked(
             progressTracker,
             "reconcile_coolify_runtime_database",
-            "Create or reuse the profile-managed runtime PostgreSQL database when production profile requires durable chat storage.",
-            () -> reconcileRuntimeDatabaseBinding(connection, resourceScope, deployment, profile, resourceDefaults)
+            "Resolve the explicitly selected durable AI-state store without provisioning customer-owned storage.",
+            () -> externalAiState != null ? externalAiState
+                : reconcileRuntimeDatabaseBinding(connection, resourceScope, deployment, profile, resourceDefaults,
+                    readJson(version.getProviderConfigJson()))
         );
         if (requiresDurableConnectorPersistence(version) && runtimeDatabaseBinding == null) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Durable connector capabilities require a target profile with managed Coolify PostgreSQL enabled."
+                "Durable connector capabilities require an explicitly configured PostgreSQL AI-state store."
             );
         }
-        DeploymentProviderResourceHandleEntity provisionalRuntimeDatabaseHandle = runtimeDatabaseBinding == null ? null : tracked(
+        DeploymentProviderResourceHandleEntity provisionalRuntimeDatabaseHandle = runtimeDatabaseBinding == null || !runtimeDatabaseBinding.managed() ? null : tracked(
             progressTracker,
             "record_coolify_runtime_database_handle_provisional",
             "Persist the Coolify runtime database handle before runtime configuration begins.",
@@ -715,6 +735,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         int connectorEnvCount = 0;
         if (connectorApplication != null) {
             CoolifyApplicationSummary finalConnectorApplication = connectorApplication;
+            if (externalAiState != null) {
+                tracked(progressTracker, "remove_customer_database_bootstrap_credentials",
+                    "Remove privileged bootstrap and role-creation configuration from customer PostgreSQL connectors.",
+                    () -> coolifyApiClient.deleteEnvironmentVariablesByKey(connection, finalConnectorApplication.uuid(),
+                        CONNECTOR_DATABASE_BOOTSTRAP_ENV_KEYS));
+            }
             connectorEnvCount = tracked(
                 progressTracker,
                 "configure_coolify_connector_environment",
@@ -918,7 +944,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     progressTracker
                 )
             );
-            if (requiresDurableConnectorPersistence(version) && runtimeDatabaseBinding != null) {
+            if (requiresDurableConnectorPersistence(version) && runtimeDatabaseBinding != null && runtimeDatabaseBinding.managed()) {
                 int removedBootstrapVariables = tracked(
                     progressTracker,
                     "remove_coolify_connector_database_bootstrap_credentials",
@@ -1043,7 +1069,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 runtimeDeployResponse
             )
         );
-        DeploymentProviderResourceHandleEntity runtimeDatabaseHandle = runtimeDatabaseBinding == null ? null : tracked(
+        DeploymentProviderResourceHandleEntity runtimeDatabaseHandle = runtimeDatabaseBinding == null || !runtimeDatabaseBinding.managed() ? null : tracked(
             progressTracker,
             "record_coolify_runtime_database_handle",
             "Persist Coolify runtime database resource handle for operator actions.",
@@ -1388,6 +1414,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary start(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        requireOwnedHandle(connection, handle, false);
         if (isRuntimePostgresDatabase(handle)) {
             CoolifyActionResponse response = coolifyApiClient.startDatabase(connection, handle.getProviderResourceUuid());
             return actionSummary(handle, "START", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
@@ -1399,6 +1426,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary stop(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        requireOwnedHandle(connection, handle, false);
         if (isRuntimePostgresDatabase(handle)) {
             CoolifyActionResponse response = coolifyApiClient.stopDatabase(connection, handle.getProviderResourceUuid());
             return actionSummary(handle, "STOP", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
@@ -1410,6 +1438,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary restart(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        requireOwnedHandle(connection, handle, false);
         if (isRuntimePostgresDatabase(handle)) {
             CoolifyActionResponse response = coolifyApiClient.restartDatabase(connection, handle.getProviderResourceUuid());
             return actionSummary(handle, "RESTART", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
@@ -1421,39 +1450,136 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary delete(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        var authorization = requireOwnedHandle(connection, handle, true);
+        requireResourceOwnership().beginDeletion(authorization.receipt(), handle);
+        if (!authorization.present()) {
+            finishRetirementDeletion(handle);
+            if (isRuntimePostgresDatabase(handle)) clearRuntimeDatabaseSecret(handle, reason);
+            return absentDeleteSummary(handle);
+        }
         try {
             if (isRuntimePostgresDatabase(handle)) {
                 CoolifyActionResponse response = coolifyApiClient.deleteDatabase(connection, handle.getProviderResourceUuid(), true, true, true, true);
                 waitForDatabaseAbsent(connection, handle.getProviderResourceUuid());
+                finishRetirementDeletion(handle);
                 clearRuntimeDatabaseSecret(handle, reason);
                 return actionSummary(handle, "DELETE", "COMPLETED", response.message(), response.deploymentUuid(), response.raw());
             }
             CoolifyActionResponse response = coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, true, true);
             waitForApplicationAbsent(connection, handle.getProviderResourceUuid());
+            finishRetirementDeletion(handle);
             return actionSummary(handle, "DELETE", "COMPLETED", response.message(), response.deploymentUuid(), response.raw());
         } catch (CoolifyApiException ex) {
             if (ex.statusCode() == 404) {
                 if (isRuntimePostgresDatabase(handle)) {
+                    waitForDatabaseAbsent(connection, handle.getProviderResourceUuid());
+                    finishRetirementDeletion(handle);
                     clearRuntimeDatabaseSecret(handle, reason);
+                } else {
+                    waitForApplicationAbsent(connection, handle.getProviderResourceUuid());
+                    finishRetirementDeletion(handle);
                 }
-                ObjectNode details = objectMapper.createObjectNode();
-                details.put("message", isRuntimePostgresDatabase(handle)
-                    ? "Coolify database was already absent."
-                    : "Coolify application was already absent.");
-                details.put("path", ex.path());
-                return actionSummary(
-                    handle,
-                    "DELETE",
-                    "COMPLETED",
-                    isRuntimePostgresDatabase(handle)
-                        ? "Coolify database was already absent."
-                        : "Coolify application was already absent.",
-                    null,
-                    details
-                );
+                return absentDeleteSummary(handle);
             }
             throw ex;
         }
+    }
+
+    @Override
+    public void requireRetirementOwnership(DeploymentProviderResourceHandleEntity handle) {
+        requireOwnedHandle(connectionForHandle(handle), handle, true);
+    }
+
+    @Override
+    public void beginRetirementDeletion(DeploymentProviderResourceHandleEntity handle) {
+        var authorization = requireOwnedHandle(connectionForHandle(handle), handle, true);
+        requireResourceOwnership().beginDeletion(authorization.receipt(), handle);
+    }
+
+    @Override
+    public void finishRetirementDeletion(DeploymentProviderResourceHandleEntity handle) {
+        var authorization = requireOwnedHandle(connectionForHandle(handle), handle, true);
+        if (authorization.present()) throw CoolifyResourceOwnership.reconciliationRequired();
+        requireResourceOwnership().deleted(authorization.receipt());
+    }
+
+    private DeploymentProviderResourceActionSummary absentDeleteSummary(DeploymentProviderResourceHandleEntity handle) {
+        String message = isRuntimePostgresDatabase(handle)
+            ? "Coolify database was already absent." : "Coolify application was already absent.";
+        return actionSummary(handle, "DELETE", "COMPLETED", message, null,
+            objectMapper.createObjectNode().put("message", message));
+    }
+
+    private CoolifyResourceOwnership requireResourceOwnership() {
+        if (resourceOwnership == null) throw CoolifyResourceOwnership.reconciliationRequired();
+        return resourceOwnership;
+    }
+
+    private record AuthorizedCoolifyResource(ManagedResourceOwnershipService.Receipt receipt, boolean present) { }
+
+    private AuthorizedCoolifyResource requireOwnedHandle(CoolifyConnection connection, DeploymentProviderResourceHandleEntity handle,
+                                                        boolean allowAbsent) {
+        if (!List.of(RESOURCE_KIND_APPLICATION, RESOURCE_KIND_CONNECTOR_APPLICATION,
+            RESOURCE_KIND_VECTORIZATION_RUNNER_APPLICATION, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE).contains(handle.getResourceKind()))
+            throw CoolifyResourceOwnership.reconciliationRequired();
+        CoolifyResourceOwnership ownership = requireResourceOwnership();
+        var ownerScope = ownership.scope(handle);
+        var location = ownership.location(connection, handle.getProviderProjectUuid(), handle.getProviderEnvironmentUuid());
+        String name = text(readJson(handle.getMetadataJson()),
+            isRuntimePostgresDatabase(handle) ? "databaseName" : "applicationName", null);
+        var receipt = ownership.requireHandle(ownerScope, location, handle.getResourceKind(), name, handle, allowAbsent);
+        boolean referencedElsewhere = resourceHandleRepository.findByProviderResourceUuidOrderByIdAsc(handle.getProviderResourceUuid())
+            .stream().anyMatch(other -> other.getProviderType() == DeploymentProviderType.COOLIFY
+                && !"DELETED".equals(other.getStatus()) && !java.util.Objects.equals(handle.getId(), other.getId()));
+        if (referencedElsewhere) throw CoolifyResourceOwnership.reconciliationRequired();
+        ownership.requireNoSharedReferences(handle.getProviderResourceUuid());
+        if (isRuntimePostgresDatabase(handle)) {
+            String secretName = text(readJson(handle.getMetadataJson()), "passwordSecretName", null);
+            if (secretName != null && !runtimePostgresPasswordSecretName(handle.getDeploymentId(), handle.getTargetProfileId()).equals(secretName))
+                throw CoolifyResourceOwnership.reconciliationRequired();
+            var observed = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid());
+            if (observed.isEmpty() && allowAbsent) {
+                requireAbsentMembership(connection, handle);
+                return new AuthorizedCoolifyResource(receipt, false);
+            }
+            var database = observed.orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
+            requireLiveMembership(connection, location, handle.getResourceKind(), name, handle.getProviderResourceUuid(),
+                database.uuid(), database.name(), database.raw());
+        } else {
+            var observed = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid());
+            if (observed.isEmpty() && allowAbsent) {
+                requireAbsentMembership(connection, handle);
+                return new AuthorizedCoolifyResource(receipt, false);
+            }
+            var application = observed.orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
+            requireLiveMembership(connection, location, handle.getResourceKind(), name, handle.getProviderResourceUuid(),
+                application.uuid(), application.name(), application.raw());
+        }
+        if ("DELETED".equals(receipt.state())) throw CoolifyResourceOwnership.reconciliationRequired();
+        return new AuthorizedCoolifyResource(receipt, true);
+    }
+
+    private void requireLiveMembership(CoolifyConnection connection, CoolifyResourceOwnership.Location location,
+                                        String kind, String name, String uuid, String observedUuid,
+                                        String observedName, JsonNode raw) {
+        List<CoolifyProjectSummary> projects = coolifyApiClient.listProjects(connection).stream()
+            .filter(project -> location.project().equals(project.uuid())).toList();
+        if (projects.size() != 1) throw CoolifyResourceOwnership.reconciliationRequired();
+        CoolifyEnvironmentSummary environment = coolifyApiClient.getEnvironment(connection, location.project(), location.environment())
+            .orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
+        requireResourceOwnership().requireLive(location, kind, name, uuid, observedUuid, observedName, raw,
+            projects.getFirst().raw(), environment.raw());
+    }
+
+    private void requireAbsentMembership(CoolifyConnection connection, DeploymentProviderResourceHandleEntity handle) {
+        var location = requireResourceOwnership().location(connection, handle.getProviderProjectUuid(), handle.getProviderEnvironmentUuid());
+        List<CoolifyProjectSummary> projects = coolifyApiClient.listProjects(connection).stream()
+            .filter(project -> location.project().equals(project.uuid())).toList();
+        if (projects.size() != 1) throw CoolifyResourceOwnership.reconciliationRequired();
+        CoolifyEnvironmentSummary environment = coolifyApiClient.getEnvironment(connection, location.project(), location.environment())
+            .orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
+        requireResourceOwnership().requireAbsent(location, handle.getResourceKind(), handle.getProviderResourceUuid(),
+            projects.getFirst().raw(), environment.raw());
     }
 
     @Override
@@ -1521,6 +1647,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         if (!StringUtils.hasText(secretName) || !platformSecretService.isManagedSecretName(secretName)) {
             return;
         }
+        if (!runtimePostgresPasswordSecretName(handle.getDeploymentId(), handle.getTargetProfileId()).equals(secretName))
+            throw CoolifyResourceOwnership.reconciliationRequired();
         platformSecretService.clearManagedSecret(
             secretName,
             Map.of(
@@ -1613,6 +1741,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                           String appName,
                                                           Supplier<CoolifyApplicationSummary> creator,
                                                           Consumer<String> updater) {
+        CoolifyResourceOwnership ownership = requireResourceOwnership();
+        var ownerScope = ownership.scope(deployment, profile.getId());
+        var location = ownership.location(connection, scope.projectUuid(), scope.environmentUuid());
         DeploymentProviderResourceHandleEntity existingHandle = resourceHandleRepository
             .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
                 deployment.getId(),
@@ -1621,149 +1752,90 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             )
             .orElse(null);
         if (existingHandle != null) {
-            if (!handleMatchesScope(existingHandle, scope)) {
-                deleteStaleApplication(connection, existingHandle);
-            } else {
-                String uuid = existingHandle.getProviderResourceUuid();
-                Optional<CoolifyApplicationSummary> currentApplication = coolifyApiClient.getApplication(connection, uuid);
-                if (currentApplication.isPresent()) {
-                    updater.accept(uuid);
-                    return coolifyApiClient.getApplication(connection, uuid).orElse(currentApplication.get());
-                }
-
-                Optional<CoolifyApplicationSummary> recoveredApplication = recoverApplicationForStaleHandle(
-                    connection,
-                    existingHandle,
-                    scope,
-                    appName
-                );
-                if (recoveredApplication.isPresent()) {
-                    CoolifyApplicationSummary recovered = recoveredApplication.get();
-                    updater.accept(recovered.uuid());
-                    return coolifyApiClient.getApplication(connection, recovered.uuid()).orElse(recovered);
-                }
-                return creator.get();
-            }
+            ownership.requireHandle(ownerScope, location, resourceKind, appName, existingHandle);
+            String uuid = existingHandle.getProviderResourceUuid();
+            requireLiveApplication(connection, location, appName, uuid);
+            updater.accept(uuid);
+            return requireLiveApplication(connection, location, appName, uuid);
         }
 
         List<CoolifyApplicationSummary> namedApplications = coolifyApiClient.listApplications(connection).stream()
             .filter(application -> appName.equals(application.name()))
-            .filter(application -> applicationMatchesScope(application, scope))
             .toList();
         if (namedApplications.size() > 1) {
-            throw new IllegalStateException(
-                "Cannot safely reconcile Coolify application '" + appName
-                    + "': found " + namedApplications.size() + " exact-name resources in the expected scope."
-            );
+            throw CoolifyResourceOwnership.reconciliationRequired();
         }
         CoolifyApplicationSummary namedApplication = namedApplications.isEmpty() ? null : namedApplications.getFirst();
         if (namedApplication != null) {
+            ownership.requireOwned(ownerScope, location, resourceKind, appName, namedApplication.uuid());
+            requireLiveApplication(connection, location, appName, namedApplication.uuid());
             updater.accept(namedApplication.uuid());
-            return coolifyApiClient.getApplication(connection, namedApplication.uuid()).orElse(namedApplication);
+            return requireLiveApplication(connection, location, appName, namedApplication.uuid());
         }
-        return createWithConflictCleanup(connection, scope, appName, creator);
+        CoolifyApplicationSummary created = createApplicationWithReceipt(
+            connection, scope, deployment, profile, resourceKind, appName, creator);
+        ownership.requireOwned(ownerScope, location, resourceKind, appName, created.uuid());
+        updater.accept(created.uuid());
+        return requireLiveApplication(connection, location, appName, created.uuid());
     }
 
-    private Optional<CoolifyApplicationSummary> recoverApplicationForStaleHandle(
-        CoolifyConnection connection,
-        DeploymentProviderResourceHandleEntity existingHandle,
-        CoolifyResourceScope scope,
-        String appName
-    ) {
-        String recordedApplicationName = text(readJson(existingHandle.getMetadataJson()), "applicationName", null);
-        if (!appName.equals(recordedApplicationName)) {
-            return Optional.empty();
-        }
-
-        List<CoolifyApplicationSummary> namedApplications = coolifyApiClient.listApplications(connection).stream()
-            .filter(application -> appName.equals(application.name()))
-            .filter(application -> StringUtils.hasText(application.uuid()))
-            .toList();
-        if (namedApplications.isEmpty()) {
-            return Optional.empty();
-        }
-        if (namedApplications.size() != 1) {
-            throw new IllegalStateException(
-                "Cannot safely recover stale Coolify handle for application '" + appName
-                    + "': expected one exact-name candidate but found " + namedApplications.size() + "."
-            );
-        }
-
-        CoolifyApplicationSummary candidate = namedApplications.getFirst();
-        if (applicationConflictsWithScope(candidate, scope)) {
-            throw new IllegalStateException(
-                "Cannot safely recover stale Coolify handle for application '" + appName
-                    + "': the exact-name candidate belongs to a different project or environment."
-            );
-        }
-        return Optional.of(candidate);
+    private CoolifyApplicationSummary requireLiveApplication(CoolifyConnection connection,
+                                                              CoolifyResourceOwnership.Location location,
+                                                              String appName, String uuid) {
+        CoolifyApplicationSummary observed = coolifyApiClient.getApplication(connection, uuid)
+            .orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
+        requireLiveMembership(connection, location, RESOURCE_KIND_APPLICATION, appName, uuid,
+            observed.uuid(), observed.name(), observed.raw());
+        return observed;
     }
 
-    private CoolifyApplicationSummary createWithConflictCleanup(CoolifyConnection connection,
+    private CoolifyApplicationSummary createApplicationWithReceipt(CoolifyConnection connection,
                                                                 CoolifyResourceScope scope,
+                                                                DeploymentEntity deployment,
+                                                                DeploymentTargetProfileEntity profile,
+                                                                String resourceKind,
                                                                 String appName,
                                                                 Supplier<CoolifyApplicationSummary> creator) {
-        try {
-            return creator.get();
-        } catch (CoolifyApiException ex) {
-            if (ex.statusCode() != 409) {
-                throw ex;
-            }
-            CoolifyApplicationSummary conflictingApplication = coolifyApiClient.listApplications(connection).stream()
-                .filter(application -> appName.equals(application.name()))
-                .filter(application -> !applicationMatchesScope(application, scope))
-                .findFirst()
-                .orElse(null);
-            if (conflictingApplication == null || !StringUtils.hasText(conflictingApplication.uuid())) {
-                throw ex;
-            }
-            deleteStaleApplication(connection, conflictingApplication.uuid());
-            return creator.get();
-        }
+        CoolifyResourceOwnership ownership = requireResourceOwnership();
+        var location = ownership.location(connection, scope.projectUuid(), scope.environmentUuid());
+        return ownership.create(ownership.scope(deployment, profile.getId()), location, resourceKind, appName, () -> {
+            CoolifyApplicationSummary created = creator.get();
+            requireLiveMembership(connection, location, resourceKind, appName, created.uuid(),
+                created.uuid(), created.name(), created.raw());
+            return created;
+        }, CoolifyApplicationSummary::uuid);
     }
 
     private CoolifyApplicationSummary createDockerImageApplication(CoolifyConnection connection,
                                                                   CoolifyCreateDockerImageApplicationRequest request) {
         String uuid = coolifyApiClient.createDockerImageApplication(connection, request);
+        if (!StringUtils.hasText(uuid)) throw CoolifyResourceOwnership.reconciliationRequired();
         return coolifyApiClient.getApplication(connection, uuid)
-            .orElse(new CoolifyApplicationSummary(
-                uuid,
-                request.name(),
-                request.domains(),
-                "CREATED",
-                request.imageRepository(),
-                request.imageTag(),
-                objectMapper.createObjectNode().put("uuid", uuid).put("name", request.name())
-            ));
+            .filter(application -> uuid.equals(application.uuid()))
+            .orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
     }
 
     private CoolifyApplicationSummary createPublicApplication(CoolifyConnection connection,
                                                              CoolifyCreatePublicApplicationRequest request) {
         String uuid = coolifyApiClient.createPublicApplication(connection, request);
-        coolifyApiClient.updatePublicApplication(connection, uuid, request);
+        if (!StringUtils.hasText(uuid)) throw CoolifyResourceOwnership.reconciliationRequired();
         return coolifyApiClient.getApplication(connection, uuid)
-            .orElse(new CoolifyApplicationSummary(
-                uuid,
-                request.name(),
-                request.domains(),
-                "CREATED",
-                null,
-                null,
-                objectMapper.createObjectNode()
-                    .put("uuid", uuid)
-                    .put("name", request.name())
-                    .put("git_repository", request.gitRepository())
-                    .put("git_branch", request.gitBranch())
-            ));
+            .filter(application -> uuid.equals(application.uuid()))
+            .orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
     }
 
     private CoolifyRuntimeDatabaseBinding reconcileRuntimeDatabaseBinding(CoolifyConnection connection,
                                                                           CoolifyResourceScope scope,
                                                                           DeploymentEntity deployment,
                                                                           DeploymentTargetProfileEntity profile,
-                                                                          JsonNode resourceDefaults) {
+                                                                          JsonNode resourceDefaults,
+                                                                          JsonNode providerConfig) {
+        AiStateStorageMode selected = DeploymentAiStateStorageSelection.selected(providerConfig);
+        if (selected == AiStateStorageMode.CUSTOMER_POSTGRES) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "AI_STATE_STORAGE_BINDING_REQUIRED");
+        }
         String mode = text(resourceDefaults, "runtimeDatabaseMode", null);
-        if (!RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES.equalsIgnoreCase(mode)) {
+        if (selected == null && !RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES.equalsIgnoreCase(mode)) {
             return null;
         }
         if (platformSecretService == null) {
@@ -1797,19 +1869,61 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         String jdbcDatabaseName = StringUtils.hasText(database.postgresDatabase())
             ? database.postgresDatabase()
             : request.postgresDatabase();
-        String jdbcUrl = text(
-            resourceDefaults,
-            "runtimeDatabaseJdbcUrl",
-            "jdbc:postgresql://" + internalHost + ":" + port + "/" + jdbcDatabaseName
-        );
+        String managedJdbcUrl = "jdbc:postgresql://" + internalHost + ":" + port + "/" + jdbcDatabaseName;
+        String jdbcUrl = selected == null ? text(resourceDefaults, "runtimeDatabaseJdbcUrl", managedJdbcUrl) : managedJdbcUrl;
         return new CoolifyRuntimeDatabaseBinding(
-            RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES,
+            selected == null ? RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES : selected.name(),
             database,
             jdbcUrl,
             request.postgresUser(),
             password,
             passwordSecretName
         );
+    }
+
+    CoolifyRuntimeDatabaseBinding validateAiStateStorageBeforeEffects(DeploymentEntity deployment,
+        DeploymentVersionEntity version, DeploymentReleaseEntity release, DeploymentTargetProfileEntity profile) {
+        JsonNode config = readJson(version.getProviderConfigJson());
+        AiStateStorageMode selected = DeploymentAiStateStorageSelection.selected(config);
+        boolean productized = customerOfferDeploymentRepository != null
+            && customerOfferDeploymentRepository.existsById(deployment.getId());
+        if (productized && selected == null) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "AI_STATE_STORAGE_EXPLICIT_CHOICE_REQUIRED");
+        }
+        if (selected == null) return null;
+        if (!deployment.getId().equals(version.getDeploymentId()) || !deployment.getId().equals(release.getDeploymentId())
+            || !version.getId().equals(release.getDeploymentVersionId()) || !profile.getId().equals(release.getTargetProfileId())
+            || !"PUBLISHED".equals(version.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "AI_STATE_STORAGE_RELEASE_SCOPE_CHANGED");
+        }
+        if (aiStateStorageBindings == null) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
+        }
+        aiStateStorageBindings.requireUnchanged(deployment, version, release);
+        if (selected == AiStateStorageMode.CUSTOMER_POSTGRES) {
+            return aiStateStorageBindings.resolve(deployment, version, profile);
+        }
+        if (readJson(profile.getResourceDefaultsJson()).has("runtimeDatabaseJdbcUrl")) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "AI_STATE_STORAGE_RAW_JDBC_OVERRIDE_FORBIDDEN");
+        }
+        boolean external = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
+            deployment.getId(), profile.getId()).stream()
+            .anyMatch(handle -> PreservedExternalBindingKinds.AI_STATE_STORAGE.equals(handle.getResourceKind()));
+        if (external) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "AI_STATE_STORAGE_EXISTING_CUSTOMER_STORE_REQUIRES_MIGRATION");
+        }
+        return null;
+    }
+
+    void requireAiStateSequentialReplacement(DeploymentReleaseEntity release,
+        RuntimeGenerationCheckpointService.PriorRuntime previousRuntime) {
+        if (previousRuntime == null) return;
+        if (!StringUtils.hasText(release.getRuntimeAuthoritySnapshotId())
+            || !StringUtils.hasText(release.getRuntimeAuthorityFingerprint())
+            || deploymentRuntimeGenerationService == null || runtimeGenerationCheckpointService == null) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                "AI_STATE_STORAGE_SEQUENTIAL_REPLACEMENT_REQUIRED");
+        }
     }
 
     private String resolveRuntimeDatabaseInternalHost(CoolifyDatabaseSummary database) {
@@ -1835,89 +1949,56 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                              DeploymentEntity deployment,
                                                              DeploymentTargetProfileEntity profile,
                                                              CoolifyCreatePostgresDatabaseRequest request) {
+        CoolifyResourceOwnership ownership = requireResourceOwnership();
+        var ownerScope = ownership.scope(deployment, profile.getId());
+        var location = ownership.location(connection, scope.projectUuid(), scope.environmentUuid());
         Optional<DeploymentProviderResourceHandleEntity> existingHandle =
             resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
                 deployment.getId(),
                 profile.getId(),
                 RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE
             );
-        if (existingHandle.isPresent() && handleMatchesScope(existingHandle.get(), scope)) {
+        if (existingHandle.isPresent()) {
+            ownership.requireHandle(ownerScope, location, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, request.name(), existingHandle.get());
             String uuid = existingHandle.get().getProviderResourceUuid();
-            Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
-            if (observed.isPresent()) {
-                coolifyApiClient.updatePostgresDatabase(connection, uuid, request);
-                return requireDatabaseCapacity(
-                    freshDatabaseReadback(connection, uuid, observed.get(), request), request);
-            }
+            requireLiveDatabase(connection, location, request.name(), uuid);
+            coolifyApiClient.updatePostgresDatabase(connection, uuid, request);
+            return requireDatabaseCapacity(requireLiveDatabase(connection, location, request.name(), uuid), request);
         }
 
         List<CoolifyDatabaseSummary> namedDatabases = coolifyApiClient.listDatabases(connection).stream()
             .filter(database -> request.name().equals(database.name()))
-            .filter(database -> databaseMatchesScope(database, scope))
             .toList();
         if (namedDatabases.size() > 1) {
-            throw new IllegalStateException(
-                "Cannot safely reconcile Coolify database '" + request.name()
-                    + "': found " + namedDatabases.size() + " exact-name resources in the expected scope."
-            );
+            throw CoolifyResourceOwnership.reconciliationRequired();
         }
         CoolifyDatabaseSummary namedDatabase = namedDatabases.isEmpty() ? null : namedDatabases.getFirst();
         if (namedDatabase != null) {
+            ownership.requireOwned(ownerScope, location, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, request.name(), namedDatabase.uuid());
+            requireLiveDatabase(connection, location, request.name(), namedDatabase.uuid());
             coolifyApiClient.updatePostgresDatabase(connection, namedDatabase.uuid(), request);
-            return requireDatabaseCapacity(
-                freshDatabaseReadback(connection, namedDatabase.uuid(), namedDatabase, request), request);
+            return requireDatabaseCapacity(requireLiveDatabase(connection, location, request.name(), namedDatabase.uuid()), request);
         }
 
-        try {
+        CoolifyDatabaseSummary database = ownership.create(ownerScope, location, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE,
+            request.name(), () -> {
             String uuid = coolifyApiClient.createPostgresDatabase(connection, request);
-            Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
-            CoolifyDatabaseSummary database = observed.orElseGet(() -> new CoolifyDatabaseSummary(
-                    uuid,
-                    request.name(),
-                    "CREATED",
-                    "postgresql",
-                    request.postgresUser(),
-                    request.postgresDatabase(),
-                    objectMapper.createObjectNode()
-                        .put("uuid", uuid)
-                        .put("name", request.name())
-                        .put("postgres_user", request.postgresUser())
-                        .put("postgres_db", request.postgresDatabase())
-                ));
-            if (request.runtimeSettings() != null && observed.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "RUNTIME_DATABASE_CAPACITY_READBACK_MISSING");
-            }
-            requireDatabaseCapacity(database, request);
-            coolifyApiClient.startDatabase(connection, uuid);
-            return database;
-        } catch (CoolifyApiException ex) {
-            if (ex.statusCode() != 409) {
-                throw ex;
-            }
-            List<CoolifyDatabaseSummary> conflictingDatabases = coolifyApiClient.listDatabases(connection).stream()
-                .filter(database -> request.name().equals(database.name()))
-                .filter(database -> databaseMatchesScope(database, scope))
-                .toList();
-            if (conflictingDatabases.size() != 1) {
-                throw new IllegalStateException(
-                    "Cannot safely recover Coolify database '" + request.name()
-                        + "' after a provider conflict: expected one exact-name resource but found "
-                        + conflictingDatabases.size() + ".",
-                    ex
-                );
-            }
-            return requireDatabaseCapacity(conflictingDatabases.getFirst(), request);
-        }
+            if (!StringUtils.hasText(uuid)) throw CoolifyResourceOwnership.reconciliationRequired();
+            return requireDatabaseCapacity(requireLiveDatabase(connection, location, request.name(), uuid), request);
+        }, CoolifyDatabaseSummary::uuid);
+        ownership.requireOwned(ownerScope, location, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, request.name(), database.uuid());
+        coolifyApiClient.startDatabase(connection, database.uuid());
+        return database;
     }
 
-    private CoolifyDatabaseSummary freshDatabaseReadback(CoolifyConnection connection, String uuid,
-                                                          CoolifyDatabaseSummary legacyFallback,
-                                                          CoolifyCreatePostgresDatabaseRequest request) {
-        Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
-        if (request.runtimeSettings() != null && observed.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "RUNTIME_DATABASE_CAPACITY_READBACK_MISSING");
-        }
-        return observed.orElse(legacyFallback);
+    private CoolifyDatabaseSummary requireLiveDatabase(CoolifyConnection connection,
+                                                       CoolifyResourceOwnership.Location location,
+                                                       String name, String uuid) {
+        CoolifyDatabaseSummary observed = coolifyApiClient.getDatabase(connection, uuid)
+            .orElseThrow(CoolifyResourceOwnership::reconciliationRequired);
+        requireLiveMembership(connection, location, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, name, uuid,
+            observed.uuid(), observed.name(), observed.raw());
+        return observed;
     }
 
     private CoolifyDatabaseSummary requireDatabaseCapacity(CoolifyDatabaseSummary database,
@@ -1937,9 +2018,20 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                                                 JsonNode resourceDefaults) {
         String databaseName = normalizeDatabaseIdentifier(text(resourceDefaults, "runtimeDatabaseName", "runtime_chat"));
         String username = normalizeDatabaseIdentifier(text(resourceDefaults, "runtimeDatabaseUsername", "runtime_user"));
+        String prefix = text(resourceDefaults, "runtimeDatabaseNamePrefix", "ai-fabric-runtime-postgres");
+        String resourceName = normalizeName(prefix + "-" + deployment.getId());
         String passwordSecretName = runtimePostgresPasswordSecretName(deployment.getId(), profile.getId());
         String password = platformSecretService.resolveSecret(passwordSecretName);
         if (!StringUtils.hasText(password)) {
+            CoolifyResourceOwnership ownership = requireResourceOwnership();
+            var location = ownership.location(connection, scope.projectUuid(), scope.environmentUuid());
+            boolean existingHandle = resourceHandleRepository
+                .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+                    deployment.getId(), profile.getId(), RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE).isPresent();
+            if (existingHandle || ownership.hasCreationIntent(ownership.scope(deployment, profile.getId()), location,
+                    RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, resourceName)
+                || coolifyApiClient.listDatabases(connection).stream().anyMatch(database -> resourceName.equals(database.name())))
+                throw CoolifyResourceOwnership.reconciliationRequired();
             password = generateSecretValue();
             platformSecretService.upsertManagedSecret(
                 passwordSecretName,
@@ -1951,8 +2043,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 )
             );
         }
-        String prefix = text(resourceDefaults, "runtimeDatabaseNamePrefix", "ai-fabric-runtime-postgres");
-        String resourceName = normalizeName(prefix + "-" + deployment.getId());
         CoolifyDatabaseRuntimeSettings databaseCapacity = runtimeDatabaseCapacity(
             deployment,
             profile,
@@ -2028,7 +2118,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         handle.setProviderEnvironmentUuid(scope.environmentUuid());
         handle.setProviderServerUuid(config.serverUuid());
         handle.setFqdn(null);
-        handle.setMetadataJson(databaseHandleMetadata(binding, scope));
+        handle.setMetadataJson(withOwnershipReceipt(databaseHandleMetadata(binding, scope), deployment, profile, scope, config,
+            RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, binding.database().name(), binding.database().uuid()));
         return persistDatabaseHandle(handle, binding);
     }
 
@@ -2236,9 +2327,21 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         handle.setStatus(applicationReady(application) ? "ACTIVE" : "DEPLOY_REQUESTED");
         handle.setLastObservedStatus(application.status());
         handle.setLastObservedAt(now);
-        handle.setMetadataJson(handleMetadata(application, source, scope, serviceRole, envCount, deployResponse));
+        handle.setMetadataJson(withOwnershipReceipt(handleMetadata(application, source, scope, serviceRole, envCount, deployResponse),
+            deployment, profile, scope, config, resourceKind, application.name(), application.uuid()));
         handle.setUpdatedAt(now);
         return resourceHandleRepository.save(handle);
+    }
+
+    private String withOwnershipReceipt(String metadataJson, DeploymentEntity deployment, DeploymentTargetProfileEntity profile,
+                                         CoolifyResourceScope scope, CoolifyTargetProfileConfig config,
+                                         String kind, String name, String uuid) {
+        CoolifyResourceOwnership ownership = requireResourceOwnership();
+        var location = ownership.location(new CoolifyConnection(config.baseUrl(), null, config), scope.projectUuid(), scope.environmentUuid());
+        var receipt = ownership.requireOwned(ownership.scope(deployment, profile.getId()), location, kind, name, uuid);
+        ObjectNode metadata = (ObjectNode) readJson(metadataJson);
+        metadata.put("ownershipReceiptId", receipt.id());
+        return metadata.toPrettyString();
     }
 
     private CoolifyResourceScope resolveResourceScope(CoolifyConnection connection,
@@ -2682,13 +2785,31 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 : source.dockerfileLocation());
         }
         if (SERVICE_ROLE_RUNTIME.equals(serviceRole) && runtimeDatabaseBinding != null) {
-            putEnv(env, "SPRING_DATASOURCE_URL", runtimeDatabaseBinding.jdbcUrl());
+            putEnv(env, "SPRING_DATASOURCE_URL", runtimeDatabaseBinding.jdbcUrl(), !runtimeDatabaseBinding.managed());
             putEnv(env, "SPRING_DATASOURCE_DRIVER_CLASS_NAME", "org.postgresql.Driver");
             putEnv(env, "SPRING_DATASOURCE_USERNAME", runtimeDatabaseBinding.username(), true);
             putEnv(env, "SPRING_DATASOURCE_PASSWORD", runtimeDatabaseBinding.password(), true);
             putEnv(env, "PLATFORM_RUNTIME_DATABASE_MODE", runtimeDatabaseBinding.mode());
-            putEnv(env, "PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
-            putEnv(env, "PLATFORM_RUNTIME_DATABASE_PASSWORD_SECRET", runtimeDatabaseBinding.passwordSecretName(), true);
+            if (runtimeDatabaseBinding.managed()) {
+                putEnv(env, "PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
+                putEnv(env, "PLATFORM_RUNTIME_DATABASE_PASSWORD_SECRET", runtimeDatabaseBinding.passwordSecretName(), true);
+            } else {
+                putEnv(env, "PLATFORM_AI_STATE_STORAGE_BINDING_ID", runtimeDatabaseBinding.bindingId());
+                putEnv(env, "PLATFORM_AI_STATE_STORAGE_FINGERPRINT", runtimeDatabaseBinding.fingerprint());
+                putEnv(env, "SPRING_FLYWAY_ENABLED", "true");
+                putEnv(env, "SPRING_FLYWAY_DEFAULT_SCHEMA", runtimeDatabaseBinding.runtimeSchema(), true);
+                putEnv(env, "SPRING_FLYWAY_SCHEMAS", runtimeDatabaseBinding.runtimeSchema(), true);
+                putEnv(env, "SPRING_FLYWAY_CREATE_SCHEMAS", "false");
+                putEnv(env, "SPRING_FLYWAY_URL", runtimeDatabaseBinding.jdbcUrl(), true);
+                putEnv(env, "SPRING_FLYWAY_USER", runtimeDatabaseBinding.username(), true);
+                putEnv(env, "SPRING_FLYWAY_PASSWORD", runtimeDatabaseBinding.password(), true);
+                putEnv(env, "SPRING_FLYWAY_CLEAN_DISABLED", "true");
+                putEnv(env, "SPRING_DATASOURCE_HIKARI_SCHEMA", runtimeDatabaseBinding.runtimeSchema(), true);
+                putEnv(env, "SPRING_DATASOURCE_HIKARI_JDBC_URL", runtimeDatabaseBinding.jdbcUrl(), true);
+                putEnv(env, "SPRING_DATASOURCE_HIKARI_USERNAME", runtimeDatabaseBinding.username(), true);
+                putEnv(env, "SPRING_DATASOURCE_HIKARI_PASSWORD", runtimeDatabaseBinding.password(), true);
+                putEnv(env, "SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA", runtimeDatabaseBinding.runtimeSchema(), true);
+            }
         }
         if (SERVICE_ROLE_RUNTIME.equals(serviceRole)
             && requiresDurableConnectorPersistence(version)
@@ -2698,13 +2819,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         if (SERVICE_ROLE_CONNECTOR.equals(serviceRole)
             && runtimeDatabaseBinding != null
             && requiresDurableConnectorPersistence(version)) {
-            putEnv(env, "REST_CONNECTOR_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
-            putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
-            putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME", runtimeDatabaseBinding.username(), true);
-            putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD", runtimeDatabaseBinding.password(), true);
-            putEnv(env, "PLATFORM_INTEGRATION_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
+            putEnv(env, "REST_CONNECTOR_JDBC_URL", runtimeDatabaseBinding.connectorJdbcUrl(), !runtimeDatabaseBinding.managed());
+            if (runtimeDatabaseBinding.managed()) {
+                putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
+                putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME", runtimeDatabaseBinding.username(), true);
+                putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD", runtimeDatabaseBinding.password(), true);
+                putEnv(env, "PLATFORM_INTEGRATION_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
+            } else {
+                CONNECTOR_DATABASE_BOOTSTRAP_ENV_KEYS.forEach(env::remove);
+                putEnv(env, "REST_CONNECTOR_PERSISTENCE_ENABLED", "true");
+                putEnv(env, "REST_CONNECTOR_JDBC_USERNAME", runtimeDatabaseBinding.username(), true);
+                putEnv(env, "REST_CONNECTOR_JDBC_PASSWORD", runtimeDatabaseBinding.password(), true);
+                putEnv(env, "REST_CONNECTOR_PERSISTENCE_SCHEMA", runtimeDatabaseBinding.connectorSchema(), true);
+                putEnv(env, "PLATFORM_AI_STATE_STORAGE_BINDING_ID", runtimeDatabaseBinding.bindingId());
+                putEnv(env, "PLATFORM_AI_STATE_STORAGE_FINGERPRINT", runtimeDatabaseBinding.fingerprint());
+            }
         }
         mergeFrozenRuntimeAuthorityEnvironment(deployment, version, release, serviceRole, env);
+        mergeFrozenExternalIntegrationEnvironment(deployment, version, release, serviceRole, env);
         if (SERVICE_ROLE_RUNTIME.equals(serviceRole)) {
             if (providerUsageReleaseCoordinator != null) {
                 providerUsageReleaseCoordinator.environment(deployment, release)
@@ -2747,7 +2879,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             && customerOfferDeploymentRepository.existsById(deployment.getId())) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "Productized Coolify runtimes require target-owned PostgreSQL for durable fencing and recovery."
+                "Productized Coolify runtimes require explicitly selected durable PostgreSQL for fencing and recovery."
             );
         }
     }
@@ -2800,6 +2932,23 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
         return resolved;
+    }
+
+    void mergeFrozenExternalIntegrationEnvironment(DeploymentEntity deployment, DeploymentVersionEntity version,
+        DeploymentReleaseEntity release, String serviceRole, LinkedHashMap<String, CoolifyEnvVar> env) {
+        if (!SERVICE_ROLE_CONNECTOR.equals(serviceRole)) return;
+        if (!com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationRequirement
+            .required(readJson(version.getCompositionProvenanceJson()))) return;
+        var plan = externalIntegrations.releaseEnvironment(deployment.getId(), version.getId(), release.getTargetProfileId(),
+            release.getId(), release.getRuntimeAuthorityFingerprint());
+        plan.configEnvironment().forEach((name, value) -> {
+            if (env.containsKey(name)) throw new IllegalStateException("EXTERNAL_INTEGRATION_ENVIRONMENT_COLLISION");
+            putEnv(env, name, value, false);
+        });
+        plan.secretEnvironment().forEach((name, reference) -> {
+            if (env.containsKey(name)) throw new IllegalStateException("EXTERNAL_INTEGRATION_ENVIRONMENT_COLLISION");
+            putEnv(env, name, resolveAuthorityEnvironmentValue(reference, null), true);
+        });
     }
 
     private List<CoolifyEnvVar> withPreviewEnvironment(List<CoolifyEnvVar> envVars) {
@@ -3019,35 +3168,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         };
     }
 
-    private boolean handleMatchesScope(DeploymentProviderResourceHandleEntity handle, CoolifyResourceScope scope) {
-        if (!sameText(handle.getProviderProjectUuid(), scope.projectUuid())) {
-            return false;
-        }
-        return !StringUtils.hasText(scope.environmentUuid())
-            || !StringUtils.hasText(handle.getProviderEnvironmentUuid())
-            || sameText(handle.getProviderEnvironmentUuid(), scope.environmentUuid());
-    }
-
-    private void deleteStaleApplication(CoolifyConnection connection, DeploymentProviderResourceHandleEntity handle) {
-        deleteStaleApplication(connection, handle.getProviderResourceUuid());
-    }
-
-    private void deleteStaleApplication(CoolifyConnection connection, String applicationUuid) {
-        try {
-            coolifyApiClient.delete(connection, applicationUuid, true, false, true, true);
-            waitForApplicationAbsent(connection, applicationUuid);
-        } catch (CoolifyApiException ex) {
-            if (ex.statusCode() != 404) {
-                throw ex;
-            }
-        }
-    }
-
     private void waitForApplicationAbsent(CoolifyConnection connection, String applicationUuid) {
         Instant deadline = Instant.now().plus(DEFAULT_STALE_DELETE_TIMEOUT);
         while (Instant.now().isBefore(deadline)) {
             Optional<CoolifyApplicationSummary> observed = coolifyApiClient.getApplication(connection, applicationUuid);
-            if (observed == null || observed.isEmpty()) {
+            if (observed == null) throw CoolifyResourceOwnership.reconciliationRequired();
+            if (observed.isEmpty()) {
                 return;
             }
             try {
@@ -3069,7 +3195,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         Instant deadline = Instant.now().plus(DEFAULT_STALE_DELETE_TIMEOUT);
         while (Instant.now().isBefore(deadline)) {
             Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, databaseUuid);
-            if (observed == null || observed.isEmpty()) {
+            if (observed == null) throw CoolifyResourceOwnership.reconciliationRequired();
+            if (observed.isEmpty()) {
                 return;
             }
             try {
@@ -3085,88 +3212,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         throw new IllegalStateException(
             "Timed out waiting for Coolify database " + databaseUuid + " to be deleted."
         );
-    }
-
-    private boolean applicationMatchesScope(CoolifyApplicationSummary application, CoolifyResourceScope scope) {
-        if (!scope.customerGrouped()) {
-            return true;
-        }
-        JsonNode raw = application.raw();
-        String projectUuid = textFirst(raw, "project_uuid", "projectUuid");
-        if (!StringUtils.hasText(projectUuid)) {
-            projectUuid = raw.path("project").path("uuid").asText(null);
-        }
-        if (!sameText(projectUuid, scope.projectUuid())) {
-            return false;
-        }
-        String environmentUuid = textFirst(raw, "environment_uuid", "environmentUuid");
-        if (!StringUtils.hasText(environmentUuid)) {
-            environmentUuid = raw.path("environment").path("uuid").asText(null);
-        }
-        if (StringUtils.hasText(scope.environmentUuid()) && StringUtils.hasText(environmentUuid)) {
-            return sameText(environmentUuid, scope.environmentUuid());
-        }
-        String environmentName = textFirst(raw, "environment_name", "environmentName");
-        if (!StringUtils.hasText(environmentName)) {
-            environmentName = raw.path("environment").path("name").asText(null);
-        }
-        return !StringUtils.hasText(environmentName) || sameText(environmentName, scope.environmentName());
-    }
-
-    private boolean applicationConflictsWithScope(CoolifyApplicationSummary application, CoolifyResourceScope scope) {
-        if (!scope.customerGrouped()) {
-            return false;
-        }
-        JsonNode raw = application.raw();
-        String projectUuid = textFirst(raw, "project_uuid", "projectUuid");
-        if (!StringUtils.hasText(projectUuid)) {
-            projectUuid = raw.path("project").path("uuid").asText(null);
-        }
-        if (StringUtils.hasText(projectUuid) && !sameText(projectUuid, scope.projectUuid())) {
-            return true;
-        }
-
-        String environmentUuid = textFirst(raw, "environment_uuid", "environmentUuid");
-        if (!StringUtils.hasText(environmentUuid)) {
-            environmentUuid = raw.path("environment").path("uuid").asText(null);
-        }
-        if (StringUtils.hasText(scope.environmentUuid())
-            && StringUtils.hasText(environmentUuid)
-            && !sameText(environmentUuid, scope.environmentUuid())) {
-            return true;
-        }
-
-        String environmentName = textFirst(raw, "environment_name", "environmentName");
-        if (!StringUtils.hasText(environmentName)) {
-            environmentName = raw.path("environment").path("name").asText(null);
-        }
-        return StringUtils.hasText(environmentName) && !sameText(environmentName, scope.environmentName());
-    }
-
-    private boolean databaseMatchesScope(CoolifyDatabaseSummary database, CoolifyResourceScope scope) {
-        if (!scope.customerGrouped()) {
-            return true;
-        }
-        JsonNode raw = database.raw();
-        String projectUuid = textFirst(raw, "project_uuid", "projectUuid");
-        if (!StringUtils.hasText(projectUuid)) {
-            projectUuid = raw.path("project").path("uuid").asText(null);
-        }
-        if (!sameText(projectUuid, scope.projectUuid())) {
-            return false;
-        }
-        String environmentUuid = textFirst(raw, "environment_uuid", "environmentUuid");
-        if (!StringUtils.hasText(environmentUuid)) {
-            environmentUuid = raw.path("environment").path("uuid").asText(null);
-        }
-        if (StringUtils.hasText(scope.environmentUuid()) && StringUtils.hasText(environmentUuid)) {
-            return sameText(environmentUuid, scope.environmentUuid());
-        }
-        String environmentName = textFirst(raw, "environment_name", "environmentName");
-        if (!StringUtils.hasText(environmentName)) {
-            environmentName = raw.path("environment").path("name").asText(null);
-        }
-        return !StringUtils.hasText(environmentName) || sameText(environmentName, scope.environmentName());
     }
 
     private CoolifyApplicationSummary waitForApplicationReady(CoolifyConnection connection,
@@ -3536,6 +3581,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private CoolifyConnection connectionForHandle(DeploymentProviderResourceHandleEntity handle) {
+        if (PreservedExternalBindingKinds.isPreserved(handle.getResourceKind())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "CUSTOMER_SOURCE_PRESERVED");
+        }
         DeploymentTargetProfileEntity profile = targetProfileRepository.findById(handle.getTargetProfileId())
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
@@ -3704,6 +3752,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             database.put("username", runtimeDatabaseBinding.database().postgresUser());
             database.put("status", runtimeDatabaseBinding.database().status());
             database.put("passwordSecret", runtimeDatabaseBinding.passwordSecretName());
+        }
+        if (runtimeDatabaseBinding != null && !runtimeDatabaseBinding.managed()) {
+            details.put("runtimeDatabaseMode", runtimeDatabaseBinding.mode());
+            details.put("aiStateStorageBindingId", runtimeDatabaseBinding.bindingId());
+            details.put("aiStateStorageFingerprint", runtimeDatabaseBinding.fingerprint());
+            details.put("aiStateStorageLifecycle", "RETAIN_EXTERNAL");
         }
         if (connectorHandle != null && connectorApplication != null) {
             details.put("connectorProviderResourceHandleId", connectorHandle.getId());

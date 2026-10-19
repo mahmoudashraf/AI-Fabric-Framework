@@ -139,7 +139,23 @@ class ProductionManagedDependencyPrerequisitesTest {
         when(verifiers.orderedStream()).thenReturn(Stream.empty());
 
         prerequisites = new ProductionManagedDependencyPrerequisites(admission, graphs, artifacts, manifests,
-            snapshots, releases, endpoints, provisioning, retirementOperations, retirementGates, verifiers, mapper);
+            snapshots, releases, endpoints, provisioning, retirementOperations, retirementGates, verifiers, mapper,
+            new ManagedDependencyArtifactPolicy(artifacts, manifests));
+        when(artifacts.findById(service.sourceArtifactId()))
+            .thenReturn(Optional.of(ManagedDependencyFixtures.ownedAiArtifact(service)));
+    }
+
+    @Test
+    void workerRejectsUnprovenOwnershipBeforeAdmissionOrRemoteEffects() {
+        var artifact = ManagedDependencyFixtures.ownedAiArtifact(spec.services().getFirst());
+        artifact.setCapabilityManifestJson("{}");
+        artifact.setCapabilityManifestHash(null);
+        when(artifacts.findById(artifact.getId())).thenReturn(Optional.of(artifact));
+        clearInvocations(admission, provisioning);
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec,
+            ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining("DEPENDENCY_ARTIFACT_OWNERSHIP_UNPROVEN");
+        verifyNoInteractions(admission, provisioning);
     }
 
     @Test
@@ -162,12 +178,8 @@ class ProductionManagedDependencyPrerequisitesTest {
         artifact.setImageRepository("registry.example.test/service");
         artifact.setImageDigest("sha256:" + "1".repeat(64)); artifact.setGitCommitSha("2".repeat(40));
         artifact.setPromotionChannel("production"); artifact.setPromotedAt(Instant.now());
-        var candidate = mapper.readTree("""
-            {"schemaVersion":"loomai-runtime-capabilities-v1","aiFabricVersion":"0.8.36",
-             "supportedBehaviorTypes":["CONVERSATIONAL"],"supportedActivationSources":[],"supportedChannelBindings":[],
-             "supportedExecutionExtensions":[],"capabilities":[],"endpointClasses":[],
-             "migrationIds":[],"verificationPackIds":[],"specialistBundles":[]}
-            """);
+        var candidate = mapper.readTree(ManagedDependencyFixtures.ownedAiArtifact(spec.services().getFirst())
+            .getCapabilityManifestJson());
         var normalized = manifests.normalize(candidate);
         artifact.setCapabilityManifestJson(mapper.writeValueAsString(normalized.manifest()));
         artifact.setCapabilityManifestHash(normalized.hash());

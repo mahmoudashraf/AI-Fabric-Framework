@@ -873,6 +873,8 @@ abstract class ProviderUsageAllowanceContract {
             "offer", "offer-fingerprint", 1, "placement", CustomerOfferContracts.Operation.APPLY, "apply-deployment", limits, topology), definition);
         var runtime = mock(DeploymentService.class); var documents = mock(DeploymentDocumentBindingResolver.class);
         var dependencies = mock(ReviewedManagedDependencyEvidenceService.class); var audit = mock(PlatformAuditService.class);
+        var external = mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
+        when(external.resolveLocal(anyString(), anyString(), anyString())).thenReturn(List.of());
         when(documents.snapshot(deployment, version, "target"))
             .thenReturn(mapper.createObjectNode().put("schema", "DOCUMENT_STORAGE_BINDING_V1").put("resourceHandleId", "fixture-storage"));
         when(runtime.prepareAuthorizedRuntimeAuthorityCandidate(deployment, version, "target"))
@@ -891,6 +893,7 @@ abstract class ProviderUsageAllowanceContract {
             context.getBeanFactory().registerSingleton("documentBindings", documents);
             context.getBeanFactory().registerSingleton("dependencyEvidence", dependencies);
             context.getBeanFactory().registerSingleton("audit", audit);
+            context.getBeanFactory().registerSingleton("externalIntegrations", external);
             context.registerBean(CustomerAdmissionManifestService.class);
             context.refresh();
             produced = context.getBean(CustomerAdmissionManifestService.class).prepare(deployment, version, authorization);

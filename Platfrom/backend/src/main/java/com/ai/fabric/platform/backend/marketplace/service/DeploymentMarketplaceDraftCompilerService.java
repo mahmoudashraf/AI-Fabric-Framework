@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationCompositionService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
@@ -118,6 +119,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
     private final ObjectMapper objectMapper;
+    private final ExternalIntegrationCompositionService externalIntegrations;
 
     public DeploymentMarketplaceDraftCompilerService(DeploymentService deploymentService,
                                                      DeploymentDraftValidationService deploymentDraftValidationService,
@@ -130,7 +132,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                                                      MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver,
                                                      PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
                                                      PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
-                                                     ObjectMapper objectMapper) {
+                                                     ObjectMapper objectMapper,
+                                                     ExternalIntegrationCompositionService externalIntegrations) {
         this.deploymentService = deploymentService;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.deploymentEntityConfigMigrationService = deploymentEntityConfigMigrationService;
@@ -143,6 +146,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
         this.objectMapper = objectMapper;
+        this.externalIntegrations = externalIntegrations;
     }
 
     @Transactional
@@ -191,6 +195,10 @@ public class DeploymentMarketplaceDraftCompilerService {
 
         List<DeploymentMarketplacePluginInstallEntity> installs =
             installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
+        var externalProfiles = externalIntegrations.profiles(deployment);
+        installs = installs.stream().map(install -> externalIntegrations.compileInput(externalProfiles, install)).toList();
+        Set<String> unavailableBootstrapSources = tolerateBaselineErrors ? unavailableRequiredDataSources(installs) : Set.of();
+        Set<String> deferredActionPlugins = new LinkedHashSet<>();
 
         stripMarketplaceManagedActions(actionsRoot);
         stripGreenfieldShopifyLegacyActions(actionsRoot, installs);
@@ -224,6 +232,10 @@ public class DeploymentMarketplaceDraftCompilerService {
                 parsed,
                 marketplaceEntitlementService.findByInstallId(install.getId())
             ).entitledForCompilation()) {
+                continue;
+            }
+            if ("ACTION".equals(parsed.pluginType()) && dependsOnUnavailableSource(parsed, unavailableBootstrapSources)) {
+                deferredActionPlugins.add(plugin.getId() + "@" + version.getVersion());
                 continue;
             }
 
@@ -308,6 +320,14 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
 
         applyTemplateRequirements(behaviorRoot, installs);
+        if (!deferredActionPlugins.isEmpty()) {
+            ObjectNode requirements = behaviorRoot.path(MARKETPLACE_REQUIREMENTS_FIELD) instanceof ObjectNode value
+                ? value : behaviorRoot.putObject(MARKETPLACE_REQUIREMENTS_FIELD);
+            ArrayNode unresolved = ensureArray(requirements, UNRESOLVED_REQUIRED_PLUGIN_REFS_FIELD);
+            Set<String> existing = new LinkedHashSet<>();
+            unresolved.forEach(value -> existing.add(value.asText()));
+            deferredActionPlugins.stream().filter(existing::add).forEach(unresolved::add);
+        }
         applyResolvedTemplateExecutionExtensionDefaults(
             behaviorRoot,
             installs,
@@ -371,6 +391,41 @@ public class DeploymentMarketplaceDraftCompilerService {
             );
         }
         return updated;
+    }
+
+    private Set<String> unavailableRequiredDataSources(List<DeploymentMarketplacePluginInstallEntity> installs) {
+        Set<String> required = new LinkedHashSet<>();
+        for (var install : installs) {
+            if (!isEnabledForCompilation(install.getStatus())) continue;
+            var plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+            if (!"TEMPLATE".equals(plugin.getPluginType())) continue;
+            var version = marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId());
+            required.addAll(marketplaceManifestService.parseAndValidate(plugin, version).contributions().templateRequiredPluginRefs());
+        }
+        Set<String> unavailable = new LinkedHashSet<>();
+        for (var install : installs) {
+            if (isEnabledForCompilation(install.getStatus())) continue;
+            var plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+            if (!"DATA".equals(plugin.getPluginType())) continue;
+            var version = marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId());
+            if (!required.contains(plugin.getId() + "@" + version.getVersion())) continue;
+            var parsed = marketplaceManifestService.parseAndValidate(plugin, version);
+            for (var dataset : parsed.datasets()) {
+                JsonNode connector = dataset.syncConnector();
+                String source = connector == null ? "" : connector.path("httpSource").path("sourceId").asText("");
+                if (!source.isBlank()) unavailable.add(source);
+            }
+        }
+        return Set.copyOf(unavailable);
+    }
+
+    private boolean dependsOnUnavailableSource(MarketplaceManifestService.ParsedMarketplaceManifest parsed, Set<String> unavailable) {
+        if (unavailable.isEmpty()) return false;
+        for (JsonNode action : iterable(parsed.manifest().path("contributions").path("actions"))) {
+            String source = action.path("route").path("sourceProjection").path("sourceRef").asText("");
+            if (unavailable.contains(source)) return true;
+        }
+        return false;
     }
 
     private void applyTemplateRequirements(ObjectNode behaviorRoot,

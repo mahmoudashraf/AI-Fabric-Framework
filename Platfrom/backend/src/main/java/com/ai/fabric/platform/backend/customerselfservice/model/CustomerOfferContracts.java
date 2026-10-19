@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.customerselfservice.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode;
+import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.Profile;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -30,10 +32,10 @@ public final class CustomerOfferContracts {
     }
     public enum Setting {
         DEPLOYMENT_NAME, APP_TITLE, LOGO_ASSET_ID, THEME_PROFILE_ID, INITIAL_VIEW,
-        INTERACTION_PROFILE_ID, AUTH_PROFILE_ID, APP_DOMAIN, DOCUMENT_AUDIENCE
+        INTERACTION_PROFILE_ID, AUTH_PROFILE_ID, APP_DOMAIN, DOCUMENT_AUDIENCE, AI_STATE_STORAGE_MODE
     }
     public enum ValueType { TEXT, CHOICE }
-    public enum BindingKind { CUSTOMER_S3, CUSTOMER_IDENTITY, CUSTOMER_AI_PROVIDER, INBOX_OPERATOR }
+    public enum BindingKind { CUSTOMER_S3, CUSTOMER_IDENTITY, CUSTOMER_AI_PROVIDER, INBOX_OPERATOR, CUSTOMER_AI_STATE, EXTERNAL_SERVICE }
     public enum DocumentAudience { PUBLIC, AUTHENTICATED }
     public enum Prerequisite { APPROVED_POLICY, IMMUTABLE_ARTIFACTS, STORAGE, IDENTITY, CAPACITY,
         NOTIFICATIONS, OPERATING_POLICY }
@@ -70,7 +72,7 @@ public final class CustomerOfferContracts {
                                  @Positive int recoveryWindowHours) { }
     /** Exact minimum full-topology demand reviewed for one target of this offer. */
     public record ReviewedTopology(@Positive int replicas, @Positive long cpuMillis,
-                                   @Positive long memoryMiB, @Positive long diskMiB,
+                                   @Positive long memoryMiB, @PositiveOrZero long diskMiB,
                                    @PositiveOrZero int databases, @PositiveOrZero int indexes,
                                    @PositiveOrZero int dependencies, @Positive int concurrentApplies) { }
     public record Definition(@NotBlank String schemaVersion, @NotBlank String name,
@@ -86,7 +88,9 @@ public final class CustomerOfferContracts {
                              @NotNull @Valid ReviewedLimits limits, @NotNull @Valid ReviewedTopology topology,
                              @NotBlank String approvedPolicyRef, @NotBlank String operatingPolicyRef,
                              @NotBlank String identityPolicyRef, @NotBlank String storagePolicyRef,
-                             @JsonInclude(JsonInclude.Include.NON_EMPTY) @Valid List<WorkspaceProfile> workspaceProfiles) {
+                             @JsonInclude(JsonInclude.Include.NON_EMPTY) @Valid List<WorkspaceProfile> workspaceProfiles,
+                             @JsonInclude(JsonInclude.Include.NON_EMPTY) @Valid Map<AiStateStorageMode, ReviewedTopology> aiStateStorageTopologies,
+                             @JsonInclude(JsonInclude.Include.NON_EMPTY) @Valid List<Profile> externalIntegrationProfiles) {
         public Definition(String schemaVersion, String name, String templateId, PluginPin template,
                           List<PluginPin> plugins, List<ArtifactPin> artifacts, List<TargetPermission> targets,
                           Set<Operation> operations, List<SettingRule> settings, List<BindingSlot> bindingSlots,
@@ -95,7 +99,29 @@ public final class CustomerOfferContracts {
                           String operatingPolicyRef, String identityPolicyRef, String storagePolicyRef) {
             this(schemaVersion, name, templateId, template, plugins, artifacts, targets, operations, settings,
                 bindingSlots, documentAudiences, admissionPrerequisites, limits, topology, approvedPolicyRef,
-                operatingPolicyRef, identityPolicyRef, storagePolicyRef, List.of());
+                operatingPolicyRef, identityPolicyRef, storagePolicyRef, List.of(), Map.of(), List.of());
+        }
+        public Definition(String schemaVersion, String name, String templateId, PluginPin template,
+                          List<PluginPin> plugins, List<ArtifactPin> artifacts, List<TargetPermission> targets,
+                          Set<Operation> operations, List<SettingRule> settings, List<BindingSlot> bindingSlots,
+                          Set<DocumentAudience> documentAudiences, Set<Prerequisite> admissionPrerequisites,
+                          ReviewedLimits limits, ReviewedTopology topology, String approvedPolicyRef,
+                          String operatingPolicyRef, String identityPolicyRef, String storagePolicyRef,
+                          List<WorkspaceProfile> workspaceProfiles) {
+            this(schemaVersion, name, templateId, template, plugins, artifacts, targets, operations, settings,
+                bindingSlots, documentAudiences, admissionPrerequisites, limits, topology, approvedPolicyRef,
+                operatingPolicyRef, identityPolicyRef, storagePolicyRef, workspaceProfiles, Map.of(), List.of());
+        }
+        public Definition(String schemaVersion, String name, String templateId, PluginPin template,
+                          List<PluginPin> plugins, List<ArtifactPin> artifacts, List<TargetPermission> targets,
+                          Set<Operation> operations, List<SettingRule> settings, List<BindingSlot> bindingSlots,
+                          Set<DocumentAudience> documentAudiences, Set<Prerequisite> admissionPrerequisites,
+                          ReviewedLimits limits, ReviewedTopology topology, String approvedPolicyRef,
+                          String operatingPolicyRef, String identityPolicyRef, String storagePolicyRef,
+                          List<WorkspaceProfile> workspaceProfiles, Map<AiStateStorageMode, ReviewedTopology> aiStateStorageTopologies) {
+            this(schemaVersion, name, templateId, template, plugins, artifacts, targets, operations, settings,
+                bindingSlots, documentAudiences, admissionPrerequisites, limits, topology, approvedPolicyRef,
+                operatingPolicyRef, identityPolicyRef, storagePolicyRef, workspaceProfiles, aiStateStorageTopologies, List.of());
         }
         public Definition {
             plugins = plugins == null ? List.of() : List.copyOf(plugins);
@@ -107,6 +133,8 @@ public final class CustomerOfferContracts {
             documentAudiences = ordered(documentAudiences);
             admissionPrerequisites = ordered(admissionPrerequisites);
             workspaceProfiles = workspaceProfiles == null ? List.of() : List.copyOf(workspaceProfiles);
+            aiStateStorageTopologies = aiStateStorageTopologies == null ? Map.of() : Map.copyOf(aiStateStorageTopologies);
+            externalIntegrationProfiles = externalIntegrationProfiles == null ? List.of() : List.copyOf(externalIntegrationProfiles);
         }
     }
     public record PublishOfferRequest(@NotBlank String offerId, @NotNull @Valid Definition definition,
@@ -150,7 +178,7 @@ public final class CustomerOfferContracts {
                                List<TargetSummary> targets, List<PermissionRow> permissions,
                                List<SettingRule> settings, List<BindingSlot> bindingSlots,
                                Set<DocumentAudience> documentAudiences, List<String> blockers,
-                               List<WorkspaceProfile> workspaceProfiles) { }
+                               List<WorkspaceProfile> workspaceProfiles, List<Profile> externalIntegrationProfiles) { }
     public record CustomerDeploymentSummary(String deploymentId, String name, String environmentName,
                                             String status, String tenantId, String offerId,
                                             String bootstrapTargetProfileId,

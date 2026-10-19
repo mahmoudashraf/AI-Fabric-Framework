@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorType;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSpecialistBundleSummary;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -113,6 +114,20 @@ public class DeploymentSourceCapabilityManifestService {
         }
         if (!candidate.isObject()) {
             throw badRequest("capabilityManifest must be an object.");
+        }
+        if (ManagedDependencyArtifactPolicy.SCHEMA.equals(candidate.path("schemaVersion").asText())) {
+            if (candidate.size() != 2 || !candidate.has("managedDependencyContract")) {
+                throw badRequest("Managed dependency manifests require only schemaVersion and managedDependencyContract.");
+            }
+            ObjectNode normalized = objectMapper.createObjectNode();
+            normalized.put("schemaVersion", ManagedDependencyArtifactPolicy.SCHEMA);
+            normalized.set("managedDependencyContract", ManagedDependencyArtifactPolicy.normalizeContract(
+                candidate.path("managedDependencyContract"), objectMapper));
+            try {
+                return new NormalizedCapabilityManifest(normalized, sha256(objectMapper.writeValueAsString(normalized)));
+            } catch (Exception error) {
+                throw new IllegalStateException("Failed to serialize managed dependency capability manifest.", error);
+            }
         }
         candidate.fieldNames().forEachRemaining(field -> {
             if (!MANIFEST_FIELDS.contains(field)) {

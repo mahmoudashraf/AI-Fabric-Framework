@@ -1,10 +1,60 @@
 import {createHash} from "node:crypto";
 
-import {reviewedManagedDependencyCapacity} from "./simulated-dealership-managed-spec.mjs";
+import {reviewedManagedDependencyCapacity, requireInboxSelection} from "./simulated-dealership-managed-spec.mjs";
 
-export const OFFER_ID = "offer-loomai-engage-simulated-dealership-early-access-v12";
-export const TEMPLATE_PLUGIN_ID = "mkp-template-simulated-dealership-experience-v1";
-export const TEMPLATE_VERSION = "1.9.0";
+export const OFFER_ID = "offer-loomai-engage-external-dealership-candidate-v1";
+export const TEMPLATE_PLUGIN_ID = "mkp-template-dealership-external-systems-v1";
+export const MANAGED_INBOX_TEMPLATE_PLUGIN_ID = "mkp-template-dealership-external-systems-managed-inbox-v1";
+export const TEMPLATE_VERSION = "1.0.0";
+export const CUSTOMER_PLUGIN_REFS = Object.freeze([
+  "mkp-data-dealership-external-stock-v1@1.0.0",
+  "mkp-action-dealership-external-discovery-v1@1.0.0",
+  "mkp-action-dealership-external-engagement-v1@1.0.0",
+  "mkp-data-dealership-knowledge-v1@1.0.0",
+  "mkp-action-conversation-handover@1.1.0",
+  "mkp-integration-basic-loomai-inbox@1.3.0",
+]);
+export const CUSTOMER_PLUGIN_VERSION_IDS = Object.freeze({
+  "mkp-data-dealership-external-stock-v1": "mkv-data-dealership-external-stock-v1-0",
+  "mkp-action-dealership-external-discovery-v1": "mkv-action-dealership-external-discovery-v1-0",
+  "mkp-action-dealership-external-engagement-v1": "mkv-action-dealership-external-engagement-v1-0",
+  "mkp-data-dealership-knowledge-v1": "mkv-data-dealership-knowledge-v1-0",
+  "mkp-action-conversation-handover": "mkv-action-conversation-handover-v1-1",
+  "mkp-integration-basic-loomai-inbox": "mkv-integration-basic-loomai-inbox-v1-3",
+});
+export const MANAGED_INBOX_INSTALL_DEFAULTS = Object.freeze({
+  config: Object.freeze({providerBaseUrl: "${MANAGED_INBOX_BASE_URL}", operatorConsoleUrl: "${MANAGED_INBOX_CONSOLE_URL}",
+    bindingId: "${MANAGED_INBOX_BINDING_ID}"}),
+  secretRefs: Object.freeze({providerApiKeySecretRef: "MANAGED_INBOX_API_KEY",
+    runtimeCallbackSigningSecretRef: "MANAGED_INBOX_CALLBACK_SIGNING_SECRET",
+    providerWebhookSigningSecretRef: "MANAGED_INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET"}),
+});
+export const KNOWLEDGE_INSTALL_DEFAULTS = Object.freeze({
+  config: Object.freeze({publicContentApprovalConfirmed: false}),
+});
+export const EXTERNAL_INTEGRATION_PROFILE_SCHEMA = "loomai-external-integration-profile/v1";
+// Exact V196 contracts. Hosts are supplied by review, never inferred from a plugin or demo.
+export const EXTERNAL_BINDING_REQUIREMENTS = Object.freeze([
+  Object.freeze({id: "vehicle-stock", pluginId: "mkp-data-dealership-external-stock-v1",
+    profileId: "dealership-external-stock-v1", pluginVersionId: "mkv-data-dealership-external-stock-v1-0",
+    configFields: Object.freeze(["providerBaseUrl", "providerHost", "advertiserId"]),
+    secretRefFields: Object.freeze(["providerKey", "providerSecret", "notificationSecret"]),
+    endpointFields: Object.freeze(["providerBaseUrl"]), accountScopeFields: Object.freeze(["advertiserId"])}),
+  Object.freeze({id: "business-actions", pluginId: "mkp-action-dealership-external-engagement-v1",
+    profileId: "dealership-external-engagement-v1", pluginVersionId: "mkv-action-dealership-external-engagement-v1-0",
+    configFields: Object.freeze(["receiverActionUrl"]), secretRefFields: Object.freeze(["receiverApiKey"]),
+    endpointFields: Object.freeze(["receiverActionUrl"]), accountScopeFields: Object.freeze([])}),
+]);
+export const PUBLICATION_BLOCKERS = Object.freeze([
+  "REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED",
+  "AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED",
+]);
+export const MANAGED_AI_STATE_MODE = "MANAGED_POSTGRES";
+export const CUSTOMER_AI_STATE_MODE = "CUSTOMER_POSTGRES";
+
+export function requireCustomerOfferPublicationSupport() {
+  throw new Error(`Customer offer publication is checkpointed: ${PUBLICATION_BLOCKERS.join(", ")}.`);
+}
 export const OPENAI_MAX_TOKENS = 2048;
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
 // Verified CI receipt: run 39164527840, job 117785013595. Registration and promotion are separate prerequisites.
@@ -19,8 +69,8 @@ export const REVIEWED_PLATFORM_CAPACITY = Object.freeze({
   runtime: Object.freeze({milliCpu: 1000, memoryMiB: 1024, diskMiB: 0}),
   connector: Object.freeze({milliCpu: 250, memoryMiB: 768, diskMiB: 0}),
   vectorizationRunner: Object.freeze({milliCpu: 250, memoryMiB: 768, diskMiB: 0}),
-  runtimeDatabase: Object.freeze({milliCpu: 250, memoryMiB: 512, diskMiB: 2048}),
 });
+export const MANAGED_AI_STATE_CAPACITY = Object.freeze({milliCpu: 250, memoryMiB: 512, diskMiB: 2048});
 
 function sumCapacity(capacities) {
   return capacities.reduce((total, capacity) => ({
@@ -30,20 +80,32 @@ function sumCapacity(capacities) {
   }), {milliCpu: 0, memoryMiB: 0, diskMiB: 0});
 }
 
-export function reviewedTopologyCapacity() {
-  const managed = reviewedManagedDependencyCapacity();
-  const platform = sumCapacity(Object.values(REVIEWED_PLATFORM_CAPACITY));
+export function reviewedTopologyForMode({managedInbox, aiStateStorageMode}) {
+  const capacity = reviewedTopologyCapacity({managedInbox, aiStateStorageMode});
+  return {replicas: 1, cpuMillis: capacity.milliCpu, memoryMiB: capacity.memoryMiB,
+    diskMiB: capacity.diskMiB, databases: capacity.databases, indexes: capacity.indexes,
+    dependencies: capacity.dependencies, concurrentApplies: 1};
+}
+
+export function reviewedTopologyCapacity({managedInbox = false, aiStateStorageMode} = {}) {
+  if (![MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE].includes(aiStateStorageMode)) {
+    throw new Error("An explicit reviewed AI state storage mode is required.");
+  }
+  const managed = reviewedManagedDependencyCapacity({managedInbox});
+  const hosted = aiStateStorageMode === MANAGED_AI_STATE_MODE;
+  const platform = sumCapacity([...Object.values(REVIEWED_PLATFORM_CAPACITY),
+    ...(hosted ? [MANAGED_AI_STATE_CAPACITY] : [])]);
   return Object.freeze({
     milliCpu: platform.milliCpu + managed.milliCpu,
     memoryMiB: platform.memoryMiB + managed.memoryMiB,
     diskMiB: platform.diskMiB + managed.diskMiB,
     dependencies: managed.resources,
-    databases: 2,
+    databases: hosted ? 1 : 0,
     indexes: 2,
   });
 }
 
-const REVIEWED_CAPACITY = reviewedTopologyCapacity();
+const REVIEWED_CAPACITY = reviewedTopologyCapacity({aiStateStorageMode: MANAGED_AI_STATE_MODE});
 
 export const REVIEWED_TOPOLOGY = Object.freeze({
   replicas: 1,
@@ -56,9 +118,10 @@ export const REVIEWED_TOPOLOGY = Object.freeze({
   concurrentApplies: 1,
 });
 
-// A proposed cap envelope, not measured capacity or production admission.
+// Proposed envelope only, not admission approval. Optional AI-state hosting is
+// owner-approved; exact target fit and both typed storage modes still need verification.
 export const REVIEWED_LIMITS = Object.freeze({
-  measuredPolicyRef: "01036-dealership-capacity-2026-10-18-external-candidate-v2",
+  measuredPolicyRef: "01044-external-ai-capacity-review-pending",
   activeStagingTargets: 1,
   replicas: 1,
   cpuMillis: 4000,
@@ -133,8 +196,15 @@ export function artifactFingerprint(artifact) {
   });
 }
 
-export function workspaceProfile({projectUrl, publishableKey}) {
+export function workspaceProfile({projectUrl, publishableKey, dealerId, imageHostAllowlist}) {
   if (!projectUrl || !publishableKey) throw new Error("The reviewed Supabase public configuration is required.");
+  if (typeof dealerId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(dealerId)
+    || !Array.isArray(imageHostAllowlist) || imageHostAllowlist.length > 32
+    || imageHostAllowlist.some(host => typeof host !== "string"
+      || !/^(?=.{1,253}$)[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z]{2,63}$/.test(host))
+    || new Set(imageHostAllowlist).size !== imageHostAllowlist.length) {
+    throw new Error("Explicit reviewed dealerId and imageHostAllowlist are required; no demo defaults.");
+  }
   const configuration = {
     page: {
       kind: "auto",
@@ -145,13 +215,13 @@ export function workspaceProfile({projectUrl, publishableKey}) {
       maxTotalChars: 10000,
     },
     dealer: {
-      id: "simulated-dealership",
+      id: dealerId,
       sourceMode: "DEALERSHIP_INVENTORY",
       assistantLabel: "Dealership AI",
     },
     knowledge: {inventoryVectorSpace: "dealer-vehicle"},
     capabilities: {callback: true, testDrive: true, comparison: true},
-    presentation: {imageHostAllowlist: ["m.atcdn.co.uk"]},
+    presentation: {imageHostAllowlist: [...imageHostAllowlist]},
   };
   const theme = {
     darkMode: false,
@@ -194,6 +264,55 @@ function pluginPin(version) {
     throw new Error("A published plugin version with its manifest is required.");
   }
   return {pluginId: version.pluginId, versionId: version.id, manifestSha256: hash(version.manifest)};
+}
+
+export function buildExternalIntegrationBindings({pluginVersions, targetProfileIds, allowedHosts}) {
+  const slots = EXTERNAL_BINDING_REQUIREMENTS.map(requirement => requirement.id);
+  if (!allowedHosts || typeof allowedHosts !== "object" || Array.isArray(allowedHosts)
+    || hash(Object.keys(allowedHosts).sort()) !== hash([...slots].sort())) {
+    throw new Error("Exact reviewed allowedHosts are required for vehicle-stock and business-actions.");
+  }
+  if (!Array.isArray(targetProfileIds) || targetProfileIds.length === 0 || targetProfileIds.length > 16
+    || new Set(targetProfileIds).size !== targetProfileIds.length
+    || targetProfileIds.some(id => typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id))) {
+    throw new Error("Exact reviewed external integration target IDs are required.");
+  }
+  const profiles = EXTERNAL_BINDING_REQUIREMENTS.map(requirement => {
+    const matches = pluginVersions.filter(version => version?.pluginId === requirement.pluginId);
+    const version = matches.length === 1 ? matches[0] : null;
+    if (version?.id !== requirement.pluginVersionId || version.version !== "1.0.0"
+      || version.manifest?.pluginId !== requirement.pluginId || version.manifest.version !== "1.0.0") {
+      throw new Error(`The exact V196 published plugin pin is required for ${requirement.id}.`);
+    }
+    const fields = version.manifest.installForm;
+    const expectedTypes = Object.fromEntries([
+      ...requirement.configFields.map(field => [field, requirement.endpointFields.includes(field) ? "url" : "text"]),
+      ...requirement.secretRefFields.map(field => [field, "secretRef"]),
+    ]);
+    if (!Array.isArray(fields) || fields.length !== Object.keys(expectedTypes).length
+      || new Set(fields.map(field => field?.id)).size !== fields.length
+      || fields.some(field => !field || expectedTypes[field.id] !== field.type || field.required !== true
+        || Object.hasOwn(field, "defaultValue"))) {
+      throw new Error(`The exact unbound V196 install field contract is required for ${requirement.id}.`);
+    }
+    const hosts = allowedHosts[requirement.id];
+    if (!Array.isArray(hosts) || hosts.length === 0 || hosts.length > 16 || new Set(hosts).size !== hosts.length
+      || hosts.some(host => typeof host !== "string" || host.length > 253
+        || !/^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.[a-z]{2,63}$/.test(host)
+        || ["localhost", "local", "internal", "lan", "home", "invalid"].includes(host.split(".").at(-1)))) {
+      throw new Error(`Explicit reviewed DNS host names, not URLs/IPs/wildcards, are required for ${requirement.id}.`);
+    }
+    return {
+      schemaVersion: EXTERNAL_INTEGRATION_PROFILE_SCHEMA,
+      id: requirement.profileId, bindingSlotId: requirement.id,
+      pluginId: requirement.pluginId, pluginVersionId: version.id, manifestSha256: pluginPin(version).manifestSha256,
+      targetProfileIds: [...targetProfileIds].sort(), configFields: [...requirement.configFields].sort(),
+      secretFields: [...requirement.secretRefFields].sort(), endpointFields: [...requirement.endpointFields].sort(),
+      accountScopeFields: [...requirement.accountScopeFields].sort(), allowedHosts: [...hosts].sort(),
+    };
+  });
+  return {profiles, slots: profiles.map(profile => ({id: profile.bindingSlotId, kind: "EXTERNAL_SERVICE",
+    supportedProfileIds: [profile.id], pluginId: profile.pluginId, installConfigField: null}))};
 }
 
 const REVIEWED_RESOURCE_DEFAULTS = Object.freeze({
@@ -259,11 +378,16 @@ function requireReviewedArtifact(artifact) {
   }
 }
 
-export function buildOfferDefinition({template, pluginVersions, artifact, targets, auth,
-  behaviorCatalog, executionExtensionCatalog}) {
-  if (template?.version !== TEMPLATE_VERSION
+function buildDefinitionCandidate({template, pluginVersions, artifact, targets, auth, managedInbox, aiStateStorageMode,
+  externalIntegrationAllowedHosts, behaviorCatalog, executionExtensionCatalog}) {
+  requireInboxSelection(managedInbox);
+  const expectedTemplate = managedInbox ? MANAGED_INBOX_TEMPLATE_PLUGIN_ID : TEMPLATE_PLUGIN_ID;
+  const expectedTemplateVersionId = managedInbox ? "mkv-template-dealership-external-systems-managed-inbox-v1-0"
+    : "mkv-template-dealership-external-systems-v1-0";
+  if (template?.pluginId !== expectedTemplate || template?.version !== TEMPLATE_VERSION
+    || template.id !== expectedTemplateVersionId
     || template.manifest?.contributions?.template?.providerConfig?.openaiMaxTokens !== OPENAI_MAX_TOKENS) {
-    throw new Error("The exact 1.9.0 template with an explicit integer 2048-token output cap is required.");
+    throw new Error("The exact external-systems 1.0.0 template with an explicit integer 2048-token output cap is required.");
   }
   const provider = template.manifest.contributions.template.providerConfig;
   const credentialFields = ["milvusToken", "milvusUsername", "milvusPassword", "milvusHost",
@@ -275,20 +399,45 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
   }
   const requiredRefs = template?.contributions?.templateRequiredPluginRefs ?? [];
   const byRef = new Map(pluginVersions.map((version) => [`${version.pluginId}@${version.version}`, version]));
-  if (requiredRefs.length === 0 || requiredRefs.some((reference) => !byRef.has(reference))) {
+  if (requiredRefs.length !== CUSTOMER_PLUGIN_REFS.length || new Set(requiredRefs).size !== requiredRefs.length
+    || CUSTOMER_PLUGIN_REFS.some(ref => !requiredRefs.includes(ref))
+    || requiredRefs.some((reference) => !byRef.has(reference))) {
     throw new Error("The template's exact required plugin versions were not supplied.");
+  }
+  for (const reference of requiredRefs) {
+    const version = byRef.get(reference);
+    if (version.id !== CUSTOMER_PLUGIN_VERSION_IDS[version.pluginId] || version.manifest?.pluginId !== version.pluginId
+      || version.manifest.version !== version.version
+      || pluginVersions.filter(candidate => candidate.pluginId === version.pluginId).length !== 1) {
+      throw new Error("The exact immutable V196 composition plugin pins are required.");
+    }
+  }
+  const defaults = template.manifest.contributions.template.requiredPluginInstallDefaults;
+  if (!defaults || typeof defaults !== "object" || Array.isArray(defaults)
+    || hash(defaults) !== hash({"mkp-data-dealership-knowledge-v1@1.0.0": KNOWLEDGE_INSTALL_DEFAULTS,
+      ...(managedInbox ? {"mkp-integration-basic-loomai-inbox@1.3.0": MANAGED_INBOX_INSTALL_DEFAULTS} : {})})
+    || /MANAGED_SIMULATOR|MANAGED_RECEIVER/.test(JSON.stringify(template.manifest))) {
+    throw new Error("Business integrations must be unbound; managed business defaults and pre-approved document consent are forbidden.");
   }
   requireReviewedArtifact(artifact);
   requireTemplateRuntimeSupport(template, artifact, {behaviorCatalog, executionExtensionCatalog});
+  reviewedTopologyCapacity({managedInbox, aiStateStorageMode});
   const targetById = new Map(targets.map((target) => [target.id, target]));
   const staging = targetById.get(STAGING_TARGET_ID);
   const production = targetById.get(PRODUCTION_TARGET_ID);
   requireReviewedTarget(staging, STAGING_TARGET_ID);
   requireReviewedTarget(production, PRODUCTION_TARGET_ID);
+  const externalBindings = buildExternalIntegrationBindings({pluginVersions,
+    targetProfileIds: [staging.id, production.id], allowedHosts: externalIntegrationAllowedHosts});
   const workspace = workspaceProfile(auth);
+  const aiStateStorageTopologies = Object.fromEntries([MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]
+    .map(mode => [mode, reviewedTopologyForMode({managedInbox, aiStateStorageMode: mode})]));
+  const topology = Object.fromEntries(Object.keys(REVIEWED_TOPOLOGY)
+    .map(key => [key, Math.max(...Object.values(aiStateStorageTopologies).map(demand => demand[key]))]));
+  const limits = {...REVIEWED_LIMITS, diskMiB: topology.diskMiB, dependencies: topology.dependencies};
   return {
     schemaVersion: "1",
-    name: "LoomAI Engage Dealership Experience (Staging Measurement Candidate)",
+    name: "LoomAI Engage External Dealership (Unapproved Integration Candidate)",
     templateId: BASE_TEMPLATE_ID,
     template: pluginPin(template),
     plugins: requiredRefs.map((reference) => pluginPin(byRef.get(reference))),
@@ -300,13 +449,15 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
     operations: [
       "TEMPLATE_SELECT", "BOOTSTRAP_CONFIGURATION", "BOOTSTRAP", "READ", "VERSION_PUBLISH",
       "BINDING_REPLACE", "BINDING_REVOKE", "SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX",
-      "INBOX_OPERATOR_ENROLL", "INBOX_OPERATOR_ROTATE", "INBOX_OPERATOR_DELIVER", "INBOX_OPERATOR_REVOKE",
+      ...(managedInbox ? ["INBOX_OPERATOR_ENROLL", "INBOX_OPERATOR_ROTATE", "INBOX_OPERATOR_DELIVER", "INBOX_OPERATOR_REVOKE"] : []),
       "SOURCE_REFRESH", "SOURCE_REMOVE", "APP_CONFIGURE", "DOMAIN_CONFIGURE", "AUTH_CONFIGURE",
       "APPLY", "VERIFY", "PROMOTION_PLAN", "PROMOTION_APPLY", "ACTIVATE", "ROLLBACK",
       "STAGING_RETAIN", "STAGING_EXTEND", "TARGET_RETIRE",
     ],
     settings: [
       {setting: "DEPLOYMENT_NAME", type: "TEXT", maxLength: 100, allowedValues: []},
+      {setting: "AI_STATE_STORAGE_MODE", type: "CHOICE", maxLength: 32,
+        allowedValues: [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]},
       {setting: "APP_TITLE", type: "TEXT", maxLength: 120, allowedValues: []},
       {setting: "INTERACTION_PROFILE_ID", type: "CHOICE", maxLength: 100,
         allowedValues: [workspace.interactionProfileId]},
@@ -332,24 +483,86 @@ export function buildOfferDefinition({template, pluginVersions, artifact, target
         pluginId: "mkp-data-dealership-knowledge-v1",
         installConfigField: "documentStorageBindingRef",
       },
-      {
+      ...externalBindings.slots,
+      {id: "ai-state-database", kind: "CUSTOMER_AI_STATE", supportedProfileIds: [CUSTOMER_AI_STATE_MODE]},
+      ...(managedInbox ? [{
         id: "inbox",
         kind: "INBOX_OPERATOR",
         supportedProfileIds: ["managed-basic-inbox-keys-v1"],
-      },
+      }] : []),
     ],
+    externalIntegrationProfiles: externalBindings.profiles,
     documentAudiences: ["PUBLIC"],
     admissionPrerequisites: [
       "APPROVED_POLICY", "IMMUTABLE_ARTIFACTS", "STORAGE", "IDENTITY", "CAPACITY",
       "NOTIFICATIONS", "OPERATING_POLICY",
     ],
-    limits: REVIEWED_LIMITS,
-    topology: REVIEWED_TOPOLOGY,
-    approvedPolicyRef: "01036-dealership-staging-measurement-candidate-2026-10-18",
+    limits,
+    topology,
+    aiStateStorageTopologies,
+    approvedPolicyRef: "01044-external-dealership-policy-review-pending",
     operatingPolicyRef: "01036-customer-staging-lifecycle-v1",
     identityPolicyRef: "01036-supabase-mixed-auth-v1",
     storagePolicyRef: "01036-s3-read-only-text-json-v1",
   };
+}
+
+export function buildOfferProposal(input) {
+  return {
+    schemaVersion: "loomai-external-dealership-offer-proposal/v1",
+    publishable: false,
+    blockers: [...PUBLICATION_BLOCKERS, ...(!input.managedInbox ? ["EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"] : [])],
+    definitionCandidate: buildDefinitionCandidate(input),
+    externalBindingRequirements: [
+      ...structuredClone(EXTERNAL_BINDING_REQUIREMENTS),
+      ...(!input.managedInbox ? [{id: "conversation-inbox", pluginId: "mkp-integration-basic-loomai-inbox",
+        configFields: ["providerBaseUrl", "operatorConsoleUrl", "bindingId"],
+        secretRefFields: ["providerApiKeySecretRef", "runtimeCallbackSigningSecretRef", "providerWebhookSigningSecretRef"],
+        operatorLifecycle: "EXTERNAL_OWNER_MANAGED_NOT_PLATFORM_ENROLLMENT",
+      }] : []),
+    ],
+    externalBindingProtocol: {
+      staffApprovalPath: "/api/customer-self-service/staff/offers/{offerId}/deployments/{deploymentId}/external-integrations/approvals",
+      customerBindingPath: "/api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/external-integrations/bind",
+      customerSummaryPath: "/api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/external-integrations",
+      customerRevocationPath: "/api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/external-integrations/revoke",
+      scopeFields: ["versionId", "targetProfileId", "bindingSlotId", "selectedProfileId"],
+      approvalFields: ["config", "accountScope", "reviewReference", "operationKey"],
+      bindingFields: ["approvalId", "expectedEntitlementRevision", "operationKey", "credentials"],
+      revocationFields: ["bindingId", "expectedBindingRevision", "expectedEntitlementRevision", "operationKey"],
+      credentials: "WRITE_ONLY_VALUES_AT_CUSTOMER_API; NEVER_GLOBAL_INSTALL_VALUES_OR_CLIENT_SECRET_REFERENCES",
+      rotation: "NEW_IMMUTABLE_VERSION_AND_TARGET_SCOPED_APPROVAL_BINDING",
+      readiness: "LOCAL_CONFIGURATION_ONLY_NOT_PROVIDER_ACCESS_OR_HEALTH",
+      setupOnly: {
+        unresolvedRequirementsPath: "behaviorConfig.marketplaceRequirements.unresolvedRequiredPluginRefs",
+        sourceDependency: "DECLARED_ACTION_SOURCE_REF_TO_UNAVAILABLE_EXPLICITLY_REQUIRED_DATA_ONLY",
+        ordinaryCompilation: "STRICT_NO_SETUP_DEFERRAL",
+        initializer: "POST_ASSOCIATION_TRUSTED_ALIAS_ONLY_INSTALL_ENABLE_AND_COMPILER_RESYNC",
+        accountBinding: "NOT_CREATED_BY_BOOTSTRAP_OR_INITIALIZER",
+      },
+    },
+    aiOperationalPersistence: {
+      required: true, selectedMode: input.aiStateStorageMode,
+      hostingDecision: "OPTIONAL_LOOMAI_HOSTING_OWNER_APPROVED_EXPLICIT_SELECTION_REQUIRED",
+      modes: [{id: MANAGED_AI_STATE_MODE, topologyDeclared: true},
+        {id: CUSTOMER_AI_STATE_MODE, topologyDeclared: true, applySupportVerified: false,
+          blocker: "AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED"}],
+      customerBindingPath: "/api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/ai-state-storage-binding",
+      customerBindingFields: ["expectedEntitlementRevision", "operationKey", "targetProfileId", "bindingSlotId", "connection"],
+      customerBindingSlotId: "ai-state-database",
+      approvalReference: "SERVER_DERIVED_CALLER_MUST_OMIT_OR_NULL",
+      createSettingIntegration: "AI_STATE_STORAGE_MODE; bootstrap request aiStateStorageMode; draft.providerConfig.aiStateStorageMode.",
+      capacityBasis: "Hosted AI-state database counted only for the explicitly selected managed profile; no business database.",
+    },
+    managedInbox: input.managedInbox,
+    externalSystemsLifecycle: "RETAIN_EXTERNAL_NO_CREATE_SEED_RESET_DELETE",
+    liveReadinessProven: false,
+  };
+}
+
+export function buildOfferDefinition(input) {
+  buildOfferProposal(input);
+  requireCustomerOfferPublicationSupport();
 }
 
 export function requireTemplateRuntimeSupport(template, artifact,

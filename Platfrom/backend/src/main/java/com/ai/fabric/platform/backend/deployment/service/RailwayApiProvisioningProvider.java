@@ -62,6 +62,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     private final PlatformManagedInferenceEndpointRepository platformManagedInferenceEndpointRepository;
     private final VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private final ObjectMapper objectMapper;
+    @Autowired
+    private ManagedResourceOwnershipService ownership;
 
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
@@ -129,6 +131,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
         validateConfiguration();
+        if (ownership==null) throw new RailwayProvisioningConfigurationException("MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        var ownershipScope=ownership.scope(deployment,release.getTargetProfileId());
         String sourceRepository = deploymentSourceResolver.resolveRepository(deployment);
         String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         deploymentSourceResolver.validateEffectiveSource(sourceRepository, sourceBranch);
@@ -139,9 +143,9 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 progressTracker,
                 "ensure_vector_backend",
                 "Create or reconcile managed external vector resources before runtime deployment.",
-                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version)
+                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version,release.getTargetProfileId())
             )
-            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version);
+            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version,release.getTargetProfileId());
         deploymentManagedVectorResourceService.syncProvisionedResources(
             deployment,
             version,
@@ -185,24 +189,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             progressTracker,
             "prepare_project",
             "Create or reuse the Railway project for this customer environment.",
-            () -> {
-                RailwayGraphqlClient.RailwayProjectSnapshot existingProject = railwayGraphqlClient.findProjectByName(
-                    provisioningProperties.workspaceId(),
-                    projectName
-                );
-                if (existingProject == null) {
-                    existingProject = railwayGraphqlClient.createProject(
-                        provisioningProperties.workspaceId(),
-                        projectName,
-                        environmentName
-                    );
-                }
-                RailwayGraphqlClient.RailwayEnvironmentSummary environment = existingProject.environmentNamed(environmentName);
-                if (environment == null) {
-                    environment = railwayGraphqlClient.createEnvironment(existingProject.id(), environmentName);
-                }
-                return new RailwayProjectContext(existingProject, environment);
-            }
+            () -> prepareOwnedProject(ownershipScope,projectName,environmentName)
         );
         RailwayGraphqlClient.RailwayProjectSnapshot project = projectContext.project();
         RailwayGraphqlClient.RailwayEnvironmentSummary environment = projectContext.environment();
@@ -217,6 +204,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 "Provision or reconcile the deployment-dedicated embedding worker before runtime deployment.",
                 () -> provisionDedicatedEmbeddingWorker(
                     deployment,
+                    ownershipScope,
                     version,
                     project,
                     environment,
@@ -256,26 +244,29 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         RailwayGraphqlClient.RailwayServiceSummary runtimeService = ensureService(
             project,
             deployment,
+            ownershipScope,
             plan.services().runtime().serviceName()
         );
         RailwayGraphqlClient.RailwayServiceSummary connectorService = ensureService(
             project,
             deployment,
+            ownershipScope,
             plan.services().restConnector().serviceName()
         );
         RailwayGraphqlClient.RailwayServiceSummary runnerService = null;
         if (runnerPlan != null) {
-            runnerService = ensureService(project, deployment, runnerPlan.serviceName());
+            runnerService = ensureService(project, deployment,ownershipScope, runnerPlan.serviceName());
         } else {
             RailwayGraphqlClient.RailwayServiceSummary staleRunner = project.serviceNamed(
                 railwayProvisioningPlanService.vectorizationRunnerServiceName(deployment)
             );
             if (staleRunner != null) {
-                railwayGraphqlClient.deleteService(staleRunner.id());
+                throw new RailwayProvisioningConfigurationException("RAILWAY_RUNNER_RETIREMENT_REQUIRED");
             }
         }
         recordRailwayContext(
             details,
+            ownershipScope,
             project,
             environment,
             runtimeService,
@@ -462,18 +453,54 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         );
     }
 
-    private RailwayGraphqlClient.RailwayServiceSummary ensureService(RailwayGraphqlClient.RailwayProjectSnapshot project,
+    RailwayProjectContext prepareOwnedProject(ManagedResourceOwnershipService.Scope scope,String projectName,String environmentName) {
+        var project=railwayGraphqlClient.findProjectByName(provisioningProperties.workspaceId(),projectName);
+        boolean created=project==null;
+        if (created) project=ownership.create(scope,"railway","PROJECT",provisioningProperties.workspaceId(),projectName,
+            ()->railwayGraphqlClient.createProject(provisioningProperties.workspaceId(),projectName,environmentName),
+            value->{
+                if (!projectName.equals(value.name())) throw new RailwayProvisioningException("RAILWAY_CREATE_IDENTITY_CHANGED");
+                return new ManagedResourceOwnershipService.Identity(value.id(),null);
+            });
+        else ownership.requireOwnedAt(scope,"railway","PROJECT",provisioningProperties.workspaceId(),projectName,project.id(),null);
+        var environment=project.environmentNamed(environmentName);
+        if (project.environments().size()>1 || environment==null && !project.environments().isEmpty())
+            throw new RailwayProvisioningConfigurationException("RAILWAY_SHARED_ENVIRONMENT_RECONCILIATION_REQUIRED");
+        String projectId=project.id();
+        if (environment==null) environment=ownership.create(scope,"railway","ENVIRONMENT",projectId,environmentName,
+            ()->railwayGraphqlClient.createEnvironment(projectId,environmentName),value->{
+                if (!environmentName.equals(value.name())) throw new RailwayProvisioningException("RAILWAY_CREATE_IDENTITY_CHANGED");
+                return new ManagedResourceOwnershipService.Identity(value.id(),null);
+            });
+        else if (created) {
+            var initial=environment;
+            // The default environment is part of this successful project-create response, not adopted by name.
+            ownership.create(scope,"railway","ENVIRONMENT",projectId,environmentName,()->initial,
+                value->new ManagedResourceOwnershipService.Identity(value.id(),null));
+        } else ownership.requireOwnedAt(scope,"railway","ENVIRONMENT",projectId,environmentName,environment.id(),null);
+        project=railwayGraphqlClient.getProject(projectId);
+        if (project==null || !projectId.equals(project.id()) || !projectName.equals(project.name()))
+            throw new RailwayProvisioningException("RAILWAY_CREATE_IDENTITY_CHANGED");
+        if (project.environments().size()!=1 || !environment.id().equals(project.environments().getFirst().id()))
+            throw new RailwayProvisioningConfigurationException("RAILWAY_SHARED_ENVIRONMENT_RECONCILIATION_REQUIRED");
+        return new RailwayProjectContext(project,environment);
+    }
+
+    RailwayGraphqlClient.RailwayServiceSummary ensureService(RailwayGraphqlClient.RailwayProjectSnapshot project,
                                                                      DeploymentEntity deployment,
+                                                                     ManagedResourceOwnershipService.Scope scope,
                                                                      String serviceName) {
+        ownership.requireOwnedAt(scope,"railway","PROJECT",provisioningProperties.workspaceId(),project.name(),project.id(),null);
         RailwayGraphqlClient.RailwayServiceSummary service = project.serviceNamed(serviceName);
         if (service == null) {
-            service = railwayGraphqlClient.createServiceFromRepository(
-                project.id(),
-                serviceName,
-                deploymentSourceResolver.resolveRepository(deployment),
-                deploymentSourceResolver.resolveBranch(deployment)
-            );
-        }
+            service = ownership.create(scope,"railway","SERVICE",project.id(),serviceName,
+                ()->railwayGraphqlClient.createServiceFromRepository(project.id(),serviceName,
+                    deploymentSourceResolver.resolveRepository(deployment),deploymentSourceResolver.resolveBranch(deployment)),
+                value->{
+                    if (!serviceName.equals(value.name())) throw new RailwayProvisioningException("RAILWAY_CREATE_IDENTITY_CHANGED");
+                    return new ManagedResourceOwnershipService.Identity(value.id(),null);
+                });
+        } else ownership.requireOwnedAt(scope,"railway","SERVICE",project.id(),serviceName,service.id(),null);
         return service;
     }
 
@@ -744,6 +771,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     private DedicatedEmbeddingWorkerProvisioningResult provisionDedicatedEmbeddingWorker(DeploymentEntity deployment,
+                                                                                         ManagedResourceOwnershipService.Scope scope,
                                                                                          DeploymentVersionEntity version,
                                                                                          RailwayGraphqlClient.RailwayProjectSnapshot project,
                                                                                          RailwayGraphqlClient.RailwayEnvironmentSummary environment,
@@ -785,6 +813,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         RailwayGraphqlClient.RailwayServiceSummary workerService = ensureService(
             project,
             deployment,
+            scope,
             workerPlan.serviceName()
         );
         railwayGraphqlClient.connectServiceToRepository(
@@ -1139,6 +1168,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     private void recordRailwayContext(ObjectNode details,
+                                      ManagedResourceOwnershipService.Scope scope,
                                       RailwayGraphqlClient.RailwayProjectSnapshot project,
                                       RailwayGraphqlClient.RailwayEnvironmentSummary environment,
                                       RailwayGraphqlClient.RailwayServiceSummary runtimeService,
@@ -1151,6 +1181,10 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         railway.put("projectName", project.name());
         railway.put("environmentId", environment.id());
         railway.put("environmentName", environment.name());
+        var receipts=objectNode(railway,"ownership");
+        for (var service:java.util.stream.Stream.of(runtimeService,connectorService,runnerService,embeddingWorkerService)
+            .filter(java.util.Objects::nonNull).toList())
+            receipts.put(service.id(),ownership.requireOwned(scope,"railway","SERVICE",service.id(),null).id());
 
         ObjectNode services = objectNode(railway, "services");
         ObjectNode runtime = objectNode(services, "runtime");
@@ -1272,7 +1306,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         boolean isHealthy();
     }
 
-    private record RailwayProjectContext(
+    record RailwayProjectContext(
         RailwayGraphqlClient.RailwayProjectSnapshot project,
         RailwayGraphqlClient.RailwayEnvironmentSummary environment
     ) {

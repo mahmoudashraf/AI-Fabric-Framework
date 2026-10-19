@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "managed-dependencies/v1",
+  "services": [{
+    "slot": "inbox",
+    "contract": "BASIC_INBOX_KEYS_V1",
+    "image": "ghcr.io/mahmoudashraf/loomai-basic-inbox-service@sha256:d74871880950f09674e0558cdfb09bdadcce050e89ae7b33312dad7069ac3759",
+    "sourceArtifactId": "__INBOX_SOURCE_ARTIFACT_ID__",
+    "sourceCommit": "2035dc36082fefccbfd3a757d38e493fa8f001fc",
+    "port": 8085,
+    "healthPath": "/actuator/health",
+    "capacity": {"milliCpu": 250, "memoryMiB": 512, "diskMiB": 0, "resources": 1},
+    "secretPurposes": ["api", "callback", "encryption", "management"],
+    "environment": {
+      "AI_ENABLED": {"kind": "LITERAL", "reference": "false"},
+      "BASIC_INBOX_BINDING_ID": {"kind": "BINDING_ID"},
+      "BASIC_INBOX_CALLBACK_RETRY_DELAY": {"kind": "LITERAL", "reference": "5s"},
+      "BASIC_INBOX_CALLBACK_SIGNING_SECRET": {"kind": "SECRET", "reference": "callback"},
+      "BASIC_INBOX_CONNECTOR_CALLBACK_URL": {"kind": "CALLBACK_URL", "reference": "inbox"},
+      "BASIC_INBOX_DATA_ENCRYPTION_SECRET": {"kind": "SECRET", "reference": "encryption"},
+      "BASIC_INBOX_DEPLOYMENT_ID": {"kind": "DEPLOYMENT_ID"},
+      "BASIC_INBOX_MAX_CALLBACK_ATTEMPTS": {"kind": "LITERAL", "reference": "8"},
+      "BASIC_INBOX_OPERATORS": {"kind": "OPERATORS"},
+      "BASIC_INBOX_PROVIDER_API_KEY": {"kind": "SECRET", "reference": "api"},
+      "BASIC_INBOX_REQUEST_TIMEOUT": {"kind": "LITERAL", "reference": "10s"},
+      "BASIC_INBOX_RETENTION": {"kind": "LITERAL", "reference": "30d"},
+      "BASIC_INBOX_TENANT_ID": {"kind": "TENANT_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_ACCOUNT_ID": {"kind": "ACCOUNT_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_BINDING_ID": {"kind": "BINDING_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_CUSTOMER_ID": {"kind": "CUSTOMER_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_DEPLOYMENT_ID": {"kind": "DEPLOYMENT_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_KEY": {"kind": "SECRET", "reference": "management"},
+      "LOOMAI_MANAGED_DEPENDENCY_SERVICE_REF": {"kind": "SERVICE_REF"},
+      "LOOMAI_MANAGED_DEPENDENCY_SLOT": {"kind": "LITERAL", "reference": "inbox"},
+      "LOOMAI_MANAGED_DEPENDENCY_TARGET_PROFILE_ID": {"kind": "TARGET_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_TENANT_ID": {"kind": "TENANT_ID"},
+      "LOOMAI_MANAGED_DEPENDENCY_VERSION_ID": {"kind": "VERSION_ID"},
+      "PORT": {"kind": "LITERAL", "reference": "8085"}
+    },
+    "database": null,
+    "volumes": [{"mountPath": "/app/data", "capacity": {"milliCpu": 0, "memoryMiB": 0, "diskMiB": 4096, "resources": 0}}],
+    "dependsOn": [],
+    "initializationContract": "inbox-callback-canary/v1"
+  }],
+  "runtimeEnvironment": [
+    {"target": "CONNECTOR", "name": "MANAGED_INBOX_API_KEY", "value": {"kind": "SERVICE_SECRET", "reference": "api", "serviceSlot": "inbox"}},
+    {"target": "CONNECTOR", "name": "MANAGED_INBOX_BASE_URL", "value": {"kind": "SERVICE_URL", "reference": "inbox"}},
+    {"target": "CONNECTOR", "name": "MANAGED_INBOX_BINDING_ID", "value": {"kind": "BINDING_ID", "serviceSlot": "inbox"}},
+    {"target": "CONNECTOR", "name": "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "value": {"kind": "TARGET_SECRET", "reference": "conversation-handover-callback-signing"}},
+    {"target": "CONNECTOR", "name": "MANAGED_INBOX_CONSOLE_URL", "value": {"kind": "SERVICE_URL", "reference": "inbox"}},
+    {"target": "CONNECTOR", "name": "MANAGED_INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET", "value": {"kind": "SERVICE_SECRET", "reference": "callback", "serviceSlot": "inbox"}}
+  ]
+}

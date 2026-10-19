@@ -24,10 +24,60 @@ import static org.mockito.Mockito.when;
 class DeploymentManagedVectorResourceServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ManagedResourceOwnershipFixture ownershipFixture=new ManagedResourceOwnershipFixture();
+
+    @Test
+    void deletionPendingReceiptCannotBePromotedIntoManagedRegistry() {
+        var receipt=ownershipFixture.own("pinecone","INDEX","pinecone-control-plane","index","index","https://index.example");
+        ownershipFixture.ownership.beginDeletion(receipt);
+        var repository=mock(DeploymentManagedVectorResourceRepository.class);
+        var audit=mock(PlatformAuditService.class);
+        var service=new DeploymentManagedVectorResourceService(repository,audit,objectMapper);
+        ownershipFixture.inject(service);
+        var result=new ManagedVectorProvisioningResult(objectMapper.createObjectNode().put("vectorStrategy","pinecone")
+            .put("vectorProvisioningMode","PLATFORM_MANAGED"),objectMapper.createObjectNode().put("enabled",true)
+            .put("mode","MANAGED_SERVERLESS_INDEX").put("indexName","index").put("apiHost","https://index.example")
+            .put("ownershipReceiptId",receipt.id()));
+        org.assertj.core.api.Assertions.assertThatThrownBy(()->service.syncProvisionedResources(deployment("dep-123"),version("version"),release("rel-123"),result))
+            .hasMessageContaining("OWNERSHIP_CHANGED");
+        org.mockito.Mockito.verifyNoInteractions(repository,audit);
+    }
+
+    @Test
+    void detachedResourceStillRetainsSharedManagedSecretReference() {
+        var repository=mock(DeploymentManagedVectorResourceRepository.class);
+        var retained=new DeploymentManagedVectorResourceEntity();
+        retained.setResourceStatus("DETACHED"); retained.setSecretReferenceNamesJson("[\"MANAGED_SHARED_KEY\"]");
+        when(repository.findAll()).thenReturn(List.of(retained));
+        var service=new DeploymentManagedVectorResourceService(repository,mock(PlatformAuditService.class),objectMapper);
+        assertThat(service.managedSecretReferencedByActiveResource("MANAGED_SHARED_KEY")).isTrue();
+    }
+
+    @Test
+    void externalRetainedBindingPreventsClearingItsManagedSecret() {
+        var repository=mock(DeploymentManagedVectorResourceRepository.class);
+        var service=new DeploymentManagedVectorResourceService(repository,mock(PlatformAuditService.class),objectMapper);
+        ownershipFixture.inject(service);
+        ownershipFixture.jdbc.update("INSERT INTO deployment_provider_resource_handles(status,metadata_json) VALUES(?,?)",
+            "ACTIVE","{\"tokenSecretRef\":\"MANAGED_EXTERNAL_TOKEN\"}");
+        assertThat(service.managedSecretReferencedByActiveResource("MANAGED_EXTERNAL_TOKEN")).isTrue();
+        assertThat(service.managedSecretReferencedByActiveResource("MANAGED_UNUSED_TOKEN")).isFalse();
+    }
+
+    @Test
+    void unreadableRetainedBindingMetadataBlocksSecretRetirement() {
+        var repository=mock(DeploymentManagedVectorResourceRepository.class);
+        var service=new DeploymentManagedVectorResourceService(repository,mock(PlatformAuditService.class),objectMapper);
+        ownershipFixture.inject(service);
+        ownershipFixture.jdbc.update("INSERT INTO deployment_provider_resource_handles(status,metadata_json) VALUES(?,?)","ACTIVE","not-json");
+        org.assertj.core.api.Assertions.assertThatThrownBy(()->service.managedSecretReferencedByActiveResource("MANAGED_TOKEN"))
+            .hasMessageContaining("REFERENCE_RECONCILIATION_REQUIRED");
+    }
 
     @SuppressWarnings("unchecked")
     @Test
     void syncProvisionedResourcesRecordsManagedPineconeIndex() {
+        String receipt=ownershipFixture.own("pinecone","INDEX","pinecone-control-plane","dep-123","dep-123","https://dep-123.example.pinecone.io").id();
         DeploymentManagedVectorResourceRepository repository = mock(DeploymentManagedVectorResourceRepository.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of());
@@ -38,6 +88,7 @@ class DeploymentManagedVectorResourceServiceTest {
             objectMapper
         );
 
+        ownershipFixture.inject(service);
         service.syncProvisionedResources(
             deployment("dep-123"),
             version("ver-123"),
@@ -51,6 +102,7 @@ class DeploymentManagedVectorResourceServiceTest {
                     .put("enabled", true)
                     .put("vectorStrategy", "pinecone")
                     .put("mode", "MANAGED_SERVERLESS_INDEX")
+                    .put("ownershipReceiptId",receipt)
                     .put("indexName", "dep-123")
                     .put("apiHost", "https://dep-123.example.pinecone.io")
                     .put("state", "CREATED")
@@ -84,6 +136,8 @@ class DeploymentManagedVectorResourceServiceTest {
         existing.setResourceStatus("ACTIVE");
         existing.setSecretReferenceNamesJson("[]");
         existing.setDetailsJson("{}");
+        existing.setDeploymentVersionId("ver-original");
+        existing.setDeploymentReleaseId("rel-original");
         existing.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         existing.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(existing));
@@ -94,6 +148,7 @@ class DeploymentManagedVectorResourceServiceTest {
             objectMapper
         );
 
+        ownershipFixture.inject(service);
         service.syncProvisionedResources(
             deployment("dep-123"),
             version("ver-124"),
@@ -112,8 +167,8 @@ class DeploymentManagedVectorResourceServiceTest {
         verify(repository).saveAll(argThatList(resources ->
             resources.size() == 1
                 && "DETACHED".equals(resources.get(0).getResourceStatus())
-                && "ver-124".equals(resources.get(0).getDeploymentVersionId())
-                && "rel-124".equals(resources.get(0).getDeploymentReleaseId())
+                && "ver-original".equals(resources.get(0).getDeploymentVersionId())
+                && "rel-original".equals(resources.get(0).getDeploymentReleaseId())
         ));
         verify(auditService).record(eq("MANAGED_VECTOR_RESOURCES_SYNCED"), eq("DEPLOYMENT"), eq("dep-123"), org.mockito.ArgumentMatchers.anyMap());
     }
@@ -237,6 +292,10 @@ class DeploymentManagedVectorResourceServiceTest {
     @SuppressWarnings("unchecked")
     @Test
     void syncProvisionedResourcesRecordsManagedQdrantCloudResources() {
+        String root=ownershipFixture.own("qdrant","CLUSTER","account","aifabric-123","cluster-1","https://cluster.example").id();
+        String key=ownershipFixture.own("qdrant","DATABASE_API_KEY","https://cluster.example","ai-fabric-123","key-1","https://cluster.example").id();
+        String product=ownershipFixture.own("qdrant","COLLECTION","https://cluster.example","product","product","https://cluster.example").id();
+        String policy=ownershipFixture.own("qdrant","COLLECTION","https://cluster.example","policy","policy","https://cluster.example").id();
         DeploymentManagedVectorResourceRepository repository = mock(DeploymentManagedVectorResourceRepository.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of());
@@ -247,6 +306,7 @@ class DeploymentManagedVectorResourceServiceTest {
             objectMapper
         );
 
+        ownershipFixture.inject(service);
         service.syncProvisionedResources(
             deployment("dep-123"),
             version("ver-123"),
@@ -259,6 +319,8 @@ class DeploymentManagedVectorResourceServiceTest {
                     .put("enabled", true)
                     .put("vectorStrategy", "qdrant")
                     .put("mode", "MANAGED_CLOUD_CLUSTER")
+                    .put("ownershipReceiptId",root)
+                    .put("databaseApiKeyOwnershipReceiptId",key)
                     .put("clusterId", "cluster-1")
                     .put("clusterName", "aifabric-123")
                     .put("baseUrl", "https://cluster.example")
@@ -267,8 +329,8 @@ class DeploymentManagedVectorResourceServiceTest {
                     .put("databaseApiKeyName", "ai-fabric-123")
                     .put("databaseApiKeySecretName", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")
                     .set("collections", objectMapper.createArrayNode()
-                        .add(objectMapper.createObjectNode().put("name", "product").put("state", "CREATED"))
-                        .add(objectMapper.createObjectNode().put("name", "policy").put("state", "CREATED")))
+                        .add(objectMapper.createObjectNode().put("name", "product").put("state", "CREATED").put("ownershipReceiptId",product))
+                        .add(objectMapper.createObjectNode().put("name", "policy").put("state", "CREATED").put("ownershipReceiptId",policy)))
             )
         );
 
@@ -286,6 +348,7 @@ class DeploymentManagedVectorResourceServiceTest {
     @SuppressWarnings("unchecked")
     @Test
     void syncProvisionedResourcesRecordsManagedZillizCloudCluster() {
+        String receipt=ownershipFixture.own("zilliz","CLUSTER","project-1","aifabric-123","cluster-1","https://cluster-1.gcp-us-west1.zillizcloud.com").id();
         DeploymentManagedVectorResourceRepository repository = mock(DeploymentManagedVectorResourceRepository.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of());
@@ -296,6 +359,7 @@ class DeploymentManagedVectorResourceServiceTest {
             objectMapper
         );
 
+        ownershipFixture.inject(service);
         service.syncProvisionedResources(
             deployment("dep-123"),
             version("ver-123"),
@@ -310,6 +374,7 @@ class DeploymentManagedVectorResourceServiceTest {
                     .put("enabled", true)
                     .put("vectorStrategy", "milvus")
                     .put("mode", "MANAGED_ZILLIZ_CLOUD_CLUSTER")
+                    .put("ownershipReceiptId",receipt)
                     .put("clusterId", "cluster-1")
                     .put("clusterName", "aifabric-123")
                     .put("projectId", "project-1")
@@ -335,6 +400,8 @@ class DeploymentManagedVectorResourceServiceTest {
     private DeploymentEntity deployment(String id) {
         DeploymentEntity entity = new DeploymentEntity();
         entity.setId(id);
+        entity.setCustomerId(ManagedResourceOwnershipFixture.SCOPE.customerId());
+        entity.setTenantId(ManagedResourceOwnershipFixture.SCOPE.tenantId());
         entity.setName("Deployment");
         entity.setEnvironmentName("dev");
         entity.setTemplateId("dev-openai-lucene");
@@ -358,6 +425,7 @@ class DeploymentManagedVectorResourceServiceTest {
 
     private DeploymentReleaseEntity release(String id) {
         DeploymentReleaseEntity entity = new DeploymentReleaseEntity();
+        entity.setTargetProfileId(ManagedResourceOwnershipFixture.SCOPE.targetProfileId());
         entity.setId(id);
         entity.setDeploymentId("dep-123");
         entity.setDeploymentVersionId("ver-123");

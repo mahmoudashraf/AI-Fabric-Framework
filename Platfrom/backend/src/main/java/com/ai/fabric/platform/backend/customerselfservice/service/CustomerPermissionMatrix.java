@@ -10,7 +10,7 @@ public final class CustomerPermissionMatrix {
 
     public static PermissionRow row(Operation operation) {
         Set<Setting> settings = switch (operation) {
-            case BOOTSTRAP_CONFIGURATION, BOOTSTRAP -> Set.of(Setting.DEPLOYMENT_NAME);
+            case BOOTSTRAP_CONFIGURATION, BOOTSTRAP -> Set.of(Setting.DEPLOYMENT_NAME, Setting.AI_STATE_STORAGE_MODE);
             case DRAFT_EDIT -> Set.of(Setting.DEPLOYMENT_NAME, Setting.INTERACTION_PROFILE_ID);
             case VERSION_PUBLISH -> Set.of();
             case APP_CONFIGURE -> Set.of(Setting.APP_TITLE, Setting.LOGO_ASSET_ID, Setting.THEME_PROFILE_ID,

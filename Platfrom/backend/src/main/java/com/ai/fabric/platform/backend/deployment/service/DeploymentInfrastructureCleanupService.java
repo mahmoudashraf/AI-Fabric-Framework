@@ -52,6 +52,8 @@ public class DeploymentInfrastructureCleanupService {
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    @Autowired
+    private ManagedResourceOwnershipService ownership;
 
     @Autowired
     public DeploymentInfrastructureCleanupService(DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
@@ -153,8 +155,9 @@ public class DeploymentInfrastructureCleanupService {
     public DeploymentInfrastructureCleanupResult cleanupForHardDelete(DeploymentEntity deployment,
                                                                       DeploymentReleaseEntity latestRelease,
                                                                       String reason) {
+        RailwayCleanupPlan railwayPlan = railwayCleanupPlan(deployment, latestRelease);
         ManagedVectorCleanupResult managedVector = cleanupManagedVectorResources(deployment, reason);
-        RailwayCleanupResult railway = cleanupRailwayResources(deployment, latestRelease);
+        RailwayCleanupResult railway = cleanupRailwayResources(railwayPlan);
         ProviderResourceCleanupResult providerResources = cleanupProviderResources(deployment, reason);
         List<String> executionSecrets = cleanupDeploymentExecutionSecrets(deployment, reason);
         platformAuditService.record(
@@ -202,13 +205,29 @@ public class DeploymentInfrastructureCleanupService {
         List<DeploymentManagedVectorResourceSummary> orderedResources = resources.stream()
             .sorted((left, right) -> Integer.compare(cleanupOrder(left), cleanupOrder(right)))
             .toList();
+        if (ownership==null) throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        Map<String,ManagedResourceOwnershipService.Receipt> receipts=new LinkedHashMap<>();
+        for (var resource:orderedResources) {
+            var scope=ownership.scope(deployment,ownership.releaseTarget(resource.deploymentReleaseId()));
+            receipts.put(resource.id(),ownership.requireReceipt(scope,resource.details().path("ownershipReceiptId").asText(),
+                resource.vendor(),resource.resourceType(),"COLLECTION".equals(resource.resourceType())?resource.resourceName():resource.resourceReference(),
+                resource.endpoint(),true));
+        }
+        // The generated Cloud key is collection-scoped; it cannot prove a complete root inventory.
+        for (var resource:orderedResources) {
+            if ("qdrant".equals(resource.vendor()) && "CLUSTER".equals(resource.resourceType()))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_COMPLETE_CHILD_INVENTORY_REQUIRED");
+        }
         List<String> cleanedIds = new ArrayList<>();
         Set<String> candidateManagedSecrets = new LinkedHashSet<>();
         Map<String, String> failures = new LinkedHashMap<>();
 
         for (DeploymentManagedVectorResourceSummary resource : orderedResources) {
             try {
-                cleanupManagedVectorResource(resource, orderedResources);
+                var receipt=receipts.get(resource.id());
+                ownership.beginDeletion(receipt);
+                cleanupManagedVectorResource(resource, orderedResources,receipt);
+                ownership.deleted(receipt.id());
                 cleanedIds.add(resource.id());
                 resource.secretReferenceNames().stream()
                     .filter(platformSecretService::isManagedSecretName)
@@ -244,76 +263,64 @@ public class DeploymentInfrastructureCleanupService {
         return new ManagedVectorCleanupResult(List.copyOf(cleanedIds), List.copyOf(candidateManagedSecrets));
     }
 
-    private RailwayCleanupResult cleanupRailwayResources(DeploymentEntity deployment,
-                                                         DeploymentReleaseEntity latestRelease) {
+    private record RailwayCleanupPlan(ManagedResourceOwnershipService.Scope scope, String projectId,String environmentId,
+                                      Map<String,ManagedResourceOwnershipService.Receipt> services) { }
+
+    private RailwayCleanupPlan railwayCleanupPlan(DeploymentEntity deployment, DeploymentReleaseEntity latestRelease) {
         JsonNode details = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());
         String projectId = firstNonBlank(text(details, "railway", "projectId"), text(details, "projectId"));
-        String runtimeServiceId = text(details, "railway", "services", "runtime", "serviceId");
-        String connectorServiceId = text(details, "railway", "services", "restConnector", "serviceId");
-        String runnerServiceId = text(details, "railway", "services", "vectorizationRunner", "serviceId");
+        var requested=new LinkedHashSet<String>();
+        for (String role:List.of("runtime","restConnector","vectorizationRunner","embeddingWorker")) {
+            String id=text(details,"railway","services",role,"serviceId");
+            if (hasText(id)) requested.add(id);
+        }
+        if (requested.isEmpty() && !hasText(projectId)) return null;
+        if (ownership==null || latestRelease==null || !hasText(projectId))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        var scope=ownership.scope(deployment,latestRelease.getTargetProfileId());
+        ownership.requireOwned(scope,"railway","PROJECT",projectId,null);
+        String environmentId=text(details,"railway","environmentId");
+        if (!projectId.equals(ownership.requireOwned(scope,"railway","ENVIRONMENT",environmentId,null).parent()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_LOCATION_CHANGED");
+        var receipts=new LinkedHashMap<String,ManagedResourceOwnershipService.Receipt>();
+        for (String id:requested) {
+            String receiptId=text(details,"railway","ownership",id);
+            var receipt=ownership.requireReceipt(scope,receiptId,"railway","SERVICE",id,null,true);
+            if (!projectId.equals(receipt.parent()))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_LOCATION_CHANGED");
+            receipts.put(id,receipt);
+        }
+        requireSingleRailwayEnvironment(getProjectIfPresent(projectId,"inspect owned Railway project"),environmentId);
+        return new RailwayCleanupPlan(scope,projectId,environmentId,receipts);
+    }
 
-        List<String> deletedServiceIds = new ArrayList<>();
-        Map<String, String> requestedServiceIds = new LinkedHashMap<>();
-        if (hasText(runtimeServiceId)) {
-            requestedServiceIds.put(runtimeServiceId, "runtime");
-        }
-        if (hasText(connectorServiceId)) {
-            requestedServiceIds.put(connectorServiceId, "restConnector");
-        }
-        if (hasText(runnerServiceId)) {
-            requestedServiceIds.put(runnerServiceId, "vectorizationRunner");
-        }
+    private void requireSingleRailwayEnvironment(RailwayGraphqlClient.RailwayProjectSnapshot project,String environmentId) {
+        if (project!=null && (project.environments().size()!=1 || !environmentId.equals(project.environments().getFirst().id())))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"RAILWAY_SHARED_ENVIRONMENT_RECONCILIATION_REQUIRED");
+    }
 
-        RailwayGraphqlClient.RailwayProjectSnapshot project = null;
-        if (hasText(projectId)) {
-            try {
-                boolean projectDeleted = deleteRailwayProjectIfPresent(projectId, deployment.getId());
-                return new RailwayCleanupResult(projectDeleted, List.copyOf(requestedServiceIds.keySet()));
-            } catch (RailwayProvisioningException ex) {
-                project = getProjectIfPresent(
-                    projectId,
-                    "re-check Railway project '" + projectId + "' after project delete failure during hard delete for deployment '"
-                        + deployment.getId() + "'"
-                );
-                if (project == null) {
-                    log.warn(
-                        "Railway project delete reported failure but project no longer exists; treating hard delete as successful: deploymentId={}, projectId={}",
-                        deployment.getId(),
-                        projectId
-                    );
-                    return new RailwayCleanupResult(false, List.copyOf(requestedServiceIds.keySet()));
-                }
-                log.warn(
-                    "Railway project delete failed during hard delete; falling back to service-level cleanup: deploymentId={}, projectId={}, error={}",
-                    deployment.getId(),
-                    projectId,
-                    ex.getMessage()
-                );
+    private RailwayCleanupResult cleanupRailwayResources(RailwayCleanupPlan plan) {
+        if (plan==null) return new RailwayCleanupResult(false,List.of());
+        var deleted=new ArrayList<String>();
+        for (var entry:plan.services().entrySet()) {
+            var receipt=entry.getValue();
+            ownership.beginDeletion(receipt);
+            var project=getProjectIfPresent(plan.projectId(),"recheck owned Railway service");
+            // Service deletion affects every environment; any additional environment makes it unsafe.
+            requireSingleRailwayEnvironment(project,plan.environmentId());
+            boolean present=project!=null && project.services().stream().anyMatch(value->entry.getKey().equals(value.id()));
+            if (present) {
+                requireInitialDeletionAttempt(receipt);
+                deleteRailwayServiceIfPresent(entry.getKey(),"owned",plan.scope().deploymentId());
+                var observed=getProjectIfPresent(plan.projectId(),"verify owned Railway service absence");
+                if (observed!=null && observed.services().stream().anyMatch(value->entry.getKey().equals(value.id())))
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_DELETE_UNSETTLED");
             }
+            ownership.deleted(receipt.id());
+            deleted.add(entry.getKey());
         }
-
-        for (Map.Entry<String, String> requestedService : requestedServiceIds.entrySet()) {
-            String serviceId = requestedService.getKey();
-            String serviceRole = requestedService.getValue();
-            if (deleteRailwayServiceIfPresent(serviceId, serviceRole, deployment.getId())) {
-                deletedServiceIds.add(serviceId);
-            }
-        }
-
-        boolean projectDeleted = false;
-        if (project != null) {
-            RailwayGraphqlClient.RailwayProjectSnapshot refreshed = getProjectIfPresent(
-                project.id(),
-                "refresh Railway project '" + project.id() + "' during hard delete for deployment '" + deployment.getId() + "'"
-            );
-            if (refreshed != null && refreshed.services().isEmpty()) {
-                if (deleteRailwayProjectIfPresent(refreshed.id(), deployment.getId())) {
-                    projectDeleted = true;
-                }
-            }
-        }
-
-        return new RailwayCleanupResult(projectDeleted, List.copyOf(deletedServiceIds));
+        // Container ownership never implies permission to delete untracked services or environments.
+        return new RailwayCleanupResult(false,List.copyOf(deleted));
     }
 
     private ProviderResourceCleanupResult cleanupProviderResources(DeploymentEntity deployment, String reason) {
@@ -363,38 +370,41 @@ public class DeploymentInfrastructureCleanupService {
     }
 
     private void cleanupManagedVectorResource(DeploymentManagedVectorResourceSummary resource,
-                                              List<DeploymentManagedVectorResourceSummary> allResources) {
+                                              List<DeploymentManagedVectorResourceSummary> allResources,
+                                              ManagedResourceOwnershipService.Receipt receipt) {
         if ("pinecone".equalsIgnoreCase(resource.vendor())
             && "MANAGED_SERVERLESS_INDEX".equalsIgnoreCase(resource.managedMode())
             && "INDEX".equalsIgnoreCase(resource.resourceType())) {
-            cleanupPineconeIndex(resource);
+            cleanupPineconeIndex(resource,receipt);
             return;
         }
         if ("qdrant".equalsIgnoreCase(resource.vendor())
             && "COLLECTION".equalsIgnoreCase(resource.resourceType())) {
-            cleanupQdrantCollection(resource);
+            cleanupQdrantCollection(resource,receipt);
             return;
         }
         if ("qdrant".equalsIgnoreCase(resource.vendor())
             && "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
             && "DATABASE_API_KEY".equalsIgnoreCase(resource.resourceType())) {
-            cleanupQdrantDatabaseApiKey(resource, allResources);
+            cleanupQdrantDatabaseApiKey(resource, allResources,receipt);
             return;
         }
         if ("qdrant".equalsIgnoreCase(resource.vendor())
             && "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
             && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
-            cleanupQdrantCluster(resource);
+            cleanupQdrantCluster(resource,receipt);
             return;
         }
         if ("zilliz".equalsIgnoreCase(resource.vendor())
             && "MANAGED_ZILLIZ_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
             && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
-            cleanupZillizCluster(resource);
+            cleanupZillizCluster(resource,receipt);
+            return;
         }
+        throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_KIND_UNSUPPORTED");
     }
 
-    private void cleanupPineconeIndex(DeploymentManagedVectorResourceSummary resource) {
+    private void cleanupPineconeIndex(DeploymentManagedVectorResourceSummary resource,ManagedResourceOwnershipService.Receipt receipt) {
         String apiKey = trimToNull(platformSecretService.resolveSecret("PINECONE_API_KEY"));
         if (!hasText(apiKey)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PINECONE_API_KEY must be configured before hard delete can remove Pinecone indexes.");
@@ -404,6 +414,8 @@ public class DeploymentInfrastructureCleanupService {
         if (existing == null) {
             return;
         }
+        requireLiveIdentity(receipt,existing.name(),existing.host());
+        requireEmptyPineconeIndex(existing.host(),apiKey);
         if ("enabled".equalsIgnoreCase(existing.deletionProtection())) {
             pineconeControlPlaneClient.configureDeletionProtection(indexName, false, apiKey);
         }
@@ -411,9 +423,11 @@ public class DeploymentInfrastructureCleanupService {
         pineconeControlPlaneClient.awaitIndexDeleted(indexName, apiKey);
     }
 
-    private void cleanupQdrantCollection(DeploymentManagedVectorResourceSummary resource) {
+    private void cleanupQdrantCollection(DeploymentManagedVectorResourceSummary resource,ManagedResourceOwnershipService.Receipt receipt) {
         String collectionName = trimToNull(resource.resourceName());
-        String baseUrl = trimToNull(firstNonBlank(text(resource.details(), "baseUrl"), resource.endpoint()));
+        String baseUrl = resource.endpoint();
+        if (!java.util.Objects.equals(baseUrl,receipt.parent()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_LOCATION_CHANGED");
         if (!hasText(collectionName) || !hasText(baseUrl)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Qdrant collection cleanup requires both collection name and base URL.");
         }
@@ -421,11 +435,13 @@ public class DeploymentInfrastructureCleanupService {
         if (!qdrantCollectionExists(baseUrl, collectionName, apiKey)) {
             return;
         }
+        requireLiveIdentity(receipt,collectionName,baseUrl);
         deleteQdrantCollection(baseUrl, collectionName, apiKey);
+        if (qdrantCollectionExists(baseUrl,collectionName,apiKey)) throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_DELETE_UNSETTLED");
     }
 
     private void cleanupQdrantDatabaseApiKey(DeploymentManagedVectorResourceSummary resource,
-                                             List<DeploymentManagedVectorResourceSummary> allResources) {
+                                             List<DeploymentManagedVectorResourceSummary> allResources,ManagedResourceOwnershipService.Receipt receipt) {
         String managementApiKey = trimToNull(platformSecretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY"));
         if (!hasText(managementApiKey)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "QDRANT_CLOUD_MANAGEMENT_API_KEY must be configured before hard delete can remove Qdrant Cloud resources.");
@@ -442,27 +458,22 @@ public class DeploymentInfrastructureCleanupService {
         if (existing == null) {
             return;
         }
+        var cluster=qdrantCloudControlPlaneClient.getCluster(accountId,clusterId,managementApiKey);
+        if (cluster==null || !clusterId.equals(existing.clusterId()) || !clusterId.equals(cluster.id())
+            || !java.util.Objects.equals(receipt.parent(),normalizeEndpoint(cluster.endpointUrl())))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_LOCATION_CHANGED");
+        requireLiveIdentity(receipt,existing.id(),resource.endpoint());
         qdrantCloudControlPlaneClient.deleteDatabaseApiKey(accountId, clusterId, existing.id(), managementApiKey);
+        if (qdrantCloudControlPlaneClient.findDatabaseApiKeyByName(accountId,clusterId,keyName,managementApiKey)!=null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_DELETE_UNSETTLED");
     }
 
-    private void cleanupQdrantCluster(DeploymentManagedVectorResourceSummary resource) {
-        String managementApiKey = trimToNull(platformSecretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY"));
-        if (!hasText(managementApiKey)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "QDRANT_CLOUD_MANAGEMENT_API_KEY must be configured before hard delete can remove Qdrant Cloud resources.");
-        }
-        JsonNode details = resource.details();
-        String accountId = text(details, "accountId");
-        String clusterId = firstNonBlank(text(details, "clusterId"), resource.resourceReference());
-        if (!hasText(accountId) || !hasText(clusterId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Qdrant cluster cleanup is missing account or cluster identifiers.");
-        }
-        if (qdrantCloudControlPlaneClient.getCluster(accountId, clusterId, managementApiKey) == null) {
-            return;
-        }
-        qdrantCloudControlPlaneClient.deleteCluster(accountId, clusterId, managementApiKey);
+    private void cleanupQdrantCluster(DeploymentManagedVectorResourceSummary resource,ManagedResourceOwnershipService.Receipt receipt) {
+        // Collection-scoped keys cannot establish that no unrelated collections exist on the root.
+        throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_COMPLETE_CHILD_INVENTORY_REQUIRED");
     }
 
-    private void cleanupZillizCluster(DeploymentManagedVectorResourceSummary resource) {
+    private void cleanupZillizCluster(DeploymentManagedVectorResourceSummary resource,ManagedResourceOwnershipService.Receipt receipt) {
         String apiKey = trimToNull(platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY"));
         if (!hasText(apiKey)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ZILLIZ_CLOUD_API_KEY must be configured before hard delete can remove Zilliz Cloud resources.");
@@ -471,13 +482,24 @@ public class DeploymentInfrastructureCleanupService {
         if (!hasText(clusterId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Zilliz Cloud cluster cleanup is missing the cluster identifier.");
         }
-        if (zillizCloudControlPlaneClient.getCluster(clusterId, apiKey) == null) {
+        var live=zillizCloudControlPlaneClient.getCluster(clusterId, apiKey);
+        if (live == null) {
             return;
         }
+        requireLiveIdentity(receipt,live.clusterId(),normalizeEndpoint(live.connectAddress()));
+        if (!receipt.parent().equals(text(resource.details(),"projectId")) || !receipt.parent().equals(live.projectId()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_LOCATION_CHANGED");
+        String username=platformSecretService.resolveSecret(text(resource.details(),"runtimeUsernameSecretName"));
+        String password=platformSecretService.resolveSecret(text(resource.details(),"runtimePasswordSecretName"));
+        if (!hasText(username) || !hasText(password))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_COMPLETE_CHILD_INVENTORY_REQUIRED");
+        var collections=zillizCloudControlPlaneClient.listServingCollections(receipt.endpoint(),username,password);
+        if (collections==null || !collections.isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_CHILDREN_RETAINED");
         try {
             zillizCloudControlPlaneClient.deleteCluster(clusterId, apiKey);
         } catch (RailwayProvisioningException ex) {
-            if (isZillizDeleteAlreadySatisfied(ex)) {
+            if (isZillizDeleteAlreadySatisfied(ex) && zillizCloudControlPlaneClient.getCluster(clusterId,apiKey)==null) {
                 return;
             }
             throw ex;
@@ -485,23 +507,41 @@ public class DeploymentInfrastructureCleanupService {
         try {
             zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, apiKey);
         } catch (RailwayProvisioningException ex) {
-            if (isZillizDeleteAlreadySatisfied(ex)) {
+            if (isZillizDeleteAlreadySatisfied(ex) && zillizCloudControlPlaneClient.getCluster(clusterId,apiKey)==null) {
                 return;
             }
             ZillizCloudControlPlaneClient.ZillizClusterSummary snapshot = zillizCloudControlPlaneClient.getCluster(clusterId, apiKey);
             if (snapshot == null) {
                 return;
             }
-            if (isZillizDeletionInProgress(snapshot.status())) {
-                log.warn(
-                    "Zilliz Cloud cluster delete is still in progress after the wait window; continuing hard delete with background vendor cleanup: clusterId={}, status={}",
-                    clusterId,
-                    snapshot.status()
-                );
-                return;
-            }
             throw ex;
         }
+    }
+
+    private void requireLiveIdentity(ManagedResourceOwnershipService.Receipt receipt,String id,String endpoint) {
+        requireInitialDeletionAttempt(receipt);
+        if (!receipt.resourceId().equals(id)
+            || !java.util.Objects.equals(receipt.endpoint(),endpoint))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_IDENTITY_CHANGED");
+    }
+
+    private void requireInitialDeletionAttempt(ManagedResourceOwnershipService.Receipt receipt) {
+        // A retry may confirm absence, but must not delete a resource that reappeared after an uncertain outcome.
+        if (!"OWNED".equals(receipt.state()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_DELETE_RECONCILIATION_REQUIRED");
+    }
+
+    private String normalizeEndpoint(String value) { return value!=null && value.endsWith("/")?value.substring(0,value.length()-1):value; }
+
+    private void requireEmptyPineconeIndex(String endpoint,String apiKey) {
+        HttpRequest request=HttpRequest.newBuilder(URI.create(endpoint+"/describe_index_stats"))
+            .timeout(Duration.ofSeconds(30)).header("Api-Key",apiKey).header("Content-Type","application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("{}")).build();
+        var response=send(request);
+        JsonNode stats=readJson(response.body());
+        if (response.statusCode()!=200 || !stats.path("namespaces").isObject() || !stats.path("namespaces").isEmpty()
+            || !stats.path("totalVectorCount").isIntegralNumber() || stats.path("totalVectorCount").longValue()!=0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"MANAGED_RESOURCE_CHILDREN_RETAINED");
     }
 
     private boolean isZillizDeleteAlreadySatisfied(RuntimeException ex) {
@@ -516,16 +556,6 @@ public class DeploymentInfrastructureCleanupService {
         return normalized.contains("STATUS IS DELETED")
             || normalized.contains("INSTANCE STATUS IS DELETED")
             || normalized.contains("ALREADY DELETED");
-    }
-
-    private boolean isZillizDeletionInProgress(String status) {
-        if (!hasText(status)) {
-            return false;
-        }
-        String normalized = status.trim().toUpperCase();
-        return normalized.contains("DELET")
-            || normalized.contains("DROP")
-            || normalized.contains("TERMINAT");
     }
 
     private boolean qdrantCollectionExists(String baseUrl,
@@ -632,22 +662,6 @@ public class DeploymentInfrastructureCleanupService {
             throw contextualRailwayFailure(
                 "Failed to delete Railway " + serviceRole + " service '" + serviceId
                     + "' during hard delete for deployment '" + deploymentId + "'.",
-                ex
-            );
-        }
-    }
-
-    private boolean deleteRailwayProjectIfPresent(String projectId,
-                                                  String deploymentId) {
-        try {
-            railwayGraphqlClient.deleteProject(projectId);
-            return true;
-        } catch (RailwayProvisioningException ex) {
-            if (isRailwayNotFound(ex)) {
-                return false;
-            }
-            throw contextualRailwayFailure(
-                "Failed to delete Railway project '" + projectId + "' during hard delete for deployment '" + deploymentId + "'.",
                 ex
             );
         }

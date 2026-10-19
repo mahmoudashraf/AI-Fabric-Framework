@@ -72,13 +72,19 @@ public final class AdmissionUnusedReservationEvidence {
                 throw denied("UNUSED_CANCELLATION_RESOURCE_HISTORY_PRESENT");
             JsonNode metadata = json.read(rs.getString("metadata_json"), JsonNode.class);
             if (metadata == null || !metadata.isObject()) throw denied("UNUSED_CANCELLATION_BINDING_METADATA_INVALID");
-            if (PreservedExternalBindingKinds.VECTOR_STORAGE.equals(kind)) {
+            if (PreservedExternalBindingKinds.VECTOR_STORAGE.equals(kind)
+                || PreservedExternalBindingKinds.AI_STATE_STORAGE.equals(kind)) {
                 if (!"ACTIVE".equals(rs.getString("status")) || !"RETAIN_EXTERNAL".equals(metadata.path("lifecycle").textValue())
                     || !metadata.path("externalResourceOwned").isBoolean() || metadata.path("externalResourceOwned").booleanValue()
                     || !reservation.customerId().equals(metadata.path("customerId").textValue())
                     || !reservation.tenantId().equals(metadata.path("tenantId").textValue())
                     || !deployment.equals(metadata.path("deploymentId").textValue())
                     || !target.equals(metadata.path("targetProfileId").textValue()))
+                    throw denied("UNUSED_CANCELLATION_BINDING_METADATA_INVALID");
+                if (PreservedExternalBindingKinds.AI_STATE_STORAGE.equals(kind)
+                    && (!metadata.path("migrationAuthorized").asBoolean()
+                        || !metadata.path("dedicatedAiSchemas").asBoolean()
+                        || !"CUSTOMER_POSTGRES".equals(metadata.path("mode").asText())))
                     throw denied("UNUSED_CANCELLATION_BINDING_METADATA_INVALID");
             } else if (!"CONFIGURED".equals(rs.getString("status"))
                 || !"CUSTOMER_MANAGED".equals(metadata.path("storageOwnership").textValue())

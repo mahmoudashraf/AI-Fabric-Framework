@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.EnumSet;
@@ -89,6 +90,47 @@ class CustomerAdmissionManifestServiceTest extends AdmissionFixture {
                 "template-version", "d".repeat(64), "managed-dependency-spec:" + "d".repeat(64))));
         service = new CustomerAdmissionManifestService(store, json, deployments, documentBindings,
             dependencyEvidence, audit);
+    }
+
+    @Test
+    void customerProvidedStateDoesNotReserveTheManagedPostgresFootprint() throws Exception {
+        storageChoice();
+        version.setProviderConfigJson("{\"aiStateStorageMode\":\"CUSTOMER_POSTGRES\"}");
+        var manifest = service.prepare(deployment, version, authorization);
+        assertThat(manifest.demand().amounts()).containsEntry(Dimension.DATABASES, 1L)
+            .containsEntry(Dimension.CPU_MILLICORES, 3_250L)
+            .containsEntry(Dimension.MEMORY_BYTES, 4_864L * 1024L * 1024L);
+    }
+
+    @Test
+    void managedStateReservesItsExplicitReviewedFootprint() throws Exception {
+        storageChoice();
+        version.setProviderConfigJson("{\"aiStateStorageMode\":\"MANAGED_POSTGRES\"}");
+        var manifest = service.prepare(deployment, version, authorization);
+        assertThat(manifest.demand().amounts()).containsEntry(Dimension.DATABASES, 2L)
+            .containsEntry(Dimension.CPU_MILLICORES, 3_750L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"{},CUSTOMER_AI_STATE_STORAGE_CHOICE_REQUIRED", "{\"aiStateStorageMode\":true},CUSTOMER_AI_STATE_STORAGE_CHOICE_REQUIRED",
+        "{\"aiStateStorageMode\":\"H2\"},CUSTOMER_AI_STATE_STORAGE_CHOICE_INVALID"})
+    void missingOrUnreviewedStorageCannotSilentlyPickADatabase(String provider, String code) throws Exception {
+        storageChoice();
+        version.setProviderConfigJson(provider);
+        assertThatThrownBy(() -> service.prepare(deployment, version, authorization)).hasMessageContaining(code);
+        verifyNoInteractions(deployments, dependencyEvidence, audit);
+    }
+
+    private void storageChoice() throws Exception {
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(authorization.definition());
+        tree.withArray("settings").addObject().put("setting", "AI_STATE_STORAGE_MODE")
+            .put("type", "CHOICE").put("maxLength", 32).putArray("allowedValues")
+            .add("MANAGED_POSTGRES").add("CUSTOMER_POSTGRES");
+        var topologies = tree.putObject("aiStateStorageTopologies");
+        topologies.set("MANAGED_POSTGRES", mapper.valueToTree(authorization.context().topology()));
+        topologies.set("CUSTOMER_POSTGRES", mapper.valueToTree(
+            new ReviewedTopology(1, 3_250, 4_864, 12_288, 1, 2, 4, 1)));
+        authorization = new Authorization(authorization.context(), mapper.treeToValue(tree, Definition.class));
     }
 
     @Test

@@ -49,6 +49,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     private final TargetRetirementGateRepository retirementGates;
     private final ObjectProvider<ManagedDependencyInitializationVerifier> initializationVerifiers;
     private final ObjectMapper mapper;
+    private final ManagedDependencyArtifactPolicy ownership;
 
     public ProductionManagedDependencyPrerequisites(ManagedDependencyAdmissionLedger admission,
             ManagedDependencyGraphStore graphs, DeploymentSourceArtifactRepository artifacts,
@@ -58,7 +59,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             TargetRetirementOperationRepository retirementOperations,
             TargetRetirementGateRepository retirementGates,
             ObjectProvider<ManagedDependencyInitializationVerifier> initializationVerifiers,
-            ObjectMapper mapper) {
+            ObjectMapper mapper, ManagedDependencyArtifactPolicy ownership) {
         this.admission = admission;
         this.graphs = graphs;
         this.artifacts = artifacts;
@@ -71,6 +72,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         this.retirementGates = retirementGates;
         this.initializationVerifiers = initializationVerifiers;
         this.mapper = mapper;
+        this.ownership = ownership;
     }
 
     @Override
@@ -81,6 +83,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         ManagedDependencySpecValidator validator = new ManagedDependencySpecValidator(mapper);
         validator.validate(spec);
         if (!scope.specFingerprint().equals(validator.fingerprint(spec))) fail("DEPENDENCY_SPEC_DRIFT");
+        ownership.requireAllowed(spec);
         var evidence = admission.require(requirement(scope, spec), null);
         RuntimeAuthorityBinding authority = authority(scope);
 
@@ -98,6 +101,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         requireScope(scope);
         var graph = graph(scope);
         ManagedDependencySpec spec = graphs.spec(graph);
+        ownership.requireAllowed(spec);
         admission.require(requirement(scope, spec), required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
         authority(scope);
     }
@@ -122,6 +126,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
             || !acceptedChannel) {
             fail("DEPENDENCY_ARTIFACT_PROVENANCE_INVALID");
         }
+        ownership.requireAllowed(service, artifact);
     }
 
     @Override

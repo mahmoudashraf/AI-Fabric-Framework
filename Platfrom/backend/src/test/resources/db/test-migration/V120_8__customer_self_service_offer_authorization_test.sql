@@ -25,7 +25,9 @@ CREATE TABLE platform_customer_entitlement_commands (
     entitlement_id VARCHAR(64) NOT NULL REFERENCES platform_customer_offer_entitlements(id),
     operation_key VARCHAR(128) NOT NULL,
     request_fingerprint VARCHAR(64) NOT NULL,
-    command_type VARCHAR(16) NOT NULL CHECK (command_type IN ('INVITE', 'ACCEPT', 'REVOKE')),
+    command_type VARCHAR(40) NOT NULL CONSTRAINT ck_customer_entitlement_command_type CHECK (
+        command_type IN ('INVITE','ACCEPT','REVOKE','BOOTSTRAP_CONFIG','BIND_S3','REVOKE_S3','PUBLISH_VERSION',
+            'APPLY_STAGING_VERSION','CREATE_STAGING_CONSUMER','BIND_EXTERNAL_SERVICE','REVOKE_EXTERNAL_SERVICE','BIND_AI_STATE')),
     actor_id VARCHAR(255) NOT NULL,
     result_json TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,

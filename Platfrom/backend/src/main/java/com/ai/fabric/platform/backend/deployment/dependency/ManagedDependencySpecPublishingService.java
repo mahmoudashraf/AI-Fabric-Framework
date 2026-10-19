@@ -39,11 +39,13 @@ public class ManagedDependencySpecPublishingService {
     private final CustomerOfferEntitlementService staff;
     private final PlatformAuditService audit;
     private final ObjectMapper mapper;
+    private final ManagedDependencyArtifactPolicy ownership;
 
     public ManagedDependencySpecPublishingService(ManagedDependencySpecRepository specs,
             ManagedDependencySpecValidator validator, MarketplacePluginVersionRepository versions,
             MarketplacePluginRepository plugins, DeploymentSourceArtifactRepository artifacts,
-            CustomerOfferEntitlementService staff, PlatformAuditService audit, ObjectMapper mapper) {
+            CustomerOfferEntitlementService staff, PlatformAuditService audit, ObjectMapper mapper,
+            ManagedDependencyArtifactPolicy ownership) {
         this.specs = specs;
         this.validator = validator;
         this.versions = versions;
@@ -52,6 +54,7 @@ public class ManagedDependencySpecPublishingService {
         this.staff = staff;
         this.audit = audit;
         this.mapper = mapper;
+        this.ownership = ownership;
     }
 
     public record PublicationRequest(String specId, ManagedDependencySpec spec, String reviewReference) { }
@@ -79,6 +82,7 @@ public class ManagedDependencySpecPublishingService {
             if (!entity.getFingerprint().equals(validator.fingerprint(spec))) {
                 throw conflict("DEPENDENCY_SPEC_DRIFT");
             }
+            ownership.requireAllowed(spec);
             return new PublicationDetails(summary(entity), spec);
         } catch (JsonProcessingException error) {
             throw conflict("DEPENDENCY_SPEC_INVALID");
@@ -141,6 +145,7 @@ public class ManagedDependencySpecPublishingService {
             || artifact.getPromotionChannel() == null || artifact.getPromotionChannel().isBlank()) {
             throw conflict("DEPENDENCY_ARTIFACT_NOT_IMMUTABLE");
         }
+        ownership.requireAllowed(service, artifact);
     }
 
     private void validateManagedRuntimeBindings(MarketplacePluginVersionEntity templateVersion,

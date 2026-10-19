@@ -89,7 +89,9 @@ class TargetProfileIdentityBridgeTest extends AdmissionFixture {
         var codec = new CustomerOfferCodec(mapper);
         composition = new CustomerReviewedCompositionService(codec, mock(jakarta.validation.Validator.class),
             mock(MarketplacePluginRepository.class), mock(MarketplacePluginVersionRepository.class), mock(MarketplaceManifestService.class),
-            mock(DeploymentSourceArtifactRepository.class), targets, mock(CustomerWorkspaceProfileValidator.class), mapper);
+            mock(DeploymentSourceArtifactRepository.class), targets, mock(CustomerWorkspaceProfileValidator.class), mapper,
+            mock(com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy.class),
+            mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy.class));
         permission = new TargetPermission(TARGET, TargetIntent.CUSTOMER_STAGING, composition.profileFingerprint(profile));
         composition.requireProfile(profile, permission);
 

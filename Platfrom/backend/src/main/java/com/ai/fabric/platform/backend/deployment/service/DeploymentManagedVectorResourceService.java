@@ -42,6 +42,8 @@ public class DeploymentManagedVectorResourceService {
     private final DeploymentManagedVectorResourceRepository repository;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    @org.springframework.beans.factory.annotation.Autowired
+    private ManagedResourceOwnershipService ownership;
 
     public DeploymentManagedVectorResourceService(DeploymentManagedVectorResourceRepository repository,
                                                   PlatformAuditService platformAuditService,
@@ -57,6 +59,14 @@ public class DeploymentManagedVectorResourceService {
                                          DeploymentReleaseEntity release,
                                          ManagedVectorProvisioningResult provisioningResult) {
         List<DesiredManagedVectorResource> desiredResources = desiredResources(deployment, version, release, provisioningResult);
+        if (!desiredResources.isEmpty()) {
+            if (ownership==null) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT,"MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+            var scope=ownership.scope(deployment,release.getTargetProfileId());
+            for (var desired:desiredResources) ownership.requireReceipt(scope,desired.details().path("ownershipReceiptId").asText(),
+                desired.vendor(),desired.resourceType(),"COLLECTION".equals(desired.resourceType()) ? desired.resourceName() : desired.resourceReference(),
+                desired.endpoint(),false);
+        }
         List<DeploymentManagedVectorResourceEntity> existingResources = repository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
         Map<String, DeploymentManagedVectorResourceEntity> existingByKey = new LinkedHashMap<>();
         for (DeploymentManagedVectorResourceEntity entity : existingResources) {
@@ -71,6 +81,10 @@ public class DeploymentManagedVectorResourceService {
         for (DesiredManagedVectorResource desiredResource : desiredResources) {
             String key = resourceKey(desiredResource.vendor(), desiredResource.resourceType(), desiredResource.resourceName());
             DeploymentManagedVectorResourceEntity entity = existingByKey.remove(key);
+            if (entity!=null && !desiredResource.details().path("ownershipReceiptId").asText()
+                .equals(readJson(entity.getDetailsJson()).path("ownershipReceiptId").asText()))
+                throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,"MANAGED_RESOURCE_REGISTRY_RECONCILIATION_REQUIRED");
             if (entity == null) {
                 entity = new DeploymentManagedVectorResourceEntity();
                 entity.setId("mvr-" + UUID.randomUUID().toString().substring(0, 8));
@@ -87,8 +101,7 @@ public class DeploymentManagedVectorResourceService {
             if (!RESOURCE_STATUS_DETACHED.equals(remaining.getResourceStatus())) {
                 remaining.setResourceStatus(RESOURCE_STATUS_DETACHED);
                 remaining.setUpdatedAt(now);
-                remaining.setDeploymentVersionId(version.getId());
-                remaining.setDeploymentReleaseId(release.getId());
+                // Preserve the creation/reuse target of retained historical resources.
                 dirtyEntities.add(remaining);
                 detached += 1;
             }
@@ -242,8 +255,9 @@ public class DeploymentManagedVectorResourceService {
             return false;
         }
         return repository.findAll().stream()
-            .filter(entity -> RESOURCE_STATUS_ACTIVE.equals(entity.getResourceStatus()))
-            .anyMatch(entity -> readStringList(entity.getSecretReferenceNamesJson()).contains(secretName));
+            // Detached resources still exist remotely and can require these credentials for reconciliation.
+            .anyMatch(entity -> readStringList(entity.getSecretReferenceNamesJson()).contains(secretName))
+            || ownership!=null && ownership.retainedBindingReferencesSecret(secretName);
     }
 
     private boolean applyDesiredState(DeploymentManagedVectorResourceEntity entity,
@@ -378,6 +392,7 @@ public class DeploymentManagedVectorResourceService {
                 List.of("QDRANT_API_KEY"),
                 objectMapper.createObjectNode()
                     .put("name", name)
+                    .put("ownershipReceiptId", collection.path("ownershipReceiptId").asText())
                     .put("state", collection.path("state").asText("UNKNOWN"))
                     .put("baseUrl", baseUrl)
             ));
@@ -419,6 +434,7 @@ public class DeploymentManagedVectorResourceService {
             List.copyOf(secretReferences),
             objectMapper.createObjectNode()
                 .put("clusterId", clusterId)
+                .put("ownershipReceiptId", details.path("ownershipReceiptId").asText())
                 .put("clusterName", clusterName)
                 .put("projectId", details.path("projectId").asText(""))
                 .put("regionId", details.path("regionId").asText(""))
@@ -459,6 +475,7 @@ public class DeploymentManagedVectorResourceService {
                 List.of("QDRANT_CLOUD_MANAGEMENT_API_KEY"),
                 objectMapper.createObjectNode()
                     .put("clusterId", clusterId)
+                    .put("ownershipReceiptId", details.path("ownershipReceiptId").asText())
                     .put("clusterName", clusterName)
                     .put("accountId", details.path("accountId").asText(""))
                     .put("cloudProviderId", details.path("cloudProviderId").asText(""))
@@ -492,6 +509,7 @@ public class DeploymentManagedVectorResourceService {
                 List.copyOf(secretReferences),
                 objectMapper.createObjectNode()
                     .put("accountId", details.path("accountId").asText(""))
+                    .put("ownershipReceiptId", details.path("databaseApiKeyOwnershipReceiptId").asText())
                     .put("databaseApiKeyId", apiKeyId)
                     .put("databaseApiKeyName", apiKeyName)
                     .put("databaseApiKeySecretName", runtimeSecretName)
@@ -527,6 +545,7 @@ public class DeploymentManagedVectorResourceService {
                 List.copyOf(secretReferences),
                 objectMapper.createObjectNode()
                     .put("name", name)
+                    .put("ownershipReceiptId", collection.path("ownershipReceiptId").asText())
                     .put("state", collection.path("state").asText("UNKNOWN"))
                     .put("baseUrl", baseUrl)
                     .put("clusterName", clusterName)

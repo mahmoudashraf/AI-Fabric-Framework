@@ -28,6 +28,7 @@ export function configuration(values, allowMetadataWrites = false) {
     email: required(values, 'ENGAGE_CANARY_EMAIL'), password: required(values, 'ENGAGE_CANARY_PASSWORD'),
     customerId: required(values, 'ENGAGE_CANARY_CUSTOMER_ID'), offerId: required(values, 'ENGAGE_CANARY_OFFER_ID'),
     targetProfileId: required(values, 'ENGAGE_CANARY_TARGET_PROFILE_ID'),
+    aiStateStorageMode: required(values, 'ENGAGE_CANARY_AI_STATE_STORAGE_MODE'),
     operationPrefix: required(values, 'ENGAGE_CANARY_OPERATION_PREFIX'), runId: required(values, 'ENGAGE_CANARY_RUN_ID'),
     deploymentName: required(values, 'ENGAGE_CANARY_DEPLOYMENT_NAME'),
     consumerId: required(values, 'ENGAGE_CANARY_CONSUMER_ID'),
@@ -41,6 +42,7 @@ export function configuration(values, allowMetadataWrites = false) {
       secretKey: required(values, 'S3_CANARY_STAGING_SECRET_ACCESS_KEY')},
   };
   requireCheck(required(values, 'S3_CANARY_VERSIONING_ENABLED') === 'false', 'UNVERSIONED_CANARY_REQUIRED');
+  requireCheck(['MANAGED_POSTGRES', 'CUSTOMER_POSTGRES'].includes(config.aiStateStorageMode), 'EXPLICIT_AI_STATE_STORAGE_MODE_REQUIRED');
   requireCheck(config.foreignCustomerId !== config.customerId, 'FOREIGN_CUSTOMER_REQUIRED');
   for (const name of ['customerId', 'offerId', 'targetProfileId', 'consumerId', 'foreignDeploymentId', 'foreignCustomerId']) {
     requireCheck(/^[A-Za-z0-9_-]{1,64}$/.test(config[name]), `INVALID_IDENTIFIER:${name}`);
@@ -96,16 +98,23 @@ export async function verifyCustomerConfiguration(config, {fetchImpl = fetch, ve
     const profiles = offer.workspaceProfiles.filter(profile => !config.workspaceProfileId || profile.id === config.workspaceProfileId);
     check(profiles.length === 1, 'EXACT_REVIEWED_WORKSPACE_PROFILE_REQUIRED');
     const profile = profiles[0];
+    const storageChoice = offer.settings?.filter(rule => rule.setting === 'AI_STATE_STORAGE_MODE') ?? [];
+    check(storageChoice.length === 1 && storageChoice[0].type === 'CHOICE'
+      && storageChoice[0].allowedValues?.includes(config.aiStateStorageMode), 'REVIEWED_AI_STATE_STORAGE_CHOICE_REQUIRED');
     const revision = offer.entitlement.revision;
     pass('REVIEWED_PROFILE_AND_STAGING_PLACEMENT');
 
     step = 'configuration-bootstrap';
     const bootstrap = {targetProfileId: config.targetProfileId, name: config.deploymentName,
-      expectedEntitlementRevision: revision, operationKey: key('bootstrap')};
+      expectedEntitlementRevision: revision, operationKey: key('bootstrap'), aiStateStorageMode: config.aiStateStorageMode};
     const deploymentsPath = `${offerPath}/deployments`;
     const deployment = (await request(deploymentsPath, {body: bootstrap})).payload;
     evidence.deploymentId = deployment.deploymentId;
-    check((await request(deploymentsPath, {body: bootstrap})).payload.deploymentId === deployment.deploymentId, 'BOOTSTRAP_REPLAY_MISMATCH');
+    check(deployment.aiStateStorageMode === config.aiStateStorageMode, 'AI_STATE_STORAGE_CHOICE_MISMATCH');
+    const bootstrapReplay = (await request(deploymentsPath, {body: bootstrap})).payload;
+    check(bootstrapReplay.deploymentId === deployment.deploymentId
+      && bootstrapReplay.aiStateStorageMode === config.aiStateStorageMode, 'BOOTSTRAP_REPLAY_MISMATCH');
+    evidence.aiStateStorageMode = config.aiStateStorageMode;
     const root = `${deploymentsPath}/${deployment.deploymentId}`;
     const releasesPath = `/api/deployments/${deployment.deploymentId}/releases`;
     check((await request(releasesPath)).payload.length === 0, 'CONFIGURATION_ONLY_DEPLOYMENT_REQUIRED');
@@ -141,6 +150,7 @@ export async function verifyCustomerConfiguration(config, {fetchImpl = fetch, ve
     check((await request(appsPath, save)).payload.installationId === installation.installationId, 'APP_REPLAY_MISMATCH');
     await request(`${appsPath}/${installation.installationId}/activate`, {method: 'POST', operationKey: key('early-activate'), expected: 409});
     const draft = (await request(`/api/deployments/${deployment.deploymentId}/draft`)).payload;
+    check(draft.providerConfig?.aiStateStorageMode === config.aiStateStorageMode, 'PERSISTED_AI_STATE_STORAGE_CHOICE_MISMATCH');
     check(draft.securityConfig.corsAllowedOrigins.includes(new URL(installation.appUrl).origin), 'APP_ORIGIN_NOT_PROJECTED');
     pass('FIRST_APP_REPLAY_ORIGIN_AND_EARLY_ACTIVATION_DENIAL');
     await checkpoint(evidence);

@@ -47,14 +47,24 @@ class DeploymentSourceArtifactServiceTest {
 
     @Test
     void promotesManagedDependencyWithoutPretendingItIsARuntime() {
-        var created = service.create(request(DeploymentSourceArtifactRole.MANAGED_DEPENDENCY, null));
+        var owned = com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures.ownedAiArtifact(
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures.http("ai-service", true));
+        var created = service.create(request(DeploymentSourceArtifactRole.MANAGED_DEPENDENCY,
+            new DeploymentSourceCapabilityManifestService(mapper).read(owned.getCapabilityManifestJson())));
 
         var promoted = service.promote(created.id(), new PromoteDeploymentSourceArtifactRequest("staging"));
 
         assertThat(promoted.artifactRole()).isEqualTo("MANAGED_DEPENDENCY");
         assertThat(promoted.promotionChannel()).isEqualTo("staging");
         assertThat(promoted.promotedAt()).isNotNull();
-        assertThat(promoted.capabilityManifestHash()).isNull();
+        assertThat(promoted.capabilityManifestHash()).hasSize(64);
+    }
+
+    @Test
+    void dependencyPromotionWithoutReviewedOwnershipFailsClosed() {
+        var created = service.create(request(DeploymentSourceArtifactRole.MANAGED_DEPENDENCY, null));
+        assertThatThrownBy(() -> service.promote(created.id(), new PromoteDeploymentSourceArtifactRequest("staging")))
+            .hasMessageContaining("DEPENDENCY_ARTIFACT_OWNERSHIP_UNPROVEN");
     }
 
     @Test

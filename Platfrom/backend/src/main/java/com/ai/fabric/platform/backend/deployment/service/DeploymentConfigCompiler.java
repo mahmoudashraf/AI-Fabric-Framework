@@ -138,6 +138,10 @@ public class DeploymentConfigCompiler {
                     ? objectMapper.createArrayNode()
                     : deploymentCompositionProvenanceService.marketplaceInstalls(deployment.getId())
             );
+            if (deploymentCompositionProvenanceService != null) {
+                var externalProfiles = deploymentCompositionProvenanceService.externalIntegrationProfiles(deployment);
+                if (!externalProfiles.isEmpty()) compositionProvenance.set("externalIntegrationProfiles", externalProfiles);
+            }
             String compositionHash = sha256(canonicalJson(compositionProvenance));
             compositionProvenance.put("compositionHash", compositionHash);
 

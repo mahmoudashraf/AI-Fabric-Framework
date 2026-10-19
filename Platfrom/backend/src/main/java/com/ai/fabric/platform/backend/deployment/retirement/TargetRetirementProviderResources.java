@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyRetirementOwnership;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,12 +32,14 @@ public class TargetRetirementProviderResources {
     private final CoolifyHostVolumeReclamationService volumeReclamation;
     private final List<String> approvedStagingAddresses;
     private final CustomerSelfServiceProperties customerSelfServiceProperties;
+    private final CoolifyRetirementOwnership ownershipProvider;
 
     public TargetRetirementProviderResources(TargetRetirementInventory inventory, DeploymentTargetProfileRepository targets,
                                              CoolifyTargetProfileResolver resolver, CoolifyApiClient client,
                                              CoolifyHostVolumeReclamationService volumeReclamation,
                                              @Value("${platform.target-retirement.approved-staging-addresses:}") List<String> addresses,
-                                             CustomerSelfServiceProperties customerSelfServiceProperties) {
+                                             CustomerSelfServiceProperties customerSelfServiceProperties,
+                                             CoolifyRetirementOwnership ownershipProvider) {
         this.inventory = inventory;
         this.targets = targets;
         this.resolver = resolver;
@@ -44,6 +47,7 @@ public class TargetRetirementProviderResources {
         this.volumeReclamation = volumeReclamation;
         this.approvedStagingAddresses = List.copyOf(addresses);
         this.customerSelfServiceProperties = customerSelfServiceProperties;
+        this.ownershipProvider = ownershipProvider;
     }
 
     public EffectResult readback(Context context, ResourceGeneration resource) {
@@ -53,6 +57,7 @@ public class TargetRetirementProviderResources {
             : client.getDatabase(connection, resource.providerResourceUuid()).map(db -> db.raw());
         observed.ifPresent(raw -> inventory.requireProviderIdentity(resource, raw));
         if (observed.isEmpty()) {
+            ownershipProvider.beginRetirementDeletion(inventory.requireResource(resource));
             verifyContainerAbsence(resource);
             if (!resource.volumes().isEmpty() && !inventory.volumesReclaimed(resource)) {
                 if (!inventory.volumeDeletionIntentRecorded(resource)) {
@@ -60,6 +65,7 @@ public class TargetRetirementProviderResources {
                 }
                 verifyAndRecordVolumeDisposition(resource);
             }
+            ownershipProvider.finishRetirementDeletion(inventory.requireResource(resource));
         }
         return new EffectResult(observed.isEmpty(), "provider-resource:" + resource.handleId() + ":"
             + (observed.isEmpty() ? "absence-candidate" : "present"), Instant.now());
@@ -69,6 +75,7 @@ public class TargetRetirementProviderResources {
         var before = readback(context, resource);
         if (before.complete()) return before;
         var connection = connection(context, resource);
+        ownershipProvider.beginRetirementDeletion(inventory.requireResource(resource));
         if (isApplication(resource)) {
             prepareApplicationVolumeDeletion(connection, resource);
             client.delete(connection, resource.providerResourceUuid(), true, true, false, false);
@@ -76,6 +83,7 @@ public class TargetRetirementProviderResources {
             if (observed.isEmpty()) {
                 verifyContainerAbsence(resource);
                 Instant observedAt = verifyAndRecordVolumeDisposition(resource);
+                ownershipProvider.finishRetirementDeletion(inventory.requireResource(resource));
                 return new EffectResult(true, "provider-resource:" + resource.handleId() + ":absent", observedAt);
             } else {
                 inventory.requireProviderIdentity(resource, observed.get().raw());
@@ -90,6 +98,7 @@ public class TargetRetirementProviderResources {
             if (observed.isEmpty()) {
                 verifyContainerAbsence(resource);
                 Instant observedAt = verifyAndRecordVolumeDisposition(resource);
+                ownershipProvider.finishRetirementDeletion(inventory.requireResource(resource));
                 return new EffectResult(true, "provider-resource:" + resource.handleId() + ":absent", observedAt);
             } else {
                 inventory.requireProviderIdentity(resource, observed.get().raw());
@@ -124,6 +133,7 @@ public class TargetRetirementProviderResources {
             || trusted.address() == null || !approvedStagingAddresses.contains(trusted.address())
             || trusted.reportedAddress() == null || !trusted.reportedAddress().equals(server.path("ip").asText()))
             throw new TargetRetirementFailure("STAGING_PLACEMENT_NOT_APPROVED");
+        ownershipProvider.requireRetirementOwnership(inventory.requireResource(resource));
         return connection;
     }
 

@@ -19,4 +19,14 @@ public interface CustomerOfferEntitlementRepository extends JpaRepository<Custom
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from CustomerOfferEntitlementEntity e where e.id = :id")
     Optional<CustomerOfferEntitlementEntity> findByIdForUpdate(@Param("id") String id);
+
+    @Query(value = """
+        select count(*) from platform_deployment_releases r
+          join platform_customer_offer_deployments d on d.deployment_id=r.deployment_id
+          join deployment_external_integration_snapshots s on s.release_id=r.id
+         where d.customer_id=:customerId and d.offer_id=:offerId
+           and (r.status is null or r.status not in
+                ('APPLIED_VERIFIED','APPLIED_VERIFICATION_FAILED','PRE_APPLY_BLOCKED','FAILED'))
+        """, nativeQuery = true)
+    long countUnfinishedExternalReleases(@Param("customerId") String customerId, @Param("offerId") String offerId);
 }

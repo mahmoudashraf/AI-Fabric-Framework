@@ -78,7 +78,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING"})
     void activeReadbackRequiresFreshExactCoolifyResourceEvidence(String retainedKind) throws Exception {
         AdmissionStore admissions = mock(AdmissionStore.class);
         DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
@@ -163,7 +163,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING"})
     void completedRetirementMustStillMatchTheEntireFrozenInventorySnapshot(String retainedKind) {
         AdmissionStore admissions = mock(AdmissionStore.class);
         DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);

@@ -36,7 +36,12 @@ class CustomerReviewedCompositionServiceTest {
 
     @BeforeEach void setup() {
         service = new CustomerReviewedCompositionService(codec, validatorFactory.getValidator(), plugins, versions, manifests, artifacts, profiles,
-            mock(CustomerWorkspaceProfileValidator.class), new com.fasterxml.jackson.databind.ObjectMapper());
+            mock(CustomerWorkspaceProfileValidator.class), new com.fasterxml.jackson.databind.ObjectMapper(),
+            new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy(artifacts,
+                new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(
+                    new com.fasterxml.jackson.databind.ObjectMapper())),
+            new com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy(plugins, versions, manifests, codec,
+                new com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationEndpointPolicy()));
         var template = new MarketplacePluginEntity(); template.setId("template-plugin"); template.setStatus("ACTIVE"); template.setPluginType("TEMPLATE");
         version = new MarketplacePluginVersionEntity(); version.setId("template-v1"); version.setPluginId(template.getId());
         version.setVersion("1.0.0"); version.setStatus("PUBLISHED");
@@ -70,6 +75,25 @@ class CustomerReviewedCompositionServiceTest {
     @AfterEach void close() { validatorFactory.close(); }
 
     @Test void explicitReviewedPublishedImmutableCompositionPasses() { service.validate(definition); }
+
+    @Test void immutableBusinessArtifactCannotBePublishedAsACustomerAiDependency() throws Exception {
+        var dependency = com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures.ownedAiArtifact(
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures.http("inventory-service", true));
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var candidate = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(dependency.getCapabilityManifestJson());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) candidate.path("managedDependencyContract"))
+            .put("purpose", "CUSTOMER_BUSINESS_SYSTEM");
+        var normalized = new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper)
+            .normalize(candidate);
+        dependency.setCapabilityManifestJson(normalized.manifest().toString());
+        dependency.setCapabilityManifestHash(normalized.hash());
+        when(artifacts.findById(dependency.getId())).thenReturn(Optional.of(dependency));
+        var definitionTree = (com.fasterxml.jackson.databind.node.ObjectNode) codec.tree(codec.write(definition));
+        ((com.fasterxml.jackson.databind.node.ArrayNode) definitionTree.path("artifacts"))
+            .add(mapper.valueToTree(new ArtifactPin(dependency.getId(), service.artifactFingerprint(dependency))));
+        definition = codec.read(definitionTree.toString(), Definition.class);
+        assertCode(APPROVED_POLICY_REQUIRED);
+    }
 
     @Test void deploymentVersionMustContainExactlyTheReviewedTemplateAndPluginPins() {
         var deploymentVersion = new DeploymentVersionEntity();

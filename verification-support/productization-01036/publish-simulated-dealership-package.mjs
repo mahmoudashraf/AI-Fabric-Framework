@@ -1,258 +1,118 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {mkdir, writeFile} from "node:fs/promises";
 import {dirname, resolve} from "node:path";
-import {fileURLToPath, pathToFileURL} from "node:url";
+import {pathToFileURL} from "node:url";
 
-import {
-  buildManagedDependencySpec,
-  DEPENDENCY_IMAGES,
-  SPEC_ID,
-  TEMPLATE_VERSION_ID,
+import {buildManagedDependencySpec, DEPENDENCY_IMAGES, EXTERNAL_TEMPLATE_VERSION_ID,
+  requireInboxSelection, requireReviewedInboxArtifact, SPEC_ID, TEMPLATE_VERSION_ID,
 } from "./simulated-dealership-managed-spec.mjs";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REQUIRED_RUNTIME_BINDINGS = new Set([
-  "MANAGED_SIMULATOR_BASE_URL",
-  "MANAGED_SIMULATOR_HOST",
-  "MANAGED_SIMULATOR_ACCOUNT_ID",
-  "MANAGED_SIMULATOR_PROVIDER_KEY",
-  "MANAGED_SIMULATOR_PROVIDER_SECRET",
-  "MANAGED_SIMULATOR_NOTIFICATION_SECRET",
-  "MANAGED_RECEIVER_ACTION_URL",
-  "MANAGED_RECEIVER_API_KEY",
-  "MANAGED_INBOX_BASE_URL",
-  "MANAGED_INBOX_BINDING_ID",
-  "MANAGED_INBOX_CONSOLE_URL",
-  "MANAGED_INBOX_API_KEY",
-  "MANAGED_INBOX_CALLBACK_SIGNING_SECRET",
-  "MANAGED_INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET",
-]);
+const TEMPLATE = JSON.parse(readFileSync(new URL(
+  "../../product-services/basic-loomai-inbox-service/deployment/managed-dependency-spec.template.json",
+  import.meta.url), "utf8"));
+
+export function comparableJson(value) {
+  if (Array.isArray(value)) return value.map(comparableJson);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value)
+    .filter(([, nested]) => nested !== null).map(([key, nested]) => [key, comparableJson(nested)]));
+  return value;
+}
 
 export function validateManagedDependencySpec(spec) {
-  assert.equal(spec.schemaVersion, "managed-dependencies/v1");
-  assert.deepEqual(spec.services.map(({slot}) => slot), ["simulator", "inbox", "receiver"]);
-  assert.equal(spec.services.every(({image}) => /@sha256:[a-f0-9]{64}$/.test(image)), true);
-  assert.equal(spec.services.every(({sourceCommit}) => /^[a-f0-9]{40}$/.test(sourceCommit)), true);
-  assert.deepEqual(new Set(spec.runtimeEnvironment.map(({name}) => name)), REQUIRED_RUNTIME_BINDINGS);
-  assert.equal(spec.runtimeEnvironment.every(({target}) => target === "CONNECTOR"), true);
-
-  const callbackAuthority = spec.runtimeEnvironment.find(
-    ({name}) => name === "MANAGED_INBOX_CALLBACK_SIGNING_SECRET",
-  ).value;
-  const providerWebhook = spec.runtimeEnvironment.find(
-    ({name}) => name === "MANAGED_INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET",
-  ).value;
-  assert.equal(callbackAuthority.kind, "TARGET_SECRET");
-  assert.equal(callbackAuthority.reference, "conversation-handover-callback-signing");
-  assert.equal(providerWebhook.kind, "SERVICE_SECRET");
-  assert.equal(providerWebhook.serviceSlot, "inbox");
-  assert.notEqual(providerWebhook.reference, callbackAuthority.reference);
-  const inboxBinding = spec.runtimeEnvironment.find(
-    ({name}) => name === "MANAGED_INBOX_BINDING_ID",
-  ).value;
-  assert.equal(inboxBinding.kind, "BINDING_ID");
-  assert.equal(inboxBinding.serviceSlot, "inbox");
+  const expected = structuredClone(TEMPLATE);
+  const id = spec?.services?.[0]?.sourceArtifactId;
+  assert.equal(typeof id, "string");
+  assert.match(id, /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
+  assert.notEqual(id, "__INBOX_SOURCE_ARTIFACT_ID__");
+  expected.services[0].sourceArtifactId = id;
+  assert.deepEqual(comparableJson(spec), comparableJson(expected), "Only the reviewed AI Inbox topology is allowed.");
   return spec;
 }
 
-export function comparableJson(value) {
-  if (Array.isArray(value)) {
-    return value.map(comparableJson);
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value)
-      .filter(([, nested]) => nested !== null)
-      .map(([key, nested]) => [key, comparableJson(nested)]));
-  }
-  return value;
-}
-
-function normalizedBaseUrl(value) {
-  const url = new URL(value);
-  if (url.protocol !== "https:") throw new Error("PLATFORM_BASE_URL must use HTTPS.");
-  return url.toString().replace(/\/$/, "");
-}
-
-function requiredEnvironment(name) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required.`);
-  return value;
+// Registration and staff promotion are separate reviewed actions, never implicit publisher side effects.
+export function inboxArtifactRegistration() {
+  const expected = DEPENDENCY_IMAGES.inbox;
+  return {
+    serviceName: expected.serviceName, artifactType: "DOCKER_IMAGE", artifactRole: "MANAGED_DEPENDENCY",
+    imageRepository: expected.repository, imageTag: expected.commit.slice(0, 12),
+    imageDigest: expected.digest, gitCommitSha: expected.commit,
+    capabilityManifest: structuredClone(expected.capabilityManifest),
+  };
 }
 
 async function platformRequest(baseUrl, apiKey, path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
-    headers: {
-      Accept: "application/json",
-      "X-PLATFORM-API-KEY": apiKey,
-      ...(options.body ? {"Content-Type": "application/json"} : {}),
-    },
+    headers: {Accept: "application/json", "X-PLATFORM-API-KEY": apiKey,
+      ...(options.body ? {"Content-Type": "application/json"} : {})},
     body: options.body ? JSON.stringify(options.body) : undefined,
     signal: AbortSignal.timeout(30_000),
   });
   if (options.allowNotFound && response.status === 404) return null;
-  const text = await response.text();
-  let payload = null;
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = {message: "Non-JSON response"};
-    }
-  }
-  if (!response.ok) {
-    const message = typeof payload?.message === "string" ? payload.message : `HTTP ${response.status}`;
-    throw new Error(`${options.operation ?? path} failed: ${message}`);
-  }
-  return payload;
+  if (!response.ok) throw new Error(`Platform package request failed (HTTP ${response.status}).`);
+  return response.json();
 }
 
-function exactArtifact(candidate, expected) {
-  return candidate.artifactRole === "MANAGED_DEPENDENCY"
-    && candidate.artifactType === "DOCKER_IMAGE"
-    && candidate.imageRepository === expected.repository
-    && candidate.imageDigest === expected.digest
-    && candidate.gitCommitSha === expected.commit;
-}
-
-async function ensureArtifact(baseUrl, apiKey, expected) {
-  const query = new URLSearchParams({serviceName: expected.serviceName});
-  const artifacts = await platformRequest(
-    baseUrl,
-    apiKey,
-    `/api/deployment-provider/source-artifacts?${query}`,
-    {operation: `list ${expected.serviceName} artifacts`},
-  );
-  let artifact = artifacts.find((candidate) => exactArtifact(candidate, expected));
-  if (!artifact) {
-    artifact = await platformRequest(baseUrl, apiKey, "/api/deployment-provider/source-artifacts", {
-      method: "POST",
-      operation: `register ${expected.serviceName} artifact`,
-      body: {
-        serviceName: expected.serviceName,
-        artifactType: "DOCKER_IMAGE",
-        artifactRole: "MANAGED_DEPENDENCY",
-        imageRepository: expected.repository,
-        imageTag: expected.commit.slice(0, 12),
-        imageDigest: expected.digest,
-        gitCommitSha: expected.commit,
-        buildRunId: null,
-        sbomRef: null,
-        promotionChannel: null,
-        capabilityManifest: null,
-      },
-    });
-  }
-  if (artifact.promotionChannel !== "production" || !artifact.promotedAt) {
-    artifact = await platformRequest(
-      baseUrl,
-      apiKey,
-      `/api/deployment-provider/source-artifacts/${encodeURIComponent(artifact.id)}/promote`,
-      {
-        method: "POST",
-        operation: `promote ${expected.serviceName} artifact`,
-        body: {promotionChannel: "production"},
-      },
-    );
-  }
-  if (!exactArtifact(artifact, expected) || artifact.promotionChannel !== "production") {
-    throw new Error(`${expected.serviceName} artifact readback does not match the reviewed provenance.`);
-  }
-  return artifact;
-}
-
-function artifactInput(artifact) {
-  return {
-    id: artifact.id,
-    image: `${artifact.imageRepository}@${artifact.imageDigest}`,
-    commit: artifact.gitCommitSha,
+export async function publishSimulatedDealershipPackage({baseUrl, apiKey, reviewReference, output,
+  managedInbox, request = (path, options) => platformRequest(baseUrl, apiKey, path, options)}) {
+  requireInboxSelection(managedInbox);
+  if (!managedInbox) return {
+    templateVersionId: EXTERNAL_TEMPLATE_VERSION_ID, specId: null, publicationCreated: false,
+    managedInbox: false, note: "No managed dependency specification; externally operated Inbox still requires binding.",
   };
-}
-
-export async function publishSimulatedDealershipPackage({baseUrl, apiKey, reviewReference, output}) {
-  const reviewed = {};
-  for (const [slot, expected] of Object.entries(DEPENDENCY_IMAGES)) {
-    reviewed[slot] = await ensureArtifact(baseUrl, apiKey, expected);
+  if (typeof reviewReference !== "string" || !reviewReference.trim()) throw new Error("A review reference is required.");
+  const artifacts = await request(`/api/deployment-provider/source-artifacts?${new URLSearchParams({
+    serviceName: DEPENDENCY_IMAGES.inbox.serviceName,
+  })}`);
+  const matching = artifacts.filter(candidate => candidate.imageRepository === DEPENDENCY_IMAGES.inbox.repository
+    && candidate.imageDigest === DEPENDENCY_IMAGES.inbox.digest
+    && candidate.gitCommitSha === DEPENDENCY_IMAGES.inbox.commit
+    && candidate.capabilityManifestHash === DEPENDENCY_IMAGES.inbox.capabilityManifestHash);
+  if (matching.length !== 1) throw new Error("Exactly one reviewed Inbox artifact must be registered and staff-promoted first.");
+  const artifact = requireReviewedInboxArtifact(matching[0]);
+  const spec = validateManagedDependencySpec(buildManagedDependencySpec({inbox: artifact}, {managedInbox: true}));
+  const path = `/api/customer-self-service/staff/templates/${TEMPLATE_VERSION_ID}/managed-dependency-spec`;
+  let current = await request(path, {allowNotFound: true});
+  const created = !current;
+  if (current) {
+    assert.deepEqual(comparableJson(current.spec), comparableJson(spec), "An existing immutable spec cannot be replaced.");
+  } else {
+    await request(path, {method: "POST", body: {specId: SPEC_ID, spec, reviewReference}});
+    current = await request(path);
   }
-  const spec = validateManagedDependencySpec(buildManagedDependencySpec({
-    simulator: artifactInput(reviewed.simulator),
-    receiver: artifactInput(reviewed.receiver),
-    inbox: artifactInput(reviewed.inbox),
-  }));
-
-  const path = `/api/customer-self-service/staff/templates/${encodeURIComponent(TEMPLATE_VERSION_ID)}/managed-dependency-spec`;
-  let current = await platformRequest(baseUrl, apiKey, path, {
-    allowNotFound: true,
-    operation: "read managed dependency specification",
-  });
-  let created = false;
-  if (!current) {
-    await platformRequest(baseUrl, apiKey, path, {
-      method: "POST",
-      operation: "publish managed dependency specification",
-      body: {specId: SPEC_ID, spec, reviewReference},
-    });
-    current = await platformRequest(baseUrl, apiKey, path, {
-      operation: "read back managed dependency specification",
-    });
-    created = true;
-  }
-  assert.deepEqual(
-    comparableJson(current.spec),
-    comparableJson(spec),
-    "The active immutable topology differs from the reviewed package.",
-  );
+  assert.deepEqual(comparableJson(current.spec), comparableJson(spec));
   assert.equal(current.publication.specId, SPEC_ID);
-
   const evidence = {
-    schemaVersion: "loomai-simulated-dealership-package-publication-evidence-v1",
-    checkedAt: new Date().toISOString(),
-    platformBaseUrl: baseUrl,
-    templateVersionId: TEMPLATE_VERSION_ID,
-    specId: current.publication.specId,
-    specFingerprint: current.publication.fingerprint,
-    reviewReference: current.publication.reviewReference,
-    publicationCreated: created,
-    artifactPromotionChannel: "production",
-    artifacts: Object.fromEntries(Object.entries(reviewed).map(([slot, artifact]) => [slot, {
-      id: artifact.id,
-      imageRepository: artifact.imageRepository,
-      imageDigest: artifact.imageDigest,
-      gitCommitSha: artifact.gitCommitSha,
-      artifactRole: artifact.artifactRole,
-      promotionChannel: artifact.promotionChannel,
-      promotedAt: artifact.promotedAt,
-    }])),
-    runtimeBindingNames: [...REQUIRED_RUNTIME_BINDINGS].sort(),
-    secretsRecorded: false,
+    schemaVersion: "loomai-ai-inbox-package-publication-evidence-v1", checkedAt: new Date().toISOString(),
+    templateVersionId: TEMPLATE_VERSION_ID, specId: SPEC_ID, specFingerprint: current.publication.fingerprint,
+    reviewReference: current.publication.reviewReference, publicationCreated: created, managedInbox: true,
+    artifact: {id: artifact.id, imageDigest: artifact.imageDigest, gitCommitSha: artifact.gitCommitSha,
+      capabilityManifestHash: artifact.capabilityManifestHash, promotionChannel: artifact.promotionChannel},
+    runtimeBindingNames: spec.runtimeEnvironment.map(binding => binding.name).sort(),
+    customerBusinessSystemsProvisioned: false, providerHealthProven: false, secretsRecorded: false,
   };
-  await mkdir(dirname(output), {recursive: true});
-  await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`, {mode: 0o644});
+  if (output) {
+    await mkdir(dirname(output), {recursive: true});
+    await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`, {mode: 0o600});
+  }
   return evidence;
 }
 
 async function main() {
-  const baseUrl = normalizedBaseUrl(requiredEnvironment("PLATFORM_BASE_URL"));
-  const apiKey = requiredEnvironment("PLATFORM_ADMIN_API_KEY");
-  const reviewReference = requiredEnvironment("MANAGED_DEPENDENCY_REVIEW_REFERENCE");
-  const timestamp = new Date().toISOString().replaceAll(":", "-").replace(".", "-");
-  const output = resolve(process.env.EVIDENCE_OUTPUT?.trim()
-    || `${HERE}/evidence/managed-package-publication-${timestamp}.json`);
-  const evidence = await publishSimulatedDealershipPackage({baseUrl, apiKey, reviewReference, output});
-  process.stdout.write(`${JSON.stringify({
-    status: "PASS",
-    templateVersionId: evidence.templateVersionId,
-    specFingerprint: evidence.specFingerprint,
-    publicationCreated: evidence.publicationCreated,
-    output,
-  })}\n`);
+  const selection = process.env.MANAGED_INBOX;
+  if (!["true", "false"].includes(selection)) throw new Error("MANAGED_INBOX must explicitly be true or false.");
+  const baseUrl = process.env.PLATFORM_BASE_URL?.replace(/\/$/, "");
+  if (!baseUrl || new URL(baseUrl).protocol !== "https:") throw new Error("PLATFORM_BASE_URL must use HTTPS.");
+  if (!process.env.PLATFORM_ADMIN_API_KEY) throw new Error("PLATFORM_ADMIN_API_KEY is required.");
+  const evidence = await publishSimulatedDealershipPackage({baseUrl, apiKey: process.env.PLATFORM_ADMIN_API_KEY,
+    reviewReference: process.env.MANAGED_DEPENDENCY_REVIEW_REFERENCE, managedInbox: selection === "true",
+    output: process.env.EVIDENCE_OUTPUT ? resolve(process.env.EVIDENCE_OUTPUT) : undefined});
+  process.stdout.write(`${JSON.stringify(evidence)}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch((error) => {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 1;
-  });
+  main().catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
 }

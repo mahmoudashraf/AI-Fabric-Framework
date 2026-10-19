@@ -39,6 +39,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class DeploymentReleaseExecutionService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DeploymentAiStateStorageBindingService aiStateStorageBindings;
     @Autowired
     private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
@@ -62,6 +64,9 @@ public class DeploymentReleaseExecutionService {
 
     @Autowired
     private DeploymentDocumentBindingResolver documentBindingResolver;
+
+    @Autowired
+    private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
 
     @Autowired(required = false)
     private ManagedDependencyReleaseCoordinator managedDependencyReleaseCoordinator;
@@ -250,6 +255,13 @@ public class DeploymentReleaseExecutionService {
         DeploymentReleaseEntity release = getRelease(releaseId);
 
         JsonNode publishedProviderConfig = readJson(version.getProviderConfigJson());
+        if (DeploymentAiStateStorageSelection.selected(publishedProviderConfig) != null) {
+            if (aiStateStorageBindings == null) throw new IllegalStateException("AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
+            if (!deployment.getId().equals(release.getDeploymentId()) || !version.getId().equals(release.getDeploymentVersionId())
+                || !StringUtils.hasText(release.getTargetProfileId())) throw new IllegalStateException("AI_STATE_STORAGE_RELEASE_SCOPE_CHANGED");
+            aiStateStorageBindings.requireForApply(deployment, version, release.getTargetProfileId());
+            aiStateStorageBindings.requireUnchanged(deployment, version, release);
+        }
         if (MilvusTokenRuntimeArtifactGate.required(publishedProviderConfig)) {
             if (milvusTokenArtifacts == null) throw new IllegalStateException("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
             milvusTokenArtifacts.require(version, publishedProviderConfig, release.getSourceArtifactId());
@@ -269,6 +281,11 @@ public class DeploymentReleaseExecutionService {
             existingVectorBindings.resolve(deployment, version, publishedProviderConfig, release.getTargetProfileId());
         }
 
+        if (com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationRequirement
+            .required(readJson(version.getCompositionProvenanceJson()))) {
+            transactionOperations.executeWithoutResult(status -> externalIntegrations.releaseEnvironment(deploymentId,
+                versionId, release.getTargetProfileId(), releaseId, release.getRuntimeAuthorityFingerprint()));
+        }
         if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
         transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
 

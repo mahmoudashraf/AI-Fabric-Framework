@@ -7,6 +7,7 @@ const values = {
   ENGAGE_CANARY_EMAIL: 'owner@example.test', ENGAGE_CANARY_PASSWORD: 'private-owner-password',
   ENGAGE_CANARY_CUSTOMER_ID: 'customer-one', ENGAGE_CANARY_OFFER_ID: 'offer-one',
   ENGAGE_CANARY_TARGET_PROFILE_ID: 'staging-one', ENGAGE_CANARY_OPERATION_PREFIX: 'metadata-canary',
+  ENGAGE_CANARY_AI_STATE_STORAGE_MODE: 'MANAGED_POSTGRES',
   ENGAGE_CANARY_RUN_ID: 'run-one', ENGAGE_CANARY_DEPLOYMENT_NAME: 'Metadata Canary',
   ENGAGE_CANARY_CONSUMER_ID: 'canary-consumer', ENGAGE_CANARY_APP_NAME: 'Canary App',
   ENGAGE_CANARY_APP_SLUG: 'canary-app', ENGAGE_CANARY_FOREIGN_DEPLOYMENT_ID: 'foreign-deployment',
@@ -50,9 +51,12 @@ function fixture(options = {}) {
         customerId: options.wrongEntitlementCustomer ? 'other-customer' : 'customer-one',
         status: options.inactive ? 'REVOKED' : 'ACTIVE', revision: 3},
         targets: [{id: 'staging-one', intent: options.production ? 'CUSTOMER_PRODUCTION' : 'CUSTOMER_STAGING'}],
+        settings: [{setting: 'AI_STATE_STORAGE_MODE', type: 'CHOICE',
+          allowedValues: options.unreviewedStorage ? [] : ['MANAGED_POSTGRES', 'CUSTOMER_POSTGRES']}],
         workspaceProfiles: [profile]};
     } else if (path.endsWith('/placement-evidence')) payload = {id: 'placement-one'};
-    else if (path === deploymentPath) payload = {deploymentId: 'own-deployment', targetProfileId: 'staging-one'};
+    else if (path === deploymentPath) payload = {deploymentId: 'own-deployment', targetProfileId: 'staging-one',
+      aiStateStorageMode: options.wrongStorageChoice ? 'H2' : body.aiStateStorageMode};
     else if (path === '/api/deployments/own-deployment/releases') payload = [];
     else if (path === `${root}/staging-consumer-assignments`) payload = {consumerId: body.consumerId, boundReleaseId: null, boundTargetProfileId: 'staging-one'};
     else if (path === '/api/platform/customers/customer-one/ai-workspace-installations') {
@@ -66,7 +70,9 @@ function fixture(options = {}) {
         status: 'DRAFT', ready: false, releaseId: null, appUrl: 'https://canary-app.apps.example.test'};
     } else if (path.endsWith('/installation-one/activate')) {
       status = 409; payload = {errorCode: 'CONFLICT'};
-    } else if (path === '/api/deployments/own-deployment/draft') payload = {securityConfig: {corsAllowedOrigins: ['https://canary-app.apps.example.test']}};
+    } else if (path === '/api/deployments/own-deployment/draft') payload = {
+      providerConfig: {aiStateStorageMode: options.wrongPersistedStorage ? 'H2' : options.storageMode ?? 'MANAGED_POSTGRES'},
+      securityConfig: {corsAllowedOrigins: ['https://canary-app.apps.example.test']}};
     else if (path === `${root}/document-storage-binding`) {
       bindings++;
       payload = {status: 'CONFIGURED', deploymentId: 'own-deployment', targetProfileId: 'staging-one',
@@ -107,6 +113,16 @@ test('requires explicit metadata writes and a clean HTTPS origin', () => {
   }
   assert.throws(() => configuration({...values, S3_CANARY_VERSIONING_ENABLED: 'true'}, true), /UNVERSIONED_CANARY_REQUIRED/);
   assert.throws(() => configuration({...values, ENGAGE_CANARY_FOREIGN_CUSTOMER_ID: 'customer-one'}, true), /FOREIGN_CUSTOMER_REQUIRED/);
+  assert.throws(() => configuration({...values, ENGAGE_CANARY_AI_STATE_STORAGE_MODE: ''}, true), /CONFIGURATION_REQUIRED:ENGAGE_CANARY_AI_STATE_STORAGE_MODE/);
+  assert.throws(() => configuration({...values, ENGAGE_CANARY_AI_STATE_STORAGE_MODE: 'H2'}, true), /EXPLICIT_AI_STATE_STORAGE_MODE_REQUIRED/);
+});
+
+test('customer SQL selection remains explicit metadata and never provisions SQL', async () => {
+  const {fetchImpl, calls} = fixture({storageMode: 'CUSTOMER_POSTGRES'});
+  const result = await verifyCustomerConfiguration(configuration({...values, ENGAGE_CANARY_AI_STATE_STORAGE_MODE: 'CUSTOMER_POSTGRES'}, true), {fetchImpl});
+  assert.equal(result.aiStateStorageMode, 'CUSTOMER_POSTGRES');
+  assert.ok(calls.filter(call => call.path.endsWith('/deployments')).every(call => call.body.aiStateStorageMode === 'CUSTOMER_POSTGRES'));
+  assert.ok(!calls.some(call => /ai-state-storage-binding|staging-releases|provision/.test(call.path)));
 });
 
 test('verifies exact owner/profile/replays/redaction/foreign denial and missing-policy admission without apply', async () => {
@@ -135,6 +151,9 @@ for (const [name, options, code] of [
   ['inactive owner entitlement', {inactive: true}, 'ACTIVE_ENTITLEMENT_REQUIRED'],
   ['different customer session', {wrongSessionCustomer: true}, 'CONFIGURED_CUSTOMER_SESSION_REQUIRED'],
   ['different entitlement customer', {wrongEntitlementCustomer: true}, 'CONFIGURED_CUSTOMER_ENTITLEMENT_REQUIRED'],
+  ['unreviewed AI state selection', {unreviewedStorage: true}, 'REVIEWED_AI_STATE_STORAGE_CHOICE_REQUIRED'],
+  ['changed AI state receipt', {wrongStorageChoice: true}, 'AI_STATE_STORAGE_CHOICE_MISMATCH'],
+  ['changed persisted AI state selection', {wrongPersistedStorage: true}, 'PERSISTED_AI_STATE_STORAGE_CHOICE_MISMATCH'],
   ['production target supplied to staging canary', {production: true}, 'REVIEWED_CUSTOMER_STAGING_REQUIRED'],
   ['app replay drift', {badAppReplay: true}, 'APP_REPLAY_MISMATCH'],
   ['secret exposed by a binding response', {leakSecret: true}, 'SECRET_IN_BINDING_RESPONSE'],
@@ -155,7 +174,7 @@ for (const [name, options, code] of [
       checkpoint: async value => {evidence = structuredClone(value);}}), new RegExp(code));
     assert.equal(evidence.status, 'FAIL');
     assert.ok(!calls.some(call => call.path.endsWith('/staging-releases')));
-    if (options.inactive || options.production) assert.ok(!calls.some(call => call.path.endsWith('/deployments')));
+    if (options.inactive || options.production || options.unreviewedStorage) assert.ok(!calls.some(call => call.path.endsWith('/deployments')));
     if (options.wrongSessionCustomer || options.wrongEntitlementCustomer) {
       assert.ok(!calls.some(call => call.path.endsWith('/deployments') || call.path.endsWith('/placement-evidence')));
     }

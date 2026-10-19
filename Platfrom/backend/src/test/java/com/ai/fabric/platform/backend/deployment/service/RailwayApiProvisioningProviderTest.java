@@ -23,6 +23,94 @@ import static org.mockito.Mockito.when;
 class RailwayApiProvisioningProviderTest {
 
     @Test
+    void matchingProjectNameWithoutCreationReceiptCannotBeAdopted() {
+        var fixture=new ManagedResourceOwnershipFixture();
+        var client=mock(RailwayGraphqlClient.class);
+        var project=ownedProjectSnapshot();
+        when(client.findProjectByName("workspace","synthetic")).thenReturn(project);
+        var provider=providerWithRailwayClient(client,Duration.ZERO);
+        fixture.inject(provider);
+        assertThatThrownBy(()->provider.prepareOwnedProject(ManagedResourceOwnershipFixture.SCOPE,"synthetic","stage"))
+            .hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(client,never()).createProject(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+        verify(client,never()).createEnvironment(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void createdProjectRecordsSeparateEnvironmentAuthorityAndExactScopeReplay() {
+        var fixture=new ManagedResourceOwnershipFixture();
+        var client=mock(RailwayGraphqlClient.class);
+        var project=ownedProjectSnapshot();
+        when(client.createProject("workspace","synthetic","stage")).thenReturn(project);
+        when(client.getProject("project")).thenReturn(project);
+        var provider=providerWithRailwayClient(client,Duration.ZERO);
+        fixture.inject(provider);
+        assertThat(provider.prepareOwnedProject(ManagedResourceOwnershipFixture.SCOPE,"synthetic","stage").environment().id()).isEqualTo("environment");
+        assertThat(fixture.ownership.requireOwned(ManagedResourceOwnershipFixture.SCOPE,"railway","PROJECT","project",null).state()).isEqualTo("OWNED");
+        assertThat(fixture.ownership.requireOwned(ManagedResourceOwnershipFixture.SCOPE,"railway","ENVIRONMENT","environment",null).parent()).isEqualTo("project");
+        when(client.findProjectByName("workspace","synthetic")).thenReturn(project);
+        provider.prepareOwnedProject(ManagedResourceOwnershipFixture.SCOPE,"synthetic","stage");
+        var other=new ManagedResourceOwnershipService.Scope("customer-a","tenant-a","dep-123","other-target");
+        assertThatThrownBy(()->provider.prepareOwnedProject(other,"synthetic","stage")).hasMessageContaining("OWNERSHIP_CHANGED");
+        verify(client,org.mockito.Mockito.times(1)).createProject("workspace","synthetic","stage");
+    }
+
+    @Test
+    void owningProjectDoesNotAdoptExistingServiceOrEnvironment() {
+        var fixture=new ManagedResourceOwnershipFixture();
+        fixture.own("railway","PROJECT","workspace","synthetic","project",null);
+        var client=mock(RailwayGraphqlClient.class);
+        var project=ownedProjectSnapshot();
+        when(client.findProjectByName("workspace","synthetic")).thenReturn(project);
+        var provider=providerWithRailwayClient(client,Duration.ZERO);
+        fixture.inject(provider);
+        assertThatThrownBy(()->provider.prepareOwnedProject(ManagedResourceOwnershipFixture.SCOPE,"synthetic","stage"))
+            .hasMessageContaining("OWNERSHIP_REQUIRED");
+        assertThatThrownBy(()->provider.ensureService(project,fixture.deployment(),ManagedResourceOwnershipFixture.SCOPE,"runtime"))
+            .hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(client,never()).createServiceFromRepository(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void serviceCreationRequiresOwnedProjectAndRecordsItsOwnReceipt() {
+        var fixture=new ManagedResourceOwnershipFixture();
+        var client=mock(RailwayGraphqlClient.class);
+        var provider=providerWithRailwayClient(client,Duration.ZERO);
+        fixture.inject(provider);
+        var project=new RailwayGraphqlClient.RailwayProjectSnapshot("project","synthetic",List.of(),List.of());
+        assertThatThrownBy(()->provider.ensureService(project,fixture.deployment(),ManagedResourceOwnershipFixture.SCOPE,"runtime"))
+            .hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(client,never()).createServiceFromRepository(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+        fixture.own("railway","PROJECT","workspace","synthetic","project",null);
+        when(client.createServiceFromRepository(eq("project"),eq("runtime"),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("service","runtime"));
+        assertThat(provider.ensureService(project,fixture.deployment(),ManagedResourceOwnershipFixture.SCOPE,"runtime").id()).isEqualTo("service");
+        assertThat(fixture.ownership.requireOwned(ManagedResourceOwnershipFixture.SCOPE,"railway","SERVICE","service",null).parent()).isEqualTo("project");
+    }
+
+    @Test
+    void foreignEnvironmentInventoryBlocksBeforeCreatingAnotherEnvironment() {
+        var fixture=new ManagedResourceOwnershipFixture();
+        fixture.own("railway","PROJECT","workspace","synthetic","project",null);
+        var client=mock(RailwayGraphqlClient.class);
+        when(client.findProjectByName("workspace","synthetic")).thenReturn(
+            new RailwayGraphqlClient.RailwayProjectSnapshot("project","synthetic",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("external","business-production")),List.of()));
+        var provider=providerWithRailwayClient(client,Duration.ZERO);
+        fixture.inject(provider);
+        assertThatThrownBy(()->provider.prepareOwnedProject(ManagedResourceOwnershipFixture.SCOPE,"synthetic","stage"))
+            .hasMessageContaining("SHARED_ENVIRONMENT_RECONCILIATION_REQUIRED");
+        verify(client,never()).createEnvironment(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+        verify(client,never()).createServiceFromRepository(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+    }
+
+    private RailwayGraphqlClient.RailwayProjectSnapshot ownedProjectSnapshot() {
+        return new RailwayGraphqlClient.RailwayProjectSnapshot("project","synthetic",
+            List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("environment","stage")),
+            List.of(new RailwayGraphqlClient.RailwayServiceSummary("runtime","runtime")));
+    }
+
+    @Test
     void awaitSuccessfulDeploymentRetriesAfterTransientRailwayApiFailure() {
         AtomicInteger attempts = new AtomicInteger();
 

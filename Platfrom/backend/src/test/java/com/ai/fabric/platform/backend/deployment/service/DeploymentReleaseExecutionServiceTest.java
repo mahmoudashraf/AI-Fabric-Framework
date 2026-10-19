@@ -48,6 +48,34 @@ import static org.mockito.Mockito.when;
 class DeploymentReleaseExecutionServiceTest {
 
     @Test
+    void customerSqlBindingDriftBlocksBeforeAdmissionBudgetOrProviderEffects() {
+        var fixture = new BindingApplyFixture();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig).put("aiStateStorageMode", "CUSTOMER_POSTGRES");
+        fixture.version.setProviderConfigJson(fixture.providerConfig.toString());
+        var sql = mock(DeploymentAiStateStorageBindingService.class);
+        ReflectionTestUtils.setField(fixture.service, "aiStateStorageBindings", sql);
+        var failure = new IllegalStateException("AI_STATE_STORAGE_RELEASE_BINDING_CHANGED");
+        org.mockito.Mockito.doThrow(failure).when(sql).requireUnchanged(fixture.deployment, fixture.version, fixture.release);
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).isSameAs(failure);
+        var order = inOrder(sql);
+        order.verify(sql).requireForApply(fixture.deployment, fixture.version, "target-stage");
+        order.verify(sql).requireUnchanged(fixture.deployment, fixture.version, fixture.release);
+        verifyNoInteractions(fixture.bindings);
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test
+    void explicitSqlStorageCannotProceedWithoutItsValidator() {
+        var fixture = new BindingApplyFixture();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig).put("aiStateStorageMode", "MANAGED_POSTGRES");
+        fixture.version.setProviderConfigJson(fixture.providerConfig.toString());
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123"))
+            .hasMessage("AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
+        verifyNoInteractions(fixture.bindings);
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test
     void tokenArtifactFailurePrecedesBindingReadsAdmissionDebitAndProviderEffects() {
         var fixture = new BindingApplyFixture();
         ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.providerConfig).put("milvusAuthenticationType", "TOKEN");

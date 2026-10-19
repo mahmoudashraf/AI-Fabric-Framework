@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferC
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecRepository;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,19 +29,22 @@ public class ReviewedManagedDependencyEvidenceService {
     private final CustomerOfferRepository offers;
     private final CustomerOfferCodec offerCodec;
     private final ObjectMapper mapper;
+    private final ManagedDependencyArtifactPolicy ownership;
 
     public ReviewedManagedDependencyEvidenceService(ManagedDependencySpecRepository specs,
                                                      ManagedDependencySpecValidator validator,
                                                      CustomerOfferDeploymentRepository offerDeployments,
                                                      CustomerOfferRepository offers,
                                                      CustomerOfferCodec offerCodec,
-                                                     ObjectMapper mapper) {
+                                                     ObjectMapper mapper,
+                                                     ManagedDependencyArtifactPolicy ownership) {
         this.specs = specs;
         this.validator = validator;
         this.offerDeployments = offerDeployments;
         this.offers = offers;
         this.offerCodec = offerCodec;
         this.mapper = mapper;
+        this.ownership = ownership;
     }
 
     public Optional<Evidence> resolve(Definition definition, Vector envelope) {
@@ -71,6 +75,11 @@ public class ReviewedManagedDependencyEvidenceService {
         String fingerprint = validator.fingerprint(spec);
         if (!fingerprint.equals(reviewed.getFingerprint())) {
             throw invalid("REVIEWED_DEPENDENCY_SPEC_FINGERPRINT_CHANGED");
+        }
+        try {
+            ownership.requireAllowed(spec);
+        } catch (RuntimeException error) {
+            throw invalid("REVIEWED_DEPENDENCY_OWNERSHIP_UNPROVEN");
         }
         requireEnvelope(envelope, spec);
         return Optional.of(new Evidence(templateVersionId, fingerprint,

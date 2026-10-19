@@ -38,7 +38,8 @@ class ManagedDependencySpecPublishingServiceTest {
         new ObjectMapper().findAndRegisterModules());
     private final ManagedDependencySpecPublishingService service = new ManagedDependencySpecPublishingService(
         specs, validator, versions, plugins, artifacts, staff, audit,
-        new ObjectMapper().findAndRegisterModules());
+        new ObjectMapper().findAndRegisterModules(), new ManagedDependencyArtifactPolicy(artifacts,
+            new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(new ObjectMapper())));
     private MarketplacePluginVersionEntity templateVersion;
 
     @BeforeEach
@@ -177,7 +178,7 @@ class ManagedDependencySpecPublishingServiceTest {
     }
 
     private DeploymentSourceArtifactEntity artifact(ManagedDependencySpec.Service dependency) {
-        var artifact = new DeploymentSourceArtifactEntity();
+        var artifact = ManagedDependencyFixtures.ownedAiArtifact(dependency);
         artifact.setId(dependency.sourceArtifactId());
         artifact.setArtifactType("DOCKER_IMAGE");
         artifact.setArtifactRole(DeploymentSourceArtifactRole.MANAGED_DEPENDENCY.name());
@@ -185,7 +186,6 @@ class ManagedDependencySpecPublishingServiceTest {
         artifact.setImageRepository(dependency.image().substring(0, separator));
         artifact.setImageDigest(dependency.image().substring(separator + 1));
         artifact.setGitCommitSha(dependency.sourceCommit());
-        artifact.setCapabilityManifestHash("manifest-hash");
         artifact.setPromotionChannel("staging");
         artifact.setPromotedAt(Instant.now());
         return artifact;

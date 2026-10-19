@@ -44,10 +44,11 @@ class CustomerSelfServiceControllerTest {
     @Autowired CustomerDeploymentApplyService applies;
     @Autowired CustomerAdmissionReservationService reservations;
     @Autowired CustomerDeploymentPortfolioService deploymentPortfolio;
+    @Autowired CustomerAiStateStorageBindingService aiStateStorage;
     private MockMvc mvc;
 
     @BeforeEach void setup() {
-        reset(entitlements, catalogue, bootstrap, versions, applies, reservations, deploymentPortfolio);
+        reset(entitlements, catalogue, bootstrap, versions, applies, reservations, deploymentPortfolio, aiStateStorage);
         mvc = webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -180,6 +181,52 @@ class CustomerSelfServiceControllerTest {
         verify(reservations).list("offer", "deployment", "staging-target");
     }
 
+    @Test void customerAiStateBindingIsOwnerRouteOnlyAndPreservesWriteOnlyCredentials() throws Exception {
+        String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/ai-state-storage-binding";
+        String body = aiStateBody();
+        mvc.perform(as(post(route).contentType("application/json").content(body), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk());
+        verify(aiStateStorage).bind(eq("offer"), eq("deployment"), argThat(value ->
+            value.expectedEntitlementRevision() == 2 && "synthetic-secret".equals(value.connection().password())));
+        clearInvocations(aiStateStorage);
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(as(post(route).contentType("application/json").content(body), role)).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(aiStateStorage);
+        mvc.perform(as(get(route).queryParam("targetProfileId", "target").queryParam("bindingSlotId", "ai-state-database")
+            .queryParam("versionId", "version"), PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isOk());
+        verify(aiStateStorage).get("offer", "deployment", "target", "ai-state-database", "version");
+    }
+
+    @Test void aiStateWireContractRejectsCoercedFencesAndUnexpectedAuthorityBeforeService() throws Exception {
+        String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/ai-state-storage-binding";
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (String badRevision : List.of("null", "\"2\"", "2.0", "9223372036854775808")) {
+            var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(aiStateBody());
+            tree.set("expectedEntitlementRevision", mapper.readTree(badRevision));
+            mvc.perform(as(post(route).contentType("application/json").content(tree.toString()), PlatformRole.CUSTOMER_ADMIN))
+                .andExpect(status().isBadRequest());
+        }
+        var forged = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(aiStateBody());
+        forged.put("customerId", "foreign");
+        mvc.perform(as(post(route).contentType("application/json").content(forged.toString()), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isBadRequest());
+        var coercedPort = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(aiStateBody());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) coercedPort.path("connection")).put("port", "5432");
+        mvc.perform(as(post(route).contentType("application/json").content(coercedPort.toString()), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(aiStateStorage);
+    }
+
+    private String aiStateBody() {
+        return """
+            {"expectedEntitlementRevision":2,"operationKey":"bind-key","targetProfileId":"target",
+             "bindingSlotId":"ai-state-database","connection":{"versionId":"version","host":"db.example.test",
+             "port":5432,"databaseName":"ai_state","runtimeSchema":"runtime_state","connectorSchema":"connector_state",
+             "username":"runtime_role","password":"synthetic-secret","migrationAuthorized":true}}
+            """;
+    }
+
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder request, PlatformRole role) {
         return request.with(authentication(new UsernamePasswordAuthenticationToken(new PlatformPrincipal("test-actor", role, "Test", "SESSION"),
             null, List.of(new SimpleGrantedAuthority(role.authority())))));
@@ -199,6 +246,10 @@ class CustomerSelfServiceControllerTest {
         }
         @Bean CustomerAdmissionReservationService reservations() { return mock(CustomerAdmissionReservationService.class); }
         @Bean CustomerDeploymentPortfolioService deploymentPortfolio() { return mock(CustomerDeploymentPortfolioService.class); }
+        @Bean CustomerAiStateStorageBindingService aiStateStorage() { return mock(CustomerAiStateStorageBindingService.class); }
+        @Bean CustomerAiStateStorageBindingController aiStateController(CustomerAiStateStorageBindingService service, CustomerOfferCodec codec) {
+            return new CustomerAiStateStorageBindingController(service, codec);
+        }
         @Bean CustomerSelfServiceController controller(CustomerSelfServiceCatalogueService catalogue,
             CustomerOfferEntitlementService entitlements, CustomerOfferCodec codec, CustomerPlacementProbeService placementProbes,
             CustomerDeploymentBootstrapService bootstrap, CustomerDeploymentVersionService versions,

@@ -35,6 +35,7 @@ class OwnedManagedDependencyProvisioningTest {
         "environment", "server", "destination", "example.test", null, 1, 10, false, true, "8080", "/actuator/health", "8080");
     final CoolifyConnection connection = new CoolifyConnection(config.baseUrl(), "private", config);
     PlatformManagedProductProvisioningService service;
+    OwnedDependencyOwnershipFixture ownership;
     @BeforeEach void setup() {
         when(properties.requestTimeout()).thenReturn(Duration.ofSeconds(1)); when(properties.pollInterval()).thenReturn(Duration.ofMillis(1));
         when(volumeReclamation.reclaimAndVerify(any(), anyString(), anyString(), anyList())).thenAnswer(call -> {
@@ -47,20 +48,27 @@ class OwnedManagedDependencyProvisioningTest {
         when(volumeReclamation.verifyContainersAbsent(any(), anyString(), anyString(), anyString(), anyString()))
             .thenAnswer(call -> new CoolifyHostVolumeReclamationService.ContainerReceipt(
                 "container-receipt", java.time.Instant.now()));
+        ownership = new OwnedDependencyOwnershipFixture(api, targets, resolver, mapper, connection);
+        doAnswer(call -> { ownership.checkpoint.creating(call.getArgument(0)); return null; }).when(checkpoint).creating(anyString());
+        doAnswer(call -> { ownership.checkpoint.created(call.getArgument(0), call.getArgument(1)); return null; }).when(checkpoint).created(anyString(), anyString());
+        doAnswer(call -> { ownership.checkpoint.volume(call.getArgument(0), call.getArgument(1)); return null; }).when(checkpoint).volume(anyString(), anyString());
+        doAnswer(call -> { ownership.checkpoint.volumeReclamationPlanned(call.getArgument(0)); return null; }).when(checkpoint).volumeReclamationPlanned(anyMap());
+        doAnswer(call -> { ownership.checkpoint.volumesReclaimed(call.getArgument(0)); return null; }).when(checkpoint).volumesReclaimed(anySet());
         service = service(new CustomerSelfServiceProperties(Map.of(
                 TargetIntent.CUSTOMER_STAGING, new CustomerSelfServiceProperties.TrustedServer("server", "46.224.145.148", "host.docker.internal"),
                 TargetIntent.CUSTOMER_PRODUCTION, new CustomerSelfServiceProperties.TrustedServer("production-server", "46.225.162.106", "host.docker.internal")), 60));
     }
     private PlatformManagedProductProvisioningService service(CustomerSelfServiceProperties placement) {
-        return new PlatformManagedProductProvisioningService(mock(PlatformProvisioningProperties.class), properties,
+        var service = new PlatformManagedProductProvisioningService(mock(PlatformProvisioningProperties.class), properties,
             mock(PlatformDeliveryProperties.class), mock(RailwayGraphqlClient.class), resolver, api, targets,
             mock(PlatformSecretService.class), mock(PlatformManagedProductServiceRepository.class), mock(ShopifyStoreConnectionRepository.class),
             mock(PlatformManagedProductServiceService.class), mock(PlatformAuditService.class), mapper, placement,
             volumeReclamation);
+        service.setOwnedDependencyOwnership(ownership.authority);
+        return service;
     }
     ObjectNode raw(String name, String marker) {
-        return mapper.createObjectNode().put("name", name).put("description", marker).put("server_uuid", "server")
-            .put("environment_uuid", "environment").put("project_uuid", "project").put("destination_uuid", "destination");
+        return ownership.raw(name.equals("inbox-service") ? "inbox-app" : name.endsWith("-db") ? "db" : "app", name, marker);
     }
     PlatformManagedProductProvisioningService.OwnedDependencyResources empty(boolean intent) {
         return new PlatformManagedProductProvisioningService.OwnedDependencyResources(null, null, intent, false, Map.of());
@@ -213,9 +221,10 @@ class OwnedManagedDependencyProvisioningTest {
         verify(checkpoint, never()).guard();
     }
     @Test void missingExistingInboxDoesNotFallBackToResourceCreation() {
+        stubExistingInbox(inbox());
         when(api.getApplication(connection, "inbox-app")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.planOwnedDependencyOperatorRemoval(connection, "graph", "inbox-service", inbox(),
-            inboxResources(), "binding", "one")).hasMessageContaining("APPLICATION_MISSING");
+            inboxResources(), "binding", "one")).hasMessageContaining("OWNERSHIP_CONFLICT");
         verify(api, never()).createDockerImageApplication(any(), any()); verify(api, never()).createPostgresDatabase(any(), any());
     }
     private com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service inbox() {
@@ -225,20 +234,21 @@ class OwnedManagedDependencyProvisioningTest {
         return new PlatformManagedProductProvisioningService.OwnedDependencyResources("inbox-app", null, true, false, Map.of("/app/data", "volume"));
     }
     private void stubExistingInbox(com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec) {
-        when(api.getApplication(connection, "inbox-app")).thenReturn(Optional.of(new CoolifyApplicationSummary("inbox-app", "inbox-service",
+        ownership.graph(spec, "inbox-service", inboxResources());
+        ownership.applications.put("inbox-app", new CoolifyApplicationSummary("inbox-app", "inbox-service",
             "https://inbox-service.example.test", "running:healthy", "registry.example.test/dependency", "sha256-" + "a".repeat(64),
-            raw("inbox-service", "ManagedDependency:graph:inbox"))));
-        when(api.listApplicationStorages(connection, "inbox-app")).thenReturn(List.of(new CoolifyApplicationStorageSummary("volume",
-            "persistent", "inbox-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data", null, false, mapper.createObjectNode())));
+            raw("inbox-service", "ManagedDependency:graph:inbox")));
+        ownership.appStorages.put("inbox-app", List.of(ownership.storage("volume",
+            "inbox-app-inbox-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data")));
+        ownership.receipts();
     }
     @Test void immutableImageAndCreationIntentArePassedThroughExistingProvider() {
         var spec = ManagedDependencyFixtures.http("simulator", false);
+        ownership.graph(spec, "dep-service", empty(false));
         var app = new CoolifyApplicationSummary("app", "dep-service", "https://dep-service.example.test", "running:healthy",
             "registry.example.test/dependency", "sha256-" + "a".repeat(64), raw("dep-service", "ManagedDependency:graph:simulator"));
         when(api.createDockerImageApplication(eq(connection), any())).thenReturn("app");
-        when(api.getApplication(connection, "app")).thenReturn(Optional.of(app));
-        when(api.reconcilePersistentVolumeStorage(eq(connection), eq("app"), anyString(), eq("/app/data")))
-            .thenReturn(new CoolifyApplicationStorageSummary("volume", "persistent", "dep-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data", null, false, mapper.createObjectNode()));
+        ownership.applications.put("app", app);
         when(api.start(connection, "app", true, true)).thenReturn(new CoolifyActionResponse("ok", "build", mapper.createObjectNode()));
         when(api.getDeployment(connection, "build")).thenReturn(Optional.of(new CoolifyDeploymentSummary("build", "dep-service", "app", "finished", null, null, null, null, null, mapper.createObjectNode())));
         var result = service.reconcileOwnedDependency(connection, "graph", "dep-service", spec, empty(false), unused -> List.of(), checkpoint);
@@ -252,6 +262,7 @@ class OwnedManagedDependencyProvisioningTest {
         verify(api, never()).createPublicApplication(any(), any());
     }
     @Test void uncertainCreateNeverAllocatesAnotherApplication() {
+        ownership.graph(ManagedDependencyFixtures.http("simulator", false), "dep-service", empty(true));
         when(api.listApplications(connection)).thenReturn(List.of());
         assertThatThrownBy(() -> service.reconcileOwnedDependency(connection, "graph", "dep-service",
             ManagedDependencyFixtures.http("simulator", false), empty(true), unused -> List.of(), checkpoint))
@@ -264,6 +275,9 @@ class OwnedManagedDependencyProvisioningTest {
             spec.image(), null, raw("dep-service", "ManagedDependency:OTHER:simulator"));
         when(api.getApplication(connection, "foreign")).thenReturn(Optional.of(app));
         var resource = new PlatformManagedProductProvisioningService.OwnedDependencyResources("foreign", null, true, false, Map.of());
+        ownership.graph(spec, "dep-service", resource);
+        ownership.applications.put("foreign", app);
+        ownership.receipts();
         assertThatThrownBy(() -> service.reconcileOwnedDependency(connection, "graph", "dep-service", spec, resource, unused -> List.of(), checkpoint))
             .hasMessageContaining("OWNERSHIP_CONFLICT");
         assertThatThrownBy(() -> service.retireOwnedDependency(connection, "graph", "dep-service", "simulator", resource, checkpoint))
@@ -273,22 +287,24 @@ class OwnedManagedDependencyProvisioningTest {
     @Test void retirementDeletesAttachedOwnedVolumesWithApplicationAndCheckpointsIntentFirst() {
         var app = new CoolifyApplicationSummary("app", "dep-service", "https://dep-service.example.test", "running:healthy",
             "registry.example.test/dependency", "sha256-" + "a".repeat(64), raw("dep-service", "ManagedDependency:graph:simulator"));
-        var storage = new CoolifyApplicationStorageSummary("volume", "persistent",
-            "dep-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data", null, false,
-            mapper.createObjectNode());
-        when(api.getApplication(connection, "app")).thenReturn(Optional.of(app), Optional.empty());
-        when(api.listApplicationStorages(connection, "app")).thenReturn(List.of(storage));
+        var storage = ownership.storage("volume", "app-dep-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data");
         var resource = new PlatformManagedProductProvisioningService.OwnedDependencyResources(
             "app", null, true, false, Map.of("/app/data", "volume"));
+        ownership.graph(ManagedDependencyFixtures.http("simulator", false), "dep-service", resource);
+        ownership.applications.put("app", app);
+        ownership.appStorages.put("app", List.of(storage));
+        ownership.receipts();
+        doAnswer(call -> {
+            assertThat(ownership.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class))
+                .containsOnly("DELETE_PENDING");
+            ownership.applications.remove("app");
+            return new CoolifyActionResponse("deleted", null, mapper.createObjectNode());
+        }).when(api).delete(connection, "app", true, true, false, false);
 
         service.retireOwnedDependency(connection, "graph", "dep-service", "simulator", resource, checkpoint);
 
         var order = inOrder(checkpoint, api);
-        order.verify(api).getApplication(connection, "app");
-        order.verify(api).listApplicationStorages(connection, "app");
-        order.verify(checkpoint).guard();
         order.verify(checkpoint).volumeReclamationPlanned(Map.of("volume", storage.name()));
-        order.verify(checkpoint).guard();
         order.verify(api).delete(connection, "app", true, true, false, false);
         order.verify(checkpoint).volumesReclaimed(Set.of("volume"));
         verify(api, never()).deleteApplicationStorage(any(), anyString(), anyString());
@@ -296,15 +312,20 @@ class OwnedManagedDependencyProvisioningTest {
             "graph:simulator:application", "application", "app");
     }
     @Test void retirementRetryRequiresDurableVolumeReceiptAfterApplicationDisappears() {
-        when(api.getApplication(connection, "app")).thenReturn(Optional.empty());
         var missing = new PlatformManagedProductProvisioningService.OwnedDependencyResources(
             "app", null, true, false, Map.of("/app/data", "volume"));
+        ownership.graph(ManagedDependencyFixtures.http("simulator", false), "dep-service", missing);
         assertThatThrownBy(() -> service.retireOwnedDependency(connection, "graph", "dep-service", "simulator",
-            missing, checkpoint)).hasMessageContaining("VOLUME_RECLAMATION_UNPROVEN");
+            missing, checkpoint)).hasMessageContaining("OWNERSHIP_CONFLICT");
 
         var planned = new PlatformManagedProductProvisioningService.OwnedDependencyResources(
             "app", null, true, false, Map.of("/app/data", "volume"),
-            Map.of("volume", "dep-service-" + Integer.toHexString("/app/data".hashCode())), Set.of());
+            Map.of("volume", "app-dep-service-" + Integer.toHexString("/app/data".hashCode())), Set.of());
+        ownership.graph(ManagedDependencyFixtures.http("simulator", false), "dep-service", planned);
+        ownership.appStorages.put("app", List.of(ownership.storage("volume", planned.volumeReclamationPlan().get("volume"), "/app/data")));
+        ownership.receipts();
+        ownership.authority.beginVolumeDeletion(ownership.context(), "app", planned.volumes(), null);
+        ownership.authority.beginDeletion(ownership.context(), OwnedDependencyOwnership.APPLICATION, "app");
         service.retireOwnedDependency(connection, "graph", "dep-service", "simulator", planned, checkpoint);
         verify(checkpoint).volumesReclaimed(Set.of("volume"));
         verify(api, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
@@ -315,17 +336,16 @@ class OwnedManagedDependencyProvisioningTest {
         var dbRaw = raw("dep-service-db", "ManagedDependency:graph:receiver");
         var database = new CoolifyDatabaseSummary("db", "dep-service-db", "running:healthy", "postgresql",
             "dependency", "dependency", dbRaw);
-        var appStorage = new CoolifyApplicationStorageSummary("app-volume", "persistent",
-            "dep-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data", null, false,
-            mapper.createObjectNode());
-        var databaseStorage = new CoolifyApplicationStorageSummary("db-volume", "persistent",
-            "dep-service-db-data", "/var/lib/postgresql/data", null, false, mapper.createObjectNode());
-        when(api.getApplication(connection, "app")).thenReturn(Optional.of(app), Optional.empty());
-        when(api.getDatabase(connection, "db")).thenReturn(Optional.of(database), Optional.empty());
-        when(api.listApplicationStorages(connection, "app")).thenReturn(List.of(appStorage));
-        when(api.listDatabaseStorages(connection, "db")).thenReturn(List.of(databaseStorage));
+        var appStorage = ownership.storage("app-volume", "app-dep-service-" + Integer.toHexString("/app/data".hashCode()), "/app/data");
+        var databaseStorage = ownership.storage("db-volume", "dep-service-db-data", "/var/lib/postgresql/data");
         var resource = new PlatformManagedProductProvisioningService.OwnedDependencyResources(
             "app", "db", true, true, Map.of("/app/data", "app-volume"));
+        ownership.graph(ManagedDependencyFixtures.http("receiver", true), "dep-service", resource);
+        ownership.applications.put("app", app);
+        ownership.databases.put("db", database);
+        ownership.appStorages.put("app", List.of(appStorage));
+        ownership.dbStorages.put("db", List.of(databaseStorage));
+        ownership.receipts();
 
         service.retireOwnedDependency(connection, "graph", "dep-service", "receiver", resource, checkpoint);
 
@@ -345,12 +365,18 @@ class OwnedManagedDependencyProvisioningTest {
             "graph:receiver:database", "database", "db");
     }
     @Test void databaseAddressMustComeFromActualProviderEvidence() {
-        when(api.getDatabase(connection, "db")).thenReturn(Optional.of(new CoolifyDatabaseSummary("db", "name", "running:healthy", "postgresql", "dependency", "dependency", mapper.createObjectNode())));
+        ownership.graph(ManagedDependencyFixtures.http("receiver", true), "dep-service",
+            new PlatformManagedProductProvisioningService.OwnedDependencyResources(null, "db", false, true, Map.of()));
+        ownership.databases.put("db", new CoolifyDatabaseSummary("db", "dep-service-db", "running:healthy", "postgresql", "dependency", "dependency",
+            raw("dep-service-db", "ManagedDependency:graph:receiver")));
+        ownership.dbStorages.put("db", List.of(ownership.storage("db-volume", "db-data", "/var/lib/postgresql/data")));
+        ownership.receipts();
         assertThatThrownBy(() -> service.ownedDependencyDatabaseJdbc(connection, "db")).hasMessageContaining("ADDRESS_UNVERIFIED");
     }
 
     @Test void databaseCreationUsesReviewedCapacityAndRejectsProviderDrift() {
         var spec = ManagedDependencyFixtures.http("receiver", true);
+        ownership.graph(spec, "dep-service", empty(false));
         ObjectNode databaseRaw = raw("dep-service-db", "ManagedDependency:graph:receiver")
             .put("image", spec.database().image())
             .put("is_public", false)
@@ -359,7 +385,8 @@ class OwnedManagedDependencyProvisioningTest {
         var database = new CoolifyDatabaseSummary("db", "dep-service-db", "running:healthy", "postgresql",
             "dependency", "dependency", databaseRaw);
         when(api.createPostgresDatabase(eq(connection), any())).thenReturn("db");
-        when(api.getDatabase(connection, "db")).thenReturn(Optional.of(database));
+        ownership.databases.put("db", database);
+        ownership.dbStorages.put("db", List.of(ownership.storage("db-volume", "db-data", "/var/lib/postgresql/data")));
 
         assertThatThrownBy(() -> service.reconcileOwnedDependency(connection, "graph", "dep-service", spec,
             empty(false), ignored -> List.of(new CoolifyEnvVar("__DATABASE_PASSWORD", "private", false, true, false, true)),

@@ -36,7 +36,7 @@ class SimulatedDealershipMarketplaceMigrationPostgresTest {
     private final MarketplaceManifestService manifests = new MarketplaceManifestService(mapper);
     private final DeploymentMarketplaceDraftCompilerService compiler =
         new DeploymentMarketplaceDraftCompilerService(
-            null, null, null, null, null, null, null, null, null, null, null, mapper
+            null, null, null, null, null, null, null, null, null, null, null, mapper, null
         );
 
     @Test

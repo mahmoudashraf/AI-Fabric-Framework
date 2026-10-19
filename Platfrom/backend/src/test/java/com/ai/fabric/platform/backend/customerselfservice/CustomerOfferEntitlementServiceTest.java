@@ -139,6 +139,21 @@ class CustomerOfferEntitlementServiceTest {
         assertCode(OFFER_IMMUTABLE, () -> service.publish(new PublishOfferRequest("offer", CustomerOfferTestFixtures.definition(), "review")));
     }
 
+    @Test void unfinishedExternalReleaseBlocksRevocationAndReinvitationWithoutRecordingSuccess() {
+        var invitation = invite();
+        when(entitlements.countUnfinishedExternalReleases("customer", "offer")).thenReturn(1L);
+        var revoke = new EntitlementCommand(1, "offboard-while-applying", "Explicit offboarding");
+        assertCode(RELEASE_IN_PROGRESS, () -> service.revoke(invitation.id(), revoke));
+        assertCode(RELEASE_IN_PROGRESS, () -> service.invite("offer", new InviteRequest("customer", "owner", "new-invite",
+            Instant.parse("2099-01-01T00:00:00Z"), 1, "reinvite-while-applying", "Renew")));
+        assertThat(saved.getStatus()).isEqualTo(EntitlementStatus.INVITED);
+        assertThat(saved.getRevision()).isEqualTo(1);
+        assertThat(receipts).hasSize(1);
+        when(entitlements.countUnfinishedExternalReleases("customer", "offer")).thenReturn(0L);
+        assertThat(service.revoke(invitation.id(), revoke).status()).isEqualTo(EntitlementStatus.REVOKED);
+        assertThat(receipts).hasSize(2);
+    }
+
     private EntitlementSummary invite() {
         return service.invite("offer", new InviteRequest("customer", "owner", "reviewed-invite",
             Instant.parse("2099-01-01T00:00:00Z"), 0, "invite-key", "Approved early access"));

@@ -119,7 +119,7 @@ class DealershipMeasurementCandidateMigrationPostgresTest {
         assertThat(parsed.path("contributions").path("template").path("providerConfig")
             .path("openaiMaxTokens").asInt()).isEqualTo(2048);
         var compiler = new DeploymentMarketplaceDraftCompilerService(
-            null, null, null, null, null, null, manifests, null, null, null, null, mapper);
+            null, null, null, null, null, null, manifests, null, null, null, null, mapper, null);
         ObjectNode baseline = mapper.createObjectNode().put("openaiModel", "gpt-4o-mini")
             .put("openaiEmbeddingModel", "text-embedding-3-small").put("enableFallback", false)
             .put("openaiMaxTokens", 1000);

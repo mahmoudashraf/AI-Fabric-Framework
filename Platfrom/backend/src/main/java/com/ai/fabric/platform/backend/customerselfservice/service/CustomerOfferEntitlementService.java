@@ -93,6 +93,7 @@ public class CustomerOfferEntitlementService {
         }
         if (!request.expiresAt().isAfter(Instant.now())) throw invalid();
         if (request.expectedRevision() != (entity == null ? 0 : entity.getRevision())) throw conflict(REVISION_CONFLICT);
+        if (entity != null) requireNoUnfinishedExternalRelease(entity);
         composition.validate(definition(offer));
         if (entity == null) {
             entity = new CustomerOfferEntitlementEntity();
@@ -143,6 +144,7 @@ public class CustomerOfferEntitlementService {
         if (replay != null) return replay;
         if (entity.getRevision() != request.expectedRevision()) throw conflict(REVISION_CONFLICT);
         if (entity.getStatus() == EntitlementStatus.REVOKED) throw conflict(REVISION_CONFLICT);
+        requireNoUnfinishedExternalRelease(entity);
         entity.setStatus(EntitlementStatus.REVOKED);
         entity.setRevision(entity.getRevision() + 1);
         entity.setUpdatedAt(Instant.now());
@@ -263,5 +265,10 @@ public class CustomerOfferEntitlementService {
     }
     public void requireOperationKey(String key) { if (blank(key, 128)) throw invalid(); }
     private boolean blank(String value, int limit) { return value == null || value.isBlank() || value.length() > limit || !value.equals(value.trim()); }
+    private void requireNoUnfinishedExternalRelease(CustomerOfferEntitlementEntity entity) {
+        if (entitlements.countUnfinishedExternalReleases(entity.getCustomerId(), entity.getOfferId()) != 0) {
+            throw conflict(RELEASE_IN_PROGRESS);
+        }
+    }
     public record CustomerActor(String customerId, String userId) { }
 }

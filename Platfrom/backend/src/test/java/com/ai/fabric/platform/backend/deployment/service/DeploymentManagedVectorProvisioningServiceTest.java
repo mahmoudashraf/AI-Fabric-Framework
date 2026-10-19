@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -27,6 +29,155 @@ import static org.mockito.Mockito.when;
 class DeploymentManagedVectorProvisioningServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ManagedResourceOwnershipFixture ownershipFixture=new ManagedResourceOwnershipFixture();
+
+    private ManagedVectorProvisioningResult provision(DeploymentManagedVectorProvisioningService service,JsonNode provider,JsonNode entity) {
+        ownershipFixture.inject(service);
+        return service.ensureProvisioned(ManagedResourceOwnershipFixture.SCOPE,provider,entity);
+    }
+
+    private String managedSecret(String kind) {
+        return "MANAGED_"+kind+"_DEP_"+DeploymentEvidenceFingerprint.hash(objectMapper,
+            objectMapper.valueToTree(ManagedResourceOwnershipFixture.SCOPE)).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private String databaseKeyName() {
+        return ("ai-fabric-"+DeploymentEvidenceFingerprint.hash(objectMapper,
+            objectMapper.valueToTree(ManagedResourceOwnershipFixture.SCOPE))).substring(0,64);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void existingUnownedQdrantCollectionBlocksEveryCreateEvenAfterAnotherCollectionWasAbsent() throws Exception {
+        var secret=mock(PlatformSecretService.class);
+        var http=mock(HttpClient.class);
+        HttpResponse<String> missing=mock(HttpResponse.class),existing=mock(HttpResponse.class);
+        when(missing.statusCode()).thenReturn(404);
+        when(existing.statusCode()).thenReturn(200);
+        when(existing.body()).thenReturn("{\"result\":{\"config\":{\"params\":{\"vectors\":{\"size\":1536}}}}}");
+        when(http.<String>send(any(),any(HttpResponse.BodyHandler.class))).thenReturn(missing,existing);
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http);
+        var provider=objectMapper.readTree("{\"vectorStrategy\":\"qdrant\",\"qdrantHost\":\"https://vector.example\",\"qdrantManagedCollectionsEnabled\":true}");
+        var entities=objectMapper.readTree("{\"ai-config\":{\"vector-dimensions\":1536},\"ai-entities\":{\"absent\":{},\"customer-data\":{}}}");
+        assertThatThrownBy(()->provision(service,provider,entities)).hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(http,never()).send(argThat(request->request!=null&&"PUT".equals(request.method())),any(HttpResponse.BodyHandler.class));
+        assertThat(ownershipFixture.jdbc.queryForObject("SELECT COUNT(*) FROM platform_managed_resource_ownership",Long.class)).isZero();
+        verify(secret,never()).upsertManagedSecret(any(),any(),any(Map.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void qdrantCreateConflictLeavesDurablePendingIntentAndCannotBecomeOwnedOnReplay() throws Exception {
+        var secret=mock(PlatformSecretService.class);
+        var http=mock(HttpClient.class);
+        HttpResponse<String> missing=mock(HttpResponse.class),conflict=mock(HttpResponse.class),existing=mock(HttpResponse.class);
+        when(missing.statusCode()).thenReturn(404); when(conflict.statusCode()).thenReturn(409);
+        when(existing.statusCode()).thenReturn(200); when(existing.body()).thenReturn("{}");
+        when(http.<String>send(any(),any(HttpResponse.BodyHandler.class))).thenReturn(missing,conflict,existing);
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http);
+        var provider=objectMapper.readTree("{\"vectorStrategy\":\"qdrant\",\"qdrantHost\":\"https://vector.example\",\"qdrantManagedCollectionsEnabled\":true}");
+        var entities=objectMapper.readTree("{\"ai-entities\":{\"catalog\":{}}}");
+        assertThatThrownBy(()->provision(service,provider,entities)).hasMessageContaining("RECONCILIATION_REQUIRED");
+        assertThat(ownershipFixture.jdbc.queryForObject("SELECT state FROM platform_managed_resource_ownership",String.class)).isEqualTo("CREATE_PENDING");
+        assertThatThrownBy(()->provision(service,provider,entities)).hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(http,times(1)).send(argThat(request->request!=null&&"PUT".equals(request.method())),any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void sameNamePineconeWithManagedSecretStillCannotBeAdopted() throws Exception {
+        var secret=mock(PlatformSecretService.class);
+        when(secret.resolveSecret("PINECONE_API_KEY")).thenReturn("synthetic-management");
+        when(secret.resolveSecret(managedSecret("PINECONE_API_KEY"))).thenReturn("synthetic-retained-secret");
+        var http=mock(HttpClient.class);
+        var pinecone=mock(PineconeControlPlaneClient.class);
+        when(pinecone.findIndexByName("index","synthetic-management")).thenReturn(
+            new PineconeControlPlaneClient.PineconeIndexSummary("index","https://index.example",1536,"cosine",true,"enabled"));
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http,mock(QdrantCloudControlPlaneClient.class),pinecone,mock(ZillizCloudControlPlaneClient.class));
+        var provider=objectMapper.readTree("{\"vectorStrategy\":\"pinecone\",\"vectorProvisioningMode\":\"PLATFORM_MANAGED\",\"pineconeManagedIndexEnabled\":true,\"pineconeIndexName\":\"index\",\"pineconeRegion\":\"region\"}");
+        assertThatThrownBy(()->provision(service,provider,objectMapper.createObjectNode())).hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(pinecone,never()).awaitIndexReady(any(),any());
+        verify(secret,never()).upsertManagedSecret(any(),any(),any(Map.class));
+        verifyNoInteractions(http);
+    }
+
+    @SuppressWarnings("unchecked")
+    @ParameterizedTest
+    @ValueSource(strings={"{}","{\"result\":false}","{\"result\":\"true\"}"})
+    void qdrantSuccessStatusWithoutExplicitCreationAcknowledgementCannotGrantOwnership(String body) throws Exception {
+        var secret=mock(PlatformSecretService.class);
+        var http=mock(HttpClient.class);
+        HttpResponse<String> missing=mock(HttpResponse.class),response=mock(HttpResponse.class);
+        when(missing.statusCode()).thenReturn(404);
+        when(response.statusCode()).thenReturn(200); when(response.body()).thenReturn(body);
+        when(http.<String>send(any(),any(HttpResponse.BodyHandler.class))).thenReturn(missing,response);
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http);
+        var provider=objectMapper.readTree("{\"vectorStrategy\":\"qdrant\",\"qdrantHost\":\"https://vector.example\",\"qdrantManagedCollectionsEnabled\":true}");
+        assertThatThrownBy(()->provision(service,provider,objectMapper.readTree("{\"ai-entities\":{\"catalog\":{}}}")))
+            .hasMessageContaining("CREATE_RECONCILIATION_REQUIRED");
+        assertThat(ownershipFixture.jdbc.queryForObject("SELECT state FROM platform_managed_resource_ownership",String.class)).isEqualTo("CREATE_PENDING");
+    }
+
+    @Test
+    void externalNativeTokenPathRemainsInertAndUnscopedManagedPathFailsBeforeProviderAccess() {
+        var secret=mock(PlatformSecretService.class);
+        var http=mock(HttpClient.class);
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http);
+        var version=new com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity();
+        version.setProviderConfigJson("{\"vectorStrategy\":\"milvus\",\"vectorProvisioningMode\":\"EXTERNAL_EXISTING\",\"milvusAuthenticationType\":\"TOKEN\",\"milvusExternalBindingRequired\":true,\"vectorStoragePosture\":\"SHARED\"}");
+        version.setEntityConfigJson("{}");
+        assertThat(service.ensureProvisioned(ownershipFixture.deployment(),version).details().path("enabled").asBoolean()).isFalse();
+        version.setProviderConfigJson("{\"vectorStrategy\":\"pinecone\",\"vectorProvisioningMode\":\"PLATFORM_MANAGED\",\"pineconeManagedIndexEnabled\":true}");
+        assertThatThrownBy(()->service.ensureProvisioned(ownershipFixture.deployment(),version)).hasMessageContaining("TARGET_REQUIRED");
+        verifyNoInteractions(secret,http);
+    }
+
+    @Test
+    void matchingQdrantCloudClusterWithoutCreationReceiptCannotGainKeysOrCollections() throws Exception {
+        var secret=mock(PlatformSecretService.class);
+        when(secret.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("synthetic-management");
+        var qdrant=mock(QdrantCloudControlPlaneClient.class);
+        when(qdrant.resolveAccount("","synthetic-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudAccountResolution("account","Synthetic",true));
+        when(qdrant.requireRegion("aws","region")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudRegionSummary("region","Synthetic","aws",true));
+        when(qdrant.resolvePackage("account","synthetic-management","aws","region","")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudPackageSummary("package","Synthetic","sandbox","USD",0,"ACTIVE","","",""));
+        when(qdrant.findClusterByName("account","aifabric-123","synthetic-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary("cluster","account","aifabric-123","aws","region","package","HEALTHY",
+                "","https://vector.example",6333,6334,Map.of("managed-by","ai-fabric-platform")));
+        var http=mock(HttpClient.class);
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http,qdrant);
+        var config=objectMapper.readTree("{\"vectorStrategy\":\"qdrant\",\"vectorProvisioningMode\":\"PLATFORM_MANAGED\",\"qdrantCloudRegionId\":\"region\"}");
+        assertThatThrownBy(()->provision(service,config,objectMapper.readTree("{\"ai-entities\":{\"catalog\":{}}}")))
+            .hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(qdrant,never()).createCluster(any(),any(),any(),any(),any(),any(),any());
+        verify(qdrant,never()).createCollectionDatabaseApiKey(any(),any(),any(),any(),any());
+        verify(secret,never()).upsertManagedSecret(any(),any(),any(Map.class));
+        verifyNoInteractions(http);
+    }
+
+    @Test
+    void matchingZillizClusterAndExistingCredentialsDoNotGrantOwnership() throws Exception {
+        var secret=mock(PlatformSecretService.class);
+        when(secret.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("synthetic-management");
+        when(secret.resolveSecret(managedSecret("MILVUS_USERNAME"))).thenReturn("synthetic-user");
+        when(secret.resolveSecret(managedSecret("MILVUS_PASSWORD"))).thenReturn("synthetic-password");
+        var zilliz=mock(ZillizCloudControlPlaneClient.class);
+        when(zilliz.resolveProject("project","region","synthetic-management")).thenReturn(
+            new ZillizCloudControlPlaneClient.ZillizProjectResolution("project","Synthetic",false));
+        when(zilliz.findClusterByName("aifabric-123","synthetic-management")).thenReturn(
+            new ZillizCloudControlPlaneClient.ZillizClusterSummary("cluster","aifabric-123","project","region","Serverless","",0,"RUNNING",
+                "https://vector.example","Serverless"));
+        var http=mock(HttpClient.class);
+        var service=new DeploymentManagedVectorProvisioningService(secret,objectMapper,http,zilliz);
+        var config=objectMapper.readTree("{\"vectorStrategy\":\"milvus\",\"vectorProvisioningMode\":\"PLATFORM_MANAGED\",\"zillizCloudProjectId\":\"project\",\"zillizCloudRegionId\":\"region\",\"zillizCloudClusterPlan\":\"Serverless\"}");
+        assertThatThrownBy(()->provision(service,config,objectMapper.createObjectNode())).hasMessageContaining("OWNERSHIP_REQUIRED");
+        verify(zilliz,never()).createCluster(any(),any(),any(),any(),any(),anyInt(),any());
+        verify(zilliz,never()).deleteCluster(any(),any());
+        verify(secret,never()).clearManagedSecret(any(),any(Map.class));
+        verify(secret,never()).upsertManagedSecret(any(),any(),any(Map.class));
+        verifyNoInteractions(http);
+    }
 
     @SuppressWarnings("unchecked")
     @Test
@@ -93,17 +244,17 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.effectiveProviderConfig().path("pineconeApiHost").asText())
             .isEqualTo("https://dep-123-abc123.svc.eu-west-1-aws.pinecone.io");
         assertThat(result.effectiveProviderConfig().path("pineconeRuntimeApiKeySecretName").asText())
-            .isEqualTo("MANAGED_PINECONE_API_KEY_DEP_DEP_123");
+            .isEqualTo(managedSecret("PINECONE_API_KEY"));
         assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_SERVERLESS_INDEX");
         assertThat(result.details().path("state").asText()).isEqualTo("CREATED");
         assertThat(result.details().path("ready").asBoolean()).isTrue();
         verify(secretService).upsertManagedSecret(
-            eq("MANAGED_PINECONE_API_KEY_DEP_DEP_123"),
+            eq(managedSecret("PINECONE_API_KEY")),
             eq("pinecone-secret"),
             any(Map.class)
         );
@@ -120,7 +271,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(missing.statusCode()).thenReturn(404);
         HttpResponse<String> created = mock(HttpResponse.class);
         when(created.statusCode()).thenReturn(200);
-        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+        when(created.body()).thenReturn("{\"result\":true,\"status\":\"ok\"}");
 
         when(httpClient.<String>send(
             argThat(request -> request != null
@@ -156,7 +307,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_COLLECTIONS");
         assertThat(result.details().path("baseUrl").asText()).isEqualTo("https://cluster.example");
@@ -175,7 +326,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(missing.statusCode()).thenReturn(404);
         HttpResponse<String> created = mock(HttpResponse.class);
         when(created.statusCode()).thenReturn(200);
-        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+        when(created.body()).thenReturn("{\"result\":true,\"status\":\"ok\"}");
 
         when(httpClient.<String>send(
             argThat(request -> request != null
@@ -216,7 +367,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("collections")).hasSize(1);
         assertThat(result.details().path("collections").get(0).path("state").asText()).isEqualTo("CREATED");
@@ -239,7 +390,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(missing.statusCode()).thenReturn(404);
         HttpResponse<String> created = mock(HttpResponse.class);
         when(created.statusCode()).thenReturn(200);
-        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+        when(created.body()).thenReturn("{\"result\":true,\"status\":\"ok\"}");
 
         when(httpClient.<String>send(
             argThat(request -> request != null
@@ -284,9 +435,9 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
-        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_SHARED_COLLECTIONS");
+        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_COLLECTIONS");
         assertThat(result.details().path("sharedRootReused").asBoolean()).isTrue();
         assertThat(result.details().path("baseUrl").asText()).isEqualTo("https://cluster.example");
         assertThat(result.details().path("collections")).hasSize(1);
@@ -298,7 +449,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
     void ensureProvisionedCreatesManagedQdrantCloudClusterAndStoresRuntimeKey() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
-        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(null);
+        when(secretService.resolveSecret(managedSecret("QDRANT_DB_API_KEY"))).thenReturn(null);
 
         QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
         when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
@@ -343,18 +494,18 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 Map.of("managed-by", "ai-fabric-platform")
             )
         );
-        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(null);
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", databaseKeyName(), "qdrant-cloud-management")).thenReturn(null);
         when(qdrantCloudClient.createCollectionDatabaseApiKey(
             "acct-1",
             "cluster-1",
-            "ai-fabric-123",
+            databaseKeyName(),
             List.of("product", "policy"),
             "qdrant-cloud-management"
         )).thenReturn(
             new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
                 "key-1",
                 "cluster-1",
-                "ai-fabric-123",
+                databaseKeyName(),
                 "abcd",
                 "runtime-qdrant-key"
             )
@@ -368,7 +519,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(missing.statusCode()).thenReturn(404);
         HttpResponse<String> created = mock(HttpResponse.class);
         when(created.statusCode()).thenReturn(200);
-        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+        when(created.body()).thenReturn("{\"result\":true,\"status\":\"ok\"}");
         when(httpClient.<String>send(
             argThat(request -> request != null
                 && "GET".equals(request.method())
@@ -405,15 +556,15 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_CLOUD_CLUSTER");
         assertThat(result.effectiveProviderConfig().path("qdrantHost").asText())
             .isEqualTo("https://cluster-1.eu-west-1.aws.cloud.qdrant.io");
         assertThat(result.effectiveProviderConfig().path("qdrantRuntimeApiKeySecretName").asText())
-            .isEqualTo("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123");
+            .isEqualTo(managedSecret("QDRANT_DB_API_KEY"));
         verify(secretService).upsertManagedSecret(
-            eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"),
+            eq(managedSecret("QDRANT_DB_API_KEY")),
             eq("runtime-qdrant-key"),
             any(Map.class)
         );
@@ -436,7 +587,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
     void ensureProvisionedRetriesManagedQdrantCollectionLookupWhileDataPlaneWarmsUp() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
-        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(null);
+        when(secretService.resolveSecret(managedSecret("QDRANT_DB_API_KEY"))).thenReturn(null);
 
         QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
         when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
@@ -481,18 +632,18 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 Map.of("managed-by", "ai-fabric-platform")
             )
         );
-        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(null);
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", databaseKeyName(), "qdrant-cloud-management")).thenReturn(null);
         when(qdrantCloudClient.createCollectionDatabaseApiKey(
             "acct-1",
             "cluster-1",
-            "ai-fabric-123",
+            databaseKeyName(),
             List.of("product", "policy"),
             "qdrant-cloud-management"
         )).thenReturn(
             new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
                 "key-1",
                 "cluster-1",
-                "ai-fabric-123",
+                databaseKeyName(),
                 "abcd",
                 "runtime-qdrant-key"
             )
@@ -506,7 +657,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(missing.statusCode()).thenReturn(404);
         HttpResponse<String> created = mock(HttpResponse.class);
         when(created.statusCode()).thenReturn(200);
-        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+        when(created.body()).thenReturn("{\"result\":true,\"status\":\"ok\"}");
         when(httpClient.<String>send(
             argThat(request -> request != null
                 && "GET".equals(request.method())
@@ -543,12 +694,12 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_CLOUD_CLUSTER");
         assertThat(result.details().path("collections")).hasSize(2);
         verify(secretService).upsertManagedSecret(
-            eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"),
+            eq(managedSecret("QDRANT_DB_API_KEY")),
             eq("runtime-qdrant-key"),
             any(Map.class)
         );
@@ -569,9 +720,13 @@ class DeploymentManagedVectorProvisioningServiceTest {
     @SuppressWarnings("unchecked")
     @Test
     void ensureProvisionedReusesExistingQdrantCloudClusterEvenIfPackageIsNoLongerActive() throws Exception {
+        String endpoint="https://cluster-1.eu-west-1.aws.cloud.qdrant.io";
+        ownershipFixture.own("qdrant","CLUSTER","acct-1","platform-deployments","cluster-1",endpoint);
+        ownershipFixture.own("qdrant","DATABASE_API_KEY",endpoint,databaseKeyName(),"key-1",endpoint);
+        ownershipFixture.own("qdrant","COLLECTION",endpoint,"product","product",endpoint);
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
-        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn("existing-runtime-qdrant-key");
+        when(secretService.resolveSecret(managedSecret("QDRANT_DB_API_KEY"))).thenReturn("existing-runtime-qdrant-key");
 
         QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
         when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
@@ -587,7 +742,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
                 "cluster-1",
                 "acct-1",
-                "Platform-Deployments",
+                "platform-deployments",
                 "aws",
                 "eu-west-1",
                 "pkg-old",
@@ -603,7 +758,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
                 "cluster-1",
                 "acct-1",
-                "Platform-Deployments",
+                "platform-deployments",
                 "aws",
                 "eu-west-1",
                 "pkg-old",
@@ -615,11 +770,11 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 Map.of("managed-by", "ai-fabric-platform")
             )
         );
-        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", databaseKeyName(), "qdrant-cloud-management")).thenReturn(
             new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
                 "key-1",
                 "cluster-1",
-                "ai-fabric-123",
+                databaseKeyName(),
                 "abcd",
                 ""
             )
@@ -672,7 +827,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("clusterState").asText()).isEqualTo("REUSED");
         assertThat(result.details().path("packageId").asText()).isEqualTo("pkg-old");
@@ -680,15 +835,18 @@ class DeploymentManagedVectorProvisioningServiceTest {
         assertThat(result.details().path("packageResolution").asText()).isEqualTo("REUSED_EXISTING_CLUSTER_PACKAGE");
         assertThat(result.effectiveProviderConfig().path("qdrantCloudPackageId").asText()).isEqualTo("pkg-old");
         assertThat(result.effectiveProviderConfig().path("qdrantRuntimeApiKeySecretName").asText())
-            .isEqualTo("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123");
+            .isEqualTo(managedSecret("QDRANT_DB_API_KEY"));
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    void ensureProvisionedRotatesExistingQdrantDatabaseKeyWhenLegacyPermissionsBlockCollectionProvisioning() throws Exception {
+    void ensureProvisionedDoesNotRotateOwnedQdrantDatabaseKeyOnForbiddenResponse() throws Exception {
+        String endpoint="https://cluster-1.eu-west-1.aws.cloud.qdrant.io";
+        ownershipFixture.own("qdrant","CLUSTER","acct-1","aifabric-123","cluster-1",endpoint);
+        ownershipFixture.own("qdrant","DATABASE_API_KEY",endpoint,databaseKeyName(),"key-legacy",endpoint);
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
-        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn("legacy-runtime-qdrant-key");
+        when(secretService.resolveSecret(managedSecret("QDRANT_DB_API_KEY"))).thenReturn("legacy-runtime-qdrant-key");
 
         QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
         when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
@@ -732,11 +890,11 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 Map.of("managed-by", "ai-fabric-platform")
             )
         );
-        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", databaseKeyName(), "qdrant-cloud-management")).thenReturn(
             new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
                 "key-legacy",
                 "cluster-1",
-                "ai-fabric-123",
+                databaseKeyName(),
                 "abcd",
                 ""
             )
@@ -744,14 +902,14 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(qdrantCloudClient.createCollectionDatabaseApiKey(
             "acct-1",
             "cluster-1",
-            "ai-fabric-123",
+            databaseKeyName(),
             List.of("product"),
             "qdrant-cloud-management"
         )).thenReturn(
             new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
                 "key-rotated",
                 "cluster-1",
-                "ai-fabric-123",
+                databaseKeyName(),
                 "wxyz",
                 "rotated-runtime-qdrant-key"
             )
@@ -806,30 +964,18 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        assertThatThrownBy(()->provision(service,providerConfig,entityConfig)).hasMessageContaining("HTTP 403");
 
-        verify(qdrantCloudClient).deleteDatabaseApiKey("acct-1", "cluster-1", "key-legacy", "qdrant-cloud-management");
-        verify(secretService).upsertManagedSecret(
-            eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"),
-            eq("rotated-runtime-qdrant-key"),
-            any(Map.class)
-        );
-        verify(httpClient, times(3)).send(
-            argThat(request -> request != null
-                && "GET".equals(request.method())
-                && request.uri().toString().contains("/collections/")),
-            any(HttpResponse.BodyHandler.class)
-        );
-        assertThat(result.details().path("databaseApiKeyState").asText()).isEqualTo("ROTATED");
-        assertThat(result.details().path("collections").get(0).path("state").asText()).isEqualTo("REUSED");
+        verify(qdrantCloudClient,never()).deleteDatabaseApiKey(any(),any(),any(),any());
+        verify(secretService,never()).upsertManagedSecret(any(),any(),any(Map.class));
     }
 
     @Test
     void ensureProvisionedCreatesManagedZillizCloudClusterAndStoresRuntimeCredentials() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz-key");
-        when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(null);
-        when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(null);
+        when(secretService.resolveSecret(managedSecret("MILVUS_USERNAME"))).thenReturn(null);
+        when(secretService.resolveSecret(managedSecret("MILVUS_PASSWORD"))).thenReturn(null);
 
         HttpClient httpClient = mock(HttpClient.class);
         ZillizCloudControlPlaneClient zillizClient = mock(ZillizCloudControlPlaneClient.class);
@@ -889,7 +1035,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_ZILLIZ_CLOUD_CLUSTER");
         assertThat(result.details().path("clusterId").asText()).isEqualTo("cluster-1");
@@ -898,16 +1044,16 @@ class DeploymentManagedVectorProvisioningServiceTest {
         assertThat(result.effectiveProviderConfig().path("milvusPort").asInt()).isEqualTo(443);
         assertThat(result.effectiveProviderConfig().path("milvusSecure").asBoolean()).isTrue();
         assertThat(result.effectiveProviderConfig().path("milvusRuntimeUsernameSecretName").asText())
-            .isEqualTo("MANAGED_MILVUS_USERNAME_DEP_DEP_123");
+            .isEqualTo(managedSecret("MILVUS_USERNAME"));
         assertThat(result.effectiveProviderConfig().path("milvusRuntimePasswordSecretName").asText())
-            .isEqualTo("MANAGED_MILVUS_PASSWORD_DEP_DEP_123");
+            .isEqualTo(managedSecret("MILVUS_PASSWORD"));
         verify(secretService).upsertManagedSecret(
-            eq("MANAGED_MILVUS_USERNAME_DEP_DEP_123"),
+            eq(managedSecret("MILVUS_USERNAME")),
             eq("db-user"),
             any(Map.class)
         );
         verify(secretService).upsertManagedSecret(
-            eq("MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
+            eq(managedSecret("MILVUS_PASSWORD")),
             eq("db-password"),
             any(Map.class)
         );
@@ -915,10 +1061,11 @@ class DeploymentManagedVectorProvisioningServiceTest {
 
     @Test
     void ensureProvisionedPreservesExistingZillizClusterAndSecretsWhenRuntimeCredentialsAreMissing() throws Exception {
+        ownershipFixture.own("zilliz","CLUSTER","project-1","aifabric-123","cluster-old","https://cluster-old.gcp-us-west1.zillizcloud.com");
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz-key");
-        when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn("stale-user");
-        when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(null);
+        when(secretService.resolveSecret(managedSecret("MILVUS_USERNAME"))).thenReturn("stale-user");
+        when(secretService.resolveSecret(managedSecret("MILVUS_PASSWORD"))).thenReturn(null);
 
         HttpClient httpClient = mock(HttpClient.class);
         ZillizCloudControlPlaneClient zillizClient = mock(ZillizCloudControlPlaneClient.class);
@@ -966,9 +1113,9 @@ class DeploymentManagedVectorProvisioningServiceTest {
         for (String[] credentials : List.of(
             new String[] {"stale-user", null}, new String[] {null, "retained-password"}, new String[] {"", ""}
         )) {
-            when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(credentials[0]);
-            when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(credentials[1]);
-            assertThatThrownBy(() -> service.ensureProvisioned("dep-123", providerConfig, entityConfig))
+            when(secretService.resolveSecret(managedSecret("MILVUS_USERNAME"))).thenReturn(credentials[0]);
+            when(secretService.resolveSecret(managedSecret("MILVUS_PASSWORD"))).thenReturn(credentials[1]);
+            assertThatThrownBy(() -> provision(service, providerConfig, entityConfig))
                 .isInstanceOf(RailwayProvisioningConfigurationException.class)
                 .hasMessageContaining("MANAGED_ZILLIZ_RUNTIME_CREDENTIALS_REQUIRED");
         }
@@ -979,12 +1126,12 @@ class DeploymentManagedVectorProvisioningServiceTest {
         verify(secretService, never()).clearManagedSecret(any(), any(Map.class));
         verify(secretService, never()).upsertManagedSecret(any(), any(), any(Map.class));
 
-        when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn("restored-user");
-        when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn("restored-password");
+        when(secretService.resolveSecret(managedSecret("MILVUS_USERNAME"))).thenReturn("restored-user");
+        when(secretService.resolveSecret(managedSecret("MILVUS_PASSWORD"))).thenReturn("restored-password");
         var retainedCluster = zillizClient.findClusterByName("aifabric-123", "zilliz-key");
         when(zillizClient.awaitClusterReady("cluster-old", "zilliz-key"))
             .thenReturn(retainedCluster);
-        ManagedVectorProvisioningResult reused = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult reused = provision(service, providerConfig, entityConfig);
         assertThat(reused.details().path("clusterId").asText()).isEqualTo("cluster-old");
         assertThat(reused.details().path("clusterState").asText()).isEqualTo("REUSED");
         verify(zillizClient, never()).deleteCluster(any(), any());
@@ -1004,6 +1151,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
         when(missingCollection.statusCode()).thenReturn(404);
         HttpResponse<String> createdCollection = mock(HttpResponse.class);
         when(createdCollection.statusCode()).thenReturn(200);
+        when(createdCollection.body()).thenReturn("{\"result\":true,\"status\":\"ok\"}");
         when(httpClient.<String>send(
             argThat(request -> request != null
                 && "GET".equals(request.method())
@@ -1037,7 +1185,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             }
             """);
 
-        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+        ManagedVectorProvisioningResult result = provision(service, providerConfig, entityConfig);
 
         assertThat(result.details().path("collections").get(0).path("state").asText()).isEqualTo("CREATED");
         verify(httpClient).send(

@@ -28,6 +28,7 @@ class TargetRetirementProviderResourcesTest {
     private final CoolifyTargetProfileResolver resolver = mock(CoolifyTargetProfileResolver.class);
     private final CoolifyApiClient client = mock(CoolifyApiClient.class);
     private final CoolifyHostVolumeReclamationService volumeReclamation = mock(CoolifyHostVolumeReclamationService.class);
+    private final CoolifyRetirementOwnership ownershipProvider = mock(CoolifyRetirementOwnership.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private TargetRetirementProviderResources service;
     private Context context;
@@ -36,7 +37,14 @@ class TargetRetirementProviderResourcesTest {
 
     @BeforeEach void setup() throws Exception {
         service = new TargetRetirementProviderResources(inventory, profiles, resolver, client, volumeReclamation,
-            List.of("46.224.145.148"), properties());
+            List.of("46.224.145.148"), properties(), ownershipProvider);
+        when(inventory.requireResource(any())).thenAnswer(call -> {
+            ResourceGeneration resource = call.getArgument(0);
+            var handle = new com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity();
+            handle.setId(resource.handleId());
+            handle.setProviderResourceUuid(resource.providerResourceUuid());
+            return handle;
+        });
         var profile = new DeploymentTargetProfileEntity();
         profile.setId("target");
         profile.setEnvironmentName("staging");
@@ -94,6 +102,39 @@ class TargetRetirementProviderResourcesTest {
 
         assertThatThrownBy(() -> service.delete(context, application))
             .hasMessageContaining("PROVIDER_CONTAINER_ABSENCE_UNPROVEN");
+        verify(ownershipProvider, never()).finishRetirementDeletion(any());
+    }
+
+    @Test void missingCreationOwnershipBlocksAllProviderAndVolumeMutations() {
+        doThrow(new IllegalStateException("MANAGED_RESOURCE_OWNERSHIP_REQUIRED"))
+            .when(ownershipProvider).requireRetirementOwnership(any());
+        assertThatThrownBy(() -> service.delete(context, application)).hasMessageContaining("MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+        verify(client, never()).deleteApplicationStorage(any(), anyString(), anyString());
+        verify(ownershipProvider, never()).beginRetirementDeletion(any());
+        verifyNoInteractions(volumeReclamation);
+    }
+
+    @Test void failedDeletionJournalPreventsRemoteDelete() {
+        doThrow(new IllegalStateException("MANAGED_RESOURCE_DELETE_NOT_CLAIMED"))
+            .when(ownershipProvider).beginRetirementDeletion(any());
+        assertThatThrownBy(() -> service.delete(context, application)).hasMessageContaining("MANAGED_RESOURCE_DELETE_NOT_CLAIMED");
+        verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
+        verify(ownershipProvider, never()).finishRetirementDeletion(any());
+    }
+
+    @Test void ownedDeletionIsJournaledBeforeEffectAndCompletedAfterPhysicalAbsenceProof() {
+        when(client.delete(connection, "app", true, true, false, false)).thenAnswer(call -> {
+            when(client.getApplication(connection, "app")).thenReturn(Optional.empty());
+            return null;
+        });
+        assertThat(service.delete(context, application).complete()).isTrue();
+        var order = inOrder(ownershipProvider, client, volumeReclamation);
+        order.verify(ownershipProvider).requireRetirementOwnership(any());
+        order.verify(ownershipProvider).beginRetirementDeletion(any());
+        order.verify(client).delete(connection, "app", true, true, false, false);
+        order.verify(volumeReclamation).verifyContainersAbsent(TargetIntent.CUSTOMER_STAGING, "server", "handle", "application", "app");
+        order.verify(ownershipProvider).finishRetirementDeletion(argThat(handle -> "handle".equals(handle.getId())));
     }
 
     @Test void deletionRequiresExactFrozenReleaseVersionAndGenerationBinding() {
@@ -134,7 +175,7 @@ class TargetRetirementProviderResourcesTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING"})
     void customerSourcesAndUnsupportedProvidersAreNeverLifecycleResources(String resourceKind) {
         var source = new ResourceGeneration("source", null, DeploymentProviderType.COOLIFY, resourceKind,
             "customer-bucket", null, "generation", true);
@@ -208,7 +249,7 @@ class TargetRetirementProviderResourcesTest {
         assertThat(service.delete(context, application).complete()).isTrue();
         verify(client, never()).delete(any(), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean());
         var unconfigured = new TargetRetirementProviderResources(inventory, profiles, resolver, client,
-            volumeReclamation, List.of(), properties());
+            volumeReclamation, List.of(), properties(), ownershipProvider);
         assertThatThrownBy(() -> unconfigured.readback(context, application)).hasMessageContaining("STAGING_PLACEMENT_NOT_APPROVED");
     }
 

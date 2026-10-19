@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -50,6 +51,7 @@ class CustomerDeploymentBootstrapServiceTest {
     private final DeploymentRepository deployments = mock(DeploymentRepository.class);
     private final CustomerOfferCodec codec = CustomerOfferTestFixtures.codec();
     private final PlatformAuditService audit = mock(PlatformAuditService.class);
+    private final CustomerDeploymentStorageSelectionService storage = mock(CustomerDeploymentStorageSelectionService.class);
     private final Request request = new Request("staging-target", "Reviewed workspace", 2, "bootstrap-key");
     private CustomerDeploymentBootstrapService service;
     private CustomerOfferEntitlementEntity grant;
@@ -60,7 +62,9 @@ class CustomerDeploymentBootstrapServiceTest {
     @BeforeEach void setup() {
         CustomerOfferTestFixtures.authenticate(ACTOR, PlatformRole.CUSTOMER_ADMIN, "SESSION");
         service = new CustomerDeploymentBootstrapService(entitlements, authorization, commands, versions, installs,
-            templates, deployments, codec, audit);
+            templates, deployments, codec, audit, storage,
+            mock(com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService.class),
+            mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationInstallInitializer.class));
         grant = new CustomerOfferEntitlementEntity();
         grant.setId("grant"); grant.setRevision(2);
         when(entitlements.requireCustomerActor()).thenReturn(new CustomerOfferEntitlementService.CustomerActor("customer", "owner"));
@@ -84,6 +88,41 @@ class CustomerDeploymentBootstrapServiceTest {
     }
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
+
+    @ParameterizedTest @ValueSource(strings = {"MANAGED_POSTGRES", "CUSTOMER_POSTGRES"})
+    void explicitAiStateChoiceIsAuthorizedAndPersistedDuringCreation(String mode) {
+        requireStorageChoice();
+        var selected = new Request(request.targetProfileId(), request.name(), request.expectedEntitlementRevision(),
+            request.operationKey(), mode);
+        assertThat(service.bootstrap("offer", selected).aiStateStorageMode()).isEqualTo(mode);
+        verify(storage).initialize(deployment, mode);
+        verify(authorization).authorize(eq("customer"), argThat(value ->
+            value.changedSettings().equals(Set.of(Setting.DEPLOYMENT_NAME, Setting.AI_STATE_STORAGE_MODE))));
+        verify(authorization).validateSettings(eq(approved), argThat(value ->
+            mode.equals(value.values().get(Setting.AI_STATE_STORAGE_MODE).asText())));
+    }
+
+    @Test void offerRequiringStorageChoiceCannotSilentlyPickManagedStorage() {
+        requireStorageChoice();
+        assertThatThrownBy(() -> service.bootstrap("offer", request)).isInstanceOf(CustomerSelfServiceException.class);
+        verifyNoInteractions(templates, deployments, storage);
+    }
+
+    @Test void unreviewedStorageChoiceCannotBeSmuggledIntoAnotherOffer() {
+        assertThatThrownBy(() -> service.bootstrap("offer", new Request(request.targetProfileId(), request.name(),
+            request.expectedEntitlementRevision(), request.operationKey(), "MANAGED_POSTGRES")))
+            .isInstanceOf(CustomerSelfServiceException.class);
+        verifyNoInteractions(templates, deployments, storage);
+    }
+
+    private void requireStorageChoice() {
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) codec.tree(codec.write(approved.definition()));
+        tree.withArray("settings").addObject().put("setting", "AI_STATE_STORAGE_MODE")
+            .put("type", "CHOICE").put("maxLength", 32).putArray("allowedValues")
+            .add("MANAGED_POSTGRES").add("CUSTOMER_POSTGRES");
+        approved = new Authorization(approved.context(), codec.read(tree.toString(), Definition.class));
+        when(authorization.authorize(eq("customer"), any())).thenReturn(approved);
+    }
 
     @Test void delegatesOnlyTheReviewedVersionToConfigurationCreationAndRecordsThePublicResult() {
         Result result = service.bootstrap("offer", request);
@@ -254,7 +293,8 @@ class CustomerDeploymentBootstrapServiceTest {
     static Stream<Request> changedPayloads() {
         return Stream.of(new Request("staging-target", "Changed name", 2, "bootstrap-key"),
             new Request("production-target", "Reviewed workspace", 2, "bootstrap-key"),
-            new Request("staging-target", "Reviewed workspace", 3, "bootstrap-key"));
+            new Request("staging-target", "Reviewed workspace", 3, "bootstrap-key"),
+            new Request("staging-target", "Reviewed workspace", 2, "bootstrap-key", "MANAGED_POSTGRES"));
     }
 
     static Stream<CustomerSelfServiceException.Code> entitlementDenials() {

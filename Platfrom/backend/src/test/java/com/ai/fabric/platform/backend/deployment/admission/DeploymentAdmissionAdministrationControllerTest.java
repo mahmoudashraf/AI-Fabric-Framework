@@ -107,6 +107,9 @@ class DeploymentAdmissionAdministrationControllerTest {
     static class Config {
         @Bean DeploymentAdmissionService admissions() { return mock(DeploymentAdmissionService.class); }
         @Bean DeploymentService deployments() { return mock(DeploymentService.class); }
+        @Bean com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations() {
+            return mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
+        }
         @Bean AdmissionReleaseCoordinator admissionReleaseCoordinator() { return mock(AdmissionReleaseCoordinator.class); }
         @Bean com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver documentBindingResolver() {
             return mock(com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver.class);

@@ -40,6 +40,8 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
     private final PlatformUserRepository users = mock(PlatformUserRepository.class);
     private final ObjectProvider<JavaMailSender> mail = mock(ObjectProvider.class);
     private final JavaMailSender sender = mock(JavaMailSender.class);
+    private final com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations =
+        mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
     private DeploymentVersionEntity version;
     private CustomerPlacementEvidenceEntity placementEvidence;
     private AdmissionContext context;
@@ -163,10 +165,42 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
             .isEqualTo(references);
     }
 
+    @Test
+    void externalAccountOrCredentialRevisionCannotChangeAfterAdmissionReview() {
+        version.setCompositionProvenanceJson("{\"externalIntegrationProfiles\":[{\"profileId\":\"reviewed\"}]}");
+        var references = new java.util.HashSet<>(context.manifest().prerequisiteReferences());
+        references.add("external-integration:reviewed-binding");
+        var manifest = new Manifest("external-manifest", "deployment1", "version", "config-hash", TARGET,
+            "binding-fingerprint", "reviewed-topology", vector(1), references);
+        store.approveManifest(manifest, "operator", NOW);
+        var externalContext = store.context("customer", "tenant", "deployment1", "external-manifest");
+        when(externalIntegrations.resolveLocal("deployment1", "version", TARGET)).thenReturn(java.util.List.of(
+            new com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.Projection("binding", "approval", null,
+                "reviewed-binding", Map.of(), Map.of())));
+        assertThat(source(properties(true, true)).read(externalContext).verifiedPrerequisiteReferences()).contains("external-integration:reviewed-binding");
+        when(externalIntegrations.resolveLocal("deployment1", "version", TARGET)).thenReturn(java.util.List.of(
+            new com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.Projection("binding", "approval", null,
+                "changed-binding", Map.of(), Map.of())));
+        assertThatThrownBy(() -> source(properties(true, true)).read(externalContext))
+            .hasMessageContaining("EXTERNAL_INTEGRATION_PREREQUISITE_CHANGED");
+    }
+
+    @Test
+    void newlyAddedOrRemovedExternalBindingRequiresFreshAdmissionEvidence() {
+        version.setCompositionProvenanceJson("{\"externalIntegrationProfiles\":[{}]}");
+        when(externalIntegrations.resolveLocal("deployment1", "version", TARGET)).thenReturn(java.util.List.of(
+            new com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.Projection("binding", "approval", null,
+                "new-binding", Map.of(), Map.of())));
+        assertThatThrownBy(() -> source(properties(true, true)).read(context))
+            .hasMessageContaining("EXTERNAL_INTEGRATION_PREREQUISITE_CHANGED");
+    }
+
     private ProductionAdmissionEvidenceSource source(AdmissionLifecycleProperties properties) {
-        return new ProductionAdmissionEvidenceSource(targets, deployments, versions, documentBindings,
+        var source = new ProductionAdmissionEvidenceSource(targets, deployments, versions, documentBindings,
             dependencyEvidence, placement, new AdmissionOwnerContactResolver(users), properties, mail, json,
             Clock.fixed(NOW, ZoneOffset.UTC));
+        org.springframework.test.util.ReflectionTestUtils.setField(source, "externalIntegrations", externalIntegrations);
+        return source;
     }
 
     private AdmissionLifecycleProperties properties(boolean console, boolean email) {

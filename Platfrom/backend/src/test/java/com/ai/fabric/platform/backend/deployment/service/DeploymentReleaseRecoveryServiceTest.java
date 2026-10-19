@@ -10,6 +10,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InOrder;
 
 import java.time.Duration;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,6 +33,97 @@ import static org.mockito.Mockito.when;
 class DeploymentReleaseRecoveryServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @ParameterizedTest
+    @CsvSource({
+        "APPLY_REQUESTED,queue_release",
+        "VERIFYING,run_verification",
+        "VERIFYING,sync_marketplace_datasets",
+        "APPLIED_VERIFICATION_FAILED,verification_complete",
+        "PROVISIONING,wait_for_coolify_runtime"
+    })
+    void externalBindingRevocationBlocksEveryRecoveryBranch(String status, String step) {
+        var deployments = mock(DeploymentRepository.class);
+        var releases = mock(DeploymentReleaseRepository.class);
+        var execution = mock(DeploymentReleaseExecutionService.class);
+        var verification = mock(DeploymentVerificationRunRepository.class);
+        var railway = mock(RailwayGraphqlClient.class);
+        var external = mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
+        var service = new DeploymentReleaseRecoveryService(deployments, releases, execution,
+            verification, railway, provisioningProperties(), objectMapper);
+        service.setExternalIntegrations(external);
+        var deployment = deployment();
+        var release = staleProvisioningRelease();
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setStatus(status);
+        release.setCurrentStepKey(step);
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releases.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        var denied = new IllegalStateException("BINDING_STALE_OR_FOREIGN");
+        org.mockito.Mockito.doThrow(denied).when(external).requireForRecovery(deployment, release);
+        assertThatThrownBy(() -> service.reconcileLatestInProgressRelease(deployment.getId(), true)).isSameAs(denied);
+        org.mockito.Mockito.verifyNoInteractions(execution, verification, railway);
+        verify(releases, never()).save(any());
+        verify(deployments, never()).save(any());
+    }
+
+    @Test
+    void externalBindingRevocationBlocksQueuedRedispatch() {
+        var deployments = mock(DeploymentRepository.class);
+        var releases = mock(DeploymentReleaseRepository.class);
+        var execution = mock(DeploymentReleaseExecutionService.class);
+        var external = mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
+        var service = new DeploymentReleaseRecoveryService(deployments, releases, execution,
+            mock(DeploymentVerificationRunRepository.class), mock(RailwayGraphqlClient.class), provisioningProperties(), objectMapper);
+        service.setExternalIntegrations(external);
+        var deployment = deployment();
+        var release = staleProvisioningRelease();
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setStatus("APPLY_REQUESTED");
+        release.setCurrentStepKey("queue_release");
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releases.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        var denied = new IllegalStateException("BINDING_STALE_OR_FOREIGN");
+        org.mockito.Mockito.doThrow(denied).when(external).requireForRecovery(deployment, release);
+        assertThatThrownBy(() -> service.redispatchLatestQueuedApplyRequest(deployment.getId())).isSameAs(denied);
+        org.mockito.Mockito.verifyNoInteractions(execution);
+    }
+
+    @Test
+    void recoveryCannotAdoptAnExternalStoreAfterFrozenIdentityDrift() {
+        var deployments = mock(DeploymentRepository.class);
+        var releases = mock(DeploymentReleaseRepository.class);
+        var execution = mock(DeploymentReleaseExecutionService.class);
+        var binding = mock(DeploymentAiStateStorageBindingService.class);
+        var service = new DeploymentReleaseRecoveryService(deployments, releases, execution,
+            mock(DeploymentVerificationRunRepository.class), mock(RailwayGraphqlClient.class), provisioningProperties(), objectMapper);
+        service.setAiStateStorageBindings(binding);
+        var deployment = deployment(); var release = staleProvisioningRelease();
+        release.setProviderType(DeploymentProviderType.COOLIFY); release.setStatus("APPLY_REQUESTED");
+        release.setCurrentStepKey("queue_release");
+        release.setAiStateStorageFingerprint("frozen-identity");
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releases.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        var failure = new IllegalStateException("AI_STATE_STORAGE_RELEASE_BINDING_CHANGED");
+        org.mockito.Mockito.doThrow(failure).when(binding).requireForRecovery(deployment, release);
+        assertThatThrownBy(() -> service.reconcileLatestInProgressRelease(deployment.getId(), true)).isSameAs(failure);
+        org.mockito.Mockito.verifyNoInteractions(execution);
+    }
+
+    @Test
+    void ordinaryCompletedReleaseReadIsNotAStorageRecoveryOperation() {
+        var deployments = mock(DeploymentRepository.class);
+        var releases = mock(DeploymentReleaseRepository.class);
+        var binding = mock(DeploymentAiStateStorageBindingService.class);
+        var service = new DeploymentReleaseRecoveryService(deployments, releases, mock(DeploymentReleaseExecutionService.class),
+            mock(DeploymentVerificationRunRepository.class), mock(RailwayGraphqlClient.class), provisioningProperties(), objectMapper);
+        service.setAiStateStorageBindings(binding);
+        var deployment = deployment(); var release = staleProvisioningRelease(); release.setStatus("APPLIED");
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releases.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        assertThat(service.reconcileLatestInProgressRelease(deployment.getId())).isFalse();
+        org.mockito.Mockito.verifyNoInteractions(binding);
+    }
 
     @Test
     void startupRecoveryFailsApplyWorkflowsInterruptedByRestart() {

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentSourceArtifactRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
@@ -141,6 +142,18 @@ public class DeploymentSourceArtifactService {
             );
         }
         boolean runtime = DeploymentSourceArtifactRole.RUNTIME.name().equals(artifact.getArtifactRole());
+        if (DeploymentSourceArtifactRole.MANAGED_DEPENDENCY.name().equals(artifact.getArtifactRole())) {
+            var manifest = capabilityManifestService.read(artifact.getCapabilityManifestJson());
+            if (!ManagedDependencyArtifactPolicy.SCHEMA.equals(manifest.path("schemaVersion").asText())
+                || artifact.getCapabilityManifestHash() == null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "DEPENDENCY_ARTIFACT_OWNERSHIP_UNPROVEN");
+            }
+            var normalized = capabilityManifestService.normalize(manifest);
+            if (!artifact.getCapabilityManifestHash().equals(normalized.hash())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "DEPENDENCY_ARTIFACT_OWNERSHIP_UNPROVEN");
+            }
+            ManagedDependencyArtifactPolicy.requireCustomerManagedContract(manifest.path("managedDependencyContract"));
+        }
         if (runtime) {
             JsonNode manifest = capabilityManifestService.read(artifact.getCapabilityManifestJson());
             DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =

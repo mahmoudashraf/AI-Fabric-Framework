@@ -21,6 +21,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServicesSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
@@ -28,9 +29,11 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerReposito
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationRunnerProvisioningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -53,6 +56,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -125,7 +129,7 @@ class CoolifyDeploymentProviderTest {
         assertThatThrownBy(() -> provider.requireDurableRuntimeStoreForProductizedDeployment(
             deployment(), false
         )).isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("target-owned PostgreSQL");
+            .hasMessageContaining("explicitly selected durable PostgreSQL");
 
         provider.requireDurableRuntimeStoreForProductizedDeployment(deployment(), true);
     }
@@ -545,7 +549,7 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
-    void confirmsApplicationIsAbsentBeforeReportingDeleteComplete() {
+    void rejectsHistoricalApplicationDeleteWithoutCreationReceipt() {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -572,14 +576,13 @@ class CoolifyDeploymentProviderTest {
             objectMapper
         );
 
-        DeploymentProviderResourceActionSummary result = provider.delete(handle, "verification cleanup");
-
-        assertThat(result.status()).isEqualTo("COMPLETED");
-        verify(coolifyApiClient).getApplication(connection, "app-uuid");
+        assertThatThrownBy(() -> provider.delete(handle, "verification cleanup"))
+            .hasMessageContaining("RECONCILIATION_REQUIRED");
+        verify(coolifyApiClient, never()).delete(eq(connection), anyString(), eq(true), eq(false), eq(true), eq(true));
     }
 
     @Test
-    void confirmsDatabaseIsAbsentBeforeClearingItsSecretAndReportingDeleteComplete() {
+    void rejectsHistoricalDatabaseDeleteAndSecretClearWithoutCreationReceipt() {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -611,14 +614,10 @@ class CoolifyDeploymentProviderTest {
             objectMapper
         );
 
-        DeploymentProviderResourceActionSummary result = provider.delete(handle, "verification cleanup");
-
-        assertThat(result.status()).isEqualTo("COMPLETED");
-        verify(coolifyApiClient).getDatabase(connection, "database-uuid");
-        verify(platformSecretService).clearManagedSecret(
-            eq("MANAGED_RUNTIME_DATABASE_PASSWORD"),
-            any()
-        );
+        assertThatThrownBy(() -> provider.delete(handle, "verification cleanup"))
+            .hasMessageContaining("RECONCILIATION_REQUIRED");
+        verify(coolifyApiClient, never()).deleteDatabase(eq(connection), anyString(), eq(true), eq(true), eq(true), eq(true));
+        verify(platformSecretService, never()).clearManagedSecret(anyString(), any());
     }
 
     @Test
@@ -708,7 +707,11 @@ class CoolifyDeploymentProviderTest {
         );
         DeploymentReleaseEntity release = release();
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(application), List.of());
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 1);
 
         assertThat(result.target()).isEqualTo("COOLIFY");
         assertThat(result.runtimeBaseUrl()).isEqualTo("http://dep-123.runtime.example.test");
@@ -839,12 +842,16 @@ class CoolifyDeploymentProviderTest {
         );
         provider.setVectorizationRunnerProvisioningService(vectorizationRunnerProvisioningService);
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(runtimeApplication, connectorApplication, runnerApplication), List.of());
+
         ProvisioningResult result = provider.provision(
             deployment(),
             version(),
             release(),
             ProvisioningProgressTracker.noop()
         );
+        assertCreatedReceipts(receipts, 3);
 
         assertThat(result.runtimeBaseUrl()).isEqualTo("http://dep-123.runtime.example.test");
         assertThat(result.connectorBaseUrl()).isEqualTo("http://dep-123-connector.runtime.example.test");
@@ -979,8 +986,8 @@ class CoolifyDeploymentProviderTest {
             release(),
             ProvisioningProgressTracker.noop()
         ))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("found 2 exact-name resources");
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("RECONCILIATION_REQUIRED");
 
         verify(coolifyApiClient, never()).createDockerImageApplication(eq(connection), any());
         verify(coolifyApiClient, never()).updateEnvironmentVariables(eq(connection), anyString(), any());
@@ -988,7 +995,7 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
-    void recoversExactNameApplicationWhenScopedHandleUuidIsStale() throws Exception {
+    void refusesExactNameRecoveryWhenHistoricalHandleUuidIsStale() throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -1099,25 +1106,16 @@ class CoolifyDeploymentProviderTest {
             objectMapper
         );
 
-        ProvisioningResult result = provider.provision(
+        assertThatThrownBy(() -> provider.provision(
             deployment(),
             version(),
             release(),
             ProvisioningProgressTracker.noop()
-        );
-
-        assertThat(result.runtimeBaseUrl()).isEqualTo("http://dep-123.runtime.example.test");
-        verify(coolifyApiClient).updateDockerImageApplication(eq(connection), eq("current-app-uuid"), any());
+        )).hasMessageContaining("RECONCILIATION_REQUIRED");
+        verify(coolifyApiClient, never()).updateDockerImageApplication(eq(connection), eq("current-app-uuid"), any());
         verify(coolifyApiClient, never()).createDockerImageApplication(eq(connection), any());
         verify(coolifyApiClient, never()).delete(eq(connection), anyString(), eq(true), eq(false), eq(true), eq(true));
-
-        ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
-            ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
-        verify(resourceHandleRepository, atLeastOnce()).save(handle.capture());
-        assertThat(handle.getValue().getId()).isEqualTo("dprh-stale");
-        assertThat(handle.getValue().getProviderResourceUuid()).isEqualTo("current-app-uuid");
-        assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
-        assertThat(handle.getValue().getProviderEnvironmentUuid()).isEqualTo("customer-env");
+        verify(resourceHandleRepository, never()).save(any());
     }
 
     @Test
@@ -1193,7 +1191,11 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setSourceArtifactId(null);
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(application), List.of());
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 1);
 
         assertThat(result.target()).isEqualTo("COOLIFY");
         assertThat(result.detailsJson()).contains(
@@ -1338,7 +1340,11 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setTargetProfileId("dtp-coolify-production");
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(application), List.of(database));
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 2);
 
         assertThat(result.detailsJson()).contains(
             "runtimeDatabaseProviderResourceHandleId",
@@ -1505,12 +1511,16 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setTargetProfileId("dtp-coolify-production");
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(runtimeApplication, connectorApplication), List.of(database));
+
         ProvisioningResult result = provider.provision(
             deployment(),
             handoverVersion,
             release,
             ProvisioningProgressTracker.noop()
         );
+        assertCreatedReceipts(receipts, 3);
 
         assertThat(result.detailsJson()).contains("connector-uuid", "db-uuid", "COOLIFY_POSTGRES");
         verify(coolifyApiClient).configurePrivateApplicationNetwork(
@@ -1666,15 +1676,12 @@ class CoolifyDeploymentProviderTest {
             release,
             ProvisioningProgressTracker.noop()
         ))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("found 2 exact-name resources");
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("RECONCILIATION_REQUIRED");
 
         verify(coolifyApiClient, never()).createPostgresDatabase(eq(connection), any());
         verify(coolifyApiClient, never()).updateEnvironmentVariables(eq(connection), anyString(), any());
-        ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
-            ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
-        verify(resourceHandleRepository).save(handle.capture());
-        assertThat(handle.getValue().getResourceKind()).isEqualTo("APPLICATION");
+        verify(resourceHandleRepository, never()).save(any());
     }
 
     @Test
@@ -1776,7 +1783,11 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setSourceArtifactId(null);
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(application), List.of());
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 1);
 
         verify(railwayProvisioningPlanService).buildPlan(any(), any(), eq(effectiveProviderConfig), anyString(), nullable(String.class));
         verify(managedVectorResourceService).syncProvisionedResources(any(), any(), any(), eq(managedVectorResult));
@@ -1884,7 +1895,11 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setSourceArtifactId(null);
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            "customer-project", "customer-env", List.of(application), List.of());
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 1);
 
         assertThat(result.detailsJson()).contains(
             "\"customerProjectGroupingEnabled\" : true",
@@ -1909,7 +1924,7 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
-    void replacesExistingHandleWhenCoolifyProjectScopeChanges() throws Exception {
+    void refusesToDeleteOrReplaceExistingHandleWhenCoolifyProjectScopeChanges() throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -2022,21 +2037,12 @@ class CoolifyDeploymentProviderTest {
             objectMapper
         );
 
-        provider.provision(deployment(), version(), release(), ProvisioningProgressTracker.noop());
-
-        verify(coolifyApiClient, times(2)).delete(connection, "old-app", true, false, true, true);
+        assertThatThrownBy(() -> provider.provision(deployment(), version(), release(), ProvisioningProgressTracker.noop()))
+            .hasMessageContaining("RECONCILIATION_REQUIRED");
+        verify(coolifyApiClient, never()).delete(connection, "old-app", true, false, true, true);
         verify(coolifyApiClient, never()).updateDockerImageApplication(eq(connection), eq("old-app"), any());
-        ArgumentCaptor<CoolifyCreateDockerImageApplicationRequest> request =
-            ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
-        verify(coolifyApiClient, times(2)).createDockerImageApplication(eq(connection), request.capture());
-        assertThat(request.getAllValues().getLast().projectUuid()).isEqualTo("customer-project");
-
-        ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
-            ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
-        verify(resourceHandleRepository, atLeastOnce()).save(handle.capture());
-        assertThat(handle.getValue().getId()).isEqualTo("dprh-old");
-        assertThat(handle.getValue().getProviderResourceUuid()).isEqualTo("new-app");
-        assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
+        verify(coolifyApiClient, never()).createDockerImageApplication(eq(connection), any());
+        verify(resourceHandleRepository, never()).save(any());
     }
 
     @Test
@@ -2136,7 +2142,11 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setSourceArtifactId(null);
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(runtimeApplication, connectorApplication), List.of());
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 2);
 
         assertThat(result.runtimeBaseUrl()).isEqualTo("http://dep-123.runtime.example.test");
         assertThat(result.connectorBaseUrl()).isEqualTo("http://dep-123-connector.runtime.example.test");
@@ -2314,7 +2324,11 @@ class CoolifyDeploymentProviderTest {
         DeploymentReleaseEntity release = release();
         release.setSourceArtifactId(null);
 
+        var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
+            List.of(runtimeApplication, connectorApplication, runnerApplication), List.of());
+
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+        assertCreatedReceipts(receipts, 3);
 
         assertThat(result.detailsJson()).contains(
             "\"coolify\"",
@@ -2437,6 +2451,118 @@ class CoolifyDeploymentProviderTest {
             .doesNotContain("should-not-leak")
             .doesNotContain("manual_webhook_secret")
             .doesNotContain("sentinel_token");
+    }
+
+    private ManagedResourceOwnershipFixture creationReceipts(CoolifyDeploymentProvider provider,
+            DeploymentProviderResourceHandleRepository handles, CoolifyApiClient client, CoolifyConnection connection,
+            DeploymentTargetProfileEntity profile, List<CoolifyApplicationSummary> applications,
+            List<CoolifyDatabaseSummary> databases) {
+        return creationReceipts(provider, handles, client, connection, profile, connection.config().projectUuid(),
+            connection.config().environmentUuid(), applications, databases);
+    }
+
+    private ManagedResourceOwnershipFixture creationReceipts(CoolifyDeploymentProvider provider,
+            DeploymentProviderResourceHandleRepository handles, CoolifyApiClient client, CoolifyConnection connection,
+            DeploymentTargetProfileEntity profile, String projectUuid, String environmentUuid,
+            List<CoolifyApplicationSummary> applications, List<CoolifyDatabaseSummary> databases) {
+        var receipts = new ManagedResourceOwnershipFixture();
+        var deployments = mock(DeploymentRepository.class);
+        when(deployments.findById("dep-123")).thenReturn(Optional.of(deployment()));
+        var ownership = new CoolifyResourceOwnership(receipts.ownership, objectMapper, deployments, receipts.jdbc, receipts.transactions);
+        ReflectionTestUtils.setField(provider, "resourceOwnership", ownership);
+        var location = ownership.location(connection, projectUuid, environmentUuid);
+        var scope = ownership.scope(deployment(), profile.getId());
+        var liveApplications = new LinkedHashMap<String, CoolifyApplicationSummary>();
+        var liveDatabases = new LinkedHashMap<String, CoolifyDatabaseSummary>();
+
+        // Readbacks become visible only after the fake create, while the real journal records its intent.
+        doAnswer(call -> {
+            CoolifyCreateDockerImageApplicationRequest request = call.getArgument(1);
+            assertPendingCreation(receipts, ownership, scope, location, request.name());
+            assertThat(request.projectUuid()).isEqualTo(projectUuid);
+            assertThat(request.environmentUuid()).isEqualTo(environmentUuid);
+            var planned = applications.stream().filter(value -> request.name().equals(value.name())).findFirst().orElseThrow();
+            liveApplications.put(planned.uuid(), placedApplication(planned, connection));
+            return planned.uuid();
+        }).when(client).createDockerImageApplication(eq(connection), any());
+        doAnswer(call -> {
+            CoolifyCreatePublicApplicationRequest request = call.getArgument(1);
+            assertPendingCreation(receipts, ownership, scope, location, request.name());
+            assertThat(request.projectUuid()).isEqualTo(projectUuid);
+            assertThat(request.environmentUuid()).isEqualTo(environmentUuid);
+            var planned = applications.stream().filter(value -> request.name().equals(value.name())).findFirst().orElseThrow();
+            liveApplications.put(planned.uuid(), placedApplication(planned, connection));
+            return planned.uuid();
+        }).when(client).createPublicApplication(eq(connection), any());
+        doAnswer(call -> {
+            CoolifyCreatePostgresDatabaseRequest request = call.getArgument(1);
+            assertPendingCreation(receipts, ownership, scope, location, request.name());
+            assertThat(request.projectUuid()).isEqualTo(projectUuid);
+            assertThat(request.environmentUuid()).isEqualTo(environmentUuid);
+            var planned = databases.stream().filter(value -> request.name().equals(value.name())).findFirst().orElseThrow();
+            liveDatabases.put(planned.uuid(), new CoolifyDatabaseSummary(planned.uuid(), planned.name(), planned.status(),
+                planned.databaseType(), planned.postgresUser(), planned.postgresDatabase(),
+                placedResource(planned.raw(), planned.uuid(), planned.name(), connection)));
+            return planned.uuid();
+        }).when(client).createPostgresDatabase(eq(connection), any());
+        when(client.listApplications(connection)).thenAnswer(call -> List.copyOf(liveApplications.values()));
+        when(client.listDatabases(connection)).thenAnswer(call -> List.copyOf(liveDatabases.values()));
+        when(client.getApplication(eq(connection), anyString())).thenAnswer(call -> Optional.ofNullable(liveApplications.get(call.getArgument(1))));
+        when(client.getDatabase(eq(connection), anyString())).thenAnswer(call -> Optional.ofNullable(liveDatabases.get(call.getArgument(1))));
+        when(client.listProjects(connection)).thenAnswer(call -> {
+            if (!projectUuid.equals(connection.config().projectUuid()) && liveApplications.isEmpty() && liveDatabases.isEmpty())
+                return List.of();
+            return List.of(new CoolifyProjectSummary(projectUuid, "synthetic-project", null,
+                objectMapper.createObjectNode().put("id", 11).put("uuid", projectUuid)));
+        });
+        when(client.getEnvironment(connection, projectUuid, environmentUuid)).thenAnswer(call -> {
+            var raw = objectMapper.createObjectNode().put("id", 22).put("uuid", environmentUuid).put("project_id", 11);
+            var applicationInventory = raw.putArray("applications");
+            liveApplications.values().forEach(value -> applicationInventory.add(value.raw()));
+            var databaseInventory = raw.putArray("postgresqls");
+            liveDatabases.values().forEach(value -> databaseInventory.add(value.raw()));
+            return Optional.of(new CoolifyEnvironmentSummary(environmentUuid, profile.getEnvironmentName(), projectUuid, null, raw));
+        });
+        when(handles.save(any(DeploymentProviderResourceHandleEntity.class))).thenAnswer(call -> {
+            DeploymentProviderResourceHandleEntity handle = call.getArgument(0);
+            var metadata = objectMapper.readTree(handle.getMetadataJson());
+            String name = metadata.path("RUNTIME_POSTGRES_DATABASE".equals(handle.getResourceKind())
+                ? "databaseName" : "applicationName").asText();
+            ownership.requireHandle(scope, location, handle.getResourceKind(), name, handle);
+            return handle;
+        });
+        return receipts;
+    }
+
+    private void assertPendingCreation(ManagedResourceOwnershipFixture receipts, CoolifyResourceOwnership ownership,
+            ManagedResourceOwnershipService.Scope scope, CoolifyResourceOwnership.Location location, String name) {
+        var ids = receipts.jdbc.queryForList("SELECT id FROM platform_managed_resource_ownership WHERE resource_name=?",
+            String.class, name);
+        assertThat(ids).hasSize(1);
+        var receipt = receipts.ownership.receipt(ids.getFirst());
+        assertThat(receipt.state()).isEqualTo("CREATE_PENDING");
+        assertThat(receipt.scope()).isEqualTo(scope);
+        assertThat(receipt.provider()).isEqualTo("coolify");
+        assertThat(receipt.parent()).isEqualTo(ownership.parent(location));
+    }
+
+    private CoolifyApplicationSummary placedApplication(CoolifyApplicationSummary planned, CoolifyConnection connection) {
+        return new CoolifyApplicationSummary(planned.uuid(), planned.name(), planned.fqdn(), planned.status(),
+            planned.imageRepository(), planned.imageTag(),
+            placedResource(planned.raw(), planned.uuid(), planned.name(), connection));
+    }
+
+    private ObjectNode placedResource(JsonNode raw, String uuid, String name, CoolifyConnection connection) {
+        ObjectNode observed = raw.deepCopy();
+        observed.put("uuid", uuid).put("name", name).put("environment_id", 22);
+        observed.putObject("destination").put("uuid", connection.config().destinationUuid())
+            .putObject("server").put("uuid", connection.config().serverUuid());
+        return observed;
+    }
+
+    private void assertCreatedReceipts(ManagedResourceOwnershipFixture receipts, int count) {
+        assertThat(receipts.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class))
+            .hasSize(count).containsOnly("OWNED");
     }
 
     private DeploymentEntity deployment() {

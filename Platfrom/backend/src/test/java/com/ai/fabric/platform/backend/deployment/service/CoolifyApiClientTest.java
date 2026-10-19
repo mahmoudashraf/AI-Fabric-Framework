@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -19,6 +21,38 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CoolifyApiClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @ParameterizedTest
+    @CsvSource({"project,429", "project,503", "environment,503", "database,503", "restart,503", "delete,503"})
+    void ambiguousMutationResponseIsNeverAutomaticallyRepeated(String operation, int status) throws Exception {
+        var requests = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/", exchange -> {
+            requests.incrementAndGet();
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().add("Retry-After", "0");
+            sendJson(exchange, status, "{\"message\":\"outcome uncertain\"}");
+        });
+        server.start();
+        try {
+            var client = new CoolifyApiClient(objectMapper);
+            assertThatThrownBy(() -> {
+                switch (operation) {
+                    case "project" -> client.createProject(connection(server), "owned-project", "AI services");
+                    case "environment" -> client.createEnvironment(connection(server), "project", "staging");
+                    case "database" -> client.createPostgresDatabase(connection(server), new CoolifyCreatePostgresDatabaseRequest(
+                        "project", "server", "staging", "environment", "destination", "ai-state", "AI state only",
+                        "postgres:18", "ai_user", "synthetic-password", "ai_state", false, false));
+                    case "restart" -> client.restart(connection(server), "application");
+                    case "delete" -> client.delete(connection(server), "application", true, true, true, true);
+                    default -> throw new AssertionError("Unknown test operation");
+                }
+            }).isInstanceOfSatisfying(CoolifyApiException.class, failure -> assertThat(failure.statusCode()).isEqualTo(status));
+            assertThat(requests.get()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test
     void credentialRestrictionRequiresOneUnmaskedRuntimeEnvironmentRecord() throws Exception {

@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PreservedExternalBindingKindsTest {
     @ParameterizedTest
-    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING"})
     void onlyExplicitExternalBindingKindsArePreserved(String resourceKind) {
         assertThat(PreservedExternalBindingKinds.isPreserved(resourceKind)).isTrue();
     }

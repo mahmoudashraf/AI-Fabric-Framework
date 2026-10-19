@@ -154,7 +154,7 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
     }
 
     @Test
-    void hardDeleteFailureIsRecordedAndDeploymentRemainsMarkedForFollowUp() throws Exception {
+    void unownedLegacyResourceIsRetainedAndDeletionFailureRemainsVisible() throws Exception {
         DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Delete Failure State", "dev", "dev-openai-pinecone")
         ));
@@ -180,7 +180,7 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
 
         DeploymentEntity failedDeployment = deploymentRepository.findById(deployment.id()).orElseThrow();
         assertThat(failedDeployment.getDeletionStatus()).isEqualTo("FAILED");
-        assertThat(failedDeployment.getDeletionFailureMessage()).contains("Qdrant collection cleanup requires both collection name and base URL.");
+        assertThat(failedDeployment.getDeletionFailureMessage()).contains("MANAGED_RESOURCE_SCOPE_REQUIRED");
 
         List<DeploymentManagedVectorResourceEntity> resources = managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.id());
         assertThat(resources).hasSize(1);
@@ -191,9 +191,9 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
             .findFirst()
             .orElseThrow();
         assertThat(operation.getStatus()).isEqualTo("FAILED");
-        assertThat(operation.getErrorMessage()).contains("Qdrant collection cleanup requires both collection name and base URL.");
+        assertThat(operation.getErrorMessage()).contains("MANAGED_RESOURCE_SCOPE_REQUIRED");
         assertThat(operation.getResultDetailsJson()).contains("\"errorType\"");
-        assertThat(operation.getResultDetailsJson()).contains("Qdrant collection cleanup requires both collection name and base URL.");
+        assertThat(operation.getResultDetailsJson()).contains("MANAGED_RESOURCE_SCOPE_REQUIRED");
     }
 
     private void waitForDeletion(String deploymentId) throws InterruptedException {

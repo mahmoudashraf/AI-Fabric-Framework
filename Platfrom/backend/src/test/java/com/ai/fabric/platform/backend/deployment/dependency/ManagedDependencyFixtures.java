@@ -9,6 +9,30 @@ import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDepend
 public final class ManagedDependencyFixtures {
     public static final String IMAGE = "registry.example.test/dependency@sha256:" + "a".repeat(64);
     private ManagedDependencyFixtures() {}
+    public static com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity ownedAiArtifact(Service service) {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var manifest = mapper.createObjectNode().put("schemaVersion", ManagedDependencyArtifactPolicy.SCHEMA);
+        manifest.putObject("managedDependencyContract")
+            .put("schemaVersion", ManagedDependencyArtifactPolicy.CONTRACT_SCHEMA)
+            .put("purpose", "AI_OPERATIONAL_SERVICE").put("lifecycleOwnership", "DEPLOYMENT_OWNED")
+            .put("persistence", "AI_OPERATIONAL_STATE")
+            .put("initializationContract", service.initializationContract())
+            .put("serviceContract", service.contract().name());
+        var normalized = new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper)
+            .normalize(manifest);
+        var artifact = new com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity();
+        artifact.setId(service.sourceArtifactId()); artifact.setServiceName("test-ai-" + service.slot());
+        artifact.setArtifactType("DOCKER_IMAGE");
+        artifact.setArtifactRole("MANAGED_DEPENDENCY");
+        int separator = service.image().indexOf('@');
+        artifact.setImageRepository(service.image().substring(0, separator));
+        artifact.setImageDigest(service.image().substring(separator + 1));
+        artifact.setGitCommitSha(service.sourceCommit());
+        artifact.setCapabilityManifestJson(normalized.manifest().toString());
+        artifact.setCapabilityManifestHash(normalized.hash());
+        artifact.setPromotionChannel("production"); artifact.setPromotedAt(java.time.Instant.now());
+        return artifact;
+    }
     public static Service http(String slot, boolean database) {
         Map<String, Value> environment = new TreeMap<>();
         environment.put("LOOMAI_MANAGED_DEPENDENCY_KEY", new Value(ValueKind.SECRET, "management"));

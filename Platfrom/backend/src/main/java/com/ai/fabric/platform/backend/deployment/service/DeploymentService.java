@@ -107,6 +107,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class DeploymentService {
     @Autowired(required = false)
     private MilvusTokenRuntimeArtifactGate milvusTokenArtifacts;
+    @Autowired(required = false)
+    private DeploymentAiStateStorageBindingService aiStateStorageBindings;
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.admission.AdmissionReleaseCoordinator admissionReleaseCoordinator;
 
@@ -152,6 +154,9 @@ public class DeploymentService {
     private DeploymentDocumentBindingResolver documentBindingResolver;
 
     @Autowired
+    private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
+
+    @Autowired
     private com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary offerBoundary;
 
     @Autowired
@@ -186,7 +191,7 @@ public class DeploymentService {
         template(
             "dev-openai-qdrant",
             "OpenAI / Qdrant Cloud",
-            "Deployment-verified OpenAI stack with a platform-managed Qdrant Cloud cluster and managed vectorization runner. The platform can create or reuse the cluster, issue a deployment-scoped database key, reconcile collections, and attach a source-driven indexing worker automatically.",
+            "Deployment-verified OpenAI stack with a platform-managed Qdrant Cloud cluster and managed vectorization runner. The platform can create a cluster or reconcile one with verified creation ownership, issue a deployment-scoped database key, reconcile owned collections, and attach a source-driven indexing worker automatically.",
             "openai",
             "openai",
             "qdrant",
@@ -1705,6 +1710,10 @@ public class DeploymentService {
         retirementGates.requireAvailableForMutation(deploymentId, targetProfile.getId());
         requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);
         JsonNode reviewedProviderConfig = readJson(version.getProviderConfigJson());
+        if (DeploymentAiStateStorageSelection.selected(reviewedProviderConfig) != null) {
+            if (aiStateStorageBindings == null) throw new IllegalStateException("AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
+            aiStateStorageBindings.requireForApply(deployment, version, targetProfile.getId());
+        }
         if (MilvusTokenRuntimeArtifactGate.required(reviewedProviderConfig)) {
             if (milvusTokenArtifacts == null) throw new IllegalStateException("MILVUS_TOKEN_ARTIFACT_GATE_REQUIRED");
             milvusTokenArtifacts.require(version, reviewedProviderConfig, sourceArtifactId);
@@ -1737,10 +1746,16 @@ public class DeploymentService {
         release.setCreatedAt(now);
         release.setAppliedAt(now);
         release.setUpdatedAt(now);
+        if (DeploymentAiStateStorageSelection.selected(reviewedProviderConfig) != null) {
+            aiStateStorageBindings.freeze(deployment, version, release);
+        }
         if (requiresDocumentKnowledge(version)) {
             if (documentBindingResolver == null) throw new IllegalStateException("Document binding resolver is required.");
             documentBindingResolver.freeze(deployment, version, release);
         }
+        boolean externalBindingsRequired = com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationRequirement
+            .required(readJson(version.getCompositionProvenanceJson()));
+        if (externalBindingsRequired) externalIntegrations.requireForEffects(deploymentId, versionId, targetProfile.getId());
         RuntimeAuthorityBinding.Snapshot authorityCandidate = freezeRuntimeAuthorityCandidateIfRequired(
             deployment,
             version,
@@ -1757,7 +1772,10 @@ public class DeploymentService {
             );
             release.setRuntimeAuthoritySnapshotId(authorityRelease.snapshotId());
             release.setRuntimeAuthorityFingerprint(authorityRelease.fingerprint());
+            if (externalBindingsRequired) externalIntegrations.freezeRelease(deploymentId, versionId, targetProfile.getId(),
+                release.getId(), authorityRelease.fingerprint());
         }
+        if (externalBindingsRequired && authorityCandidate == null) throw new IllegalStateException("EXTERNAL_INTEGRATION_AUTHORITY_REQUIRED");
         releaseRepository.save(release);
 
         deployment.setStatus("APPLY_REQUESTED");
@@ -1950,15 +1968,13 @@ public class DeploymentService {
                 "Capability-attested behaviors require a Coolify IMAGE_SOURCE target so the selected immutable artifact is the build that gets deployed."
             );
         }
-        String runtimeDatabaseMode = readJson(targetProfile.getResourceDefaultsJson())
-            .path("runtimeDatabaseMode")
-            .asText("");
         if ((!requirements.migrationIds().isEmpty() || documentKnowledgeRequired || externalHttpIntegrationRequired)
-            && !"COOLIFY_POSTGRES".equalsIgnoreCase(runtimeDatabaseMode)) {
+            && !DeploymentAiStateStorageSelection.durable(readJson(version.getProviderConfigJson()),
+                readJson(targetProfile.getResourceDefaultsJson()))) {
             throw new ResponseStatusException(
                 CONFLICT,
                 behaviorType.name()
-                    + " requires deployment-local PostgreSQL because its runtime contract includes durable migrations."
+                    + " requires a dedicated PostgreSQL AI-state store because its runtime contract includes durable migrations."
             );
         }
 

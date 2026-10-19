@@ -37,6 +37,9 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
     private final Clock clock;
 
     @Autowired
+    private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
+
+    @Autowired
     ProductionAdmissionEvidenceSource(DeploymentTargetProfileRepository targets,
                                       DeploymentRepository deployments,
                                       DeploymentVersionRepository versions,
@@ -169,6 +172,18 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
         if (!documentBinding.isEmpty()) {
             references.add("document-binding:" + json.fingerprint(documentBinding));
         }
+        Set<String> externalReferences = new LinkedHashSet<>();
+        if (com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationRequirement.required(
+            json.read(version.getCompositionProvenanceJson() == null ? "{}" : version.getCompositionProvenanceJson(),
+                com.fasterxml.jackson.databind.JsonNode.class))) {
+            externalIntegrations.resolveLocal(deployment.getId(), version.getId(), context.target().targetProfileId())
+                .forEach(binding -> externalReferences.add("external-integration:" + binding.fingerprint()));
+        }
+        var reviewedExternal = context.manifest().prerequisiteReferences().stream()
+            .filter(reference -> reference.startsWith("external-integration:"))
+            .collect(java.util.stream.Collectors.toSet());
+        if (!externalReferences.equals(reviewedExternal)) throw unavailable("EXTERNAL_INTEGRATION_PREREQUISITE_CHANGED");
+        references.addAll(externalReferences);
         return Set.copyOf(references);
     }
 

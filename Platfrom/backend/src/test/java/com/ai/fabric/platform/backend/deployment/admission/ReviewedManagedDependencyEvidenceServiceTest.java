@@ -10,6 +10,9 @@ import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFix
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecEntity;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecRepository;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,14 +37,20 @@ class ReviewedManagedDependencyEvidenceServiceTest {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final CustomerOfferCodec codec = new CustomerOfferCodec(mapper);
     private final ManagedDependencySpecValidator validator = new ManagedDependencySpecValidator(mapper);
+    private final DeploymentSourceArtifactRepository artifacts = mock(DeploymentSourceArtifactRepository.class);
     private final ReviewedManagedDependencyEvidenceService service =
-        new ReviewedManagedDependencyEvidenceService(specs, validator, associations, offers, codec, mapper);
+        new ReviewedManagedDependencyEvidenceService(specs, validator, associations, offers, codec, mapper,
+            new ManagedDependencyArtifactPolicy(artifacts, new DeploymentSourceCapabilityManifestService(mapper)));
     private Definition definition;
     private ManagedDependencySpecEntity reviewed;
 
     @BeforeEach
     void setUp() throws Exception {
         var topology = ManagedDependencyFixtures.topology();
+        for (var dependency : topology.services()) {
+            when(artifacts.findById(dependency.sourceArtifactId()))
+                .thenReturn(Optional.of(ManagedDependencyFixtures.ownedAiArtifact(dependency)));
+        }
         reviewed = new ManagedDependencySpecEntity();
         reviewed.setId("spec");
         reviewed.setTemplateVersionId("template-version");
@@ -62,6 +71,17 @@ class ReviewedManagedDependencyEvidenceServiceTest {
             new ReviewedLimits("measurement", 1, 1, 4_000, 6_144, 16_384, 2, 2, 4,
                 1, 24, 24, 24), topologyEnvelope,
             "approved", "operating", "identity", "storage");
+    }
+
+    @Test
+    void publishedSpecWithoutArtifactOwnershipCannotReachCapacityReservation() {
+        var dependency = ManagedDependencyFixtures.topology().services().getFirst();
+        var artifact = ManagedDependencyFixtures.ownedAiArtifact(dependency);
+        artifact.setCapabilityManifestJson("{}");
+        artifact.setCapabilityManifestHash(null);
+        when(artifacts.findById(dependency.sourceArtifactId())).thenReturn(Optional.of(artifact));
+        assertThatThrownBy(() -> service.resolve(definition, envelope(3_750, 5_888, 16_384, 2, 4)))
+            .hasMessageContaining("REVIEWED_DEPENDENCY_OWNERSHIP_UNPROVEN");
     }
 
     @Test

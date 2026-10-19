@@ -78,6 +78,7 @@ public class CustomerSelfServiceCatalogueService {
         return new OfferSummary(offer.getId(), definition.name(), definition.templateId(), definition.template().versionId(),
             offer.getFingerprint(), access.summary(entitlement), List.copyOf(targets), CustomerPermissionMatrix.rows(definition.operations()),
             definition.settings(), definition.bindingSlots(), definition.documentAudiences(), blockers.stream().distinct().toList(),
-            compositionReady ? definition.workspaceProfiles() : List.of());
+            compositionReady ? definition.workspaceProfiles() : List.of(),
+            compositionReady ? definition.externalIntegrationProfiles() : List.of());
     }
 }

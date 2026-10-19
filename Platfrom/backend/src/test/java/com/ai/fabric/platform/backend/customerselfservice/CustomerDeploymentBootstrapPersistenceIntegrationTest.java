@@ -62,6 +62,11 @@ import static org.mockito.Mockito.*;
 /** The factory is mocked; grants, locks, authorization, installs, commands and audit writes are real H2 JPA. */
 @DataJpaTest(properties = {"spring.flyway.enabled=false", "spring.jpa.hibernate.ddl-auto=create-drop"}, showSql = false)
 @Import({CustomerDeploymentBootstrapService.class, CustomerOfferEntitlementService.class,
+    CustomerDeploymentStorageSelectionService.class,
+    com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy.class,
+    com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService.class,
+    com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy.class,
+    com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationEndpointPolicy.class,
     CustomerSelfServiceAuthorizationService.class, CustomerReviewedCompositionService.class,
     PlatformCustomerAccessService.class, DeploymentAccessService.class, CustomerOfferCodec.class,
     PlatformAuditService.class, CustomerDeploymentBootstrapPersistenceIntegrationTest.Configuration.class})
@@ -89,6 +94,8 @@ class CustomerDeploymentBootstrapPersistenceIntegrationTest {
     @Autowired PlatformAuditEventRepository auditEvents;
     @Autowired PlatformTransactionManager transactionManager;
     @MockBean MarketplaceTemplateBootstrapService templates;
+    @MockBean com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService compiler;
+    @MockBean com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationInstallInitializer externalInstalls;
     @MockBean CustomerWorkspaceProfileValidator workspaceProfiles;
     private String customerId;
     private String ownerId;

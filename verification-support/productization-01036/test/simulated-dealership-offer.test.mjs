@@ -4,7 +4,17 @@ import test from "node:test";
 
 import {
   artifactFingerprint,
-  buildOfferDefinition,
+  buildOfferDefinition as buildPublishableOfferDefinition,
+  buildOfferProposal,
+  buildExternalIntegrationBindings,
+  CUSTOMER_PLUGIN_REFS,
+  CUSTOMER_PLUGIN_VERSION_IDS,
+  EXTERNAL_BINDING_REQUIREMENTS,
+  MANAGED_AI_STATE_MODE,
+  CUSTOMER_AI_STATE_MODE,
+  MANAGED_INBOX_TEMPLATE_PLUGIN_ID,
+  MANAGED_INBOX_INSTALL_DEFAULTS,
+  KNOWLEDGE_INSTALL_DEFAULTS,
   hash,
   MILVUS_TOKEN_CAPABILITY,
   OFFER_ID,
@@ -21,12 +31,22 @@ import {
   TEMPLATE_VERSION,
   workspaceProfile,
 } from "../simulated-dealership-offer.mjs";
+import {publishSimulatedDealershipOffer} from "../publish-simulated-dealership-offer.mjs";
 
-const auth = {projectUrl: "https://example.supabase.co", publishableKey: "public-test-key"};
-const manifest = (pluginId, version) => ({pluginId, version, contributions: pluginId === TEMPLATE_PLUGIN_ID
+const auth = {projectUrl: "https://example.supabase.co", publishableKey: "public-test-key",
+  dealerId: "reviewed-dealer-test", imageHostAllowlist: ["media.example.test"]};
+const manifest = (pluginId, version) => ({pluginId, version,
+  ...(EXTERNAL_BINDING_REQUIREMENTS.some(requirement => requirement.pluginId === pluginId)
+    ? {installForm: EXTERNAL_BINDING_REQUIREMENTS.filter(requirement => requirement.pluginId === pluginId).flatMap(requirement => [
+      ...requirement.configFields.map(id => ({id, type: requirement.endpointFields.includes(id) ? "url" : "text", required: true})),
+      ...requirement.secretRefFields.map(id => ({id, type: "secretRef", required: true})),
+    ])} : {}),
+  contributions: [TEMPLATE_PLUGIN_ID, MANAGED_INBOX_TEMPLATE_PLUGIN_ID].includes(pluginId)
   ? {template: {providerConfig: {openaiMaxTokens: OPENAI_MAX_TOKENS, vectorStrategy: "milvus",
     vectorProvisioningMode: "EXTERNAL_EXISTING", vectorStoragePosture: "SHARED", milvusExternalBindingRequired: true,
-    milvusAuthenticationType: "TOKEN"}, deploymentBehavior: {
+    milvusAuthenticationType: "TOKEN"}, requiredPluginInstallDefaults: {
+      "mkp-data-dealership-knowledge-v1@1.0.0": structuredClone(KNOWLEDGE_INSTALL_DEFAULTS),
+    }, deploymentBehavior: {
       type: "CONVERSATIONAL", requiredRuntimeCapabilityIds: ["ai-fabric-core", "ai-fabric-chat-session"],
       allowedExecutionExtensions: ["CONVERSATION_HANDOVER"], defaultExecutionExtensions: ["CONVERSATION_HANDOVER"],
       allowedChannelBindings: ["BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT"],
@@ -97,24 +117,33 @@ function offerInputs() {
   return {
     ...catalogInputs(),
     template: {
-      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
-      contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
+      ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "mkv-template-dealership-external-systems-v1-0"),
+      contributions: {templateRequiredPluginRefs: [...CUSTOMER_PLUGIN_REFS]},
     },
-    pluginVersions: [version("data", "1.0.0", "data-v1")],
+    pluginVersions: CUSTOMER_PLUGIN_REFS.map(ref => {
+      const [pluginId, semanticVersion] = ref.split("@");
+      return version(pluginId, semanticVersion, CUSTOMER_PLUGIN_VERSION_IDS[pluginId]);
+    }),
     artifact: structuredClone(artifact),
     targets: [target("dtp-coolify-staging-behavior", "staging"),
       target("dtp-coolify-production-behavior", "production")],
     auth,
+    managedInbox: false,
+    aiStateStorageMode: MANAGED_AI_STATE_MODE,
+    externalIntegrationAllowedHosts: {"vehicle-stock": ["stock.customer.example"], "business-actions": ["actions.customer.example"]},
   };
 }
 
-test("v12 pins accurate template 1.9.0 and the unchanged verified native-token image", () => {
-  assert.equal(OFFER_ID, "offer-loomai-engage-simulated-dealership-early-access-v12");
-  assert.equal(TEMPLATE_VERSION, "1.9.0");
+// These regressions validate the proposal's candidate; they do not assert publication readiness.
+function buildOfferDefinition(input) { return buildOfferProposal(input).definitionCandidate; }
+
+test("external proposal pins new template 1.0.0 and the unchanged verified native-token image", () => {
+  assert.equal(OFFER_ID, "offer-loomai-engage-external-dealership-candidate-v1");
+  assert.equal(TEMPLATE_VERSION, "1.0.0");
   assert.equal(RUNTIME_FRAMEWORK_VERSION, "0.8.36");
   assert.equal(MILVUS_TOKEN_CAPABILITY, "milvus-token-authentication-v1");
   assert.equal(OPENAI_MAX_TOKENS, 2048);
-  assert.match(REVIEWED_LIMITS.measuredPolicyRef, /candidate/);
+  assert.match(REVIEWED_LIMITS.measuredPolicyRef, /pending/);
   assert.equal(RUNTIME_IMAGE_DIGEST, "sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140");
   assert.equal(RUNTIME_SOURCE_COMMIT, "d2b1a9792dc10ec801d3ce30c170763f1f2ab301");
   for (const promotionChannel of ["staging", "production"]) {
@@ -122,8 +151,8 @@ test("v12 pins accurate template 1.9.0 and the unchanged verified native-token i
     input.artifact.promotionChannel = promotionChannel;
     const unchanged = structuredClone(input);
     const definition = buildOfferDefinition(input);
-    assert.equal(definition.template.versionId, "template-v1-9");
-    assert.match(definition.name, /Staging Measurement Candidate/);
+    assert.equal(definition.template.versionId, "mkv-template-dealership-external-systems-v1-0");
+    assert.match(definition.name, /Unapproved Integration Candidate/);
     assert.deepEqual(definition.artifacts, [{
       artifactId: input.artifact.id, fingerprint: artifactFingerprint(input.artifact),
     }]);
@@ -141,7 +170,7 @@ test("candidate offer requires the exact explicit integer output cap without cha
   }
   const input = offerInputs();
   input.template.version = "1.5.0";
-  assert.throws(() => buildOfferDefinition(input), /exact 1.9.0 template/);
+  assert.throws(() => buildOfferDefinition(input), /exact external-systems 1.0.0 template/);
 });
 
 test("external candidate rejects unmanaged routing and implicit endpoint or secret fallback", () => {
@@ -168,7 +197,7 @@ test("external candidate rejects unmanaged routing and implicit endpoint or secr
   }
 });
 
-test("v12 rejects legacy or mixed image pins without rewriting published v10 artifact identity", () => {
+test("external candidate rejects legacy or mixed image pins without rewriting published v10 artifact identity", () => {
   const legacyArtifact = {
     ...artifact,
     imageDigest: "sha256:d3f744e6c68677b49d128a37a99c31b0717ebf87b1b6d8dd45adbe14030baa28",
@@ -496,11 +525,11 @@ test("workspace profile IDs use the backend normalized enum representation", () 
       contextLabel: "Current dealership page", rootSelector: "#main-content", maxTotalChars: 10000,
     },
     dealer: {
-      id: "simulated-dealership", sourceMode: "DEALERSHIP_INVENTORY", assistantLabel: "Dealership AI",
+      id: auth.dealerId, sourceMode: "DEALERSHIP_INVENTORY", assistantLabel: "Dealership AI",
     },
     knowledge: {inventoryVectorSpace: "dealer-vehicle"},
     capabilities: {callback: true, testDrive: true, comparison: true},
-    presentation: {imageHostAllowlist: ["m.atcdn.co.uk"]},
+    presentation: {imageHostAllowlist: auth.imageHostAllowlist},
   };
   assert.equal(profile.interactionProfileId, `workspace:${hash({
     packCode: "dealership",
@@ -521,68 +550,59 @@ test("workspace profile IDs use the backend normalized enum representation", () 
 });
 
 test("reviewed offer capacity covers the complete enforced topology", () => {
-  assert.deepEqual(reviewedTopologyCapacity(), {
-    milliCpu: 2750,
-    memoryMiB: 5888,
-    diskMiB: 16384,
-    dependencies: 4,
-    databases: 2,
+  const selected = {aiStateStorageMode: MANAGED_AI_STATE_MODE};
+  assert.deepEqual(reviewedTopologyCapacity(selected), {
+    milliCpu: 1750,
+    memoryMiB: 3072,
+    diskMiB: 2048,
+    dependencies: 0,
+    databases: 1,
     indexes: 2,
   });
-  assert.equal(REVIEWED_LIMITS.cpuMillis >= reviewedTopologyCapacity().milliCpu, true);
-  assert.equal(REVIEWED_LIMITS.memoryMiB >= reviewedTopologyCapacity().memoryMiB, true);
-  assert.equal(REVIEWED_LIMITS.diskMiB, reviewedTopologyCapacity().diskMiB);
-  assert.equal(REVIEWED_LIMITS.dependencies, reviewedTopologyCapacity().dependencies);
+  assert.equal(REVIEWED_LIMITS.cpuMillis >= reviewedTopologyCapacity(selected).milliCpu, true);
+  assert.equal(REVIEWED_LIMITS.memoryMiB >= reviewedTopologyCapacity(selected).memoryMiB, true);
+  assert.equal(REVIEWED_LIMITS.diskMiB, reviewedTopologyCapacity(selected).diskMiB);
+  assert.equal(REVIEWED_LIMITS.dependencies, reviewedTopologyCapacity(selected).dependencies);
   assert.deepEqual(REVIEWED_TOPOLOGY, {
-    replicas: 1, cpuMillis: 2750, memoryMiB: 5888, diskMiB: 16384,
-    databases: 2, indexes: 2, dependencies: 4, concurrentApplies: 1,
+    replicas: 1, cpuMillis: 1750, memoryMiB: 3072, diskMiB: 2048,
+    databases: 1, indexes: 2, dependencies: 0, concurrentApplies: 1,
   });
   assert.deepEqual(REVIEWED_LIMITS, {
-    measuredPolicyRef: "01036-dealership-capacity-2026-10-18-external-candidate-v2",
-    activeStagingTargets: 1, replicas: 1, cpuMillis: 4000, memoryMiB: 6144, diskMiB: 16384,
-    databases: 2, indexes: 2, dependencies: 4, concurrentApplies: 1,
+    measuredPolicyRef: "01044-external-ai-capacity-review-pending",
+    activeStagingTargets: 1, replicas: 1, cpuMillis: 4000, memoryMiB: 6144, diskMiB: 2048,
+    databases: 1, indexes: 2, dependencies: 0, concurrentApplies: 1,
     stagingExpiryHours: 24, maxExtensionHours: 24, recoveryWindowHours: 24,
   });
 });
 
 test("offer pins exact template dependencies, runtime, targets and reviewed workspace profiles", () => {
-  const pluginVersions = [
-    version("data", "1.0.0", "data-v1"),
-    version("action", "1.0.0", "action-v1"),
-  ];
-  const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
-    contributions: {templateRequiredPluginRefs: ["data@1.0.0", "action@1.0.0"]},
-  };
-  const definition = buildOfferDefinition({
-    ...catalogInputs(),
-    template, pluginVersions, artifact,
-    targets: [target("dtp-coolify-staging-behavior", "staging"),
-      target("dtp-coolify-production-behavior", "production")],
-    auth,
-  });
-  assert.equal(definition.template.versionId, "template-v1-9");
+  const input = offerInputs();
+  const {pluginVersions} = input;
+  const definition = buildOfferDefinition(input);
+  assert.equal(definition.template.versionId, "mkv-template-dealership-external-systems-v1-0");
   assert.equal(definition.templateId, "dev-openai-milvus");
-  assert.deepEqual(definition.plugins.map(({versionId}) => versionId), ["data-v1", "action-v1"]);
+  assert.deepEqual(definition.plugins.map(({versionId}) => versionId), pluginVersions.map(plugin => plugin.id));
   assert.equal(definition.artifacts[0].artifactId, "runtime-artifact");
   assert.deepEqual(definition.targets.map(({intent}) => intent), ["CUSTOMER_STAGING", "CUSTOMER_PRODUCTION"]);
   assert.equal(definition.operations.includes("VERSION_PUBLISH"), true);
   assert.equal(definition.operations.includes("DRAFT_EDIT"), false);
-  assert.equal(definition.operations.includes("INBOX_OPERATOR_ENROLL"), true);
-  assert.equal(definition.operations.includes("INBOX_OPERATOR_DELIVER"), true);
+  assert.equal(definition.operations.includes("INBOX_OPERATOR_ENROLL"), false);
+  assert.equal(definition.operations.includes("INBOX_OPERATOR_DELIVER"), false);
   assert.deepEqual(definition.operations, [
     "TEMPLATE_SELECT", "BOOTSTRAP_CONFIGURATION", "BOOTSTRAP", "READ", "VERSION_PUBLISH",
     "BINDING_REPLACE", "BINDING_REVOKE", "SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX",
-    "INBOX_OPERATOR_ENROLL", "INBOX_OPERATOR_ROTATE", "INBOX_OPERATOR_DELIVER", "INBOX_OPERATOR_REVOKE",
     "SOURCE_REFRESH", "SOURCE_REMOVE", "APP_CONFIGURE", "DOMAIN_CONFIGURE", "AUTH_CONFIGURE",
     "APPLY", "VERIFY", "PROMOTION_PLAN", "PROMOTION_APPLY", "ACTIVATE", "ROLLBACK",
     "STAGING_RETAIN", "STAGING_EXTEND", "TARGET_RETIRE",
   ]);
   assert.equal(definition.bindingSlots[0].pluginId, "mkp-data-dealership-knowledge-v1");
   assert.deepEqual(definition.topology, REVIEWED_TOPOLOGY);
-  assert.deepEqual(definition.bindingSlots[1], {
-    id: "inbox", kind: "INBOX_OPERATOR", supportedProfileIds: ["managed-basic-inbox-keys-v1"],
+  assert.equal(definition.bindingSlots.length, 4, "Document, two reviewed external services and customer AI-state slots");
+  assert.deepEqual(definition.bindingSlots.find(slot => slot.kind === "CUSTOMER_AI_STATE"), {
+    id: "ai-state-database", kind: "CUSTOMER_AI_STATE", supportedProfileIds: ["CUSTOMER_POSTGRES"],
   });
+  assert.deepEqual(definition.bindingSlots.filter(slot => slot.kind === "EXTERNAL_SERVICE").map(slot => slot.id),
+    ["vehicle-stock", "business-actions"]);
   assert.equal(definition.settings.filter(({type}) => type === "CHOICE").every(({allowedValues}) => allowedValues.length > 0), true);
   assert.equal(definition.workspaceProfiles.length, 1);
   const profile = definition.workspaceProfiles[0];
@@ -597,30 +617,281 @@ test("offer pins exact template dependencies, runtime, targets and reviewed work
 });
 
 test("offer refuses a target whose enforced worker capacity drifted", () => {
-  const pluginVersions = [version("data", "1.0.0", "data-v1")];
-  const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
-    contributions: {templateRequiredPluginRefs: ["data@1.0.0"]},
-  };
+  const input = offerInputs();
   const staging = target("dtp-coolify-staging-behavior", "staging");
   staging.resourceDefaults.connectorLimitsCpus = "2.0";
 
   assert.throws(() => buildOfferDefinition({
-    ...catalogInputs(),
-    template, pluginVersions, artifact,
-    targets: [staging, target("dtp-coolify-production-behavior", "production")], auth,
+    ...input, targets: [staging, target("dtp-coolify-production-behavior", "production")],
   }), /drifted capacity fields: connectorLimitsCpus/);
 });
 
 test("offer rejects incomplete required plugin pinning", () => {
+  const input = offerInputs();
   const template = {
-    ...version(TEMPLATE_PLUGIN_ID, TEMPLATE_VERSION, "template-v1-9"),
+    ...input.template,
     contributions: {templateRequiredPluginRefs: ["missing@1.0.0"]},
   };
   assert.throws(() => buildOfferDefinition({
-    ...catalogInputs(),
-    template, pluginVersions: [], artifact,
-    targets: [target("dtp-coolify-staging-behavior", "staging"),
-      target("dtp-coolify-production-behavior", "production")], auth,
+    ...input, template, pluginVersions: [],
   }), /exact required plugin/);
+});
+
+test("candidate emits exact typed V196 external profiles and unmapped slots without mutable binding values", () => {
+  const input = offerInputs();
+  const before = structuredClone(input);
+  const definition = buildOfferDefinition(input);
+  assert.equal(definition.externalIntegrationProfiles.length, 2);
+  for (const profile of definition.externalIntegrationProfiles) {
+    const requirement = EXTERNAL_BINDING_REQUIREMENTS.find(item => item.id === profile.bindingSlotId);
+    const pinned = input.pluginVersions.find(version => version.id === requirement.pluginVersionId);
+    assert.deepEqual(profile, {
+      schemaVersion: "loomai-external-integration-profile/v1", id: requirement.profileId, bindingSlotId: requirement.id,
+      pluginId: requirement.pluginId, pluginVersionId: requirement.pluginVersionId, manifestSha256: hash(pinned.manifest),
+      targetProfileIds: ["dtp-coolify-production-behavior", "dtp-coolify-staging-behavior"],
+      configFields: [...requirement.configFields].sort(), secretFields: [...requirement.secretRefFields].sort(),
+      endpointFields: [...requirement.endpointFields].sort(), accountScopeFields: [...requirement.accountScopeFields].sort(),
+      allowedHosts: input.externalIntegrationAllowedHosts[requirement.id],
+    });
+    assert.deepEqual(definition.bindingSlots.find(slot => slot.id === requirement.id), {
+      id: requirement.id, kind: "EXTERNAL_SERVICE", supportedProfileIds: [requirement.profileId],
+      pluginId: requirement.pluginId, installConfigField: null,
+    });
+    assert.deepEqual(definition.plugins.find(pin => pin.pluginId === profile.pluginId), {
+      pluginId: profile.pluginId, versionId: profile.pluginVersionId, manifestSha256: profile.manifestSha256,
+    });
+  }
+  assert.doesNotMatch(JSON.stringify(definition.externalIntegrationProfiles), /MANAGED_SIMULATOR|MANAGED_RECEIVER|https:\/\/|credentials|secretReferences/);
+  assert.deepEqual(input, before);
+});
+
+test("reviewed external hosts are explicit bounded exact names, never guessed endpoints or arbitrary slot metadata", () => {
+  for (const value of [undefined, null, [], {}, {"vehicle-stock": ["stock.example.com"]},
+    {"vehicle-stock": ["stock.example.com"], "business-actions": ["actions.example.com"], extra: ["other.example.com"]}]) {
+    assert.throws(() => buildOfferProposal({...offerInputs(), externalIntegrationAllowedHosts: value}), /Exact reviewed allowedHosts/);
+  }
+  for (const hosts of [undefined, null, "stock.example.com", [], [null], [""], ["https://stock.example.com"],
+    ["*.example.com"], ["127.0.0.1"], ["[::1]"], ["Stock.example.com"], ["provider.internal"],
+    ["provider.invalid"], ["stock.example.com", "stock.example.com"], Array.from({length: 17}, (_, i) => `host${i}.example.com`)]) {
+    const input = offerInputs(); input.externalIntegrationAllowedHosts["vehicle-stock"] = hosts;
+    assert.throws(() => buildOfferProposal(input), /Explicit reviewed DNS host names/);
+  }
+  const input = offerInputs();
+  input.externalIntegrationAllowedHosts["vehicle-stock"] = ["z.provider.example", "a.provider.example"];
+  const profile = buildOfferDefinition(input).externalIntegrationProfiles[0];
+  assert.deepEqual(profile.allowedHosts, ["a.provider.example", "z.provider.example"]);
+});
+
+test("typed profiles reject changed V196 identity and field contracts or ambiguous versions", () => {
+  for (const patch of [{id: "latest-stock-version"}, {version: "1.0.1"},
+    {manifest: {pluginId: "foreign-plugin", version: "1.0.0"}}]) {
+    const input = offerInputs();
+    Object.assign(input.pluginVersions[0], patch);
+    assert.throws(() => buildOfferProposal(input), /exact immutable V196 composition plugin pins|exact required plugin/);
+  }
+  for (const change of [fields => fields.slice(1), fields => [...fields, fields[0]],
+    fields => fields.map((field, i) => i ? field : {...field, type: "secretRef"}),
+    fields => fields.map((field, i) => i ? field : {...field, required: false}),
+    fields => fields.map((field, i) => i ? field : {...field, defaultValue: "demo"})]) {
+    const input = offerInputs();
+    input.pluginVersions[0].manifest.installForm = change(input.pluginVersions[0].manifest.installForm);
+    assert.throws(() => buildOfferProposal(input), /exact unbound V196 install field contract/);
+  }
+  const input = offerInputs(); input.pluginVersions.push(structuredClone(input.pluginVersions[0]));
+  assert.throws(() => buildOfferProposal(input), /exact immutable V196 composition plugin pins/);
+  for (const targetProfileIds of [undefined, [], ["target", "target"], [null], ["target/path"]]) {
+    assert.throws(() => buildExternalIntegrationBindings({pluginVersions: offerInputs().pluginVersions,
+      targetProfileIds, allowedHosts: offerInputs().externalIntegrationAllowedHosts}), /Exact reviewed external integration target IDs/);
+  }
+});
+
+test("every composition pin and template identity is immutable, not just its semantic version", () => {
+  assert.deepEqual(Object.values(CUSTOMER_PLUGIN_VERSION_IDS), [
+    "mkv-data-dealership-external-stock-v1-0", "mkv-action-dealership-external-discovery-v1-0",
+    "mkv-action-dealership-external-engagement-v1-0", "mkv-data-dealership-knowledge-v1-0",
+    "mkv-action-conversation-handover-v1-1", "mkv-integration-basic-loomai-inbox-v1-3",
+  ]);
+  for (let index = 0; index < CUSTOMER_PLUGIN_REFS.length; index++) {
+    const input = offerInputs(); input.pluginVersions[index].id = "other-immutable-version";
+    assert.throws(() => buildOfferProposal(input), /exact immutable V196 composition plugin pins/);
+    const foreign = offerInputs(); foreign.pluginVersions[index].manifest.pluginId = "foreign-plugin";
+    assert.throws(() => buildOfferProposal(foreign), /exact immutable V196 composition plugin pins/);
+  }
+  const input = offerInputs(); input.template.id = "other-template-same-version";
+  assert.throws(() => buildOfferProposal(input), /exact external-systems 1.0.0 template/);
+});
+
+test("binding protocol requires exact published scope, staff review and write-only customer values, not install mutation", () => {
+  const proposal = buildOfferProposal(offerInputs());
+  assert.deepEqual(proposal.externalBindingProtocol.scopeFields,
+    ["versionId", "targetProfileId", "bindingSlotId", "selectedProfileId"]);
+  assert.deepEqual(proposal.externalBindingProtocol.bindingFields,
+    ["approvalId", "expectedEntitlementRevision", "operationKey", "credentials"]);
+  assert.deepEqual(proposal.externalBindingProtocol.revocationFields,
+    ["bindingId", "expectedBindingRevision", "expectedEntitlementRevision", "operationKey"]);
+  assert.match(proposal.externalBindingProtocol.staffApprovalPath, /\/staff\/offers\/\{offerId\}\/deployments\/\{deploymentId\}\/external-integrations\/approvals$/);
+  assert.match(proposal.externalBindingProtocol.customerBindingPath, /\/catalogue\/\{offerId\}\/deployments\/\{deploymentId\}\/external-integrations\/bind$/);
+  assert.match(proposal.externalBindingProtocol.customerRevocationPath, /\/external-integrations\/revoke$/);
+  assert.equal(proposal.externalBindingProtocol.rotation, "NEW_IMMUTABLE_VERSION_AND_TARGET_SCOPED_APPROVAL_BINDING");
+  assert.match(proposal.externalBindingProtocol.credentials, /WRITE_ONLY_VALUES.*NEVER_GLOBAL_INSTALL_VALUES_OR_CLIENT_SECRET_REFERENCES/);
+  assert.match(proposal.aiOperationalPersistence.customerBindingPath, /\/ai-state-storage-binding$/);
+  assert.deepEqual(proposal.aiOperationalPersistence.customerBindingFields,
+    ["expectedEntitlementRevision", "operationKey", "targetProfileId", "bindingSlotId", "connection"]);
+  assert.equal(proposal.aiOperationalPersistence.customerBindingSlotId, "ai-state-database");
+  assert.equal(proposal.aiOperationalPersistence.approvalReference, "SERVER_DERIVED_CALLER_MUST_OMIT_OR_NULL");
+  assert.throws(() => buildPublishableOfferDefinition({...offerInputs(), integratedProof: true, publishable: true}), /publication is checkpointed/);
+});
+
+test("setup-only dependency deferral is a visible blocker, not implicit source or credential readiness", () => {
+  const setup = buildOfferProposal(offerInputs()).externalBindingProtocol.setupOnly;
+  assert.deepEqual(setup, {
+    unresolvedRequirementsPath: "behaviorConfig.marketplaceRequirements.unresolvedRequiredPluginRefs",
+    sourceDependency: "DECLARED_ACTION_SOURCE_REF_TO_UNAVAILABLE_EXPLICITLY_REQUIRED_DATA_ONLY",
+    ordinaryCompilation: "STRICT_NO_SETUP_DEFERRAL",
+    initializer: "POST_ASSOCIATION_TRUSTED_ALIAS_ONLY_INSTALL_ENABLE_AND_COMPILER_RESYNC",
+    accountBinding: "NOT_CREATED_BY_BOOTSTRAP_OR_INITIALIZER",
+  });
+});
+
+test("reported bootstrap success or caller workflow flags cannot clear the publication checkpoint", async () => {
+  const priorFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; throw new Error("unexpected network"); };
+  try {
+    for (const proof of [
+      {bootstrapVerified: true, postgresMigration: 199, parentBootstrapTestsPassed: 21},
+      {customerBindingVerified: true, compilerVerified: true, sqlRotationVerified: true},
+      {publishable: true, publicationBlockers: [], integratedProof: {status: "PASS"}},
+    ]) {
+      const input = {...offerInputs(), ...proof};
+      const proposal = buildOfferProposal(input);
+      assert.equal(proposal.publishable, false);
+      assert.equal(proposal.liveReadinessProven, false);
+      assert.equal(proposal.blockers.includes("REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED"), true);
+      assert.equal(proposal.blockers.includes("AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED"), true);
+      assert.throws(() => buildPublishableOfferDefinition(input), /publication is checkpointed/);
+      await assert.rejects(publishSimulatedDealershipOffer(input), /publication is checkpointed/);
+    }
+  } finally { globalThis.fetch = priorFetch; }
+  assert.equal(requests, 0);
+});
+
+test("proposal preserves all external features but cannot masquerade as publishable authority", async () => {
+  const input = offerInputs();
+  const proposal = buildOfferProposal(input);
+  assert.equal(proposal.publishable, false);
+  assert.equal(proposal.liveReadinessProven, false);
+  assert.deepEqual(proposal.blockers, ["REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED",
+    "AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED", "EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"]);
+  assert.deepEqual(proposal.externalBindingRequirements.map(binding => binding.id),
+    ["vehicle-stock", "business-actions", "conversation-inbox"]);
+  assert.equal(proposal.externalBindingRequirements[0].secretRefFields.length, 3);
+  assert.deepEqual(proposal.definitionCandidate.workspaceProfiles[0].interaction.configuration.capabilities,
+    {callback: true, testDrive: true, comparison: true});
+  assert.throws(() => buildPublishableOfferDefinition(input), /publication is checkpointed/);
+  const priorFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("unexpected network"); };
+  try { await assert.rejects(publishSimulatedDealershipOffer(), /publication is checkpointed/); }
+  finally { globalThis.fetch = priorFetch; }
+  assert.equal(calls, 0, "No platform, placement, provider or model request before contract support");
+});
+
+test("managed Inbox is explicit, separately pinned, capacity-complete and never a CRM", () => {
+  const input = offerInputs();
+  input.managedInbox = true;
+  input.template.pluginId = MANAGED_INBOX_TEMPLATE_PLUGIN_ID;
+  input.template.id = "mkv-template-dealership-external-systems-managed-inbox-v1-0";
+  input.template.manifest.pluginId = MANAGED_INBOX_TEMPLATE_PLUGIN_ID;
+  input.template.manifest.contributions.template.requiredPluginInstallDefaults = {
+    "mkp-data-dealership-knowledge-v1@1.0.0": structuredClone(KNOWLEDGE_INSTALL_DEFAULTS),
+    "mkp-integration-basic-loomai-inbox@1.3.0": structuredClone(MANAGED_INBOX_INSTALL_DEFAULTS),
+  };
+  const proposal = buildOfferProposal(input);
+  assert.equal(proposal.definitionCandidate.operations.includes("INBOX_OPERATOR_ENROLL"), true);
+  assert.deepEqual(proposal.definitionCandidate.bindingSlots.find(slot => slot.kind === "INBOX_OPERATOR"), {
+    id: "inbox", kind: "INBOX_OPERATOR", supportedProfileIds: ["managed-basic-inbox-keys-v1"],
+  });
+  assert.deepEqual(proposal.definitionCandidate.topology, {
+    replicas: 1, cpuMillis: 2000, memoryMiB: 3584, diskMiB: 6144, databases: 1,
+    indexes: 2, dependencies: 1, concurrentApplies: 1,
+  });
+  assert.equal(proposal.definitionCandidate.limits.dependencies, 1);
+  assert.deepEqual(proposal.definitionCandidate.aiStateStorageTopologies.CUSTOMER_POSTGRES, {
+    replicas: 1, cpuMillis: 1750, memoryMiB: 3072, diskMiB: 4096, databases: 0,
+    indexes: 2, dependencies: 1, concurrentApplies: 1,
+  });
+  assert.equal(proposal.externalBindingRequirements.length, 2);
+  assert.equal(proposal.managedInbox, true);
+  assert.equal(proposal.blockers.includes("EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"), false);
+});
+
+test("AI state durability is required and optional hosting is an explicit creation choice", () => {
+  const proposal = buildOfferProposal(offerInputs());
+  assert.equal(proposal.aiOperationalPersistence.required, true);
+  assert.equal(proposal.aiOperationalPersistence.selectedMode, MANAGED_AI_STATE_MODE);
+  assert.deepEqual(proposal.definitionCandidate.settings.find(rule => rule.setting === "AI_STATE_STORAGE_MODE"),
+    {setting: "AI_STATE_STORAGE_MODE", type: "CHOICE", maxLength: 32,
+      allowedValues: [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]});
+  assert.equal(proposal.aiOperationalPersistence.modes.find(mode => mode.id === CUSTOMER_AI_STATE_MODE).applySupportVerified, false);
+  for (const aiStateStorageMode of [undefined, null, "", "managed_postgres"]) {
+    assert.throws(() => buildOfferProposal({...offerInputs(), aiStateStorageMode}), /explicit reviewed AI state storage mode/);
+  }
+  // BYO arithmetic is not advertised as an implemented binding or charged as hosted SQL.
+  assert.deepEqual(reviewedTopologyCapacity({aiStateStorageMode: CUSTOMER_AI_STATE_MODE}), {
+    milliCpu: 1500, memoryMiB: 2560, diskMiB: 0, databases: 0, dependencies: 0, indexes: 2,
+  });
+  assert.throws(() => reviewedTopologyCapacity(), /explicit reviewed AI state storage mode/);
+  const byo = buildOfferProposal({...offerInputs(), aiStateStorageMode: CUSTOMER_AI_STATE_MODE});
+  assert.equal(byo.publishable, false);
+  assert.equal(byo.aiOperationalPersistence.selectedMode, CUSTOMER_AI_STATE_MODE);
+  assert.deepEqual(byo.definitionCandidate.aiStateStorageTopologies, {
+    MANAGED_POSTGRES: {replicas: 1, cpuMillis: 1750, memoryMiB: 3072, diskMiB: 2048, databases: 1,
+      indexes: 2, dependencies: 0, concurrentApplies: 1},
+    CUSTOMER_POSTGRES: {replicas: 1, cpuMillis: 1500, memoryMiB: 2560, diskMiB: 0, databases: 0,
+      indexes: 2, dependencies: 0, concurrentApplies: 1},
+  });
+  for (const field of Object.keys(byo.definitionCandidate.topology)) {
+    assert.equal(byo.definitionCandidate.topology[field], Math.max(...Object.values(byo.definitionCandidate.aiStateStorageTopologies)
+      .map(demand => demand[field])));
+  }
+});
+
+test("demo identity, credentials, consent and business defaults cannot leak into corrected composition", () => {
+  for (const defaults of [null, [],
+    {"mkp-data-dealership-external-stock-v1@1.0.0": {config: {providerBaseUrl: "https://demo.example.test"}}},
+    {"mkp-action-dealership-external-engagement-v1@1.0.0": {secretRefs: {receiverApiKey: "MANAGED_RECEIVER_API_KEY"}}},
+    {"mkp-data-dealership-knowledge-v1@1.0.0": {config: {publicContentApprovalConfirmed: true}}},
+  ]) {
+    const input = offerInputs();
+    input.template.manifest.contributions.template.requiredPluginInstallDefaults = defaults;
+    assert.throws(() => buildOfferProposal(input), /Business integrations must be unbound/);
+  }
+  for (const patch of [{dealerId: undefined}, {dealerId: ""}, {dealerId: {id: "demo"}},
+    {imageHostAllowlist: undefined}, {imageHostAllowlist: ["https://media.example.test"]},
+    {imageHostAllowlist: ["*.example.test"]}, {imageHostAllowlist: ["a.example.test", "a.example.test"]}]) {
+    assert.throws(() => workspaceProfile({...auth, ...patch}), /Explicit reviewed dealerId/);
+  }
+  const config = workspaceProfile(auth).interaction.configuration;
+  assert.doesNotMatch(JSON.stringify(config), /simulated-dealership|m\.atcdn\.co\.uk/);
+  assert.throws(() => buildOfferProposal({...offerInputs(), managedInbox: undefined}), /Explicit managedInbox selection/);
+  assert.throws(() => buildOfferProposal({...offerInputs(), managedInbox: true}), /exact external-systems/);
+});
+
+test("knowledge default is explicitly not approved and never supplies storage or indexing consent", () => {
+  assert.deepEqual(KNOWLEDGE_INSTALL_DEFAULTS, {config: {publicContentApprovalConfirmed: false}});
+  assert.doesNotThrow(() => buildOfferProposal(offerInputs()));
+  for (const config of [{}, {publicContentApprovalConfirmed: null}, {publicContentApprovalConfirmed: true},
+    {publicContentApprovalConfirmed: "false"}, {publicContentApprovalConfirmed: 0},
+    {publicContentApprovalConfirmed: false, documentStorageBindingRef: "slot:document-storage"},
+    {publicContentApprovalConfirmed: false, initialIndexConfirmed: true}]) {
+    const input = offerInputs();
+    input.template.manifest.contributions.template.requiredPluginInstallDefaults = {
+      "mkp-data-dealership-knowledge-v1@1.0.0": {config},
+    };
+    assert.throws(() => buildOfferProposal(input), /Business integrations must be unbound/);
+  }
+  const missing = offerInputs();
+  missing.template.manifest.contributions.template.requiredPluginInstallDefaults = {};
+  assert.throws(() => buildOfferProposal(missing), /Business integrations must be unbound/);
 });

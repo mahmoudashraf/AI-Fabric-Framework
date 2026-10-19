@@ -878,7 +878,7 @@ public class CoolifyApiClient {
     }
 
     private CoolifyActionResponse action(CoolifyConnection connection, String method, String path) {
-        JsonNode response = requestJson(connection, method, path, null, true);
+        JsonNode response = requestJson(connection, method, path, null, true, false);
         return new CoolifyActionResponse(
             response.path("message").asText("Coolify action accepted."),
             response.path("deployment_uuid").asText(null),
@@ -1011,9 +1011,21 @@ public class CoolifyApiClient {
                                  String path,
                                  JsonNode body,
                                  boolean failOnNotFound) {
+        return requestJson(connection, method, path, body, failOnNotFound, "GET".equals(method));
+    }
+
+    private JsonNode requestJson(CoolifyConnection connection,
+                                 String method,
+                                 String path,
+                                 JsonNode body,
+                                 boolean failOnNotFound,
+                                 boolean retrySafe) {
         try {
             String serializedBody = body == null ? null : objectMapper.writeValueAsString(body);
-            for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            // Coolify creation has no idempotency token. A transient response may
+            // follow a committed write; return uncertainty rather than creating twice.
+            int maxAttempts = retrySafe ? MAX_RETRY_ATTEMPTS : 1;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint(connection, path))
                     .timeout(REQUEST_TIMEOUT)
                     .header("Accept", "application/json")
@@ -1030,7 +1042,7 @@ public class CoolifyApiClient {
                     return null;
                 }
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    if (isRetryable(response.statusCode()) && attempt < MAX_RETRY_ATTEMPTS) {
+                    if (isRetryable(response.statusCode()) && attempt < maxAttempts) {
                         sleepBeforeRetry(response, attempt);
                         continue;
                     }

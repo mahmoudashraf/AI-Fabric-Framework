@@ -53,6 +53,12 @@ public class DeploymentReleaseEntity {
     private String documentBindingFingerprint;
 
     @Column(columnDefinition = "TEXT")
+    private String aiStateStorageSnapshotJson;
+
+    @Column(length = 64)
+    private String aiStateStorageFingerprint;
+
+    @Column(columnDefinition = "TEXT")
     private String promotionCandidateJson;
 
     @Column(length = 64)
@@ -105,6 +111,10 @@ public class DeploymentReleaseEntity {
     public void setDocumentBindingSnapshotJson(String value) { documentBindingSnapshotJson = value; }
     public String getDocumentBindingFingerprint() { return documentBindingFingerprint; }
     public void setDocumentBindingFingerprint(String value) { documentBindingFingerprint = value; }
+    public String getAiStateStorageSnapshotJson() { return aiStateStorageSnapshotJson; }
+    public void setAiStateStorageSnapshotJson(String value) { aiStateStorageSnapshotJson = value; }
+    public String getAiStateStorageFingerprint() { return aiStateStorageFingerprint; }
+    public void setAiStateStorageFingerprint(String value) { aiStateStorageFingerprint = value; }
     public String getPromotionCandidateJson() { return promotionCandidateJson; }
     public void setPromotionCandidateJson(String value) { promotionCandidateJson = value; }
     public String getPromotionCandidateFingerprint() { return promotionCandidateFingerprint; }

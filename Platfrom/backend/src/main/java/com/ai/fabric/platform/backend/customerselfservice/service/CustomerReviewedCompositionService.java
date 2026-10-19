@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
+import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
@@ -37,11 +39,14 @@ public class CustomerReviewedCompositionService {
     private final DeploymentSourceArtifactRepository artifacts;
     private final DeploymentTargetProfileRepository profiles;
     private final CustomerWorkspaceProfileValidator workspaceProfiles;
+    private final ManagedDependencyArtifactPolicy dependencyOwnership;
+    private final ExternalIntegrationPolicy externalIntegrations;
 
     public CustomerReviewedCompositionService(CustomerOfferCodec codec, Validator validator,
         MarketplacePluginRepository plugins, MarketplacePluginVersionRepository versions,
         MarketplaceManifestService manifests, DeploymentSourceArtifactRepository artifacts,
-        DeploymentTargetProfileRepository profiles, CustomerWorkspaceProfileValidator workspaceProfiles, ObjectMapper mapper) {
+        DeploymentTargetProfileRepository profiles, CustomerWorkspaceProfileValidator workspaceProfiles, ObjectMapper mapper,
+        ManagedDependencyArtifactPolicy dependencyOwnership, ExternalIntegrationPolicy externalIntegrations) {
         this.codec = codec;
         this.mapper = mapper;
         this.validator = validator;
@@ -51,6 +56,8 @@ public class CustomerReviewedCompositionService {
         this.artifacts = artifacts;
         this.profiles = profiles;
         this.workspaceProfiles = workspaceProfiles;
+        this.dependencyOwnership = dependencyOwnership;
+        this.externalIntegrations = externalIntegrations;
     }
 
     public void validate(Definition definition) {
@@ -68,6 +75,8 @@ public class CustomerReviewedCompositionService {
         unique(definition.settings(), SettingRule::setting);
         unique(definition.bindingSlots(), BindingSlot::id);
         workspaceProfiles.validate(definition);
+        try { externalIntegrations.validateDefinition(definition); }
+        catch (RuntimeException error) { throw conflict(APPROVED_POLICY_REQUIRED); }
         requireTopologyWithinLimits(definition.topology(), definition.limits());
         if (!definition.targets().stream().map(TargetPermission::intent).collect(java.util.stream.Collectors.toSet())
             .containsAll(Set.of(TargetIntent.CUSTOMER_STAGING, TargetIntent.CUSTOMER_PRODUCTION))) throw invalid();
@@ -106,6 +115,13 @@ public class CustomerReviewedCompositionService {
                 throw conflict(ARTIFACT_REQUIRED);
             }
             if (!pin.fingerprint().equals(artifactFingerprint(artifact))) throw conflict(REVIEWED_COMPOSITION_CHANGED);
+            if ("MANAGED_DEPENDENCY".equals(artifact.getArtifactRole())) {
+                try {
+                    dependencyOwnership.requireCustomerArtifact(artifact);
+                } catch (RuntimeException error) {
+                    throw conflict(APPROVED_POLICY_REQUIRED);
+                }
+            }
         }
         for (TargetPermission target : definition.targets()) {
             DeploymentTargetProfileEntity profile = profiles.findById(target.targetProfileId())
@@ -116,11 +132,34 @@ public class CustomerReviewedCompositionService {
             if (rule.maxLength() > 255 || (rule.type() == ValueType.CHOICE && rule.allowedValues().isEmpty())
                 || (rule.type() == ValueType.TEXT && !rule.allowedValues().isEmpty())
                 || (isProfileSetting(rule.setting()) && rule.type() != ValueType.CHOICE)) throw invalid();
+            if (rule.setting() == Setting.AI_STATE_STORAGE_MODE && rule.allowedValues().stream().anyMatch(value -> {
+                try { com.ai.fabric.platform.backend.deployment.model.AiStateStorageMode.valueOf(value); return false; }
+                catch (IllegalArgumentException error) { return true; }
+            })) throw invalid();
         }
+        var storageRule = definition.settings().stream()
+            .filter(rule -> rule.setting() == Setting.AI_STATE_STORAGE_MODE).findFirst();
+        if (storageRule.isPresent()) {
+            if (!storageRule.get().allowedValues().equals(definition.aiStateStorageTopologies().keySet().stream()
+                .map(Enum::name).collect(java.util.stream.Collectors.toSet()))) throw invalid();
+            for (ReviewedTopology storageTopology : definition.aiStateStorageTopologies().values()) {
+                if (!validator.validate(storageTopology).isEmpty()) throw invalid();
+                requireTopologyWithinLimits(storageTopology, definition.limits());
+                if (!withinTopology(storageTopology, definition.topology())) throw invalid();
+            }
+            if (storageRule.get().allowedValues().contains("CUSTOMER_POSTGRES")
+                && definition.bindingSlots().stream().filter(slot -> slot.kind() == BindingKind.CUSTOMER_AI_STATE
+                    && slot.pluginId() == null && slot.installConfigField() == null
+                    && slot.supportedProfileIds().equals(Set.of("CUSTOMER_POSTGRES"))).count() != 1) throw invalid();
+        } else if (!definition.aiStateStorageTopologies().isEmpty()) throw invalid();
         for (BindingSlot slot : definition.bindingSlots()) {
             if (slot.supportedProfileIds().isEmpty() || slot.supportedProfileIds().stream().anyMatch(String::isBlank)) throw invalid();
             boolean pluginMapped = slot.pluginId() != null && !slot.pluginId().isBlank();
             boolean fieldMapped = slot.installConfigField() != null && !slot.installConfigField().isBlank();
+            if (slot.kind() == BindingKind.EXTERNAL_SERVICE) {
+                if (!pluginMapped || fieldMapped) throw invalid();
+                continue;
+            }
             if (pluginMapped != fieldMapped) throw invalid();
             if (pluginMapped) {
                 var manifest = pinnedManifests.get(slot.pluginId());
@@ -149,6 +188,8 @@ public class CustomerReviewedCompositionService {
     public void requireVersion(Definition definition, DeploymentVersionEntity version) {
         if (definition == null || version == null) throw deny(REVIEWED_COMPOSITION_CHANGED);
         var provenance = codec.tree(version.getCompositionProvenanceJson());
+        try { externalIntegrations.requireCompilerEvidence(definition, provenance); }
+        catch (RuntimeException error) { throw deny(REVIEWED_COMPOSITION_CHANGED); }
         var expected = new HashSet<>(definition.plugins());
         expected.add(definition.template());
         var actual = new HashSet<PluginPin>();
@@ -204,9 +245,17 @@ public class CustomerReviewedCompositionService {
     private boolean isProfileSetting(Setting setting) {
         return switch (setting) {
             case LOGO_ASSET_ID, THEME_PROFILE_ID, INITIAL_VIEW, INTERACTION_PROFILE_ID, AUTH_PROFILE_ID,
-                DOCUMENT_AUDIENCE -> true;
+                DOCUMENT_AUDIENCE, AI_STATE_STORAGE_MODE -> true;
             default -> false;
         };
+    }
+
+    private boolean withinTopology(ReviewedTopology value, ReviewedTopology maximum) {
+        return value.replicas() <= maximum.replicas() && value.cpuMillis() <= maximum.cpuMillis()
+            && value.memoryMiB() <= maximum.memoryMiB() && value.diskMiB() <= maximum.diskMiB()
+            && value.databases() <= maximum.databases() && value.indexes() <= maximum.indexes()
+            && value.dependencies() <= maximum.dependencies()
+            && value.concurrentApplies() <= maximum.concurrentApplies();
     }
 
     private void requireTopologyWithinLimits(ReviewedTopology topology, ReviewedLimits limits) {

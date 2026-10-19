@@ -1,6 +1,34 @@
 # 010.36 Productization Verification
 
-## Native Token Checkpoint
+## Current 010.44 Ownership Boundary
+
+The bundled simulator/engagement-receiver/business-PostgreSQL composition is
+superseded for new customer publication. Do not use the historical checkpoints
+below as instructions to recreate it. V196 adds new immutable external-system
+templates; it does not rewrite applied migrations, old offers or held capacity.
+See [the external integration contract](EXTERNAL_DEALERSHIP_INTEGRATION.md).
+
+The current offer publisher deliberately fails before any request pending full
+real V196 customer binding/compiler and target-local SQL rotation verification.
+The scoped DATA/ACTION API and typed offer slots now exist; their presence is
+not that integrated proof. `buildOfferProposal()` returns an explicitly
+non-publishable local candidate with exact reviewed `EXTERNAL_SERVICE` profiles,
+the `CUSTOMER_AI_STATE` slot and both actual SQL-mode demands. Reviewed external
+hosts are mandatory inputs; no endpoint/account/credential defaults are inferred.
+Optional managed Basic Inbox is a separate, explicit AI-only variant;
+the ordinary external variant publishes no managed dependency spec. No new
+customer apply or hosted readiness is claimed by these source changes.
+External Inbox target callback/operator binding is still a separate blocker;
+DATA/ACTION support does not silently authorize that INTEGRATION plugin.
+Parent reports the actual Spring/PostgreSQL V199 bootstrap gate green (21 tests
+with the related HTTP tests, zero skips). Initial setup can visibly defer an
+ACTION whose declared source projection depends on an unavailable explicitly
+required DATA install; ordinary compilation remains strict. The post-association
+initializer enables alias-only DATA/ACTION installs and resyncs. This creates no
+external account binding and is not proof of the full customer workflow. See the
+integration contract for the exact unresolved-requirements path and API protocol.
+
+## Historical Native Token Checkpoint
 
 Local corrected candidate: offer v12/template1.9/spec1.9, retaining the exact
 inspected native-token runtime. Its20 framework jars match released0.8.36 Central
@@ -158,6 +186,7 @@ ENGAGE_CANARY_PASSWORD=<private-password>
 ENGAGE_CANARY_CUSTOMER_ID=<existing-customer-id>
 ENGAGE_CANARY_OFFER_ID=<reviewed-offer-id>
 ENGAGE_CANARY_TARGET_PROFILE_ID=<customer-staging-target-id>
+ENGAGE_CANARY_AI_STATE_STORAGE_MODE=<MANAGED_POSTGRES-or-CUSTOMER_POSTGRES>
 ENGAGE_CANARY_OPERATION_PREFIX=<stable-canary-operation-prefix>
 ENGAGE_CANARY_RUN_ID=<stable-run-id>
 ENGAGE_CANARY_DEPLOYMENT_NAME=<stable-deployment-name>
@@ -280,9 +309,9 @@ That regression uses a separate synthetic PostgreSQL16 fixture. It does not
 substitute for the actual private PostgreSQL18 archive results. Without explicit
 opt-in, it is visibly skipped, never silently counted as executed.
 
-## Guarded runtime and financial allowances
+## Historical Runtime And Financial Checkpoint
 
-The current offer publisher prepares a new immutable v10 staging measurement
+The former offer publisher prepared a new immutable v10 staging measurement
 candidate, using template/spec 1.7 and the same inspected guarded runtime image.
 It does not rewrite old offers or provision a runtime. The candidate declares
 an explicit integer `openaiMaxTokens=2048`, now accepted by the generic
@@ -357,77 +386,24 @@ images and an internal network, without provider calls or live database access.
 This proves only that subsystem, not hosted whole-topology recovery or safe
 reactivation after restoring an older financial snapshot.
 
-## Reviewed simulated-dealership dependency package
+## AI-Only Package And Offer Helpers
 
-`publish-simulated-dealership-package.mjs` registers the exact reviewed GHCR
-digests as `MANAGED_DEPENDENCY` source artifacts, promotes them through the
-production review channel, and publishes one immutable dependency topology for
-`mkv-template-simulated-dealership-experience-v1-7`. It retains the exact 1.6
-dependency graph and requires a separately approved retained external-vector
-binding before apply. This does not approve production fit or promotion. A production-reviewed
-artifact is valid in customer staging and production; a staging-only artifact
-is never accepted for production.
+`publish-simulated-dealership-package.mjs` keeps its historical filename, but
+accepts only an explicit `MANAGED_INBOX=true|false` selection. False produces no
+managed spec and makes no platform requests. True publishes only the new
+Inbox-only spec, requiring an already registered, staff-promoted exact image,
+commit and dedicated ownership-manifest hash. It never registers or promotes
+artifacts implicitly and never publishes the former three-service graph.
+`inboxArtifactRegistration()` produces the separate reviewed registration body.
 
-The topology owns one simulator, one engagement receiver with PostgreSQL, and
-one Basic Inbox with persistent deployment-local storage per customer target.
-It emits the 14 exact
-server-owned connector bindings used by the template. The target authority
-callback-signing secret remains distinct from the Inbox-owned webhook-signing
-secret. The script does not accept or emit dependency credentials.
+`publish-simulated-dealership-offer.mjs` is checkpointed and makes no requests.
+The local proposal helper preserves runtime digest/commit, native TOKEN,
+provider-budget guards, catalog capabilities, full action set and exact target
+fingerprints. It requires explicit dealer identity/media hosts, managed-Inbox
+selection and AI-state storage mode. It does not manufacture binding authority,
+document consent, physical policy approval or production readiness.
 
-Run only against a Platform backend that includes the managed-artifact role and
-readback contract:
-
-```bash
-PLATFORM_BASE_URL=https://api.loomai.pro \
-PLATFORM_ADMIN_API_KEY='<private>' \
-MANAGED_DEPENDENCY_REVIEW_REFERENCE='<review-ticket-or-commit>' \
-node verification-support/productization-01036/publish-simulated-dealership-package.mjs
-```
-
-The command is convergent: it reuses only exact digest/commit/role artifacts,
-promotes them to `production`, and refuses to replace a different active
-topology. Sanitized evidence is written under the ignored `evidence/` folder.
-
-## Reviewed customer offer
-
-`publish-simulated-dealership-offer.mjs` publishes the immutable v7 customer
-offer only after reading both target profiles and confirming the complete
-reviewed runtime envelope: runtime, connector, vectorization runner, runtime
-PostgreSQL capacity and distinct CPU assignments. Missing or drifted target
-settings fail before offer publication.
-
-Target pins share one canonical identity with placement and admission, including
-the provider, environment, credential reference and complete configuration.
-The v7 offer is a new immutable publication; it does not rewrite earlier offer,
-placement or canary records and does not accept earlier fingerprint recipes.
-Target configuration numbers in this shared identity must be exact JavaScript-
-safe integers. Decimal resource quantities remain explicit strings (for example,
-CPU `"0.5"`); fractional/unsafe JSON numbers fail instead of being rounded or
-producing different hashes. This restriction is local to target identity, not
-other evidence or workspace-profile hashing.
-
-The runtime is pinned to the CI-published AI Fabric `0.8.35` image, and the
-managed dependency specification pins the matching Basic Inbox image. The
-offer carries reviewed public workspace profile payloads as well as their
-canonical setting hashes. An entitled new customer can therefore configure
-its first Engage app without copying a previous customer's installation.
-Private credentials remain write-only bindings and are never profile payloads.
-
-The offer stores two separate capacity contracts. `topology` is the exact
-minimum full-deployment demand that every admission manifest must cover;
-`limits` is the reviewed maximum ceiling. Both include the platform-managed
-services, two databases, two vector indexes and persistent storage. Customer
-commands cannot supply or reduce either contract.
-
-```bash
-PLATFORM_BASE_URL=https://api.loomai.pro \
-PLATFORM_ADMIN_API_KEY='<private>' \
-ENGAGE_SUPABASE_PROJECT_URL='<reviewed-project-url>' \
-ENGAGE_SUPABASE_PUBLISHABLE_KEY='<public-anon-key>' \
-CUSTOMER_OFFER_REVIEW_REFERENCE='<review-ticket-or-commit>' \
-node verification-support/productization-01036/publish-simulated-dealership-offer.mjs
-```
-
-The script probes current staging and production placement, pins the exact
-runtime artifact and Marketplace versions, and writes only sanitized evidence.
+`aiStateStorageTopologies` declares exact per-mode demand. The offer `topology`
+is the maximum reviewed envelope; admission must select actual demand from the
+immutable version's `aiStateStorageMode`. Customer PostgreSQL is not charged as
+a hosted database. The customer-business database always remains external.

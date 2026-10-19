@@ -99,7 +99,7 @@ class TargetRetirementInventoryTest {
         verify(releases, never()).delete(any());
     }
     @ParameterizedTest
-    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING"})
+    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING"})
     void externalBindingsAreFrozenButNeverObservedDeletedOrCountedAsOwned(String resourceKind) {
         var binding = externalBinding(resourceKind);
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", "staging"))

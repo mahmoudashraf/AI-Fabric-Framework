@@ -36,6 +36,8 @@ public class DeploymentManagedVectorProvisioningService {
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
     private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
     private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
+    @Autowired
+    private ManagedResourceOwnershipService ownership;
 
     @Autowired
     public DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
@@ -169,14 +171,31 @@ public class DeploymentManagedVectorProvisioningService {
 
     public ManagedVectorProvisioningResult ensureProvisioned(DeploymentEntity deployment,
                                                              DeploymentVersionEntity version) {
+        if (requiresProvisioning(version)) throw new RailwayProvisioningConfigurationException("MANAGED_VECTOR_TARGET_REQUIRED");
+        return ensureProvisioned(deployment, version, null);
+    }
+
+    public ManagedVectorProvisioningResult ensureProvisioned(DeploymentEntity deployment,
+                                                             DeploymentVersionEntity version, String targetProfileId) {
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
-        return ensureProvisioned(deployment.getId(), providerConfig, entityConfig);
+        if (!ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig)) {
+            return new ManagedVectorProvisioningResult(providerConfig, objectMapper.createObjectNode().put("enabled",false).put("mode","NONE"));
+        }
+        if (ownership==null) throw new RailwayProvisioningConfigurationException("MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        return ensureProvisioned(ownership.scope(deployment,targetProfileId),providerConfig,entityConfig);
     }
 
     ManagedVectorProvisioningResult ensureProvisioned(String deploymentId,
                                                       JsonNode providerConfig,
                                                       JsonNode entityConfig) {
+        throw new RailwayProvisioningConfigurationException("MANAGED_VECTOR_TARGET_REQUIRED");
+    }
+
+    ManagedVectorProvisioningResult ensureProvisioned(ManagedResourceOwnershipService.Scope scope,
+                                                      JsonNode providerConfig, JsonNode entityConfig) {
+        if (ownership==null) throw new RailwayProvisioningConfigurationException("MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        String deploymentId=scope.deploymentId();
         ObjectNode effectiveProviderConfig = providerConfig != null && providerConfig.isObject()
             ? ((ObjectNode) providerConfig).deepCopy()
             : objectMapper.createObjectNode();
@@ -185,7 +204,7 @@ public class DeploymentManagedVectorProvisioningService {
         if (ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE);
-            ensureManagedPineconeIndex(deploymentId, effectiveProviderConfig, entityConfig, details);
+            ensureManagedPineconeIndex(scope, effectiveProviderConfig, entityConfig, details);
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -193,11 +212,10 @@ public class DeploymentManagedVectorProvisioningService {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT);
             if (reuseManagedQdrantSharedRoot(effectiveProviderConfig)) {
-                ensureManagedQdrantCollections(deploymentId, effectiveProviderConfig, entityConfig, details);
-                details.put("mode", "MANAGED_SHARED_COLLECTIONS");
+                ensureManagedQdrantCollections(scope, effectiveProviderConfig, entityConfig, details);
                 details.put("sharedRootReused", true);
             } else {
-                ensureManagedQdrantCloudCluster(deploymentId, effectiveProviderConfig, entityConfig, details);
+                ensureManagedQdrantCloudCluster(scope, effectiveProviderConfig, entityConfig, details);
             }
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
@@ -205,7 +223,7 @@ public class DeploymentManagedVectorProvisioningService {
         if (ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS);
-            ensureManagedZillizCloudCluster(deploymentId, effectiveProviderConfig, details);
+            ensureManagedZillizCloudCluster(scope, effectiveProviderConfig, details);
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -213,7 +231,7 @@ public class DeploymentManagedVectorProvisioningService {
             && ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT);
-            ensureManagedQdrantCollections(deploymentId, effectiveProviderConfig, entityConfig, details);
+            ensureManagedQdrantCollections(scope, effectiveProviderConfig, entityConfig, details);
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -224,10 +242,11 @@ public class DeploymentManagedVectorProvisioningService {
         return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
     }
 
-    private void ensureManagedPineconeIndex(String deploymentId,
+    private void ensureManagedPineconeIndex(ManagedResourceOwnershipService.Scope scope,
                                             ObjectNode effectiveProviderConfig,
                                             JsonNode entityConfig,
                                             ObjectNode details) {
+        String deploymentId=scope.deploymentId();
         String apiKey = requireResolvedProviderSecret(deploymentId, "PINECONE_API_KEY");
         String indexName = requiredText(effectiveProviderConfig, "pineconeIndexName", "pinecone managed index");
         int dimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
@@ -239,26 +258,27 @@ public class DeploymentManagedVectorProvisioningService {
         PineconeControlPlaneClient.PineconeIndexSummary existing = pineconeControlPlaneClient.findIndexByName(indexName, apiKey);
         boolean created = false;
         if (existing == null) {
-            pineconeControlPlaneClient.createServerlessIndex(
-                indexName,
-                dimensions,
-                metric,
-                cloud,
-                region,
-                deletionProtectionEnabled,
-                apiKey
-            );
+            ownership.create(scope,"pinecone","INDEX","pinecone-control-plane",indexName,()->{
+                pineconeControlPlaneClient.createServerlessIndex(indexName,dimensions,metric,cloud,region,deletionProtectionEnabled,apiKey);
+                return pineconeControlPlaneClient.awaitIndexReady(indexName,apiKey);
+            },value->{
+                validatePineconeIndex(value,indexName,dimensions,metric);
+                return new ManagedResourceOwnershipService.Identity(indexName,value.host());
+            });
             created = true;
         } else {
+            ownership.requireOwnedAt(scope,"pinecone","INDEX","pinecone-control-plane",indexName,indexName,existing.host());
             validatePineconeIndex(existing, indexName, dimensions, metric);
         }
 
         PineconeControlPlaneClient.PineconeIndexSummary readyIndex = pineconeControlPlaneClient.awaitIndexReady(indexName, apiKey);
         validatePineconeIndex(readyIndex, indexName, dimensions, metric);
+        var ownershipReceipt=ownership.requireOwned(scope,"pinecone","INDEX",indexName,readyIndex.host());
+        details.put("ownershipReceiptId",ownershipReceipt.id());
         if (!StringUtils.hasText(readyIndex.host())) {
             throw new RailwayProvisioningException("Pinecone index '" + indexName + "' did not expose an API host.");
         }
-        String runtimeSecretName = managedPineconeRuntimeSecretName(deploymentId);
+        String runtimeSecretName = managedPineconeRuntimeSecretName(scope);
         platformSecretService.upsertManagedSecret(
             runtimeSecretName,
             apiKey,
@@ -293,10 +313,11 @@ public class DeploymentManagedVectorProvisioningService {
         details.put("runtimeApiKeySecretName", runtimeSecretName);
     }
 
-    private void ensureManagedQdrantCollections(String deploymentId,
+    private void ensureManagedQdrantCollections(ManagedResourceOwnershipService.Scope scope,
                                                 ObjectNode effectiveProviderConfig,
                                                 JsonNode entityConfig,
                                                 ObjectNode details) {
+        String deploymentId=scope.deploymentId();
         String baseUrl = buildQdrantBaseUrl(effectiveProviderConfig);
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
         String apiKey = resolveOptionalProviderSecret(
@@ -304,7 +325,7 @@ public class DeploymentManagedVectorProvisioningService {
             "QDRANT_API_KEY",
             ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(effectiveProviderConfig)
         );
-        ArrayNode collections = reconcileQdrantCollections(baseUrl, resolveEntityTypes(entityConfig), vectorDimensions, apiKey);
+        ArrayNode collections = reconcileQdrantCollections(scope,baseUrl, resolveEntityTypes(entityConfig), vectorDimensions, apiKey);
 
         details.put("mode", "MANAGED_COLLECTIONS");
         details.put("baseUrl", baseUrl);
@@ -317,10 +338,11 @@ public class DeploymentManagedVectorProvisioningService {
             && StringUtils.hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig));
     }
 
-    private void ensureManagedQdrantCloudCluster(String deploymentId,
+    private void ensureManagedQdrantCloudCluster(ManagedResourceOwnershipService.Scope scope,
                                                  ObjectNode effectiveProviderConfig,
                                                  JsonNode entityConfig,
                                                  ObjectNode details) {
+        String deploymentId=scope.deploymentId();
         List<String> entityTypes = resolveEntityTypes(entityConfig);
         if (entityTypes.isEmpty()) {
             throw new RailwayProvisioningException(
@@ -351,17 +373,17 @@ public class DeploymentManagedVectorProvisioningService {
         boolean clusterCreated = false;
         QdrantCloudControlPlaneClient.QdrantCloudClusterSummary cluster;
         if (existingCluster == null) {
-            cluster = qdrantCloudControlPlaneClient.createCluster(
-                account.accountId(),
-                deploymentId,
-                clusterName,
-                providerId,
-                region.id(),
-                pkg.id(),
-                managementApiKey
-            );
+            cluster = ownership.create(scope,"qdrant","CLUSTER",account.accountId(),clusterName,()->{
+                var result=qdrantCloudControlPlaneClient.createCluster(account.accountId(),deploymentId,clusterName,providerId,region.id(),pkg.id(),managementApiKey);
+                var ready=qdrantCloudControlPlaneClient.awaitClusterReady(account.accountId(),result.id(),managementApiKey);
+                if (!result.id().equals(ready.id()) || !account.accountId().equals(ready.accountId()) || !clusterName.equals(ready.name()))
+                    throw new RailwayProvisioningException("MANAGED_RESOURCE_CREATE_IDENTITY_CHANGED");
+                validateExistingQdrantCluster(ready,providerId,region.id());
+                return ready;
+            },value->new ManagedResourceOwnershipService.Identity(value.id(),normalizeQdrantCloudBaseUrl(value.endpointUrl())));
             clusterCreated = true;
         } else {
+            ownership.requireOwnedAt(scope,"qdrant","CLUSTER",account.accountId(),clusterName,existingCluster.id(),normalizeQdrantCloudBaseUrl(existingCluster.endpointUrl()));
             validateExistingQdrantCluster(existingCluster, providerId, region.id());
             cluster = existingCluster;
         }
@@ -371,9 +393,13 @@ public class DeploymentManagedVectorProvisioningService {
             cluster.id(),
             managementApiKey
         );
+        if (!cluster.id().equals(readyCluster.id()) || !account.accountId().equals(readyCluster.accountId()) || !clusterName.equals(readyCluster.name()))
+            throw new RailwayProvisioningException("MANAGED_RESOURCE_CREATE_IDENTITY_CHANGED");
+        validateExistingQdrantCluster(readyCluster,providerId,region.id());
         String baseUrl = normalizeQdrantCloudBaseUrl(readyCluster.endpointUrl());
-        String runtimeSecretName = managedQdrantRuntimeSecretName(deploymentId);
-        String databaseApiKeyName = managedQdrantDatabaseApiKeyName(deploymentId);
+        details.put("ownershipReceiptId",ownership.requireOwned(scope,"qdrant","CLUSTER",readyCluster.id(),baseUrl).id());
+        String runtimeSecretName = managedQdrantRuntimeSecretName(scope);
+        String databaseApiKeyName = managedQdrantDatabaseApiKeyName(scope);
         QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary existingDatabaseApiKey =
             qdrantCloudControlPlaneClient.findDatabaseApiKeyByName(
                 account.accountId(),
@@ -386,13 +412,13 @@ public class DeploymentManagedVectorProvisioningService {
         boolean databaseApiKeyRotated = false;
         if (existingDatabaseApiKey == null) {
             QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary createdDatabaseApiKey =
-                qdrantCloudControlPlaneClient.createCollectionDatabaseApiKey(
-                    account.accountId(),
-                    readyCluster.id(),
-                    databaseApiKeyName,
-                    entityTypes,
-                    managementApiKey
-                );
+                ownership.create(scope,"qdrant","DATABASE_API_KEY",baseUrl,databaseApiKeyName,
+                    ()->qdrantCloudControlPlaneClient.createCollectionDatabaseApiKey(account.accountId(),readyCluster.id(),databaseApiKeyName,entityTypes,managementApiKey),
+                    value->{
+                        if (!readyCluster.id().equals(value.clusterId()) || !databaseApiKeyName.equals(value.name()))
+                            throw new RailwayProvisioningException("MANAGED_RESOURCE_CREATE_IDENTITY_CHANGED");
+                        return new ManagedResourceOwnershipService.Identity(value.id(),baseUrl);
+                    });
             runtimeApiKey = createdDatabaseApiKey.key();
             if (!StringUtils.hasText(runtimeApiKey)) {
                 throw new RailwayProvisioningException(
@@ -411,59 +437,22 @@ public class DeploymentManagedVectorProvisioningService {
             );
             existingDatabaseApiKey = createdDatabaseApiKey;
             databaseApiKeyCreated = true;
-        } else if (!StringUtils.hasText(runtimeApiKey)) {
+        } else {
+            ownership.requireOwnedAt(scope,"qdrant","DATABASE_API_KEY",baseUrl,databaseApiKeyName,existingDatabaseApiKey.id(),baseUrl);
+            if (!StringUtils.hasText(runtimeApiKey)) {
             throw new RailwayProvisioningConfigurationException(
                 "The platform-managed Qdrant Cloud database key '" + databaseApiKeyName + "' already exists, but the managed platform secret '"
                     + runtimeSecretName + "' is missing. Restore the secret or rotate the key before re-applying."
             );
+            }
         }
+        details.put("databaseApiKeyOwnershipReceiptId",ownership.requireOwned(scope,"qdrant","DATABASE_API_KEY",existingDatabaseApiKey.id(),baseUrl).id());
 
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
         ArrayNode collections;
-        try {
-            collections = databaseApiKeyCreated
-                ? reconcileQdrantCollectionsWithPropagationGrace(baseUrl, entityTypes, vectorDimensions, runtimeApiKey)
-                : reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
-        } catch (RailwayProvisioningException ex) {
-            if (existingDatabaseApiKey != null && ex.getMessage() != null && ex.getMessage().contains("HTTP 403")) {
-                qdrantCloudControlPlaneClient.deleteDatabaseApiKey(
-                    account.accountId(),
-                    readyCluster.id(),
-                    existingDatabaseApiKey.id(),
-                    managementApiKey
-                );
-                QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary recreatedDatabaseApiKey =
-                    qdrantCloudControlPlaneClient.createCollectionDatabaseApiKey(
-                        account.accountId(),
-                        readyCluster.id(),
-                        databaseApiKeyName,
-                        entityTypes,
-                        managementApiKey
-                    );
-                runtimeApiKey = recreatedDatabaseApiKey.key();
-                if (!StringUtils.hasText(runtimeApiKey)) {
-                    throw new RailwayProvisioningException(
-                        "Qdrant Cloud recreated database API key '" + databaseApiKeyName + "' but did not return the secret value."
-                    );
-                }
-                platformSecretService.upsertManagedSecret(
-                    runtimeSecretName,
-                    runtimeApiKey,
-                    Map.of(
-                        "deploymentId", deploymentId,
-                        "vendor", "qdrant",
-                        "resourceType", "DATABASE_API_KEY",
-                        "resourceName", databaseApiKeyName
-                    )
-                );
-                existingDatabaseApiKey = recreatedDatabaseApiKey;
-                databaseApiKeyCreated = true;
-                databaseApiKeyRotated = true;
-                collections = reconcileQdrantCollectionsWithPropagationGrace(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
-            } else {
-                throw ex;
-            }
-        }
+        collections = databaseApiKeyCreated
+            ? reconcileQdrantCollectionsWithPropagationGrace(scope,baseUrl,entityTypes,vectorDimensions,runtimeApiKey)
+            : reconcileQdrantCollections(scope,baseUrl,entityTypes,vectorDimensions,runtimeApiKey);
         String effectivePackageId = StringUtils.hasText(readyCluster.packageId()) ? readyCluster.packageId() : pkg.id();
         boolean packageResolvedFromExistingCluster = !clusterCreated
             && StringUtils.hasText(readyCluster.packageId())
@@ -516,9 +505,10 @@ public class DeploymentManagedVectorProvisioningService {
         details.set("collections", collections);
     }
 
-    private void ensureManagedZillizCloudCluster(String deploymentId,
+    private void ensureManagedZillizCloudCluster(ManagedResourceOwnershipService.Scope scope,
                                                  ObjectNode effectiveProviderConfig,
                                                  ObjectNode details) {
+        String deploymentId=scope.deploymentId();
         String apiKey = requireSecret("ZILLIZ_CLOUD_API_KEY");
         String regionId = requiredText(effectiveProviderConfig, "zillizCloudRegionId", "platform-managed Zilliz Cloud");
         ZillizCloudControlPlaneClient.ZillizProjectResolution project = zillizCloudControlPlaneClient.resolveProject(
@@ -536,21 +526,21 @@ public class DeploymentManagedVectorProvisioningService {
         String clusterState;
         ZillizCloudControlPlaneClient.ZillizClusterSummary cluster;
         if (existingCluster == null) {
-            ZillizCloudControlPlaneClient.ZillizClusterCreateResult created = zillizCloudControlPlaneClient.createCluster(
-                clusterName,
-                project.projectId(),
-                regionId,
-                clusterPlan,
-                cuType,
-                cuSize,
-                apiKey
-            );
-            cluster = zillizCloudControlPlaneClient.awaitClusterReady(created.clusterId(), apiKey);
-            storeManagedZillizRuntimeCredentials(deploymentId, clusterName, created);
+            var created=new java.util.concurrent.atomic.AtomicReference<ZillizCloudControlPlaneClient.ZillizClusterCreateResult>();
+            cluster=ownership.create(scope,"zilliz","CLUSTER",project.projectId(),clusterName,()->{
+                created.set(zillizCloudControlPlaneClient.createCluster(clusterName,project.projectId(),regionId,clusterPlan,cuType,cuSize,apiKey));
+                var ready=zillizCloudControlPlaneClient.awaitClusterReady(created.get().clusterId(),apiKey);
+                if (!created.get().clusterId().equals(ready.clusterId()) || !clusterName.equals(ready.clusterName()))
+                    throw new RailwayProvisioningException("MANAGED_RESOURCE_CREATE_IDENTITY_CHANGED");
+                validateExistingZillizCluster(ready,project.projectId(),regionId,clusterPlan,cuType,cuSize);
+                return ready;
+            },value->new ManagedResourceOwnershipService.Identity(value.clusterId(),resolveManagedMilvusEndpoint(value.connectAddress()).baseUrl()));
+            storeManagedZillizRuntimeCredentials(scope, clusterName, created.get());
             clusterState = "CREATED";
         } else {
+            ownership.requireOwnedAt(scope,"zilliz","CLUSTER",project.projectId(),clusterName,existingCluster.clusterId(),resolveManagedMilvusEndpoint(existingCluster.connectAddress()).baseUrl());
             validateExistingZillizCluster(existingCluster, project.projectId(), regionId, clusterPlan, cuType, cuSize);
-            if (managedZillizRuntimeSecretsPresent(deploymentId)) {
+            if (managedZillizRuntimeSecretsPresent(scope)) {
                 cluster = zillizCloudControlPlaneClient.awaitClusterReady(existingCluster.clusterId(), apiKey);
                 clusterState = "REUSED";
             } else {
@@ -562,8 +552,11 @@ public class DeploymentManagedVectorProvisioningService {
         }
 
         ManagedMilvusEndpoint endpoint = resolveManagedMilvusEndpoint(cluster.connectAddress());
-        String usernameSecretName = managedMilvusUsernameSecretName(deploymentId);
-        String passwordSecretName = managedMilvusPasswordSecretName(deploymentId);
+        if (!clusterName.equals(cluster.clusterName())) throw new RailwayProvisioningException("MANAGED_RESOURCE_CREATE_IDENTITY_CHANGED");
+        validateExistingZillizCluster(cluster,project.projectId(),regionId,clusterPlan,cuType,cuSize);
+        details.put("ownershipReceiptId",ownership.requireOwned(scope,"zilliz","CLUSTER",cluster.clusterId(),endpoint.baseUrl()).id());
+        String usernameSecretName = managedMilvusUsernameSecretName(scope);
+        String passwordSecretName = managedMilvusPasswordSecretName(scope);
 
         effectiveProviderConfig.put("milvusHost", endpoint.host());
         effectiveProviderConfig.put("milvusPort", endpoint.port());
@@ -627,7 +620,7 @@ public class DeploymentManagedVectorProvisioningService {
         return entityTypes;
     }
 
-    private ArrayNode reconcileQdrantCollections(String baseUrl,
+    private ArrayNode reconcileQdrantCollections(ManagedResourceOwnershipService.Scope scope,String baseUrl,
                                                  List<String> entityTypes,
                                                  int vectorDimensions,
                                                  String apiKey) {
@@ -636,27 +629,37 @@ public class DeploymentManagedVectorProvisioningService {
                 "Qdrant managed collection provisioning requires at least one configured entity type."
             );
         }
+        var existing=new java.util.LinkedHashMap<String,Boolean>();
+        for (String entityType:entityTypes) {
+            boolean found=qdrantCollectionExists(baseUrl,entityType,vectorDimensions,apiKey);
+            if (found) ownership.requireOwnedAt(scope,"qdrant","COLLECTION",baseUrl,entityType,entityType,baseUrl);
+            existing.put(entityType,found);
+        }
         ArrayNode collections = objectMapper.createArrayNode();
         for (String entityType : entityTypes) {
-            boolean existed = qdrantCollectionExists(baseUrl, entityType, vectorDimensions, apiKey);
+            boolean existed = existing.get(entityType);
             if (!existed) {
-                createQdrantCollection(baseUrl, entityType, vectorDimensions, apiKey);
+                ownership.create(scope,"qdrant","COLLECTION",baseUrl,entityType,()->{
+                    createQdrantCollection(baseUrl,entityType,vectorDimensions,apiKey);
+                    return entityType;
+                },value->new ManagedResourceOwnershipService.Identity(value,baseUrl));
             }
             collections.add(objectMapper.createObjectNode()
                 .put("name", entityType)
+                .put("ownershipReceiptId",ownership.requireOwned(scope,"qdrant","COLLECTION",entityType,baseUrl).id())
                 .put("state", existed ? "REUSED" : "CREATED"));
         }
         return collections;
     }
 
-    private ArrayNode reconcileQdrantCollectionsWithPropagationGrace(String baseUrl,
+    private ArrayNode reconcileQdrantCollectionsWithPropagationGrace(ManagedResourceOwnershipService.Scope scope,String baseUrl,
                                                                      List<String> entityTypes,
                                                                      int vectorDimensions,
                                                                      String apiKey) {
         RailwayProvisioningException lastFailure = null;
         for (int attempt = 1; attempt <= 15; attempt += 1) {
             try {
-                return reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, apiKey);
+                return reconcileQdrantCollections(scope,baseUrl, entityTypes, vectorDimensions, apiKey);
             } catch (RailwayProvisioningException ex) {
                 if (!isQdrantStartupPropagationFailure(ex) || attempt == 15) {
                     throw ex;
@@ -701,36 +704,40 @@ public class DeploymentManagedVectorProvisioningService {
         return normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
     }
 
-    private String managedQdrantRuntimeSecretName(String deploymentId) {
+    private String managedQdrantRuntimeSecretName(ManagedResourceOwnershipService.Scope scope) {
         return PlatformSecretService.MANAGED_SECRET_PREFIX
             + "QDRANT_DB_API_KEY_DEP_"
-            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+            + secretScope(scope);
     }
 
-    private String managedQdrantDatabaseApiKeyName(String deploymentId) {
-        String suffix = deploymentId.replace("dep-", "").replaceAll("[^A-Za-z0-9]", "-").toLowerCase(Locale.ROOT);
+    private String managedQdrantDatabaseApiKeyName(ManagedResourceOwnershipService.Scope scope) {
+        String suffix = secretScope(scope).toLowerCase(Locale.ROOT);
         return ("ai-fabric-" + suffix).substring(0, Math.min(("ai-fabric-" + suffix).length(), 64));
     }
 
-    private String managedPineconeRuntimeSecretName(String deploymentId) {
+    private String managedPineconeRuntimeSecretName(ManagedResourceOwnershipService.Scope scope) {
         return PlatformSecretService.MANAGED_SECRET_PREFIX
             + "PINECONE_API_KEY_DEP_"
-            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+            + secretScope(scope);
     }
 
-    private String managedMilvusUsernameSecretName(String deploymentId) {
+    private String managedMilvusUsernameSecretName(ManagedResourceOwnershipService.Scope scope) {
         return PlatformSecretService.MANAGED_SECRET_PREFIX
             + "MILVUS_USERNAME_DEP_"
-            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+            + secretScope(scope);
     }
 
-    private String managedMilvusPasswordSecretName(String deploymentId) {
+    private String managedMilvusPasswordSecretName(ManagedResourceOwnershipService.Scope scope) {
         return PlatformSecretService.MANAGED_SECRET_PREFIX
             + "MILVUS_PASSWORD_DEP_"
-            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+            + secretScope(scope);
     }
 
-    private void storeManagedZillizRuntimeCredentials(String deploymentId,
+    private String secretScope(ManagedResourceOwnershipService.Scope scope) {
+        return DeploymentEvidenceFingerprint.hash(objectMapper,objectMapper.valueToTree(scope)).toUpperCase(Locale.ROOT);
+    }
+
+    private void storeManagedZillizRuntimeCredentials(ManagedResourceOwnershipService.Scope scope,
                                                       String clusterName,
                                                       ZillizCloudControlPlaneClient.ZillizClusterCreateResult createResult) {
         if (!StringUtils.hasText(createResult.username()) || !StringUtils.hasText(createResult.password())) {
@@ -739,10 +746,10 @@ public class DeploymentManagedVectorProvisioningService {
             );
         }
         platformSecretService.upsertManagedSecret(
-            managedMilvusUsernameSecretName(deploymentId),
+            managedMilvusUsernameSecretName(scope),
             createResult.username(),
             Map.of(
-                "deploymentId", deploymentId,
+                "deploymentId", scope.deploymentId(),
                 "vendor", "zilliz",
                 "resourceType", "CLUSTER_CREDENTIAL",
                 "resourceName", clusterName,
@@ -750,10 +757,10 @@ public class DeploymentManagedVectorProvisioningService {
             )
         );
         platformSecretService.upsertManagedSecret(
-            managedMilvusPasswordSecretName(deploymentId),
+            managedMilvusPasswordSecretName(scope),
             createResult.password(),
             Map.of(
-                "deploymentId", deploymentId,
+                "deploymentId", scope.deploymentId(),
                 "vendor", "zilliz",
                 "resourceType", "CLUSTER_CREDENTIAL",
                 "resourceName", clusterName,
@@ -762,9 +769,9 @@ public class DeploymentManagedVectorProvisioningService {
         );
     }
 
-    private boolean managedZillizRuntimeSecretsPresent(String deploymentId) {
-        String usernameSecretName = managedMilvusUsernameSecretName(deploymentId);
-        String passwordSecretName = managedMilvusPasswordSecretName(deploymentId);
+    private boolean managedZillizRuntimeSecretsPresent(ManagedResourceOwnershipService.Scope scope) {
+        String usernameSecretName = managedMilvusUsernameSecretName(scope);
+        String passwordSecretName = managedMilvusPasswordSecretName(scope);
         return StringUtils.hasText(platformSecretService.resolveSecret(usernameSecretName))
             && StringUtils.hasText(platformSecretService.resolveSecret(passwordSecretName));
     }
@@ -848,9 +855,8 @@ public class DeploymentManagedVectorProvisioningService {
                                        String indexName,
                                        int dimensions,
                                        String metric) {
-        if (snapshot == null) {
-            return;
-        }
+        if (snapshot == null || !indexName.equals(snapshot.name()))
+            throw new RailwayProvisioningException("MANAGED_RESOURCE_CREATE_IDENTITY_CHANGED");
         if (snapshot.dimension() > 0 && snapshot.dimension() != dimensions) {
             throw new RailwayProvisioningException(
                 "Pinecone index '" + indexName + "' exists with dimension " + snapshot.dimension()
@@ -906,12 +912,16 @@ public class DeploymentManagedVectorProvisioningService {
             .build();
         HttpResponse<String> response = send(request);
         if (response.statusCode() == 409) {
-            return;
+            throw new RailwayProvisioningConfigurationException("MANAGED_RESOURCE_CREATE_RECONCILIATION_REQUIRED");
         }
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new RailwayProvisioningException(
                 "Qdrant create collection failed for '" + collectionName + "' with HTTP " + response.statusCode()
             );
+        }
+        JsonNode acknowledgement=readJson(response.body()).path("result");
+        if (!acknowledgement.isBoolean() || !acknowledgement.booleanValue()) {
+            throw new RailwayProvisioningConfigurationException("MANAGED_RESOURCE_CREATE_RECONCILIATION_REQUIRED");
         }
     }
 
