@@ -37,6 +37,8 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 /** Reads active inventory or a completed, fully evidenced R3 retirement. It performs no provider mutation. */
 @Component
 final class ProductionAdmissionResourceReadbackSource implements AdmissionResourceReadbackSource {
+    @Autowired(required = false)
+    private ExternalIndexRetentionService indexRetention;
     private final AdmissionStore admissions;
     private final DeploymentTargetProfileRepository targets;
     private final DeploymentReleaseRepository releases;
@@ -202,8 +204,9 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         var operation = operations.findById(reservation.retirementOperationId())
             .orElseThrow(() -> failure(PRECONDITION_FAILED, "RETIREMENT_READBACK_REQUIRED"));
         var summary = retirements.summary(operation);
+        boolean retainedData = summary.state() == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA;
         String expectedKey = "admission-expiry:" + reservation.id() + ":" + reservation.generation();
-        if (!expectedKey.equals(summary.operationKey()) || summary.state()
+        if (!expectedKey.equals(summary.operationKey()) || !retainedData && summary.state()
             != com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.COMPLETE
             || !reservation.deploymentId().equals(summary.deploymentId())
             || !reservation.targetProfileId().equals(summary.targetProfileId())
@@ -245,6 +248,8 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
             .stream().collect(Collectors.toMap(DeploymentProviderResourceHandleEntity::getId, value -> value));
         Set<String> expectedHandles = snapshot.resources().stream().map(ResourceGeneration::handleId).collect(Collectors.toSet());
         if (!current.keySet().equals(expectedHandles)) throw failure(PRECONDITION_FAILED, "RETIREMENT_INVENTORY_INCOMPLETE");
+        if (!retainedData && snapshot.resources().stream().anyMatch(resource -> "EXTERNAL_VECTOR_STORAGE_BINDING".equals(resource.resourceKind())))
+            throw failure(PRECONDITION_FAILED, "RETAINED_INDEX_CAPACITY_REQUIRED");
         for (ResourceGeneration resource : snapshot.resources()) {
             var handle = current.get(resource.handleId());
             if (handle == null || handle.getProviderType() != resource.providerType()
@@ -268,6 +273,21 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         String reference = "admission-retirement:" + json.fingerprint(Map.of(
             "operationId", summary.id(), "requestFingerprint", summary.requestFingerprint(),
             "snapshot", snapshot, "progress", progress, "assignmentCount", assignmentCount));
+        if (retainedData) {
+            if (indexRetention == null) throw failure(PRECONDITION_FAILED, "INDEX_RETENTION_ADAPTER_REQUIRED");
+            var receipt = indexRetention.requireReceipt(retirements.context(operation));
+            for (Step step : List.of(Step.DRAIN, Step.AUTHORITY, Step.INDEX, Step.DEPENDENCIES)) {
+                var effect = progress.effects().get(summary.id() + ":" + operation.getFenceEpoch() + ":" + step + ":target");
+                if (effect == null || !effect.complete() || effect.observedAt() == null
+                    || effect.observedAt().isAfter(summary.completedAt())
+                    || step == Step.INDEX && !("external-index-retention:" + receipt.id()).equals(effect.evidenceReference()))
+                    throw failure(PRECONDITION_FAILED, "RETENTION_EFFECT_RECEIPT_REQUIRED");
+            }
+            return new ResourceReadback(reservation.id(), reservation.generation(), reservation.revision(), reservation.workerToken(),
+                reservation.manifestFingerprint(), reservation.bindingFingerprint(), target.placement(), clock.instant(), reference,
+                true, true, false, runtime.ingressBlocked(), true, true, assignmentCount, runtime.conversations(),
+                runtime.confirmations(), runtime.humanWork(), runtime.backgroundWork(), receipt);
+        }
         return readback(context, target, summary.completedAt(), reference, true, true, true,
             runtime.ingressBlocked(), true, true, assignmentCount, runtime.conversations(),
             runtime.confirmations(), runtime.humanWork(), runtime.backgroundWork());
@@ -278,7 +298,10 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         if (progress == null || progress.evidence() == null) {
             throw failure(PRECONDITION_FAILED, "RETIREMENT_EVIDENCE_INCOMPLETE");
         }
-        return completeEvidence(summary, fenceEpoch, progress.evidence().get(kind), requireWork);
+        Evidence evidence = completeEvidence(summary, fenceEpoch, progress.evidence().get(kind), requireWork);
+        if (summary.state() == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA
+            && !evidence.durable()) throw failure(PRECONDITION_FAILED, "RETIREMENT_EVIDENCE_INCOMPLETE");
+        return evidence;
     }
 
     private Evidence completeEvidence(Summary summary, long fenceEpoch, Evidence evidence, boolean requireWork) {

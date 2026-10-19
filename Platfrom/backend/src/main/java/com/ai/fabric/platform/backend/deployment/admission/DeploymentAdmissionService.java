@@ -150,6 +150,7 @@ public class DeploymentAdmissionService {
         Reservation r = owned(deploymentId, id(fence), true); staff();
         FleetPolicy policy = store.reviewed("POLICY", r.policyId(), FleetPolicy.class);
         ResourceReadback evidence = one(resourceSources, "RESOURCE_READBACK_ADAPTER_REQUIRED").read(new ReadbackContext(r, policy, r.workerToken()));
+        if (releaseCapacity && evidence.retainedIndex() != null) return store.settleRetained(fence, evidence, actor(), Instant.now());
         return store.reconcile(fence, evidence, releaseCapacity, actor(), Instant.now());
     }
     public UnusedReservationCancellationReceipt cancelUnusedReservation(String deploymentId, String targetProfileId,
@@ -175,7 +176,7 @@ public class DeploymentAdmissionService {
         staff();
         if (limit < 1 || limit > 256) throw new AdmissionFailure(BAD_REQUEST, "WORK_LIMIT_INVALID");
         Instant now = Instant.now();
-        return store.held().stream().filter(r -> r.intent() == Intent.CUSTOMER_STAGING)
+        return store.held().stream().filter(r -> r.occupiesActiveSlot() && r.intent() == Intent.CUSTOMER_STAGING)
             .filter(r -> {
                 LifecyclePolicy p = store.reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
                 return !now.isBefore(r.expiresAt().minusSeconds(p.noticeLeadSeconds()));

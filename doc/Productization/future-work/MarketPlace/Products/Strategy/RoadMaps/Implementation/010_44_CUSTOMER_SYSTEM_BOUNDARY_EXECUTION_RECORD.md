@@ -948,3 +948,25 @@ an app, or claiming hosted workload readiness.
   preserved. The subsequent environment-only update generated Coolify's documented
   preview mirrors; all pairs require exact values/flags. Reconciliation continues
   without repeating that update or claiming a deployment before its receipt.
+
+### Retained External Index Lifecycle: Source Qualification
+
+- V203 adds a reviewed preservation contract and immutable retained-index receipt.
+  It uses the existing deployment-local read-only index/runtime readback APIs,
+  never clears external collections, and requires exact scope, drain, revocation,
+  topology, worker fence and zero unresolved work. Used bindings never become
+  `RETAINED_UNUSED` and cannot enter the unused-cluster handoff path.
+- Successful retirement is explicitly `RETIRED_WITH_RETAINED_DATA`, not a claim
+  that all resources disappeared. Only proven reclaimed owned compute/volumes
+  release their physical slots. Residual indexes and the reviewed byte envelope
+  stay charged, with original manifest and financial history unchanged. Unknown
+  bytes are not zero; the envelope is an allowance, not provider-measured usage.
+- Independent review caught and corrected an approval-expiry dead end and a
+  concurrent changed-proof replay gap. `reviewAcceptBefore` limits first review
+  acceptance; accepted preservation is durable. Both replay paths now compare
+  the exact winning proof. Preserved/unknown volumes cannot receive false disk
+  reclamation credit, and retained rows cannot confuse later active selection.
+- Qualification passes29 actual PostgreSQL tests and380 scoped regressions,
+  zero failures/errors/skips. The actual full backend module and fresh202-to204
+  archive rehearsal remain separate parent integration gates. No hosted retention
+  approval, capacity release, model funding, framework change or UI extraction.

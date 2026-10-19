@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.deployment.retirement;
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts;
 import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
+import com.ai.fabric.platform.backend.deployment.admission.ExternalIndexRetentionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -17,6 +19,10 @@ public class TargetIndexRetirementParticipant implements TargetRetirementPartici
     private final TargetRetirementRuntimeGateway runtime;
     private final TargetRetirementRuntimeIndexGateway indexes;
     private final DeploymentProviderResourceHandleRepository handles;
+    private ExternalIndexRetentionService retention;
+
+    @Autowired(required = false)
+    public void setRetention(ExternalIndexRetentionService retention) { this.retention = retention; }
 
     public TargetIndexRetirementParticipant(TargetRetirementRuntimeGateway runtime,
                                             TargetRetirementRuntimeIndexGateway indexes,
@@ -30,6 +36,12 @@ public class TargetIndexRetirementParticipant implements TargetRetirementPartici
 
     @Override
     public Evidence inspect(Context context) {
+        if (preservationRequested(context)) {
+            var receipt = retention().receipt(context);
+            return evidence(context, receipt != null, receipt == null
+                ? "reviewed-external-retention:" + context.retention().externalIndexRetention().policyFingerprint()
+                : "external-index-retention:" + receipt.id(), List.of());
+        }
         if (retainedExternalIndexes(context)) {
             return new Evidence(context.requestFingerprint(), context.fenceEpoch(), Instant.now(),
                 "external-vector-index-retention:blocked:" + context.snapshot().targetProfileId(),
@@ -48,6 +60,10 @@ public class TargetIndexRetirementParticipant implements TargetRetirementPartici
     @Override
     public EffectResult apply(Context context, Step step, String effectKey) {
         requireStep(step);
+        if (preservationRequested(context)) {
+            var receipt = retention().record(context, indexes.readback(context));
+            return new EffectResult(true, "external-index-retention:" + receipt.id(), Instant.now());
+        }
         requireReclamationAllowed(context);
         var current = indexes.readback(context);
         if (current.complete()) return result(current);
@@ -57,12 +73,26 @@ public class TargetIndexRetirementParticipant implements TargetRetirementPartici
     @Override
     public EffectResult readback(Context context, Step step, String effectKey) {
         requireStep(step);
+        if (preservationRequested(context)) {
+            var receipt = retention().receipt(context);
+            return new EffectResult(receipt != null, receipt == null
+                ? "external-index-retention:pending" : "external-index-retention:" + receipt.id(), Instant.now());
+        }
         requireReclamationAllowed(context);
         return result(indexes.readback(context));
     }
 
     private void requireReclamationAllowed(Context context) {
         if (retainedExternalIndexes(context)) throw new TargetRetirementFailure(EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED);
+    }
+
+    private boolean preservationRequested(Context context) {
+        return context.retention() != null && context.retention().externalIndexRetention() != null;
+    }
+
+    private ExternalIndexRetentionService retention() {
+        if (retention == null) throw new TargetRetirementFailure("INDEX_RETENTION_ADAPTER_REQUIRED");
+        return retention;
     }
 
     private boolean retainedExternalIndexes(Context context) {

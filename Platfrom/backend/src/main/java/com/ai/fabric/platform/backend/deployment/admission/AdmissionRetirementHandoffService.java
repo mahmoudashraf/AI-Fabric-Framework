@@ -147,7 +147,8 @@ final class AdmissionRetirementHandoffService {
             com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.WAITING,
             com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.BLOCKED,
             com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.RETRYABLE_FAILURE,
-            com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.COMPLETE
+            com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.COMPLETE,
+            com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA
         ).contains(operation.getState())) {
             throw failure("RETIREMENT_HANDOFF_REJECTED");
         }
@@ -178,7 +179,8 @@ final class AdmissionRetirementHandoffService {
             .toList();
         FleetPolicy policy = admissions.reviewed("POLICY", reservation.policyId(), FleetPolicy.class);
         PlanRequest request = new PlanRequest(operationKey, releaseIds, expectations, work.drainDeadline(),
-            new Retention(RetentionDecision.RECLAIM, null, null, policy.restoreEvidenceReference()), work.reason());
+            new Retention(RetentionDecision.RECLAIM, null, null, policy.restoreEvidenceReference(),
+                admissions.indexRetentionAuthorization(reservation.id())), work.reason());
         var planned = retirements.planForAdmissionExpiry(reservation.deploymentId(), reservation.targetProfileId(),
             reservation.id(), reservation.generation(), request);
         return retirements.require(planned.id());

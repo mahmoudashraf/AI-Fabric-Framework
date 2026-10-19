@@ -92,6 +92,34 @@ class AdmissionLifecycleWorkerTest {
         verify(store).reconcile(handedOff.fence(), evidence, true, "system:admission-lifecycle", AdmissionFixture.NOW);
     }
 
+    @Test
+    void retainedR3SettlesResidualCapacityInsteadOfReleasingTheWholeReservation() {
+        Reservation handedOff = reservation(ExpiryState.HANDED_OFF, "retirement-1");
+        FleetPolicy policy = mock(FleetPolicy.class);
+        ResourceReadback evidence = mock(ResourceReadback.class);
+        TargetRetirementContracts.Summary summary = mock(TargetRetirementContracts.Summary.class);
+        when(summary.state()).thenReturn(TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA);
+        when(store.require(handedOff.id())).thenReturn(handedOff);
+        when(store.reviewed("POLICY", handedOff.policyId(), FleetPolicy.class)).thenReturn(policy);
+        when(retirement.reconcile(handedOff)).thenReturn(summary);
+        when(resourceReadback.read(new ReadbackContext(handedOff, policy, handedOff.workerToken()))).thenReturn(evidence);
+        worker.reconcileOne(handedOff);
+        verify(store).settleRetained(handedOff.fence(), evidence, "system:admission-lifecycle", AdmissionFixture.NOW);
+        verify(store, never()).reconcile(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void settledRetainedLiabilityDoesNotRestartExpiryWork() {
+        Reservation retained = mock(Reservation.class);
+        when(retained.id()).thenReturn("retained-reservation");
+        when(retained.consumesCapacity()).thenReturn(true);
+        when(retained.occupiesActiveSlot()).thenReturn(false);
+        when(store.require(retained.id())).thenReturn(retained);
+        worker.reconcileOne(retained);
+        verifyNoInteractions(retirement, resourceReadback, delivery, deliveryReadback);
+    }
+
     private Reservation reservation(ExpiryState state, String retirementId) {
         return new Reservation("reservation-1", "customer", "tenant", "deployment", AdmissionFixture.TARGET,
             Intent.CUSTOMER_STAGING, "operation", "request", "generation-1", 4, AdmissionContracts.State.ACTIVE,

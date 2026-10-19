@@ -541,3 +541,41 @@ Changed commands or credentials fail closed. After a transport-unknown outcome,
 read the exact operation receipt before any deliberate replay; never generate a
 new operation key to escape uncertainty. Hosted installation of V202 must be
 verified separately; source availability alone does not prove deployment.
+
+## 17. Reclaim Compute While Preserving External Indexes
+
+External vector data remains customer/provider-owned. An ordinary target cleanup
+cannot turn a retained external binding into permission to delete its collections.
+Without a separately reviewed preservation contract, that cleanup remains blocked.
+
+The staff-admin review boundary is:
+
+```text
+POST /api/platform/admission/reviews/external-index-retentions
+```
+
+Review the exact reservation/generation, immutable manifest and runtime-binding
+fingerprints, external binding identity, provider/database/collection prefix,
+index count, positive byte envelope, payer and policy references. The
+`reviewAcceptBefore` timestamp limits initial acceptance of that review. Once
+accepted, preservation is durable: delayed cleanup does not acquire permission
+to delete data, nor become permanently blocked by an expired review timestamp.
+Changed review terms are not silently substituted.
+
+Retirement requires fresh deployment-local, read-only runtime/index evidence:
+drained work, revoked ingress authority, matching scope/topology/fences, and no
+unresolved conversations, confirmations, human work or background work. Its
+immutable receipt records retained vectors honestly; nonzero data is not reported
+as a cleared index. No provider mutation API is invoked for preservation.
+
+The explicit terminal outcome is `RETIRED_WITH_RETAINED_DATA`. After verified
+owned-resource absence, admission may release reclaimed compute and volume slots,
+while retaining the index count and reviewed byte envelope as charged residual
+capacity. The envelope is an allowance, not a claim of provider-measured bytes;
+unknown data size never becomes zero. Preserved or uncertain owned volumes do
+not earn disk-reclamation credit. Original manifests and lifetime financial
+counters remain unchanged, and a used binding never becomes `RETAINED_UNUSED`.
+
+This section describes the V203 source contract. Verify hosted migration,
+reviewed customer capacity and the real retirement/readback path before using it;
+source tests alone do not establish hosted production readiness.

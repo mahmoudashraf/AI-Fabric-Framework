@@ -67,7 +67,7 @@ public class TargetRetirementService {
         var operation = requireOwned(deploymentId, targetId, operationId, true);
         store.requireCommand(operation, command);
         store.requireRetryAllowed(operation);
-        if (List.of(State.QUEUED, State.RUNNING, State.WAITING, State.RETAINED, State.COMPLETE).contains(operation.getState()))
+        if (List.of(State.QUEUED, State.RUNNING, State.WAITING, State.RETAINED, State.COMPLETE, State.RETIRED_WITH_RETAINED_DATA).contains(operation.getState()))
             return store.retry(operationId, command, null);
         RecoveryEvidence recovery = null;
         if (operation.getInFlightEffect() != null) {
@@ -138,6 +138,7 @@ public class TargetRetirementService {
         if (consumers.stream().map(ConsumerExpectation::consumerEntityId).distinct().count() != consumers.size()) throw badRequest();
         if (Duration.between(Instant.now(), request.drainDeadline()).abs().compareTo(Duration.ofDays(30)) > 0) throw badRequest();
         var retention = request.retention();
+        if (retention.externalIndexRetention() != null && retention.decision() != RetentionDecision.RECLAIM) throw badRequest();
         required(retention.backupDecisionReference(), 255);
         if (retention.decision() == RetentionDecision.RETAIN_UNTIL) {
             if (retention.expiresAt() == null || retention.expiresAt().isAfter(Instant.now().plus(Duration.ofDays(30)))) throw badRequest();

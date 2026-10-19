@@ -72,7 +72,7 @@ final class AdmissionLifecycleWorker {
 
     void reconcileOne(Reservation input) {
         Reservation reservation = store.require(input.id());
-        if (!reservation.consumesCapacity() || reservation.intent() != Intent.CUSTOMER_STAGING
+        if (!reservation.occupiesActiveSlot() || reservation.intent() != Intent.CUSTOMER_STAGING
             || reservation.expiryState() == ExpiryState.BLOCKED) return;
         if (activity != null && reservation.expiryState() != ExpiryState.CLAIMED && reservation.expiryState() != ExpiryState.HANDED_OFF) {
             reservation = activity.reconcile(reservation);
@@ -90,11 +90,13 @@ final class AdmissionLifecycleWorker {
         }
         if (reservation.expiryState() == ExpiryState.HANDED_OFF) {
             var retirementState = retirement.reconcile(reservation);
-            if (retirementState.state()
-                == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.COMPLETE) {
+            if (retirementState.state() == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.COMPLETE
+                || retirementState.state() == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA) {
                 FleetPolicy policy = store.reviewed("POLICY", reservation.policyId(), FleetPolicy.class);
                 ResourceReadback evidence = resourceReadback.read(new ReadbackContext(reservation, policy, reservation.workerToken()));
-                store.reconcile(reservation.fence(), evidence, true, ACTOR, now);
+                if (retirementState.state() == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA)
+                    store.settleRetained(reservation.fence(), evidence, ACTOR, now);
+                else store.reconcile(reservation.fence(), evidence, true, ACTOR, now);
             }
         }
     }

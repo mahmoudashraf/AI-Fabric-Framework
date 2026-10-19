@@ -21,10 +21,11 @@ public class CustomerAdmissionDatabaseCapacityVerifier {
 
     public void requireCovered(String deploymentId, String targetProfileId,
                                long cpuMillicores, long memoryBytes) {
-        List<AdmissionContracts.Reservation> reservations = store.held(deploymentId, targetProfileId);
+        List<AdmissionContracts.Reservation> reservations = store.held(deploymentId, targetProfileId).stream()
+            .filter(AdmissionContracts.Reservation::occupiesActiveSlot).toList();
         if (reservations.size() != 1) fail();
         AdmissionContracts.Reservation reservation = reservations.getFirst();
-        if (!reservation.consumesCapacity() || reservation.prerequisiteReadback() == null
+        if (!reservation.occupiesActiveSlot() || reservation.prerequisiteReadback() == null
             || amount(reservation, DATABASES) < 1
             || amount(reservation, CPU_MILLICORES) < cpuMillicores
             || amount(reservation, MEMORY_BYTES) < memoryBytes) {

@@ -35,10 +35,14 @@ public class CustomerStagingAssignmentAccessGate {
     public void requireAvailable(String customerId, String deploymentId, String targetProfileId) {
         if (customerId == null || deploymentId == null || targetProfileId == null) return;
         Instant now = clock.instant();
-        boolean expired = store.held(deploymentId, targetProfileId).stream()
+        var scoped = store.held(deploymentId, targetProfileId).stream()
             .filter(reservation -> reservation.intent() == Intent.CUSTOMER_STAGING)
             .filter(reservation -> customerId.equals(reservation.customerId()))
-            .anyMatch(reservation -> FENCED.contains(reservation.expiryState())
+            .toList();
+        var occupants = scoped.stream().filter(AdmissionContracts.Reservation::occupiesActiveSlot).toList();
+        boolean expired = occupants.isEmpty()
+            ? scoped.stream().anyMatch(reservation -> reservation.expiryState() == ExpiryState.SETTLED_RETAINED)
+            : occupants.stream().anyMatch(reservation -> FENCED.contains(reservation.expiryState())
                 || reservation.expiresAt() != null && !now.isBefore(reservation.expiresAt()));
         if (expired) {
             throw new ResponseStatusException(CONFLICT, "CUSTOMER_STAGING_ASSIGNMENT_EXPIRED");

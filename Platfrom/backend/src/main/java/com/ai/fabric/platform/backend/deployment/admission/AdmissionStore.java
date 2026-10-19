@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
+import com.ai.fabric.platform.backend.deployment.retirement.ExternalIndexRetentionContracts;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionRules.*;
@@ -77,6 +78,47 @@ class AdmissionStore {
     }
     void approveManifest(Manifest manifest, String actor, Instant now) {
         locked(() -> { manifest(manifest); review("MANIFEST", manifest.id(), manifest, actor, now); return null; });
+    }
+    void approveIndexRetention(ExternalIndexRetentionContracts.Policy policy, String actor, Instant requestedAt, Runnable localGuard) {
+        locked(() -> {
+            Instant now = effectiveTime(requestedAt);
+            Reservation r = require(required(policy.reservationId(), 64));
+            var existing = jdbc.query("SELECT fingerprint FROM deployment_admission_reviews WHERE kind='INDEX_RETENTION' AND record_key=?",
+                (rs, row) -> rs.getString(1), r.id());
+            if (!existing.isEmpty()) {
+                if (!json.fingerprint(policy).equals(existing.getFirst())) throw new AdmissionFailure(CONFLICT, "REVIEWED_RECORD_IMMUTABLE");
+                return null;
+            }
+            if (r.state() != State.ACTIVE || !r.generation().equals(policy.generation())
+                || !r.manifestFingerprint().equals(policy.manifestFingerprint())
+                || !r.bindingFingerprint().equals(policy.bindingFingerprint())
+                || policy.indexes() < Math.max(1L, r.demand().amounts().get(Dimension.INDEXES))
+                || policy.indexBytes() < Math.max(1L, r.demand().amounts().get(Dimension.INDEX_BYTES))
+                || policy.reviewAcceptBefore() == null || !policy.reviewAcceptBefore().isAfter(now))
+                throw new AdmissionFailure(PRECONDITION_FAILED, "INDEX_RETENTION_POLICY_INVALID");
+            localGuard.run();
+            Mutation m = new Mutation(r);
+            var envelope = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+            for (Dimension d : Dimension.values()) envelope.put(d, 0L);
+            envelope.put(Dimension.INDEXES, policy.indexes()); envelope.put(Dimension.INDEX_BYTES, policy.indexBytes());
+            m.retentionEnvelope = new Vector(envelope);
+            var charged = new ArrayList<>(held().stream().filter(other -> !other.id().equals(r.id())).toList());
+            charged.add(m.build(r, now));
+            FleetPolicy fleet = activePolicy(); policy(fleet, now);
+            CustomerGrant grant = customerGrant(r.customerId()); grant(grant, now);
+            if (!grant.payerReference().equals(policy.payerReference())) throw new AdmissionFailure(CONFLICT, "INDEX_RETENTION_PAYER_CHANGED");
+            checkCapacity(fleet, charged, null, null);
+            checkCustomer(grant, charged.stream().filter(other -> r.customerId().equals(other.customerId())).toList());
+            review("INDEX_RETENTION", r.id(), policy, actor, now);
+            m.evidence = required(policy.policyReference(), 255);
+            save(r, m, "INDEX_RETENTION_ENVELOPE_RESERVED", actor, now);
+            return null;
+        });
+    }
+    ExternalIndexRetentionContracts.Authorization indexRetentionAuthorization(String reservationId) {
+        var rows = jdbc.query("SELECT fingerprint FROM deployment_admission_reviews WHERE kind='INDEX_RETENTION' AND record_key=?",
+            (rs, row) -> rs.getString(1), reservationId);
+        return rows.isEmpty() ? null : new ExternalIndexRetentionContracts.Authorization(reservationId, rows.getFirst());
     }
     private void review(String kind, String key, Object value, String actor, Instant now) {
         String fingerprint = json.fingerprint(value);
@@ -186,7 +228,7 @@ class AdmissionStore {
                 return save(allocation, refresh, "ALLOCATION_OPERATION_AUTHORIZED", actor, now);
             }
             var held = held();
-            if (held.stream().anyMatch(r -> r.deploymentId().equals(current.deploymentId()) && r.targetProfileId().equals(current.target().targetProfileId())))
+            if (held.stream().anyMatch(r -> r.occupiesActiveSlot() && r.deploymentId().equals(current.deploymentId()) && r.targetProfileId().equals(current.target().targetProfileId())))
                 throw new AdmissionFailure(CONFLICT, "CURRENT_RESERVATION_REQUIRES_RECONCILIATION");
             checkCapacity(current.policy(), held, current.manifest().demand(), current.target().targetProfileId());
             var customerHeld = new ArrayList<>(held.stream().filter(r -> current.customerId().equals(r.customerId())).toList());
@@ -408,24 +450,24 @@ class AdmissionStore {
         }
     }
     private void checkCapacity(FleetPolicy policy, List<Reservation> held, Vector extra, String targetId) {
-        var fleet = new ArrayList<>(held.stream().map(Reservation::demand).toList());
+        var fleet = new ArrayList<>(held.stream().map(Reservation::chargedDemand).toList());
         fleet.add(policy.fleet().baseline()); fleet.add(policy.fleet().headroom()); if (extra != null) fleet.add(extra);
         within(sum(fleet), policy.fleet().measured(), "FLEET_QUOTA_EXCEEDED");
         for (Reservation r : held) if (!policy.targets().containsKey(r.targetProfileId()))
             throw new AdmissionFailure(CONFLICT, "LIVE_TARGET_POLICY_REQUIRED");
         policy.targets().forEach((id, target) -> {
-            var usage = new ArrayList<>(held.stream().filter(r -> id.equals(r.targetProfileId())).map(Reservation::demand).toList());
+            var usage = new ArrayList<>(held.stream().filter(r -> id.equals(r.targetProfileId())).map(Reservation::chargedDemand).toList());
             usage.add(target.budget().baseline()); usage.add(target.budget().headroom());
             if (extra != null && id.equals(targetId)) usage.add(extra);
             within(sum(usage), target.budget().measured(), "TARGET_QUOTA_EXCEEDED");
         });
     }
     private void checkCustomer(CustomerGrant grant, List<Reservation> held) {
-        within(sum(held.stream().map(Reservation::demand).toList()), grant.fleetLimit(), "CUSTOMER_FLEET_QUOTA_EXCEEDED");
+        within(sum(held.stream().map(Reservation::chargedDemand).toList()), grant.fleetLimit(), "CUSTOMER_FLEET_QUOTA_EXCEEDED");
         for (Reservation r : held) if (!grant.targetLimits().containsKey(r.targetProfileId()))
             throw new AdmissionFailure(CONFLICT, "LIVE_CUSTOMER_TARGET_QUOTA_REQUIRED");
         grant.targetLimits().forEach((id, limit) -> within(sum(held.stream().filter(r -> id.equals(r.targetProfileId()))
-            .map(Reservation::demand).toList()), limit, "CUSTOMER_TARGET_QUOTA_EXCEEDED"));
+            .map(Reservation::chargedDemand).toList()), limit, "CUSTOMER_TARGET_QUOTA_EXCEEDED"));
     }
     List<Reservation> held() {
         return jdbc.query("SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' ORDER BY id",
@@ -447,14 +489,14 @@ class AdmissionStore {
             if (cursor != null) {
                 batch.addAll(jdbc.query("""
                     SELECT payload_json FROM deployment_capacity_reservations
-                     WHERE state<>'RELEASED' AND id>? ORDER BY id LIMIT ?
+                     WHERE state NOT IN ('RELEASED','RETAINED_EXTERNAL') AND id>? ORDER BY id LIMIT ?
                     """, (rs, row) -> json.read(rs.getString(1), Reservation.class), cursor, size));
             }
             if (batch.size() < size) {
                 int remaining = size - batch.size();
                 String sql = cursor == null
-                    ? "SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' ORDER BY id LIMIT ?"
-                    : "SELECT payload_json FROM deployment_capacity_reservations WHERE state<>'RELEASED' AND id<=? ORDER BY id LIMIT ?";
+                    ? "SELECT payload_json FROM deployment_capacity_reservations WHERE state NOT IN ('RELEASED','RETAINED_EXTERNAL') ORDER BY id LIMIT ?"
+                    : "SELECT payload_json FROM deployment_capacity_reservations WHERE state NOT IN ('RELEASED','RETAINED_EXTERNAL') AND id<=? ORDER BY id LIMIT ?";
                 if (cursor == null) {
                     batch.addAll(jdbc.query(sql, (rs, row) -> json.read(rs.getString(1), Reservation.class), remaining));
                 } else {
@@ -963,7 +1005,7 @@ class AdmissionStore {
     private Reservation outcomeLocked(Fence fence, State state, String evidence, PrerequisiteReadback prerequisiteReadback,
                                       String actor, Instant now) {
         Reservation r = fenced(fence);
-        if (r.state() == State.RELEASED || (state != State.OUTCOME_UNKNOWN && state != State.CLEANUP_FAILED
+        if (!r.occupiesActiveSlot() || (state != State.OUTCOME_UNKNOWN && state != State.CLEANUP_FAILED
             && state != State.PROVISIONING)) throw new AdmissionFailure(CONFLICT, "RESERVATION_TRANSITION_FORBIDDEN");
         if (state == State.PROVISIONING && (r.state() != State.RESERVED || r.expiryState() != ExpiryState.CURRENT || !r.expiresAt().isAfter(now)))
             throw new AdmissionFailure(CONFLICT, "PROVISIONING_REQUIRES_CURRENT_RESERVATION");
@@ -977,6 +1019,8 @@ class AdmissionStore {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence); FleetPolicy policy = reviewed("POLICY", r.policyId(), FleetPolicy.class);
             if (r.state() == State.RELEASED) throw new AdmissionFailure(CONFLICT, "RESERVATION_ALREADY_RELEASED");
+            if (!r.occupiesActiveSlot()) throw new AdmissionFailure(CONFLICT, "RESERVATION_ALREADY_SETTLED");
+            if (release && r.retentionEnvelope() != null) throw new AdmissionFailure(CONFLICT, "RETAINED_INDEX_CAPACITY_REQUIRED");
             if (release) releaseReadback(new ReadbackContext(r, policy, r.workerToken()), evidence, now);
             else {
                 if (evidence == null) throw new AdmissionFailure(PRECONDITION_FAILED, "RESOURCE_READBACK_REQUIRED");
@@ -993,11 +1037,60 @@ class AdmissionStore {
             return save(r, m, release ? "CAPACITY_RELEASED" : "INVENTORY_RECONCILED", actor, now);
         });
     }
+    Reservation settleRetained(Fence fence, ResourceReadback evidence, String actor, Instant requestedAt) {
+        return locked(() -> {
+            Instant now = effectiveTime(requestedAt);
+            Reservation r = require(required(fence.reservationId(), 64));
+            if (r.retentionSettlement() != null) {
+                var prior = r.retentionSettlement();
+                if (!r.generation().equals(fence.generation()) || prior.fromRevision() != fence.revision()
+                    || evidence == null || evidence.retainedIndex() == null
+                    || !prior.receiptFingerprint().equals(json.fingerprint(evidence.retainedIndex()))
+                    || !prior.readbackFingerprint().equals(json.fingerprint(evidence)))
+                    throw new AdmissionFailure(CONFLICT, "RETENTION_SETTLEMENT_REPLAY_CHANGED");
+                return r;
+            }
+            r = fenced(fence);
+            FleetPolicy policy = reviewed("POLICY", r.policyId(), FleetPolicy.class);
+            retainedReadback(new ReadbackContext(r, policy, r.workerToken()), evidence, now);
+            var receipt = evidence.retainedIndex();
+            if (r.retentionEnvelope() == null || r.expiryState() != ExpiryState.HANDED_OFF
+                || !Objects.equals(r.retirementOperationId(), receipt.operationId())
+                || !r.id().equals(receipt.reservationId()) || !r.generation().equals(receipt.generation()))
+                throw new AdmissionFailure(PRECONDITION_FAILED, "RETENTION_SETTLEMENT_UNPROVEN");
+            var committed = jdbc.query("SELECT fingerprint FROM deployment_external_index_retention_receipts WHERE id=? AND operation_id=? AND reservation_id=? AND generation=?",
+                (rs, row) -> rs.getString(1), receipt.id(), receipt.operationId(), r.id(), r.generation());
+            var authorization = indexRetentionAuthorization(r.id());
+            Integer finished = jdbc.queryForObject("SELECT COUNT(*) FROM platform_target_retirement_operations WHERE id=? AND state='RETIRED_WITH_RETAINED_DATA' AND request_fingerprint=? AND fence_epoch=?",
+                Integer.class, receipt.operationId(), receipt.requestFingerprint(), receipt.fenceEpoch());
+            if (committed.size() != 1 || !committed.getFirst().equals(json.fingerprint(receipt))
+                || authorization == null || !authorization.policyFingerprint().equals(receipt.policyFingerprint())
+                || finished == null || finished != 1
+                || r.retentionEnvelope().amounts().get(Dimension.INDEXES) != receipt.indexes()
+                || r.retentionEnvelope().amounts().get(Dimension.INDEX_BYTES) != receipt.indexBytes())
+                throw new AdmissionFailure(PRECONDITION_FAILED, "RETENTION_SETTLEMENT_UNPROVEN");
+            var remaining = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+            var released = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+            var reclaimable = java.util.EnumSet.of(Dimension.ENVIRONMENTS, Dimension.REPLICAS, Dimension.CPU_MILLICORES,
+                Dimension.MEMORY_BYTES, Dimension.DISK_BYTES, Dimension.DATABASES, Dimension.DEPENDENCIES,
+                Dimension.CONCURRENT_APPLIES, Dimension.CONCURRENT_BUILDS);
+            for (Dimension d : Dimension.values()) {
+                long before = r.chargedDemand().amounts().get(d);
+                remaining.put(d, reclaimable.contains(d) ? 0L : before);
+                released.put(d, reclaimable.contains(d) ? before : 0L);
+            }
+            Mutation m = new Mutation(r); m.state = State.RETAINED_EXTERNAL; m.expiryState = ExpiryState.SETTLED_RETAINED;
+            m.worker = null; m.nextRetry = null; m.failure = null; m.evidence = evidence.evidenceReference();
+            m.retentionSettlement = new RetainedCapacitySettlement(r.revision(), receipt.id(), json.fingerprint(receipt), json.fingerprint(evidence),
+                receipt.operationId(), new Vector(remaining), new Vector(released), now);
+            return save(r, m, "COMPUTE_RECLAIMED_INDEX_RETAINED", actor, now);
+        });
+    }
     Reservation activity(Fence fence, Activity activity, String evidence, String actor, Instant requestedAt) {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence); LifecyclePolicy policy = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
-            if (activity == null || r.intent() != Intent.CUSTOMER_STAGING || !r.consumesCapacity() || r.expiryState() == ExpiryState.CLAIMED
+            if (activity == null || r.intent() != Intent.CUSTOMER_STAGING || !r.occupiesActiveSlot() || r.expiryState() == ExpiryState.CLAIMED
                 || r.expiryState() == ExpiryState.HANDED_OFF || !r.expiresAt().isAfter(now))
                 throw new AdmissionFailure(CONFLICT, "ACTIVITY_REQUIRES_CURRENT_STAGING");
             Mutation m = new Mutation(r); m.lastActivity = now;
@@ -1027,7 +1120,7 @@ class AdmissionStore {
                 WHERE reservation_id=? AND event_type='PROMOTION_RETIREMENT_SCHEDULED' AND evidence_reference=?
                 """, Integer.class, r.id(), evidence);
             if (replay != null && replay > 0) return r;
-            if (r.intent() != Intent.CUSTOMER_STAGING || !r.consumesCapacity()
+            if (r.intent() != Intent.CUSTOMER_STAGING || !r.occupiesActiveSlot()
                 || !List.of(ExpiryState.CURRENT, ExpiryState.NOTICE_PENDING,
                     ExpiryState.NOTICE_FAILED, ExpiryState.NOTIFIED).contains(r.expiryState())) {
                 throw new AdmissionFailure(CONFLICT, "PROMOTION_RETIREMENT_SCHEDULE_STATE_INVALID");
@@ -1062,7 +1155,7 @@ class AdmissionStore {
             Reservation r = fenced(fence); CustomerGrant grant = customerGrant(r.customerId()); grant(grant, now);
             if (!json.fingerprint(grant).equals(json.fingerprint(checkedGrant))) throw new AdmissionFailure(CONFLICT, "CUSTOMER_GRANT_CHANGED");
             LifecyclePolicy p = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
-            if (r.intent() != Intent.CUSTOMER_STAGING || !r.consumesCapacity() || r.expiryState() == ExpiryState.CLAIMED
+            if (r.intent() != Intent.CUSTOMER_STAGING || !r.occupiesActiveSlot() || r.expiryState() == ExpiryState.CLAIMED
                 || r.expiryState() == ExpiryState.HANDED_OFF || r.extensions() >= p.maxExtensions() || !r.expiresAt().isAfter(now))
                 throw new AdmissionFailure(CONFLICT, "STAGING_EXTENSION_FORBIDDEN");
             if (keep && grant.keepStagingEntitlementReference() == null) throw new AdmissionFailure(FORBIDDEN, "KEEP_STAGING_ENTITLEMENT_REQUIRED");
@@ -1087,7 +1180,7 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence); LifecyclePolicy p = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
-            if (!r.consumesCapacity() || r.intent() != Intent.CUSTOMER_STAGING || r.expiryState() == ExpiryState.CLAIMED
+            if (!r.occupiesActiveSlot() || r.intent() != Intent.CUSTOMER_STAGING || r.expiryState() == ExpiryState.CLAIMED
                 || r.expiryState() == ExpiryState.HANDED_OFF || r.expiryState() == ExpiryState.BLOCKED)
                 throw new AdmissionFailure(CONFLICT, "NOTICE_STATE_FORBIDDEN");
             if (r.expiryState() == ExpiryState.NOTIFIED) return List.of();
@@ -1121,7 +1214,7 @@ class AdmissionStore {
                 || !this.work(r, work.channel(), p).deliveryKey().equals(work.deliveryKey())
                 || !p.noticeTransportReference().equals(work.transportReference()) || !r.expiresAt().equals(work.expiresAt())
                 || !List.of(ExpiryState.NOTICE_PENDING, ExpiryState.NOTICE_FAILED, ExpiryState.NOTIFIED, ExpiryState.BLOCKED).contains(r.expiryState())
-                || !r.consumesCapacity())
+                || !r.occupiesActiveSlot())
                 throw new AdmissionFailure(CONFLICT, "STALE_NOTICE_CYCLE");
             if (receipt == null || !work.deliveryKey().equals(receipt.deliveryKey())) throw new AdmissionFailure(PRECONDITION_FAILED, "NOTICE_DELIVERY_UNPROVEN");
             fresh(receipt.deliveredAt(), now, p.readbackMaxAgeSeconds()); required(receipt.evidenceReference(), 255);
@@ -1164,7 +1257,7 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             Reservation r = require(required(reservationId, 64));
-            if (!Objects.equals(r.noticeCycle(), required(noticeCycle, 64)) || !r.consumesCapacity()
+            if (!Objects.equals(r.noticeCycle(), required(noticeCycle, 64)) || !r.occupiesActiveSlot()
                 || r.intent() != Intent.CUSTOMER_STAGING
                 || r.expiryState() == ExpiryState.CLAIMED || r.expiryState() == ExpiryState.HANDED_OFF) {
                 throw new AdmissionFailure(CONFLICT, "NOTICE_RESOLUTION_STALE");
@@ -1186,7 +1279,7 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence); LifecyclePolicy p = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
-            if (r.intent() != Intent.CUSTOMER_STAGING || !r.consumesCapacity() || r.expiryState() != ExpiryState.NOTIFIED
+            if (r.intent() != Intent.CUSTOMER_STAGING || !r.occupiesActiveSlot() || r.expiryState() != ExpiryState.NOTIFIED
                 || now.isBefore(r.expiresAt()) || (r.keepUntil() != null && now.isBefore(r.keepUntil())))
                 throw new AdmissionFailure(CONFLICT, "EXPIRY_NOT_ELIGIBLE");
             if (!delivered(r, NoticeChannel.CONSOLE) || !delivered(r, NoticeChannel.OWNER_EMAIL))
@@ -1222,7 +1315,7 @@ class AdmissionStore {
         int changed = jdbc.update("""
             UPDATE deployment_capacity_reservations SET revision=?,state=?,current_slot=?,expires_at=?,next_retry_at=?,
               expiry_state=?,payload_json=?,updated_at=? WHERE id=? AND revision=? AND generation=?
-            """, next.revision(), next.state().name(), next.consumesCapacity() ? slot(next) : null, time(next.expiresAt()),
+            """, next.revision(), next.state().name(), next.occupiesActiveSlot() ? slot(next) : null, time(next.expiresAt()),
             time(next.nextRetryAt()), next.expiryState().name(), json.write(next), time(now), r.id(), r.revision(), r.generation());
         if (changed != 1) throw new AdmissionFailure(CONFLICT, "STALE_RESERVATION_FENCE");
         event(next, type, actor, next.evidenceReference(), now);
@@ -1259,6 +1352,7 @@ class AdmissionStore {
         String worker; Instant drainDeadline; Instant recoveryUntil; String retirement; String evidence; String failure;
         String manifestId; String manifestFingerprint; String bindingFingerprint;
         PrerequisiteReadback prerequisiteReadback;
+        Vector retentionEnvelope; RetainedCapacitySettlement retentionSettlement;
         Mutation(Reservation r) {
             state = r.state(); expiryState = r.expiryState(); lastActivity = r.lastActivityAt(); expires = r.expiresAt();
             extensions = r.extensions(); keepUntil = r.keepUntil(); keepEntitlement = r.keepEntitlementReference();
@@ -1266,6 +1360,7 @@ class AdmissionStore {
             drainDeadline = r.drainDeadline(); recoveryUntil = r.recoveryUntil();
             retirement = r.retirementOperationId(); evidence = r.evidenceReference(); failure = r.failureCode();
             prerequisiteReadback = r.prerequisiteReadback();
+            retentionEnvelope = r.retentionEnvelope(); retentionSettlement = r.retentionSettlement();
             manifestId = r.manifestId(); manifestFingerprint = r.manifestFingerprint(); bindingFingerprint = r.bindingFingerprint();
         }
         Reservation build(Reservation r, Instant now) {
@@ -1277,7 +1372,7 @@ class AdmissionStore {
                 r.policyId(), manifestId, manifestFingerprint, bindingFingerprint, r.createdAt(), now, lastActivity,
                 expires, extensions, keepUntil, keepEntitlement, expiryState, noticeCycle, nextRetry, attempts, worker,
                 drainDeadline, recoveryUntil, retirement, evidence, failure, r.customerContextFingerprint(),
-                r.customerOperation(), prerequisiteReadback);
+                r.customerOperation(), prerequisiteReadback, retentionEnvelope, retentionSettlement);
         }
     }
 }

@@ -29,9 +29,9 @@ public final class AdmissionContracts {
         API_REQUESTS_PER_WINDOW, PROVIDER_TOKENS_PER_WINDOW, PROVIDER_SPEND_MICROS_PER_WINDOW
     }
     public enum Intent { CUSTOMER_STAGING, CUSTOMER_PRODUCTION }
-    public enum State { RESERVED, PROVISIONING, ACTIVE, OUTCOME_UNKNOWN, CLEANUP_FAILED, RELEASED }
+    public enum State { RESERVED, PROVISIONING, ACTIVE, OUTCOME_UNKNOWN, CLEANUP_FAILED, RELEASED, RETAINED_EXTERNAL }
     public enum Activity { CONFIGURATION_WRITE, ACCEPTED_SESSION, ACCEPTED_ACTION, HUMAN_WORK }
-    public enum ExpiryState { CURRENT, NOTICE_PENDING, NOTICE_FAILED, NOTIFIED, CLAIMED, BLOCKED, HANDED_OFF, RELEASED }
+    public enum ExpiryState { CURRENT, NOTICE_PENDING, NOTICE_FAILED, NOTIFIED, CLAIMED, BLOCKED, HANDED_OFF, RELEASED, SETTLED_RETAINED }
     public enum NoticeChannel { CONSOLE, OWNER_EMAIL }
 
     public record Vector(Map<Dimension, Long> amounts) {
@@ -201,10 +201,48 @@ public final class AdmissionContracts {
                               String workerToken, Instant drainDeadline, Instant recoveryUntil,
                               String retirementOperationId, String evidenceReference,
                               String failureCode, String customerContextFingerprint,
-                              Operation customerOperation, PrerequisiteReadback prerequisiteReadback) {
+                              Operation customerOperation, PrerequisiteReadback prerequisiteReadback,
+                              @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                              Vector retentionEnvelope,
+                              @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                              RetainedCapacitySettlement retentionSettlement) {
+        public Reservation(String id, String customerId, String tenantId, String deploymentId,
+                           String targetProfileId, Intent intent, String operationKey, String requestFingerprint,
+                           String generation, long revision, State state, Vector demand, String policyId,
+                           String manifestId, String manifestFingerprint, String bindingFingerprint,
+                           Instant createdAt, Instant updatedAt, Instant lastActivityAt, Instant expiresAt,
+                           int extensions, Instant keepUntil, String keepEntitlementReference,
+                           ExpiryState expiryState, String noticeCycle, Instant nextRetryAt, int attempts,
+                           String workerToken, Instant drainDeadline, Instant recoveryUntil,
+                           String retirementOperationId, String evidenceReference, String failureCode,
+                           String customerContextFingerprint, Operation customerOperation, PrerequisiteReadback prerequisiteReadback) {
+            this(id, customerId, tenantId, deploymentId, targetProfileId, intent, operationKey, requestFingerprint,
+                generation, revision, state, demand, policyId, manifestId, manifestFingerprint, bindingFingerprint,
+                createdAt, updatedAt, lastActivityAt, expiresAt, extensions, keepUntil, keepEntitlementReference,
+                expiryState, noticeCycle, nextRetryAt, attempts, workerToken, drainDeadline, recoveryUntil,
+                retirementOperationId, evidenceReference, failureCode, customerContextFingerprint, customerOperation,
+                prerequisiteReadback, null, null);
+        }
         public Fence fence() { return new Fence(id, revision, generation); }
         public boolean consumesCapacity() { return state != State.RELEASED; }
+        public boolean occupiesActiveSlot() { return consumesCapacity() && state != State.RETAINED_EXTERNAL; }
+        public Vector chargedDemand() {
+            if (state == State.RELEASED) {
+                var empty = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+                for (Dimension d : Dimension.values()) empty.put(d, 0L);
+                return new Vector(empty);
+            }
+            if (retentionSettlement != null) return retentionSettlement.retainedDemand();
+            if (retentionEnvelope == null) return demand;
+            var charged = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+            for (Dimension dimension : Dimension.values()) charged.put(dimension,
+                Math.max(demand.amounts().getOrDefault(dimension, 0L), retentionEnvelope.amounts().getOrDefault(dimension, 0L)));
+            return new Vector(charged);
+        }
     }
+    public record RetainedCapacitySettlement(long fromRevision, String receiptId, String receiptFingerprint,
+                                             String readbackFingerprint, String retirementOperationId, Vector retainedDemand,
+                                             Vector releasedDemand, Instant settledAt) { }
     public record AdmissionContext(String customerId, String tenantId, String deploymentId,
                                    FleetPolicy policy, CustomerGrant grant, Manifest manifest,
                                    String manifestFingerprint, TargetBudget target) { }
@@ -227,5 +265,19 @@ public final class AdmissionContracts {
                                    boolean inventoryComplete, boolean outcomeSettled, boolean resourcesAbsent,
                                    boolean ingressBlocked, boolean retentionVerified,
                                    boolean assignmentsVerified, long assignmentCount, Long sessions,
-                                   Long confirmations, Long humanWork, Long backgroundWork) { }
+                                   Long confirmations, Long humanWork, Long backgroundWork,
+                                   @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                                   com.ai.fabric.platform.backend.deployment.retirement.ExternalIndexRetentionContracts.Receipt retainedIndex) {
+        public ResourceReadback(String reservationId, String generation, long expectedRevision,
+                                String workerToken, String manifestFingerprint, String bindingFingerprint,
+                                Placement placement, Instant observedAt, String evidenceReference,
+                                boolean inventoryComplete, boolean outcomeSettled, boolean resourcesAbsent,
+                                boolean ingressBlocked, boolean retentionVerified, boolean assignmentsVerified,
+                                long assignmentCount, Long sessions, Long confirmations, Long humanWork, Long backgroundWork) {
+            this(reservationId, generation, expectedRevision, workerToken, manifestFingerprint, bindingFingerprint,
+                placement, observedAt, evidenceReference, inventoryComplete, outcomeSettled, resourcesAbsent,
+                ingressBlocked, retentionVerified, assignmentsVerified, assignmentCount, sessions, confirmations,
+                humanWork, backgroundWork, null);
+        }
+    }
 }

@@ -79,7 +79,7 @@ public class CustomerAdmissionReservationService {
         Summary result = summary(reservation);
         return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), result.intent(),
             request.operation(), result.state(), result.revision(), result.expiresAt(), result.expiryState(),
-            result.keepUntil());
+            result.keepUntil(), result.occupiesActiveSlot(), result.chargedDemand());
     }
 
     public Summary status(String offerId, String deploymentId, String reservationId) {
@@ -153,7 +153,7 @@ public class CustomerAdmissionReservationService {
         catch (RuntimeException ex) { throw deny(RESOURCE_SCOPE_MISMATCH); }
         return new Summary(reservation.id(), reservation.deploymentId(), reservation.targetProfileId(), intent,
             reservation.customerOperation(), reservation.state().name(), reservation.revision(), reservation.expiresAt(),
-            reservation.expiryState().name(), reservation.keepUntil());
+            reservation.expiryState().name(), reservation.keepUntil(), reservation.occupiesActiveSlot(), reservation.chargedDemand());
     }
 
     private void validate(Request request) {

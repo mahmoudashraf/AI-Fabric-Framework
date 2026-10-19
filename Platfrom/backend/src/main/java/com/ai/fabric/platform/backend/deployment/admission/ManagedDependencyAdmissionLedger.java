@@ -50,6 +50,7 @@ public class ManagedDependencyAdmissionLedger {
     public Evidence require(Requirement requirement, String expectedReservationId) {
         requireInput(requirement);
         var matches = store.held().stream()
+            .filter(Reservation::occupiesActiveSlot)
             .filter(value -> requirement.customerId().equals(value.customerId()))
             .filter(value -> requirement.tenantId().equals(value.tenantId()))
             .filter(value -> requirement.deploymentId().equals(value.deploymentId()))

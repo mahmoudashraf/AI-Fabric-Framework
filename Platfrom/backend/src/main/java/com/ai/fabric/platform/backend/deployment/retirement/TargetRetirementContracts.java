@@ -9,14 +9,20 @@ import java.util.Map;
 public final class TargetRetirementContracts {
     private TargetRetirementContracts() { }
 
-    public enum State { PLANNED, QUEUED, RUNNING, WAITING, RETAINED, BLOCKED, RETRYABLE_FAILURE, CANCEL_REQUESTED, CANCELLED, COMPLETE }
+    public enum State { PLANNED, QUEUED, RUNNING, WAITING, RETAINED, BLOCKED, RETRYABLE_FAILURE, CANCEL_REQUESTED, CANCELLED, COMPLETE, RETIRED_WITH_RETAINED_DATA }
     public enum Step { DRAIN, AUTHORITY, INDEX, RESOURCES, DEPENDENCIES, VERIFY, CANCEL_DRAIN }
     public enum ParticipantKind { RUNTIME_DRAIN, AUTHORITY, INDEX, DEPENDENCIES }
     public enum RetentionDecision { RECLAIM, RETAIN_UNTIL }
 
     public record ConsumerExpectation(String consumerEntityId, long expectedBindingRevision) { }
     public record Retention(RetentionDecision decision, Instant expiresAt, String entitlementReference,
-                            String backupDecisionReference) { }
+                            String backupDecisionReference,
+                            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                            ExternalIndexRetentionContracts.Authorization externalIndexRetention) {
+        public Retention(RetentionDecision decision, Instant expiresAt, String entitlementReference, String backupDecisionReference) {
+            this(decision, expiresAt, entitlementReference, backupDecisionReference, null);
+        }
+    }
     public record PlanRequest(String operationKey, List<String> releaseIds,
                               List<ConsumerExpectation> consumers, Instant drainDeadline,
                               Retention retention, String reason) { }

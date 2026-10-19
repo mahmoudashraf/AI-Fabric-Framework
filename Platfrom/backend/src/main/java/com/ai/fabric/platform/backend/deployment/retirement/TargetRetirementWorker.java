@@ -231,6 +231,7 @@ public class TargetRetirementWorker {
     private void requireCompleted(Context context, Step... steps) {
         var effects = store.progress(store.require(context.operationId())).effects();
         for (Step step : steps) {
+            if (step == Step.INDEX) store.requireIndexRetentionReceipt(context);
             EffectResult result = effects.get(effectKey(context, step, "target"));
             if (result == null || !result.complete() || result.evidenceReference() == null
                 || result.evidenceReference().isBlank() || result.observedAt() == null

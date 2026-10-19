@@ -24,6 +24,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 /** All transactions here are local/short. Never invoke provider or participant methods inside them. */
 @Service
 public class TargetRetirementStore {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ai.fabric.platform.backend.deployment.admission.ExternalIndexRetentionService indexRetention;
     static final int MAX_ATTEMPTS = 8;
     static final Duration LEASE = Duration.ofMinutes(2);
     private final TargetRetirementOperationRepository operations;
@@ -170,7 +172,7 @@ public class TargetRetirementStore {
     public Summary retry(String id, Command command, RecoveryEvidence recovery) {
         return change(id, operation -> {
             requireCommand(operation, command);
-            if (List.of(State.QUEUED, State.RUNNING, State.WAITING, State.RETAINED, State.COMPLETE).contains(operation.getState()))
+            if (List.of(State.QUEUED, State.RUNNING, State.WAITING, State.RETAINED, State.COMPLETE, State.RETIRED_WITH_RETAINED_DATA).contains(operation.getState()))
                 return summary(operation);
             if (!(operation.getState() == State.BLOCKED || operation.getState() == State.RETRYABLE_FAILURE))
                 throw conflict("RETIREMENT_NOT_RETRYABLE");
@@ -198,7 +200,7 @@ public class TargetRetirementStore {
         return change(id, operation -> {
             requireCommand(operation, command);
             if (operation.getState() == State.CANCELLED) return summary(operation);
-            if (operation.isDestructiveStarted() || operation.getState() == State.COMPLETE)
+            if (operation.isDestructiveStarted() || operation.getState() == State.COMPLETE || operation.getState() == State.RETIRED_WITH_RETAINED_DATA)
                 throw conflict("RETIREMENT_CANCEL_UNSAFE");
             if (operation.getState() == State.PLANNED) {
                 operation.setState(State.CANCELLED);
@@ -298,21 +300,33 @@ public class TargetRetirementStore {
             requireWorker(operation, context);
             requireFence(operation);
             requireObserved(operation, observed);
+            boolean retainedData = !cancelled && request(operation).retention().externalIndexRetention() != null;
+            if (retainedData) {
+                if (indexRetention == null) throw new TargetRetirementFailure("INDEX_RETENTION_ADAPTER_REQUIRED");
+                indexRetention.requireReceipt(context);
+            }
             var gate = gates.lock(operation.getDeploymentId(), operation.getTargetProfileId());
             gate.setState(cancelled ? "AVAILABLE" : "RETIRED");
             gate.setEpoch(gate.getEpoch() + 1);
             gate.setOperationId(cancelled ? null : operation.getId());
             gate.setUpdatedAt(Instant.now());
             gateRepository.save(gate);
-            operation.setState(cancelled ? State.CANCELLED : State.COMPLETE);
+            operation.setState(cancelled ? State.CANCELLED : retainedData ? State.RETIRED_WITH_RETAINED_DATA : State.COMPLETE);
             operation.setCompletedAt(Instant.now());
             operation.setInFlightEffect(null);
             operation.setNextRetryAt(null);
             operation.setErrorCode(null);
             releaseWorker(operation);
-            record(operation, cancelled ? "TARGET_RETIREMENT_CANCELLED" : "TARGET_RETIREMENT_COMPLETED");
+            record(operation, cancelled ? "TARGET_RETIREMENT_CANCELLED" : retainedData
+                ? "TARGET_RETIRED_EXTERNAL_DATA_RETAINED" : "TARGET_RETIREMENT_COMPLETED");
             return null;
         });
+    }
+
+    public void requireIndexRetentionReceipt(Context context) {
+        if (context.retention().externalIndexRetention() == null) return;
+        if (indexRetention == null) throw new TargetRetirementFailure("INDEX_RETENTION_ADAPTER_REQUIRED");
+        indexRetention.requireReceipt(context);
     }
 
     public void failure(Context context, String code, boolean uncertain) {

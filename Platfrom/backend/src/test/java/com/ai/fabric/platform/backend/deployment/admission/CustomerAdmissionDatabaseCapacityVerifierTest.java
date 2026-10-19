@@ -43,7 +43,7 @@ class CustomerAdmissionDatabaseCapacityVerifierTest {
         AdmissionContracts.Reservation reservation = mock(AdmissionContracts.Reservation.class);
         when(reservation.deploymentId()).thenReturn("dep");
         when(reservation.targetProfileId()).thenReturn("target");
-        when(reservation.consumesCapacity()).thenReturn(true);
+        when(reservation.occupiesActiveSlot()).thenReturn(true);
         when(reservation.prerequisiteReadback()).thenReturn(mock(AdmissionContracts.PrerequisiteReadback.class));
         when(reservation.demand()).thenReturn(new AdmissionContracts.Vector(Map.of(
             DATABASES, databases,

@@ -36,5 +36,13 @@ public final class CustomerAdmissionReservationContracts {
                           long revision,
                           Instant expiresAt,
                           String expiryState,
-                          Instant keepUntil) { }
+                          Instant keepUntil,
+                          boolean occupiesActiveSlot,
+                          com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Vector chargedDemand) {
+        public Summary(String id, String deploymentId, String targetProfileId, TargetIntent intent, Operation operation,
+                       String state, long revision, Instant expiresAt, String expiryState, Instant keepUntil) {
+            this(id, deploymentId, targetProfileId, intent, operation, state, revision, expiresAt, expiryState, keepUntil,
+                !"RELEASED".equals(state) && !"RETAINED_EXTERNAL".equals(state), null);
+        }
+    }
 }

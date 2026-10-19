@@ -221,6 +221,13 @@ class ProductionAdmissionResourceReadbackSourceTest {
             .thenReturn(List.of(ownedHandle, retainedHandle));
         when(consumers.findAll()).thenReturn(List.of());
 
+        if ("EXTERNAL_VECTOR_STORAGE_BINDING".equals(retainedKind)) {
+            assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
+                .isInstanceOf(AdmissionFailure.class).hasMessageContaining("RETAINED_INDEX_CAPACITY_REQUIRED");
+            assertThat(retainedHandle.getStatus()).isEqualTo("CONFIGURED");
+            verify(handles, never()).save(retainedHandle);
+            return;
+        }
         var readback = source.read(new ReadbackContext(reservation, policy(), "worker-1"));
         assertThat(readback.resourcesAbsent()).isTrue();
         assertThat(retainedHandle.getStatus()).isEqualTo("CONFIGURED");

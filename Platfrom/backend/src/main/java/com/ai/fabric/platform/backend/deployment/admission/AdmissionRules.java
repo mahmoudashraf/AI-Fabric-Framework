@@ -145,6 +145,14 @@ final class AdmissionRules {
             throw new AdmissionFailure(PRECONDITION_FAILED, "ADMISSION_PREREQUISITE_UNVERIFIED");
     }
     static void releaseReadback(ReadbackContext context, ResourceReadback evidence, Instant now) {
+        reclamationReadback(context, evidence, now, true);
+        if (evidence.retainedIndex() != null) throw new AdmissionFailure(PRECONDITION_FAILED, "RETAINED_INDEX_CAPACITY_REQUIRED");
+    }
+    static void retainedReadback(ReadbackContext context, ResourceReadback evidence, Instant now) {
+        reclamationReadback(context, evidence, now, false);
+        if (evidence.retainedIndex() == null) throw new AdmissionFailure(PRECONDITION_FAILED, "RETENTION_RECEIPT_REQUIRED");
+    }
+    private static void reclamationReadback(ReadbackContext context, ResourceReadback evidence, Instant now, boolean absent) {
         Reservation r = context.reservation();
         if (evidence == null) throw new AdmissionFailure(PRECONDITION_FAILED, "RESOURCE_READBACK_REQUIRED");
         fresh(evidence.observedAt(), now, context.policy().lifecycle().readbackMaxAgeSeconds());
@@ -152,7 +160,7 @@ final class AdmissionRules {
         resourceIdentity(context, evidence);
         if (r.recoveryUntil() != null && now.isBefore(r.recoveryUntil()))
             throw new AdmissionFailure(PRECONDITION_FAILED, "RECOVERY_WINDOW_NOT_ELAPSED");
-        if (!evidence.inventoryComplete() || !evidence.outcomeSettled() || !evidence.resourcesAbsent()
+        if (!evidence.inventoryComplete() || !evidence.outcomeSettled() || evidence.resourcesAbsent() != absent
             || !evidence.ingressBlocked() || !evidence.retentionVerified() || !evidence.assignmentsVerified()
             || evidence.assignmentCount() != 0 || !isZero(evidence.sessions()) || !isZero(evidence.confirmations())
             || !isZero(evidence.humanWork()) || !isZero(evidence.backgroundWork()))
