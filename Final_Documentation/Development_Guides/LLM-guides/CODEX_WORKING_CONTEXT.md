@@ -6112,3 +6112,127 @@ test is being called hosted acceptance. UI extraction remains last.
   2026-10-19T15:00Z; no renewal/reset/reallocation is implied. Keep Hetzner access
   open until full implementation as owner directed. Customer business databases
   are NEVER AI dependencies; optional managed AI-state PostgreSQL is approved.
+
+### 2026-10-19 Owner Clears Publishing Hold; Hosted Work Resumed
+
+- NEWEST OWNER DIRECTION: repository was always public; continue the plan there.
+  This explicitly supersedes the earlier public-origin/private-product hold.
+  Do not ask for another private repo or describe visibility as a blocker.
+  No repository visibility change, secret publication or auth-doc staging.
+- Pushed throughceaacf12e041a8991db76d42e8d3bcc69fe2a0a7 toorigin/Platform-V11.
+  CI39216761742 coreimagePASS, CI39216761828 affecteddependencyPASS. Backenddigest
+  sha256:f59d045994b81cd2e8fb1208defaf50b1f50a2b16e8441fe393781a8b2020d11.
+  UIbuildskipped; simulator/runtimeunchanged. Do notdispatchunrelatedrebuilds.
+- Fresh approved Platform-only backup directory
+  /private/tmp/01044-control-plane-pre-201-rollout-20261019, botharchives0600,
+  actual six-migration restore rehearsal2PASS/0skip. Log
+  /private/tmp/01044-pre201-rollout-archive-rehearsal.log. Earlier archives retained.
+- New private temporary helper /private/tmp/01044-operations.mjs reads current
+  Coolify auth in memory and uses SSHloopbackcurl; never logs token/envvalues.
+  platform(),coolify(),sql(),ssh(),github() available, no automaticmutationretry.
+  Old01036-operations.mjs stillmissing; oldv12scriptstargetinvalidgraph.
+- Parent rollouthelper /private/tmp/01044-backend-rollout.mjs deploy|status|verify
+  staging|production pinsabove source/digest and201, validatesfreshbackups/CI/
+  in-flight0, recordsintentBEFOREeffects. Do notrerundeploywhenreceipt exists.
+  Stagingdeploymentdh5xzilz7o1r5mu2ovehlu63 initiallyin_progress. Firstverifydenied
+  unfinishedstatus; APIhelperdeniedtwo rolloutcontainers. Readstatus, thenverify
+  exactsuccess/onecontainer/labels/RepoDigests/201/health beforeproduction.
+- Carver01a15314-156f-7a51-95d4-61f40546840f owns onlyofferhelper/publisher/tests/
+  externalguide+README; nohostedmutations. Helmholtz01a1531a-e3a9-7c01-8ec6-9f1a77a68f5f
+  owns newexternalfixturepreflight/test only, read-onlyexternalfixtureverification.
+  Bothsol6.1/max. Parentownsallotherdocs/rollout/customerworkflow.
+- Allbudget/reservation/externalresource/firewall/UIlastboundariesstillapply.
+
+### 010.44 Both Control Planes201 Verified; Exact Cancellation Needs Owner
+
+- BothCPs nowverifiedceaacf12e/digestf59d045994b81cd2e8fb1208defaf50b1f50a2b16e8441fe393781a8b2020d11,
+  migration201/publichealthUP, fivecataloguerows, bothownershipledgers0, graphs0.
+  Stagingjobdh5xzilz7o1r5mu2ovehlu63; prodj14dp61hc4mdc98yl786l3p6. Exact
+  terminalapplication/source/RepoDigest checksPASS. Private01444backendreceipts
+  in/private/tmp/01044-backend-{staging,production}-rollout.json. NoUIdeploy.
+- Corrected malformedcancelHTTP400 verifiedstaging, not401. Existingadmincustomer
+  reads200. Actualfreshunusedreservationpreflight passes, quotaallocated0.
+  /private/tmp/01036-cancel-v11-unused.mjs wasadaptedto201/newprivateops and new
+  01044-v11-unused-cancellation-{before,command}-20261019.json outputs. inspect
+  executed; cancel WAS DENIED BEFOREPROCESS byapprovalreview. Do NOT retry or
+  indirectlycancel. Ownerasyncspecificapprovalpending; holdunchanged. Newhelper
+  missingold01036-operations isnotabypass, onlychangedread-onlyinspection.
+- Separateownerasyncasks auditedunusedFree01bindinghandoff vsanotherendpoint.
+  Normalbootstrap createsnewtenant; existingretainedrebind requiresSAME_TENANT
+  plusactualcancellationreceipt. Do notremovetenantchecks or rewriteoldownership.
+  No handoffimplemented/approved yet. Continue allindependentmetadata/sourcework.
+- Post201hostbaselines complete25samples/24x5s each: staging8coresp95918mCPU,
+  RAMavailablemin11052855296B, DockerFSavailablemin101254774784B; production4cores
+  p95366mCPU, RAMmin12722995200B, FS135754674176B. BothPASS, swapnotcapacity.
+  Files/private/tmp/01044-{staging,production}-post201-host-baseline-20261019.json.
+  Sessions85359/41148 complete, notcandidatecapacityoradmissionapproval.
+- ParentcontinuesreviewedInboxartifactregistration/specmetadata andcustomer
+  metadataworkflow; Carverpublisher andHelmholtzfixturepreflightstillactive.
+
+### 010.44 Attended Offer And Customer Configuration Gate Passed
+
+- Both control planes remain verified `ceaacf12e` / digestf59d0459...20d11 /
+  migration201 / public healthUP. Existing public origin is intentional; never
+  ask again for a private repository. Private auth/operation files stay untracked.
+- Support publisher/preflight committed/pushed `81b9e5b6f`,175 tests PASS/0skip.
+  Java codec independently confirms the revised promotion-permission golden
+  `b2d7cffbf29f994403d837421c097d69f5e056430c72bbe185b34f582b527348`.
+  Offer `offer-loomai-engage-external-dealership-attended-v1` is published on
+  staging, fingerprint430d8b213209659fb47b59f12fecce166b960d90ebe2967e4c75fb6f28a1d595.
+  Actual customer acceptance cse-4732d3ab-3d44-412a-b286-a60e8200bd9c/revision2;
+  independent supported customer catalogue readback PASS, liveReadiness false.
+- Configuration-only canary PASS8: dep-70b3d2c1 / ten-ad10424d, consumer
+  01044-ai-only-canary, appawi_pub_5d8a271e6f248a535a010b0531ca6573, version
+  ver-df8d2843/hash321c6f902a2bafc87213150bb80a3f55d0eec797a6a1e2a51cedafb25df60f37.
+  Private evidence /private/tmp/01044-attended-customer-configuration-20261019.json.
+  No runtime/app activation or model call. Actual old hold RESERVED/revision0,
+  cancellations0, newreleases/graphs0, ownershipledgers0, lifetime allocations0.
+- Independent demo405 fix committed/pushed f7b7bd58c. Focused15/full161 PASS,
+  including16PG cases,0skip. CI39221195575 affects only demo backend; tests passed,
+  image publish in progress. Independent external demo UUIDdf2y27bjnisvi347ff23u2j1,
+  PostgreSQL UUIDs10ag41pp0ti4l93e5o0xq0f (existing external business system, NOT
+  an AI dependency). Current trust remains olddep-f023c863; do not silently flip.
+- Carver and Helmholtz both completed and CLOSED. No pending coding agents.
+  Parent private wrapper01044-customer-configuration.mjs invite/configure completed;
+  no retry needed. Final175/test session42845 and metadata91884/73216/13995 complete.
+- Still no approval for rejected exact cancellation or cross-tenant Free-01
+  handoff. Do not retry indirectly or remove tenant checks. No second grant/reset.
+  Finish independent fixture upgrade/review; then authorized bindings/admission,
+  hosted apply/index/actions/HITL/identity/capacity/promotion/P7. UI extraction last.
+
+### Independent Demo Upgrade And External Read Gates Complete
+
+- CI39221195575 PASS. Existing external demo appdf2y27bjnisvi347ff23u2j1 verifies
+  sourcef7b7bd58c9d20a6d7293a5e1207324eee071465e, Coolifyjobk1rn5gk96fskucbp7ahu4yeq,
+  healthUP, actualrunningimagec455a0f983f51b94f9c7e3245d68e1494019c3efd959eccf6e1cb038679168eb.
+  Registryimage807177...cc040 is published but NOT running. In-place dockerimage
+  switch422; installedoldervalidator also rejectsinclude_source_commit_in_build.
+  Read-only reconciliation before supportedgit_commit_sha-only patch; one cached
+  sourcebuild, noforce/newapp. Nativeapp remains pinnedf7; don't assumeautopush.
+- Existing independent business DBs10ag41pp0ti4l93e5o0xq0f upgraded1->4 normally,
+  notassumed3. Backup34651bytes/SHAfd3f814a332611109208c0286a562829eb620f14f3218c2512d8e7dfc325bcda
+  in/private/tmp/01044-independent-demo-pre-upgrade-20261019. Sixvehicles/73leads
+  content preserved; newnullableprovidercolumns excludedfromstablehash only.
+  DB/internal/PII/runtime/Inbox authorityfingerprintunchanged, oldscopepreserved.
+- Privateoperation01044-independent-demo-rollout.mjs is VERIFIED. Do NOT redeploy
+  orrerunmutationbranches. Companionbackupscriptcomplete. Auth405/AllowPOST and
+  anonymous401 passwithnoaction. Provider-read env addedfromexisting simulator
+  secretsinmemoryonly. PostupgradepreflightexistingScopePASS6stock/6media; new
+  dep70b3 remains exactscopebindingFAIL, expected/notrepairedbydroppingchecks.
+  /private/tmp/01044-external-fixture-post-upgrade-20261019.json. Noindexproof.
+- Buildwindow20samples: staging8cores,p95busy4400mCPU,max5120,IOwaitmax4%,steal0,
+  versusidle/currentfleetp95~918. Notcandidateadmissionorcompleteincidentdiagnosis.
+  /private/tmp/01044-independent-demo-build-host-20261019.json. Keepaffected-onlyCI.
+- S3read-onlypreflightPASSboth identities: bucketversioningread/unversioned,
+  threeobjectsperprefix/head/get/length/AES256, oppositeknownprefixHEAD403bothways.
+  /private/tmp/01044-s3-read-preflight-20261019/report.json; localcopies0600inside0700.
+  NoS3sourcewrites/index; existingverify-s3-canary alsohasmutationdenialtests and
+  wasNOT blindlyrerun. NoS3permissionblockerforreads. AWS CLIcredentialsinmemory,
+  nofallbackidentity/keyoutput. Privateoneoffreadscriptcomplete, no rerunneeded.
+- Allagentsclosed. Allparentrequired rollout/build/verification sessionscompleted.
+  FinalCPread-onlyreverification69887/63510 bothPASS sourceceaacf12e/digestf59/
+  migration201/healthUP, cataloguerows5, ownershipledgers/graphs0. No pendingCI.
+  Thischeckpointincludesownedplan/execution/contextdocsandREADMEonly; preserve
+  allunrelatedUI/media. NoUI extraction/build/deployment occurred.
+  Oldreservationcancel/Free01handoff STILL lackspecificapproval. Neverretryrejected
+  cancellationindirectly; don't inventsecondgrant. UI extractionlast, noframeworkrelease.

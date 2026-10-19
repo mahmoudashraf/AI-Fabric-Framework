@@ -1836,3 +1836,41 @@ write-only bindings, never this ledger.
   background task is required to resume. Preserve the held reservation, same-
   tenant Free-01, approved production cluster, source data, cumulative grant,
   stopped workloads and owner-approved open Hetzner access.
+
+### 2026-10-19 Hosted Ownership Correction And Customer Metadata Gate
+
+- Owner confirmed the existing public repository is intentional. The earlier
+  publication hold is superseded; auth material remains ignored/private.
+- Both control planes verify source `ceaacf12e`, immutable backend digest
+  `f59d0459...20d11`, migration201 and public healthUP after fresh verified
+  Platform-only archives/rehearsal. No historical ownership backfill.
+- Corrected AI-only offer metadata is published on staging, with actual staff
+  review, exact artifact/spec/target pins, owner invitation/acceptance and
+  independent customer catalogue readback. Optional managed AI-state SQL and
+  Basic Inbox are distinct from external stock/business systems. No business
+  database, dealership backend or simulator is in its dependency graph.
+- Real customer `dep-70b3d2c1` / `ten-ad10424d` passes all eight configuration-only
+  checks, including read-only S3, immutable version/app/consumer replay and
+  foreign-customer denials. Its app remains draft and releases/graphs remain0.
+  Support175 and independent demo161 tests pass with zero skips. Source pushed
+  as `81b9e5b6f` and separately `f7b7bd58c`; only the affected demo image is rebuilt.
+- The exact old reservation remains RESERVED/revision0 and Free-01 is not moved.
+  Cancellation/handoff questions still need specific owner answers; no rejected
+  operation was retried. Cumulative model allocations remain0 and no second
+  financial grant was created. Runtime stays Framework0.8.36 with no new release.
+- Non-UI hosted runtime apply/index/actions/handover, capacity/load, generation
+  replacement, production self-service/promotion and P7 remain open. Customer UI
+  extraction remains last, uncommitted/undeployed and independently reversible.
+  Exact receipts and remaining gates are in the010.44 execution record.
+
+- Follow-up independent fixture gate: demo API upgraded/verified at `f7b7bd58c`,
+  normal database1-to4 migration, all six vehicles/73 prior receipts and original
+  trust/secret fingerprint preserved. Live401/405/Allow POST and external scoped
+  stock/media preflight pass. The replacement customer is not silently trusted.
+  Source app stays commit-pinned; Coolify does not support its attempted in-place
+  conversion/newer metadata field, so one cached exact-source build was used.
+  No new app/database, business write, webhook, model call or framework release.
+- Both provided S3 identities now pass direct unversioned read/three-document/
+  SSE-S3 and cross-prefix403 checks. No source write/index, mutation-denial probe,
+  second grant or customer-runtime readiness claim. Specific held-reservation/
+  Free-01 decisions and actual runtime acceptance still gate further rollout.

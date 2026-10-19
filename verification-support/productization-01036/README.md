@@ -41,6 +41,30 @@ initializer enables alias-only DATA/ACTION installs and resyncs. This creates no
 external account binding and is not hosted provider-access proof. See the
 integration contract for the exact unresolved-requirements path and API protocol.
 
+## Read-Only External Fixture Preflight
+
+`external-fixture-preflight.mjs --live` accepts private configuration on stdin.
+It checks reviewed HTTPS hosts, scoped stock authentication/pagination/media,
+the exact receiver commit, unauthenticated denial, authenticated405/Allow,
+and explicitly supplied inspected provider/scope configuration. Credentials
+never enter its report. Its only POST is the stock authentication exchange;
+it never executes a business action, sends a notification, reconciles a source,
+provisions a resource or calls a model. Use a private input file, not argv:
+
+```sh
+node verification-support/productization-01036/external-fixture-preflight.mjs --live \
+  < /private/path/reviewed-external-fixtures.json > /private/path/preflight-report.json
+```
+
+Create input/output with private permissions and keep them outside Git. Optional
+`index` input must identify the exact customer/tenant/deployment, source version,
+connection profile and protected binding; current, complete source/work counts
+must converge with the scoped provider inventory. Without it, the report says
+`AI_CANARY_INDEX_NOT_OBSERVED`. A successful405 probe declares a protected POST
+contract, not executed-action authorization. Inspected configuration is not
+remote acceptance proof. This preflight cannot certify indexing, write actions,
+signed notification delivery, real Auto Trader access or overall readiness.
+
 ## Historical Native Token Checkpoint
 
 Local corrected candidate: offer v12/template1.9/spec1.9, retaining the exact

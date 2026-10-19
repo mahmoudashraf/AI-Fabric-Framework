@@ -592,3 +592,225 @@ changes. No service start/stop/delete/build or provider/model call was made.
 - Resume at the hosted source/artifact and corrected-customer canary gates,
   preserving the existing budgets, reservation and external resources. Complete
   non-UI acceptance before advancing separately reversible UI extraction.
+
+### Owner Visibility Clarification And Rollout Started
+
+- Owner clarified that the repository was always public and directed continuation.
+  The earlier publishing hold came from an incorrect interpretation of product-
+  ownership wording, not an owner requirement to change repository visibility.
+  Existing origin remains unchanged; private auth material and backups remain
+  excluded. Commits through `ceaacf12e041a8991db76d42e8d3bcc69fe2a0a7` are pushed.
+- Core-image CI39216761742 and affected-dependency CI39216761828 both pass.
+  Backend index digest is
+  `sha256:f59d045994b81cd2e8fb1208defaf50b1f50a2b16e8441fe393781a8b2020d11`.
+  UI image job is skipped. Dependency CI verified/published the dealership demo
+  and Inbox; it did not rebuild the unchanged simulator or framework runtime.
+- Fresh private pre-rollout Platform-only backups are retained at
+  `/private/tmp/01044-control-plane-pre-201-rollout-20261019/`. Both actual archives
+  pass the frozen six-migration rehearsal, two tests/zero failures/errors/skips.
+  Log: `/private/tmp/01044-pre201-rollout-archive-rehearsal.log`. Read-only live
+  preflight found both planes at195, zero in-flight releases and zero managed
+  graphs; the held customer has no release or provider allocation.
+- Staging Coolify deployment `dh5xzilz7o1r5mu2ovehlu63` is queued against the exact
+  digest. A private durable operation receipt records intent before mutation.
+  Its first read-only verification correctly refuses unfinished deployment;
+  it does not infer success from the old healthy app or choose one of two
+  rollout containers. No deployment mutation was retried.
+- Parent owns control-plane rollout; Carver owns the corrected attended offer
+  publisher; Helmholtz owns read-only independent external-fixture preflight.
+  They have disjoint source scopes. UI extraction still remains last.
+
+### Control-Plane Rollout Verified; Reservation Preserved
+
+- Both control planes now verify source `ceaacf12e`, digest `f59d0459...20d11`,
+  normal migration201, public healthUP, all five V196 catalogue entries, zero
+  fabricated customer/shared ownership rows and zero managed-dependency graphs.
+  Staging deployment is `dh5xzilz7o1r5mu2ovehlu63`; production deployment is
+  `j14dp61hc4mdc98yl786l3p6`. Exact application identity, terminal success,
+  running-container source labels and RepoDigests are checked, not just health.
+  Private receipts: `/private/tmp/01044-backend-{staging,production}-rollout.json`.
+- Staging's malformed cancellation request returns400 with
+  `UNUSED_CANCELLATION_REQUEST_INVALID`, not401. Existing staff/customer API
+  reads succeed after rollout. No valid cancellation is implied by that check.
+- The unused-v11 preflight passes: no releases, release bindings, dependency
+  graphs, provider allocations or accepted apply commands, and unchanged
+  published version/draft/inactive app/credential fingerprints. Anonymous401,
+  customer403 and omitted-fence-revision400 produce no state changes. Quota
+  lifetime allocations remain0 attempts/0tokens/0cost.
+- Actual cancellation execution was rejected by approval review BEFORE process
+  execution because earlier owner directions preserve this exact hold. Do not
+  retry directly or indirectly without the owner's specific answer. No valid
+  cancellation request or reservation/consumer detachment occurred. Parent asked
+  for approval in the main task and continues independent work.
+- Corrected customer bootstrap creates a new tenant. Existing Free-01 is bound
+  to the old unused tenant; current safe-reuse contract requires the same tenant
+  and exact committed cancellation. Parent separately asked about an audited
+  unused-binding handoff or another approved endpoint. Neither a broad key nor
+  same customer is permission to remove this boundary. No handoff implemented.
+- New25-sample/120-second read-only host baselines pass after rollout. Staging:
+  8cores, busyCPU p95~918mCPU, minimum availableRAM11,052,855,296B, available
+  Docker filesystem101,254,774,784B. Production:4cores, p95~366mCPU, minimum
+  availableRAM12,722,995,200B, available filesystem135,754,674,176B. Swap is
+  excluded. These do not include candidate load or approve admission. Private
+  evidence: `/private/tmp/01044-{staging,production}-post201-host-baseline-20261019.json`.
+
+### Attended Metadata Publication Review
+
+This review permits an immutable staging preview offer and configuration-only
+customer setup under the owner's continued implementation instruction. It does
+not authorize overriding the retained reservation, transferring Free-01,
+allocating a second financial grant, provisioning a business system, activating
+an app, or claiming hosted workload readiness.
+
+- `01044-ai-only-external-integration-ownership-20261019`: approve only the V196
+  external-stock/external-business-action composition with an explicitly chosen
+  managed AI-state PostgreSQL and optional managed Basic Inbox. The simulator
+  and dealership application remain independently operated systems. No real
+  Auto Trader production access is claimed.
+- `01044-attended-staging-no-admission-20261019`: the implementing session is
+  the attended operator for metadata preparation/readback. Runtime apply still
+  requires all normal physical, binding, isolation and financial checks. Keep
+  the existing promotion operations declared so this same immutable customer
+  deployment can later complete that journey, but execute none until its exact
+  production target/binding/admission/financial/readiness gates pass. Do not
+  treat a named policy reference as an executed readiness gate.
+- `01044-post201-host-observations-20261019`: refer to the two measured baseline
+  files above. The proposed managed-Inbox/managed-SQL demand is2,000mCPU,
+  3,584MiB memory,6,144MiB disk, one hosted AI database, two derived indexes
+  and one managed AI dependency, not measured candidate consumption. Preserve
+  host headroom and the existing charged reservation. Separate actual admission
+  policy/grant/review remains required; this reference creates none.
+- `01036-reviewed-supabase-public-protected-20261019`: use the existing reviewed
+  Supabase public configuration (`xazkenhomhtpejjjqtsy.supabase.co`, health200),
+  anonymous direct entry and explicit sign-in for protected actions. It does
+  not prove a completed protected-action/cancelled-login browser canary.
+- `01036-read-only-customer-s3-unversioned-20261019`: use only the owner's
+  customer S3 storage and target-specific read-only prefix/credentials. Separate
+  public-content approval and initial-index confirmation remain explicit. Do
+  not index automatically merely because a binding exists.
+- Exact reviewed stock endpoint/host:
+  `https://external-vehicle-provider-simulator.46.224.145.148.sslip.io`, advertiser
+  `990001`; stock/media use the simulator host. Business-action endpoint:
+  `https://loomai-dealership-demo-api.46.224.145.148.sslip.io/api/internal/actions/execute`.
+  Endpoint allowlisting is not proof that an account/scope is bound or authorized.
+- The exact Inbox image `d7487188...3759` / source `2035dc36082fefccbfd3a757d38e493fa8f001fc`
+  has successful CI39108639740 and an unstarted local image review. All five
+  packaged migrations match that exact source and its management controller is
+  present; no service was started during inspection. Private report:
+  `/private/tmp/01044-inbox-image-review-8aTNeQ/report.json`.
+- Staging registered/promoted artifact `dsa-509ba523` with the dedicated reviewed
+  AI-operational ownership manifest, then published immutable Inbox-only spec
+  `mds-dealership-ai-managed-inbox-v1-0`, fingerprint
+  `9628e61095a25bf12d1d8f6412c2b91f0a80eac331f491fa25e8cb06457dd4f8`.
+  Provider resources/graphs/new ownership receipts stay0; the old hold remains
+  `RESERVED` and old canary releases0. No simulator or business database is in
+  the new spec. This does not yet publish an offer or provision the Inbox.
+
+### Attended Offer And Real Customer Configuration Verified
+
+- Publisher/preflight committed and pushed as `81b9e5b6f`. Full support suite:
+  175 tests, zero failures/cancellations/skips, including isolated local Docker
+  restore. The promotion-permission fixture fingerprint was independently
+  regenerated with the compiled production Java `CustomerOfferCodec`:
+  `b2d7cffbf29f994403d837421c097d69f5e056430c72bbe185b34f582b527348`.
+  Log: `/private/tmp/01044-attended-publisher-final-support-tests.log`.
+- Published only staging metadata for
+  `offer-loomai-engage-external-dealership-attended-v1`, immutable fingerprint
+  `430d8b213209659fb47b59f12fecce166b960d90ebe2967e4c75fb6f28a1d595`.
+  Existing owner `usr-7238e886` accepted invitation
+  `cse-4732d3ab-3d44-412a-b286-a60e8200bd9c` under a real CUSTOMER_ADMIN session.
+  Separate supported customer catalogue readback verifies its full projected
+  contract. It still reports `liveReadinessProven=false`; no direct SQL write,
+  synthetic entitlement or invented staff-read endpoint was used.
+- Real configuration-only customer path passes all eight checks: owner session,
+  reviewed profile/placement, bootstrap replay with no release, unactivated
+  consumer replay, app replay/CORS/early-activation denial, read-only customer
+  S3 binding/replay/redaction, immutable-version replay and direct foreign-scope
+  denials. New deployment `dep-70b3d2c1`, tenant `ten-ad10424d`, consumer
+  `01044-ai-only-canary`, installation `awi_pub_5d8a271e6f248a535a010b0531ca6573`,
+  version `ver-df8d2843`, hash
+  `321c6f902a2bafc87213150bb80a3f55d0eec797a6a1e2a51cedafb25df60f37`.
+  Private evidence:
+  `/private/tmp/01044-attended-{offer-verification,customer-configuration}-20261019.json`.
+- Fresh read-only checks confirm the old reservation remains RESERVED/revision0,
+  cancellation count0, new canary releases/graphs0, both ownership ledgers0,
+  and lifetime model allocations0 attempts/0tokens/0cost. No database, simulator,
+  business system, runtime or Inbox was provisioned by these metadata operations.
+  S3 source objects were not changed and the app was not activated.
+- Independent demo unsupported HTTP methods previously returned500. Narrow
+  handler fix preserves Spring405 and the actual Allow header, without allowing
+  GET execution or weakening authentication. Seven red regressions reproduced
+  before the fix; focused15 and full161 tests/10classes, including16 PostgreSQL
+  cases, pass with zero failures/errors/skips. Separate commit `f7b7bd58c` is
+  pushed. Affected-only CI39221195575 passes, publishing the independent demo
+  image; no framework, runtime or UI rebuild. Hosted verification follows below.
+- Runtime apply still depends on the exact unused-reservation decision and safe
+  Free-01 binding/handoff, plus normal scope, capacity, financial and readiness
+  gates. No indirect retry of the rejected cancellation. Production self-service,
+  real generation/index/actions/identity/handover, promotion and P7 are not yet
+  certified. UI extraction stays last and separately reversible.
+
+### Independent External Demo And Storage Read Preflight Verified
+
+- Existing independent demo app `df2y27bjnisvi347ff23u2j1` is now verified healthy
+  on exact source `f7b7bd58c9d20a6d7293a5e1207324eee071465e`, Coolify job
+  `k1rn5gk96fskucbp7ahu4yeq`, running image
+  `sha256:c455a0f983f51b94f9c7e3245d68e1494019c3efd959eccf6e1cb038679168eb`.
+  Public status, exact deployment commit and live401/405/Allow POST checks pass.
+  No business action was executed by verification.
+- Its existing independent PostgreSQL is
+  `s10ag41pp0ti4l93e5o0xq0f`, not a customer AI dependency. A consistent private
+  custom archive/catalogue check preceded upgrade:34,651bytes, SHA256
+  `fd3f814a332611109208c0286a562829eb620f14f3218c2512d8e7dfc325bcda`,
+  under `/private/tmp/01044-independent-demo-pre-upgrade-20261019/`.
+  Read-only discovery found actual migration1, not assumed3; the preflight
+  stopped before effects and was corrected to that exact reviewed baseline.
+  Normal migrations1-to4 then passed. All six website vehicles and73 request
+  records retain their content fingerprints, excluding the two newly added
+  nullable provider-identity columns. No website inventory reseeding or CRM
+  database provisioning occurred.
+- Added only the simulator's reviewed server-side provider-read configuration
+  and accurate source stamp. The prior database/PII/internal keys, customer/
+  tenant/deployment authority and Inbox/runtime configuration fingerprint are
+  unchanged. Existing scope remains `dep-f023c863` / `cus-28e3b6f9` /
+  `ten-80c0ae7c`; new customer authority was not silently added.
+- CI also published registry image
+  `sha256:8071777777591e5eb5c0bafa72ee7620bb8f11eed12c40b07b9d8387152cc040`.
+  It is NOT the running image: Coolify rejected converting this existing
+  source app to `dockerimage`, and its installed validator also rejects the
+  newer `include_source_commit_in_build` update field. Both422s were reconciled
+  read-only with no queued deployment. The installed validator was inspected,
+  then its supported `git_commit_sha`-only update was used. One cached, non-force
+  build deployed the existing app; no replacement app or validation bypass.
+  Native source is now pinned to the above commit. Future source updates must
+  deliberately advance it after verification, not assume branch push overrides it.
+- Post-upgrade external preflight passes for the existing scope: scoped token
+  exchange, six provider stock records, six reviewed media references, source/
+  method/auth checks and inspected provider configuration. The new canary
+  correctly remains blocked only by its different receiver authority. Stock
+  count is not indexed count. No write, webhook, reconcile, model or provisioning
+  request was sent. Private reports:
+  `/private/tmp/01044-independent-demo-rollout-20261019.json` and
+  `/private/tmp/01044-external-fixture-post-upgrade-20261019.json`.
+- A20-second build observation on the8-core staging host measured busy CPU
+  p95=4,400mCPU, maximum5,120mCPU, maximum I/O wait4%, steal0. The deployment
+  completed during the window. Compare with the earlier idle/current-fleet
+  baseline p95~918mCPU: source builds materially compete with serving capacity.
+  This is one build observation, not causal proof of every prior incident or
+  customer admission approval. Keep affected-only CI and prebuilt images for
+  new services; avoid concurrent source builds on a serving host. Private data:
+  `/private/tmp/01044-independent-demo-build-host-20261019.json`.
+- Direct customer-S3 read preflight passes for both supplied identities:
+  GetBucketVersioning succeeds/unversioned, three policy objects per prefix
+  list/head/download with matching lengths and SSE-S3/AES256, and known foreign
+  prefix HEAD returns403 in both directions. Private report:
+  `/private/tmp/01044-s3-read-preflight-20261019/report.json`. Local verification
+  copies are private; S3 source objects/policies remain unchanged. This deliberately
+  used read APIs only, not the existing verifier's mutation-denial probes. It is
+  not connector/indexing acceptance, write-denial proof or a bucket-policy audit.
+  No S3 permission request is currently pending for these reads.
+- The old reserved capacity, Free-01 ownership, production vector service,
+  all30 stopped workloads and cumulative provider allowance remain retained.
+  No new runtime apply or production promotion. Specific cancellation/handoff
+  approval is still needed; continue through normal customer binding/admission
+  and hosted acceptance after that, keeping UI extraction last.

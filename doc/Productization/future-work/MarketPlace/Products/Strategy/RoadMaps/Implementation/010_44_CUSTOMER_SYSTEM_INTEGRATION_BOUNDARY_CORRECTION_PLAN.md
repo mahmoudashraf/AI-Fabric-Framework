@@ -1,9 +1,9 @@
 # 010.44 Customer System Integration Boundary Correction
 
 - Created: 2026-10-18.
-- Status: local backend source implemented and verified on 2026-10-19; full backend3,343 tests pass with zero failures/errors/skips. Not published, deployed or live-verified.
-- Priority: blocks the current 010.36 simulated-dealership customer offer and its hosted apply/promotion.
-- Baseline: local Platform branch `Platform-V11`, commit `cab320545cc3dc1900c313ed1e6b40da1e7d0628`. Publication requires the separately tracked repository-destination decision.
+- Status: correction source is published; staging and production control planes verify `ceaacf12e`, migration201 and healthUP on2026-10-19. The corrected AI-only offer and eight real-customer configuration-only checks pass on staging. Actual backend3,343, support175 and independent demo161 tests pass without failures/errors/skips. Hosted customer runtime apply/index/actions/handover, capacity, production promotion and final acceptance remain open.
+- Priority: the invalid historical bundled-business graph must not be resumed. The corrected AI-only composition is available; exact binding/reservation and hosted acceptance gates still block its customer runtime apply/promotion.
+- Baseline: Platform branch `Platform-V11`, commit `cab320545cc3dc1900c313ed1e6b40da1e7d0628`. Owner confirmed on2026-10-19 that the existing repository is intentionally public and authorized continued publication there; the earlier visibility hold is resolved.
 - Current implementation evidence: [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).
 - Related: [010.36](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md), [execution record](010_36_PRODUCTIZATION_EXECUTION_RECORD.md), [ownership audit](010_44_CUSTOMER_SYSTEM_OWNERSHIP_BOUNDARY_AUDIT.md), [010.26 dealership demo](010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md).
 
