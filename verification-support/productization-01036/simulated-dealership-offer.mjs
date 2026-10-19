@@ -1,6 +1,8 @@
 import {createHash} from "node:crypto";
 
-import {reviewedManagedDependencyCapacity, requireInboxSelection} from "./simulated-dealership-managed-spec.mjs";
+import {buildManagedDependencySpec, requireReviewedInboxArtifact,
+  reviewedManagedDependencyCapacity, requireInboxSelection, SPEC_ID} from "./simulated-dealership-managed-spec.mjs";
+import {comparableJson, validateManagedDependencySpec} from "./publish-simulated-dealership-package.mjs";
 
 export const OFFER_ID = "offer-loomai-engage-external-dealership-candidate-v1";
 export const TEMPLATE_PLUGIN_ID = "mkp-template-dealership-external-systems-v1";
@@ -45,15 +47,21 @@ export const EXTERNAL_BINDING_REQUIREMENTS = Object.freeze([
     configFields: Object.freeze(["receiverActionUrl"]), secretRefFields: Object.freeze(["receiverApiKey"]),
     endpointFields: Object.freeze(["receiverActionUrl"]), accountScopeFields: Object.freeze([])}),
 ]);
-export const PUBLICATION_BLOCKERS = Object.freeze([
-  "REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED",
-  "AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED",
-]);
 export const MANAGED_AI_STATE_MODE = "MANAGED_POSTGRES";
 export const CUSTOMER_AI_STATE_MODE = "CUSTOMER_POSTGRES";
+export const ATTENDED_CANARY_CONTRACT = "loomai-attended-managed-dealership-canary/v1";
+export const HOSTED_READINESS_GATES = Object.freeze([
+  "CUSTOMER_SCOPED_BINDINGS_AND_PROVIDER_AUTH_REQUIRED", "MEASURED_CAPACITY_ADMISSION_REQUIRED",
+  "HOSTED_APPLY_AND_AI_STATE_PERSISTENCE_REQUIRED", "DOCUMENT_AND_STOCK_INDEXING_REQUIRED",
+  "READ_ACTION_CONFIRMATION_IDENTITY_AND_HANDOVER_REQUIRED", "PRODUCTION_PROMOTION_ACCEPTANCE_REQUIRED",
+]);
 
-export function requireCustomerOfferPublicationSupport() {
-  throw new Error(`Customer offer publication is checkpointed: ${PUBLICATION_BLOCKERS.join(", ")}.`);
+export function requireCustomerOfferPublicationSupport({managedInbox, aiStateStorageModes} = {}) {
+  requireInboxSelection(managedInbox);
+  if (!managedInbox) throw new Error("EXTERNAL_INBOX_TARGET_BINDING_REQUIRED");
+  if (!Array.isArray(aiStateStorageModes) || hash(aiStateStorageModes) !== hash([MANAGED_AI_STATE_MODE])) {
+    throw new Error("CUSTOMER_AI_STATE_HOSTED_GENERATION_ACCEPTANCE_REQUIRED: publish only the explicitly selected MANAGED_POSTGRES canary; BYO remains a separate gate.");
+  }
 }
 export const OPENAI_MAX_TOKENS = 2048;
 export const BASE_TEMPLATE_ID = "dev-openai-milvus";
@@ -379,8 +387,16 @@ function requireReviewedArtifact(artifact) {
 }
 
 function buildDefinitionCandidate({template, pluginVersions, artifact, targets, auth, managedInbox, aiStateStorageMode,
+  aiStateStorageModes = [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE],
   externalIntegrationAllowedHosts, behaviorCatalog, executionExtensionCatalog}) {
   requireInboxSelection(managedInbox);
+  reviewedTopologyCapacity({managedInbox, aiStateStorageMode});
+  if (!Array.isArray(aiStateStorageModes) || aiStateStorageModes.length === 0
+    || new Set(aiStateStorageModes).size !== aiStateStorageModes.length
+    || aiStateStorageModes.some(mode => ![MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE].includes(mode))
+    || !aiStateStorageModes.includes(aiStateStorageMode)) {
+    throw new Error("Explicit supported AI state storage modes must contain the selected mode without unknown or duplicate choices.");
+  }
   const expectedTemplate = managedInbox ? MANAGED_INBOX_TEMPLATE_PLUGIN_ID : TEMPLATE_PLUGIN_ID;
   const expectedTemplateVersionId = managedInbox ? "mkv-template-dealership-external-systems-managed-inbox-v1-0"
     : "mkv-template-dealership-external-systems-v1-0";
@@ -423,6 +439,7 @@ function buildDefinitionCandidate({template, pluginVersions, artifact, targets, 
   requireTemplateRuntimeSupport(template, artifact, {behaviorCatalog, executionExtensionCatalog});
   reviewedTopologyCapacity({managedInbox, aiStateStorageMode});
   const targetById = new Map(targets.map((target) => [target.id, target]));
+  if (targets.length !== 2 || targetById.size !== 2) throw new Error("Exactly two distinct reviewed targets are required.");
   const staging = targetById.get(STAGING_TARGET_ID);
   const production = targetById.get(PRODUCTION_TARGET_ID);
   requireReviewedTarget(staging, STAGING_TARGET_ID);
@@ -430,7 +447,7 @@ function buildDefinitionCandidate({template, pluginVersions, artifact, targets, 
   const externalBindings = buildExternalIntegrationBindings({pluginVersions,
     targetProfileIds: [staging.id, production.id], allowedHosts: externalIntegrationAllowedHosts});
   const workspace = workspaceProfile(auth);
-  const aiStateStorageTopologies = Object.fromEntries([MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]
+  const aiStateStorageTopologies = Object.fromEntries(aiStateStorageModes
     .map(mode => [mode, reviewedTopologyForMode({managedInbox, aiStateStorageMode: mode})]));
   const topology = Object.fromEntries(Object.keys(REVIEWED_TOPOLOGY)
     .map(key => [key, Math.max(...Object.values(aiStateStorageTopologies).map(demand => demand[key]))]));
@@ -457,7 +474,7 @@ function buildDefinitionCandidate({template, pluginVersions, artifact, targets, 
     settings: [
       {setting: "DEPLOYMENT_NAME", type: "TEXT", maxLength: 100, allowedValues: []},
       {setting: "AI_STATE_STORAGE_MODE", type: "CHOICE", maxLength: 32,
-        allowedValues: [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]},
+        allowedValues: [...aiStateStorageModes]},
       {setting: "APP_TITLE", type: "TEXT", maxLength: 120, allowedValues: []},
       {setting: "INTERACTION_PROFILE_ID", type: "CHOICE", maxLength: 100,
         allowedValues: [workspace.interactionProfileId]},
@@ -484,7 +501,8 @@ function buildDefinitionCandidate({template, pluginVersions, artifact, targets, 
         installConfigField: "documentStorageBindingRef",
       },
       ...externalBindings.slots,
-      {id: "ai-state-database", kind: "CUSTOMER_AI_STATE", supportedProfileIds: [CUSTOMER_AI_STATE_MODE]},
+      ...(aiStateStorageModes.includes(CUSTOMER_AI_STATE_MODE)
+        ? [{id: "ai-state-database", kind: "CUSTOMER_AI_STATE", supportedProfileIds: [CUSTOMER_AI_STATE_MODE]}] : []),
       ...(managedInbox ? [{
         id: "inbox",
         kind: "INBOX_OPERATOR",
@@ -508,11 +526,15 @@ function buildDefinitionCandidate({template, pluginVersions, artifact, targets, 
 }
 
 export function buildOfferProposal(input) {
+  const definitionCandidate = buildDefinitionCandidate(input);
+  const modes = input.aiStateStorageModes ?? [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE];
   return {
     schemaVersion: "loomai-external-dealership-offer-proposal/v1",
     publishable: false,
-    blockers: [...PUBLICATION_BLOCKERS, ...(!input.managedInbox ? ["EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"] : [])],
-    definitionCandidate: buildDefinitionCandidate(input),
+    blockers: ["ATTENDED_IMMUTABLE_OFFER_REVIEW_REQUIRED",
+      ...(modes.includes(CUSTOMER_AI_STATE_MODE) ? ["CUSTOMER_AI_STATE_HOSTED_GENERATION_ACCEPTANCE_REQUIRED"] : []),
+      ...(!input.managedInbox ? ["EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"] : [])],
+    definitionCandidate,
     externalBindingRequirements: [
       ...structuredClone(EXTERNAL_BINDING_REQUIREMENTS),
       ...(!input.managedInbox ? [{id: "conversation-inbox", pluginId: "mkp-integration-basic-loomai-inbox",
@@ -544,9 +566,8 @@ export function buildOfferProposal(input) {
     aiOperationalPersistence: {
       required: true, selectedMode: input.aiStateStorageMode,
       hostingDecision: "OPTIONAL_LOOMAI_HOSTING_OWNER_APPROVED_EXPLICIT_SELECTION_REQUIRED",
-      modes: [{id: MANAGED_AI_STATE_MODE, topologyDeclared: true},
-        {id: CUSTOMER_AI_STATE_MODE, topologyDeclared: true, applySupportVerified: false,
-          blocker: "AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED"}],
+      modes: modes.map(id => ({id, topologyDeclared: true, localContractVerified: true, hostedAcceptanceVerified: false,
+        ...(id === CUSTOMER_AI_STATE_MODE ? {blocker: "CUSTOMER_AI_STATE_HOSTED_GENERATION_ACCEPTANCE_REQUIRED"} : {})})),
       customerBindingPath: "/api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/ai-state-storage-binding",
       customerBindingFields: ["expectedEntitlementRevision", "operationKey", "targetProfileId", "bindingSlotId", "connection"],
       customerBindingSlotId: "ai-state-database",
@@ -555,14 +576,97 @@ export function buildOfferProposal(input) {
       capacityBasis: "Hosted AI-state database counted only for the explicitly selected managed profile; no business database.",
     },
     managedInbox: input.managedInbox,
+    hostedReadinessGates: [...HOSTED_READINESS_GATES],
     externalSystemsLifecycle: "RETAIN_EXTERNAL_NO_CREATE_SEED_RESET_DELETE",
     liveReadinessProven: false,
   };
 }
 
-export function buildOfferDefinition(input) {
-  buildOfferProposal(input);
-  requireCustomerOfferPublicationSupport();
+export function buildOfferDefinition(input, review) {
+  const proposal = buildOfferProposal(input);
+  requireCustomerOfferPublicationSupport(input);
+  requireAttendedOfferReview(review);
+  const inbox = requireReviewedInboxArtifact(input.inboxArtifact);
+  const current = input.inboxSpec;
+  requireKeys(current, ["publication", "spec"], "REVIEWED_INBOX_SPEC_REQUIRED");
+  const publication = current.publication;
+  if (publication?.templateVersionId !== input.template.id || publication.specId !== SPEC_ID
+    || publication.fingerprint !== review.inboxSpecFingerprint
+    || typeof publication.reviewReference !== "string" || !publication.reviewReference.trim()
+    || !Number.isFinite(Date.parse(publication.reviewedAt))) throw new Error("REVIEWED_INBOX_SPEC_REQUIRED");
+  try { validateManagedDependencySpec(current.spec); }
+  catch { throw new Error("REVIEWED_INBOX_SPEC_CHANGED"); }
+  if (hash(comparableJson(current.spec)) !== hash(comparableJson(buildManagedDependencySpec({inbox}, {managedInbox: true})))) {
+    throw new Error("REVIEWED_INBOX_SPEC_CHANGED");
+  }
+  const definition = structuredClone(proposal.definitionCandidate);
+  definition.name = review.name;
+  for (const field of ["approvedPolicyRef", "operatingPolicyRef", "identityPolicyRef", "storagePolicyRef"]) definition[field] = review[field];
+  definition.limits.measuredPolicyRef = review.measuredPolicyRef;
+  definition.artifacts.push({artifactId: inbox.id, fingerprint: artifactFingerprint(inbox)});
+  // Declared promotion permissions do not bypass target bindings, admission,
+  // financial authorization or readiness. Preserve the same-customer journey.
+  return normalizeOfferDefinition(definition);
+}
+
+export function requireAttendedOfferReview(review) {
+  requireKeys(review, ["contract", "offerId", "name", "reviewReference", "approvedPolicyRef", "measuredPolicyRef",
+    "operatingPolicyRef", "identityPolicyRef", "storagePolicyRef", "inboxSpecFingerprint"], "ATTENDED_OFFER_REVIEW_INVALID");
+  if (review.contract !== ATTENDED_CANARY_CONTRACT) throw new Error("ATTENDED_OFFER_REVIEW_INVALID");
+  requireIdentifier(review.offerId, 64);
+  for (const field of ["name", "reviewReference", "approvedPolicyRef", "measuredPolicyRef", "operatingPolicyRef",
+    "identityPolicyRef", "storagePolicyRef"]) {
+    if (typeof review[field] !== "string" || !review[field].trim() || review[field] !== review[field].trim()
+      || review[field].length > 255 || /[\u0000-\u001f\u007f]/.test(review[field])) throw new Error("ATTENDED_OFFER_REVIEW_INVALID");
+  }
+  requireDigest(review.inboxSpecFingerprint);
+}
+
+export function requireKeys(value, keys, code) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || hash(Object.keys(value).sort()) !== hash([...keys].sort())) throw new Error(code);
+}
+
+export function requireIdentifier(value, maxLength = 128) {
+  if (typeof value !== "string" || value.length > maxLength || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) {
+    throw new Error("REVIEWED_IDENTIFIER_REQUIRED");
+  }
+  return value;
+}
+
+export function requireDigest(value) {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) throw new Error("REVIEWED_SHA256_REQUIRED");
+  return value;
+}
+
+// TreeSet<Operation/Prerequisite> uses declaration order, not alphabetical order.
+const OPERATION_ORDER = ["TEMPLATE_SELECT", "BOOTSTRAP_CONFIGURATION", "BOOTSTRAP", "READ", "DRAFT_EDIT", "VERSION_PUBLISH",
+  "BINDING_REPLACE", "BINDING_REVOKE", "INBOX_OPERATOR_ENROLL", "INBOX_OPERATOR_ROTATE", "INBOX_OPERATOR_DELIVER",
+  "INBOX_OPERATOR_REVOKE", "SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX", "SOURCE_REFRESH", "SOURCE_REMOVE",
+  "APP_CONFIGURE", "DOMAIN_CONFIGURE", "AUTH_CONFIGURE", "APPLY", "VERIFY", "PROMOTION_PLAN", "PROMOTION_APPLY",
+  "ACTIVATE", "ROLLBACK", "STAGING_RETAIN", "STAGING_EXTEND", "TARGET_RETIRE"];
+const PREREQUISITE_ORDER = ["APPROVED_POLICY", "IMMUTABLE_ARTIFACTS", "STORAGE", "IDENTITY", "CAPACITY", "NOTIFICATIONS", "OPERATING_POLICY"];
+
+export function normalizeOfferDefinition(definition) {
+  const result = structuredClone(definition);
+  function ordered(values, declaration) {
+    if (!Array.isArray(values) || new Set(values).size !== values.length
+      || values.some(value => !declaration.includes(value))) throw new Error("OFFER_ENUM_CONTRACT_INVALID");
+    return declaration.filter(value => values.includes(value));
+  }
+  result.operations = ordered(result.operations, OPERATION_ORDER);
+  result.admissionPrerequisites = ordered(result.admissionPrerequisites, PREREQUISITE_ORDER);
+  result.documentAudiences = ordered(result.documentAudiences, ["PUBLIC", "AUTHENTICATED"]);
+  result.settings.forEach(rule => { rule.allowedValues.sort(); });
+  result.bindingSlots.forEach(slot => {
+    slot.supportedProfileIds.sort();
+    slot.pluginId ??= null;
+    slot.installConfigField ??= null;
+  });
+  result.externalIntegrationProfiles.forEach(profile => {
+    for (const field of ["targetProfileIds", "configFields", "secretFields", "endpointFields", "accountScopeFields", "allowedHosts"]) profile[field].sort();
+  });
+  return result;
 }
 
 export function requireTemplateRuntimeSupport(template, artifact,

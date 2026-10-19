@@ -8,24 +8,37 @@ below as instructions to recreate it. V196 adds new immutable external-system
 templates; it does not rewrite applied migrations, old offers or held capacity.
 See [the external integration contract](EXTERNAL_DEALERSHIP_INTEGRATION.md).
 
-The current offer publisher deliberately fails before any request pending full
-real V196 customer binding/compiler and target-local SQL rotation verification.
-The scoped DATA/ACTION API and typed offer slots now exist; their presence is
-not that integrated proof. `buildOfferProposal()` returns an explicitly
-non-publishable local candidate with exact reviewed `EXTERNAL_SERVICE` profiles,
-the `CUSTOMER_AI_STATE` slot and both actual SQL-mode demands. Reviewed external
-hosts are mandatory inputs; no endpoint/account/credential defaults are inferred.
-Optional managed Basic Inbox is a separate, explicit AI-only variant;
-the ordinary external variant publishes no managed dependency spec. No new
-customer apply or hosted readiness is claimed by these source changes.
-External Inbox target callback/operator binding is still a separate blocker;
-DATA/ACTION support does not silently authorize that INTEGRATION plugin.
-Parent reports the actual Spring/PostgreSQL V199 bootstrap gate green (21 tests
-with the related HTTP tests, zero skips). Initial setup can visibly defer an
+The actual Spring customer/bootstrap/binding/compiler tests and full actual
+backend **3,343-test, zero-skip** gate now pass. The obsolete unconditional local
+bootstrap blocker is removed. The publisher supports a bounded attended
+**MANAGED_POSTGRES + managed Basic Inbox** canary through existing staff APIs:
+read-only `prepare`, digest-reviewed single `publish`, then separate entitled
+customer `verify`. See [the exact inputs and commands](EXTERNAL_DEALERSHIP_INTEGRATION.md#attended-offer-publication).
+It rechecks immutable manifests/artifacts, Inbox spec, target fingerprints and
+placement; it never provisions a fixture business database/simulator or releases
+any existing hold. Unknown POST outcomes stay unknown with no automatic retry.
+There is no staff offer GET: full publication acceptance needs the supported
+customer catalogue readback after a separately authorized invitation/acceptance.
+
+`buildOfferProposal()` still represents both real SQL modes, their distinct
+demands and scoped DATA/ACTION requirements without claiming live readiness.
+The attended offer explicitly narrows its immutable storage choices to managed
+SQL; it cannot advertise BYO-hosted replacement acceptance. Broader BYO and
+external-Inbox publication remain separately gated. Staging activation/recovery
+stay available behind existing authorization/admission. Existing promotion
+operations remain declared for the same customer/deployment journey, but their
+execution still requires all production target, binding, admission, financial
+and readiness checks. Real provider binding, measured
+capacity/admission, hosted persistence/indexing/actions/handover, production
+promotion and final UI acceptance remain open. No success flags can bypass them.
+Optional managed Basic Inbox is an AI-only service; ordinary external Inbox has
+no managed spec and still needs its real target callback/operator contract.
+
+Initial setup can visibly defer an
 ACTION whose declared source projection depends on an unavailable explicitly
 required DATA install; ordinary compilation remains strict. The post-association
 initializer enables alias-only DATA/ACTION installs and resyncs. This creates no
-external account binding and is not proof of the full customer workflow. See the
+external account binding and is not hosted provider-access proof. See the
 integration contract for the exact unresolved-requirements path and API protocol.
 
 ## Historical Native Token Checkpoint

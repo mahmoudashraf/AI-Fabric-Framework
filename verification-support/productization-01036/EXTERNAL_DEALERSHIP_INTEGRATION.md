@@ -158,7 +158,7 @@ real typed PostgreSQL binding, not a JDBC environment overlay. Durable AI
 orchestration, budget, receipt and other required operational state must not be
 dropped or replaced by ephemeral storage.
 
-Because both modes are offered, the candidate always declares exactly one
+When both modes are offered, the broader proposal declares exactly one
 unmapped slot `{id: "ai-state-database", kind: "CUSTOMER_AI_STATE",
 supportedProfileIds: ["CUSTOMER_POSTGRES"]}`. For customer SQL use
 `POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/ai-state-storage-binding`
@@ -167,11 +167,13 @@ with `expectedEntitlementRevision`, `operationKey`, `targetProfileId`,
 SQL request. Caller `approvalReference` must be absent/null: the server derives
 it. Exact published mode/version/target, host/TLS and ownership validation are
 mandatory. Do not select an admin-only API or a mutable JDBC overlay instead.
-Target-local SQL credential rotation and readback remain publication gates;
-declaring the slot is not evidence those gates have passed.
+Target-local BYO credential-generation/replacement acceptance remains a gate
+for broader BYO publication. It does not block a managed-SQL-only canary;
+declaring a slot is not evidence that either hosted acceptance has passed.
 
-`Definition.aiStateStorageTopologies` has exactly the two setting choices as
-keys. Each value is a complete `ReviewedTopology`. `Definition.topology` is
+`Definition.aiStateStorageTopologies` has exactly the published setting choices
+as keys. The broader proposal retains both; the attended canary below publishes
+only `MANAGED_POSTGRES`. Each value is a complete `ReviewedTopology`. `Definition.topology` is
 their component-wise maximum; `limits` remains the reviewed cap. Admission must
 use the immutable version's actual mode, never charge the maximum as if it were
 an actually provisioned hosted database for BYO.
@@ -190,40 +192,173 @@ BYO totals 1,500m / 2,560 MiB / zero hosted disk. Selected managed Inbox adds it
 explicit component to both modes. These are source-reviewed demand proposals,
 not measured headroom, policy approval or an authority to release earlier holds.
 
-## Publication Gates
+## Attended Offer Publication
 
-`buildOfferProposal()` returns `publishable=false`, a typed definition candidate,
-the scoped binding protocol and unsatisfied verification gates.
-`buildOfferDefinition()` and the offer publisher still fail before any request;
-there is no caller success flag to bypass the gates. Implemented API/enum/slot
-support is not missing anymore, but it is not sufficient publication evidence.
-The remaining generic gates are
-`REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED` and
-`AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED`.
+The actual Spring/PostgreSQL customer bootstrap/binding/compiler workflow is
+proven: normal staff offer publication/invitation, customer acceptance/bootstrap
+for both explicit SQL modes, read-only S3 binding, immutable versions and scoped
+external approval/binding/replay. The merged actual backend passed **3,343 tests,
+zero failures/errors/skips**. These are local contracts, not hosted provider
+access or a declaration that a new deployment is ready. The obsolete
+unconditional bootstrap blocker is removed; `bootstrapVerified`,
+`sqlRotationVerified` and similar caller flags cannot authorize publication.
 
-Parent's later actual Spring/PostgreSQL V200 run passes19 cases without skips:
-three template/customer workflows and16 SQL wrapper persistence cases. It uses
-normal staff offer publication/invitation, customer acceptance/bootstrap for both
-explicit storage modes, customer S3 binding, immutable version publication,
-compiler provenance and scoped external approval/binding/replay. Provider clients
-are mocked effect boundaries; synthetic reviewed hosts/targets are not hosted
-access proof. Separate245-case SQL verification covers immutable credential
-generations and low-level privilege/TLS checks. Counts overlap earlier runs.
+`buildOfferProposal()` remains a non-publishable planning representation.
+`buildOfferDefinition(input, review)` now supports the narrower reviewed
+`loomai-attended-managed-dealership-canary/v1` publication contract:
 
-The source publication helper remains deliberately checkpointed pending the
-separate hosted target-local credential-generation and attended rollout proof.
-Local merged ownership/lifecycle verification now passes3,343 tests across350
-classes with zero failures/errors/skips. Independent review found a worker
-revocation race and missing external checks in recovery; the source fixes and
-their40-case actual PostgreSQL concurrency/revocation qualification also pass
-without failures/errors/skips. Coolify and
-optional managed-Inbox resource creation/deletion must use exact durable ownership
-proof, not names, descriptions or historical handles. Do not treat the older
-blocker names as evidence that the already tested customer commands are absent,
-or remove them solely because APIs/enums exist. The local customer-command gate
-is proven; its old blocker name is not a claim that those APIs remain absent.
-Hosted apply, indexing, provider
-auth, capacity, production promotion and final UI remain separate gates.
+- Explicit `managedInbox=true`, `aiStateStorageMode=MANAGED_POSTGRES` and
+  `aiStateStorageModes=[MANAGED_POSTGRES]`. The immutable setting still requires
+  the customer to make that explicit choice at bootstrap. No BYO slot or BYO
+  readiness claim enters this offer. Broader offers retain
+  `CUSTOMER_AI_STATE_HOSTED_GENERATION_ACCEPTANCE_REQUIRED`. This does not remove
+  the Platform's underlying support for either explicit SQL mode.
+- Exact V196 managed-Inbox template, six immutable plugin versions, unchanged
+  reviewed runtime and **existing pinned Inbox artifact**. No image is rebuilt,
+  registered or promoted. The active AI-only dependency spec must already exist,
+  pass its staff readback, match the exact artifact/topology and have the reviewed
+  fingerprint. Both runtime and Inbox artifact fingerprints enter the offer.
+- Explicit policy/operating/identity/storage and capacity-review references.
+  These are manual evidence identifiers, checked structurally only: words such
+  as `pending` or `unapproved` neither grant nor deny authority. Demand and
+  enforced limits remain explicit. Staff authentication and immutable server
+  contracts authorize offer publication; reference text is not admission
+  approval or a manufactured measurement. A host baseline alone cannot approve
+  the candidate's admission policy.
+- Both target intents are mandatory in the current server `Definition`.
+  The helper does **not** invent a one-target staging offer. It preserves
+  `PROMOTION_PLAN`/`PROMOTION_APPLY` so the same associated deployment can later
+  complete its intended staging-to-production journey. Declaring those operations
+  does not authorize execution without the exact production bindings, admission,
+  financial allowance and readiness evidence. Staging activation/recovery retain
+  their gates too. Operation intents still come from `CustomerPermissionMatrix`,
+  not a new caller-defined map. This metadata publication does not execute or
+  certify promotion, nor permit in-place edits to the immutable offer.
+
+Requiring BYO replacement acceptance before creating a managed-SQL canary would
+be circular. Publishing the managed canary creates the immutable offer needed
+for later real customer/version/target acceptance. It does **not** apply, reserve
+capacity, release a hold, bind Free-01, grant provider spend, index documents,
+create a dependency graph or provision any database/business system. Operational
+PostgreSQL and Inbox are created only by separately admitted normal apply.
+
+### Three Supported Steps
+
+`publish-simulated-dealership-offer.mjs` has no implicit default publication.
+Set `PLATFORM_BASE_URL` to the exact HTTPS Platform origin. The script uses only
+existing Platform APIs, never Coolify, Auto Trader, AWS, vector or model APIs
+directly. No query text is interpreted.
+
+**1. Prepare without writes.** Read published manifests, exact unique artifact
+records, both targets, behavior/extension catalogs and the active Inbox spec.
+The catalogue routes are `GET /api/deployment-behaviors` and
+`GET /api/deployment-execution-extensions`, matching `DeploymentController`'s
+`/api` root. They are not under `/api/deployments/`.
+The review file contains the exact offer request, server-compatible canonical
+fingerprint and preparation digest. Raw target configuration and credential
+references are not retained. Supabase keys must be public publishable/legacy-anon
+keys, never service-role credentials. Use this `--config` structure; references
+are placeholders, not granted rights:
+
+```json
+{
+  "review": {
+    "contract": "loomai-attended-managed-dealership-canary/v1",
+    "offerId": "new-unique-reviewed-offer-id",
+    "name": "Dealership AI attended canary",
+    "reviewReference": "actual-staff-review-reference",
+    "approvedPolicyRef": "actual-approved-policy-reference",
+    "measuredPolicyRef": "actual-reviewed-capacity-reference",
+    "operatingPolicyRef": "actual-reviewed-lifecycle-reference",
+    "identityPolicyRef": "actual-reviewed-identity-reference",
+    "storagePolicyRef": "actual-reviewed-read-only-storage-reference",
+    "inboxSpecFingerprint": "<exact 64-character lowercase published-spec fingerprint>"
+  },
+  "configuration": {
+    "managedInbox": true,
+    "aiStateStorageMode": "MANAGED_POSTGRES",
+    "aiStateStorageModes": ["MANAGED_POSTGRES"],
+    "auth": {
+      "projectUrl": "https://your-project.supabase.co",
+      "publishableKey": "<public publishable or legacy anon key>",
+      "dealerId": "reviewed-dealer-id",
+      "imageHostAllowlist": ["media.authorized-provider.example"]
+    },
+    "externalIntegrationAllowedHosts": {
+      "vehicle-stock": ["stock.authorized-provider.example"],
+      "business-actions": ["actions.authorized-business.example"]
+    }
+  }
+}
+```
+
+```sh
+node verification-support/productization-01036/publish-simulated-dealership-offer.mjs prepare \
+  --config /private/path/offer-review.json --output /private/path/prepared-offer.json
+```
+
+Prepare/publish take `PLATFORM_ADMIN_API_KEY` from the private environment, never
+JSON or command arguments. Staff authority is checked using
+`GET /api/platform/auth/session`. Outputs are newly created `0600` files; existing
+paths are never overwritten. Do not commit review files/receipts merely because
+they contain no private key values.
+
+**2. Review, then publish once.** Inspect the definition and its
+`preparationSha256`. Pass that digest separately: it hashes the canonical
+preparation payload, **not** raw file bytes. Publication reloads all contracts,
+rejects drift before effects, obtains fresh identity-matching receipts using
+both real staff `POST /api/customer-self-service/staff/targets/{targetProfileId}/placement-evidence`
+commands, then rechecks the contracts. Placement probes read the provider and
+record metadata; they create no provider resource.
+
+```sh
+node verification-support/productization-01036/publish-simulated-dealership-offer.mjs publish \
+  --prepared /private/path/prepared-offer.json \
+  --reviewed-sha256 <reviewed-preparationSha256> --output /private/path/publication-attempt.json
+```
+
+Before the single `POST /api/customer-self-service/staff/offers`, the CLI flushes
+`PUBLICATION_ATTEMPT_STARTED` to disk. The reply must contain exactly the requested
+ID and canonical fingerprint. Result: `PUBLISHED_CUSTOMER_READBACK_PENDING`,
+**not** full acceptance. Unknown transport, malformed reply or identity mismatch
+becomes `PUBLICATION_OUTCOME_UNKNOWN`. No automatic POST retry, alternative ID,
+name adoption or delete-and-recreate recovery exists. Keep the checkpoint and
+reconcile before another attempt; do not change the output path to conceal it.
+
+**3. Independently read back as the customer.** The existing
+`GET /api/customer-self-service/catalogue/{offerId}` requires its active
+`CUSTOMER_ADMIN` owner session. There is **no staff offer-readback endpoint**.
+The parent separately performs supported invitation/acceptance; this helper
+never manufactures an entitlement or treats an admin key as customer authority.
+Supply an already authenticated cookie privately through
+`PLATFORM_CUSTOMER_SESSION_COOKIE`.
+
+```sh
+node verification-support/productization-01036/publish-simulated-dealership-offer.mjs verify \
+  --prepared /private/path/prepared-offer.json --reviewed-sha256 <reviewed-preparationSha256> \
+  --customer-id <exact-customer-id> --owner-user-id <exact-owner-user-id> \
+  --output /private/path/customer-readback.json
+```
+
+The server validates the stored definition's immutable fingerprint before
+projecting the summary. The helper checks that fingerprint, offer/template,
+explicit SQL choice, slots, profiles, permissions, target limits and exact active
+unexpired customer/owner entitlement. It can reconcile an uncertain POST without
+reissuing it. Result: `IMMUTABLE_CUSTOMER_READBACK_VERIFIED`, still
+`liveReadinessProven=false`. Without an entitled customer session, readback
+remains visibly pending. Immediate staff-only full-definition readback would
+need a real server API change, not direct SQL or an invented route.
+
+### Remaining Hosted Gates
+
+Local contracts do not prove provider access, current measured admission, hosted
+AI-state persistence, stock/document sync, read actions, confirmation, protected
+identity, Inbox replies, production promotion or final UI acceptance. These
+remain explicit `remainingGates`. No success flag, reference string or published
+offer becomes live-readiness evidence. BYO target-local generation/replacement
+acceptance remains separate. This workflow never touches the existing
+reservation, allowance, vector binding, old workloads or retained customer data.
+Exact ownership safeguards remain authoritative for later resource lifecycle.
 
 The ordinary external-Inbox variant has the additional
 `EXTERNAL_INBOX_TARGET_BINDING_REQUIRED` blocker. Generic B supports DATA/ACTION,

@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {mkdtemp, readFile, writeFile, stat, rm} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {fileURLToPath} from "node:url";
+import {spawnSync} from "node:child_process";
 import test from "node:test";
 
 import {
   artifactFingerprint,
+  ATTENDED_CANARY_CONTRACT,
   buildOfferDefinition as buildPublishableOfferDefinition,
   buildOfferProposal,
   buildExternalIntegrationBindings,
@@ -27,13 +33,16 @@ import {
   RUNTIME_IMAGE_DIGEST,
   RUNTIME_SOURCE_COMMIT,
   requireTemplateRuntimeSupport,
+  normalizeOfferDefinition,
   TEMPLATE_PLUGIN_ID,
   TEMPLATE_VERSION,
   workspaceProfile,
 } from "../simulated-dealership-offer.mjs";
-import {publishSimulatedDealershipOffer} from "../publish-simulated-dealership-offer.mjs";
+import {platformOfferRequest, prepareSimulatedDealershipOffer, publishSimulatedDealershipOffer,
+  verifySimulatedDealershipOffer} from "../publish-simulated-dealership-offer.mjs";
+import {buildManagedDependencySpec, DEPENDENCY_IMAGES, SPEC_ID} from "../simulated-dealership-managed-spec.mjs";
 
-const auth = {projectUrl: "https://example.supabase.co", publishableKey: "public-test-key",
+const auth = {projectUrl: "https://example.supabase.co", publishableKey: "sb_publishable_local_fixture_not_real",
   dealerId: "reviewed-dealer-test", imageHostAllowlist: ["media.example.test"]};
 const manifest = (pluginId, version) => ({pluginId, version,
   ...(EXTERNAL_BINDING_REQUIREMENTS.some(requirement => requirement.pluginId === pluginId)
@@ -739,7 +748,7 @@ test("binding protocol requires exact published scope, staff review and write-on
     ["expectedEntitlementRevision", "operationKey", "targetProfileId", "bindingSlotId", "connection"]);
   assert.equal(proposal.aiOperationalPersistence.customerBindingSlotId, "ai-state-database");
   assert.equal(proposal.aiOperationalPersistence.approvalReference, "SERVER_DERIVED_CALLER_MUST_OMIT_OR_NULL");
-  assert.throws(() => buildPublishableOfferDefinition({...offerInputs(), integratedProof: true, publishable: true}), /publication is checkpointed/);
+  assert.throws(() => buildPublishableOfferDefinition({...offerInputs(), integratedProof: true, publishable: true}), /EXTERNAL_INBOX_TARGET_BINDING_REQUIRED/);
 });
 
 test("setup-only dependency deferral is a visible blocker, not implicit source or credential readiness", () => {
@@ -753,7 +762,7 @@ test("setup-only dependency deferral is a visible blocker, not implicit source o
   });
 });
 
-test("reported bootstrap success or caller workflow flags cannot clear the publication checkpoint", async () => {
+test("caller success flags cannot authorize the managed canary or clear broader-mode gates", async () => {
   const priorFetch = globalThis.fetch;
   let requests = 0;
   globalThis.fetch = async () => { requests++; throw new Error("unexpected network"); };
@@ -767,10 +776,11 @@ test("reported bootstrap success or caller workflow flags cannot clear the publi
       const proposal = buildOfferProposal(input);
       assert.equal(proposal.publishable, false);
       assert.equal(proposal.liveReadinessProven, false);
-      assert.equal(proposal.blockers.includes("REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED"), true);
-      assert.equal(proposal.blockers.includes("AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED"), true);
-      assert.throws(() => buildPublishableOfferDefinition(input), /publication is checkpointed/);
-      await assert.rejects(publishSimulatedDealershipOffer(input), /publication is checkpointed/);
+      assert.equal(proposal.blockers.includes("ATTENDED_IMMUTABLE_OFFER_REVIEW_REQUIRED"), true);
+      assert.equal(proposal.blockers.includes("CUSTOMER_AI_STATE_HOSTED_GENERATION_ACCEPTANCE_REQUIRED"), true);
+      assert.equal(proposal.blockers.some(value => value.includes("REAL_V196")), false);
+      assert.throws(() => buildPublishableOfferDefinition(input), /EXTERNAL_INBOX_TARGET_BINDING_REQUIRED/);
+      await assert.rejects(publishSimulatedDealershipOffer(input));
     }
   } finally { globalThis.fetch = priorFetch; }
   assert.equal(requests, 0);
@@ -781,18 +791,18 @@ test("proposal preserves all external features but cannot masquerade as publisha
   const proposal = buildOfferProposal(input);
   assert.equal(proposal.publishable, false);
   assert.equal(proposal.liveReadinessProven, false);
-  assert.deepEqual(proposal.blockers, ["REAL_V196_BOOTSTRAP_BINDING_COMPILER_INTEGRATION_VERIFICATION_REQUIRED",
-    "AI_STATE_STORAGE_TARGET_ROTATION_VERIFICATION_REQUIRED", "EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"]);
+  assert.deepEqual(proposal.blockers, ["ATTENDED_IMMUTABLE_OFFER_REVIEW_REQUIRED",
+    "CUSTOMER_AI_STATE_HOSTED_GENERATION_ACCEPTANCE_REQUIRED", "EXTERNAL_INBOX_TARGET_BINDING_REQUIRED"]);
   assert.deepEqual(proposal.externalBindingRequirements.map(binding => binding.id),
     ["vehicle-stock", "business-actions", "conversation-inbox"]);
   assert.equal(proposal.externalBindingRequirements[0].secretRefFields.length, 3);
   assert.deepEqual(proposal.definitionCandidate.workspaceProfiles[0].interaction.configuration.capabilities,
     {callback: true, testDrive: true, comparison: true});
-  assert.throws(() => buildPublishableOfferDefinition(input), /publication is checkpointed/);
+  assert.throws(() => buildPublishableOfferDefinition(input), /EXTERNAL_INBOX_TARGET_BINDING_REQUIRED/);
   const priorFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async () => { calls++; throw new Error("unexpected network"); };
-  try { await assert.rejects(publishSimulatedDealershipOffer(), /publication is checkpointed/); }
+  try { await assert.rejects(publishSimulatedDealershipOffer(), /REVIEWED_SHA256_REQUIRED/); }
   finally { globalThis.fetch = priorFetch; }
   assert.equal(calls, 0, "No platform, placement, provider or model request before contract support");
 });
@@ -833,11 +843,12 @@ test("AI state durability is required and optional hosting is an explicit creati
   assert.deepEqual(proposal.definitionCandidate.settings.find(rule => rule.setting === "AI_STATE_STORAGE_MODE"),
     {setting: "AI_STATE_STORAGE_MODE", type: "CHOICE", maxLength: 32,
       allowedValues: [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]});
-  assert.equal(proposal.aiOperationalPersistence.modes.find(mode => mode.id === CUSTOMER_AI_STATE_MODE).applySupportVerified, false);
+  assert.equal(proposal.aiOperationalPersistence.modes.find(mode => mode.id === CUSTOMER_AI_STATE_MODE).localContractVerified, true);
+  assert.equal(proposal.aiOperationalPersistence.modes.find(mode => mode.id === CUSTOMER_AI_STATE_MODE).hostedAcceptanceVerified, false);
   for (const aiStateStorageMode of [undefined, null, "", "managed_postgres"]) {
     assert.throws(() => buildOfferProposal({...offerInputs(), aiStateStorageMode}), /explicit reviewed AI state storage mode/);
   }
-  // BYO arithmetic is not advertised as an implemented binding or charged as hosted SQL.
+  // Local BYO contracts are proven; arithmetic is not hosted activation evidence.
   assert.deepEqual(reviewedTopologyCapacity({aiStateStorageMode: CUSTOMER_AI_STATE_MODE}), {
     milliCpu: 1500, memoryMiB: 2560, diskMiB: 0, databases: 0, dependencies: 0, indexes: 2,
   });
@@ -894,4 +905,470 @@ test("knowledge default is explicitly not approved and never supplies storage or
   const missing = offerInputs();
   missing.template.manifest.contributions.template.requiredPluginInstallDefaults = {};
   assert.throws(() => buildOfferProposal(missing), /Business integrations must be unbound/);
+});
+
+function attendedInputs() {
+  const input = offerInputs();
+  input.managedInbox = true;
+  input.aiStateStorageModes = [MANAGED_AI_STATE_MODE];
+  input.template.pluginId = MANAGED_INBOX_TEMPLATE_PLUGIN_ID;
+  input.template.id = "mkv-template-dealership-external-systems-managed-inbox-v1-0";
+  input.template.manifest.pluginId = MANAGED_INBOX_TEMPLATE_PLUGIN_ID;
+  input.template.manifest.contributions.template.requiredPluginInstallDefaults = {
+    "mkp-data-dealership-knowledge-v1@1.0.0": structuredClone(KNOWLEDGE_INSTALL_DEFAULTS),
+    "mkp-integration-basic-loomai-inbox@1.3.0": structuredClone(MANAGED_INBOX_INSTALL_DEFAULTS),
+  };
+  for (const version of [input.template, ...input.pluginVersions]) {
+    version.status = "PUBLISHED"; version.publishedAt = "2026-10-18T21:00:00Z";
+  }
+  input.artifact.capabilityManifestHash = "a".repeat(64);
+  input.inboxArtifact = {id: "reviewed-inbox-artifact", serviceName: DEPENDENCY_IMAGES.inbox.serviceName,
+    artifactType: "DOCKER_IMAGE", artifactRole: "MANAGED_DEPENDENCY", imageRepository: DEPENDENCY_IMAGES.inbox.repository,
+    imageDigest: DEPENDENCY_IMAGES.inbox.digest, gitCommitSha: DEPENDENCY_IMAGES.inbox.commit,
+    capabilityManifest: structuredClone(DEPENDENCY_IMAGES.inbox.capabilityManifest),
+    capabilityManifestHash: DEPENDENCY_IMAGES.inbox.capabilityManifestHash,
+    promotedAt: "2026-10-18T21:00:00Z", promotionChannel: "staging"};
+  input.inboxSpec = {publication: {specId: SPEC_ID, templateVersionId: input.template.id,
+    fingerprint: "b".repeat(64), reviewReference: "local-fixture-spec-review", reviewedAt: "2026-10-18T21:00:00Z"},
+  spec: buildManagedDependencySpec({inbox: input.inboxArtifact}, {managedInbox: true})};
+  return input;
+}
+
+function attendedReview() {
+  return {contract: ATTENDED_CANARY_CONTRACT, offerId: "offer-local-managed-ai-canary", name: "Attended dealership AI canary",
+    reviewReference: "local-fixture-offer-review", approvedPolicyRef: "local-fixture-policy-review",
+    measuredPolicyRef: "local-fixture-capacity-review", operatingPolicyRef: "local-fixture-lifecycle-review",
+    identityPolicyRef: "local-fixture-identity-review", storagePolicyRef: "local-fixture-storage-review",
+    inboxSpecFingerprint: "b".repeat(64)};
+}
+
+const baseUrl = "https://control-plane.example";
+const clock = () => new Date("2026-10-19T08:00:00Z");
+export function publicationFixture() {
+  const input = attendedInputs();
+  const review = attendedReview();
+  const configuration = Object.fromEntries(["managedInbox", "aiStateStorageMode", "aiStateStorageModes", "auth",
+    "externalIntegrationAllowedHosts"].map(key => [key, structuredClone(input[key])]));
+  const calls = [];
+  const checkpoints = [];
+  let readback;
+  const request = async (path, options = {}) => {
+    calls.push({path, options: structuredClone(options)});
+    if (path === "/api/platform/auth/session") return {enabled: true, authenticated: true, role: "PLATFORM_ADMIN", authenticationMode: "API_KEY"};
+    if (path === `/api/marketplace/plugins/${MANAGED_INBOX_TEMPLATE_PLUGIN_ID}/versions/1.0.0`) return structuredClone(input.template);
+    for (const version of input.pluginVersions) {
+      if (path === `/api/marketplace/plugins/${version.pluginId}/versions/${version.version}`) return structuredClone(version);
+    }
+    if (path === "/api/deployment-provider/target-profiles") return structuredClone(input.targets);
+    if (path === "/api/deployment-provider/source-artifacts?serviceName=ai-fabric-runtime") return [structuredClone(input.artifact)];
+    if (path === `/api/deployment-provider/source-artifacts?serviceName=${DEPENDENCY_IMAGES.inbox.serviceName}`) return [structuredClone(input.inboxArtifact)];
+    if (path === `/api/customer-self-service/staff/templates/${input.template.id}/managed-dependency-spec`) return structuredClone(input.inboxSpec);
+    if (path === "/api/deployment-behaviors") return structuredClone(input.behaviorCatalog);
+    if (path === "/api/deployment-execution-extensions") return structuredClone(input.executionExtensionCatalog);
+    for (const target of input.targets) {
+      if (path === `/api/customer-self-service/staff/targets/${target.id}/placement-evidence`) return {
+        id: `cpe-${target.environmentName}`, targetProfileId: target.id, intent: options.body.intent,
+        profileFingerprint: profileFingerprint(target), checkedAt: "2026-10-19T07:59:59Z", expiresAt: "2026-10-19T08:04:59Z"};
+    }
+    if (path === "/api/customer-self-service/staff/offers") {
+      assert.equal(checkpoints.at(-1)?.state, "PUBLICATION_ATTEMPT_STARTED", "Checkpoint must precede POST");
+      const definition = normalizeOfferDefinition(options.body.definition);
+      assert.equal(hash(definition), hash(options.body.definition));
+      readback = {id: review.offerId, name: definition.name, templateId: definition.templateId,
+        templateVersionId: definition.template.versionId, fingerprint: hash(definition),
+        entitlement: {id: "entitlement-fixture", offerId: review.offerId, customerId: "customer-fixture", ownerUserId: "owner-fixture",
+          status: "ACTIVE", revision: 2, expiresAt: "2026-10-20T00:00:00Z"},
+        targets: definition.targets.map(target => ({id: target.targetProfileId, intent: target.intent, limits: definition.limits})),
+        permissions: definition.operations.map(operation => ({operation})),
+        ...Object.fromEntries(["settings", "bindingSlots", "documentAudiences", "workspaceProfiles", "externalIntegrationProfiles"]
+          .map(key => [key, structuredClone(definition[key])]))};
+      return {offerId: review.offerId, fingerprint: hash(definition)};
+    }
+    throw new Error(`Unexpected fixture route: ${path}`);
+  };
+  const prepare = (overrides = {}) => prepareSimulatedDealershipOffer({baseUrl, review, configuration, request, ...overrides});
+  const publish = (prepared, overrides = {}) => publishSimulatedDealershipOffer({baseUrl, prepared,
+    reviewedPreparationSha256: prepared.preparationSha256, request, checkpoint: async value => {checkpoints.push(value);}, now: clock, ...overrides});
+  const customerRequest = async path => {
+    calls.push({path, options: {}});
+    if (path === "/api/platform/auth/session") return {enabled: true, authenticated: true, role: "CUSTOMER_ADMIN",
+      authenticationMode: "SESSION", customerId: "customer-fixture"};
+    if (path === `/api/customer-self-service/catalogue/${review.offerId}`) return structuredClone(readback);
+    throw new Error("Unexpected customer route");
+  };
+  const verify = (prepared, overrides = {}) => verifySimulatedDealershipOffer({baseUrl, prepared,
+    reviewedPreparationSha256: prepared.preparationSha256, customerId: "customer-fixture", ownerUserId: "owner-fixture",
+    request: customerRequest, now: clock, ...overrides});
+  return {input, review, configuration, calls, checkpoints, request, prepare, publish, verify, customerRequest,
+    readback: () => readback, effects: () => calls.filter(call => call.options.method && call.options.method !== "GET")};
+}
+
+test("attended managed-only definition uses real immutable contracts without a BYO rotation circular gate", () => {
+  const input = attendedInputs();
+  const before = structuredClone(input);
+  const definition = buildPublishableOfferDefinition(input, attendedReview());
+  assert.deepEqual(definition.settings.find(value => value.setting === "AI_STATE_STORAGE_MODE").allowedValues, [MANAGED_AI_STATE_MODE]);
+  assert.deepEqual(Object.keys(definition.aiStateStorageTopologies), [MANAGED_AI_STATE_MODE]);
+  assert.equal(definition.bindingSlots.some(slot => slot.kind === "CUSTOMER_AI_STATE"), false);
+  assert.deepEqual(definition.artifacts, [
+    {artifactId: input.artifact.id, fingerprint: artifactFingerprint(input.artifact)},
+    {artifactId: input.inboxArtifact.id, fingerprint: artifactFingerprint(input.inboxArtifact)},
+  ]);
+  assert.equal(definition.topology.databases, 1);
+  assert.equal(definition.topology.dependencies, 1);
+  assert.deepEqual(definition.targets.map(target => target.intent), ["CUSTOMER_STAGING", "CUSTOMER_PRODUCTION"]);
+  for (const operation of ["PROMOTION_PLAN", "PROMOTION_APPLY"]) assert.equal(definition.operations.includes(operation), true);
+  for (const operation of ["ACTIVATE", "ROLLBACK"]) assert.equal(definition.operations.includes(operation), true);
+  assert.equal(definition.operations.includes("APPLY"), true);
+  assert.equal(definition.approvedPolicyRef, attendedReview().approvedPolicyRef);
+  assert.deepEqual(input, before);
+  const proposal = buildOfferProposal(input);
+  assert.deepEqual(proposal.blockers, ["ATTENDED_IMMUTABLE_OFFER_REVIEW_REQUIRED"]);
+  assert.equal(proposal.liveReadinessProven, false);
+  assert.ok(proposal.hostedReadinessGates.includes("PRODUCTION_PROMOTION_ACCEPTANCE_REQUIRED"));
+});
+
+test("review, unknown success flags, BYO support and Inbox identities are not publication authority", () => {
+  for (const modes of [undefined, [CUSTOMER_AI_STATE_MODE], [MANAGED_AI_STATE_MODE, CUSTOMER_AI_STATE_MODE]]) {
+    const input = attendedInputs(); input.aiStateStorageModes = modes;
+    if (modes?.length === 1) input.aiStateStorageMode = CUSTOMER_AI_STATE_MODE;
+    assert.throws(() => buildPublishableOfferDefinition(input, {...attendedReview(), sqlRotationVerified: true}));
+  }
+  for (const review of [undefined, null, {}, {...attendedReview(), contract: "unknown"},
+    {...attendedReview(), approvedPolicyRef: ""}, {...attendedReview(), name: "x\nY"},
+    {...attendedReview(), offerId: "offer/path"}, {...attendedReview(), integratedProof: true},
+    {...attendedReview(), inboxSpecFingerprint: "not-a-hash"}]) {
+    assert.throws(() => buildPublishableOfferDefinition(attendedInputs(), review));
+  }
+  for (const mutate of [input => {input.inboxArtifact.imageDigest = `sha256:${"c".repeat(64)}`;},
+    input => {input.inboxSpec.publication.fingerprint = "c".repeat(64);},
+    input => {input.inboxSpec.publication.templateVersionId = "other-template";},
+    input => {input.inboxSpec.publication.reviewedAt = null;},
+    input => {input.inboxSpec.spec.services[0].database = {image: "business-db"};},
+    input => {input.inboxSpec.spec.services.push(structuredClone(input.inboxSpec.spec.services[0]));}]) {
+    const input = attendedInputs(); mutate(input);
+    assert.throws(() => buildPublishableOfferDefinition(input, attendedReview()));
+  }
+});
+
+test("reference labels never infer approval or readiness from lexical content", () => {
+  const review = attendedReview();
+  for (const field of ["reviewReference", "approvedPolicyRef", "measuredPolicyRef", "operatingPolicyRef", "identityPolicyRef", "storagePolicyRef"]) {
+    review[field] = "pending-unapproved-manual-evidence-identifier";
+  }
+  const input = attendedInputs();
+  const definition = buildPublishableOfferDefinition(input, review);
+  assert.equal(definition.approvedPolicyRef, review.approvedPolicyRef);
+  assert.equal(definition.limits.measuredPolicyRef, review.measuredPolicyRef);
+  const proposal = buildOfferProposal(input);
+  assert.equal(proposal.liveReadinessProven, false);
+  assert.equal(proposal.hostedReadinessGates.includes("MEASURED_CAPACITY_ADMISSION_REQUIRED"), true);
+});
+
+test("normalization follows server enum declaration ordering, lexicographic sets and null slot fields", () => {
+  const input = attendedInputs();
+  const definition = buildPublishableOfferDefinition(input, attendedReview());
+  const reordered = structuredClone(definition);
+  reordered.operations.reverse(); reordered.admissionPrerequisites.reverse();
+  reordered.bindingSlots.forEach(slot => {if (slot.pluginId === null) delete slot.pluginId;
+    if (slot.installConfigField === null) delete slot.installConfigField; slot.supportedProfileIds.reverse();});
+  assert.deepEqual(normalizeOfferDefinition(reordered), definition);
+  assert.equal(definition.operations[4], "VERSION_PUBLISH");
+  assert.equal(definition.operations.indexOf("INBOX_OPERATOR_ENROLL") < definition.operations.indexOf("SOURCE_DISCOVER"), true);
+  assert.deepEqual(definition.admissionPrerequisites,
+    ["APPROVED_POLICY", "IMMUTABLE_ARTIFACTS", "STORAGE", "IDENTITY", "CAPACITY", "NOTIFICATIONS", "OPERATING_POLICY"]);
+  for (const field of ["operations", "admissionPrerequisites", "documentAudiences"]) {
+    const invalid = structuredClone(definition); invalid[field].push("UNKNOWN");
+    assert.throws(() => normalizeOfferDefinition(invalid), /OFFER_ENUM_CONTRACT_INVALID/);
+  }
+});
+
+test("managed canary fingerprint matches the actual Java CustomerOfferCodec golden roundtrip", async () => {
+  const prepared = await publicationFixture().prepare();
+  // Verified with the compiled production Definition + CustomerOfferCodec, not
+  // a JS mirror of the record deserializer. No Maven target was changed.
+  assert.equal(prepared.offerFingerprint, "b2d7cffbf29f994403d837421c097d69f5e056430c72bbe185b34f582b527348");
+});
+
+test("publisher routes are anchored to actual Spring mappings, not duplicated fixture guesses", async () => {
+  const fixture = publicationFixture(); await fixture.prepare();
+  const routes = [
+    ["deployment/web/DeploymentController.java", "/api", "/deployment-behaviors"],
+    ["deployment/web/DeploymentController.java", "/api", "/deployment-execution-extensions"],
+    ["deployment/web/DeploymentProviderOperationsController.java", "/api/deployment-provider", "/target-profiles"],
+    ["deployment/web/DeploymentProviderOperationsController.java", "/api/deployment-provider", "/source-artifacts"],
+    ["marketplace/web/MarketplaceController.java", "/api", "/marketplace/plugins/{pluginId}/versions/{version}"],
+  ];
+  for (const [file, root, mapping] of routes) {
+    const source = readFileSync(new URL(`../../../Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/${file}`, import.meta.url), "utf8");
+    assert.equal(source.includes(`@RequestMapping("${root}")`), true, file);
+    assert.equal(source.includes(`@GetMapping("${mapping}")`), true, file);
+    if (!mapping.includes("{")) {
+      assert.equal(fixture.calls.some(call => call.path.split("?")[0] === root + mapping), true, root + mapping);
+    }
+  }
+  assert.equal(fixture.calls.some(call => call.path.startsWith("/api/deployments/deployment-")), false);
+});
+
+test("prepare is read-only; publication writes exactly two placement receipts and one reviewed offer", async () => {
+  const fixture = publicationFixture();
+  const prepared = await fixture.prepare();
+  assert.equal(fixture.effects().length, 0);
+  assert.equal(prepared.offerFingerprint, hash(prepared.request.definition));
+  const {preparationSha256, ...payload} = prepared;
+  assert.equal(preparationSha256, hash(payload));
+  assert.equal(JSON.stringify(prepared).includes("credential-staging"), false, "Never retain provider credential refs or raw target config");
+  const receipt = await fixture.publish(prepared);
+  assert.equal(receipt.state, "PUBLISHED_CUSTOMER_READBACK_PENDING");
+  assert.equal(receipt.immutableReadbackVerified, false);
+  assert.equal(receipt.liveReadinessProven, false);
+  assert.equal(receipt.remainingGates.includes("CUSTOMER_IMMUTABLE_OFFER_READBACK_REQUIRED"), true);
+  assert.deepEqual(fixture.effects().map(call => call.path), [
+    "/api/customer-self-service/staff/targets/dtp-coolify-staging-behavior/placement-evidence",
+    "/api/customer-self-service/staff/targets/dtp-coolify-production-behavior/placement-evidence",
+    "/api/customer-self-service/staff/offers",
+  ]);
+  assert.deepEqual(fixture.effects().at(-1).options.body, prepared.request);
+  assert.equal(fixture.effects().some(call => /apply|invitation|fleet-policies|grant|source-index|promote|source-artifacts/.test(call.path)), false);
+});
+
+test("readback uses a separately authorized actual customer API, never a nonexistent staff GET or forced entitlement", async () => {
+  const fixture = publicationFixture();
+  const prepared = await fixture.prepare(); await fixture.publish(prepared);
+  fixture.calls.length = 0;
+  const result = await fixture.verify(prepared);
+  assert.equal(result.state, "IMMUTABLE_CUSTOMER_READBACK_VERIFIED");
+  assert.equal(result.immutableReadbackVerified, true);
+  assert.equal(result.liveReadinessProven, false);
+  assert.equal(result.remainingGates.includes("PRODUCTION_PROMOTION_ACCEPTANCE_REQUIRED"), true);
+  assert.equal(result.remainingGates.some(value => value.includes("ROTATION") || value.includes("BOOTSTRAP")), false);
+  assert.equal(fixture.effects().length, 0);
+  assert.deepEqual(fixture.calls.map(call => call.path), ["/api/platform/auth/session",
+    `/api/customer-self-service/catalogue/${prepared.request.offerId}`]);
+});
+
+test("malformed or unknown prepared review cannot cause even placement effects", async () => {
+  const fixture = publicationFixture(); const prepared = await fixture.prepare();
+  for (const mutate of [value => {value.unknownSuccess = true;}, value => {value.preparationSha256 = "a".repeat(64);},
+    value => {value.platformBaseUrl = "https://other.example";}, value => {value.request.offerId = "other-offer";},
+    value => {value.request.definition.topology.databases = 99;}, value => {value.configuration.sqlRotationVerified = true;}]) {
+    fixture.calls.length = 0;
+    const invalid = structuredClone(prepared); mutate(invalid);
+    await assert.rejects(fixture.publish(invalid));
+    assert.equal(fixture.calls.length, 0);
+  }
+  for (const value of [undefined, null, "true", {}, [], "b".repeat(64)]) {
+    fixture.calls.length = 0;
+    await assert.rejects(fixture.publish(prepared, {reviewedPreparationSha256: value}));
+    assert.equal(fixture.calls.length, 0);
+  }
+  fixture.calls.length = 0;
+  await assert.rejects(fixture.publish(prepared, {checkpoint: undefined}), /DURABLE_PUBLICATION_CHECKPOINT_REQUIRED/);
+  assert.equal(fixture.calls.length, 0);
+});
+
+for (const [name, mutate] of [
+  ["template pin", input => {input.template.id = "unreviewed-template";}],
+  ["unpublished plugin", input => {input.pluginVersions[0].status = "DRAFT";}],
+  ["provider target identity", input => {input.targets[0].providerConfig.serverUuid = "another-server";}],
+  ["capacity", input => {input.targets[0].resourceDefaults.connectorLimitsMemory = "2g";}],
+  ["runtime CI provenance", input => {input.artifact.buildRunId = "";}],
+  ["runtime identity", input => {input.artifact.imageDigest = `sha256:${"c".repeat(64)}`;}],
+  ["Inbox manifest", input => {input.inboxArtifact.capabilityManifest = {};}],
+  ["Inbox spec", input => {input.inboxSpec.publication.fingerprint = "c".repeat(64);}],
+  ["behavior catalogue", input => {input.behaviorCatalog[0].requiredRuntimeCapabilities.push("unknown-capability");}],
+]) {
+  test(`server ${name} drift is rejected before placement/publication effects`, async () => {
+    const fixture = publicationFixture(); const prepared = await fixture.prepare();
+    mutate(fixture.input); fixture.calls.length = 0;
+    await assert.rejects(fixture.publish(prepared));
+    assert.equal(fixture.effects().length, 0);
+  });
+}
+
+test("missing or ambiguous server records are not selected by first/latest/name inference", async () => {
+  for (const [path, response] of [
+    ["/api/deployment-provider/target-profiles", null],
+    ["/api/deployment-provider/target-profiles", []],
+    ["/api/deployment-provider/target-profiles", [target("dtp-coolify-staging-behavior", "staging"), target("dtp-coolify-staging-behavior", "staging")]],
+    ["/api/deployment-provider/source-artifacts?serviceName=ai-fabric-runtime", []],
+    ["/api/deployment-provider/source-artifacts?serviceName=ai-fabric-runtime", [attendedInputs().artifact, attendedInputs().artifact]],
+  ]) {
+    const fixture = publicationFixture();
+    await assert.rejects(fixture.prepare({request: (requested, options) => requested === path ? response : fixture.request(requested, options)}));
+    assert.equal(fixture.effects().length, 0);
+  }
+});
+
+test("invalid placement and post-probe drift never reach offer publication", async () => {
+  for (const patch of [{id: null}, {profileFingerprint: "unknown"}, {intent: "CUSTOMER_PRODUCTION"},
+    {targetProfileId: "other-target"}, {checkedAt: "2026-10-19T08:01:00Z"}, {expiresAt: "2026-10-19T07:59:59Z"}]) {
+    const fixture = publicationFixture(); const prepared = await fixture.prepare();
+    await assert.rejects(fixture.publish(prepared, {request: async (path, options) => {
+      const result = await fixture.request(path, options);
+      return path.endsWith("placement-evidence") ? {...result, ...patch} : result;
+    }}));
+    assert.equal(fixture.calls.some(call => call.path.endsWith("/staff/offers")), false);
+  }
+  const fixture = publicationFixture(); const prepared = await fixture.prepare();
+  await assert.rejects(fixture.publish(prepared, {request: async (path, options) => {
+    const result = await fixture.request(path, options);
+    if (path.endsWith("placement-evidence")) fixture.input.targets[0].providerConfig.serverUuid = "drift-after-probe";
+    return result;
+  }}));
+  assert.equal(fixture.calls.some(call => call.path.endsWith("/staff/offers")), false);
+});
+
+test("failed durable checkpoint blocks publication and uncertain POST is never retried or relabeled successful", async () => {
+  const fixture = publicationFixture(); const prepared = await fixture.prepare();
+  await assert.rejects(fixture.publish(prepared, {checkpoint: async () => {throw new Error("Local checkpoint unavailable");}}));
+  assert.equal(fixture.calls.some(call => call.path.endsWith("/staff/offers")), false);
+  for (const response of [null, {}, {offerId: "other", fingerprint: prepared.offerFingerprint},
+    {offerId: prepared.request.offerId, fingerprint: "c".repeat(64)}, {offerId: prepared.request.offerId,
+      fingerprint: prepared.offerFingerprint, unexpected: true}]) {
+    fixture.calls.length = 0; fixture.checkpoints.length = 0;
+    await assert.rejects(fixture.publish(prepared, {request: async (path, options) => {
+      if (path.endsWith("/staff/offers")) {
+        fixture.calls.push({path, options}); return response;
+      }
+      return fixture.request(path, options);
+    }}), /PUBLICATION_OUTCOME_UNKNOWN/);
+    assert.equal(fixture.calls.filter(call => call.path.endsWith("/staff/offers")).length, 1);
+    assert.equal(fixture.checkpoints.at(-1).state, "PUBLICATION_OUTCOME_UNKNOWN");
+  }
+  await assert.rejects(fixture.publish(prepared, {request: async (path, options) => {
+    if (path.endsWith("/staff/offers")) throw new Error("raw-private-transport-error");
+    return fixture.request(path, options);
+  }}), error => error.message.startsWith("PUBLICATION_OUTCOME_UNKNOWN") && !error.message.includes("raw-private"));
+});
+
+test("customer readback rejects wrong authority, ownership, hash, shape and expired entitlement without writes", async () => {
+  const fixture = publicationFixture(); const prepared = await fixture.prepare(); await fixture.publish(prepared);
+  for (const session of [{}, {enabled: true, authenticated: true, role: "PLATFORM_ADMIN", authenticationMode: "API_KEY"},
+    {enabled: true, authenticated: true, role: "CUSTOMER_ADMIN", authenticationMode: "SESSION", customerId: "other-customer"}]) {
+    fixture.calls.length = 0;
+    await assert.rejects(fixture.verify(prepared, {request: async path => path.endsWith("/session") ? session : fixture.customerRequest(path)}), /CUSTOMER_OWNER_SESSION_REQUIRED/);
+    assert.equal(fixture.calls.length, 0);
+  }
+  for (const mutate of [value => {value.fingerprint = "c".repeat(64);}, value => {value.entitlement.ownerUserId = "other-owner";},
+    value => {value.entitlement.expiresAt = "2026-10-18T00:00:00Z";}, value => {value.entitlement.status = "REVOKED";},
+    value => {value.targets.push(value.targets[0]);}, value => {value.settings[1].allowedValues.push(CUSTOMER_AI_STATE_MODE);},
+    value => {value.workspaceProfiles = [];}, value => {value.permissions.push({operation: "UNREVIEWED_OPERATION"});}]) {
+    const altered = structuredClone(fixture.readback()); mutate(altered); fixture.calls.length = 0;
+    await assert.rejects(fixture.verify(prepared, {request: async path => path.includes("/catalogue/") ? altered : fixture.customerRequest(path)}));
+    assert.equal(fixture.effects().length, 0);
+  }
+});
+
+test("default HTTP transport keeps authority on one HTTPS origin, refuses redirects and sanitizes failures", async () => {
+  for (const invalid of [undefined, "http://control-plane.example", "https://user:pass@control-plane.example", "https://control-plane.example/path",
+    "https://control-plane.example/?token=secret", "https://control-plane.example/#fragment"]) {
+    assert.throws(() => platformOfferRequest(invalid, {apiKey: "test-key"}), /HTTPS_PLATFORM_ORIGIN_REQUIRED/);
+  }
+  assert.throws(() => platformOfferRequest(baseUrl, {apiKey: "a", sessionCookie: "b"}), /EXACTLY_ONE_PLATFORM_AUTHORITY_REQUIRED/);
+  let calls = 0;
+  const request = platformOfferRequest(baseUrl, {apiKey: "private-test-key", fetchImpl: async (url, options) => {
+    calls++; assert.equal(url, `${baseUrl}/api/platform/auth/session`);
+    assert.equal(options.redirect, "error");
+    assert.equal(options.headers["X-PLATFORM-API-KEY"], "private-test-key");
+    assert.equal(options.headers.Cookie, undefined);
+    throw new Error("raw-private-test-key-error");
+  }});
+  await assert.rejects(request("https://evil.example/api"), /PLATFORM_PATH_INVALID/);
+  assert.equal(calls, 0);
+  await assert.rejects(request("/api/platform/auth/session"), error => error.message === "PLATFORM_TRANSPORT_OUTCOME_UNKNOWN");
+  assert.equal(calls, 1, "No retries");
+  for (const response of [new Response("private-server-error", {status: 401}), new Response("private-invalid-json"),
+    new Response("{}", {headers: {"content-length": "4000001"}})]) {
+    const client = platformOfferRequest(baseUrl, {sessionCookie: "private-cookie", fetchImpl: async (_url, options) => {
+      assert.equal(options.headers.Cookie, "private-cookie"); assert.equal(options.headers["X-PLATFORM-API-KEY"], undefined);
+      return response;
+    }});
+    await assert.rejects(client("/api/platform/auth/session"), error => /^PLATFORM_/.test(error.message) && !error.message.includes("private"));
+  }
+});
+
+test("privileged identity keys and unknown configuration cannot enter the review file", async () => {
+  for (const key of ["sb_secret_synthetic_not_real", "public-test-key", "sb_publishable_", "sb_publishable_space value",
+    `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({role: "service_role"})).toString("base64url")}.synthetic`]) {
+    const fixture = publicationFixture(); fixture.configuration.auth.publishableKey = key;
+    await assert.rejects(fixture.prepare(), /PUBLIC_WORKSPACE_AUTH_KEY_REQUIRED/);
+    assert.equal(fixture.calls.length, 0);
+  }
+  const fixture = publicationFixture();
+  fixture.configuration.auth.projectUrl += "/";
+  const prepared = await fixture.prepare();
+  assert.equal(prepared.configuration.auth.projectUrl, "https://example.supabase.co");
+  const invalid = publicationFixture(); invalid.configuration.forceSqlReady = true;
+  await assert.rejects(invalid.prepare(), /ATTENDED_OFFER_CONFIGURATION_INVALID/);
+  assert.equal(invalid.calls.length, 0);
+});
+
+test("real CLI persists complete private checkpoints, verifies as customer and never overwrites an attempt", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "01044-offer-cli-"));
+  try {
+    const fixture = publicationFixture();
+    const prepared = await fixture.prepare(); await fixture.publish(prepared);
+    const responses = {};
+    for (const path of new Set(fixture.calls.filter(call => !call.options.method).map(call => call.path))) {
+      responses[path] = await fixture.request(path);
+    }
+    for (const permission of prepared.request.definition.targets) {
+      responses[`/api/customer-self-service/staff/targets/${permission.targetProfileId}/placement-evidence`] = {
+        id: `cpe-${permission.intent}`, ...permission, checkedAt: new Date(Date.now() - 1000).toISOString(),
+        expiresAt: new Date(Date.now() + 300_000).toISOString()};
+    }
+    responses["/api/customer-self-service/staff/offers"] = {offerId: prepared.request.offerId, fingerprint: prepared.offerFingerprint};
+    responses[`/api/customer-self-service/catalogue/${prepared.request.offerId}`] = fixture.readback();
+    // This subprocess cannot reach a host: every fetch must match this finite map.
+    const preload = `import {appendFile, readFile} from "node:fs/promises";
+      const responses = ${JSON.stringify(responses)};
+      globalThis.fetch = async (url, options) => {
+        if (!url.startsWith(${JSON.stringify(baseUrl + "/api/")}) || options.redirect !== "error") throw new Error("Unexpected network");
+        const path = url.slice(${baseUrl.length});
+        if (!Object.hasOwn(responses, path)) throw new Error("Unknown route");
+        await appendFile(process.env.OFFER_CLI_FETCH_LOG, JSON.stringify({path, method: options.method}) + "\\n");
+        if (path.endsWith("/staff/offers")) {
+          const checkpoint = JSON.parse(await readFile(process.env.OFFER_CLI_CHECKPOINT, "utf8"));
+          if (checkpoint.state !== "PUBLICATION_ATTEMPT_STARTED" || checkpoint.offerFingerprint !== responses[path].fingerprint) throw new Error("Incomplete checkpoint");
+        }
+        let value = responses[path];
+        if (path === "/api/platform/auth/session" && options.headers.Cookie) value = {enabled:true, authenticated:true,
+          role:"CUSTOMER_ADMIN", authenticationMode:"SESSION", customerId:"customer-fixture"};
+        if (path.includes("/catalogue/")) value.entitlement.expiresAt = new Date(Date.now() + 3600_000).toISOString();
+        return new Response(JSON.stringify(value), {status:200});
+      };`;
+    const script = fileURLToPath(new URL("../publish-simulated-dealership-offer.mjs", import.meta.url));
+    const configPath = join(directory, "config.json"), preparedPath = join(directory, "prepared.json");
+    const receiptPath = join(directory, "receipt.json"), verifiedPath = join(directory, "verified.json"), logPath = join(directory, "calls.jsonl");
+    await writeFile(configPath, JSON.stringify({review: fixture.review, configuration: fixture.configuration}), {mode: 0o600});
+    const run = (mode, args) => spawnSync(process.execPath,
+      ["--import", "data:text/javascript;base64," + Buffer.from(preload).toString("base64"), script, mode, ...args],
+      {encoding: "utf8", timeout: 30_000, env: {...process.env, PLATFORM_BASE_URL: baseUrl,
+        PLATFORM_ADMIN_API_KEY: mode === "verify" ? "" : "synthetic-private-staff-key",
+        PLATFORM_CUSTOMER_SESSION_COOKIE: mode === "verify" ? "session=synthetic-private-cookie" : "",
+        OFFER_CLI_FETCH_LOG: logPath, OFFER_CLI_CHECKPOINT: receiptPath}});
+    const first = run("prepare", ["--config", configPath, "--output", preparedPath]);
+    assert.equal(first.status, 0, first.stderr);
+    const actualPreparation = JSON.parse(await readFile(preparedPath, "utf8"));
+    assert.deepEqual(actualPreparation, prepared);
+    assert.equal((await readFile(logPath, "utf8")).includes('"method":"POST"'), false);
+    const publishArgs = ["--prepared", preparedPath, "--reviewed-sha256", prepared.preparationSha256, "--output", receiptPath];
+    const second = run("publish", publishArgs);
+    assert.equal(second.status, 0, second.stderr);
+    const receipt = await readFile(receiptPath, "utf8");
+    assert.equal(JSON.parse(receipt).state, "PUBLISHED_CUSTOMER_READBACK_PENDING");
+    const calls = await readFile(logPath, "utf8");
+    assert.equal(run("publish", publishArgs).status, 1);
+    assert.equal(await readFile(logPath, "utf8"), calls, "Exclusive output check happens before any HTTP request");
+    assert.equal(await readFile(receiptPath, "utf8"), receipt);
+    const third = run("verify", ["--prepared", preparedPath, "--reviewed-sha256", prepared.preparationSha256,
+      "--customer-id", "customer-fixture", "--owner-user-id", "owner-fixture", "--output", verifiedPath]);
+    assert.equal(third.status, 0, third.stderr);
+    assert.equal(JSON.parse(await readFile(verifiedPath, "utf8")).state, "IMMUTABLE_CUSTOMER_READBACK_VERIFIED");
+    for (const file of [preparedPath, receiptPath, verifiedPath]) {
+      assert.equal((await stat(file)).mode & 0o777, 0o600);
+      assert.doesNotMatch(await readFile(file, "utf8"), /synthetic-private-staff-key|synthetic-private-cookie/);
+    }
+  } finally { await rm(directory, {recursive: true, force: true}); }
 });
