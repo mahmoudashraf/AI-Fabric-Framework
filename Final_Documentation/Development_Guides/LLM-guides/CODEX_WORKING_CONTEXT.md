@@ -8,6 +8,819 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 20:14 UTC Key Fix On Staging; Safe Host Assets Committed
+
+- Backend-only79552555fcf72946c1618df24ad7bb6abec96451 pushed. Parent actual
+  three-class38tests/package PASS; first formatted-error assertion failure XML
+  retained, exact getReason assertion fixed. Final reports
+  /private/tmp/01044-host-key-newline-parent-final-reports; qualification JSON
+  /private/tmp/01044-host-key-newline-parent-qualification.json. No framework/schema change.
+- CI39316033539/backend118277779748 SUCCESS; UI SKIPPED. Image rootb1c6fa7af624856d5b05fcb10a6afe57d08b487173a6f6578b7aa4448640e635,
+  amd64e832f80f874c7b35023e446e1079f52a2db2e4103a6230a87e00f22340c8bd0f,
+  actual OCI label795 verified. Stage normal jobk10bpd69r1x1h9ymz8btl5d5
+  fully verified20:11:59UTC: nativeeee8b2dd9234/206/UP, all139table/config/
+  credentials preserved. /private/tmp/01044-newline-backend-staging-rollout-20261019/staging.verified.json.
+  Fresh20:14 both-health proof confirms production remains8b/rootf40/UP;
+  no production795 restart or host configuration until direct owner approval.
+- Read-only verifier infra assets committed795; follow-up9e1f7fb13 adds protected
+  one-time per-host owner policy, independently reviewed noP1/P2,19 parent Python
+  tests +shell syntax PASS. Genuine read-only preflight proves account ABSENT,
+  /data UID0/755, /data/coolify UID9999/750. No account/key/config installed.
+  No per-customer root manifest; Coolify APIs delete, host only verifies metadata.
+  Backend Git tree9fc9b5c1ab26b4f9b341356ab22ada0f710d9356 is identical at795/9e;
+  infra/docs do not require another backend/UI build. Receiver auto-deploy TRUE
+  restored after source push, exact old container/history unchanged.
+- Genuine restricted-login/key/config approval remains pending in Required for
+  production (private auth1362); no duplicate question or assumed approval.
+  Both parallel workers completed/closed. Full initial-customer apply/index/
+  auth/actions/handover/promotion/retirement/P7 remain OPEN; UI extraction LAST.
+  No financial grant/model call/runtime apply yet. Physical policy validUntil
+ 21:44:39UTC; initial offline review/placement windows have expired, with NO
+  reservation submitted. Prepare fresh scoped evidence/input before reserve;
+  never replay completed handoff POSTs. Entitlement rev2 expiresOct20T13:18:
+  renew through supported invite/accept before longer lifecycle proof as needed.
+  Keep firewall open until full plan completion. Main awaits only the requested
+  host-access approval for that branch; no claim the overall plan is complete.
+
+## 2026-10-19 19:57 UTC Admission Published; Bounded Host Setup Approval Pending
+
+- Both fresh post8b61sample host reports PASS. Stage ends19:39:01UTC,
+  CPU8/max960.161m/minAvailable10747154432/swap996990976/diskAvail97901977600;
+  prod ends19:39:03UTC, CPU4/max643.469m/minAvailable12500520960/swap0/
+  diskAvail134528233472. SHA55d85e50... and013fc4d5..., current-fleet only.
+- Normal actual CUSTOMER_ADMIN owner/session/offer/both placements/storage and
+  both fully scoped DATA/ACTION binding GETs pass. One probe omitted required
+  external-integration query parameters and returned401; session remained valid,
+  storageGET200, corrected scoped GETs pass. This was a probe error, not grounds
+  to weaken permissions. Config capture /private/tmp/01044-post-handoff-readiness-20261019/configuration-prerequisites.actual.json.
+- Actual staff stage runtime-authority preflight PASS snapshotebc951c488cccc5881a27159683be739b55c44554a20f68c82d334718f6b8827,
+  fpbb035897c512321bcecb83175ff88adc3c091b7f4f500ef14b1b5af4ce6d3a9d,
+  generation1/originhttps://northfield-demo.apps.loomai.pro; not customer proof.
+- Parent-reviewed24test-qualified offline admission inputs R2 now published
+  through two normal STAFF POSTs +actualstoredreadbacks: active policy
+ 01036-post8b-prodcp-canary-20261019 at19:47:48UTC, actualfp8491cf113c6aafcec5cb98fd9addc2247e1ac3266ff8fee288959eea87a989a6;
+  physical customer grant actualfp2e741afddedef6fb0838aa9d31e7b1ff2b36685bca75baa6e8dcff36ea0e2250
+  at19:48:02UTC. No financial grant/reservation/runtime apply created. Curie
+  caught proposed2h grant deadline beforeANY POST: corrected physical grant to
+  Oct22T21:44:39.911Z, retaining2h measured-policy validity and24h recovery.
+  Actual requests/proofs /private/tmp/01044-post8b-admission-preparation-v1.
+  Curie completed/closed. Initial first-reservation8reviews/operationKey still
+  pending; incomplete local inputs are not8 backend failures. AI-state restore
+  stays honestly P5pending; configuration/financial authority !=funding.
+- Reclaimer config absent; no dedicated restricted account/key recorded locally,
+  remote existence unknown. Hegel found real managed-secret terminal-LF SSH-key
+  parsing defect and owns ONLY runner+runnerTest patch. Parent actual-module
+  three-class qualification RUNNING session80509, reports /private/tmp/01044-host-key-newline-parent-qualification/reports;
+  sourceSHA5fd2a07f..., testSHAaf72860c..., no qualified claim yet. No framework change.
+- Required for production has one genuine human approval question pending:
+  staging-only loomai-retire/newrestrictedkey, production-backend-egressonly,
+  pinnedhost/read-onlyforcedmetadata+approveddirectoryexistence, no shell,
+  forwarding/docker-group/generaladmin/SSHdelete/prune/data read, managedsecret
+  API storage and ONE normalproduction backend restart. Privatependingrecord
+  /private/tmp/01044-staging-retirement-verifier-host-access-approval-20261019.json,
+  authdoc1362. NO authorization assumed/no host installation/config restart yet.
+- Reject manual30minute root-written per-operation manifests as mandatory
+  customer self-service architecture. Default host verifier is READ-ONLY;
+  ownership-checked Coolify API remains deletion owner, unexpected leftovers
+  block cleanup. Hegel adds read-only private adapter/tests while preserving
+  original write-capable packet UNUSED. Main actively continues independent
+  qualification, no new model/provider grant or UI extraction. Firewall stays open.
+
+## 2026-10-19 19:37 UTC Actual Free01 Handoff Complete
+
+- V4 all FIVE normal API commands individually reviewed/dispatched/verified;
+  final complete139table-per-CP/audit proof PASS. Source release
+  uvr-a84a636d-7525-4735-ac65-15d148d8b908; production review
+  uvp-d81e7170-899d-4580-b0d8-06243ec8a2a8; claim
+  uvc-31c94e3a-c9d5-4b91-b207-42d4d6aca1b5.
+- NEW staging-target binding evb-bc916b29-2cb0-496a-8c08-45091e16f155,
+  fingerprintda0b9960ba5cc8a65336777a0a217aaf70034acf1f5a792d6d0104fb0b33853c,
+  C9fd/T397/D096/V76/stagingtarget/prefix93b560. Actual provider inventory
+  default collection list EMPTY. One old rev1 consumer detached atomically;
+ 6source/5destination exact audit appends, all old audit hashes/all other
+  tables/drafts/workspaces preserved. Zero provider writes, NO vector records
+  copied, no new paid cluster/key or model/grant/runtime apply.
+- Proof /private/tmp/01044-free01-atomic-release-v4/final-proof-fbd6b397e7854ad7bb159b9ac1096483.json.
+  Final claim state plan-5214f0d521db48b495f2b1e6cd7bd3ee.state.json in same
+  root. Do NOT rerun any POST. Fresh host baselines73769/78107 still running;
+  next normal admission/grant/placement/reservation with real customer session.
+  Both backend8b rollouts verified; UI extraction remains LAST. Main active.
+
+## 2026-10-19 19:35 UTC Both Atomic Backend Rollouts Accepted
+
+- Production known jobvv1jood5h1c2tffs68f9rco0 fully verified19:33:49UTC:
+  healthy native2c5849353534 exact8b667159/rootf40/schema206/UP; all139table
+  state/config/credential fences preserved and effective runtime SMTP/worker
+  variables equal approved configured values. No emails or runtime applies.
+  Both normal rollouts complete; no need to repeat deployments.
+- Fresh61sample/5s host baseline sessions73769(staging),78107(production) are
+  RUNNING, not PASS: /private/tmp/01044-post8b-{staging,production}-host-baseline-20261019.json.
+- NEW V4 reviewed input input.parent-reviewed-e1631f86-851f-4858-ba16-876769a5e64d.json
+  SHAa3d5948bd702023bdc869f3175f75875275db567183219ccb10876b788eedc77
+  in /private/tmp/01044-free01-atomic-release-v4 binds actual both images/admin
+  fingerprints and unchanged owner-serving file/token hashes, three fresh
+  operations, exact one rev1 consumer and never-activated DRAFT expectation.
+  Complete READ-ONLY baseline session49772 currently running; no source release,
+  destination review/claim, provider mutation/model call yet. Main active.
+
+## 2026-10-19 19:33 UTC Atomic Backend Committed; Staging Verified; Production Rollout
+
+- Human resumed toward plan completion. Backend-only commit8b6671596ffcd7e623a8c674546827ef99264510
+  pushed Platform-V11. CI39308888613 backend118253132263 PASS; UI skipped.
+  Immutable image rootf40ce672c0890a582513cb3308a4d44248722da96b99dc49d0181623ddd77235;
+  focused258 tests PASS and actual package/source proof remain current. No
+  framework/runtime/schema change; migration206.
+- Actual staging jobc4hlfzn0m1dp27jto53yu9ac fully verified19:31:31UTC:
+  nativee05ee77f927d exact8b/rootf40/schema206/healthUP, all139 table/config
+  and credential fences preserved. Initial verifier stopped after successful
+  metadata PATCH because response contained only uuid; separate GET confirmed
+  exact tag and normal start dispatched ONCE. Original STOP retained, no repeat
+  PATCH. /private/tmp/01044-atomic-backend-live-rollout-20261019/staging.verified.json.
+- Production27 worker/SMTP normal runtime variables applied once. Strict check
+  stopped after PATCH on Coolify-generated preview mirrors; separate actual
+  installed EnvironmentVariable.php source match and row comparison prove all110
+  old rows unchanged plus27 approved rows/27 exact generated mirrors, previews
+  disabled, no deployment/email/provider action. Supplement PASS19:17:18UTC.
+  Runtime effectiveness awaits new production rollout, not claimed yet.
+- Production fresh normal plan6f445ce168547d336ea1c5cde0c78d8075a7253d6dbd407e095242c7d61bb161
+  prepared19:31:51UTC, expires19:46:51UTC. Execute dispatched once; required
+  execsession40493 pending receipt. Do NOT repeat PATCH/start. Helper
+  /private/tmp/01044-rollout-atomic-backend.mjs; verify known job then complete
+  full native/schema139table/runtimeenv/health checks. No forced build.
+- V4 private atomic handoff client15fb240909dbea3dc83e518cbbe1abf5fdf28e458d96cde34ea590c120b806ef
+  parent source review and24 offline checks pass. Complete139table baseline/final
+  fences retained; five normal individually reviewed API steps only, no generic
+  unbind. Input still pending actual both new images/admin fingerprints; no
+  handoff or model grant/runtime apply yet. Curie prepares separate offline
+  normal admission publication/placement/reservation client. UI extraction LAST.
+
+## 2026-10-19 19:10 UTC Atomic Unused Release Qualified; Contact Prerequisites Closed
+
+- Source generic unbind was genuinely rejected: reviewed sourceD70b has0
+  reservations/releases and still has its exact rev1 consumer/history0 for the
+  attempted operation. API_KEY authentication works on public/internal session
+  and supported consumer-list reads. Do not retry generic unbind or bypass the
+  reviewed-assignment boundary. v3r3 first plan stopped preHTTP on route lease;
+  second plan stopped NON_200 afterHTTP, no successful metadata mutation.
+- Implemented5-main-file correction: optional exact consumerDetachments on
+  existing unused-vector source release; atomic owning-history detach + release
+  under admission mutex/target/deployment locks, no reservation/runtime effects,
+  exact original reviewed creation/history/rev1/never-activated DRAFT-set checks.
+  Draft/app/version rows unchanged, general assignment guard untouched. No new
+  schema or framework change. Independent review found empty-field receipt/hash
+  compatibility issue; fixed omit-empty serialization + null-to-empty and added
+  two regressions, preserving persisted history, not multiversion support.
+- FINAL actual focused qualification258/8classes PASS,0fail/errors/skips,
+  including60 cross-CP PG16/Flyway206 cases and28 existing PG detachment cases.
+  /private/tmp/01044-atomic-release-parent-qualification/final-focused.log
+  SHAa28dff83d4843803b23076dddc7dbf5dcf8a211b29e73402e5b6d43aac669acc.
+  Earlier sandbox run failed Mockito attachment/Docker and is NOT a PASS.
+  Earlier196/118 runs overlap, do not sum. Actual-module package PASS; all1894
+  captured backend tracked inputs unchanged before/after, JAR SHA
+  faf4cd23b43b2b93046251a4849a78234b191c29670650c2df1ba9b029cdf351.
+  Code/tests/guide not yet committed/deployed at this checkpoint.
+- Complete actual worker backlogs collected read-only: production has NO
+  admission policy/reservations/release bindings/notices/retirement jobs;
+  staging has one RELEASED/RELEASED reservation only. Private evidence root
+  /private/tmp/01044-production-admission-worker-live-review-20261019.
+- Actual production-host SMTP TLS CA/hostname +AUTH235 PASS, no message sent:
+  /private/tmp/01044-production-smtp-auth-preflight-20261019.json
+  SHAc1b3d49b2bb799c4858bc2439a38969987ea36b76c72790d396f3665676e9603.
+  Sender/recipient independently owner-confirmed, NOT Brevo-console inspection.
+- Account creation first REJECTED before execution; direct human then explicitly
+  approved ONE exact customer-scoped CUSTOMER_ADMIN in Required for production
+  (human message01a15585-7377-7c50-b702-3415466e2950, private auth:1343).
+  Same request SHA2d1917f367b67d7b00b584263238d2975250ccae5904af0af91faac1bd47fa02
+  normalPOST201 + independentGET now verify usr-f31de571 ACTIVE/Ccus-9fd67f55.
+  Contact ref platform-user:usr-f31de571; oldusr-dc2c2ed0/session preserved.
+  Credentials stored ONLY ignored private auth:1351/private0600 operation files.
+- Pasteur finished test task/closed. Curie prepares lean NEW atomic-release
+  operational client with five normal individually reviewed commands; no generic
+  unbind, no blind retry, private exact TLS readback bytes, short TTL respected.
+  Complete139-table baselines/final proofs remain; repeated huge global audit
+  scans between sourceGET and reviewPOST must not consume the60s server TTL.
+  All backend transactional/auth/inventory guards remain authoritative. No
+  handoff/provider grant/model/runtime apply yet. Both live CPs still757a/206.
+  UI extraction LAST; firewall stays open. Main active on approved continuation.
+
+## 2026-10-19 18:40 UTC Authorized Resume; Promotion Does Not Copy Vectors
+
+- Human authorized continuation toward full plan completion. Promotion must
+  build an independent production index from production-approved sources and
+  credentials; it never copies customer-staging vector records. The pending
+  Free01 operation is ONLY unused developer-to-customer-STAGING resource
+  ownership reassignment, not customer environment promotion or record transfer.
+- New frozen operational helper v3r3 SHA
+  b5d60cd6ed8c943cec944a9334a1b3f211e3cdd8d935078d892a65855f3b160f
+  changes only compact outer PostgreSQL facts serialization and finite32MiB
+  complete-artifact bounds. Worker5 actual-PG framing/volume checks pass;
+  parent independently reran245 focused offline tests PASS. All139 raw fences
+  and complete audit arrays retained. Prior failures/history remain unchanged.
+- Fresh v3r3 read-only snapshot PASS, f1672c8ff6eedc24b60c108ce21a2dd2954068796038732a7cefd0ad4fdf1cbb.
+  One reviewed normal unbind is in progress, plan77f45484abed24a5db3850ad9b43ea046c98d2c2c36829ad1fea50175689dd2b;
+  do not repeat dispatch. No completed ownership handoff claimed yet.
+- Actual production env inspection found admission lifecycle/release/retirement
+  and owner-email/console flags plus SMTP configuration absent. Source defaults
+  are false. Required for production located existing private SMTP material;
+  sender/contact checks pending. Curie prepares source-backed read-only backlog
+  checks before any enablement. No flags/mail/provider grants/models changed.
+- Both backend206 acceptances and both fresh host baselines remain PASS. UI
+  extraction remains LAST after hosted non-extraction acceptance; keep firewall
+  access open as authorized. Main is active in this resumed turn.
+
+## 2026-10-19 18:31 UTC Both206 Verified; Transfer Read-Only Framing Correction
+
+- Production full ACTUAL verification PASS, known jobj114a5ci6rts39u5blfrygp7
+  finished18:21:47UTC, nativea61c71a42712 healthy, exact757a/root95443/206.
+  All137 old table/column/history/data/config/credential/financial fences and
+  audits preserved; production route IDLE generation1/applied1 with NO frontend
+  domain/config/start effect. Proof continuation/attempt-001/
+  verified-production-1792434257312.json SHAdb034e18dec561d322c3aeb32f21993b9e9d81bcfed8a7fa9a26de54fa88f203.
+  Both CPs fully accepted; no retry/force/build/env patch or framework change.
+- BOTH fresh61sample/5s host measurements PASS and sessions drained:
+  /private/tmp/01044-post206-capacity-20261019T1821/{staging,production}.json.
+  Stage18:21:29-18:26:30,8cores,p95CPU901.465m,max1107.197m,MemTotal16366252032,
+  minAvailable10717208576,swap997253120,DiskTotal160970244096/minAvailable98181177344.
+  Prod18:24:33-18:29:33,4cores,p95CPU395.781m,max550.477m,MemTotal16368742400,
+  minAvailable12648366080,swap0,DiskTotal160970244096/minAvailable134840778752.
+  Read-only current-fleet baselines, not candidate/startup/overlap/quota proof.
+- Direct HUMAN yes in Required for production verified through read_thread:
+  turn01a15569-4e38-78a0-881b-29b911364586 approves WHOLE TASK400000 technical
+  tokens, SAMEUSD12/SAME50chat-ingress/allpriorusage+holds/noreset/norecharge/
+  single apply/model campaign. Machine amendment SHAa2e7efe1095f5a2a0a3a9c4b2dc473e85f2ab0da5a444889380f2183dede1403;
+  private auth doc:1300. No grants/models yet. Do not ask this again.
+- Source consumer normal authenticated GET18:26:11 confirms active/oldD/
+  no release/stage target/revision1. NEW v3r2 helper36c2ec1... parent245testsPASS
+  fixes deadline after second context check, retains prior26 SQL checks honestly.
+  New input.parent-reviewed-20261019T1827.json SHAc4e68a91839c125078a1f4cd4450a5d271ff973481b967fcdd52610eb6d5fee8
+  verifies actual both root95443 images and unchanged private serving identity.
+- v3r2 observe STOP STRICT_JSON_REQUIRED BEFORE ANY transfer HTTP/mutation.
+  Actual staging SQL is7526372bytes/37255lines: first139 full-table fences valid,
+  final facts contains valid multiline json_agg output, not NDJSON. Hash-only
+  diagnostic in v3r2/readonly-json-diagnostic.json; DO NOT print its37k entries.
+  Curie creates NEW v3r3 using outer PostgreSQL jsonb compact serialization and
+  finite complete32MiB artifact bounds; no stripping/truncation/audit omission,
+  with actual PG framing + large-payload regressions. Original v3/v3r2/STOP/input
+  remain untouched. No vector transfer yet. Pasteur admission DRAFT is at
+  /private/tmp/01044-prodcp-admission-readiness.lUrXscVC/admission-publication.DRAFT.md.
+  Main ACTIVE; all required exec sessions drained now. UI extraction LAST.
+
+## 2026-10-19 18:22 UTC One Production206 Job In Progress
+
+- Main ACTIVE. Final production-only helper303bc6347a72667bbc9f81ba9b6a50c3bd16e55642bcf9d01b99b2d04120803e
+  passed parent69/69 focused tests; independent Curie review confirms short-plan
+  expiry is rechecked immediately before intent/PATCH, no other confirmed P1/P2.
+  Stage71685642 code/proof and all original signed/STOP evidence unchanged.
+- Actual prepare-production PASS; parent independently authenticated HMAC and
+  reviewed unsigned plan digest6d8690d5b3df74b110e80687a888b0f8c4365423cd5b966ef4854da68cc6a0a8.
+  Plan prepared18:19:10UTC, expires18:34:10UTC; broader window ends18:34:20UTC.
+  Exact757a/root95443, CI39280882672attempt1, native-before47/205/healthUP,
+  fresh production backup/restore and current accepted staging206 all checked.
+- ONE normal production tag PATCH/native start dispatched. Known Coolify job
+  j114a5ci6rts39u5blfrygp7, receipt18:20:38.692UTC; last observation in_progress.
+  New immutable records in continuation root/attempt-001. NO repeat dispatch,
+  force/build/env patch, stage redeploy, repair or rollback. Use known-job GET,
+  then production-continuation.mjs verify-production with existing parent config;
+  unknown outcome is reconcile-production ONLY. Do not start a new attempt/key.
+- Actual staging remains757a/206/healthy and fully supplement-accepted. Production
+  must not be called verified206 until final live verification succeeds. No
+  vector transfer, customer runtime, provider grant/model call or UI extraction.
+- Fresh61-sample/5s staging host baseline RUNNING, session19597, output
+  /private/tmp/01044-post206-capacity-20261019T1821/staging.json (not PASS yet).
+  Production baseline waits until new backend job finishes and verifies. Drain
+  this required measurement session before ending. Pasteur's offline next-
+  admission checklist is pending actual delivery; Hume/Curie tasks closed.
+
+## 2026-10-19 18:16 UTC Staging206 Accepted; Fresh Production Continuation Ready For Final Qualification
+
+- Actual READ-ONLY staging supplement PASS, original failed verifier preserved:
+  /private/tmp/01044-backend206-production-continuation.0TqD1RdP/staging-supplement.json
+  SHA3eab8b84e390d7faf9dd12a00c6b275d772bcfd0f41a95fff2f0d69e0d42c74f.
+  Frozen stage code71685642e575641e32e7ee147074fffe4c64cd4ec75902fa12a410050407d740;
+  parent independently reran77/77 focused tests PASS. Exact original HMAC/plan/
+  job/source/image/cache/health, all137 old tables/history/audit allowance,
+  ownership and current routing pass. Only new IDLE polling timestamps are
+  compared separately; no lease/error/unapplied state or other drift is waived.
+- Fresh PRODUCTION-ONLY205 backup captured18:05:10-18:05:22UTC; all137 table/
+  row/column/history fingerprints unchanged. Manifest
+  /private/tmp/01044-control-plane-pre-206-production-20261019T1804/fresh205-manifest.json
+  SHAc0c542657d606aeaca1012027c310a6b284461700929b997ee82ed917fb3c648.
+  Actual network-none local restore PASS, all137 hashes match, own container
+  removed: /private/tmp/01044-production-pre206-20261019T1804/fresh-restore-proof-production.json
+  SHA160301f809d3e8c1ae696cde44dc1077f9b90cb7fbbf84f470ec7c3e74b73a0f.
+  First collector preflight stopped on a nonprivate window-file location BEFORE
+  any host call/root creation; byte-identical input moved to private helper root.
+- New production-only parent key generated once (rawfileSHA9c11b2d690767f0e0e71ecd0ed783de2e3281b822c96c7398513e020f5e67d8d),
+  fresh strict installed-cache capture PASS. Config in continuation root:
+  config.production.PARENT-REVIEWED.json SHA6bfab434e9f8ab35c527f1f4520da2d0c9523e8bec431046dac025833af43098.
+  Window18:13:00-18:34:20UTC. Validated inputs only, NO production plan/dispatch.
+  Hume finalizes production helper tests; Curie found P2 expiry crossing during
+  preflight, requested final pre-dispatch expiry recheck. No product/framework fix.
+- NEW frozen transfer v3 /private/tmp/01044-v206-free01-transfer-v3/transfer.mjs
+  SHA740695eb2eabddf1d9e3eda335de85323af8f88a8f50239c8a73b2ab045ca1e7;
+  parent244/244 offline PASS; worker26 actual PostgreSQL/Flyway checks PASS.
+  Both actual CPs must be206 before use. Exact only next_attempt_at/updated_at
+  SQL projection preserves every other field/raw proof; no worker-disable or
+  restart needed. Old205/206 helpers remain frozen; no transfer yet.
+- Fresh Free01 exact Free/RUNNING/empty-default inventory and honest documented-
+  tier staff review: /private/tmp/01044-free01-documentation-review-20261019T1800/staff-review.json
+  SHAdaa19bcbd7db6d9672d9d7c3281087b489d4e866ff61bb380940dc50adbb2d3a.
+  No inspected ACL/owner-confirmed role claim or new key; temporary-key request
+  remains ON HOLD. Required for production separately asks human to raise ONLY
+  technical token credits200k->400k while keeping SAMEUSD12/50chat caps, due
+  fixed128k+output reservation per target. No answer/grants yet; do not duplicate.
+- Financial read-only proof /private/tmp/01044-task-provider-ledgers-20261019T1815/readback.json
+  SHAb7364e2b959163effed9a250639b9013d9b3f1624e1a7a0575cd44b84b9fa351:
+  old staging grant VOID_UNUSED; both CP allocation counts0, active grants0.
+  This is not a provider-wide invoice or unrelated-usage proof. Main active;
+  Pasteur prepares lean offline next admission API inputs. UI extraction LAST.
+
+## 2026-10-19 17:58 UTC Staging206 Healthy; Exact Label Delta Proven
+
+- Main ACTIVE. Staging normal job q3xlu32w925bpvprws48zaj2 finished17:46:39UTC,
+  actual backend757a/root95443/schema206 and native health UP. Production remains
+  47/schema205; no production dispatch, vector transfer or customer runtime apply.
+- Original strict verifier stopped at shared-frontend custom_labels mismatch.
+  No retry/redeploy/rollback and no original signed record was rewritten. Actual
+  read-only cloned installed Coolify models prove canonical-base64-decoded labels
+  EXACTLY match generateLabelsApplication for BOTH original/current FQDN sets;
+  all remaining configuration is unchanged. R2 proof
+  /private/tmp/01044-backend206-before-transfer-helper.WrrX2ziw/generated-labels-readonly-proof-r2.json
+  SHAaa450189adf9d5f8a180e4e2ea2c1232935ee61d50f86f7819679a4ea27bae18.
+  First R1 comparison incorrectly compared encoded API fields to decoded labels;
+  its STOP remains. This corrects verification, not product/provider configuration.
+- Full staging supplement still pending; do not call original verifier PASS.
+  Original17:27:20-17:57:20 rollout window EXPIRED. New production-only reviewed
+  continuation/fresh backup and206-only transfer helpers are being prepared by
+  Hume/Pasteur/Curie. No signed old window/plan is extended or reused for dispatch.
+- Temporary known-scope key request in Required for production is ON HOLD.
+  Official Free/default/cluster-wide Cloud-role documentation supports a possible
+  staff-reviewed inventory-completeness inference, NOT actual inspected ACLs or
+  owner-confirmed role. Fresh exact cluster/list evidence and honest review still
+  required before normal audited release/claim. No provider key was created.
+- UI extraction LAST; full plan remains open. Keep Hetzner access open as agreed.
+
+## 2026-10-19 Owner Clarification; Independent Backend206 Rollout In Preparation
+
+- Direct human reply verified in Required for production: old key scope is not
+  known; all Free01 data is disposable; necessary supported completion steps are
+  authorized. This is NOT full-visibility evidence. The old factual question is
+  answered without a scope proof, not still awaiting an answer. Actual official
+  GET /v2/api-keys returned404; no key mapping/grants were obtained. CUA inventory
+  has no browsers and IAB is unavailable. No key/role/data/provider mutation.
+  A concrete known-scope temporary read-only Free01 key request is now presented
+  there, with private input fields at PRODUCTION_HETZNER_COOLIFY_HANDOFF_PRIVATE.md:1269.
+- Continue independent work: backend206 may deploy BEFORE vector transfer,
+  preserving all original bindings, credentials, ledgers and financial history.
+  Hume's NEW private derivative /private/tmp/01044-backend206-before-transfer-helper.WrrX2ziw
+  has an explicit PRESERVED_TRANSFER_PENDING gate, distinct from completed-transfer
+  attestation. Old helper/source/STOP records unchanged; no product/framework
+  code or transfer security check is relaxed. New helper qualification/final
+  parent review are in progress; no deployment dispatched at this checkpoint.
+- Fresh BOTH control-plane205 backups captured17:27:21UTC, with all137 table/
+  column/row and migration-history fingerprints unchanged before/after export.
+  This excludes Coolify, dealership and customer-runtime databases, not a retry
+  of the rejected optional lead database export. Manifest
+  /private/tmp/01044-control-plane-pre-206-preserved-owner-20261019T1728/fresh205-manifest.json
+  SHAc769a7dcc966116df37c19afe5993ad82f630bb2900539d308b82268d75bb6ce.
+  Both fresh archives restored successfully in network-none local PostgreSQL18
+  with matching full137 table/column/row/history hashes, temporary containers
+  removed: /private/tmp/01044-pre206-preserved-owner-20261019T1728/fresh-restore-proof-r2.json
+  SHAb5924f6473688b73391a6d4b47f2c171ae13f380f239549e3c0905298ef5baa0.
+  Original local R1 restore failed; its exact stderr was not retained, so its
+  specific cause is UNKNOWN. Separate R2 improves final PID1/server readiness
+  and private failure diagnostics, then actually passes. No server was changed.
+- Parent generated NEW32-byte attempt key once for this cycle; fileSHA690ec994273ba0889bc4f9141c73dba2e6d49370156a24b257caacd9dc60c4f6.
+  Both fresh installed tag-only cache captures pass S=C=P and equal snapshot
+  HMACs, no writes: /private/tmp/01044-backend757-cache-capture.jpFQtMuX.
+  Parent reran its30 offline tests PASS. Same fresh key copied to NEW WrrX2ziw/
+  attempt-001 with origin record; no older attempt/key was reused.
+- Actual compact current-ownership proof validates source2 original handles,
+  destination0, all4 transfer ledgers0 and all137 table fences. Complete pending
+  parent config assembled/validated (NOT dispatched): WrrX2ziw/config.parent-reviewed.json
+  SHA6e92e440161224473142c59ea22fba93c1259a4b010a6e0e1a9e88f53c1a773c;
+  ownership-preservation-review.json SHA50ec4e740c98d44d89f5ea9bcc2456949a11c483f0e73c0f4d6800c305e7cce6.
+  Attended window17:27:20-17:57:20UTC. Agent freeze/parent tests, signed before/
+  prepare/review/normal image rollout and complete verification still required.
+  Main active; required local execution is being drained, UI extraction LAST.
+
+## 2026-10-19 External Bindings Verified; Next Live Step Awaits Free01 Scope Fact
+
+- Independent normal CUSTOMER_ADMIN GET readback at17:10:54UTC verifies both
+  external bindings CONFIGURED for Ccus-9fd67f55/Ddep-096af01e/Vver-76abc66f/
+  dtp-coolify-staging-behavior. DATAeib-56ed58d7-6354-4a61-b740-845c3f4ef15d,
+  approvaleia-08c2bb7e-c29b-4b10-befb-874684dd3036; ACTIONeib-1d8a74a5-c4bb-4f12-a92f-932d93546383,
+  approvaleia-83ee8676-91c8-4708-92ed-9be0b2ea8069. Four individual normal
+  API approval/bind commands succeeded with distinct frozen operation keys and
+  durable client receipts; no retry, provider business call or model call.
+  Final proof /private/tmp/01044-prodcp-external-bindings-20261019/final-safe-readback.json
+  SHA4e2f717f814225747aecd7f3587c8eb9a154a23fc547db6f2b2c84887d30516c.
+  Both public CP health endpoints return200/UP. CONFIGURATION_ONLY, not runtime
+  readiness: no new release/app activation/index/model grant/admission yet.
+- Restored the external receiver's original auto-deployTRUE using exactly one
+  normal settings-only PATCH, no instant_deploy/start/restart. Parent reran all
+  48 focused restoration tests PASS, then actual before/after full scope/data/
+  settings/native fences PASS. No new job or container change. Private receipt
+  /private/tmp/01044-receiver-auto-deploy-restore.LDKAWtHk/restore.verified.json
+  SHA5924cc286b4063a404de0dd3fab346c31de99eddf05c3a72717548e845998d66.
+  Original disable, receiver helper STOPs and remote intent remain unchanged.
+- Hume's independent R3 review has no open confirmed P1/P2; no duplicate hosted
+  run. Curie's official API review finds known-key grant introspection routes
+  but no documented self/fingerprint lookup and no trusted public keyID mapping
+  for the current inventory credential. Therefore it cannot replace the existing
+  owner scope question. No provider call/role/key change was made. Required for
+  production confirms its original factual question remains pending; do not
+  duplicate it, infer full ACL visibility or conflate this with spending approval.
+- All three bounded agents completed and were closed. No required exec session
+  remains running. The next live mutation is genuinely gated on that external
+  key-scope fact: Free01 audited205 transfer first, then fresh206 rollout inputs/
+  backups/window, sequential CP rollout, cumulativeUSD12 allocation/capacity,
+  hosted AI-only apply/index/chat/actions/handover/promotion/retirement, P7,
+  and UI extraction LAST. Do not imply the main worker continues after final.
+  Keep Hetzner open per owner's explicit full-plan instruction.
+- New checksum-qualified PARTIAL rollout input:
+  /private/tmp/01044-v206-pool-registry-qualified-config-20261019.7wPGn2er/config.source-registry-checksum-qualified.PARTIAL.json
+  SHAe86ca1cb9299c9b5fb10d0a61efddd81e8ba2eb571bdd1d6beb5f4913644d05e.
+  This is still not complete/dispatchable: transfer proof, fresh backups/cache,
+  new fence key/attempt and attended window are intentionally unfilled.
+
+## 2026-10-19 Receiver Postchecks Passed; Normal External Bindings Active Work
+
+- Parent resumed actual work after the user's status question; do not imply
+  continuous work after a final reply. Receiver R2 read-only postcheck stopped
+  because it incorrectly required COOLIFY_DEPLOYMENT_UUID, which this installed
+  Coolify does not emit. SOURCE_COMMIT, exact native job, application label,
+  image reference/tag and inspected image all match. NEW R3 additionally pins
+  the observed new container/image, rejects conflicting optional metadata and
+  preserves the exact original STOP. Nine focused tests pass; no deployment
+  retry, settings/data mutation or source-selection fallback was used.
+- Actual R3 hosted postcheck PASS at17:03UTC: ten read-only authorization probes,
+  all seven business tables/columns/rows/history unchanged, exact normal-new/
+  preview-old credentials, provider/database/nonreceiver configuration fences
+  unchanged. Proof /private/tmp/01044-receiver-normal-coolify-deploy-20261019/
+  native-post-verification-r3.json SHA8bcf3a88c2e2c00b8a008512507acb13a7bbc36007aef49bd81a3c11e946debc.
+  New container03a50bd53fa79734a945bf38629b103d24bc22fef9a21efb4b5dbe3c2292f22d,
+  image10022dd1473e752c4031fe627204384f68115f796eaba6b6fe74f006f1049c16,
+  jobnuqa71jnrrbht42u4qma7fuj/source757a. This is external receiver proof,
+  NOT a new AI runtime deployment or full customer-readiness claim.
+- Normal CUSTOMER_ADMIN placement check succeeded once: cpe-046d782e-3277-4eae-b0ed-c0398500e814,
+  checked17:03:52UTC/expires17:18:52UTC. External bindings use the frozen R2
+  wrapper under /private/tmp/01044-prodcp-external-bindings-20261019, four
+  individually reviewed normal approval/bind operations. No admission/model
+  grant, runtime apply, stock/document indexing or UI extraction yet.
+- Pasteur prepares only the normal API auto-deploy restoration helper for the
+  new verified container; receiver automation is still FALSE until actual
+  restoration proof. Hume independently reviews the R3 metadata correction.
+  Both agents are active; no more bespoke Compose maintenance attempts.
+- Actual packaged Flyway9.22.3 checksum for V206 is -1059995410. Private proof
+  /private/tmp/01044-v206-flyway-checksum.ul9BU4Xs/proof.json
+  SHAfdb4a206fa2bc385eb3241bd14fd234aa40781c0274ae76a2cbf686cac59f7ed.
+  Free01 owner ACL confirmation remains pending only in Required for production.
+  Optional business backup is resolved SKIPPED: no export/copy/retry authorized.
+  Backend CI39280882672 and final OCI proof are SUCCESS, not queued. Both CPs
+  remain47/schema205 until the audited transfer; UI extraction remains LAST.
+
+## 2026-10-19 Receiver Normal Native Deployment Finished; Postchecks Pending
+
+- Backend CI39280882672/attempt1 now SUCCESS, updated16:18:10UTC. Backend
+  job118154616583 passed, UI118164488165 SKIPPED. Anonymous read-only OCI proof
+  /private/tmp/01044-v206-pool-757a-registry-proof-20261019.B6Hcbz2A/proof.json
+  SHAd51d08034c3e6c7a6f773a8fe3ab28587915bc762ceba1a87c06c59ccc74d907:
+  root95443f7be3ff13470ca4094db73e9f1672bfc4eae43e7032005d0369758ad392,
+  amd646ec59541fe7a72fdee29e1a223d0253af2d475f5213f23021611ae813def27cc,
+  configc5dee3ce93df7416894153325a3c7889e0ccc2fa1635b2b5620cda0fbcd3f9e3,
+  exact source757a labels/raw hashes verified. No layers pulled/CP deployed.
+  New partial rollout config7wPGn2er SHAabf94d7bcf2c87f11e40448a403b65ef03d66538c778460f95c39de75777cd8d.
+  Flyway checksum/fresh backups/cache/new key/window still pending. Both CPs205
+  until Free01 transfer; owner inventory-visibility question still pending.
+- R4 receiver env PATCH occurred16:21:34UTC; STOP16:21:47 because checker
+  wrongly expected preview rows to change. Actual fresh proof verifies all7
+  normal rows new/exact, all7 preview rows old/exact, runtime/data unchanged.
+  Minimal R5 corrects only that checker/mock (142Node+53file testsPASS, parent
+  Node142PASS). Explicit parent read-only reconciliation made NEW local attempt
+  op suffix-r5-recovery, original R4 STOP/patchintent byte hashes preserved.
+  Independent P2 fsync-order correction applied before local prepare. Proof
+  r5-explicit-patch-readback-proof.json SHA4a4aaec0d66b67bb5d7a525517e3b50da261af7397a79da69903ff523017f273.
+  No env PATCH repeated, no fake retained HTTP status. R5 Compose recreation
+  STOPPED16:35:24; old9d container stayed healthy, remote intent exists. /var/lock
+  resolves /run/lock, conflicting with the one-off canonical root-file guard.
+  Keep all source/STOP/locks/unused protected override; NEVER repeat Compose.
+- Engineering choice: abandon further bespoke Compose corrections. Normal
+  Coolify deployment of this ONE external fixture may use ordinary cache/build/
+  pull; owner prohibited forced rebuild-everything, not this bounded normal app
+  deployment. Installed /start force boolean parsing verified, source code of
+  handler inspected. Fresh normal baseline verified (same7 full business table
+  fingerprints), SHA1d8d1246f4d4d9e086bb8d404118e665dfad2d57405e17f813ca2462b1d43385,
+  normalROOT /private/tmp/01044-receiver-normal-coolify-deploy-20261019.
+  Independently reviewed missing window check was added immediately before
+  fsynced intent/POST. Native jobnuqa71jnrrbht42u4qma7fuj FINISHED16:46:11UTC,
+  appdf2/264, forcefalse/restartOnlyfalse/isApitrue. New03a50bd53fa7 HEALTHY.
+  Post authorization/data-preservation verification is NOT complete yet.
+- Important source truth: normal Coolify selected branchHEAD757a despite app's
+  configured git_commit_sha1735. Original intent expected1735 stays unchanged;
+  explicit read-only source-selection observation records actual757a. Entire
+  backend directory GitTREE is identical across oldff538/configured1735/actual757a:
+  0c2e00a82529c394209de860cc690a04a586d3c2. Proof normalROOT/source-selection-observation.json
+  SHAcd29343d388eb1e3db5ec13db5428cdabab0903087427675b2770dec5f523e6b.
+  This exact equivalence is only for this existing external fixture, no generic
+  latest-source fallback or immutable AI deployment waiver. Hume prepares thin
+  READ-ONLY post-verifier for actual757a/normal native job, all full DB/credential
+  boundaries and ten existing read-only probes. No source/UI/framework edits.
+- OPTIONAL full business pg_dump to local was REJECTED by automatic review:
+  73 historical lead rows may contain personal data; do NOT assume fictional.
+  No command/data copy occurred, no dump/manifest exists. No workaround. Reported
+  honestly and asked for explicit optional export approval through Required for
+  production with payload/destination. This is NOT a blocker for source-equivalent
+  app deployment with the same remote database. Do not export until approved.
+- Normal external-binding wrapperR2 qualified23tests, parent rerunPASS; actual
+  ownerSESSION GET200/CUSTOMER_ADMIN/expectedcustomer verified. Parent generated
+  independent fence and four distinct opkeys; local-only placement plan prepared,
+  digest4ca5a422cf1d3c1448396edd09288d480432b702e0e7de026fa2faa9ad9bfae9.
+  No placement POST, DATA/ACTION approval/bind or model/admission operation yet.
+  After receiver proof, execute placement then four individual normal API steps
+  within freshness, using wrapper-admin-alias-r2.mjs; ACTION BIND requires exact
+  parent receiver-validation evidence. UI extraction remains last; still active.
+
+## 2026-10-19 Active Integration Preflight And External Build Delay
+
+- Parent final-source localSourceEvidence PASS for757a5efa4, full3674/362 and
+  critical71/3. New structured execution companion preserves original e44...
+  receipt, binds actual tool23165 exit0 and collector27320 exit0, copied raw log,
+  real prestart/after timestamps and recomputed identical after manifest.
+  /private/tmp/01044-v206-pool-parent-full-qualification/rollout-local-source-qualification.json
+  SHA130fada3672a081275f42c1b5d777c43cc8648b323be079229058e95353345e2.
+  Partial source-qualified rollout config is under the new H8RqpwdD helper,
+  SHA461e4c041d9e0f0c1e5692d5f6867f1915478b0eddcc6cc1b31c8c580d73ee55.
+- CI39280882672 remains QUEUED. Official GitHub incident8tzbpcnl75jp began
+ 15:49UTC and reports Actions/Pages/Webhooks workflow delays, matching this run's
+  timing. No duplicate trigger, speculative image, old-image rollout or local
+  production-server build substituted. https://www.githubstatus.com/incidents/8tzbpcnl75jp
+- Actual safe Free01 context-pin collection PASS at16:01:39UTC, report
+  /private/tmp/01044-free01-context-pin-collector-20261019/pins-parent-admin-alias-r2-001.json
+  SHA30f12fb41cb841317597600aa6cd4f15de2088f1169046a7b6933809151fd25a.
+  Original collector rejected production's explicitly configured admin alias;
+  actual parent hash-only read proves its normalized key equals canonical.
+  Separate R2 transfer/collector accepts ONLY that reviewed production alias/hash
+  with exact equality; conflicts/duplicates/other overrides still deny. Parent
+  independently reran265 synthetic tests PASS; no server credential change.
+  Actual source consumer normal GET proves bindingRevision1. New input
+  /private/tmp/01044-v205-free01-transfer/input-parent-pinned-ver76.PENDING.json
+  SHA65a8998d95152f3c8a61cce57471620b62214b9170030ad77b15ca74fbd32c95
+  has real pins/revision but ALL review flags remain false. No transfer yet.
+- Required for production independently confirmed key provenance does NOT yet
+  prove complete inventory visibility; one factual owner question is pending
+  THERE, not duplicated in main. Both CP inventory fingerprints are identical.
+  Its private assessment is explicitly pending, not a usable approval. Retain
+  schema205 until the audited transfer is complete; frozen transfer helper has
+  no206 support. Curie finished/closed after frozen R2 handoff.
+- Receiver preflights remain read-only; NO seven-field env PATCH, recreation,
+  action, stock or model call. R2 fixed VARCHAR queue-ID comparison (111offline
+  plus12 actual PG checks); R3 qualified exact existing provider-file ownership
+  (121Node plus43 descriptor tests, parent reran bothPASS). Actual R3 preflight
+  correctly stopped on a named POSIX ACL: ONLY already-authorized loomops1000.
+  Parent read all seven path ACLs and exact raw access/default SHA values.
+  Pasteur prepares separate R4 source at
+  /private/tmp/01044-receiver-prodcp-compose-maintenance-r4.n5jbnGnw,
+  pinning exact reviewed ACLs rather than changing permissions or accepting any
+  named writer. R4 is NOT yet frozen/hosted-qualified. Original/R2/R3 retained.
+  DATA ROOT, generated keys and operation ID remain unchanged. NEW W2 config
+  config.prodcp-ver76-78de9b31.REVIEWED-UNFENCED-W2.json under DATA ROOT has
+  fresh review until16:40:09UTC; no observation/attempt prepared yet. Fresh
+  metadata-inclusive observation/fences required before one reviewed env PATCH.
+- Hume prepares a thin parent-attended wrapper for existing normal owner/staff
+  external-binding APIs at /private/tmp/01044-prodcp-external-bindings-20261019.
+  No worker keys/hosted calls; parent will review frozen handoff, generate a
+  separate fence key, then separately refresh placement/prepare/approve/bind.
+  DATA can proceed independently; ACTION waits for verified receiver cutover.
+  No UI extraction/source edit or framework release. Hetzner stays open.
+
+## 2026-10-19 Pool Fix Qualified And Pushed; Fresh Customer Configuration Verified
+
+- Final backend source757a5efa42cd6f358313822219719cb3adb432d0 pushed to
+  Platform-V11. Commit contains ONLY the REQUIRED read-template pool correction
+  and its actual PostgreSQL/Hikari/JPA concurrency regression. Full backend suite
+  PASS3674/362, zero failures/errors/skips, Mavenexit0 at16:48:21BST; packagePASS,
+  jarSHA1d8dd04f4eb8f81247a4ce54c819210979eb701fb56df781757bc64aa7ac91c7.
+  All1886 inputs were captured BEFORE execution and rechecked unchanged; every
+  input subsequently matches its committed Git blob. Private source-bound full,
+  critical71/3 SUBSET, and unchanged final-SQL archive2 receipts are under
+  /private/tmp/01044-v206-pool-parent-full-qualification. Original full receipt
+  SHAe44bc8d367bf3e55618626cc02f782d52056ab96869692c04d94b78d204302dc.
+  Backend-only push CI39280882672 is queued; no final image or V206 rollout yet.
+  Earlier d8e image remains HELD, never deployed. Framework unchanged0.8.36.
+- Actual production-CP CUSTOMER_ADMIN configuration journey now VERIFIED via
+  separate explicit no-commit reconciliation and normal placement/storage/version
+  commands. Ccus-9fd67f55/Tten-3977745c/Ddep-096af01e, S3dsh-df08ac57-cb2,
+  publishedVver-76abc66f/hash72afeab4f8b3bd4911324122d90fec1ddb7558f530cb4f7524121cf70c5eb075.
+  Appawi_pub_0da7b2bcde397ce2001e0fa54ba26900 remains draft, not customer-live.
+  Final private proof /private/tmp/01044-production-cp-storage-version.ref7SvyH/
+  attempt-001/final.safe-proof.json records CONFIGURATION_ONLY_VERIFIED with
+  zero releases/model calls/financial operations. Original unknown storage HTTP
+  status and old STOP checkpoints remain unchanged, never relabeled successful.
+- Actual Java destination index-prefix proof PASS, SHA15e585d7900b9b686633dfc0db4bbfa7916d34da5f7b14b9f2ad02ececb1ddcc,
+  /private/tmp/01044-v205-free01-transfer/prefix-proof-48d142d59012c48c.json.
+  No Free01 unbind/release/claim performed yet; actual credential/identity review
+  and individual normal transfer steps remain pending.
+- Existing external receiver's normal Coolify is_auto_deploy_enabled:false PATCH
+  VERIFIED with no native job or container change. Original value TRUE retained
+  for later explicit restoration. Receipt /private/tmp/01044-receiver-auto-deploy-maintenance-20261019/
+  disable.verified.json SHA151e14d9c769a6ab24df1f237b7b2b7a83bbaf0361587581eee90039cb05a902.
+  Actual installed update handler9fa5... inspected, cached differing source not
+  used as authority. No seven-field env PATCH or receiver recreation yet.
+  Read-only maintenance preflight stopped because its provider queue predicate
+  compares VARCHAR application_id to integer264. Pasteur prepares a separately
+  qualified helper correction against actual schema; no provider/runtime change
+  or guard waiver. Parent-reviewed window currently ends16:17UTC, re-review if
+  expired. Fresh keys exist privately; no values logged/committed.
+- Main work actively resumed. Agents reused: Hume new rollout helper offline
+  qualification; Curie actual identity/fingerprint input collector; Pasteur
+  receiver maintenance query correction. UI extraction LAST, no user input
+  currently required, Hetzner remains open under existing instruction.
+
+## 2026-10-19 Actively Resumed, Published Candidate Held For Pool Correction
+
+- User asked whether work was active or stopped. Main turn had ended after its
+  status reply; answered honestly and resumed tools/work rather than implying
+  continuous autonomous execution. Parallel work was checked and reused.
+- Scoped17-file routing source commit d8e8bca141bb798fd8a0d425ce6479ae9e00cb34
+  is pushed to Platform-V11. Package passes, jarSHA
+  e132c442d7c80f44434f71ae655e7ee4761713c930756ab9728fdda3edec5f45.
+  Backend-only CI39276270964/attempt1 SUCCESS; UI job SKIPPED. Registry GETs
+  verify raw root/child/config hashes, linux/amd64 and exact source labels:
+  root656ebf05285fdbdf5650f7712da4354d007d57cc9c9b9a6f2cc4fab87be10035,
+  amd6418fbcc15da763b75f00da910c9d9c35d3d2847100750b3a9398a687b52204c31.
+  No image layers pulled or hosted deployment dispatched by these checks.
+- Full3672/361, critical69/2 PG SUBSET of that same run, and R2 archive2 are
+  honestly bound postcommit in /private/tmp/01044-v206-parent-full-qualification/
+  full-source-bound-result.json, critical-source-bound-result.json,
+  archive-source-bound-result.json. Every1885 captured input equals the exact
+  committed Git blob. This does not claim tests ran from a preexisting checkout
+  of that commit. Original receipts remain unchanged.
+- IMPORTANT: d8e candidate WILL NOT DEPLOY. Independent Curie review confirmed
+  P2: isApplied used the worker's REQUIRES_NEW transaction while customer callers
+  retain an outer connection; pool-capacity concurrent requests can exhaust the
+  pool and retain locks until timeout. Hume implements the minimal read-only
+  REQUIRED read template, preserving REQUIRES_NEW worker writes. Curie owns NEW
+  AIWorkspaceRoutePoolConcurrencyPostgresTest with actual bounded Hikari pool and
+  real PostgreSQL; old behavior reproduction and fixed concurrency qualification
+  required. No migration/framework/UI change. Final source/image qualification
+  must cover this correction, not silently reuse old full-source claims.
+- Hume's new private rollout helper candidate is
+  /private/tmp/01044-backend-v206-helper.Yx0Jf9LO; preparation paused for the pool
+  fix. Old V205 helper/receipts remain frozen. No provider cache proof, final
+  quiescence window, fresh rollout backup or native job prepared/dispatched yet.
+- Curie external receiver Compose maintenance handoff is frozen at
+  /private/tmp/01044-receiver-prodcp-compose-maintenance/README.md,
+  compositeSHA00e1dc86a378770a49960f1fae5489a4ff56e41ac0dada17fc0bc38d7bdea2dd.
+  Worker114checksPASS =111offline +3actual local Compose. Parent reran111offline
+  PASS. This is not a hosted cutover. Existing app/DB/image only; new V/hash,
+  receiver keys, exact window/preflight and separately reviewed PATCH/recreation
+  remain pending. Saved .env stays unchanged; future normal-deploy risk is
+  explicit, never hidden or represented as a native Coolify job.
+- Pasteur's separate storage/version continuation is under final qualification:
+  /private/tmp/01044-production-cp-storage-version.ref7SvyH. Preliminary59offline
+  PASS and2actual local PG205 SQL checks seen, but no final parent acceptance or
+  hosted no-commit capture/placement/storage/version submission yet. Old R3 STOP
+  remains intact. Actual live CPs still47/schema205, so source47 pins remain valid.
+  Do not bypass recovery or repeat POST without its explicit reviewed proof.
+- Platform - Updates milestone sent16:21BST describes published candidate and
+  newly discovered P2 hold honestly. No new human input currently required.
+  UI extraction remains last. Hetzner stays open under existing instruction.
+
+## 2026-10-19 Routing Fix In Implementation, UI Still Last
+
+- Parent actual full backend qualification now PASS:3672tests/361classes,
+  zero failures/errors/skips, Mavenexit0 at16:07:18BST,18:38min. Raw XML copied
+  and counts independently parsed with xmllint, excluding stale earlier XML.
+  /private/tmp/01044-v206-parent-full-qualification/full-result.json,
+  SHA3000911d68320b4788deeb9e9db8274bb7a5e3ddd6df1246ddaf74df58bf232e.
+  All1885 captured source/resource/test/pom inputs recheck unchanged. Source
+  capture was DURING execution, not before, as explicitly recorded in receipt.
+  This supersedes the running-test note below. No V206 commit/image/rollout yet.
+  Hume prepares separate private205-to206 rollout helper with pending final
+  commit/digests/CI and fresh backups; no old helper/evidence mutation.
+- Pasteur analysis confirms storage continuation gap is in private helper:
+  placement refresh occurs only in bootstrap, not storage/version. Backend47
+  freshness rejection before effects is correct. Original stopped R3 checkpoint
+  SHAf4803a7a19db96a15b57f409898ee63fe21b0385d92852d7e2f8f1d2bef7c3f1.
+  Pasteur now implements a NEW separate attended coordinator: preserve old STOP
+  and seq12 UNKNOWN, authenticated no-commit/current source/scope proof, explicit
+  normal placement refresh, separately reviewed exact original storage command,
+  scoped receipt/readback, another refresh before separate version publication.
+  No blind retries, invented HTTP status, old fake-COMPLETE, funding/apply/models.
+  Actual capture/refresh/submission remain parent-owned and have NOT run yet.
+- Actual app receipt recovery now COMPLETE by explicit parent local-copy apply,
+  not by a repeated hosted command. Final privateR3 is
+  /private/tmp/01044-production-cp-app-v3r3.KdzkVGD4, codeHash
+  a2f7b4003bdd718f5814854644951d5cc10538ca878707dbaf66f36c327a6dce.
+  Parent reran65testsPASS; independent Hume review confirms the cached-evidence
+  copy race is closed. Fresh actual read-only proof
+  f0256e7377d607cac81fa435d80f6be819507ac87890f015da1e3cd0a17d6257,
+  reviewed local plan e135d8b882c4522467eb00efbe028f1b0ee03d927334298b3d2d093a770a4715
+  applied to NEW attempt-003-server-receipt-reconciled. Original V1/V2/R2 states
+  stay untouched; app intent11 remains OUTCOME_UNKNOWN without responseHmac.
+  Completion attribution is DURABLE_SERVER_COMMAND_RECEIPT. Three normal audits
+  are create aud-0245e25a, route aud-4253fa66, CORS aud-5ba17d3c. Only root DTO
+  created/updated timestamps differ329ns at PostgreSQL precision6; all else exact.
+- Subsequent actual storage command STOPPED; DO NOT repeat POST or continue
+  version yet. R3 phase storage STOP_RECONCILIATION_ONLY, intent12 UNKNOWN,
+  operationKey01044-p7-prod-fresh-hopxDD24-storage, intent15:01:20.679UTC,
+  plan5911fb9e64bd80191bf1c3c61bc5e7e59da1dad616e9e8d1e73315539bf2d5c1.
+  Original helper does not retain non-2xx HTTP status; do not invent one.
+  Actual read-only SQL proves zero command receipts/storage handles/storage
+  audits. At15:04:03.905893UTC zero other active/open transactions and zero
+  secrets for the new deployment. Latest staging placement evidence checked
+  13:49:10.137165UTC expired14:04:10.137165UTC, before this command. Source47
+  requires fresh placement before storage effects. This is the current supported
+  prerequisite/continuation issue, not a missing AWS permission claim. Pasteur
+  prepares minimal explicit no-commit reconciliation + normal placement refresh
+  continuation; no old checkpoint edits, blind retry or backend change authorized.
+- Parent actual full backend test run is in progress, private log
+  /private/tmp/01044-v206-parent-full-backend-tests.log. Do not claim final PASS.
+  Inputs manifest captured DURING execution, not before:
+  /private/tmp/01044-v206-parent-inputs-during-run.sha256,
+  SHAe54ad10c72453f9c611713ca5336bd9993399fa39e96e49e3039383d904422db,
+  1885source/resource/test/pom files; recheck after completion. Source frozen at
+  Hume handoff. Collector /private/tmp/01044-v206-collect-full-result.mjs excludes
+  stale prior report XML by new log birthtime and parses counts with xmllint.
+  Cached test contexts emit background worker warnings after their class-owned
+  PG containers stop; this is not itself an assertion failure or hidden PASS.
+- Installed Coolify read-only diagnosis confirms /restart clears restart_only
+  for Dockerfile apps, and /start does not guarantee no-build/no-pull. Curie
+  prepares NEW private one-service prebuilt-only Compose maintenance helper for
+  the existing external business fixture, never a customer-AI admission bypass.
+  No live cutover, image pull/build, new service/database or key generation yet.
+- Final routing source is now frozen for parent review: 162 focused tests PASS,
+  zero failures/errors/skips, including69 actual PostgreSQL cases. Handoff:
+  /private/tmp/01044-v206-routing-qualification/HANDOFF.md. This is source
+  qualification, not hosted acceptance. Parent full backend integration is now
+  running separately; Hume is no longer editing these files or using its target.
+- Final migration includes target_profile_fingerprint. BOTH actual205 archives
+  pass the new R2 rehearsal,2tests/0failures/0errors/0skips, preserving137 existing
+  tables, columns, rows and all prior Flyway entries; exactly1 new empty table,
+  replay0. /private/tmp/01044-v206-archive-qualification-r2/qualification.json,
+  migrationSHAb283c6f047df4476dfff7da8c53c64a1986cfe6da1904aa83d3ab9d47beacfd6.
+  The earlier27d805 rehearsal below remains historical, not final qualification.
+- Parent caught a private V3 collector SQL column error before any actual proof
+  collection or local-copy apply: ai_workspace_domains uses installation_entity_id,
+  not installation_id. Frozen /private/tmp/01044-production-cp-app-v3.Xtz2hS4R
+  remains unused and unchanged. Pasteur prepares a NEW corrected revision with
+  actual local PostgreSQL205 snapshot-SQL qualification, not mock-only proof.
+  Original app POST/OUTCOME_UNKNOWN records remain untouched; never repeat POST.
+- Read-only hosted target preflight confirms each existing shared frontend has
+  one active COOLIFY profile with platformServicesAllowed=true: staging
+  dtp-coolify-staging/i11rgdryn7fswlg5wdg8d2hw; production
+  dtp-coolify-production/rtdzfytxrf80qrc92tm5u2xa. No setting changed.
+- Existing external receiver re-scope helper is offline-qualified95tests, but
+  live patch/restart is blocked until the installed Coolify prebuilt-only restart
+  path is proven. Curie investigates installed code read-only; no env/key changes,
+  restart, new business service/database or hidden build fallback is authorized.
+- User asked whether plan is finished and when UI starts. Answered honestly:
+  NOT complete; routing fix plus remaining provisioning/indexing/chat/handover/
+  promotion live gates precede reversible UI extraction. No hour ETA invented.
+- Hume now implements generic durable desired-state routing, V206
+  ai_workspace_route_reconciliations, short leased DB transactions and bounded
+  provider steps outside interactive customer transactions. Create/update/disable
+  responses use non-network local projections, without claiming ready/verified.
+  No deployed source change yet. Hume owns routing source/tests/config; parent
+  owns integration/review/live rollout and the separate archive regression.
+- Parent preliminary review requested explicit regressions for current-binding
+  isApplied identity (never stale old provider rows), desired identity changes
+  between FQDN PATCH and native START (never lose required redeploy), and bounded
+  dedicated worker execution (do not block the default scheduling thread).
+  UNKNOWN/FAILED must have an explicit supported operational recovery boundary,
+  not blind restart or a direct SQL reset. These reviews are not yet PASS claims.
+- Parent added AIWorkspaceRouteArchiveMigrationIT and captured fresh private205
+  Platform DB rehearsal archives, excluding Coolify/customer business/runtime
+  DBs: /private/tmp/01044-control-plane-pre-206-rehearsal-20261019.
+  Staging8784710bytes/SHA0c719e73c45848bf3d47d4db79738d20745102bcc2ce4ed6ac7c4ab7602204e7;
+  production7733936bytes/SHA280b565d79c892e141d0507ade48daa0b93d55f699ec89faf637e8922548f6e7.
+  These are LOCAL rehearsal inputs, not a final hosted rollback-freshness claim.
+- ISOLATED archive rehearsal PASS on BOTH: 2tests/0failures/0errors/0skips,
+  actual PG18, every137 prior table/column/row hash and all205 prior Flyway rows
+  unchanged, exactly1 new empty route-state table, replay0. No Spring, workers,
+  provider or hosted connections; shared backend/target untouched. Qualification:
+  /private/tmp/01044-v206-archive-qualification/qualification.json.
+  Source testSHAc4b808bfe52ae2f5a296461e201d53f0b8653d27f31a9d7e3b5042a01dbfd174;
+  migrationSHA27d805027a466b108c58ce44ae5bd04e7dd44a25446529513f1e45623975079b
+  matched copied/tested bytes. If migration changes, rerun before accepting.
+- Pasteur implements PRIVATE explicit app command-receipt reconciliation and
+  NEW V3 local-copy continuation; no parent proof capture/apply yet. StageA
+  proposal /private/tmp/01044-production-cp-app-reconcile-v3.puB115kc,19offline
+  tests and exact original body/header MACs/Jackson17field fingerprint matched.
+  Do not demand/fabricate a nonexistent whole-fleet pre-app baseline: validate
+  exact command identity/receipt/current owned scope/audit; explicitly list wider
+  unproven historical effects as residuals, not unchanged claims. Original V2
+  OUTCOME_UNKNOWN history must remain and no app POST replay is allowed.
+- Curie prepares an attended re-scope helper for EXISTING external receiver,
+  no hosted calls by worker, no new business DB/app, no data migration/seed/delete.
+  Actual C/T/D known; future new receiver key must be separate and private; old
+  runtime/Inbox/PII configuration and six vehicles/73 historic receipts preserved.
+  Original V5/Free01 helpers remain frozen. No live cutover performed yet.
+- Deployed47/schema205, runtime d2b1a9792/AI Fabric0.8.36, existing allocations,
+  vector source handles and cumulative USD12 whole-task limit remain unchanged.
+  No new customer release, provider transfer/model call/index allocation.
+
 ## 2026-10-19 Dedicated Progress Updates
 
 - User requested a separate reporting chat, milestone updates and an update at

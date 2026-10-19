@@ -1,5 +1,75 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Current checkpoint, 2026-10-19 20:14UTC: unused-binding handoff and measured
+  physical policy/customer quota publication now pass actual normal API and
+  complete state verification. SSH-key materialization fix795 passes38 focused
+  tests/package/backend-only CI and actual staging795/rootb1/schema206/UP with
+  all139table/config fences preserved. Production8b/rootf40 remains healthy.
+  Read-only host-verifier assets/one-time owner policy795/9e pass19 tests and
+  independent review. Their installation/configuration is NOT performed: one
+  explicit restricted staging-login/key approval waits in Required for production.
+  No customer runtime, financial grant, model call or new business database.
+  Initial hosted apply/index/auth/actions/handover/promotion/retirement/P7 remain
+  open. Existing preparation windows must be refreshed, not reused as current
+  evidence. UI extraction remains LAST. Earlier checkpoints are historical.
+
+- Active checkpoint, 2026-10-19 19:42UTC: BOTH backends fully verify8b667159/
+  rootf40/schema206/healthUP with all139table/config/credential fences preserved.
+  Atomic unused Free01 release/review/claim and final complete audit proof now
+  PASS; new bindingevb-bc916b29-2cb0-496a-8c08-45091e16f155 belongs to the new
+  production-owned customer's CUSTOMER_STAGING target. This copies NO vector
+  records and is not staging-to-production promotion. Both fresh61sample host
+  baselines and normal CUSTOMER_ADMIN placement probes pass. New operating
+  review records conservative capacity and remaining recovery/hosted gates.
+  No runtime apply, index/model call, provider funding or UI extraction yet.
+  Customer apply/promotion/retirement/P7 remain open; UI extraction LAST.
+
+- Active checkpoint, 2026-10-19 18:31UTC: BOTH Platform CPs now verify exact
+ 757a/root95443/schema206/healthUP, with old data/config/financial history
+ preserved. One normal production job finished and passed full readback; no
+ force/rebuild/env patch or framework change. Both fresh host baselines pass.
+ The audited vector handoff has not executed: its read-only helper hit a
+ PostgreSQL multiline-JSON framing issue, now being corrected without omitting
+ evidence or changing a deployed service. The owner approved400000 whole-task
+ technical tokens with the SAMEUSD12/50chat limits; no credits/model calls yet.
+ Hosted AI-only deployment, canaries, promotion/retirement and UI extraction
+ remain open. UI extraction is LAST, not underway in this continuation.
+
+- Active checkpoint, 2026-10-19 18:00UTC: staging backend normal job
+  `q3xlu32w925bpvprws48zaj2` finished on757a/schema206/healthUP. Production
+  remains47/schema205. The strict staging verifier stopped on generated proxy
+  labels; separate read-only exact installed-generator proof passes for both
+  old/new domain sets, with all other frontend configuration unchanged. Final
+  staging supplemental acceptance and a fresh production-only rollout remain.
+  No original signed plan/window or failed check was rewritten. Fresh Free01
+  provider readback is Free/RUNNING with empty default inventory; the qualified
+  staff completeness review explicitly rests on documented tier/grant semantics,
+  not inspected ACLs or owner-confirmed key scope. No transfer/key change yet.
+  Hosted AI-only workload, promotion/retirement and P7 precede UI extraction.
+  No customer inventory/lead database or simulator is part of the deployment.
+  Earlier checkpoints below are historical. UI extraction remains LAST.
+
+- Active checkpoint, 2026-10-19: the fresh production-owned CUSTOMER_ADMIN
+  configuration journey is verified, including read-only customer S3 binding
+  and immutable `ver-76abc66f` for `dep-096af01e`. The workspace remains draft;
+  zero runtime releases, model calls or financial operations were made in that
+  configuration journey. Final backend routing/pool correction `757a5efa4` is
+  pushed: full3,674 tests/362 classes, zero failures/errors/skips, packagePASS.
+  Its backend-only CI39280882672 succeeded and the exact source-bound OCI image
+  is verified; neither this candidate nor the held earlier d8e candidate has
+  rolled out to the control planes. Both live CPs remain source47/schema205.
+  The independent external receiver's normal deployment and ten authorization/
+  full-data-preservation probes pass, and its original auto-deploy setting is
+  restored. Separate normal DATA/ACTION approvals and bindings now pass real
+  CUSTOMER_ADMIN readback. The owner answered that the old inventory-key scope
+  is unknown and Free01 data is disposable; a known-scope credential is still
+  needed for transfer, not another guess about access. Independent backend206
+  rollout may proceed first with all current vector ownership preserved;
+  no new business database or simulator belongs to the customer AI deployment.
+  Hosted workload, production promotion/retirement and P7 remain open. P6 UI
+  extraction stays last and separately reversible. See the newest
+  [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).
+
 - Latest hosted checkpoint, 2026-10-19: backend source `47ecad0bd` is VERIFIED
   on both control planes, digest
   `sha256:a159ff93fcda2b4568cd9f1408d82d3fc21dfc8d657ccf3b4bf65b8a32408888`,

@@ -6,6 +6,107 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+Current continuation, 2026-10-19 20:14UTC: atomic unused Free01 handoff and
+physical admission policy/quota publication are actually verified. The key-file
+newline fix79552555f passes38 focused actual-module tests/package and backend-
+only CI39316033539; no framework change. Staging795/rootb1/schema206/UP passes
+all139table/config/credential checks, production8b/rootf40 remains UP. New
+read-only host-verifier assets/per-host owner policy795/9e pass19 Python tests,
+shell syntax and independent review. The remote account is genuinely absent;
+no account/key/configuration has been installed. One direct owner approval is
+pending in Required for production for bounded staging metadata-only access
+and one production backend configuration rollout. Existing admin keys untouched.
+
+No financial grant/model/runtime apply yet. Admission reservation, hosted stock/
+document/auth/action/handover acceptance, production promotion/retirement and P7
+remain open. Refresh expired placement/preparation evidence before reservation;
+do not replay completed handoff/publication operations. UI extraction LAST.
+Both workers completed/closed; no required exec/native job remains running.
+Source/verification details are in the current010.44 record and working context.
+
+Earlier continuation, 2026-10-19 19:42UTC: BOTH Platform backends fully verify
+8b667159/rootf40/schema206/UP with139table/config/credential state preserved.
+Production effective worker/SMTP values verify; no delivered email is claimed.
+Atomic unused Free01 release/review/claim passes all five normal API commands
+and final complete audit/table proof. New bindingevb-bc916b29-2cb0-496a-8c08-45091e16f155
+belongs toC9fd/T397/D096/V76 CUSTOMER_STAGING. No vectors were copied; this is
+not staging-to-production promotion. Every old audit/draft/workspace remains.
+Both fresh61sample host baselines and customer-authorized placement probes pass;
+owner/contact prerequisites are closed. Normal admission/AI-only apply, live
+index/auth/action/handover/promotion/retirement/P7 remain open. Operating review:
+`verification-support/productization-01036/PRODUCTION_OWNED_POST8B_CANARY_OPERATING_REVIEW.md`.
+Main continues; UI extraction LAST. Earlier checkpoints below are historical.
+
+Earlier continuation, 2026-10-19 18:54UTC: BOTH Platform backends are fully
+verified on757a/schema206/healthUP, and both61-sample host baselines pass.
+Promotion never copies vector records; production rebuilds from its own approved
+source bindings and namespace. The unused Free01 ownership handoff is a separate
+developer-to-customer-STAGING operation and has NOT occurred.
+
+Fresh complete read-only ownership snapshots pass. One attended unbind stopped
+BEFORE HTTP on a transient route lease; a separately reviewed generic unbind
+then returned non-success. Supported readback proves the consumer is still
+revision1, with zero operation-history writes. Actual source and live counts
+identify a legitimate lifecycle gap: the reviewed source has zero reservations
+and releases, while its generic binding guard correctly forbids an unbind.
+The correction makes explicit never-activated draft-consumer detachment atomic
+with the existing unused-vector source release, under the admission mutex and
+target locks. All no-runtime/no-reservation/provenance/revision/draft checks stay
+mandatory; the generic reviewed-assignment guard remains unchanged. Source
+compilation passes; focused regression and independent review are in progress.
+No new backend build is deployed and no framework change is required.
+
+Existing SMTP material and sender/recipient are owner-confirmed. Production
+worker enablement still needs a backlog/configuration review and rollout.
+Creating a customer-admin notice contact was blocked by security review BEFORE
+execution; explicit account-creation approval is being requested in Required
+for production. No account, mail, provider grant or model call was created.
+Hosted apply/index/actions/handover, production promotion/retirement and P7 are
+open; UI extraction remains LAST. Main active on the approved continuation.
+
+Earlier continuation, 2026-10-19 18:00UTC: staging's normal backend rollout
+finished on757a/schema206 with healthUP. Its original strict final verifier
+stopped at the shared frontend's generated proxy-label delta. Separate read-only
+proof establishes exact installed-generator equality for both domain sets and
+unchanged remaining configuration; full supplemental acceptance remains open.
+Production remains47/schema205, with no dispatch. Original signed plans and
+STOP records remain immutable; the old attended window expired. Fresh
+production-only rollout preparation and206-only transfer tooling are active.
+Free01's exact Free/RUNNING metadata and empty unfiltered default inventory are
+verified using the existing credential. Staff review uses an explicit documented-
+tier inference, not a claim of ACL inspection or owner-confirmed key grants.
+No vector transfer, new runtime, provider grant/model call or UI extraction yet.
+Main active; all non-UI hosted acceptance still precedes reversible UI extraction.
+
+Earlier continuation, 2026-10-19: both Platform backends are verified on
+47ecad0bd/schema205/healthUP. The fresh production-owned CUSTOMER_ADMIN has
+completed onboarding, offer acceptance, AI-only deployment configuration and
+consumer assignment. Its app was created once; exact durable-command receipt
+reconciliation is complete without retrying creation. It remains DRAFT, not a
+live customer workspace. Explicit no-commit reconciliation and normal fresh
+placement/storage/version commands completed the S3 binding and immutable
+ver-76abc66f. Original unknown HTTP histories remain retained; no successful
+HTTP status is fabricated and no unknown mutation was blindly retried.
+
+The generic background routing/pool correction757a is committed and pushed.
+Parent full backend integration passes3,674 tests across362 classes with zero
+failures/errors/skips; Maven exits0. Critical71 PostgreSQL tests are a subset of
+that run. Backend-only CI39280882672 and exact-source OCI verification pass.
+V206 is not deployed yet. The independent external receiver's normal deployment
+and ten authorization/full-data-preservation probes pass; its original
+auto-deploy setting is restored. Normal DATA/ACTION approvals/bindings pass
+independent CUSTOMER_ADMIN readback. The owner answered that the old key scope
+is unknown and Free01 data is disposable. Transfer still needs known-scope
+inventory credentials. The qualified backend206 can roll out independently first,
+preserving all current vector ownership and financial history. No customer
+business database or simulator is part of the AI deployment.
+Hosted runtime apply, indexing, chat/actions/handover, production promotion and
+retirement still precede the independently reversible customer UI extraction.
+The source/runtime ownership correction and exact current evidence are tracked
+in [010.44 execution](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).
+Earlier dated status notes below remain historical, not the current completion
+claim. No framework release or customer business-system provisioning is involved.
+
 Latest hosted readback, 2026-10-18: backend source `8432ec735` and migration193
 are verified on both control planes, with public healthUP and exact OCI revision/
 RepoDigest. Backend digest:
