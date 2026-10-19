@@ -123,7 +123,7 @@ class AIWorkspaceCreateReceiptPostgresTest {
         when(domains.normalizeSlug(anyString())).thenAnswer(call -> call.getArgument(0));
         when(domains.defaultBaseDomain()).thenReturn("apps.loomai.test");
         var readiness = mock(AIWorkspaceReadinessService.class);
-        when(readiness.evaluate(any())).thenAnswer(call -> {
+        when(readiness.evaluateLocal(any())).thenAnswer(call -> {
             var app = call.getArgument(0, AIWorkspaceInstallationEntity.class);
             return new AIWorkspaceReadinessSummary(false, app.getInstallationId(), app.getConnectionMode().manifestValue(),
                 "web", null, null, null, null, List.of());

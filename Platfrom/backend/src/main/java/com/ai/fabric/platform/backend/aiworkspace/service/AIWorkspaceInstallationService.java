@@ -159,7 +159,7 @@ public class AIWorkspaceInstallationService {
         synchronizeDomains(entity, input);
         deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_CREATED", entity, Map.of("consumerId", consumer.getConsumerId()));
-        var result = summary(entity);
+        var result = summary(entity, false);
         createReceipts.complete(receipt, result);
         return result;
     }
@@ -220,7 +220,7 @@ public class AIWorkspaceInstallationService {
             deploymentSecurityProjection.synchronizeDeployment(previousConsumer.getBoundDeploymentId());
         }
         audit("AI_WORKSPACE_INSTALLATION_UPDATED", entity, Map.of("consumerId", consumer.getConsumerId()));
-        return summary(entity);
+        return summary(entity, false);
     }
 
     @Transactional
@@ -274,7 +274,7 @@ public class AIWorkspaceInstallationService {
         repository.saveAndFlush(entity);
         deploymentSecurityProjection.synchronizeForConsumer(consumer);
         audit("AI_WORKSPACE_INSTALLATION_DISABLED", entity, Map.of());
-        return summary(entity);
+        return summary(entity, false);
     }
 
     @Transactional
@@ -570,8 +570,13 @@ public class AIWorkspaceInstallationService {
     }
 
     private AIWorkspaceInstallationSummary summary(AIWorkspaceInstallationEntity entity) {
+        return summary(entity, true);
+    }
+
+    private AIWorkspaceInstallationSummary summary(AIWorkspaceInstallationEntity entity, boolean probeDelivery) {
         PlatformConsumerEntity consumer = consumerRepository.findById(entity.getConsumerEntityId()).orElse(null);
-        AIWorkspaceReadinessSummary readiness = readinessService.evaluate(entity);
+        AIWorkspaceReadinessSummary readiness = probeDelivery
+            ? readinessService.evaluate(entity) : readinessService.evaluateLocal(entity);
         return new AIWorkspaceInstallationSummary(
             entity.getId(), entity.getInstallationId(), entity.getCustomerId(),
             consumer == null ? null : consumer.getConsumerId(), entity.getDisplayName(), entity.getStatus().name(),

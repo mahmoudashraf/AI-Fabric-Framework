@@ -56,7 +56,6 @@ public class AIWorkspaceDomainService {
         if (deliveryMode == AIWorkspaceDeliveryMode.EMBEDDED) {
             repository.deleteByInstallationEntityId(installation.getId());
             repository.flush();
-            routeService.reconcileIfAvailable();
             return configuredOrigins;
         }
         String normalizedSlug = normalizeSlug(appSlug);
@@ -98,7 +97,6 @@ public class AIWorkspaceDomainService {
         });
         repository.deleteAll(existing.values());
         repository.flush();
-        routeService.reconcileIfAvailable();
 
         LinkedHashSet<String> origins = new LinkedHashSet<>();
         desired.keySet().forEach(hostname -> origins.add("https://" + hostname));
@@ -111,6 +109,9 @@ public class AIWorkspaceDomainService {
         AIWorkspaceDomainEntity domain = repository.findByHostname(normalized)
             .filter(value -> value.getInstallationEntityId().equals(installationEntityId))
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "AI Workspace domain not found."));
+        if (domain.getStatus() == AIWorkspaceDomainStatus.DISABLED) {
+            throw new ResponseStatusException(CONFLICT, "Disabled domains cannot be verified.");
+        }
         Instant now = Instant.now();
         domain.setUpdatedAt(now);
         if (domain.getDomainType() == AIWorkspaceDomainType.CUSTOMER_CUSTOM) {
@@ -120,7 +121,6 @@ public class AIWorkspaceDomainService {
                 domain.setVerifiedAt(null);
                 domain.setLastVerificationError(ownership.message());
                 repository.saveAndFlush(domain);
-                routeService.reconcileIfAvailable();
                 return summary(domain);
             }
         }
@@ -128,16 +128,12 @@ public class AIWorkspaceDomainService {
         domain.setVerifiedAt(null);
         domain.setLastVerificationError("The domain is owned; its shared frontend route is being verified.");
         repository.saveAndFlush(domain);
-        try {
-            routeService.reconcileRequired();
-        } catch (RuntimeException ex) {
-            domain.setLastVerificationError(routeError(ex));
-            repository.saveAndFlush(domain);
-            return summary(domain);
-        }
+        // Only the leased worker writes provider routes. Explicit verification
+        // cannot treat a queued route or an uncertain deployment as applied.
+        if (!routeService.isApplied(domain.getHostname())) return summary(domain);
         var result = verifier.verifyRoute(domain.getHostname());
         domain.setLastVerificationError(result.message());
-        if (result.verified()) {
+        if (result.verified() && routeService.isApplied(domain.getHostname())) {
             domain.setStatus(AIWorkspaceDomainStatus.VERIFIED);
             domain.setVerifiedAt(Instant.now());
         }
@@ -154,6 +150,7 @@ public class AIWorkspaceDomainService {
     public boolean deliveryAvailable(String installationEntityId) {
         return repository.findByInstallationEntityIdOrderByHostname(installationEntityId).stream()
             .filter(domain -> domain.getStatus() == AIWorkspaceDomainStatus.VERIFIED)
+            .filter(domain -> routeService.isApplied(domain.getHostname()))
             .anyMatch(domain -> verifier.verifyRoute(domain.getHostname()).verified());
     }
 
@@ -231,15 +228,6 @@ public class AIWorkspaceDomainService {
         } catch (RuntimeException ex) {
             return null;
         }
-    }
-
-    private String routeError(RuntimeException ex) {
-        if (ex instanceof ResponseStatusException response && response.getReason() != null) {
-            return response.getReason();
-        }
-        return ex.getMessage() == null || ex.getMessage().isBlank()
-            ? "The shared frontend route could not be reconciled."
-            : ex.getMessage();
     }
 
     private String verificationToken() {

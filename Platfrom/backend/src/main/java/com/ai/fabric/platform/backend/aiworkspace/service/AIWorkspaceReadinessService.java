@@ -59,16 +59,31 @@ public class AIWorkspaceReadinessService {
     }
 
     public AIWorkspaceReadinessSummary evaluate(AIWorkspaceInstallationEntity installation) {
+        return evaluate(installation, true);
+    }
+
+    public AIWorkspaceReadinessSummary evaluateLocal(AIWorkspaceInstallationEntity installation) {
+        return evaluate(installation, false);
+    }
+
+    private AIWorkspaceReadinessSummary evaluate(AIWorkspaceInstallationEntity installation, boolean probeDelivery) {
         PlatformConsumerEntity consumer = consumerRepository.findById(installation.getConsumerEntityId()).orElse(null);
         return evaluateAgainst(installation, consumer,
             consumer == null ? null : consumer.getBoundDeploymentId(),
-            consumer == null ? null : consumer.getBoundReleaseId());
+            consumer == null ? null : consumer.getBoundReleaseId(), probeDelivery);
     }
 
     public AIWorkspaceReadinessSummary evaluateAgainst(AIWorkspaceInstallationEntity installation,
                                                         PlatformConsumerEntity consumer,
                                                         String deploymentId,
                                                         String releaseId) {
+        return evaluateAgainst(installation, consumer, deploymentId, releaseId, true);
+    }
+
+    private AIWorkspaceReadinessSummary evaluateAgainst(AIWorkspaceInstallationEntity installation,
+                                                        PlatformConsumerEntity consumer,
+                                                        String deploymentId, String releaseId,
+                                                        boolean probeDelivery) {
         List<AIWorkspaceReadinessCheck> checks = new ArrayList<>();
         AIWorkspaceAssignmentService.Assignment assignment = null;
         if (consumer == null) {
@@ -134,9 +149,10 @@ public class AIWorkspaceReadinessService {
             check(domains.stream().anyMatch(domain -> "VERIFIED".equals(domain.status())), checks,
                 "APP_DOMAIN", "At least one exact standalone app domain is verified.",
                 "No standalone app domain is verified.");
-            check(domainService.deliveryAvailable(installation.getId()), checks,
+            check(probeDelivery && domainService.deliveryAvailable(installation.getId()), checks,
                 "APP_DELIVERY", "A verified standalone frontend route is currently available.",
-                "The standalone frontend route is currently unavailable.");
+                probeDelivery ? "The standalone frontend route is currently unavailable."
+                    : "Standalone delivery is not probed by configuration commands; explicit readiness is required.");
         }
 
         if (assignment != null) {

@@ -136,7 +136,7 @@ class AIWorkspaceInstallationServiceTest {
             .thenReturn(Optional.of(consumer));
         when(consumers.findById(consumer.getId())).thenReturn(Optional.of(consumer));
         when(repository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
-        when(readiness.evaluate(any())).thenAnswer(call -> notReady(call.getArgument(0)));
+        when(readiness.evaluateLocal(any())).thenAnswer(call -> notReady(call.getArgument(0)));
         when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
         when(domains.synchronize(any(), any(), any(), any(), any()))
             .thenAnswer(call -> call.getArgument(4));
@@ -265,7 +265,7 @@ class AIWorkspaceInstallationServiceTest {
         when(profiles.resolve(any(), any(), any(), any())).thenReturn(profile());
         when(domains.synchronize(any(), any(), any(), any(), any())).thenAnswer(call -> call.getArgument(4));
         when(domains.summaries(any())).thenReturn(List.of());
-        when(readiness.evaluate(any())).thenAnswer(call -> notReady(call.getArgument(0)));
+        when(readiness.evaluateLocal(any())).thenAnswer(call -> notReady(call.getArgument(0)));
         when(offerBoundary.profileId(any(), any())).thenAnswer(call -> call.getArgument(0) + ":profile");
 
         var result = service().update("customer-1", disabled.getInstallationId(),

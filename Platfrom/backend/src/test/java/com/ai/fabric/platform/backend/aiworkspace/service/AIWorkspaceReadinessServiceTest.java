@@ -63,6 +63,13 @@ class AIWorkspaceReadinessServiceTest {
 
         var matching = assignment(security("https://example.supabase.co/auth/v1"));
         when(assignments.resolveTarget(consumer, "dep-1", "rel-1")).thenReturn(matching);
+        var local = service().evaluateLocal(installation);
+        assertThat(local.ready()).isFalse();
+        assertThat(local.checks()).anySatisfy(check -> {
+            assertThat(check.code()).isEqualTo("APP_DELIVERY");
+            assertThat(check.status()).isEqualTo("BLOCKED");
+        });
+        org.mockito.Mockito.verify(domains, org.mockito.Mockito.never()).deliveryAvailable(any());
         var ready = service().evaluate(installation);
         assertThat(ready.ready()).isTrue();
         assertThat(ready.checks()).anySatisfy(check -> {

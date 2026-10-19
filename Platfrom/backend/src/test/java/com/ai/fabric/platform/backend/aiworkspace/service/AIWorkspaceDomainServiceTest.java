@@ -68,6 +68,7 @@ class AIWorkspaceDomainServiceTest {
         assertThat(saved.getAllValues().get(1).getStatus()).isEqualTo(AIWorkspaceDomainStatus.PENDING);
         assertThat(origins).containsExactly(
             "https://northfield.apps.loomai.test", "https://assistant.customer.example");
+        org.mockito.Mockito.verifyNoInteractions(verifier, routeService);
     }
 
     @Test
@@ -77,13 +78,14 @@ class AIWorkspaceDomainServiceTest {
         when(repository.findByHostname("northfield.apps.loomai.test")).thenReturn(Optional.of(domain));
         when(verifier.verifyRoute("northfield.apps.loomai.test"))
             .thenReturn(new AIWorkspaceDomainVerifier.Verification(true, null));
+        when(routeService.isApplied("northfield.apps.loomai.test")).thenReturn(true);
 
         var summary = service.verify("awi-1", "northfield.apps.loomai.test");
 
         assertThat(summary.status()).isEqualTo("VERIFIED");
         assertThat(summary.dnsRecordName()).isNull();
         verify(verifier).verifyRoute("northfield.apps.loomai.test");
-        verify(routeService).reconcileRequired();
+        verify(routeService, org.mockito.Mockito.times(2)).isApplied("northfield.apps.loomai.test");
     }
 
     @Test
@@ -99,9 +101,51 @@ class AIWorkspaceDomainServiceTest {
 
         assertThat(summary.status()).isEqualTo("PENDING");
         assertThat(summary.lastVerificationError()).isEqualTo("TXT missing");
-        verify(routeService).reconcileIfAvailable();
+        org.mockito.Mockito.verifyNoInteractions(routeService);
         verify(verifier).verifyOwnership("assistant.customer.example", "token");
         org.mockito.Mockito.verify(verifier, org.mockito.Mockito.never()).verifyRoute(any());
+    }
+
+    @Test
+    void ownedCustomDomainWaitsForDurableRouteBeforeAnyRouteProbe() {
+        var domain = domain("assistant.customer.example", "awi-1");
+        domain.setDomainType(AIWorkspaceDomainType.CUSTOMER_CUSTOM);
+        domain.setStatus(AIWorkspaceDomainStatus.PENDING);
+        when(repository.findByHostname(domain.getHostname())).thenReturn(Optional.of(domain));
+        when(verifier.verifyOwnership(domain.getHostname(), "token"))
+            .thenReturn(new AIWorkspaceDomainVerifier.Verification(true, null));
+        assertThat(service.verify("awi-1", domain.getHostname()).status()).isEqualTo("ROUTING_PENDING");
+        assertThat(domain.getVerifiedAt()).isNull();
+        verify(verifier, never()).verifyRoute(any());
+    }
+
+    @Test
+    void bindingChangeDuringExplicitRouteProbeCannotMarkVerified() {
+        var domain = domain("first.apps.loomai.test", "awi-1");
+        domain.setStatus(AIWorkspaceDomainStatus.PENDING);
+        when(repository.findByHostname(domain.getHostname())).thenReturn(Optional.of(domain));
+        when(routeService.isApplied(domain.getHostname())).thenReturn(true, false);
+        when(verifier.verifyRoute(domain.getHostname())).thenReturn(new AIWorkspaceDomainVerifier.Verification(true, null));
+        assertThat(service.verify("awi-1", domain.getHostname()).status()).isEqualTo("ROUTING_PENDING");
+        assertThat(domain.getVerifiedAt()).isNull();
+    }
+
+    @Test
+    void staleAppliedBindingCannotAuthorizeLiveDeliveryProbe() {
+        var domain = domain("first.apps.loomai.test", "awi-1");
+        when(repository.findByInstallationEntityIdOrderByHostname("awi-1")).thenReturn(List.of(domain));
+        assertThat(service.deliveryAvailable("awi-1")).isFalse();
+        org.mockito.Mockito.verifyNoInteractions(verifier);
+    }
+
+    @Test
+    void disabledDomainCannotBeReenabledByVerification() {
+        var domain = domain("assistant.customer.example", "awi-1");
+        domain.setStatus(AIWorkspaceDomainStatus.DISABLED);
+        when(repository.findByHostname(domain.getHostname())).thenReturn(Optional.of(domain));
+        assertThatThrownBy(() -> service.verify("awi-1", domain.getHostname()))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Disabled");
+        org.mockito.Mockito.verifyNoInteractions(verifier, routeService);
     }
 
     @Test
@@ -170,6 +214,7 @@ class AIWorkspaceDomainServiceTest {
         AIWorkspaceDomainEntity pending = domain("pending.apps.loomai.test", "awi-1");
         pending.setStatus(AIWorkspaceDomainStatus.PENDING);
         when(repository.findByInstallationEntityIdOrderByHostname("awi-1")).thenReturn(List.of(pending, verified));
+        when(routeService.isApplied(verified.getHostname())).thenReturn(true);
         when(verifier.verifyRoute(verified.getHostname()))
             .thenReturn(new AIWorkspaceDomainVerifier.Verification(false, "Unavailable"))
             .thenReturn(new AIWorkspaceDomainVerifier.Verification(true, null));

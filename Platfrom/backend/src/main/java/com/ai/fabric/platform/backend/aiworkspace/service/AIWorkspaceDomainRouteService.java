@@ -1,328 +1,257 @@
 package com.ai.fabric.platform.backend.aiworkspace.service;
 
-import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainStatus;
-import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainType;
-import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceDomainRepository;
-import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
-import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
-import com.ai.fabric.platform.backend.deployment.service.CoolifyActionResponse;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationSummary;
-import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
-import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.http.HttpStatus;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
+
+import static org.springframework.http.HttpStatus.*;
 
 import java.net.URI;
 import java.time.Instant;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Set;
 
+/** One bounded IO step per tick; only AIWorkspaceRouteStore opens write transactions. */
 @Service
 public class AIWorkspaceDomainRouteService {
-
-    private static final String MANAGED_DOMAINS_FIELD = "aiWorkspaceManagedDomains";
-
-    private final AIWorkspaceDomainRepository domainRepository;
-    private final PlatformManagedProductServiceRepository serviceRepository;
-    private final DeploymentTargetProfileRepository targetProfileRepository;
-    private final CoolifyTargetProfileResolver targetProfileResolver;
-    private final CoolifyApiClient coolifyApiClient;
+    private final AIWorkspaceRouteStore store;
+    private final PlatformManagedProductServiceRepository services;
+    private final DeploymentTargetProfileRepository profiles;
+    private final CoolifyTargetProfileResolver resolver;
+    private final CoolifyApiClient coolify;
     private final PlatformAIWorkspaceProperties properties;
-    private final PlatformProductProvisioningProperties provisioningProperties;
-    private final PlatformAuditService auditService;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper mapper;
 
-    @Autowired
-    public AIWorkspaceDomainRouteService(AIWorkspaceDomainRepository domainRepository,
-                                         PlatformManagedProductServiceRepository serviceRepository,
-                                         DeploymentTargetProfileRepository targetProfileRepository,
-                                         CoolifyTargetProfileResolver targetProfileResolver,
-                                         CoolifyApiClient coolifyApiClient,
-                                         PlatformAIWorkspaceProperties properties,
-                                         PlatformProductProvisioningProperties provisioningProperties,
-                                         PlatformAuditService auditService,
-                                         ObjectMapper objectMapper) {
-        this.domainRepository = domainRepository;
-        this.serviceRepository = serviceRepository;
-        this.targetProfileRepository = targetProfileRepository;
-        this.targetProfileResolver = targetProfileResolver;
-        this.coolifyApiClient = coolifyApiClient;
-        this.properties = properties;
-        this.provisioningProperties = provisioningProperties;
-        this.auditService = auditService;
-        this.objectMapper = objectMapper;
+    public AIWorkspaceDomainRouteService(AIWorkspaceRouteStore store, PlatformManagedProductServiceRepository services,
+                                         DeploymentTargetProfileRepository profiles, CoolifyTargetProfileResolver resolver,
+                                         CoolifyApiClient coolify, PlatformAIWorkspaceProperties properties, ObjectMapper mapper) {
+        this.store = store; this.services = services; this.profiles = profiles;
+        this.resolver = resolver; this.coolify = coolify; this.properties = properties; this.mapper = mapper;
     }
 
-    @Transactional
-    public boolean reconcileIfAvailable() {
-        PlatformManagedProductServiceEntity service = resolveService(false);
-        if (service == null) return false;
+    public boolean isApplied(String hostname) {
+        var binding = binding();
+        return binding != null && store.isApplied(binding, hostname);
+    }
+
+    public List<AIWorkspaceRouteStore.Status> statuses() {
+        requireAdmin(); return store.statuses();
+    }
+
+    /** Staff-reviewed receipt attachment is read-only at the provider, never an effect retry. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public List<AIWorkspaceRouteStore.Status> observeDeployment(String routeKey, AIWorkspaceRouteStore.ObserveDeployment command) {
+        requireAdmin();
+        if (TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Route provider IO cannot run in a database transaction");
+        if (command == null || command.operationKey() == null || !command.operationKey().matches("[A-Za-z0-9._:-]{1,128}")
+            || command.expectedGeneration() < 1 || command.expectedFingerprint() == null || !command.expectedFingerprint().matches("[a-f0-9]{64}")
+            || command.expectedInflightFingerprint() == null || !command.expectedInflightFingerprint().matches("[a-f0-9]{64}")
+            || command.deploymentUuid() == null || !command.deploymentUuid().matches("[A-Za-z0-9_-]{1,128}")
+            || command.operatorEvidenceRef() == null || command.operatorEvidenceRef().isBlank() || command.operatorEvidenceRef().length() > 256) {
+            throw new ResponseStatusException(BAD_REQUEST, "An exact reviewed route observation command is required.");
+        }
+        var binding = binding();
+        if (binding == null || !binding.key().equals(routeKey)) throw new ResponseStatusException(NOT_FOUND, "Current route binding not found.");
+        var observation = store.beginObservation(binding, command, PlatformSecurityContext.actorIdOrSystem());
+        if (observation.replay()) return store.statuses();
         try {
-            reconcile(service);
-            return true;
+            var profile = profiles.findById(binding.profileId()).orElseThrow();
+            if (!profileIdentity(profile).equals(binding.profileFingerprint())) throw new IllegalStateException("Route profile changed");
+            var connection = resolver.requireConnection(profile);
+            var app = coolify.getApplication(connection, binding.applicationUuid()).orElseThrow();
+            var deployment = coolify.getDeployment(connection, command.deploymentUuid()).orElseThrow();
+            Instant createdAt = Instant.parse(deployment.createdAt());
+            if (!binding.equals(binding()) || !binding.applicationUuid().equals(app.uuid())
+                || !command.deploymentUuid().equals(deployment.deploymentUuid())
+                || !binding.applicationUuid().equals(deployment.applicationUuid())
+                || createdAt.isBefore(observation.intentAt())
+                || !same(app.fqdn(), observation.claim().expected())
+                || !Set.of("QUEUED", "IN_PROGRESS", "RUNNING", "FINISHED", "SUCCESS", "SUCCEEDED", "COMPLETED")
+                    .contains(normalized(deployment.status()))) {
+                throw new IllegalStateException("Unmatched native observation");
+            }
         } catch (RuntimeException ex) {
-            recordFailure(service, ex);
-            return false;
+            store.failed(observation.claim(), "OBSERVATION_NOT_PROVEN", false);
+            throw new ResponseStatusException(CONFLICT, "Native deployment observation could not be proven.");
         }
+        if (!store.attachObservation(observation, command))
+            throw new ResponseStatusException(CONFLICT, "Route changed during native deployment observation.");
+        return store.statuses();
     }
 
-    @Transactional
-    public void reconcileRequired() {
-        reconcile(resolveService(true));
+    private static void requireAdmin() {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) throw new ResponseStatusException(UNAUTHORIZED, "Staff authentication required.");
+        if (principal.role() != PlatformRole.PLATFORM_ADMIN) throw new ResponseStatusException(FORBIDDEN, "Platform administrator required.");
     }
 
-    private void reconcile(PlatformManagedProductServiceEntity service) {
-        ObjectNode details = details(service);
-        String applicationUuid = text(details, "coolifyApplicationUuid");
-        String targetProfileId = text(details, "targetProfileId");
-        if (applicationUuid == null || targetProfileId == null) {
-            throw conflict("The shared standalone AI Workspace service is not linked to Coolify.");
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void runNext() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Route provider IO cannot run in a database transaction");
         }
-        var profile = targetProfileRepository.findById(targetProfileId)
-            .orElseThrow(() -> conflict("Standalone AI Workspace target profile is unavailable: " + targetProfileId));
-        var connection = targetProfileResolver.requireConnection(profile);
-        var application = coolifyApiClient.getApplication(connection, applicationUuid)
-            .orElseThrow(() -> conflict("Standalone AI Workspace Coolify application is unavailable."));
-
-        LinkedHashSet<String> previousManaged = new LinkedHashSet<>();
-        JsonNode previous = details.path(MANAGED_DOMAINS_FIELD);
-        if (previous.isArray()) previous.forEach(value -> {
-            String key = domainKey(value.asText(null));
-            if (key != null) previousManaged.add(key);
-        });
-
-        LinkedHashMap<String, String> desiredManaged = new LinkedHashMap<>();
-        domainRepository.findAllByOrderByHostname().stream()
-            .filter(domain -> domain.getStatus() != AIWorkspaceDomainStatus.DISABLED)
-            .filter(domain -> domain.getDomainType() == AIWorkspaceDomainType.PLATFORM_DEFAULT
-                || domain.getStatus() == AIWorkspaceDomainStatus.ROUTING_PENDING
-                || domain.getStatus() == AIWorkspaceDomainStatus.VERIFIED)
-            .forEach(domain -> desiredManaged.put(domain.getHostname(), "https://" + domain.getHostname()));
-
-        LinkedHashMap<String, String> reconciled = new LinkedHashMap<>();
-        for (String candidate : splitDomains(application.fqdn())) {
-            String key = domainKey(candidate);
-            if (key != null && !previousManaged.contains(key)) reconciled.putIfAbsent(key, candidate);
-        }
-        desiredManaged.forEach(reconciled::put);
-        if (reconciled.isEmpty()) {
-            throw conflict("Standalone AI Workspace routing cannot remove every frontend domain.");
-        }
-
-        String domains = String.join(",", reconciled.values());
-        boolean changed = !sameDomains(application.fqdn(), domains);
-        if (changed) {
-            coolifyApiClient.updateApplicationDomains(connection, applicationUuid, domains);
-            awaitRouteDeployment(
-                connection,
-                applicationUuid,
-                coolifyApiClient.start(connection, applicationUuid, true, true)
-            );
-        }
-        service.setBaseUrl(canonicalBaseUrl(service.getBaseUrl(), reconciled));
-        details.put("coolifyFqdn", domains);
-        details.put("lastWorkspaceDomainReconciledAt", Instant.now().toString());
-        details.put("lastWorkspaceDomainReconcileStatus", "SUCCESS");
-        details.remove("lastWorkspaceDomainReconcileError");
-        ArrayNode managed = details.putArray(MANAGED_DOMAINS_FIELD);
-        desiredManaged.keySet().forEach(managed::add);
-        service.setDetailsJson(details.toPrettyString());
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-        auditService.record(
-            "AI_WORKSPACE_FRONTEND_DOMAINS_RECONCILED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of(
-                "serviceRef", service.getServiceRef(),
-                "managedDomainCount", desiredManaged.size(),
-                "coolifyUpdated", changed
-            )
-        );
-    }
-
-    private void awaitRouteDeployment(CoolifyConnection connection,
-                                      String applicationUuid,
-                                      CoolifyActionResponse response) {
-        String deploymentUuid = response == null ? null : text(response.deploymentUuid());
-        Duration timeout = provisioningProperties.requestTimeout();
-        Duration pollInterval = provisioningProperties.pollInterval();
-        Instant deadline = Instant.now().plus(timeout);
-        while (Instant.now().isBefore(deadline)) {
-            CoolifyDeploymentSummary deployment = deploymentUuid == null
-                ? null
-                : coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
-            CoolifyApplicationSummary application = coolifyApiClient.getApplication(connection, applicationUuid).orElse(null);
-            if (deploymentFailed(deployment)) {
-                throw conflict("Standalone AI Workspace route deployment failed: " + deploymentUuid);
+        var binding = binding();
+        if (binding == null) return;
+        var claim = store.claim(binding);
+        if (claim == null) return;
+        try {
+            // FQDN config alone cannot prove an unreceipted native deployment.
+            if (Set.of("UNKNOWN", "FAILED").contains(claim.phase())) { store.waiting(claim); return; }
+            if (!binding.equals(binding())) { store.failed(claim, "BINDING_CHANGED", false); return; }
+            var profile = profiles.findById(binding.profileId()).orElseThrow();
+            if (!profileIdentity(profile).equals(binding.profileFingerprint())) throw new IllegalStateException("Route profile changed");
+            var connection = resolver.requireConnection(profile);
+            var app = coolify.getApplication(connection, binding.applicationUuid()).orElseThrow();
+            if (!binding.applicationUuid().equals(app.uuid())) {
+                store.failed(claim, "APPLICATION_IDENTITY_MISMATCH", false); return;
             }
-            boolean deploymentReady = deploymentUuid == null || deploymentFinished(deployment);
-            if (deploymentReady && applicationReady(application)) return;
-            try {
-                Thread.sleep(Math.max(pollInterval.toMillis(), 250L));
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Interrupted while applying standalone AI Workspace routes.", ex);
+            switch (claim.phase()) {
+                case "IDLE" -> {
+                    List<String> expected = merge(app.fqdn(), claim.managed(), claim.inflight(), claim.desired());
+                    if (same(app.fqdn(), expected)) {
+                        if (running(app)) store.unchanged(claim); else store.waiting(claim);
+                    } else if (store.preparePatch(claim, expected)) {
+                        if (!binding.equals(binding())) { store.failed(claim, "BINDING_CHANGED", true); return; }
+                        coolify.updateApplicationDomains(connection, binding.applicationUuid(), String.join(",", expected));
+                        store.patched(claim);
+                    }
+                }
+                case "PATCHED" -> {
+                    if (!same(app.fqdn(), claim.expected())) {
+                        store.failed(claim, "PROVIDER_STATE_CHANGED", false); return;
+                    }
+                    if (store.prepareStart(claim)) {
+                        if (!binding.equals(binding())) { store.failed(claim, "BINDING_CHANGED", true); return; }
+                        var response = coolify.start(connection, binding.applicationUuid(), false, true);
+                        store.started(claim, response == null ? null : response.deploymentUuid());
+                    }
+                }
+                case "POLLING" -> {
+                    var deployment = coolify.getDeployment(connection, claim.deploymentUuid()).orElse(null);
+                    if (deployment == null) { store.failed(claim, "DEPLOYMENT_READBACK_MISSING", false); return; }
+                    if (!claim.deploymentUuid().equals(deployment.deploymentUuid())
+                        || !binding.applicationUuid().equals(deployment.applicationUuid())) {
+                        store.failed(claim, "DEPLOYMENT_IDENTITY_MISMATCH", false); return;
+                    }
+                    String status = normalized(deployment.status());
+                    if (Set.of("FAILED", "ERROR", "CANCELLED", "CANCELED").contains(status)) {
+                        store.failed(claim, "DEPLOYMENT_FAILED", false);
+                    } else if (Set.of("FINISHED", "SUCCESS", "SUCCEEDED", "COMPLETED").contains(status)) {
+                        if (!same(app.fqdn(), claim.expected())) store.failed(claim, "PROVIDER_STATE_CHANGED", false);
+                        else if (running(app)) store.completed(claim);
+                        else store.waiting(claim);
+                    } else store.waiting(claim);
+                }
+                default -> store.failed(claim, "UNEXPECTED_ROUTE_PHASE", true);
             }
+        } catch (RuntimeException ex) {
+            // Durable phase determines safety: reads retry, dispatched effects become
+            // UNKNOWN. Exception bodies never enter state, audit, logs or responses.
+            store.failed(claim, "PROVIDER_OUTCOME_UNAVAILABLE", false);
         }
-        throw conflict("Timed out applying standalone AI Workspace routes: " + applicationUuid);
     }
 
-    private boolean deploymentFinished(CoolifyDeploymentSummary deployment) {
-        if (deployment == null) return false;
-        String status = normalized(deployment.status());
-        return status.equals("FINISHED") || status.equals("SUCCESS") || status.equals("SUCCEEDED")
-            || status.equals("COMPLETED") || text(deployment.finishedAt()) != null && !deploymentFailed(deployment);
-    }
-
-    private boolean deploymentFailed(CoolifyDeploymentSummary deployment) {
-        if (deployment == null) return false;
-        String status = normalized(deployment.status());
-        return status.contains("FAILED") || status.contains("ERROR")
-            || status.contains("CANCELLED") || status.contains("CANCELED");
-    }
-
-    private boolean applicationReady(CoolifyApplicationSummary application) {
-        if (application == null) return false;
-        String status = normalized(application.status());
-        return status.startsWith("RUNNING") && !status.contains("UNHEALTHY");
-    }
-
-    private String normalized(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private String text(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
-
-    private void recordFailure(PlatformManagedProductServiceEntity service, RuntimeException ex) {
-        ObjectNode details = details(service);
-        String message = routeError(ex);
-        details.put("lastWorkspaceDomainReconcileStatus", "FAILED");
-        details.put("lastWorkspaceDomainReconcileError", message);
-        details.put("lastWorkspaceDomainReconcileAttemptAt", Instant.now().toString());
-        service.setDetailsJson(details.toPrettyString());
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-        auditService.record(
-            "AI_WORKSPACE_FRONTEND_DOMAINS_RECONCILE_FAILED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef(), "error", message)
-        );
-    }
-
-    private PlatformManagedProductServiceEntity resolveService(boolean required) {
-        List<PlatformManagedProductServiceEntity> candidates = serviceRepository.findAllByOrderByDisplayNameAsc().stream()
-            .filter(service -> PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE
-                .equalsIgnoreCase(service.getServiceKind()))
-            .filter(service -> !"DECOMMISSIONED".equalsIgnoreCase(service.getStatus()))
-            .filter(service -> text(details(service), "coolifyApplicationUuid") != null)
-            .toList();
+    private AIWorkspaceRouteStore.Binding binding() {
+        var candidates = services.findAllByOrderByDisplayNameAsc().stream()
+            .filter(s -> PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE.equals(s.getServiceKind()))
+            .filter(s -> !"DECOMMISSIONED".equals(s.getStatus()))
+            .filter(s -> text(details(s), "coolifyApplicationUuid") != null).toList();
         if (candidates.size() > 1 && properties.standaloneShellBaseUrl() != null) {
-            String shellHost = domainKey(properties.standaloneShellBaseUrl());
-            if (shellHost != null) {
-                candidates = candidates.stream()
-                    .filter(service -> splitDomains(service.getBaseUrl()).stream()
-                        .map(this::domainKey)
-                        .anyMatch(shellHost::equals))
-                    .toList();
+            String host = key(properties.standaloneShellBaseUrl());
+            candidates = candidates.stream().filter(s -> domains(s.getBaseUrl()).stream().anyMatch(d -> key(d).equals(host))).toList();
+        }
+        if (candidates.isEmpty()) return null;
+        if (candidates.size() != 1) throw new IllegalStateException("Ambiguous workspace route binding");
+        var service = candidates.get(0);
+        var details = details(service);
+        String profile = text(details, "targetProfileId");
+        if (profile == null) throw new IllegalStateException("Workspace route profile missing");
+        var target = profiles.findById(profile).orElseThrow(() -> new IllegalStateException("Workspace route profile missing"));
+        if (!target.isActive() || !target.isPlatformServicesAllowed() || target.getProviderType() != DeploymentProviderType.COOLIFY)
+            throw new ResponseStatusException(CONFLICT, "Workspace route profile is not available for platform services.");
+        var historic = details.get("aiWorkspaceManagedDomains");
+        List<String> managed = new ArrayList<>();
+        if (historic != null) {
+            if (!historic.isArray()) throw new IllegalStateException("Invalid historic route ownership");
+            historic.forEach(value -> {
+                if (!value.isTextual()) throw new IllegalStateException("Invalid historic route ownership");
+                managed.add(key(value.textValue()));
+            });
+        }
+        return new AIWorkspaceRouteStore.Binding(service.getId(), profile, profileIdentity(target), text(details, "coolifyApplicationUuid"), managed);
+    }
+
+    private String profileIdentity(DeploymentTargetProfileEntity profile) {
+        return AIWorkspaceRouteStore.fingerprint(List.of(DeploymentTargetProfileIdentity.fingerprint(mapper, profile),
+            Boolean.toString(profile.isActive()), Boolean.toString(profile.isPlatformServicesAllowed())));
+    }
+
+    static List<String> merge(String fqdn, List<String> managed, List<String> inflight, List<String> desired) {
+        Set<String> owned = new LinkedHashSet<>(managed); owned.addAll(inflight);
+        var result = new LinkedHashMap<String, String>();
+        for (String value : domains(fqdn)) {
+            String host = key(value);
+            if (!owned.contains(host)) {
+                if (desired.contains(host)) throw new IllegalStateException("Unmanaged route ownership collision");
+                result.put(host, value);
             }
         }
-        if (candidates.size() == 1) return candidates.get(0);
-        if (!required && candidates.isEmpty()) return null;
-        if (candidates.isEmpty()) {
-            throw conflict("The shared standalone AI Workspace service must be reconciled before app domains can be activated.");
-        }
-        throw conflict("Multiple standalone AI Workspace services match this Platform environment.");
+        desired.forEach(host -> result.put(host, "https://" + host));
+        if (result.isEmpty()) throw new IllegalStateException("Cannot remove every shared frontend domain");
+        return List.copyOf(result.values());
     }
 
-    private ObjectNode details(PlatformManagedProductServiceEntity service) {
+    private JsonNode details(PlatformManagedProductServiceEntity service) {
         try {
-            JsonNode value = service.getDetailsJson() == null ? null : objectMapper.readTree(service.getDetailsJson());
-            return value != null && value.isObject() ? (ObjectNode) value.deepCopy() : objectMapper.createObjectNode();
-        } catch (Exception ex) {
-            return objectMapper.createObjectNode();
-        }
+            var result = mapper.readTree(service.getDetailsJson());
+            if (result == null || !result.isObject()) throw new IllegalStateException();
+            return result;
+        } catch (Exception ex) { throw new IllegalStateException("Invalid workspace route binding"); }
     }
-
-    private String text(JsonNode node, String field) {
-        if (node == null) return null;
-        String value = node.path(field).asText(null);
-        return value == null || value.isBlank() ? null : value.trim();
+    private static String text(JsonNode node, String field) {
+        var value = node.get(field);
+        return value == null || !value.isTextual() || value.textValue().isBlank() ? null : value.textValue();
     }
-
-    private List<String> splitDomains(String value) {
+    static boolean same(String current, List<String> expected) {
+        return new LinkedHashSet<>(domains(current)).equals(new LinkedHashSet<>(expected));
+    }
+    static List<String> domains(String value) {
         if (value == null || value.isBlank()) return List.of();
-        List<String> values = new ArrayList<>();
-        for (String candidate : value.split(",")) {
-            if (candidate != null && !candidate.isBlank()) values.add(candidate.trim());
+        return java.util.Arrays.stream(value.split(",")).map(String::trim).map(s -> { key(s); return s; }).toList();
+    }
+    static String key(String value) {
+        URI uri = URI.create(value.contains("://") ? value : "https://" + value);
+        if (!Set.of("https", "http").contains(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
+            || uri.getPort() != -1 || uri.getQuery() != null || uri.getFragment() != null
+            || uri.getPath() != null && !uri.getPath().isEmpty() && !uri.getPath().equals("/")) {
+            throw new IllegalStateException("Invalid provider domain configuration");
         }
-        return values;
+        return uri.getHost().toLowerCase(Locale.ROOT);
     }
-
-    private boolean sameDomains(String left, String right) {
-        LinkedHashSet<String> leftKeys = new LinkedHashSet<>();
-        splitDomains(left).stream().map(this::domainKey).filter(java.util.Objects::nonNull).forEach(leftKeys::add);
-        LinkedHashSet<String> rightKeys = new LinkedHashSet<>();
-        splitDomains(right).stream().map(this::domainKey).filter(java.util.Objects::nonNull).forEach(rightKeys::add);
-        return leftKeys.equals(rightKeys);
+    private static boolean running(CoolifyApplicationSummary app) {
+        return Set.of("RUNNING", "RUNNING:HEALTHY").contains(normalized(app.status()));
     }
-
-    private String canonicalBaseUrl(String currentBaseUrl, LinkedHashMap<String, String> reconciled) {
-        String configured = properties.standaloneShellBaseUrl();
-        String configuredKey = domainKey(configured);
-        if (configuredKey != null && reconciled.containsKey(configuredKey)) {
-            return reconciled.get(configuredKey);
-        }
-        for (String candidate : splitDomains(currentBaseUrl)) {
-            String key = domainKey(candidate);
-            if (key != null && reconciled.containsKey(key)) return reconciled.get(key);
-        }
-        return reconciled.values().iterator().next();
-    }
-
-    private String domainKey(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            String candidate = value.contains("://") ? value.trim() : "https://" + value.trim();
-            String host = URI.create(candidate).getHost();
-            return host == null ? null : host.toLowerCase(Locale.ROOT);
-        } catch (RuntimeException ex) {
-            return null;
-        }
-    }
-
-    private ResponseStatusException conflict(String message) {
-        return new ResponseStatusException(HttpStatus.CONFLICT, message);
-    }
-
-    private String routeError(RuntimeException ex) {
-        if (ex instanceof ResponseStatusException response && response.getReason() != null) {
-            return response.getReason();
-        }
-        return ex.getMessage() == null || ex.getMessage().isBlank()
-            ? "The shared frontend route could not be reconciled."
-            : ex.getMessage();
-    }
+    private static String normalized(String value) { return value == null ? "" : value.trim().toUpperCase(Locale.ROOT); }
 }
