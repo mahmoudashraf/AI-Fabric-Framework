@@ -1,5 +1,16 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Current checkpoint, 2026-10-19: both control planes verify source0c42606c2,
+  migration202 and healthUP. Approved unused cancellation and audited Free-01
+  handoff to dep-70b3d2c1 are verified, preserving data and financial history.
+  Actual backend3463 tests pass without failures/errors/skips. Owner clarified
+  the existingUSD12 allowance is cumulative for this whole task across staging
+  and production, not staging-only; no automatic recharge or duplicate funding.
+  External integration binding, corrected receiver rollout, runtime/index/action
+  acceptance, retained-index retirement/capacity, promotion and P7 remain open.
+  Later dated evidence supersedes older pending-operation/status notes below;
+  those notes remain historical. UI extraction stays last and reversible.
+
 - Approved continuation, 2026-10-19: the owner approved the exact unused
   reservation cancellation and audited Free-01 handoff from `dep-6e29bab9` to
   `dep-70b3d2c1`. That approval supersedes earlier pending-decision notes only

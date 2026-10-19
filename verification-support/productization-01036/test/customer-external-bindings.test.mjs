@@ -17,9 +17,14 @@ const SCOPE = {customerId: 'cus-19a32c9b', ownerUserId: 'usr-7238e886',
 const KEY = 'b7'.repeat(32);
 const CUSTOMER_COOKIE = 'PLATFORM_SESSION=synthetic-customer-session';
 const STAFF_COOKIE = 'PLATFORM_SESSION=synthetic-staff-session';
+const CUSTOMER_ACTOR = 'reviewed-owner@example.test';
+const STAFF_ACTOR = 'reviewed-staff@example.test';
+const STAFF_API_KEY = 'synthetic-admin-api-key-sentinel';
+const API_KEY_HEADER = 'X-PLATFORM-API-KEY';
+const API_KEY_ACTOR = 'platform-admin';
 const CREDENTIALS = {stock: {providerKey: 'synthetic-provider-key-sentinel', providerSecret: 'synthetic-provider-secret-sentinel',
   notificationSecret: 'synthetic-notification-secret-sentinel'}, receiver: {receiverApiKey: 'synthetic-receiver-key-sentinel'}};
-const SECRETS = [KEY, CUSTOMER_COOKIE, STAFF_COOKIE, CUSTOMER_COOKIE.split('=')[1], STAFF_COOKIE.split('=')[1],
+const SECRETS = [KEY, CUSTOMER_COOKIE, STAFF_COOKIE, STAFF_API_KEY, CUSTOMER_COOKIE.split('=')[1], STAFF_COOKIE.split('=')[1],
   ...Object.values(CREDENTIALS.stock), ...Object.values(CREDENTIALS.receiver)];
 const SUMMARY_FIELDS = ['id', 'approvalId', 'deploymentId', 'versionId', 'targetProfileId', 'bindingSlotId', 'selectedProfileId', 'status', 'revision'];
 const JAVA = new URL('../../../Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/', import.meta.url);
@@ -69,7 +74,7 @@ function reviewedProfile(kind) {
 }
 function input(kind = 'stock', action = 'APPROVE', approvalCheckpoint) {
   const stock = kind === 'stock';
-  return {action, origin: ORIGIN, scope: copy(SCOPE), staffActorId: 'usr-reviewed-staff-admin',
+  return {action, origin: ORIGIN, scope: copy(SCOPE), staffActorId: STAFF_ACTOR, staffAuthenticationMode: 'SESSION',
     review: {profile: reviewedProfile(kind), config: stock ? {providerBaseUrl: `https://${STOCK_HOST}`, providerHost: STOCK_HOST,
       advertiserId: 'advertiser990001'} : {receiverActionUrl: `https://${RECEIVER_HOST}/api/internal/actions/execute`},
     accountScope: stock ? {advertiserId: 'advertiser990001'} : {receiverAccountId: 'explicitly-reviewed-business-account'},
@@ -77,13 +82,24 @@ function input(kind = 'stock', action = 'APPROVE', approvalCheckpoint) {
     customerSessionCookie: CUSTOMER_COOKIE, credentialFenceKey: KEY,
     ...(action === 'APPROVE' ? {staffSessionCookie: STAFF_COOKIE} : {credentials: copy(CREDENTIALS[kind]), approvalCheckpoint})};
 }
-function auth(staff = false) {
+function apiKeyInput(raw = input()) {
+  delete raw.staffSessionCookie;
+  return {...raw, staffActorId: API_KEY_ACTOR, staffAuthenticationMode: 'API_KEY', staffApiKeyHeaderName: API_KEY_HEADER,
+    ...(raw.action === 'APPROVE' ? {staffApiKey: STAFF_API_KEY} : {})};
+}
+function auth(staff = false, apiKey = false) {
   return {enabled: true, headerName: 'X-PLATFORM-API-KEY', authenticated: true,
-    actorId: staff ? 'usr-reviewed-staff-admin' : SCOPE.ownerUserId, displayName: 'Synthetic Session',
-    role: staff ? 'PLATFORM_ADMIN' : 'CUSTOMER_ADMIN', authenticationMode: 'SESSION', sessionAuthEnabled: true,
+    actorId: staff ? apiKey ? API_KEY_ACTOR : STAFF_ACTOR : CUSTOMER_ACTOR, displayName: 'Synthetic Session',
+    role: staff ? 'PLATFORM_ADMIN' : 'CUSTOMER_ADMIN', authenticationMode: apiKey ? 'API_KEY' : 'SESSION', sessionAuthEnabled: true,
     apiKeyAuthEnabled: true, canManageUsers: staff, canManageUserDirectory: true, canManageCustomers: true,
     canCreateCustomers: staff, canManageSecrets: staff, canOperateDeployments: true,
     customerId: staff ? null : SCOPE.customerId, customerName: staff ? null : 'Fixture', customerSlug: staff ? null : 'fixture'};
+}
+function user(staff = false) {
+  return {id: staff ? 'usr-reviewed-staff-admin' : SCOPE.ownerUserId, email: staff ? STAFF_ACTOR : CUSTOMER_ACTOR,
+    displayName: 'Synthetic User', role: staff ? 'PLATFORM_ADMIN' : 'CUSTOMER_ADMIN',
+    customerId: staff ? null : SCOPE.customerId, customerName: staff ? null : 'Fixture', customerSlug: staff ? null : 'fixture',
+    status: 'ACTIVE', lastLoginAt: NOW, createdAt: NOW, updatedAt: NOW};
 }
 function offer() {
   const profiles = ['stock', 'receiver'].map(reviewedProfile);
@@ -124,20 +140,33 @@ function receipt(body, action, id = action === 'APPROVE' ? 'eia-reviewed-001' : 
 }
 function fixture() {
   const api = {requests: [], postCount: 0, binding: null, offer: offer(), portfolio: portfolio(), versions: [version()],
-    customerSession: auth(), staffSession: auth(true), details: {stock: detail('stock'), receiver: detail('receiver')},
+    customerSession: auth(), staffSession: auth(true), staffApiSession: auth(true, true), apiKeyHeader: API_KEY_HEADER,
+    customerUsers: [user()], staffUsers: [user(true), user()], details: {stock: detail('stock'), receiver: detail('receiver')},
     override: null, beforePost: null, afterPost: null, approvals: new Map(), bindings: new Map()};
   api.fetchImpl = async (url, request) => {
     const target = new URL(url);
     assert.equal(target.origin, ORIGIN, 'only the explicit control plane may be called');
     assert.equal(request.redirect, 'error'); assert.equal(request.credentials, 'omit');
     assert.ok(request.signal instanceof AbortSignal);
-    assert.equal(request.headers.Authorization, undefined); assert.equal(request.headers['Idempotency-Key'], undefined);
+    const apiKey = request.headers[api.apiKeyHeader] === STAFF_API_KEY;
+    const staff = apiKey || request.headers.Cookie === STAFF_COOKIE;
+    assert.deepEqual(Object.keys(request.headers).sort(), ['Accept', apiKey ? api.apiKeyHeader : 'Cookie',
+      ...(request.body ? ['Content-Type'] : [])].sort(), 'only one explicit auth header is sent');
+    if (apiKey) assert.equal(request.headers.Cookie, undefined);
+    else assert.ok([CUSTOMER_COOKIE, STAFF_COOKIE].includes(request.headers.Cookie));
+    if (request.headers.Cookie === CUSTOMER_COOKIE) assert.ok(!Object.values(request.headers).includes(STAFF_API_KEY));
     const body = request.body ? JSON.parse(request.body) : null;
-    api.requests.push({url, path: target.pathname, method: request.method, body, cookie: request.headers.Cookie});
+    api.requests.push({url, path: target.pathname, method: request.method, body, cookie: request.headers.Cookie,
+      staffApiKeySent: apiKey});
     if (api.override) { const result = await api.override(target, request, body); if (result !== undefined) return result; }
     if (request.method === 'GET') {
       assert.equal(body, null);
-      if (target.pathname === '/api/platform/auth/session') return json(request.headers.Cookie === STAFF_COOKIE ? api.staffSession : api.customerSession);
+      if (target.pathname === '/api/platform/auth/session') return json(apiKey ? api.staffApiSession : staff ? api.staffSession : api.customerSession);
+      if (target.pathname === '/api/platform/users') {
+        assert.equal(apiKey, false, 'API key principal does not masquerade as a directory user');
+        return json(staff ? api.staffUsers : api.customerUsers);
+      }
+      assert.equal(staff, false, 'staff auth must not be sent to customer read routes');
       assert.equal(request.headers.Cookie, CUSTOMER_COOKIE);
       if (target.pathname === `/api/customer-self-service/catalogue/${SCOPE.offerId}`) return json(api.offer);
       if (target.pathname === '/api/customer-self-service/deployments') return json(api.portfolio);
@@ -156,7 +185,8 @@ function fixture() {
       const bindPath = `/api/customer-self-service/catalogue/${SCOPE.offerId}/deployments/${SCOPE.deploymentId}/external-integrations/bind`;
       const approval = target.pathname === approvalPath;
       assert.ok(approval || target.pathname === bindPath, 'no other mutation route is allowed');
-      assert.equal(request.headers.Cookie, approval ? STAFF_COOKIE : CUSTOMER_COOKIE);
+      assert.equal(staff, approval);
+      if (!apiKey) assert.equal(request.headers.Cookie, approval ? STAFF_COOKIE : CUSTOMER_COOKIE);
       const store = approval ? api.approvals : api.bindings, key = body.operationKey;
       const old = store.get(key);
       if (old && !equalBody(old.body, body)) return denial('EXTERNAL_INTEGRATION_OPERATION_KEY_CONFLICT');
@@ -213,6 +243,16 @@ test('fixtures and outgoing bodies match actual Java records and route declarati
   assert.deepEqual(fields(customer, 'EntitlementSummary'), Object.keys(offer().entitlement).sort());
   const authentication = await readFile(new URL('security/model/PlatformAuthSessionSummary.java', JAVA), 'utf8');
   assert.deepEqual(fields(authentication, 'PlatformAuthSessionSummary'), Object.keys(auth()).sort());
+  const users = await readFile(new URL('security/model/PlatformUserSummary.java', JAVA), 'utf8');
+  assert.deepEqual(fields(users, 'PlatformUserSummary'), Object.keys(user()).sort());
+  const userController = await readFile(new URL('security/web/PlatformUserAdminController.java', JAVA), 'utf8');
+  assert.match(userController, /@RequestMapping\("\/api\/platform\/users"\)/);
+  assert.match(userController, /@PreAuthorize\("hasAnyRole\('PLATFORM_ADMIN','CUSTOMER_ADMIN'\)"\)/);
+  assert.match(userController, /@GetMapping\s+public List<PlatformUserSummary> listUsers\(\)/);
+  const identities = await readFile(new URL('security/service/PlatformIdentityService.java', JAVA), 'utf8');
+  assert.match(identities, /new PlatformPrincipal\(\s*user\.getEmail\(\),/);
+  const apiKeyFilter = await readFile(new URL('security/PlatformApiKeyAuthenticationFilter.java', JAVA), 'utf8');
+  assert.match(apiKeyFilter, /"platform-admin",\s+PlatformRole\.PLATFORM_ADMIN,\s+"Platform Admin API Key",\s+"API_KEY"/);
   const versions = await readFile(new URL('deployment/model/DeploymentVersionSummary.java', JAVA), 'utf8');
   assert.deepEqual(fields(versions, 'DeploymentVersionSummary'), Object.keys(version()).sort());
   const controller = await readFile(new URL('externalintegration/ExternalIntegrationController.java', JAVA), 'utf8');
@@ -236,6 +276,197 @@ test('prepare uses real CUSTOMER_ADMIN/staff sessions and GETs only, with explic
   assert.equal(prepared.digest, hash(prepared.plan));
   assert.equal(prepared.plan.profile.targetProfileIds.includes('dtp-reviewed-production'), true);
   assert.equal(api.requests.some(request => request.path.includes('placement-evidence')), false);
+  assert.notEqual(api.customerSession.actorId, SCOPE.ownerUserId);
+  assert.equal(prepared.plan.staffActorId, STAFF_ACTOR);
+  assert.equal(prepared.plan.staffAuthenticationMode, 'SESSION');
+  assert.equal(prepared.plan.staffApiKeyHeaderName, null);
+  assert.match(prepared.plan.authority.customerIdentitySha256, /^[a-f0-9]{64}$/);
+  assert.ok(!JSON.stringify(prepared).includes(CUSTOMER_ACTOR), 'customer directory stays in memory');
+  assert.deepEqual(api.requests.filter(request => request.path === '/api/platform/users').map(request => request.cookie),
+    [CUSTOMER_COOKIE, STAFF_COOKIE]);
+});
+
+test('customer email resolves to exactly the scoped ACTIVE owner UUID, never an embedded session user or guessed ID', async () => {
+  for (const mutate of [a => a.customerUsers[0].id = 'usr-foreign', a => a.customerUsers[0].email = 'other@example.test',
+    a => a.customerUsers[0].email = CUSTOMER_ACTOR.toUpperCase(), a => a.customerUsers[0].role = 'CUSTOMER_VIEWER',
+    a => a.customerUsers[0].status = 'DISABLED', a => a.customerUsers[0].status = 'INVITED',
+    a => a.customerUsers[0].customerId = 'cus-foreign', a => a.customerUsers = [], a => a.customerUsers = {users: [user()]},
+    a => a.customerUsers.push(copy(user())), a => a.customerUsers.push({...user(), id: 'usr-ambiguous'}),
+    a => a.customerUsers.push({...user(), email: 'another@example.test'}), a => delete a.customerUsers[0].id,
+    a => a.customerUsers[0].credential = STAFF_API_KEY, a => a.customerSession.actorId = SCOPE.ownerUserId,
+    a => { a.customerSession.user = user(); a.customerSession.userId = SCOPE.ownerUserId; a.customerUsers = []; }]) {
+    const api = fixture(); mutate(api);
+    await assert.rejects(prepareExternalBinding(input(), options(api)), ExternalBindingError);
+    assert.equal(api.postCount, 0);
+    assert.ok(api.requests.every(request => request.method === 'GET'));
+  }
+  for (const status of [401, 403, 404, 409, 500]) {
+    const api = fixture();
+    api.override = target => target.pathname === '/api/platform/users' ? json({users: [user()], private: STAFF_API_KEY}, status) : undefined;
+    await assert.rejects(prepareExternalBinding(input(), options(api)), code('SESSION_USER_DIRECTORY_REQUIRED'));
+    assert.equal(api.postCount, 0);
+  }
+});
+
+test('staff SESSION proves the literal reviewed audit email and ACTIVE global admin directory row', async () => {
+  for (const mutate of [a => a.staffSession.actorId = STAFF_ACTOR.toUpperCase(), a => a.staffSession.customerId = SCOPE.customerId,
+    a => a.staffUsers[0].email = 'foreign-staff@example.test', a => a.staffUsers[0].role = 'PLATFORM_OPERATOR',
+    a => a.staffUsers[0].status = 'DISABLED', a => a.staffUsers[0].customerId = SCOPE.customerId,
+    a => a.staffUsers.push({...user(true), id: 'usr-duplicate-email'}), a => a.staffUsers = []]) {
+    const api = fixture(); mutate(api);
+    await assert.rejects(prepareExternalBinding(input(), options(api)), ExternalBindingError);
+    assert.equal(api.postCount, 0);
+  }
+  for (const actor of ['', ' leading@example.test', 'trailing@example.test ', 'staff\n@example.test', '${STAFF}', '#{STAFF}', 'x'.repeat(256)]) {
+    const api = fixture(), raw = input(); raw.staffActorId = actor;
+    await assert.rejects(prepareExternalBinding(raw, options(api)), code('PRIVATE_INPUT_FIELDS_INVALID'));
+    assert.equal(api.requests.length, 0);
+  }
+});
+
+test('explicit staff API_KEY verifies actual mode/role/audit actor and sends no cookies or key to customer routes', async () => {
+  const api = fixture(), raw = apiKeyInput();
+  // Staff API_KEY does not require staff session auth or a fictitious directory user.
+  api.staffApiSession.sessionAuthEnabled = false;
+  api.staffUsers = [];
+  const prepared = await prepareExternalBinding(raw, options(api));
+  safe(prepared);
+  assert.equal(prepared.plan.staffActorId, API_KEY_ACTOR);
+  assert.equal(prepared.plan.staffAuthenticationMode, 'API_KEY');
+  assert.equal(prepared.plan.staffApiKeyHeaderName, API_KEY_HEADER);
+  assert.equal(prepared.digest, hash(prepared.plan));
+  assert.equal(api.postCount, 0);
+  const keyRequests = api.requests.filter(request => request.staffApiKeySent);
+  assert.equal(keyRequests.length, 1);
+  assert.equal(keyRequests[0].path, '/api/platform/auth/session');
+  assert.equal(keyRequests[0].cookie, undefined);
+  assert.deepEqual(api.requests.filter(request => request.path === '/api/platform/users').map(request => request.cookie), [CUSTOMER_COOKIE]);
+  for (const mutate of [a => a.staffApiSession.actorId = 'platform-operator', a => a.staffApiSession.role = 'PLATFORM_OPERATOR',
+    a => a.staffApiSession.authenticationMode = 'SESSION', a => a.staffApiSession.authenticationMode = 'PRODUCT_SERVICE_API_KEY',
+    a => a.staffApiSession.authenticated = false, a => a.staffApiSession.enabled = false, a => a.staffApiSession.apiKeyAuthEnabled = false,
+    a => a.staffApiSession.customerId = SCOPE.customerId, a => a.staffApiSession.headerName = 'X-OTHER-API-KEY']) {
+    const denied = fixture(); mutate(denied);
+    await assert.rejects(prepareExternalBinding(raw, options(denied)), code('EXACT_SESSION_ACTOR_REQUIRED'));
+    assert.equal(denied.postCount, 0);
+    assert.equal(denied.requests.filter(request => request.staffApiKeySent).length, 1, 'no fallback or auth retry');
+  }
+  const custom = fixture(), explicit = apiKeyInput();
+  custom.apiKeyHeader = 'X-REVIEWED-ADMIN-KEY'; custom.staffApiSession.headerName = custom.apiKeyHeader;
+  explicit.staffApiKeyHeaderName = custom.apiKeyHeader;
+  assert.equal((await prepareExternalBinding(explicit, options(custom))).plan.staffApiKeyHeaderName, custom.apiKeyHeader);
+});
+
+test('staff auth is discriminated and exclusive with structurally safe explicit API headers, never fallback', async () => {
+  for (const mutate of [r => delete r.staffAuthenticationMode, r => r.staffAuthenticationMode = 'AUTO',
+    r => r.staffSessionCookie = STAFF_COOKIE, r => delete r.staffApiKey, r => r.staffApiKey = '',
+    r => r.staffApiKey += '\nCookie: private', r => r.staffApiKey = '${ENV_KEY}', r => r.staffApiKey = {secretRef: 'key'},
+    r => delete r.staffApiKeyHeaderName, r => r.staffApiKeyHeaderName = 'Cookie', r => r.staffApiKeyHeaderName = 'Authorization',
+    r => r.staffApiKeyHeaderName = 'Host', r => r.staffApiKeyHeaderName = 'Content-Type',
+    r => r.staffApiKeyHeaderName = 'X-Forwarded-For', r => r.staffApiKeyHeaderName = 'X-HTTP-Method-Override',
+    r => r.staffApiKeyHeaderName = 'X-KEY\nCookie', r => r.customerApiKey = STAFF_API_KEY]) {
+    const api = fixture(), raw = apiKeyInput(); mutate(raw);
+    await assert.rejects(prepareExternalBinding(raw, options(api)), ExternalBindingError);
+    assert.equal(api.requests.length, 0);
+  }
+  for (const mutate of [r => r.staffApiKey = STAFF_API_KEY, r => r.staffApiKeyHeaderName = API_KEY_HEADER,
+    r => r.staffAuthenticationMode = 'API_KEY']) {
+    const api = fixture(), raw = input(); mutate(raw);
+    await assert.rejects(prepareExternalBinding(raw, options(api)), ExternalBindingError);
+    assert.equal(api.requests.length, 0);
+  }
+  const api = fixture(); api.staffSession.authenticationMode = 'API_KEY';
+  await assert.rejects(prepareExternalBinding(input(), options(api)), code('EXACT_SESSION_ACTOR_REQUIRED'));
+  assert.ok(api.requests.every(request => !request.staffApiKeySent));
+});
+
+test('API_KEY mode/header are reviewed digest, authenticated checkpoint, binding and replay fences', async t => {
+  const api = fixture(), dir = await directory(t), raw = apiKeyInput();
+  const prepared = await prepareExternalBinding(raw, options(api));
+  const sessionPlan = await prepareExternalBinding(input(), options(api));
+  assert.notEqual(prepared.digest, sessionPlan.digest);
+  const alternate = apiKeyInput(); alternate.staffApiKeyHeaderName = 'X-REVIEWED-ADMIN-KEY';
+  api.apiKeyHeader = alternate.staffApiKeyHeaderName; api.staffApiSession.headerName = alternate.staffApiKeyHeaderName;
+  const alternatePlan = await prepareExternalBinding(alternate, options(api));
+  assert.notEqual(prepared.digest, alternatePlan.digest);
+  api.apiKeyHeader = API_KEY_HEADER; api.staffApiSession.headerName = API_KEY_HEADER;
+  // Same audit actor still cannot switch auth mode under an already reviewed plan.
+  const changed = input(); changed.staffActorId = API_KEY_ACTOR;
+  api.staffSession.actorId = API_KEY_ACTOR; api.staffUsers[0].email = API_KEY_ACTOR;
+  await assert.rejects(executeExternalBinding(changed, prepared, options(api, dir, prepared)), code('REVIEWED_PLAN_CHANGED'));
+  assert.equal(api.postCount, 0); assert.deepEqual(await readdir(dir), []);
+  await executeExternalBinding(raw, prepared, options(api, dir, prepared));
+  const approvalPath = join(dir, prepared.digest + '.json');
+  const recorded = await checkpointFile(dir, prepared); safe(recorded);
+  assert.equal(recorded.plan.staffAuthenticationMode, 'API_KEY');
+  assert.equal(recorded.plan.staffApiKeyHeaderName, API_KEY_HEADER);
+  await assert.rejects(executeExternalBinding(changed, prepared, options(api, dir, prepared, {replay: true})), code('REVIEWED_PLAN_CHANGED'));
+  await executeExternalBinding(raw, prepared, options(api, dir, prepared, {replay: true}));
+  assert.equal(api.postCount, 2);
+  const bindRaw = apiKeyInput(input('stock', 'BIND', approvalPath));
+  assert.equal(Object.hasOwn(bindRaw, 'staffApiKey'), false);
+  await assert.rejects(prepareExternalBinding(input('stock', 'BIND', approvalPath), options(api)), code('EXACT_SUCCESSFUL_APPROVAL_CHECKPOINT_REQUIRED'));
+  const bindPlan = await prepareExternalBinding(bindRaw, options(api)); safe(bindPlan);
+  await executeExternalBinding(bindRaw, bindPlan, options(api, dir, bindPlan));
+  const posts = api.requests.filter(request => request.method === 'POST');
+  assert.deepEqual(posts.map(request => request.staffApiKeySent), [true, true, false]);
+  assert.equal(posts[2].cookie, CUSTOMER_COOKIE);
+  const result = await reconcileExternalBinding(reconciliationInput(), bindPlan, options(api, dir));
+  safe(result); assert.equal(result.status, 'CONFIRMED_COMMAND_AND_LOCAL_BINDING');
+});
+
+test('customer directory identity is re-proven on execute/replay/reconcile, with email drift digest-fenced', async t => {
+  const api = fixture(), raw = input(), dir = await directory(t), prepared = await prepareExternalBinding(raw, options(api));
+  api.customerUsers[0].id = 'usr-foreign';
+  await assert.rejects(executeExternalBinding(raw, prepared, options(api, dir, prepared)), code('EXACT_SESSION_USER_REQUIRED'));
+  assert.equal(api.postCount, 0); assert.deepEqual(await readdir(dir), []);
+  api.customerUsers[0] = user();
+  api.customerSession.actorId = 'new-owner-email@example.test'; api.customerUsers[0].email = api.customerSession.actorId;
+  await assert.rejects(executeExternalBinding(raw, prepared, options(api, dir, prepared)), code('REVIEWED_PLAN_CHANGED'));
+  assert.equal(api.postCount, 0);
+  api.customerSession = auth(); api.customerUsers[0] = user();
+  await executeExternalBinding(raw, prepared, options(api, dir, prepared));
+  api.customerUsers[0].status = 'DISABLED';
+  await assert.rejects(executeExternalBinding(raw, prepared, options(api, dir, prepared, {replay: true})), code('EXACT_SESSION_USER_REQUIRED'));
+  await assert.rejects(reconcileExternalBinding(reconciliationInput(), prepared, options(api, dir)), code('EXACT_SESSION_USER_REQUIRED'));
+  assert.equal(api.postCount, 1); assert.equal((await checkpointFile(dir, prepared)).state, 'SUCCEEDED');
+});
+
+test('v2 refuses old or missing auth-mode plan fences before checkpoint or network access', async t => {
+  const api = fixture(), raw = apiKeyInput(), prepared = await prepareExternalBinding(raw, options(api));
+  const dir = await directory(t), reads = api.requests.length;
+  for (const mutate of [p => p.schemaVersion = 'loomai-attended-external-binding-plan/v1',
+    p => delete p.staffAuthenticationMode, p => p.staffAuthenticationMode = 'AUTO',
+    p => delete p.staffApiKeyHeaderName, p => p.staffApiKeyHeaderName = 'Cookie']) {
+    const changed = copy(prepared); mutate(changed.plan); changed.digest = hash(changed.plan);
+    await assert.rejects(executeExternalBinding(raw, changed, options(api, dir, changed)), ExternalBindingError);
+    await assert.rejects(reconcileExternalBinding(reconciliationInput(), changed, options(api, dir)), ExternalBindingError);
+    assert.equal(api.requests.length, reads); assert.deepEqual(await readdir(dir), []);
+  }
+  assert.equal(api.postCount, 0);
+});
+
+test('API key echoes/errors stay redacted and ambiguous API_KEY approvals remain reconciliation-only', async t => {
+  for (const afterPost of [() => { throw Error(STAFF_API_KEY); }, () => json({message: STAFF_API_KEY}, 503),
+    (_target, _body, result) => json({...result, id: STAFF_API_KEY, approvalId: STAFF_API_KEY})]) {
+    const api = fixture(), raw = apiKeyInput(), dir = await directory(t), prepared = await prepareExternalBinding(raw, options(api));
+    api.afterPost = afterPost;
+    await assert.rejects(executeExternalBinding(raw, prepared, options(api, dir, prepared)), error => {
+      safe({message: error.message, code: error.code}); return code('MUTATION_OUTCOME_UNKNOWN_RECONCILIATION_ONLY')(error);
+    });
+    const recorded = await checkpointFile(dir, prepared); safe(recorded); assert.equal(recorded.state, 'UNKNOWN');
+    await assert.rejects(executeExternalBinding(raw, prepared, options(api, dir, prepared, {replay: true})), code('KNOWN_SUCCESS_REQUIRED_FOR_REPLAY'));
+    const before = api.requests.length;
+    const result = await reconcileExternalBinding(reconciliationInput(), prepared, options(api, dir));
+    safe(result); assert.equal(result.status, 'UNRESOLVED_APPROVAL');
+    assert.ok(api.requests.slice(before).every(request => request.method === 'GET' && !request.staffApiKeySent));
+    assert.equal(api.postCount, 1);
+  }
+  for (const mutate of [r => r.staffActorId = STAFF_API_KEY, r => r.review.reviewReference = 'review-' + STAFF_API_KEY,
+    r => { r.review.config.advertiserId = STAFF_API_KEY; r.review.accountScope.advertiserId = STAFF_API_KEY; }]) {
+    const api = fixture(), raw = apiKeyInput(); mutate(raw);
+    await assert.rejects(prepareExternalBinding(raw, options(api)), code('SECRET_IN_PUBLIC_DATA'));
+    assert.equal(api.requests.length, 0);
+  }
 });
 
 test('both exact DATA and ACTION approvals/bindings persist intent before one POST and verify explicit replay', async t => {

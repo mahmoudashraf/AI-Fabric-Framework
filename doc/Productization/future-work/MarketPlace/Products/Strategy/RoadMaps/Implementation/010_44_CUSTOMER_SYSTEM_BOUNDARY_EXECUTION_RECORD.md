@@ -861,3 +861,33 @@ an app, or claiming hosted workload readiness.
   customer summary READ slot-authorization mismatch; the owning worker is
   correcting that boundary with regression tests. This is not permission to
   bypass customer authorization or treat an unknown command as successful.
+
+### V202 Hosted Verification And Approved Operations Complete
+
+- Both control planes verify source `0c42606c2`, migration202, public healthUP,
+  exact image `sha256:66a8db202cc72a3593c93a257c72b2d9b73a2bfc258202439cb8feb9a2317aa6`.
+  The actual backend suite passes3,463 tests/354 classes with zero failures,
+  errors or skips; packaging passes. Real PostgreSQL handoff qualification
+  passes59 tests. Fresh private staging/production archives restore and migrate
+  201-to202 with selected preserved rows unchanged. UI/runtime were not rebuilt.
+- Approved unused cancellation verifies `CANCELLED_UNUSED_NO_EFFECT`, receipt
+  `c2658c3e-443d-4fbe-be72-f5b70720622b`; reservation released, no provider
+  reclamation. Consumer unbinding is audited; original app/version/data retained.
+  The audited Free-01 handoff to `dep-70b3d2c1` also verifies PASS with receipt
+  `uvh-dffe08c0-2c73-49cd-bbdf-58e80352c557`. Old ownership metadata/secrets
+  remain immutable. No model allocation, indexed data or runtime apply yet.
+- Client v2 verifies actual customer email-to-owner mapping, explicit exclusive
+  staff SESSION/API_KEY authority and identity-fenced commands;31 tests pass.
+  Normal customer placement refresh returned200 before new external DATA binding
+  preparation. This is not binding/indexing or customer-runtime acceptance.
+- Owner clarified that the already approvedUSD12 applies to the entire task,
+  across staging and production. Earlier staging-only allowance descriptions are
+  superseded. Maintain one cumulative ceiling and existing engineering token/query
+  bounds, with no automatic recharge, duplicate credit, erased history or fake
+  usage. The zero-allocation mis-scoped grant needs an audited unused lifecycle
+  correction and bounded task portions, not a new spending approval.
+- External receiver isolation source `1735a5f90` passes197 tests including17
+  real-PG cases. It is not deployed yet. A fresh private actual pre-V5 backup
+  retains6 website vehicles and73 business receipts. V203 retained-index quota
+  and V204 unused-grant source work run independently; hosted acceptance and
+  production promotion remain open. UI extraction stays last.

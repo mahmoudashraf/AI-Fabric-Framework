@@ -14,10 +14,14 @@
  *
  * Input: action APPROVE or BIND; explicit origin, scope (customerId, ownerUserId,
  * offerId, deploymentId, tenantId, versionId, targetProfileId, targetIntent,
- * expectedEntitlementRevision); staffActorId; review {profile, config,
+ * expectedEntitlementRevision); staffActorId; staffAuthenticationMode (SESSION
+ * or API_KEY); review {profile, config,
  * accountScope, reviewReference}; operationKey; customerSessionCookie; private
  * credentialFenceKey (32 random bytes as 64 hex characters, retained privately).
- * APPROVE additionally needs staffSessionCookie. BIND needs approvalCheckpoint
+ * APPROVE needs exactly staffSessionCookie (SESSION) or staffApiKey (API_KEY),
+ * never both and never fallback. API_KEY also requires an explicit configured
+ * staffApiKeyHeaderName in APPROVE and BIND. The selected mode/header are public
+ * review fences, not credentials. BIND needs approvalCheckpoint
  * (successful APPROVE checkpoint path) and credentials with the exact profile
  * secretFields. profile is the FULL separately reviewed offer profile, not an
  * inferred product/host/account default. Prepare derives and compares the live
@@ -27,7 +31,12 @@
  * This helper is fenced to the deployment's bootstrap target/authorization
  * revision; it does not infer a promotion target or refresh placement evidence.
  *
- * Read routes: /api/platform/auth/session;
+ * Customer auth is always SESSION. Session actorId is an email, not a user ID:
+ * /api/platform/users must prove its exact ACTIVE user/role/customer mapping to
+ * ownerUserId. Staff SESSION uses the same directory proof; staff API_KEY uses
+ * only the normal server PLATFORM_ADMIN principal and exact reviewed audit actor.
+ *
+ * Read routes: /api/platform/auth/session; /api/platform/users;
  * /api/customer-self-service/catalogue/{offerId};
  * /api/customer-self-service/deployments;
  * /api/deployments/{deploymentId}/versions;
@@ -42,10 +51,11 @@
  * cookies or the fence key. Use a private, owned, canonical 0700 checkpoint dir.
  * Keep the same dir and key across invocations. One plan performs one command;
  * prepare/review APPROVE, execute it, then separately prepare/review/execute BIND.
+ * v2 rejects old plans/checkpoints without identity and staff auth-mode fences.
  * No login, placement probe, apply, provisioning, business request or revoke.
  *
  * Backend qualification: the summary READ authorization correction is fixed in
- * source but not yet deployed at this handoff. Expect a qualified backend build
+ * source; verify its deployment for the selected origin. Expect a qualified build
  * that authorizes READ at deployment/target scope and separately enforces the
  * exact external slot/profile, published version and manifest. Older builds may
  * return BINDING_SLOT_FORBIDDEN; preparation still stops on that exact denial.
@@ -60,8 +70,8 @@ import {lstat, open, readFile, realpath, rename, unlink} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
-const PLAN_SCHEMA = 'loomai-attended-external-binding-plan/v1';
-const CHECKPOINT_SCHEMA = 'loomai-attended-external-binding-checkpoint/v1';
+const PLAN_SCHEMA = 'loomai-attended-external-binding-plan/v2';
+const CHECKPOINT_SCHEMA = 'loomai-attended-external-binding-checkpoint/v2';
 const PROFILE_SCHEMA = 'loomai-external-integration-profile/v1';
 const PROFILE_FIELDS = ['schemaVersion', 'id', 'bindingSlotId', 'pluginId', 'pluginVersionId', 'manifestSha256',
   'targetProfileIds', 'configFields', 'secretFields', 'endpointFields', 'accountScopeFields', 'allowedHosts'];
@@ -69,6 +79,8 @@ const SCOPE_FIELDS = ['customerId', 'ownerUserId', 'offerId', 'deploymentId', 't
   'targetProfileId', 'targetIntent', 'expectedEntitlementRevision'];
 const SUMMARY_FIELDS = ['id', 'approvalId', 'deploymentId', 'versionId', 'targetProfileId', 'bindingSlotId',
   'selectedProfileId', 'status', 'revision'];
+const USER_FIELDS = ['id', 'email', 'displayName', 'role', 'customerId', 'customerName', 'customerSlug',
+  'status', 'lastLoginAt', 'createdAt', 'updatedAt'];
 const MAX_BYTES = 1024 * 1024;
 const STATES = ['INTENT', 'UNKNOWN', 'READBACK_PENDING', 'SUCCEEDED', 'REPLAY_INTENT', 'REPLAY_UNKNOWN'];
 
@@ -150,7 +162,7 @@ function textMap(value, fields, max, code) {
 }
 function privateValues(input) {
   const cookies = [input?.customerSessionCookie, input?.staffSessionCookie].filter(value => typeof value === 'string');
-  return [...cookies, ...cookies.map(value => value.slice(value.indexOf('=') + 1)), input?.credentialFenceKey,
+  return [...cookies, ...cookies.map(value => value.slice(value.indexOf('=') + 1)), input?.staffApiKey, input?.credentialFenceKey,
     ...Object.values(object(input?.credentials) ? input.credentials : {})].filter(value => typeof value === 'string' && value.length > 0);
 }
 function noSecrets(value, secrets) {
@@ -167,17 +179,25 @@ function sessionCookie(value) {
     && value.length <= 16384, 'PRIVATE_SESSION_COOKIE_REQUIRED');
   return value;
 }
+function apiKeyHeader(value) {
+  return typeof value === 'string' && /^X-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(value) && value.length <= 128
+    && !/^x-(?:forwarded(?:-|$)|http-method(?:-|$)|real-ip$|original-(?:url|host)$|rewrite-url$)/i.test(value);
+}
 function normalizeInput(raw) {
   check(object(raw) && ['APPROVE', 'BIND'].includes(raw.action), 'EXPLICIT_ACTION_REQUIRED');
-  const fields = ['action', 'origin', 'scope', 'staffActorId', 'review', 'operationKey', 'customerSessionCookie', 'credentialFenceKey',
-    ...(raw.action === 'APPROVE' ? ['staffSessionCookie'] : ['credentials', 'approvalCheckpoint'])];
+  check(['SESSION', 'API_KEY'].includes(raw.staffAuthenticationMode), 'EXPLICIT_STAFF_AUTH_MODE_REQUIRED');
+  const apiKey = raw.staffAuthenticationMode === 'API_KEY';
+  const fields = ['action', 'origin', 'scope', 'staffActorId', 'staffAuthenticationMode', 'review', 'operationKey',
+    'customerSessionCookie', 'credentialFenceKey', ...(apiKey ? ['staffApiKeyHeaderName'] : []),
+    ...(raw.action === 'APPROVE' ? [apiKey ? 'staffApiKey' : 'staffSessionCookie'] : ['credentials', 'approvalCheckpoint'])];
   exact(raw, fields, 'PRIVATE_INPUT_FIELDS_INVALID');
   exact(raw.scope, SCOPE_FIELDS, 'EXACT_SCOPE_REQUIRED');
   check(SCOPE_FIELDS.filter(field => !['targetIntent', 'expectedEntitlementRevision'].includes(field))
     .every(field => identifier(raw.scope[field])) && revision(raw.scope.expectedEntitlementRevision)
     && ['CUSTOMER_STAGING', 'CUSTOMER_PRODUCTION'].includes(raw.scope.targetIntent), 'EXACT_SCOPE_REQUIRED');
-  check(identifier(raw.staffActorId) && raw.staffActorId !== raw.scope.ownerUserId && literal(raw.operationKey, 128)
+  check(literal(raw.staffActorId, 255) && raw.staffActorId !== raw.scope.ownerUserId && literal(raw.operationKey, 128)
     && /^[a-f0-9]{64}$/.test(raw.credentialFenceKey), 'PRIVATE_INPUT_FIELDS_INVALID');
+  if (apiKey) check(apiKeyHeader(raw.staffApiKeyHeaderName), 'EXPLICIT_API_KEY_HEADER_REQUIRED');
   exact(raw.review, ['profile', 'config', 'accountScope', 'reviewReference'], 'REVIEW_FIELDS_INVALID');
   const reviewedProfile = profile(raw.review.profile);
   check(reviewedProfile.targetProfileIds.includes(raw.scope.targetProfileId), 'PROFILE_TARGET_MISMATCH');
@@ -193,13 +213,17 @@ function normalizeInput(raw) {
     review: {profile: reviewedProfile, config, accountScope, reviewReference: raw.review.reviewReference},
     customerSessionCookie: sessionCookie(raw.customerSessionCookie)};
   if (raw.action === 'APPROVE') {
-    input.staffSessionCookie = sessionCookie(raw.staffSessionCookie);
-    check(input.staffSessionCookie !== input.customerSessionCookie, 'DISTINCT_STAFF_AND_CUSTOMER_SESSIONS_REQUIRED');
+    if (apiKey) check(literal(raw.staffApiKey, 16384) && /^[\x21-\x7e]+$/.test(raw.staffApiKey), 'PRIVATE_STAFF_API_KEY_REQUIRED');
+    else {
+      input.staffSessionCookie = sessionCookie(raw.staffSessionCookie);
+      check(input.staffSessionCookie !== input.customerSessionCookie, 'DISTINCT_STAFF_AND_CUSTOMER_SESSIONS_REQUIRED');
+    }
   } else {
     input.credentials = textMap(raw.credentials, reviewedProfile.secretFields, 16384, 'CREDENTIAL_FIELDS_INVALID');
     check(typeof raw.approvalCheckpoint === 'string' && raw.approvalCheckpoint.length > 0, 'APPROVAL_CHECKPOINT_REQUIRED');
   }
-  noSecrets({origin: input.origin, scope: input.scope, staffActorId: input.staffActorId, review: input.review,
+  noSecrets({origin: input.origin, scope: input.scope, staffActorId: input.staffActorId,
+    staffAuthenticationMode: input.staffAuthenticationMode, staffApiKeyHeaderName: input.staffApiKeyHeaderName ?? null, review: input.review,
     operationKey: input.operationKey}, privateValues(input));
   return input;
 }
@@ -228,7 +252,8 @@ function transport(input, options) {
     let response;
     try {
       response = await fetchImpl(input.origin + path, {method: body ? 'POST' : 'GET',
-        headers: {Accept: 'application/json', Cookie: staff ? input.staffSessionCookie : input.customerSessionCookie,
+        headers: {Accept: 'application/json', ...(staff && input.staffAuthenticationMode === 'API_KEY'
+          ? {[input.staffApiKeyHeaderName]: input.staffApiKey} : {Cookie: staff ? input.staffSessionCookie : input.customerSessionCookie}),
           ...(body ? {'Content-Type': 'application/json'} : {})},
         ...(body ? {body: JSON.stringify(body)} : {}), redirect: 'error', credentials: 'omit',
         signal: AbortSignal.timeout(30000)});
@@ -330,19 +355,37 @@ function validateManifest(detail, selected, config) {
     check(accountField === undefined || selected.accountScopeFields.includes(accountField), 'ACCOUNT_FIELD_NOT_REVIEWED');
   }
 }
-async function session(request, scope, staffActorId, staff = false) {
+async function session(request, input, staff = false) {
+  const {scope} = input, mode = staff ? input.staffAuthenticationMode : 'SESSION';
   const response = await request('/api/platform/auth/session', {staff});
   const value = response.payload;
   check(response.status === 200 && value?.enabled === true && value.authenticated === true
-    && value.sessionAuthEnabled === true && value.authenticationMode === 'SESSION'
+    && value.authenticationMode === mode && literal(value.actorId, 255)
+    && (mode === 'SESSION' ? value.sessionAuthEnabled === true
+      : value.apiKeyAuthEnabled === true && value.headerName === input.staffApiKeyHeaderName)
     && value.role === (staff ? 'PLATFORM_ADMIN' : 'CUSTOMER_ADMIN')
-    && value.actorId === (staff ? staffActorId : scope.ownerUserId)
-    && (staff ? value.customerId == null : value.customerId === scope.customerId), 'EXACT_SESSION_ACTOR_REQUIRED');
+    && (!staff || value.actorId === input.staffActorId)
+    && (staff ? value.customerId === null : value.customerId === scope.customerId), 'EXACT_SESSION_ACTOR_REQUIRED');
+  if (mode === 'API_KEY') return;
+  const directory = await request('/api/platform/users', {staff});
+  check(directory.status === 200 && Array.isArray(directory.payload), 'SESSION_USER_DIRECTORY_REQUIRED');
+  const users = directory.payload;
+  users.forEach(user => exact(user, USER_FIELDS, 'SESSION_USER_DIRECTORY_INVALID'));
+  check(users.every(user => identifier(user.id) && literal(user.email, 255)
+    && (staff || user.customerId === scope.customerId))
+    && new Set(users.map(user => user.id)).size === users.length, 'SESSION_USER_DIRECTORY_INVALID');
+  const matches = users.filter(user => user.email === value.actorId);
+  check(matches.length === 1, 'EXACT_SESSION_USER_REQUIRED');
+  const user = matches[0];
+  check(user.role === value.role && user.status === 'ACTIVE'
+    && (staff ? user.customerId === null : user.id === scope.ownerUserId && user.customerId === scope.customerId),
+  'EXACT_SESSION_USER_REQUIRED');
+  return hash({actorId: value.actorId, userId: user.id, role: user.role, status: user.status, customerId: user.customerId});
 }
 async function authority(input, request, options) {
   const {scope, review} = input;
-  await session(request, scope, input.staffActorId);
-  if (input.action === 'APPROVE') await session(request, scope, input.staffActorId, true);
+  const customerIdentitySha256 = await session(request, input);
+  if (input.action === 'APPROVE') await session(request, input, true);
   const offer = await get(request, `/api/customer-self-service/catalogue/${encodeURIComponent(scope.offerId)}`);
   const entitlement = offer.entitlement;
   check(offer.id === scope.offerId && /^[a-f0-9]{64}$/.test(offer.fingerprint)
@@ -392,7 +435,7 @@ async function authority(input, request, options) {
     && /^[a-f0-9]{64}$/.test(published[0].configHash), 'PUBLISHED_VERSION_SCOPE_MISMATCH');
   const detail = await get(request, `/api/marketplace/plugins/${encodeURIComponent(selected.pluginId)}`);
   validateManifest(detail, selected, review.config);
-  return {profile: selected, authority: {offerFingerprint: offer.fingerprint, entitlementId: entitlement.id,
+  return {profile: selected, authority: {customerIdentitySha256, offerFingerprint: offer.fingerprint, entitlementId: entitlement.id,
     entitlementExpiresAt: entitlement.expiresAt, versionConfigHash: published[0].configHash,
     authorizationEntitlementRevision: deployment.authorizationEntitlementRevision}};
 }
@@ -400,21 +443,26 @@ async function authority(input, request, options) {
 function validatePrepared(prepared) {
   exact(prepared, ['plan', 'digest'], 'PREPARED_PLAN_INVALID');
   const plan = prepared.plan;
-  exact(plan, ['schemaVersion', 'action', 'origin', 'scope', 'staffActorId', 'profile', 'config', 'accountScope',
+  exact(plan, ['schemaVersion', 'action', 'origin', 'scope', 'staffActorId', 'staffAuthenticationMode', 'staffApiKeyHeaderName',
+    'profile', 'config', 'accountScope',
     'reviewReference', 'operationKey', 'authority', 'fenceKeyId', 'credentialCommitment', 'approvalId', 'approvalDigest'], 'PREPARED_PLAN_INVALID');
   check(plan.schemaVersion === PLAN_SCHEMA && ['APPROVE', 'BIND'].includes(plan.action)
+    && literal(plan.staffActorId, 255) && ['SESSION', 'API_KEY'].includes(plan.staffAuthenticationMode)
+    && (plan.staffAuthenticationMode === 'SESSION' ? plan.staffApiKeyHeaderName === null : apiKeyHeader(plan.staffApiKeyHeaderName))
     && sameMac(prepared.digest, hash(plan)), 'PREPARED_DIGEST_MISMATCH');
   return prepared;
 }
 function approvalBasis(plan) {
-  return {origin: plan.origin, scope: plan.scope, staffActorId: plan.staffActorId, profile: plan.profile,
+  return {origin: plan.origin, scope: plan.scope, staffActorId: plan.staffActorId,
+    staffAuthenticationMode: plan.staffAuthenticationMode, staffApiKeyHeaderName: plan.staffApiKeyHeaderName, profile: plan.profile,
     config: plan.config, accountScope: plan.accountScope, reviewReference: plan.reviewReference,
     authority: plan.authority, fenceKeyId: plan.fenceKeyId};
 }
 async function buildPlan(input, options, expectedBinding = null, allowExistingApproval = false) {
   const request = transport(input, options), readback = await authority(input, request, options);
   const plan = {schemaVersion: PLAN_SCHEMA, action: input.action, origin: input.origin, scope: input.scope,
-    staffActorId: input.staffActorId, profile: readback.profile, config: input.review.config,
+    staffActorId: input.staffActorId, staffAuthenticationMode: input.staffAuthenticationMode,
+    staffApiKeyHeaderName: input.staffApiKeyHeaderName ?? null, profile: readback.profile, config: input.review.config,
     accountScope: input.review.accountScope, reviewReference: input.review.reviewReference, operationKey: input.operationKey,
     authority: readback.authority, fenceKeyId: hash(input.credentialFenceKey), credentialCommitment: null, approvalId: null, approvalDigest: null};
   if (input.action === 'BIND') {
@@ -592,7 +640,9 @@ export async function reconcileExternalBinding(raw, prepared, options = {}) {
     check(equal(recorded.plan, prepared.plan), 'CHECKPOINT_PLAN_MISMATCH');
     const request = transport(input, options);
     const current = await authority({...input, action: 'BIND', scope: prepared.plan.scope,
-      staffActorId: prepared.plan.staffActorId, review: {profile: prepared.plan.profile, config: prepared.plan.config}}, request, options);
+      staffActorId: prepared.plan.staffActorId, staffAuthenticationMode: prepared.plan.staffAuthenticationMode,
+      staffApiKeyHeaderName: prepared.plan.staffApiKeyHeaderName,
+      review: {profile: prepared.plan.profile, config: prepared.plan.config}}, request, options);
     check(equal(current, {profile: prepared.plan.profile, authority: prepared.plan.authority}), 'RECONCILIATION_AUTHORITY_CHANGED');
     if (prepared.plan.action === 'APPROVE') return noSecrets(report(prepared,
       recorded.state === 'SUCCEEDED' ? 'RECORDED_APPROVAL_SUCCESS' : 'UNRESOLVED_APPROVAL', recorded.receipt,

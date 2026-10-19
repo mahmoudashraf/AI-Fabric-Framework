@@ -8,6 +8,28 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 V202 Hosted Verification And Task Budget Clarification
+
+- Both control planes now verify source0c42606c2, migration202, healthUP and
+  image digest66a8db202cc72a3593c93a257c72b2d9b73a2bfc258202439cb8feb9a2317aa6.
+  Actual backend3463 tests/354 classes pass with no failures/errors/skips;
+  package,59 real-PG handoff tests and fresh201-to202 archive rehearsals pass.
+- Approved unused cancellation is committed and verified:
+  c2658c3e-443d-4fbe-be72-f5b70720622b, CANCELLED_UNUSED_NO_EFFECT,
+  reservation released with no reclamation. Audited Free-01 handoff to
+  dep-70b3d2c1 is PASS, receiptuvh-dffe08c0-2c73-49cd-bbdf-58e80352c557.
+  Original handles/secrets/data/history retained; no model allocation/calls.
+- Owner clarified the existingUSD12 is the whole task allowance across staging
+  and production, not staging-only. Track one cumulative total; no automatic
+  USD20 recharge or duplicate allowance. Correct the unused mis-scoped grant
+  through an audited lifecycle, not SQL edits/refunds/fake allocations.
+- Client v2 external binding identity correction passes31 tests. Normal customer
+  placement refresh succeeded; DATA/ACTION approval/binding and runtime gates
+  remain open. Source1735a5f90 fixes scoped external receiver/legacy preservation;
+  it is not yet live. Fresh private pre-V5 demo backup retains6 vehicles/73receipts.
+- Parallel source work: V203 retained external-index/residual admission; V204
+  void-unused grant correction. UI extraction remains last and undeployed.
+
 ## 2026-10-19 Approved Free-01 Handoff Continuation
 
 - Owner explicitly approved cancelling unused reservationf0e90dba on dep-6e29bab9
