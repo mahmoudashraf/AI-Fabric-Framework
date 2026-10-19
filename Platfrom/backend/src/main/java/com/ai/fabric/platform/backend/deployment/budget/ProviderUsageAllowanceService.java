@@ -29,6 +29,7 @@ import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,6 +38,7 @@ import java.util.function.Supplier;
 
 import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllowanceContracts.*;
 import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllowanceFailure.*;
+import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageGrantLifecycleContracts.*;
 
 /**
  * Lifetime financial allowance issuer. Call only after the physical R7 transaction has committed.
@@ -79,7 +81,7 @@ public class ProviderUsageAllowanceService {
     }
 
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public GrantQuota approveGrant(ProviderUsageGrant grant) {
+    public GrantQuotaView approveGrant(ProviderUsageGrant grant) {
         staff(true);
         if (grant == null) throw invalid();
         return transaction(() -> {
@@ -95,6 +97,7 @@ public class ProviderUsageAllowanceService {
             if (!clock.instant().isBefore(grant.expiresAt())) throw conflict("PROVIDER_USAGE_GRANT_EXPIRED");
             if (!jdbc.query("""
                 SELECT id FROM provider_usage_grants WHERE campaign_id=? AND customer_id=? AND target_profile_id=? AND environment_name=?
+                    AND lifecycle_status='ACTIVE'
                 """, (rs, row) -> rs.getString(1), grant.campaignId(), grant.customerId(), grant.targetProfileId(), grant.environment()).isEmpty())
                 throw conflict("PROVIDER_USAGE_CAMPAIGN_ALREADY_REVIEWED");
             String fingerprint = codec.fingerprint(grant);
@@ -104,9 +107,82 @@ public class ProviderUsageAllowanceService {
                 VALUES (?,?,?,?,?,?,?,?,?,?)
                 """, grant.id(), grant.campaignId(), grant.customerId(), grant.targetProfileId(), grant.environment(), fingerprint,
                 codec.write(grant), actor().actorId(), actor().role().name(), time(clock.instant()));
-            audit("GRANT_APPROVED", grant.id(), fingerprint);
+            audit("GRANT_APPROVED", grant.id(), grant.id(), fingerprint, staffActor());
             return quota(requireGrant(grant.id()));
         });
+    }
+
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public VoidUnusedReceipt voidUnused(String grantId, VoidUnusedCommand command) {
+        staff(true); text(grantId, 96);
+        if (command == null) throw invalid();
+        return transaction(() -> {
+            // Same review mutex as approval; the source-row lock also serializes every allocation/initialization.
+            jdbc.queryForObject("SELECT id FROM provider_usage_grant_mutex WHERE id=1 FOR UPDATE", Integer.class);
+            GrantRow row = requireGrant(grantId);
+            String commandFingerprint = codec.fingerprint(new VoidRequest(grantId, command));
+            var previous = voidReceipts(grantId, command.operationKey());
+            if (!previous.isEmpty()) {
+                if (previous.size() != 1) throw conflict("PROVIDER_USAGE_VOID_COMMAND_CHANGED");
+                var receipt = previous.getFirst();
+                if (!receipt.grantId().equals(grantId) || !receipt.command().equals(command)
+                    || !receipt.commandFingerprint().equals(commandFingerprint))
+                    throw conflict("PROVIDER_USAGE_VOID_COMMAND_CHANGED");
+                if (row.status() != GrantStatus.VOID_UNUSED || !row.fingerprint().equals(receipt.grantFingerprint())
+                    || !row.allocated().equals(ZERO)) throw conflict("PROVIDER_USAGE_VOID_RECORD_CHANGED");
+                return receipt;
+            }
+            if (!row.fingerprint().equals(command.expectedGrantFingerprint()))
+                throw conflict("PROVIDER_USAGE_GRANT_FINGERPRINT_CHANGED");
+            if (row.status() != GrantStatus.ACTIVE) throw conflict("PROVIDER_USAGE_GRANT_VOID_UNUSED");
+            requireUnused(row);
+            var receipt = new VoidUnusedReceipt("pugv-" + UUID.randomUUID(), grantId, GrantStatus.VOID_UNUSED,
+                row.fingerprint(), commandFingerprint, command, actor().actorId(), actor().role().name(),
+                clock.instant().truncatedTo(ChronoUnit.MICROS));
+            jdbc.update("""
+                INSERT INTO provider_usage_grant_void_receipts
+                (grant_id,receipt_id,operation_key,grant_fingerprint,command_fingerprint,receipt_fingerprint,payload_json,actor_id,actor_role,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, grantId, receipt.receiptId(), command.operationKey(), row.fingerprint(), commandFingerprint,
+                codec.fingerprint(receipt), codec.write(receipt), receipt.actorId(), receipt.actorRole(), time(receipt.voidedAt()));
+            if (jdbc.update("UPDATE provider_usage_grants SET lifecycle_status='VOID_UNUSED' WHERE id=? AND lifecycle_status='ACTIVE'", grantId) != 1)
+                throw conflict("PROVIDER_USAGE_VOID_RECORD_CHANGED");
+            audit("GRANT_VOID_UNUSED", grantId, grantId, codec.fingerprint(receipt), staffActor());
+            return receipt;
+        });
+    }
+
+    private void requireUnused(GrantRow row) {
+        String id = row.grant().id();
+        if (!row.allocated().equals(ZERO)
+            || jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations WHERE grant_id=?", Long.class, id) != 0)
+            throw conflict("PROVIDER_USAGE_GRANT_NOT_UNUSED");
+        // Unattributed legacy usage cannot prove absence of historical allocations, so it fails closed.
+        if (jdbc.queryForObject("""
+            SELECT count(*) FROM provider_usage_allowance_events
+            WHERE (grant_id=? OR subject_id=? OR grant_id IS NULL) AND event_type<>'GRANT_APPROVED'
+            """, Long.class, id, id) != 0) throw conflict("PROVIDER_USAGE_GRANT_HAS_USAGE_HISTORY");
+        if (jdbc.queryForObject("""
+            SELECT count(*) FROM provider_usage_allowance_events
+            WHERE grant_id=? AND subject_id=? AND event_type='GRANT_APPROVED' AND payload_fingerprint=? AND actor_role='PLATFORM_ADMIN'
+            """, Long.class, id, id, row.fingerprint()) != 1) throw conflict("PROVIDER_USAGE_GRANT_APPROVAL_HISTORY_CHANGED");
+    }
+
+    private List<VoidUnusedReceipt> voidReceipts(String grantId, String operationKey) {
+        return jdbc.query("SELECT * FROM provider_usage_grant_void_receipts WHERE grant_id=? OR operation_key=?", (rs, index) -> {
+            var receipt = codec.read(rs.getString("payload_json"), VoidUnusedReceipt.class);
+            if (receipt.status() != GrantStatus.VOID_UNUSED || !receipt.grantId().equals(rs.getString("grant_id"))
+                || !receipt.receiptId().equals(rs.getString("receipt_id")) || !receipt.command().operationKey().equals(rs.getString("operation_key"))
+                || !receipt.grantFingerprint().equals(receipt.command().expectedGrantFingerprint())
+                || !receipt.grantFingerprint().equals(rs.getString("grant_fingerprint"))
+                || !receipt.commandFingerprint().equals(codec.fingerprint(new VoidRequest(receipt.grantId(), receipt.command())))
+                || !receipt.commandFingerprint().equals(rs.getString("command_fingerprint"))
+                || !codec.fingerprint(receipt).equals(rs.getString("receipt_fingerprint"))
+                || !receipt.actorId().equals(rs.getString("actor_id")) || !"PLATFORM_ADMIN".equals(receipt.actorRole())
+                || !receipt.actorRole().equals(rs.getString("actor_role")) || !receipt.voidedAt().equals(rs.getTimestamp("created_at").toInstant()))
+                throw conflict("PROVIDER_USAGE_VOID_RECORD_CHANGED");
+            return receipt;
+        }, grantId, operationKey);
     }
 
     /** Trusted server/staff API, never expose raw financial limits as a customer command. */
@@ -122,7 +198,7 @@ public class ProviderUsageAllowanceService {
 
     private SafeAllowanceProjection allocateLocked(AllocationCommand command, ReviewedR7Context reviewed, AuditActor auditActor) {
             AdmissionContracts.Reservation reservation = reservation(reviewed);
-            GrantRow row = requireGrant(command.grantId());
+            GrantRow row = requireActiveGrant(command.grantId());
             ProviderUsageGrant grant = row.grant();
             if (!grant.targetProfileId().equals(command.targetProfileId()) || !grant.binding().equals(command.binding())
                 || !grant.rateCardReference().equals(command.rateCardReference())) throw conflict("PROVIDER_USAGE_BINDING_CHANGED");
@@ -158,7 +234,7 @@ public class ProviderUsageAllowanceService {
             jdbc.update("""
                 UPDATE provider_usage_grants SET allocated_chat_attempts=?,allocated_total_tokens=?,allocated_cost_nano_usd=? WHERE id=?
                 """, next.chatAttempts(), next.totalTokens(), next.costNanoUsd(), grant.id());
-            audit("ALLOWANCE_ALLOCATED", id, fingerprint, auditActor);
+            audit("ALLOWANCE_ALLOCATED", id, grant.id(), fingerprint, auditActor);
             return projection(requireAllocation(id));
     }
 
@@ -190,7 +266,7 @@ public class ProviderUsageAllowanceService {
             if (!locator.terms().scope().equals(scope)) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");
             ReviewedR7Context reviewed = authorized == null ? locator.terms().initialAdmission() : authorized.reviewed();
             AdmissionContracts.Reservation reservation = reservation(reviewed);
-            requireGrant(locator.terms().grantId());
+            requireActiveGrant(locator.terms().grantId());
             AllocationRow row = requireAllocation(scope.approvalId());
             ownedDeployment(scope.deploymentId(), scope.customerId()); actualTarget(scope.targetProfileId(), scope.environment());
             if (!ProviderUsageRuntimeAllocationIdentity.fingerprint(row.terms()).equals(fingerprint))
@@ -215,7 +291,7 @@ public class ProviderUsageAllowanceService {
                     WHERE approval_id=?
                     """, storeUuid.toString(), fingerprint, time(clock.instant()), scope.approvalId());
             }
-            audit(activate ? "ALLOWANCE_ACTIVE" : "ALLOWANCE_INITIALIZED", scope.approvalId(), row.fingerprint(), auditActor);
+            audit(activate ? "ALLOWANCE_ACTIVE" : "ALLOWANCE_INITIALIZED", scope.approvalId(), row.terms().grantId(), row.fingerprint(), auditActor);
             return projection(requireAllocation(scope.approvalId()));
     }
 
@@ -282,9 +358,9 @@ public class ProviderUsageAllowanceService {
 
     private GrantRow grantForRelease(AuthorizedRelease authorized) {
         jdbc.queryForObject("SELECT id FROM provider_usage_grant_mutex WHERE id=1 FOR UPDATE", Integer.class);
-        var grants = jdbc.query("SELECT id FROM provider_usage_grants WHERE customer_id=? AND target_profile_id=? AND environment_name=? ORDER BY id",
+        var grants = jdbc.query("SELECT id FROM provider_usage_grants WHERE customer_id=? AND target_profile_id=? AND environment_name=? AND lifecycle_status='ACTIVE' ORDER BY id",
             (rs, index) -> rs.getString(1), authorized.deployment().getCustomerId(), authorized.profile().getId(), authorized.profile().getEnvironmentName())
-            .stream().map(this::requireGrant).filter(row -> clock.instant().isBefore(row.grant().expiresAt())).toList();
+            .stream().map(this::requireActiveGrant).filter(row -> clock.instant().isBefore(row.grant().expiresAt())).toList();
         if (grants.isEmpty()) throw conflict("PROVIDER_USAGE_REVIEWED_GRANT_REQUIRED");
         if (grants.size() != 1) throw conflict("PROVIDER_USAGE_REVIEWED_GRANT_AMBIGUOUS");
         return grants.getFirst();
@@ -315,6 +391,7 @@ public class ProviderUsageAllowanceService {
         staff(false);
         if (scope == null) throw invalid();
         return transaction(() -> {
+            // Locator only: do not lock an allowance before projection locks its source grant.
             AllocationRow row = allocation(scope.approvalId(), false);
             if (!row.terms().scope().equals(scope)) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");
             allocationReadAccess(scope);
@@ -338,7 +415,7 @@ public class ProviderUsageAllowanceService {
         });
     }
 
-    public GrantQuota readQuota(String grantId) {
+    public GrantQuotaView readQuota(String grantId) {
         authenticated(); text(grantId, 96);
         return transaction(() -> {
             GrantRow row = requireGrant(grantId); readAccess(row.grant().customerId()); return quota(row);
@@ -426,8 +503,11 @@ public class ProviderUsageAllowanceService {
                 || !grant.customerId().equals(rs.getString("customer_id")) || !grant.targetProfileId().equals(rs.getString("target_profile_id"))
                 || !grant.environment().equals(rs.getString("environment_name")) || !grant.campaignId().equals(rs.getString("campaign_id")))
                 throw conflict("PROVIDER_USAGE_GRANT_RECORD_CHANGED");
+            GrantStatus status;
+            try { status = GrantStatus.valueOf(rs.getString("lifecycle_status")); }
+            catch (IllegalArgumentException | NullPointerException error) { throw conflict("PROVIDER_USAGE_GRANT_RECORD_CHANGED"); }
             return new GrantRow(grant, rs.getString("fingerprint"), new Limits(rs.getLong("allocated_chat_attempts"),
-                rs.getLong("allocated_total_tokens"), rs.getLong("allocated_cost_nano_usd")));
+                rs.getLong("allocated_total_tokens"), rs.getLong("allocated_cost_nano_usd")), status);
         }, id);
     }
 
@@ -435,6 +515,14 @@ public class ProviderUsageAllowanceService {
         var rows = grantRows(id, true);
         if (rows.size() != 1) throw missing("PROVIDER_USAGE_GRANT_NOT_FOUND");
         return rows.getFirst();
+    }
+
+    private GrantRow requireActiveGrant(String id) {
+        GrantRow row = requireGrant(id);
+        if (row.status() != GrantStatus.ACTIVE
+            || jdbc.queryForObject("SELECT count(*) FROM provider_usage_grant_void_receipts WHERE grant_id=?", Long.class, id) != 0)
+            throw conflict("PROVIDER_USAGE_GRANT_VOID_UNUSED");
+        return row;
     }
 
     private AllocationRow requireAllocation(String id) { return allocation(id, true); }
@@ -458,18 +546,24 @@ public class ProviderUsageAllowanceService {
 
     private SafeAllowanceProjection projection(AllocationRow row) {
         var terms = row.terms();
+        requireActiveGrant(terms.grantId());
         return new SafeAllowanceProjection(terms.approvalId(), terms.scope(), terms.caps(), terms.expiresAt(), terms.pricingReference(),
             terms.binding(), terms.credentialSha256(), row.fingerprint(), ProviderUsageRuntimeAllocationIdentity.fingerprint(terms),
             row.state(), row.storeUuid(), row.initializationFingerprint());
     }
 
-    private GrantQuota quota(GrantRow row) {
+    private GrantQuotaView quota(GrantRow row) {
         var grant = row.grant();
         if (!within(row.allocated(), grant.credits())) throw conflict("PROVIDER_USAGE_CREDIT_INTEGRITY_FAILURE");
-        return new GrantQuota(grant.id(), grant.campaignId(), grant.customerId(), grant.targetProfileId(), grant.environment(), grant.credits(),
-            row.allocated(), new Limits(grant.credits().chatAttempts() - row.allocated().chatAttempts(),
-            grant.credits().totalTokens() - row.allocated().totalTokens(), grant.credits().costNanoUsd() - row.allocated().costNanoUsd()),
-            grant.expiresAt(), grant.rateCardReference());
+        var receipts = voidReceipts(grant.id(), "");
+        if ((row.status() == GrantStatus.VOID_UNUSED) != (receipts.size() == 1)
+            || (!receipts.isEmpty() && (!receipts.getFirst().grantFingerprint().equals(row.fingerprint()) || !row.allocated().equals(ZERO))))
+            throw conflict("PROVIDER_USAGE_VOID_RECORD_CHANGED");
+        Limits remaining = new Limits(grant.credits().chatAttempts() - row.allocated().chatAttempts(),
+            grant.credits().totalTokens() - row.allocated().totalTokens(), grant.credits().costNanoUsd() - row.allocated().costNanoUsd());
+        return new GrantQuotaView(grant.id(), grant.campaignId(), grant.customerId(), grant.targetProfileId(), grant.environment(), grant.credits(),
+            row.allocated(), remaining, grant.expiresAt(), grant.rateCardReference(), row.status(), row.fingerprint(),
+            row.status() == GrantStatus.ACTIVE && clock.instant().isBefore(grant.expiresAt()) ? remaining : ZERO);
     }
 
     private static Limits add(Limits left, Limits right) {
@@ -480,12 +574,9 @@ public class ProviderUsageAllowanceService {
     private static boolean within(Limits value, Limits cap) {
         return value.chatAttempts() <= cap.chatAttempts() && value.totalTokens() <= cap.totalTokens() && value.costNanoUsd() <= cap.costNanoUsd();
     }
-    private void audit(String event, String id, String fingerprint) {
-        audit(event, id, fingerprint, staffActor());
-    }
-    private void audit(String event, String id, String fingerprint, AuditActor auditActor) {
-        jdbc.update("INSERT INTO provider_usage_allowance_events(id,event_type,subject_id,actor_id,actor_role,payload_fingerprint,created_at) VALUES (?,?,?,?,?,?,?)",
-            UUID.randomUUID().toString(), event, id, auditActor.id(), auditActor.role(), fingerprint, time(clock.instant()));
+    private void audit(String event, String id, String grantId, String fingerprint, AuditActor auditActor) {
+        jdbc.update("INSERT INTO provider_usage_allowance_events(id,event_type,subject_id,grant_id,actor_id,actor_role,payload_fingerprint,created_at) VALUES (?,?,?,?,?,?,?,?)",
+            UUID.randomUUID().toString(), event, id, grantId, auditActor.id(), auditActor.role(), fingerprint, time(clock.instant()));
     }
     private void readAccess(String customerId) {
         var principal = actor();
@@ -514,7 +605,9 @@ public class ProviderUsageAllowanceService {
     private static final AuditActor SYSTEM_ACTOR = new AuditActor("system:provider-usage-release", "SYSTEM");
     private <T> T transaction(Supplier<T> operation) { return Objects.requireNonNull(transactions.execute(status -> operation.get())); }
     private static Timestamp time(Instant value) { return Timestamp.from(value); }
-    private record GrantRow(ProviderUsageGrant grant, String fingerprint, Limits allocated) { }
+    private static final Limits ZERO = new Limits(0, 0, 0);
+    private record GrantRow(ProviderUsageGrant grant, String fingerprint, Limits allocated, GrantStatus status) { }
+    private record VoidRequest(String grantId, VoidUnusedCommand command) { }
     private record AllocationRow(AllocationTerms terms, String fingerprint, InitializationState state, UUID storeUuid, String initializationFingerprint) { }
     private record AuditActor(String id, String role) { }
     private record AuthorizedRelease(AdmissionContracts.ReleaseBinding binding, ReviewedR7Context reviewed,

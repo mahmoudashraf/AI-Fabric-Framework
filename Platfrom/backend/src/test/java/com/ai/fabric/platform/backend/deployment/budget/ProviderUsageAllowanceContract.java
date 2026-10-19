@@ -106,6 +106,7 @@ abstract class ProviderUsageAllowanceContract {
              status VARCHAR(64),provisioning_status VARCHAR(64))
             """);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V190__provider_usage_allowance.sql")).execute(source);
+        ProviderUsageGrantLifecycleTestSchema.migrate(source);
         profile = new DeploymentTargetProfileEntity(); profile.setId("target"); profile.setEnvironmentName("staging");
         profile.setActive(true); profile.setProviderType(DeploymentProviderType.COOLIFY); profile.setSourceStrategy("IMAGE_SOURCE");
         profile.setCredentialRefId("profile-reference"); profile.setProviderConfigJson("{}"); profile.setNetworkPolicyJson("{}"); profile.setResourceDefaultsJson("{}");

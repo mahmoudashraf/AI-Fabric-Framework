@@ -891,3 +891,32 @@ an app, or claiming hosted workload readiness.
   retains6 website vehicles and73 business receipts. V203 retained-index quota
   and V204 unused-grant source work run independently; hosted acceptance and
   production promotion remain open. UI extraction stays last.
+
+### Unused Allowance Scope Correction: Source Qualification
+
+- Owner's whole-taskUSD12 clarification is implemented as a generic staff-only
+  unused-approval lifecycle, not a second credit grant or payment/refund path.
+  V204 preserves the original approval/counters, adds immutable void receipt and
+  attributed audit history, and exposes zero allocatable availability for voided
+  approvals. Any allocation row or usage history prevents voiding. Replacement
+  funding remains an explicit, separately bounded normal approval.
+- Focused qualification passes166 tests, including73 actual PostgreSQL tests,
+  zero skipped. Cases include authorization, strict HTTP parsing, immutable
+  history, real migration, rollback, replay and concurrent read/allocation/
+  initialization/void locking. This is source evidence, not hosted execution.
+  No grant has been voided or replaced live; provider usage remains unchanged.
+- Customer DATA approval/binding and exact replay now pass on staging:
+  `eia-e531bb5d-9f91-4de7-9ceb-4d70079e90cd` and
+  `eib-22b9772b-8981-40eb-8219-f18cf2ce72cf`. All206 support tests pass without
+  skips. This configures credentials locally; it is not stock indexing proof.
+- Actual private independent-demo V4 backup restored into an isolated local
+  PostgreSQL16 fixture; applying the real V5 SQL preserved all6 website vehicles
+  and73 receipts with unchanged canonical content hashes. All seven added
+  scope fields remainNULL on legacy receipts. The fixture was removed. This
+  SQL rehearsal is distinct from live Flyway/source rollout.
+- Receiver cutover remains held: old runtime/connector are physically running.
+  Their normal audited stop calls hit
+  `COOLIFY_MANAGED_RESOURCE_RECONCILIATION_REQUIRED`; no stop/deletion is
+  certified. Investigate supported ownership reconciliation before attesting
+  old callers retired. Do not bypass the guard, rotate old credentials, or
+  silently retarget the receiver. Existing business data remains intact.

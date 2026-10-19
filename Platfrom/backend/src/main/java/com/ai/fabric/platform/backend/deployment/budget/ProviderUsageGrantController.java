@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllowanceContracts.*;
+import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageGrantLifecycleContracts.*;
 
 /** Staff review only; no public allocation or runtime initialization route. */
 @RestController
@@ -21,8 +22,14 @@ public class ProviderUsageGrantController {
 
     @PostMapping
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public GrantQuota approve(@RequestBody ProviderUsageGrant grant) { return allowances.approveGrant(grant); }
+    public GrantQuotaView approve(@RequestBody ProviderUsageGrant grant) { return allowances.approveGrant(grant); }
 
     @GetMapping("/{grantId}/quota")
-    public GrantQuota quota(@PathVariable String grantId) { return allowances.readQuota(grantId); }
+    public GrantQuotaView quota(@PathVariable String grantId) { return allowances.readQuota(grantId); }
+
+    @PostMapping("/{grantId}/void-unused")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public VoidUnusedReceipt voidUnused(@PathVariable String grantId, @RequestBody VoidUnusedCommand command) {
+        return allowances.voidUnused(grantId, command);
+    }
 }
