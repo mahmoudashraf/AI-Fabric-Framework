@@ -36,6 +36,7 @@ public class AIWorkspaceRouteStore {
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
     private final TransactionTemplate transaction;
+    private final TransactionTemplate readTransaction;
     private final PlatformAuditService audit;
     private final Clock clock;
 
@@ -50,6 +51,10 @@ public class AIWorkspaceRouteStore {
         this.jdbc = jdbc; this.mapper = mapper; this.audit = audit; this.clock = clock;
         this.transaction = new TransactionTemplate(transactions);
         transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        // Customer projections reuse the caller's connection; worker writes stay isolated.
+        this.readTransaction = new TransactionTemplate(transactions);
+        readTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+        readTransaction.setReadOnly(true);
     }
 
     public record Binding(String serviceId, String profileId, String profileFingerprint, String applicationUuid, List<String> historicManaged) {
@@ -210,7 +215,7 @@ public class AIWorkspaceRouteStore {
         });
     }
     public boolean isApplied(Binding binding, String hostname) {
-        return Boolean.TRUE.equals(transaction.execute(ignored -> {
+        return Boolean.TRUE.equals(readTransaction.execute(ignored -> {
             Desired desired = desired();
             return jdbc.query("SELECT * FROM ai_workspace_route_reconciliations WHERE route_key = ?", this::map, binding.key()).stream()
                 .anyMatch(state -> state.serviceId.equals(binding.serviceId) && state.profile.equals(binding.profileId)
