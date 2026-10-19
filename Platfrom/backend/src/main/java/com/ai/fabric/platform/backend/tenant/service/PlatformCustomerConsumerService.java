@@ -304,6 +304,22 @@ public class PlatformCustomerConsumerService {
     public UnusedCancellationDetachment detachNeverActivatedForUnusedCancellation(String customerId, String consumerEntityId,
             String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
             Map<String, Long> expectedDraftWorkspaces) {
+        return detachNeverActivatedUnusedConfiguration(customerId, consumerEntityId, deploymentId, targetProfileId,
+            expectedBindingRevision, operationKey, expectedDraftWorkspaces, "Unused reservation cancellation");
+    }
+
+    /** The vector release transaction proves the target has never had runtime or admission effects. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public UnusedCancellationDetachment detachNeverActivatedForUnusedVectorRelease(String customerId, String consumerEntityId,
+            String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
+            Map<String, Long> expectedDraftWorkspaces) {
+        return detachNeverActivatedUnusedConfiguration(customerId, consumerEntityId, deploymentId, targetProfileId,
+            expectedBindingRevision, operationKey, expectedDraftWorkspaces, "Unused external vector release");
+    }
+
+    private UnusedCancellationDetachment detachNeverActivatedUnusedConfiguration(String customerId, String consumerEntityId,
+            String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
+            Map<String, Long> expectedDraftWorkspaces, String reason) {
         var actor = PlatformSecurityContext.currentPrincipal();
         if (!PlatformSecurityContext.isAuthenticated()
             || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
@@ -338,7 +354,7 @@ public class PlatformCustomerConsumerService {
             || apps.stream().anyMatch(app -> !customerId.equals(app.getCustomerId()) || app.getStatus() != AIWorkspaceInstallationStatus.DRAFT
                 || app.getActivatedAt() != null || app.getDisabledAt() != null))
             throw new ResponseStatusException(CONFLICT, "UNUSED_CONSUMER_WORKSPACE_CHANGED");
-        var result = updateBindingInternal(consumer, null, null, null, "Unused reservation cancellation", true,
+        var result = updateBindingInternal(consumer, null, null, null, reason, true,
             expectedBindingRevision, operationKey, true, false, BindingProjection.RETAIN_UNUSED_PUBLISHED_DRAFT);
         var receipt = bindingHistoryRepository.findByConsumerEntityIdAndOperationKey(consumerEntityId, operationKey).orElseThrow();
         return new UnusedCancellationDetachment(consumerEntityId, expectedBindingRevision, result.bindingRevision(), receipt.getId(), operationKey);

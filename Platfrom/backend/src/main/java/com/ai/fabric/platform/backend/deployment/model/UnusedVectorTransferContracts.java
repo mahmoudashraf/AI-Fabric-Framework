@@ -4,6 +4,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.UnusedConsumerDetachment;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.UnusedConsumerDetachmentReceipt;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /** Staff-reviewed UNUSED external references only; never provider ownership or credential revocation. */
 public final class UnusedVectorTransferContracts {
     private UnusedVectorTransferContracts() { }
@@ -17,8 +21,16 @@ public final class UnusedVectorTransferContracts {
     public record InventoryApproval(String expectedCredentialFingerprint, String fullVisibilityReviewReference,
                                      String noWriterWindowReference) { }
     public record ReleaseRequest(String operationKey, String approvalReference, String bindingId,
-                                 Scope destination, List<Source> sources, InventoryApproval inventoryApproval) {
-        public ReleaseRequest { if (sources != null) sources = List.copyOf(sources); }
+                                 Scope destination, List<Source> sources, InventoryApproval inventoryApproval,
+                                 @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UnusedConsumerDetachment> consumerDetachments) {
+        public ReleaseRequest {
+            if (sources != null) sources = List.copyOf(sources);
+            consumerDetachments = consumerDetachments == null ? List.of() : List.copyOf(consumerDetachments);
+        }
+        public ReleaseRequest(String operationKey, String approvalReference, String bindingId,
+                              Scope destination, List<Source> sources, InventoryApproval inventoryApproval) {
+            this(operationKey, approvalReference, bindingId, destination, sources, inventoryApproval, List.of());
+        }
     }
     public record ReleasedBinding(String bindingId, Scope scope, String metadataFingerprint,
                                   String identityFingerprint, String cancellationReceiptId,
@@ -31,9 +43,15 @@ public final class UnusedVectorTransferContracts {
                                   Instant observedAt, String fingerprint) { }
     public record ReleaseReceipt(String id, String operationKey, String commandFingerprint, Scope source,
                                  Scope destination, VectorIdentity vector, List<ReleasedBinding> sources,
-                                 List<CredentialClearance> credentialClearances, ClusterReadback emptyClusterReadback, String approvalReference,
+                                 List<CredentialClearance> credentialClearances,
+                                 @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UnusedConsumerDetachmentReceipt> consumerDetachments,
+                                 ClusterReadback emptyClusterReadback, String approvalReference,
                                  String actorId, Instant releasedAt, String fingerprint) {
-        public ReleaseReceipt { sources = List.copyOf(sources); credentialClearances = List.copyOf(credentialClearances); }
+        public ReleaseReceipt {
+            sources = List.copyOf(sources);
+            credentialClearances = List.copyOf(credentialClearances);
+            consumerDetachments = consumerDetachments == null ? List.of() : List.copyOf(consumerDetachments);
+        }
     }
     public record ReleaseReadback(ControlPlane sourceControlPlane, String releaseJson, String releaseJsonDigest,
                                   String readByActorId, String authenticationMode, Instant observedAt, String fingerprint) { }

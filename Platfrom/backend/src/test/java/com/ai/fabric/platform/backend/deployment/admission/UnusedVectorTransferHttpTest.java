@@ -66,6 +66,56 @@ class UnusedVectorTransferHttpTest {
         assertThat(errorDispatches.get()).isZero();
     }
 
+    @Test void sourceReleaseCarriesOnlyExplicitConsumerAndDraftApprovalToTheService() throws Exception {
+        String body = withDetachments("""
+            [{"consumerEntityId":"configured-consumer","expectedBindingRevision":1,
+              "draftWorkspaces":[{"installationEntityId":"draft-app","expectedRowVersion":7}]}]
+            """);
+        assertThat(send("source-releases", body, "synthetic-admin", null).statusCode()).isEqualTo(200);
+        var command = org.mockito.ArgumentCaptor.forClass(
+            com.ai.fabric.platform.backend.deployment.model.UnusedVectorTransferContracts.ReleaseRequest.class);
+        verify(service).release(command.capture());
+        assertThat(command.getValue().consumerDetachments()).singleElement().satisfies(consumer -> {
+            assertThat(consumer.consumerEntityId()).isEqualTo("configured-consumer");
+            assertThat(consumer.expectedBindingRevision()).isEqualTo(1);
+            assertThat(consumer.draftWorkspaces()).singleElement().satisfies(app -> {
+                assertThat(app.installationEntityId()).isEqualTo("draft-app");
+                assertThat(app.expectedRowVersion()).isEqualTo(7);
+            });
+        });
+        verifyNoMoreInteractions(service);
+        assertThat(errorDispatches.get()).isZero();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing-revision", "null-revision", "string-revision", "missing-app-revision",
+        "null-app-revision", "unknown-app-field", "duplicate-app-field"})
+    void malformedDetachmentExpectationsNeverReachTheService(String change) throws Exception {
+        String expected = """
+            [{"consumerEntityId":"consumer","expectedBindingRevision":1,
+              "draftWorkspaces":[{"installationEntityId":"draft","expectedRowVersion":0}]}]
+            """;
+        String invalid = switch (change) {
+            case "missing-revision" -> expected.replace("\"expectedBindingRevision\":1,", "");
+            case "null-revision" -> expected.replace("\"expectedBindingRevision\":1", "\"expectedBindingRevision\":null");
+            case "string-revision" -> expected.replace("\"expectedBindingRevision\":1", "\"expectedBindingRevision\":\"1\"");
+            case "missing-app-revision" -> expected.replace(",\"expectedRowVersion\":0", "");
+            case "null-app-revision" -> expected.replace("\"expectedRowVersion\":0", "\"expectedRowVersion\":null");
+            case "unknown-app-field" -> expected.replace("\"installationEntityId\":", "\"trusted\":true,\"installationEntityId\":");
+            case "duplicate-app-field" -> expected.replace("\"expectedRowVersion\":0", "\"expectedRowVersion\":1,\"expectedRowVersion\":0");
+            default -> throw new AssertionError(change);
+        };
+        var response = send("source-releases", withDetachments(invalid), "synthetic-admin", null);
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.body()).contains("UNUSED_VECTOR_TRANSFER_JSON_INVALID").doesNotContain("Exception", "JsonParse");
+        verifyNoInteractions(service);
+        assertThat(errorDispatches.get()).isZero();
+    }
+
+    private String withDetachments(String detachments) {
+        return RELEASE.stripTrailing().substring(0, RELEASE.stripTrailing().length() - 1)
+            + ",\"consumerDetachments\":" + detachments + "}";
+    }
+
     @ParameterizedTest @ValueSource(strings = {"unknown", "duplicate", "case", "scalar", "boolean", "array", "trailing"})
     void allCommandBoundariesRejectUntrustedJsonWithoutParserOrCredentialLeak(String mutation) throws Exception {
         for (String path : new String[]{"source-releases", "source-reviews", "claims"}) {

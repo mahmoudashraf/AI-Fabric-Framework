@@ -78,7 +78,14 @@ public class UnusedVectorTransferEvidence {
             || !proof.metadataFingerprint().equals(metadata(h).path("fingerprint").asText())
             || !proof.noEffectFingerprint().equals(noEffects(h, proof.cancellationReceiptId()))) throw denied();
     }
+    public void requireConfigurationOnlyDetachment(DeploymentProviderResourceHandleEntity handle) {
+        if (!"ACTIVE".equals(handle.getStatus()) || handle.getReleaseId() != null) throw denied();
+        noEffects(handle, null, true);
+    }
     private String noEffects(DeploymentProviderResourceHandleEntity h, String cancellationId) {
+        return noEffects(h, cancellationId, false);
+    }
+    private String noEffects(DeploymentProviderResourceHandleEntity h, String cancellationId, boolean detachingConfiguration) {
         String dep = h.getDeploymentId(), target = h.getTargetProfileId();
         if (cancellationId == null) absent("SELECT COUNT(*) FROM deployment_capacity_reservations WHERE deployment_id=? AND target_profile_id=?", dep, target);
         else {
@@ -92,12 +99,13 @@ public class UnusedVectorTransferEvidence {
         absent("SELECT COUNT(*) FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=?", dep, target);
         absent("SELECT COUNT(*) FROM platform_target_retirement_operations WHERE deployment_id=? AND target_profile_id=?", dep, target);
         absent("SELECT COUNT(*) FROM platform_deployment_deletion_operations WHERE deployment_id=?", dep);
-        absent("SELECT COUNT(*) FROM platform_consumers WHERE bound_deployment_id=? AND (bound_target_profile_id=? OR bound_target_profile_id IS NULL)", dep, target);
+        if (!detachingConfiguration)
+            absent("SELECT COUNT(*) FROM platform_consumers WHERE bound_deployment_id=? AND (bound_target_profile_id=? OR bound_target_profile_id IS NULL)", dep, target);
         var gate = jdbc.query("SELECT id,state,epoch,operation_id,row_version FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=? FOR UPDATE NOWAIT", (rs, row) -> {
             if (!"AVAILABLE".equals(rs.getString("state")) || rs.getString("operation_id") != null || rs.getLong("epoch") < 0) throw denied();
             return List.of(rs.getString("id"), rs.getLong("epoch"), rs.getLong("row_version"));
         }, dep, target);
-        if (gate.size() > 1) throw denied();
+        if (gate.size() > 1 || detachingConfiguration && gate.size() != 1) throw denied();
         var resources = jdbc.query("SELECT id,release_id,target_profile_id,resource_kind,status,metadata_json,provider_resource_uuid FROM deployment_provider_resource_handles WHERE deployment_id=? AND (target_profile_id=? OR target_profile_id IS NULL) ORDER BY id", (rs, row) -> {
             String kind = rs.getString("resource_kind");
             if (rs.getString("release_id") != null || !target.equals(rs.getString("target_profile_id")) || !PreservedExternalBindingKinds.isPreserved(kind)) throw denied();

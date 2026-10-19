@@ -72,3 +72,37 @@ This final run includes actual normal source archival and terminal resource refr
 Configure a stable, unique CP identity and canonical HTTPS origin on each participating CP, plus the exact reviewed peer map. Configuration is fail-closed when absent; no identity or ownership is seeded by V205. Review the coordinator trust contract and full-visibility inventory approval before enabling this operational path. Keep the operator no-writer window in force through the fresh destination claim. See the guide for the routes and evidence requirements.
 
 Existing ordinary-bind local history restrictions and V202 same-customer handoff remain intact. Cluster serialization is shared by ordinary bind, local handoff, resolution, and transfer. Source tombstones and all transfer journals remain immutable. Provider refresh already skips preserved external references; no trigger exception is needed.
+
+## Configuration-Only Consumer Follow-Up, 2026-10-19
+
+Hosted investigation found that a reviewed, never-applied source can have an
+initial consumer and DRAFT workspace without any admission reservation. Generic
+unbinding correctly rejects that reviewed scope. The correction adds optional,
+explicit `consumerDetachments` to the existing source-release request/receipt;
+the owning consumer mutation and release commit or roll back together. No
+generic assignment guard, no-effects check, provider or schema boundary is
+relaxed. Draft/app/version rows remain unchanged. See the updated transfer guide.
+
+Five production files change: the transfer contracts/evidence/service, shared
+unused-consumer verifier and owning consumer service. Three existing test files
+extend contract, real HTTP and two-control-plane PostgreSQL coverage. Empty
+approval is omitted from serialization to preserve stored request/receipt
+fingerprints; historical missing fields decode without rewriting old evidence.
+
+Final parent focused qualification: **258 tests across eight classes PASS,
+zero failures, errors or skips**. It includes60 real PostgreSQL16/Flyway206
+transfer cases,28 existing PostgreSQL detachment cases, strict JSON/HTTP/auth,
+rollback/replay/concurrency and historical-fingerprint checks. Earlier196 and118
+runs overlap and must not be added to this total. The first sandbox run failed
+JVM agent/Docker access and is retained as failed, not qualification.
+
+Actual-module `mvn -B -ntp -o -DskipTests package` succeeds separately; this
+packaging command does not claim another test run. All1,894 captured tracked
+backend inputs are unchanged before/after. JAR SHA256:
+`faf4cd23b43b2b93046251a4849a78234b191c29670650c2df1ba9b029cdf351`.
+Proof/log root:`/private/tmp/01044-atomic-release-parent-qualification`.
+
+This checkpoint is source/package qualification only. Hosted source release,
+claim, AI-only apply/indexing, production promotion and external readiness still
+require their normal live acceptance. No framework/runtime change or new
+migration is part of this follow-up.

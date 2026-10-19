@@ -27,6 +27,26 @@ public class AdmissionUnusedConsumerDetachment {
 
     List<UnusedConsumerDetachmentReceipt> detach(Reservation reservation, List<UnusedConsumerDetachment> requests,
                                                 String cancellationFingerprint) {
+        return detach(new Scope(reservation.customerId(), reservation.tenantId(), reservation.deploymentId(),
+            reservation.targetProfileId()), requests, Map.of("cancellation", cancellationFingerprint,
+                "reservation", reservation.id(), "generation", reservation.generation()), false);
+    }
+
+    /** Only the unused vector release service supplies this scope after locking and proving no target effects. */
+    public List<UnusedConsumerDetachmentReceipt> detachForUnusedVectorRelease(String customerId, String tenantId,
+            String deploymentId, String targetProfileId, List<UnusedConsumerDetachment> requests,
+            String releaseCommandFingerprint) {
+        return detach(new Scope(customerId, tenantId, deploymentId, targetProfileId), requests,
+            Map.of("releaseCommand", releaseCommandFingerprint), true);
+    }
+
+    private record Scope(String customerId, String tenantId, String deploymentId, String targetProfileId) { }
+
+    private List<UnusedConsumerDetachmentReceipt> detach(Scope scope, List<UnusedConsumerDetachment> requests,
+                                                        Map<String, String> commandIdentity, boolean vectorRelease) {
+        if (requests == null || requests.size() > 32 || requests.stream().anyMatch(java.util.Objects::isNull)
+            || requests.stream().map(UnusedConsumerDetachment::consumerEntityId).distinct().count() != requests.size())
+            throw denied("UNUSED_CONSUMER_SET_CHANGED");
         Map<String, UnusedConsumerDetachment> expected = requests.stream()
             .collect(Collectors.toMap(UnusedConsumerDetachment::consumerEntityId, Function.identity()));
         var found = jdbc.query("""
@@ -35,9 +55,9 @@ public class AdmissionUnusedConsumerDetachment {
              ORDER BY id FOR UPDATE NOWAIT
             """, (rs, row) -> {
             var request = expected.get(rs.getString("id"));
-            if (request == null || !reservation.customerId().equals(rs.getString("customer_id"))
+            if (request == null || !scope.customerId().equals(rs.getString("customer_id"))
                 || !"ACTIVE".equals(rs.getString("status")) || rs.getString("bound_release_id") != null
-                || !reservation.targetProfileId().equals(rs.getString("bound_target_profile_id"))
+                || !scope.targetProfileId().equals(rs.getString("bound_target_profile_id"))
                 || rs.getLong("binding_revision") != request.expectedBindingRevision() || request.expectedBindingRevision() != 1)
                 throw denied("UNUSED_CONSUMER_ASSIGNMENT_CHANGED");
             var initial = jdbc.query("""
@@ -45,11 +65,11 @@ public class AdmissionUnusedConsumerDetachment {
                        from_target_profile_id,to_target_profile_id,from_binding_revision,to_binding_revision,operation_key
                   FROM platform_consumer_binding_history WHERE consumer_entity_id=? ORDER BY id FOR UPDATE NOWAIT
                 """, (history, index) -> {
-                if (!reservation.customerId().equals(history.getString("customer_id"))
+                if (!scope.customerId().equals(history.getString("customer_id"))
                     || history.getString("from_deployment_id") != null || history.getString("from_release_id") != null
                     || history.getString("to_release_id") != null || history.getString("from_target_profile_id") != null
-                    || !reservation.deploymentId().equals(history.getString("to_deployment_id"))
-                    || !reservation.targetProfileId().equals(history.getString("to_target_profile_id"))
+                    || !scope.deploymentId().equals(history.getString("to_deployment_id"))
+                    || !scope.targetProfileId().equals(history.getString("to_target_profile_id"))
                     || !Long.valueOf(0).equals(history.getObject("from_binding_revision", Long.class))
                     || !Long.valueOf(1).equals(history.getObject("to_binding_revision", Long.class)))
                     throw denied("UNUSED_CONSUMER_HISTORY_UNPROVEN");
@@ -66,34 +86,38 @@ public class AdmissionUnusedConsumerDetachment {
                 """, (command, index) -> {
                 JsonNode result = json.read(command.getString("result_json"), JsonNode.class);
                 return consumerId.equals(result.path("consumerId").textValue())
-                    && reservation.customerId().equals(result.path("customerId").textValue())
-                    && reservation.deploymentId().equals(result.path("boundDeploymentId").textValue())
-                    && reservation.targetProfileId().equals(result.path("boundTargetProfileId").textValue())
+                    && scope.customerId().equals(result.path("customerId").textValue())
+                    && scope.deploymentId().equals(result.path("boundDeploymentId").textValue())
+                    && scope.targetProfileId().equals(result.path("boundTargetProfileId").textValue())
                     && result.path("boundReleaseId").isNull() && result.path("bindingRevision").isIntegralNumber()
                     && result.path("bindingRevision").longValue() == 1;
-            }, reservation.deploymentId(), reservation.tenantId(), reservation.customerId(), initial.getFirst());
+            }, scope.deploymentId(), scope.tenantId(), scope.customerId(), initial.getFirst());
             if (creation.size() != 1 || !creation.getFirst()) throw denied("UNUSED_CONSUMER_CREATION_UNPROVEN");
             var apps = jdbc.query("""
                 SELECT id,customer_id,status,activated_at,disabled_at,row_version FROM ai_workspace_installations
                  WHERE consumer_entity_id=? ORDER BY id FOR UPDATE NOWAIT
                 """, (app, index) -> {
-                if (!reservation.customerId().equals(app.getString("customer_id")) || !"DRAFT".equals(app.getString("status"))
+                if (!scope.customerId().equals(app.getString("customer_id")) || !"DRAFT".equals(app.getString("status"))
                     || app.getTimestamp("activated_at") != null || app.getTimestamp("disabled_at") != null)
                     throw denied("UNUSED_CONSUMER_WORKSPACE_CHANGED");
                 return new DraftWorkspaceExpectation(app.getString("id"), app.getLong("row_version"));
             }, request.consumerEntityId());
             if (!apps.equals(request.draftWorkspaces())) throw denied("UNUSED_CONSUMER_WORKSPACE_CHANGED");
             return request;
-        }, reservation.deploymentId(), reservation.targetProfileId());
+        }, scope.deploymentId(), scope.targetProfileId());
         if (!found.equals(requests)) throw denied("UNUSED_CONSUMER_SET_CHANGED");
         var receipts = new ArrayList<UnusedConsumerDetachmentReceipt>();
         for (var request : found) {
-            String key = "unused-cancel:" + json.fingerprint(Map.of("cancellation", cancellationFingerprint,
-                "reservation", reservation.id(), "generation", reservation.generation(), "consumer", request.consumerEntityId()));
-            var result = consumers.detachNeverActivatedForUnusedCancellation(reservation.customerId(), request.consumerEntityId(),
-                reservation.deploymentId(), reservation.targetProfileId(), request.expectedBindingRevision(), key,
-                request.draftWorkspaces().stream().collect(Collectors.toMap(DraftWorkspaceExpectation::installationEntityId,
-                    DraftWorkspaceExpectation::expectedRowVersion)));
+            var fingerprint = new java.util.TreeMap<String, String>(commandIdentity);
+            fingerprint.put("consumer", request.consumerEntityId());
+            String key = (vectorRelease ? "unused-vector-release:" : "unused-cancel:") + json.fingerprint(fingerprint);
+            var drafts = request.draftWorkspaces().stream().collect(Collectors.toMap(DraftWorkspaceExpectation::installationEntityId,
+                DraftWorkspaceExpectation::expectedRowVersion));
+            var result = vectorRelease
+                ? consumers.detachNeverActivatedForUnusedVectorRelease(scope.customerId(), request.consumerEntityId(),
+                    scope.deploymentId(), scope.targetProfileId(), request.expectedBindingRevision(), key, drafts)
+                : consumers.detachNeverActivatedForUnusedCancellation(scope.customerId(), request.consumerEntityId(),
+                    scope.deploymentId(), scope.targetProfileId(), request.expectedBindingRevision(), key, drafts);
             if (!request.consumerEntityId().equals(result.consumerEntityId()) || result.fromBindingRevision() != request.expectedBindingRevision()
                 || result.toBindingRevision() != request.expectedBindingRevision() + 1 || !key.equals(result.operationKey())
                 || result.historyId() == null || result.historyId().isBlank()) throw denied("UNUSED_CONSUMER_DETACHMENT_UNPROVEN");

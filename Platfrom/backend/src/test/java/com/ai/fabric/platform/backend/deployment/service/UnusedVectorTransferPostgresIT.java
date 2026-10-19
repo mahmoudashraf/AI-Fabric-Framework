@@ -1,6 +1,9 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.PlatformBackendApplication;
+import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
+import com.ai.fabric.platform.backend.aiworkspace.model.*;
+import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionJson;
 import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
@@ -12,6 +15,8 @@ import com.ai.fabric.platform.backend.deployment.model.UnusedVectorTransferContr
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.*;
+import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -120,6 +125,178 @@ class UnusedVectorTransferPostgresIT {
         assertThat(jsonText(receipt)).doesNotContain(KEY, TOKEN_VALUE);
         assertThat(jsonText(review)).doesNotContain(KEY, TOKEN_VALUE);
         assertThat(destinationCp.jdbc.queryForObject("SELECT COUNT(*) FROM provider_usage_allocations", Integer.class)).isZero();
+    }
+
+    @Test void explicitConfigurationOnlyDetachmentIsAtomicPreservesDraftsAndHasImmutableReplay() {
+        var consumer = configuredConsumer();
+        var command = withDetachments(List.of(expectation(consumer, 1, 0)));
+        String appBefore = scopedRows("ai_workspace_installations", "id", consumer.appId());
+        String draftBefore = scopedRows("platform_deployment_drafts", "deployment_id", current.dep());
+        String versionBefore = scopedRows("platform_deployment_versions", "deployment_id", current.dep());
+        String creationBefore = scopedRows("platform_customer_entitlement_commands", "id", consumer.creationId());
+        String historyBefore = scopedRows("platform_consumer_binding_history", "id", consumer.historyId());
+        String cancellationBefore = scopedRows("deployment_admission_unused_cancellations", "id", cancelled.id());
+
+        assertThatThrownBy(() -> sourceCp.context.getBean(PlatformCustomerConsumerService.class).updateBinding(
+            current.customer(), consumer.consumerId(), new UpdatePlatformConsumerBindingRequest(null, null, null,
+                "Synthetic generic detach", 1L, "generic-detach-" + suffix)))
+            .hasMessageContaining("Reviewed customer deployments");
+
+        ReleaseReceipt receipt = sourceCp.transfer.release(command);
+        assertThat(receipt.consumerDetachments()).singleElement().satisfies(detached -> {
+            assertThat(detached.consumerEntityId()).isEqualTo(consumer.entityId());
+            assertThat(detached.fromBindingRevision()).isEqualTo(1);
+            assertThat(detached.toBindingRevision()).isEqualTo(2);
+            assertThat(detached.preservedDraftWorkspaces()).containsExactly(new DraftWorkspaceExpectation(consumer.appId(), 0));
+            var history = sourceCp.jdbc.queryForMap("SELECT * FROM platform_consumer_binding_history WHERE id=?", detached.historyId());
+            assertThat(history.get("operation_key")).isEqualTo(detached.operationKey());
+            assertThat(history.get("from_deployment_id")).isEqualTo(current.dep());
+            assertThat(history.get("from_target_profile_id")).isEqualTo(current.target());
+            assertThat(history.get("to_deployment_id")).isNull();
+            assertThat(history.get("to_target_profile_id")).isNull();
+            assertThat(((Number) history.get("from_binding_revision")).longValue()).isEqualTo(1);
+            assertThat(((Number) history.get("to_binding_revision")).longValue()).isEqualTo(2);
+        });
+        var assignment = sourceCp.jdbc.queryForMap("SELECT * FROM platform_consumers WHERE id=?", consumer.entityId());
+        assertThat(assignment.get("status")).isEqualTo("ACTIVE");
+        assertThat(assignment.get("bound_deployment_id")).isNull();
+        assertThat(assignment.get("bound_target_profile_id")).isNull();
+        assertThat(assignment.get("bound_release_id")).isNull();
+        assertThat(((Number) assignment.get("binding_revision")).longValue()).isEqualTo(2);
+        assertThat(sourceCp.jdbc.queryForObject("SELECT COUNT(*) FROM platform_consumer_binding_history WHERE consumer_entity_id=?", Integer.class, consumer.entityId())).isEqualTo(2);
+        assertThat(scopedRows("ai_workspace_installations", "id", consumer.appId())).isEqualTo(appBefore);
+        assertThat(scopedRows("platform_deployment_drafts", "deployment_id", current.dep())).isEqualTo(draftBefore);
+        assertThat(scopedRows("platform_deployment_versions", "deployment_id", current.dep())).isEqualTo(versionBefore);
+        assertThat(scopedRows("platform_customer_entitlement_commands", "id", consumer.creationId())).isEqualTo(creationBefore);
+        assertThat(scopedRows("platform_consumer_binding_history", "id", consumer.historyId())).isEqualTo(historyBefore);
+        assertThat(scopedRows("deployment_admission_unused_cancellations", "id", cancelled.id())).isEqualTo(cancellationBefore);
+        assertThat(sourceCp.jdbc.queryForObject("SELECT COUNT(*) FROM deployment_capacity_reservations WHERE deployment_id=?", Integer.class, current.dep())).isZero();
+        assertThat(sourceCp.jdbc.queryForObject("SELECT COUNT(*) FROM platform_deployment_releases WHERE deployment_id=?", Integer.class, current.dep())).isZero();
+        assertThat(sourceCp.jdbc.queryForObject("SELECT COUNT(*) FROM platform_audit_events WHERE action='CUSTOMER_CONSUMER_BINDING_UPDATED' AND target_id=?", Integer.class, consumer.consumerId())).isEqualTo(1);
+        assertThat(sourceCp.transferJson.receiptHash(receipt)).isEqualTo(receipt.fingerprint());
+        String committed = sourceCp.snapshot();
+        assertThat(sourceCp.transfer.release(command)).isEqualTo(receipt);
+        assertThat(sourceCp.transferJson.read(sourceCp.transfer.releaseReadback(receipt.id()).releaseJson(), ReleaseReceipt.class)).isEqualTo(receipt);
+        assertThat(sourceCp.snapshot()).isEqualTo(committed);
+        assertThatThrownBy(() -> sourceCp.jdbc.update("UPDATE deployment_vector_transfer_releases SET payload_json='{}' WHERE id=?", receipt.id()))
+            .hasMessageContaining("immutable");
+        assertThat(jsonText(receipt)).doesNotContain(KEY, TOKEN_VALUE);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"omitted", "stale-consumer", "changed-app", "missing-app", "extra-app",
+        "deleted-app", "unlisted-app", "active-app", "formerly-active-app", "disabled-app", "foreign-app",
+        "missing-provenance", "wrong-provenance", "wrong-tenant-provenance", "reservation", "release", "bound-release", "foreign-consumer"})
+    void configurationOnlyDetachmentRejectsAnyUnreviewedAssignmentWorkspaceOrRuntimeEffect(String change) {
+        var consumer = configuredConsumer();
+        List<UnusedConsumerDetachment> expected = List.of(expectation(consumer, 1, 0));
+        switch (change) {
+            case "omitted" -> expected = List.of();
+            case "stale-consumer" -> sourceCp.jdbc.update("UPDATE platform_consumers SET binding_revision=2 WHERE id=?", consumer.entityId());
+            case "changed-app" -> sourceCp.jdbc.update("UPDATE ai_workspace_installations SET row_version=1 WHERE id=?", consumer.appId());
+            case "missing-app" -> expected = List.of(new UnusedConsumerDetachment(consumer.entityId(), 1, List.of()));
+            case "extra-app" -> expected = List.of(new UnusedConsumerDetachment(consumer.entityId(), 1,
+                List.of(new DraftWorkspaceExpectation(consumer.appId(), 0), new DraftWorkspaceExpectation("unknown-app", 0))));
+            case "deleted-app" -> sourceCp.jdbc.update("DELETE FROM ai_workspace_installations WHERE id=?", consumer.appId());
+            case "unlisted-app" -> draftWorkspace("unlisted-" + suffix, consumer.entityId());
+            case "active-app" -> sourceCp.jdbc.update("UPDATE ai_workspace_installations SET status='ACTIVE' WHERE id=?", consumer.appId());
+            case "formerly-active-app" -> sourceCp.jdbc.update("UPDATE ai_workspace_installations SET activated_at=? WHERE id=?", time(), consumer.appId());
+            case "disabled-app" -> sourceCp.jdbc.update("UPDATE ai_workspace_installations SET disabled_at=? WHERE id=?", time(), consumer.appId());
+            case "foreign-app" -> {
+                owner(sourceCp, "foreign-app-owner", "foreign-app-customer-" + suffix);
+                sourceCp.jdbc.update("UPDATE ai_workspace_installations SET customer_id=? WHERE id=?", "foreign-app-customer-" + suffix, consumer.appId());
+            }
+            case "missing-provenance" -> sourceCp.jdbc.update("DELETE FROM platform_customer_entitlement_commands WHERE id=?", consumer.creationId());
+            case "wrong-provenance" -> sourceCp.jdbc.update("UPDATE platform_customer_entitlement_commands SET result_json='{}' WHERE id=?", consumer.creationId());
+            case "wrong-tenant-provenance" -> sourceCp.jdbc.update("UPDATE platform_customer_offer_deployments SET tenant_id=? WHERE deployment_id=?", old.tenant(), current.dep());
+            case "reservation" -> unusedAuthorization(current, currentBinding);
+            case "release" -> sourceCp.jdbc.update("""
+                INSERT INTO platform_deployment_releases(id,deployment_id,deployment_version_id,target_profile_id,status,
+                    verification_status,provisioning_status,provisioning_target,provisioning_details_json,created_at,applied_at,updated_at)
+                VALUES (?,?,?,?,'APPLIED_VERIFIED','PASSED','READY','COOLIFY','{}',?,?,?)
+                """, "runtime-" + suffix, current.dep(), current.version().getId(), current.target(), time(), time(), time());
+            case "bound-release" -> sourceCp.jdbc.update("UPDATE platform_consumers SET bound_release_id=? WHERE id=?", "runtime-" + suffix, consumer.entityId());
+            case "foreign-consumer" -> {
+                owner(sourceCp, "foreign-consumer-owner", "foreign-consumer-customer-" + suffix);
+                sourceCp.jdbc.update("UPDATE platform_consumers SET customer_id=? WHERE id=?", "foreign-consumer-customer-" + suffix, consumer.entityId());
+            }
+            default -> throw new AssertionError(change);
+        }
+        var attempted = withDetachments(expected);
+        String before = sourceCp.snapshot();
+        assertThatThrownBy(() -> sourceCp.transfer.release(attempted)).isInstanceOf(RuntimeException.class);
+        assertThat(sourceCp.snapshot()).isEqualTo(before);
+        assertThat(sourceCp.jdbc.queryForObject("SELECT bound_deployment_id FROM platform_consumers WHERE id=?", String.class, consumer.entityId())).isEqualTo(current.dep());
+        assertThat(sourceCp.jdbc.queryForObject("SELECT COUNT(*) FROM platform_consumer_binding_history WHERE consumer_entity_id=?", Integer.class, consumer.entityId())).isEqualTo(1);
+        assertThat(sourceCp.jdbc.queryForObject("SELECT COUNT(*) FROM deployment_vector_transfer_releases WHERE cluster_id=?", Integer.class, cluster)).isZero();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"payload", "workspace", "operation-key"})
+    void successfulConfigurationDetachmentCannotBeReplayedWithChangedApprovalOrKey(String change) {
+        var consumer = configuredConsumer();
+        var command = withDetachments(List.of(expectation(consumer, 1, 0)));
+        sourceCp.transfer.release(command);
+        ReleaseRequest altered = switch (change) {
+            case "payload" -> withDetachments(List.of());
+            case "workspace" -> withDetachments(List.of(expectation(consumer, 1, 1)));
+            case "operation-key" -> new ReleaseRequest("different-" + suffix, command.approvalReference(), command.bindingId(),
+                command.destination(), command.sources(), command.inventoryApproval(), command.consumerDetachments());
+            default -> throw new AssertionError(change);
+        };
+        String before = sourceCp.snapshot();
+        assertThatThrownBy(() -> sourceCp.transfer.release(altered)).isInstanceOf(RuntimeException.class);
+        assertThat(sourceCp.snapshot()).isEqualTo(before);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"CUSTOMER_CONSUMER_BINDING_UPDATED", "UNUSED_VECTOR_SOURCE_RELEASED"})
+    void configurationDetachmentAndReleaseFullyRollBackWhenEitherAuditFails(String action) {
+        var consumer = configuredConsumer();
+        var command = withDetachments(List.of(expectation(consumer, 1, 0)));
+        String before = sourceCp.snapshot();
+        sourceCp.jdbc.execute("CREATE FUNCTION detachment_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='"
+            + action + "' THEN RAISE EXCEPTION 'synthetic detachment audit failure'; END IF; RETURN NEW; END $$");
+        sourceCp.jdbc.execute("CREATE TRIGGER detachment_audit_failure BEFORE INSERT ON platform_audit_events FOR EACH ROW EXECUTE FUNCTION detachment_audit_failure()");
+        try {
+            assertThatThrownBy(() -> sourceCp.transfer.release(command)).isInstanceOf(RuntimeException.class);
+            assertThat(sourceCp.snapshot()).isEqualTo(before);
+            assertThat(sourceCp.jdbc.queryForObject("SELECT binding_revision FROM platform_consumers WHERE id=?", Long.class, consumer.entityId())).isEqualTo(1);
+        } finally {
+            sourceCp.jdbc.execute("DROP TRIGGER detachment_audit_failure ON platform_audit_events");
+            sourceCp.jdbc.execute("DROP FUNCTION detachment_audit_failure()");
+        }
+        assertThat(sourceCp.transfer.release(command).consumerDetachments()).hasSize(1);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"consumer", "history", "app"})
+    void configurationDetachmentRowLocksFailClosedWithoutPartialRelease(String resource) throws Exception {
+        var consumer = configuredConsumer();
+        var command = withDetachments(List.of(expectation(consumer, 1, 0)));
+        String table = switch (resource) {
+            case "consumer" -> "platform_consumers";
+            case "history" -> "platform_consumer_binding_history";
+            case "app" -> "ai_workspace_installations";
+            default -> throw new AssertionError(resource);
+        };
+        String id = resource.equals("consumer") ? consumer.entityId() : resource.equals("history") ? consumer.historyId() : consumer.appId();
+        String before = sourceCp.snapshot();
+        CountDownLatch held = new CountDownLatch(1), release = new CountDownLatch(1);
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var holder = workers.submit(() -> new org.springframework.transaction.support.TransactionTemplate(
+                sourceCp.context.getBean(org.springframework.transaction.PlatformTransactionManager.class)).execute(tx -> {
+                    sourceCp.jdbc.queryForList("SELECT id FROM " + table + " WHERE id=? FOR UPDATE", String.class, id);
+                    held.countDown();
+                    try { if (!release.await(15, TimeUnit.SECONDS)) throw new AssertionError("synthetic lock timeout"); }
+                    catch (InterruptedException ex) { throw new IllegalStateException(ex); }
+                    return true;
+                }));
+            assertThat(held.await(10, TimeUnit.SECONDS)).isTrue();
+            try {
+                var attempted = workers.submit(() -> attempt(() -> sourceCp.transfer.release(command)));
+                assertThat(attempted.get(5, TimeUnit.SECONDS).failure()).isNotNull();
+                assertThat(sourceCp.snapshot()).isEqualTo(before);
+            } finally { release.countDown(); }
+            holder.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(sourceCp.transfer.release(command).consumerDetachments()).hasSize(1);
     }
 
     @Test void archivedSourceKeepsPermanentTerminalReadbackAndExactReplay() {
@@ -414,6 +591,88 @@ class UnusedVectorTransferPostgresIT {
         return sourceCp.jdbc.queryForObject("SELECT COALESCE(json_agg(row_to_json(r) ORDER BY row_to_json(r)::text)::text,'[]') FROM " + table + " r", String.class);
     }
 
+    private record ConfiguredConsumer(String entityId, String consumerId, String appId, String creationId, String historyId) { }
+
+    private ConfiguredConsumer configuredConsumer() {
+        String offer = "offer-" + suffix, user = "owner-" + suffix, entitlement = "entitlement-" + suffix;
+        String creationKey = "create-config-" + suffix;
+        var consumer = new ConfiguredConsumer("consumer-" + suffix, "configured-" + suffix, "draft-app-" + suffix,
+            "creation-" + suffix, "initial-history-" + suffix);
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_users(id,email,display_name,password_hash,role,status,created_at,updated_at)
+            VALUES (?,?,'Synthetic owner','synthetic-unusable-password','CUSTOMER_ADMIN','ACTIVE',?,?)
+            """, user, user + "@example.test", time(), time());
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_customer_offers(id,definition_json,fingerprint,review_reference,reviewed_by,reviewed_at)
+            VALUES (?,'{}',?,'synthetic-review','synthetic-admin',?)
+            """, offer, sourceCp.transferJson.hash(offer), time());
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_customer_offer_entitlements(id,customer_id,offer_id,owner_user_id,invitation_reference,
+                status,revision,expires_at,created_at,updated_at)
+            VALUES (?,?,?,?,'synthetic-invitation','ACTIVE',1,?,?,?)
+            """, entitlement, current.customer(), offer, user, Timestamp.from(Instant.now().plusSeconds(3600)), time(), time());
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_customer_offer_deployments(deployment_id,customer_id,tenant_id,offer_id,offer_fingerprint,
+                authorization_entitlement_revision,operation_key,created_at,bootstrap_target_profile_id)
+            VALUES (?,?,?,?,?,1,?,?,?)
+            """, current.dep(), current.customer(), current.tenant(), offer, sourceCp.transferJson.hash(offer),
+            "bootstrap-" + suffix, time(), current.target());
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_consumers(id,consumer_id,customer_id,display_name,status,bound_deployment_id,
+                bound_target_profile_id,binding_revision,created_at,updated_at)
+            VALUES (?,?,?,'Synthetic reviewed configuration','ACTIVE',?,?,1,?,?)
+            """, consumer.entityId(), consumer.consumerId(), current.customer(), current.dep(), current.target(), time(), time());
+        var creationResult = new LinkedHashMap<String, Object>();
+        creationResult.put("consumerId", consumer.consumerId()); creationResult.put("customerId", current.customer());
+        creationResult.put("boundDeploymentId", current.dep()); creationResult.put("boundTargetProfileId", current.target());
+        creationResult.put("boundReleaseId", null); creationResult.put("bindingRevision", 1);
+        String result = jsonText(creationResult);
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_consumer_binding_history(id,consumer_entity_id,consumer_id,customer_id,to_deployment_id,
+                to_target_profile_id,from_binding_revision,to_binding_revision,operation_key,request_fingerprint,result_json,
+                actor_id,actor_role,created_at)
+            VALUES (?,?,?,?,?,?,0,1,?,?,?,?,'CUSTOMER_ADMIN',?)
+            """, consumer.historyId(), consumer.entityId(), consumer.consumerId(), current.customer(), current.dep(),
+            current.target(), creationKey, sourceCp.transferJson.hash(creationKey), result, user, time());
+        sourceCp.jdbc.update("""
+            INSERT INTO platform_customer_entitlement_commands(id,entitlement_id,operation_key,request_fingerprint,
+                command_type,actor_id,result_json,created_at)
+            VALUES (?,?,?,?,'CREATE_STAGING_CONSUMER',?,?,?)
+            """, consumer.creationId(), entitlement, creationKey, sourceCp.transferJson.hash(creationKey), user, result, time());
+        draftWorkspace(consumer.appId(), consumer.entityId());
+        return consumer;
+    }
+
+    private void draftWorkspace(String id, String consumerId) {
+        var app = new AIWorkspaceInstallationEntity();
+        app.setId(id); app.setInstallationId("public-" + id); app.setCustomerId(current.customer()); app.setConsumerEntityId(consumerId);
+        app.setDisplayName("Synthetic preserved draft"); app.setStatus(AIWorkspaceInstallationStatus.DRAFT);
+        app.setExperiencePackCode("synthetic"); app.setExperiencePackVersion("1");
+        app.setConnectionMode(AIWorkspaceConnectionMode.PUBLIC_RUNTIME_ANONYMOUS);
+        app.setConnectionProfileCode("synthetic"); app.setConnectionProfileVersion("1");
+        app.setDeliveryMode(AIWorkspaceDeliveryMode.EMBEDDED); app.setInteractionPolicy(AIWorkspaceInteractionPolicy.PUBLIC);
+        app.setAuthProfileCode("synthetic"); app.setAuthProfileVersion("1"); app.setAuthConfigurationJson("{\"preserveAuth\":true}");
+        app.setConnectionConfigurationJson("{}"); app.setAllowedOriginsJson("[\"https://synthetic.example.test\"]");
+        app.setConfigurationJson("{\"preserveDraft\":true}");
+        app.setCreatedAt(Instant.now().truncatedTo(ChronoUnit.MICROS)); app.setUpdatedAt(app.getCreatedAt());
+        sourceCp.context.getBean(AIWorkspaceInstallationRepository.class).saveAndFlush(app);
+    }
+
+    private UnusedConsumerDetachment expectation(ConfiguredConsumer consumer, long revision, long appVersion) {
+        return new UnusedConsumerDetachment(consumer.entityId(), revision,
+            List.of(new DraftWorkspaceExpectation(consumer.appId(), appVersion)));
+    }
+
+    private ReleaseRequest withDetachments(List<UnusedConsumerDetachment> detachments) {
+        return new ReleaseRequest(request.operationKey(), request.approvalReference(), request.bindingId(),
+            request.destination(), request.sources(), request.inventoryApproval(), detachments);
+    }
+
+    private String scopedRows(String table, String column, String id) {
+        return sourceCp.jdbc.queryForObject("SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text)::text,'[]') FROM "
+            + table + " r WHERE " + column + "=?", String.class, id);
+    }
+
     private ReviewReceipt enroll(ReleaseReadback r) { return destinationCp.transfer.registerReviewedSourceProof(reviewCommand(r)); }
     private ReviewRequest reviewCommand(ReleaseReadback r) {
         ReleaseReceipt receipt = sourceCp.transferJson.read(r.releaseJson(), ReleaseReceipt.class);
@@ -470,7 +729,7 @@ class UnusedVectorTransferPostgresIT {
             this.id = id;
             context = new SpringApplicationBuilder(PlatformBackendApplication.class, ProviderConfig.class).profiles("test").run(
                 "--server.port=0", "--spring.datasource.url=" + url, "--spring.datasource.username=" + POSTGRES.getUsername(), "--spring.datasource.password=" + POSTGRES.getPassword(),
-                "--spring.datasource.driver-class-name=org.postgresql.Driver", "--spring.flyway.locations=classpath:db/migration", "--spring.flyway.target=205", "--spring.main.allow-bean-definition-overriding=true",
+                "--spring.datasource.driver-class-name=org.postgresql.Driver", "--spring.flyway.locations=classpath:db/migration", "--spring.flyway.target=206", "--spring.main.allow-bean-definition-overriding=true",
                 "--platform.bootstrap.sample-enabled=false", "--platform.bootstrap.ecommerce-demo.enabled=false", "--platform.auth.bootstrap-admin-enabled=false",
                 "--platform.deployment.admission.release.worker-enabled=false", "--platform.deployment.admission.lifecycle.worker-enabled=false",
                 "--platform.deployment.admission.lifecycle.retirement-worker-enabled=false", "--platform.target-retirement.worker-enabled=false",
@@ -481,7 +740,12 @@ class UnusedVectorTransferPostgresIT {
         }
         String snapshot() {
             var result = new TreeMap<String, String>();
-            for (String table : List.of("deployment_provider_resource_handles", "platform_secrets", "platform_audit_events", "deployment_vector_transfer_releases", "deployment_vector_transfer_reviews", "deployment_vector_transfer_claims", "platform_target_retirement_gates"))
+            for (String table : List.of("deployment_provider_resource_handles", "platform_secrets", "platform_audit_events",
+                "deployment_vector_transfer_releases", "deployment_vector_transfer_release_bindings", "deployment_vector_transfer_reviews",
+                "deployment_vector_transfer_claims", "platform_target_retirement_gates", "platform_consumers",
+                "platform_consumer_binding_history", "ai_workspace_installations", "platform_deployment_drafts",
+                "platform_deployment_versions", "platform_customer_entitlement_commands", "platform_customer_offer_deployments",
+                "deployment_capacity_reservations", "deployment_admission_unused_cancellations", "platform_deployment_releases"))
                 result.put(table, jdbc.queryForObject("SELECT COALESCE(json_agg(row_to_json(r) ORDER BY row_to_json(r)::text)::text,'[]') FROM " + table + " r", String.class));
             return transferJson.hash(result);
         }

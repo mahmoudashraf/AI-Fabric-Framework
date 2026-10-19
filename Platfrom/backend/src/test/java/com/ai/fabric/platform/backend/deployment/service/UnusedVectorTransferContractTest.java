@@ -22,6 +22,78 @@ class UnusedVectorTransferContractTest {
         var r = json.read(release(), ReleaseRequest.class);
         assertThat(r.sources()).singleElement().satisfies(s -> assertThat(s.cancellationReceiptId()).isNull());
         assertThat(r.destination().controlPlane().id()).isEqualTo("destination");
+        assertThat(r.consumerDetachments()).isEmpty();
+    }
+
+    @Test void absentOrEmptyDetachmentApprovalPreservesTheStoredRequestFingerprint() {
+        var legacy = json.read(release(), com.fasterxml.jackson.databind.JsonNode.class);
+        var request = json.read(release(), ReleaseRequest.class);
+        assertThat(json.hash(request)).isEqualTo(json.hash(legacy));
+        assertThat(json.write(request)).doesNotContain("consumerDetachments");
+        assertThat(json.hash(json.read(withDetachments("[]"), ReleaseRequest.class))).isEqualTo(json.hash(legacy));
+    }
+
+    @Test void historicalReceiptWithoutDetachmentsKeepsItsExactFingerprintAndCanBeRead() {
+        var request = json.read(release(), ReleaseRequest.class);
+        var receipt = new ReleaseReceipt("receipt", "release", "a".repeat(64), request.destination(), request.destination(),
+            new VectorIdentity("cluster", "project", "region", "Free", "synthetic.zilliz.com", "default", "COOLIFY"),
+            java.util.List.of(), java.util.List.of(), null, null, "approval", "staff", java.time.Instant.EPOCH, null);
+        var sealed = json.seal(receipt, ReleaseReceipt.class);
+        String stored = json.write(sealed);
+        assertThat(stored).doesNotContain("consumerDetachments");
+        var restored = json.read(stored, ReleaseReceipt.class);
+        assertThat(restored.consumerDetachments()).isEmpty();
+        assertThat(json.receiptHash(restored)).isEqualTo(sealed.fingerprint());
+        assertThat(json.write(restored)).isEqualTo(stored);
+    }
+
+    @Test void explicitConsumerAndDraftExpectationsAreImmutableAndPartOfTheCommandFingerprint() {
+        String body = withDetachments("""
+            [{"consumerEntityId":"consumer","expectedBindingRevision":1,"draftWorkspaces":[
+                {"installationEntityId":"draft","expectedRowVersion":0}]}]
+            """);
+        var request = json.read(body, ReleaseRequest.class);
+        assertThat(request.consumerDetachments()).singleElement().satisfies(c -> {
+            assertThat(c.consumerEntityId()).isEqualTo("consumer");
+            assertThat(c.expectedBindingRevision()).isEqualTo(1);
+            assertThat(c.draftWorkspaces()).singleElement().satisfies(app -> {
+                assertThat(app.installationEntityId()).isEqualTo("draft");
+                assertThat(app.expectedRowVersion()).isZero();
+            });
+        });
+        assertThatThrownBy(() -> request.consumerDetachments().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> request.consumerDetachments().getFirst().draftWorkspaces().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThat(json.hash(request)).isNotEqualTo(json.hash(json.read(release(), ReleaseRequest.class)));
+        assertThat(json.hash(request)).isNotEqualTo(json.hash(json.read(body.replace("\"expectedRowVersion\":0", "\"expectedRowVersion\":1"), ReleaseRequest.class)));
+        assertThat(json.read(json.write(request), ReleaseRequest.class)).isEqualTo(request);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing-consumer-revision", "null-consumer-revision", "missing-app-revision",
+        "null-app-revision", "string-revision", "fractional-revision", "unknown-consumer-field", "unknown-app-field", "duplicate-consumer-field", "duplicate-app-field"})
+    void detachmentJsonNeverDefaultsMissingRevisionsOrAcceptsCoercion(String change) {
+        String expected = """
+            [{"consumerEntityId":"consumer","expectedBindingRevision":1,"draftWorkspaces":[
+                {"installationEntityId":"draft","expectedRowVersion":0}]}]
+            """;
+        String invalid = switch (change) {
+            case "missing-consumer-revision" -> expected.replace("\"expectedBindingRevision\":1,", "");
+            case "null-consumer-revision" -> expected.replace("\"expectedBindingRevision\":1", "\"expectedBindingRevision\":null");
+            case "missing-app-revision" -> expected.replace(",\"expectedRowVersion\":0", "");
+            case "null-app-revision" -> expected.replace("\"expectedRowVersion\":0", "\"expectedRowVersion\":null");
+            case "string-revision" -> expected.replace("\"expectedBindingRevision\":1", "\"expectedBindingRevision\":\"1\"");
+            case "fractional-revision" -> expected.replace("\"expectedRowVersion\":0", "\"expectedRowVersion\":0.5");
+            case "unknown-consumer-field" -> expected.replace("\"consumerEntityId\":", "\"trusted\":true,\"consumerEntityId\":");
+            case "unknown-app-field" -> expected.replace("\"installationEntityId\":", "\"preserve\":true,\"installationEntityId\":");
+            case "duplicate-consumer-field" -> expected.replace("\"expectedBindingRevision\":1", "\"expectedBindingRevision\":2,\"expectedBindingRevision\":1");
+            case "duplicate-app-field" -> expected.replace("\"expectedRowVersion\":0", "\"expectedRowVersion\":1,\"expectedRowVersion\":0");
+            default -> throw new AssertionError(change);
+        };
+        assertThatThrownBy(() -> json.read(withDetachments(invalid), ReleaseRequest.class)).hasMessage("UNUSED_VECTOR_TRANSFER_JSON_INVALID");
+    }
+
+    private String withDetachments(String detachments) {
+        String body = release();
+        return body.substring(0, body.length() - 1) + ",\"consumerDetachments\":" + detachments + "}";
     }
     @ParameterizedTest @ValueSource(strings = {"unknown", "duplicate", "nestedDuplicate", "case", "scalar", "nestedScalar", "array", "trailing"})
     void releaseParsingIsStrictAtEveryStructuredLevel(String change) {

@@ -53,16 +53,19 @@ public class UnusedVectorTransferService {
     private final PlatformAuditService audit;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
+    private final com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedConsumerDetachment unusedConsumers;
 
     public UnusedVectorTransferService(UnusedVectorTransferStore store, UnusedVectorTransferJson json,
             UnusedVectorTransferIdentity identity, UnusedVectorTransferEvidence evidence, ExternalVectorClusterLocks locks,
             ExternalVectorClusterReadback inventory, DeploymentExistingVectorBindingService bindings,
             DeploymentProviderResourceHandleRepository handles, DeploymentRepository deployments,
             DeploymentVersionRepository versions, DeploymentTargetProfileRepository targets, TenantScopedVectorHandleResolver scopes,
-            PlatformSecretService secrets, PlatformAuditService audit, JdbcTemplate jdbc, PlatformTransactionManager manager) {
+            PlatformSecretService secrets, PlatformAuditService audit, JdbcTemplate jdbc, PlatformTransactionManager manager,
+            com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedConsumerDetachment unusedConsumers) {
         this.store = store; this.json = json; this.identity = identity; this.evidence = evidence; this.locks = locks;
         this.inventory = inventory; this.bindings = bindings; this.handles = handles; this.deployments = deployments;
         this.versions = versions; this.targets = targets; this.scopes = scopes; this.secrets = secrets; this.audit = audit; this.jdbc = jdbc;
+        this.unusedConsumers = unusedConsumers;
         tx = new TransactionTemplate(manager); tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
@@ -75,7 +78,21 @@ public class UnusedVectorTransferService {
         var sources = command.sources().stream().sorted(Comparator.comparing(Source::bindingId)).toList();
         if (sources.stream().map(Source::bindingId).distinct().count() != sources.size()) throw invalid();
         for (Source source : sources) { text(source.bindingId(), 64); hash(source.expectedBindingFingerprint()); if (source.cancellationReceiptId() != null) text(source.cancellationReceiptId(), 64); }
-        var normalized = new ReleaseRequest(command.operationKey(), command.approvalReference(), command.bindingId(), command.destination(), sources, command.inventoryApproval());
+        if (command.consumerDetachments().size() > 32 || command.consumerDetachments().stream().anyMatch(java.util.Objects::isNull)
+            || command.consumerDetachments().stream().anyMatch(c -> c.consumerEntityId() == null || c.draftWorkspaces() == null)
+            || command.consumerDetachments().stream().map(c -> c.consumerEntityId()).distinct().count() != command.consumerDetachments().size()) throw invalid();
+        for (var detachment : command.consumerDetachments()) {
+            text(detachment.consumerEntityId(), 64);
+            if (detachment.expectedBindingRevision() != 1 || detachment.draftWorkspaces().size() > 32
+                || detachment.draftWorkspaces().stream().anyMatch(java.util.Objects::isNull)
+                || detachment.draftWorkspaces().stream().anyMatch(app -> app.installationEntityId() == null || app.expectedRowVersion() < 0)
+                || detachment.draftWorkspaces().stream().map(app -> app.installationEntityId()).distinct().count() != detachment.draftWorkspaces().size()) throw invalid();
+            detachment.draftWorkspaces().forEach(app -> text(app.installationEntityId(), 64));
+        }
+        var detachments = command.consumerDetachments().stream()
+            .sorted(Comparator.comparing(com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.UnusedConsumerDetachment::consumerEntityId)).toList();
+        var normalized = new ReleaseRequest(command.operationKey(), command.approvalReference(), command.bindingId(),
+            command.destination(), sources, command.inventoryApproval(), detachments);
         String commandFingerprint = json.hash(normalized);
         var prior = store.releaseByOperation(command.operationKey());
         if (prior.isPresent()) return tx.execute(status -> {
@@ -96,6 +113,17 @@ public class UnusedVectorTransferService {
             }
             fresh(empty.observedAt());
             if (!all.stream().map(DeploymentProviderResourceHandleEntity::getId).toList().equals(sources.stream().map(Source::bindingId).toList())) throw changed();
+            var consumerReceipts = List.<com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.UnusedConsumerDetachmentReceipt>of();
+            if (!detachments.isEmpty()) {
+                var lockedPrimary = all.stream().filter(h -> h.getId().equals(command.bindingId())).findFirst().orElseThrow(this::changed);
+                if (sources.stream().filter(s -> s.bindingId().equals(lockedPrimary.getId())).findFirst().orElseThrow(this::changed).cancellationReceiptId() != null)
+                    throw changed();
+                evidence.requireConfigurationOnlyDetachment(lockedPrimary);
+                var lockedScope = evidence.scope(lockedPrimary, identity.local());
+                if (!sourceScope.equals(lockedScope)) throw changed();
+                consumerReceipts = unusedConsumers.detachForUnusedVectorRelease(lockedScope.customerId(), lockedScope.tenantId(),
+                    lockedScope.deploymentId(), lockedScope.targetProfileId(), detachments, commandFingerprint);
+            }
             var records = new ArrayList<ReleasedBinding>();
             var clearances = new ArrayList<CredentialClearance>();
             for (int i = 0; i < all.size(); i++) {
@@ -109,7 +137,8 @@ public class UnusedVectorTransferService {
             for (var h : all) clearances.add(clearScopedCopies(h));
             Instant now = now();
             ReleaseReceipt receipt = json.seal(new ReleaseReceipt(id("uvr"), command.operationKey(), commandFingerprint,
-                sourceScope, command.destination(), vector, records, clearances, empty, command.approvalReference(), actor.actorId(), now, null), ReleaseReceipt.class);
+                sourceScope, command.destination(), vector, records, clearances, consumerReceipts, empty,
+                command.approvalReference(), actor.actorId(), now, null), ReleaseReceipt.class);
             for (var h : all) {
                 int changed = jdbc.update("UPDATE deployment_provider_resource_handles SET status=?,updated_at=? WHERE id=? AND status IN ('ACTIVE','RETAINED_UNUSED') AND release_id IS NULL",
                     ExternalVectorClusterLocks.RELEASED, java.sql.Timestamp.from(now), h.getId());
@@ -118,7 +147,7 @@ public class UnusedVectorTransferService {
             store.appendRelease(receipt, command.bindingId());
             audit.record("UNUSED_VECTOR_SOURCE_RELEASED", "EXTERNAL_VECTOR_TRANSFER", receipt.id(), Map.of(
                 "clusterId", vector.clusterId(), "fingerprint", receipt.fingerprint(), "destinationControlPlane", command.destination().controlPlane().id(),
-                "providerMutation", false, "providerCredentialRevoked", false));
+                "consumerDetachments", consumerReceipts.size(), "providerMutation", false, "providerCredentialRevoked", false));
             return receipt;
         });
     }

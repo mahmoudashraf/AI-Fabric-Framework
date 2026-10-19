@@ -24,9 +24,56 @@ The destination persists the exact source receipt JSON, exact authenticated resp
 
 - The complete local historical binding set for the cluster must be supplied with exact metadata fingerprints. Historical `RETAINED_UNUSED` sources require authentic committed `CANCELLED_UNUSED_NO_EFFECT` receipts, matching events and released reservation fences. An `ACTIVE` binding with no reservation history uses genuine binding-only release; the protocol never invents a reservation or cancellation.
 - All historical sources must preserve their actual published version/configuration, customer, tenant, target, provider identity and original metadata. The destination CP/customer/tenant/deployment/target/version/configuration and derived collection prefix are pinned before source release commits. Every old prefix must differ from the destination prefix.
-- Releases, managed deployment/resource effects, budget allocations, new reservations, retirement/deletion operations, or bound consumers block unused release. Consumers are never automatically detached. Used bindings are not reclassified as unused.
+- Releases, managed deployment/resource effects, budget allocations, new reservations, retirement/deletion operations, or bound consumers block unused release. Consumers are never implicitly detached. The explicit configuration-only exception below requires exact approved consumer/draft expectations. Used bindings are not reclassified as unused.
 - Required retirement gates remain available and unchanged. No source ownership row or historical metadata is rewritten.
 - The destination must have its exact published version, active target, compatible external-existing provider mode and independently derived prefix. Existing destination-local binding history is not bypassed.
+
+## Explicit Unused Draft Detachment
+
+A reviewed deployment may have a configured consumer and DRAFT workspace before
+its first admission or runtime exists. Its generic assignment API still refuses
+an unbind: do not disable that guard, fabricate a cancellation, or delete the
+workspace to release the unused vector reference.
+
+For that exact case, the source-release request may include:
+
+```json
+{
+  "consumerDetachments": [
+    {
+      "consumerEntityId": "<exact-internal-consumer-id>",
+      "expectedBindingRevision": 1,
+      "draftWorkspaces": [
+        {
+          "installationEntityId": "<exact-internal-draft-workspace-id>",
+          "expectedRowVersion": 0
+        }
+      ]
+    }
+  ]
+}
+```
+
+Supply this field alongside the ordinary complete release request, not as a
+separate endpoint. Omitted or empty approval never detaches a bound consumer.
+Missing revision fields, duplicate keys, unknown fields and coercion reject.
+
+The primary binding must be ACTIVE, have no release or reservation history and
+have one locked AVAILABLE target gate. All other existing no-effects checks
+remain mandatory. The server derives customer/tenant/deployment/target scope
+from that binding, verifies the original reviewed consumer-creation command and
+sole initial assignment history, and requires the complete unchanged consumer
+and never-activated DRAFT workspace set. Previously active, disabled, foreign,
+missing or newly added workspaces reject; this cannot drain a used deployment.
+
+The owning consumer service appends revision/history evidence in the SAME
+transaction as the unused vector release, under the admission mutex and target
+locks. Workspace/draft/version rows remain unchanged. The sealed release receipt
+includes `consumerDetachments` with the actual history IDs and preserved draft
+expectations. A changed command cannot reuse its operation key. Any validation,
+audit or ledger failure rolls back the detachment, history and release together.
+Other historical source bindings still must be unbound independently; this
+approval applies only to the primary binding's configuration-only target.
 
 ## Empty Inventory And Credentials
 
@@ -54,7 +101,7 @@ Provider references: [API comparison](https://docs.zilliz.com/docs/api-compariso
 
 All routes are under `/api/platform/external-vector-transfers`.
 
-1. On the source, `POST /source-releases` with `operationKey`, `approvalReference`, primary `bindingId`, exact destination `Scope`, complete `sources`, and `inventoryApproval`. A `Source` has `bindingId`, `expectedBindingFingerprint`, and nullable `cancellationReceiptId`. The destination `Scope` includes its configured `controlPlane` ID/origin, customer/tenant/deployment/target/version/config hash and derived collection prefix.
+1. On the source, `POST /source-releases` with `operationKey`, `approvalReference`, primary `bindingId`, exact destination `Scope`, complete `sources`, and `inventoryApproval`. Add `consumerDetachments` only for the explicitly approved configuration-only case above. A `Source` has `bindingId`, `expectedBindingFingerprint`, and nullable `cancellationReceiptId`. The destination `Scope` includes its configured `controlPlane` ID/origin, customer/tenant/deployment/target/version/config hash and derived collection prefix.
 2. The source transaction checks the entire history and no-effect evidence, clears scoped local credential copies, marks all source vector handles `RELEASED_UNUSED_TRANSFER`, and writes one immutable release receipt, binding-proof set and audit. A permanent cluster tombstone prevents every source fresh bind, local handoff, resolution, or activation replay. Historical metadata and cancellations remain unchanged. There is no provider resource mutation.
 3. On the source, authenticated `GET /source-releases/{id}` returns `ReleaseReadback`. Retain the exact HTTP response body. Its `releaseJson` is the exact persisted source receipt string, with a byte digest; the outer readback includes the authenticated reader actor/mode and observation time. Normal later archival does not prevent terminal readback or source exact replay. Immutable owner/version pins and terminal closure still must match.
 4. On the destination, `POST /source-reviews` with a new `operationKey`, staff `approvalReference`, the exact response body encoded as `authenticatedReadbackJson`, its `expectedSourceReceiptFingerprint`, and retained `retrievalReference`. The server verifies configured source/destination identity, fingerprints, scope and byte digests before immutable staff enrollment. Review is single-source-proof enrollment, not authority to repoint the destination. `GET /source-reviews/{id}` reads that enrollment.
