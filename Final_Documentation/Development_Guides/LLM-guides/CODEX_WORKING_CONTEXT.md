@@ -8,6 +8,57 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 V205 Verified On Both Control Planes
+
+- Pushed source47ecad0bd4aa61e19abc16215b608d04104e0278; backend-only
+  CI39252904450/attempt1 passed, UI skipped. Immutable OCI root
+  a159ff93fcda2b4568cd9f1408d82d3fc21dfc8d657ccf3b4bf65b8a32408888;
+  linux/amd64 child98dedd449c17e2d4e4dc010723c41c2791e2de9f0b273e1f233fec474e2b1fcc.
+- Direct202-to205 normal Flyway rollout is VERIFIED on staging and production:
+  exact source/digest, healthUP, all131 original tables/columns/rows and historical
+  attribution preserved, all6 new receipt tables empty. Native jobs staging
+  wfe5waeoqwlkav2t3ajmd3ze and production sl78mfv7vohkd4zgbi87sppa.
+  No UI/runtime/fixture rebuild, force parameter, direct SQL write or rollback.
+- Private attended receipts/config/key are under
+  /private/tmp/01044-backend-v205-helper.Nk7zqXkW/attempt-001; final-config.json
+  SHA9a70e6e214009fc8f5230bef1d50c73bbfccfb9375ddb1baeb3e9de33a785f64.
+  Staging plan3a056e...; production4bf82e.... One production local-evidence
+  ETIMEDOUT stopped while PREPARED, before lock/PATCH/deploy intent. Separate
+  read-only diagnostics passed all inputs unchanged; attended continuation of the
+  still-valid reviewed plan then queued exactly one production job. No fence,
+  timeout or test requirement was weakened, and no unknown mutation was retried.
+- Both transfer identities/origins/reciprocal peer maps are now active with205.
+  Audited void/readback of the never-allocated staging-only provider grant PASS:
+  pugv-f1ebad5b-6778-40e6-8c59-5c780658af99. Original50queries/200ktokens/USD12
+  and zero allocated history preserved; available0; no replacement grant. Private
+  receipts /private/tmp/01044-void-unused-provider-grant-20261019.
+- Production catalogue now has exact reviewed runtime dsa-ed384ca8 and AI Inbox
+  dsa-1dc83268, both channelproduction, no image build/service provisioning.
+  Runtime whole-response readback stopped; independent authoritative immutable
+  tuple plus exact normal create/promote audit proofc707... verifies it, without
+  repeating calls or claiming a lost DTO precision difference. Inbox retains both
+  responses: only promotedAt differs74ns from Postgres microsecond rounding;
+  all other fields exact. Private metadata/spec receipts under
+  /private/tmp/01044-production-artifact-registration-20261019. Published AI-only
+  Inbox spec fingerprint1461522fe80c0e4d37a0b54928ea7ef5191d64b3e44cef27b04e1ca020d9ff94.
+- Negative staging canary stopped BEFORE HTTP: runtime has no operator API key;
+  no duplicate env issue. Curie checks the supported existing database-backed
+  credential source read-only; never accept401 as proof of operator403. Old
+  synthetic planeda26c... was not dispatched. Remaining: negative authorization/
+  identity canary; fresh production-owned customer/offer/configuration; unused Free01
+  release/review/claim; hosted apply/index/actions/handover/auth/capacity,
+  promotion/retirement and P7. No vector release/claim, allocation/model call or
+  new customer apply yet. Fresh post20561x5s host baselines PASS in
+  /private/tmp/01044-{staging,production}-post205-host-baseline-20261019.json.
+  Current-fleet only, not candidate startup/overlap/operating proof. Staging8cores/
+  16.37GB, minavailable10.98GB, swapused0.998GB; production4cores/16.37GB,
+  minavailable12.61GB, swap0. No swap counted as physical capacity.
+- Parent owns hosted calls. Curie diagnoses negative-canary credential source;
+  Hume prepares a fresh production-CP-owned physical admission draft; Pasteur prepares supported-API
+  fresh-customer bootstrap. No parallel worker is authorized to mutate hosted
+  state. UI extraction stays last; framework0.8.36/runtime artifact unchanged.
+  Keep Hetzner open until full implementation, as owner instructed.
+
 ## 2026-10-19 V205 Qualified, Single Hosted Rollout Pending
 
 - Owner-approved topology and USD12 whole-task allowance remain unchanged. No

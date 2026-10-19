@@ -1,5 +1,18 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Latest hosted checkpoint, 2026-10-19: backend source `47ecad0bd` is VERIFIED
+  on both control planes, digest
+  `sha256:a159ff93fcda2b4568cd9f1408d82d3fc21dfc8d657ccf3b4bf65b8a32408888`,
+  migration205 and healthUP. The direct202-to205 rollout preserves all131
+  original tables, columns, rows, migration history and financial attribution;
+  all6 new receipt tables are empty. Backend-only CI39252904450 passed; UI image
+  skipped. Jobs `wfe5waeoqwlkav2t3ajmd3ze` (staging) and
+  `sl78mfv7vohkd4zgbi87sppa` (production) finished and independently verified.
+  No runtime/framework/UI rebuild or vector transfer/model allocation occurred.
+  The single production-owned customer journey, hosted workload/promotion/
+  retirement and P7 remain open. UI extraction remains last. See the latest
+  [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).
+
 - Latest qualification, 2026-10-19: V205 UNUSED cross-control-plane source
   relinquishment and one-use destination claim are implemented and independently
   reviewed. Focused328 tests pass; actual backend3,628 tests/359 classes,121

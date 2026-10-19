@@ -1,5 +1,71 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-19 Combined Backend Rollout Verified
+
+- Qualified source `47ecad0bd4aa61e19abc16215b608d04104e0278` is pushed.
+  Backend-only CI39252904450/attempt1 passed; UI skipped. OCI root
+  `sha256:a159ff93fcda2b4568cd9f1408d82d3fc21dfc8d657ccf3b4bf65b8a32408888`,
+  linux/amd64 child `sha256:98dedd449c17e2d4e4dc010723c41c2791e2de9f0b273e1f233fec474e2b1fcc`.
+- Both staging and production passed attended direct202-to205 rollout and
+  verification: exact live image/source, successful Flyway203/204/205, healthUP,
+  all131 original table/column/row fingerprints and attribution preserved,
+  all6 added receipt tables empty. Normal prebuilt-image deployment; no force
+  parameter, direct SQL mutation, automatic repair/rollback or extra builds.
+- Native jobs: staging `wfe5waeoqwlkav2t3ajmd3ze`; production
+  `sl78mfv7vohkd4zgbi87sppa`. Sealed private review plans/checkpoints are in
+  `/private/tmp/01044-backend-v205-helper.Nk7zqXkW/attempt-001`.
+  Final config SHA256 `9a70e6e214009fc8f5230bef1d50c73bbfccfb9375ddb1baeb3e9de33a785f64`.
+  Plans3a056e... and4bf82e... retain exact prior configuration and the separately
+  reviewed finite generated-cache transition from the three identity settings.
+- A production local-evidence subprocess timed out before the mutation lock or
+  PATCH/deploy intent. Checkpoint stayed PREPARED; diagnostic-only local, CI,
+  registry, native image, DB, cache and health checks all passed unchanged.
+  Attended continuation within the reviewed window then queued one job. This
+  did not relax any check/timeout or retry an unknown mutation.
+- Full3628/359classes, critical121/3classes and actual archive2 qualification
+  remain green. Derived source-bound receipts explicitly describe postcommit
+  verification of frozen test inputs; original test receipts are unchanged.
+- Transfer identity settings are now active. Negative authorization/identity
+  canaries, unused grant correction and fresh production-CP customer bootstrap
+  follow next; no vector release/claim, model allocation/call or customer apply
+  has occurred. Source customer stays configuration-only. External business
+  fixture stays outside the AI deployment. Framework0.8.36/runtime unchanged;
+  UI extraction remains last. Fresh host capacity windows are in progress.
+
+### Subsequent Normal-API Preparation
+
+- The never-allocated staging-only provider grant was voided and independently
+  read back through the audited lifecycle API: receipt
+  `pugv-f1ebad5b-6778-40e6-8c59-5c780658af99`. Original lifetime50queries,
+  200,000tokens and USD12 remain unchanged, allocated0, available0. No refund,
+  history deletion, replacement grant, model allocation or provider call occurred.
+- Registered/promoted existing reviewed images in production's catalogue:
+  runtime `dsa-ed384ca8` (d2b1a9792/3809a658...) and AI Inbox `dsa-1dc83268`
+  (2035dc360/d7487188...), both channelproduction. These are metadata operations,
+  not builds, starts or customer business-service provisioning. Exact source
+  manifests and existing CI provenance were retained.
+- Runtime whole-DTO comparison stopped after successful promotion. Its transient
+  response was not retained, so no precise difference is claimed. Independent
+  authoritative GET plus exactly one normal admin create and promote audit
+  verifies its complete immutable tuple/channel; proofSHA c707598a66ad9e875405004b6b84dcff6eafe6a2f3ba003ae89ee5778a85ce24.
+  Neither mutation was repeated. Inbox retained both responses and proves only
+  promotedAt differs74ns through PostgreSQL microsecond rounding, all other
+  fields exact. Private receipts: `/private/tmp/01044-production-artifact-registration-20261019`.
+- Published immutable AI-only Inbox spec using the existing package publisher:
+  `mds-dealership-ai-managed-inbox-v1-0`, fingerprint
+  `1461522fe80c0e4d37a0b54928ea7ef5191d64b3e44cef27b04e1ca020d9ff94`.
+  No customer database, simulator, inventory or CRM service is in this spec.
+- Fresh61x5s host measurements pass on both servers; current-fleet baseline
+  only, not startup/concurrency/operating certification. Staging min available
+  memory10.98GB/16.37GB with0.998GB existing swap liability; production12.61GB/
+  16.37GB with no swap. Physical admission, customer grants and provider/index
+  envelope review remain separate; measurement itself grants no capacity.
+- Synthetic staging authorization canary stopped before HTTP because the runtime
+  has no configured operator API-key environment value. No duplicates were
+  found, and no key was created/rotated. Existing supported database-backed
+  credential sourcing is under read-only investigation. This has not transferred
+  Free01, created a new customer or exercised the actual transfer path.
+
 ## 2026-10-19 Start And Dependency Checkpoint
 
 - Owner authorized implementation of [010.44](010_44_CUSTOMER_SYSTEM_INTEGRATION_BOUNDARY_CORRECTION_PLAN.md)
