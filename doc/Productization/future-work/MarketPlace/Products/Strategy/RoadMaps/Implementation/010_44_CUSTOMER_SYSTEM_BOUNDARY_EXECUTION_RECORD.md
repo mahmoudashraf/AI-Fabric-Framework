@@ -1,5 +1,49 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-19 Production-Owned Customer Configuration
+
+- Both CPs remain verified at source47ecad0bd/schema205. All ten live negative
+  authorization/identity probes passed with complete transfer/audit/handle/secret
+  fingerprints unchanged. Existing operator authentication uses its supported
+  database-secret source; no credential creation or rotation was needed.
+- Published the reviewed production-owned canary offer, then created one fresh
+  customer `cus-9fd67f55`. The customer-create verifier initially stopped on342ns
+  of PostgreSQL timestamp rounding; exact response/context MAC and normal audit
+  reconciliation proved the original creation without repeating it. A new local
+  checkpoint copy preserves original evidence and attributes that reconciliation.
+  Parent focused68/68 tests and CLI smoke pass; independent review found no
+  confirmed P0-P2 issue. No deployed source or framework change for this fix.
+- Normal APIs completed the new owner `usr-dc2c2ed0`, invitation, real owner
+  sign-in, offer acceptance, configuration bootstrap and consumer assignment.
+  The actual customer session owns `dep-096af01e` / `ten-3977745c`; consumer
+  `northfield-engage-canary-20261019` initially targets customer staging. These
+  are configuration operations, not hosted service provisioning or readiness.
+- The optional managed PostgreSQL selection is AI operational state only.
+  Business inventory, leads and simulator stay external integrations. No
+  runtime, Inbox, SQL service, model allocation or index was created for this
+  customer during these configuration steps.
+- One standalone workspace draft exists:
+  `awi_pub_0da7b2bcde397ce2001e0fa54ba26900`, origin
+  `https://northfield-demo.apps.loomai.pro`, DRAFT/not ready/no release. The
+  caller timed out, but the exact durable create-command receipt and normal
+  CUSTOMER_ADMIN audit prove it committed once. Do not repeat app creation or
+  adopt by name. Original private journal stays STOP_RECONCILIATION_ONLY pending
+  an explicitly reviewed command-receipt reconciliation and local continuation.
+- Identified an interactive readiness gap: app creation waits synchronously for
+  shared frontend Coolify routing inside its transaction. This observed command
+  took about50seconds while both the verification client and Platform UI abort
+  after30seconds. Generic durable routing correction is under source analysis;
+  no broader timeout relaxation, readiness bypass or framework release was made.
+- Private continuation/evidence: `/private/tmp/01044-production-cp-bootstrap-v2.OQGzef1p`.
+  Current stopped checkpointSHA
+  `1245b5c93ea5b497fd050106dbf5af6c4389008b7766dc8ec99411dc8eca6c22`.
+  Parent reviewed the92-test-qualified S3 input generator and wrote the exact
+  new-customer staging-prefix input once, privately with mode0600. No storage
+  API, provider, model or source-object mutation was invoked by that write.
+  Explicit app command reconciliation remains pending. Version/hash/prefix, actual Free01 transfer,
+  fresh capacity admission, allocations, hosted apply, indexing, full customer
+  workflow, promotion and retirement remain pending. UI extraction stays last.
+
 ## 2026-10-19 Combined Backend Rollout Verified
 
 - Qualified source `47ecad0bd4aa61e19abc16215b608d04104e0278` is pushed.

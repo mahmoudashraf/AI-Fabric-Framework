@@ -8,6 +8,127 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 Dedicated Progress Updates
+
+- User requested a separate reporting chat, milestone updates and an update at
+  least every30minutes while implementation continues. Created exact title
+  Platform - Updates, local thread01a15464-9fc0-7780-adff-2045f41a5017.
+- Active thread heartbeat automation platform-progress-updates runs every30min
+  against that reporting thread. It reads authoritative implementation task
+  Platform-FW-Main, thread019e89af-863e-7b33-a460-4a9b6e3b63a0. Initial status
+  reporting was requested there; main task also sends meaningful milestone
+  summaries directly, as explicitly authorized by the human.
+- Report completed/verified work, issues/fixes, next steps and genuinely needed
+  input, with Europe/London timestamps. Reporting is read-only: no independent
+  implementation, deployments, credentials, infrastructure or paid canary work.
+  No secrets/private authentication contents. Distinguish source qualification
+  from hosted/end-to-end readiness; do not invent progress when none is visible.
+- Reuse these IDs rather than creating duplicates. Local scheduled execution
+  needs the desktop app/host available. Honor explicit pause/stop of updates and
+  close the reporting schedule when the implementation is actually complete.
+
+## 2026-10-19 Customer Onboarding Verified, App Command Reconciliation Pending
+
+- Parent reran private V2 focused tests68/68 PASS, zero skips, CLI smokePASS.
+  Independent Hume review: no confirmed P0-P2. Reviewed requestf07e799d... and
+  local plan5551c445... applied to NEW private copy only; V1 evidence unchanged,
+  zero hosted calls/mutations by upgrade. Customer completion is explicitly
+  EXACT_RESPONSE_RECONCILIATION, not an invented original normal readback.
+- Continuation helper /private/tmp/01044-production-cp-bootstrap-v2.OQGzef1p,
+  continuation-config.json, attempt-002-reconciled. Source/helper837a719a... stay
+  frozen. Normal supported APIs completed owner/invite/login/accept/bootstrap/
+  consumer using actual CUSTOMER_ADMIN SESSION, no admin substitution after
+  login. Ccus-9fd67f55, ownerusr-dc2c2ed0, Ddep-096af01e, Tten-3977745c;
+  consumer northfield-engage-canary-20261019, targetdtp-coolify-staging-behavior.
+  Configuration-only MANAGED_POSTGRES choice, external business integrations,
+  no runtime/Inbox/SQL service provisioned and no model/index allocation.
+- APP ALREADY CREATED ONCE, DO NOT REPEAT POST: awi_pub_0da7b2bcde397ce2001e0fa54ba26900,
+  DRAFT, readyfalse, releaseIdnull, https://northfield-demo.apps.loomai.pro.
+  Actual owner GET plus exact normal server create receipt and audit confirm it.
+  Operationkey01044-p7-prod-fresh-hopxDD24-app, requestfingerprint
+  a945edbddf6e5caf52b060f7f100bd9c48c39d01754daa66db2d257f1359600a,
+  audit aud-0245e25a, CUSTOMER_ADMIN and exact C/consumer/app, not name adoption.
+- App-create caller stopped OUTCOME_UNKNOWN (intentseq11, no saved responseMAC
+  or owned installation output). V2 app phase STOP_RECONCILIATION_ONLY remains.
+  Current stopped checkpointSHA1245b5c93ea5b497fd050106dbf5af6c4389008b7766dc8ec99411dc8eca6c22;
+  local-copy upgrade receiptSHA9ef61f5641ee6fd3efdd516a0e487953a455c52191e978f0713dc6fad4973a1f.
+  No retry or checkpoint editing/adoption is authorized by these observations.
+- Source root cause: create transaction calls domainService.synchronize then
+  domainRouteService.reconcileIfAvailable, which updates shared frontend domains
+  and waits for Coolify route deployment before commit. Receipt transaction
+  timestamp13:51:17.719859Z, create audit13:52:07.468845Z. About50sec versus30sec
+  private transport AND Platform UI request timeout. This is a real interactive
+  readiness gap, not merely timestamp precision or a framework issue.
+- Routing audit confirms the cause: aud-4253fa66,
+  AI_WORKSPACE_FRONTEND_DOMAINS_RECONCILED at13:52:07.456573Z,
+  serviceRefloomai-engage-web, coolifyUpdatedtrue, managedDomainCount1.
+  No repeated app-create or manual Coolify restart was dispatched by parent.
+- Pasteur prepares NEW private exact command-receipt reconciliation/local-copy
+  proposal, no hosted calls/upgrade by worker. Preserve V2 stopped evidence and
+  attribute future completion to SERVER_COMMAND_RECEIPT, never a missing response.
+  Hume analyzes minimal generic durable asynchronous routing against existing
+  patterns, no source edits yet. Curie completed exact-scope read-only S3 input
+  generator92testsPASS; parent reviewed source/hash and executed its write-once
+  command under published approval01036-read-only-customer-s3-unversioned-20261019.
+  Private storage input now EXISTS at original bootstrap inputs/storage.private.json,
+  mode0600; do not recreate/print/hash its credentials. Scope is the exact new
+  C/T/D/customer-staging target, staging-only keys/prefix, no hosted/provider/model
+  calls or bucket/object mutations. Generator under
+  /private/tmp/01044-prodcp-staging-s3-input-generator, sourceSHA9f57953a...
+  Curie closed; transfer helper remains unchanged and incomplete for new V/hash.
+- New immutable version/hash/prefix remain pending. No vector source release,
+  review/claim, replacement funding, admission/apply or customer model call.
+  Public app activation/hosted workflow not ready. UI extraction remains last;
+  deployed backend/source47/schema205 and framework0.8.36 remain unchanged.
+
+## 2026-10-19 Production-Owned Offer And Created Customer
+
+- Documentation checkpointae30e7ac6 is committed/pushed; deployed backend stays
+  qualified47ecad0bd on BOTH CPs/schema205/healthUP. Framework0.8.36 and runtime
+  d2b1a9792/3809a658... unchanged. No framework release or UI extraction.
+- All5 negative authorization/identity HTTP probes PASS on EACH CP: admin404,
+  anonymous401, operator403, valid-peer absent-binding404, wrong-peer412. Entire
+  transfer/audit/handle/secret fingerprints unchanged after every probe, no
+  providers/models/sessions/key changes. Existing operator key resolves through
+  the reviewed database-secret fallback; no missing key remains.107 helper tests
+  pass. Receipts /private/tmp/01044-v205-negative-canary/plan-b6ea49ff43e5414e954aacf9e19af4bd.state.json
+  and plan-fc87fa10f6874051a8c52032a0f41e5a.state.json. Old env-only plan stopped
+  before HTTP and was not retried.
+- Production offer published normally:
+  offer-engage-dealership-production-canary-20261019,
+  fingerprint37e8b9eab7bed157ec740b7896853f791e2dbdf3e357219228a9e27432c30309,
+  measuredPolicyRef01044-post205-host-baselines-20261019. Both target-placement
+  records were created through supported API, no policy/reservation/apply yet.
+- NEW CUSTOMER ALREADY CREATED: cus-9fd67f55, Northfield Engage Canary, production
+  CP. Do NOT create another or adopt by name. Original private bootstrap helper
+  stopped after successful customer POST on strict whole-DTO readback equality.
+  Read-only proof uniquely matches its saved responseHMAC after only342ns shared
+  createdAt/updatedAt PG6-digit rounding, proves original precreation context
+  HMAC/ID absence/alloldrows unchanged, and exact normal admin CUSTOMER_CREATED
+  audit. No POST retry, SQL write or name-based adoption. Proof:
+  /private/tmp/01044-production-cp-bootstrap.hopxDD24/attempt-001/customer-reconciliation-proof.json
+  SHA867425a553da755d057364e6c098e32b3e13d7ece925bf1d30c4fca0cfa09049.
+- Original helper/root remains frozen52testsPASS+realcyclicCLI smoke. Config
+  final-config.json, private inputs and sealed attempt001 in that same root.
+  Artifacts/spec/offer phases COMPLETE; customer STOP_RECONCILIATION_ONLY,
+  failureCREATED_CUSTOMER_ID_READBACK_REQUIRED. No owner/invite/session/D/T/V/
+  consumer/app/sourcebinding exists for the new customer yet. Owner material is
+  private0600 with strong generated password and reachable approved Gmail plus
+  alias, never printed. No mail delivery/verification success is claimed.
+- Pasteur prepares a NEW PRIVATE V2 helper copy: typed500ns round-trip timestamp
+  comparison only, strict other fields; durably retain safe response IDs before
+  readback; focused regressions; explicit authenticated LOCAL checkpoint upgrade
+  requiring the above exact proof/old state/key/source hashes. Parent must review
+  and execute that upgrade; do not edit old frozen code/state, manufacture API
+  receipts, repeat customer creation or silently relax helper-drift fences.
+- Curie prepares attended unused Free01 cross-CP transfer/prefix proof helper,
+  no hosted calls yet. Hume prepares production-CP physical-admission draft and
+  official provider-quota evidence. Actual C/offer known above; D/T/V/hash/prefix
+  remain pending, so no source release/claim yet. Baselines need refresh before
+  actual policy/admission. No replacement model grant/allocations/provider call.
+  One-customer/Free01-staging/approved-Serverless-production/USD12 whole-task
+  authority remains unchanged. UI extraction last; Hetzner stays open per owner.
+
 ## 2026-10-19 V205 Verified On Both Control Planes
 
 - Pushed source47ecad0bd4aa61e19abc16215b608d04104e0278; backend-only
