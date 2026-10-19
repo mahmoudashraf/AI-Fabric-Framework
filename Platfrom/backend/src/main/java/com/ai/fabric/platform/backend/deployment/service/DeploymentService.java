@@ -1984,8 +1984,7 @@ public class DeploymentService {
             throw new ResponseStatusException(CONFLICT, "Source artifact must be reviewed and promoted before apply.");
         }
         String expectedPromotionChannel = expectedPromotionChannel(targetProfile.getEnvironmentName());
-        if (expectedPromotionChannel != null
-            && !expectedPromotionChannel.equalsIgnoreCase(artifact.getPromotionChannel())) {
+        if (!DeploymentArtifactPromotionPolicy.allows(artifact.getPromotionChannel(), expectedPromotionChannel)) {
             throw new ResponseStatusException(
                 CONFLICT,
                 "Source artifact promotion channel " + artifact.getPromotionChannel()

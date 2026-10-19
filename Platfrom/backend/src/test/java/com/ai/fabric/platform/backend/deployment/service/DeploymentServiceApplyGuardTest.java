@@ -317,6 +317,53 @@ class DeploymentServiceApplyGuardTest {
         return artifact;
     }
 
+    @Test
+    void productionQualifiedArtifactPassesStagingChannelGuardWithoutSkippingLaterChecks() throws Exception {
+        var artifact = prepareTokenApply();
+        artifact.setPromotionChannel("production");
+        ReflectionTestUtils.setField(service, "milvusTokenArtifacts",
+            new MilvusTokenRuntimeArtifactGate(sourceArtifactService, capabilityManifestService));
+
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("MILVUS_TOKEN_RUNTIME_ARTIFACT_REQUIRED");
+
+        verifyNoInteractions(deploymentOperationApprovalService, deploymentReleaseExecutionService, platformAuditService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void stagingArtifactCannotReachProductionApprovalOrProvisioning() throws Exception {
+        prepareTokenApply();
+        var target = deploymentProvisioningService.selectedTargetProfile("target-staging");
+        target.setEnvironmentName("production");
+
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("promotion channel staging")
+            .hasMessageContaining("target environment production");
+
+        verifyNoInteractions(deploymentOperationApprovalService, deploymentReleaseExecutionService, platformAuditService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void productionChannelStillRequiresActualPromotionBeforeStagingApply() throws Exception {
+        var artifact = prepareTokenApply();
+        artifact.setPromotionChannel("production");
+        artifact.setPromotedAt(null);
+
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("reviewed and promoted before apply");
+
+        verifyNoInteractions(deploymentOperationApprovalService, deploymentReleaseExecutionService, platformAuditService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+    }
+
     private PlatformProvisioningProperties provisioningProperties() {
         return new PlatformProvisioningProperties(
             "RAILWAY_STUB",

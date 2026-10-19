@@ -1,6 +1,41 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Current checkpoint, 2026-10-19 20:14UTC: unused-binding handoff and measured
+- Current checkpoint, 2026-10-19 22:00UTC: measured policy/quota and first actual
+  customerSESSION staging reservation pass. Bounded stage provider grant issued
+  within original task allowance; no allocation/model call. First normal apply
+  returns409 because production-qualified artifact cannot pass legacy staging
+  channel equality; no release/effect is created. Shared directional channel
+  fix in apply+readiness passes44 actual focused tests/package and independent
+  review. Backend source/CI/rollout next, then exact-key customer retry. No
+  framework/schema/offer/artifact change. FullP5/P7 open; UI extraction LAST.
+
+- Earlier checkpoint, 2026-10-19 21:47UTC: BOTH backends8a6e/root64ff/206/UP
+  accepted, full139-table/audit/config verification and11 production-container
+  restricted SSH checks pass. One approved restart consumed. Strict config_hash
+  STOP retained with exact read-only derived-snapshot supplement. New host
+  baselines complete. Same customer entitlement renewed normally to ACTIVErev4
+  through22October23:59:59; versions unchanged. Current placements, source and
+  Inbox bindings pass. Fresh policy/quota deadline and customer reservation
+  next; no runtime/funding/model/promotion yet. FullP5/P7 open; UI extraction LAST.
+
+- Earlier checkpoint, 2026-10-19 21:22UTC: staging8a6e/root64ff/206/UP fully
+  verifies actual SSH binary and139-table/config preservation. Approved host
+  metadata-only account/key/rule installed and tested; no broader admin access.
+  Production remains8b pending a private rollout-client qualification reference
+  correction, not a new application change. No production restart/customer
+  runtime/funding/model call/promotion yet. Optional off-source test awaits
+  separately requested approval; no rejected test was executed. UI LAST.
+
+- Earlier checkpoint, 2026-10-19 20:43UTC: restricted host approval received.
+  Actual CI image lacked SSH client; dependency-only8a6e35842/backend-only
+  CI39320845015 passes, immutable image/revision verified. Exact-IP staging
+  OS-firewall access, dedicated managed secrets and saved host-verifier fields
+  pass readback; no broad firewall change or production restart. Account
+  installation/new-image staging acceptance/one production activation and full
+  customer hosted acceptance remain open. No runtime, provider funding or
+  staging-to-production vector copy. UI extraction LAST; main continues.
+
+- Earlier checkpoint, 2026-10-19 20:14UTC: unused-binding handoff and measured
   physical policy/customer quota publication now pass actual normal API and
   complete state verification. SSH-key materialization fix795 passes38 focused
   tests/package/backend-only CI and actual staging795/rootb1/schema206/UP with

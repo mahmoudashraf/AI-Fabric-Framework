@@ -506,8 +506,9 @@ public class DeploymentBehaviorReadinessService implements DeploymentBehaviorRea
             .containsAll(verificationPackIds)) {
             throw new ResponseStatusException(CONFLICT, "Source artifact capability manifest does not support the published verification packs.");
         }
-        if (("staging".equals(environment) || "production".equals(environment))
-            && !environment.equalsIgnoreCase(artifact.getPromotionChannel())) {
+        String expectedChannel = "staging".equals(environment) || "production".equals(environment)
+            ? environment : null;
+        if (!DeploymentArtifactPromotionPolicy.allows(artifact.getPromotionChannel(), expectedChannel)) {
             throw new ResponseStatusException(
                 CONFLICT,
                 "Source artifact promotion channel does not match the hosted-proof environment."

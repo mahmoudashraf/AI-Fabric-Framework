@@ -8,6 +8,236 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 22:00 UTC First Reservation And Funding Pass; Artifact Channel Fix Qualified
+
+- NEW actual policy01036-post-verifier-prodcp-canary-20261019 and unchanged-
+  ceiling physical quota deadlineOct23T00:00Z published/readback21:48. Actual
+  policyFP21b84388...6dc0ec, quotaFPc211d36b...de7ae0. Policy validity23:30UTC;
+  nominal latest-admission23:29 +48h +24h recovery +15min drain fits entitlement.
+  Actual proofs in /private/tmp/01044-post-verifier-admission-preparation-20261019;
+  all old reviews preserved. Parent28 local preparer tests PASS.
+- Actual ownerSESSION reserve21:49:19 idfde33719-01d4-4eac-911d-367d39fa9134,
+  generation24bed5e0-3e0a-4bf0-839a-ec2e1b30ff08, stateRESERVED/rev0/CURRENT,
+  operationKey stage-first-apply-fd4e790f-81ec-4ab7-b598-74362f52db3e. Trusted
+  R7 manifestamf-6c45bde76594d2ffcfe543bb2c783bbad8b255505d6f5352c92a580fe029,
+  FPbf21f49d...543d6. Full charge2CPU/3584MiB/6144MiB/oneAIstateDB/twoindexes/Inbox.
+- Target-only provider grantpug-01036-prodcp-staging-20261019-r7-fde33719 issued
+ 21:51:43,6USD/200000tokens/25chat expiresOct20T23:30Z, FP9a5a19a3...b5e61e.
+  Whole-task12USD/400000/50 unchanged; no allocation/model call. Both complete
+  ledgers reconciled; old staging grant remains VOID_UNUSED, not reset/refunded.
+- Normal owner apply21:51:56 returned409: production-promoted runtime artifact
+  rejected on staging by legacy strict channel equality. Actual read-only
+  reconciliation21:54:25 proves releases0/bindings0/allocations0 and reservation
+  rev0/unused grant unchanged. DO NOT rerun frozen apply mutation or create a
+  new operation key/grant to evade it. Preserve original response/root.
+- Generic platform-only shared channel policy now permits production-qualified
+  artifacts on staging, never staging on production, used by apply+readiness.
+ 44 actual focused tests and package PASS; independent review noP1/P2. First
+  sandbox Mockito attach errors and later safe-projection test assertion failure
+  retained; final test correctly inspects persisted proof without exposing IDs.
+  Qualification /private/tmp/01044-artifact-channel-parent-qualification-20261019.json.
+  Source/CI/rollout still NEXT; no framework/schema/offer/runtime-artifact change.
+- Main source/package/live owner; Confucius prepares offline guarded source-fix
+  rollout preserving exact RESERVED R7/unused grant with zero active apply.
+  Harvey tests complete, Faraday independent review and AI-state restore drill
+  handoff complete. Actual AI-state restore/fullP5/P7 still pending; UI LAST.
+  After backend rollout refresh real placement/readiness as needed; no old
+  evidence relabeling. Optional off-source denial probe still not authorized.
+
+## 2026-10-19 21:47 UTC Both Backends Accepted; Same-Customer Renewal Complete
+
+- Both backends accepted8a6e35842/root64ff81e...8a020/schema206/UP. Production
+  normal jobl14n2kihlnh1opngp248g4t3/native9e008b7f8669 consumed the ONE approved
+  restart. Full139tables/audits/effective env pass. Original strict config_hash
+  STOP is retained; explicit pure-snapshot supplement proves only the expected
+  six previously approved saved fields were applied. Authoritative proof:
+  /private/tmp/01044-production-host-verifier-rollout-r4-20261019/production.verified.supplemented.json.
+  Maintenance no-writer window closed; actual new-container restricted SSH11/11.
+- New actual61sample host baselines end21:31:48stage/21:33:36prod, no candidate
+  workload included. Safe capacity remains available; no swap counted. Old
+  measured policy expired21:44:39, no reservation exists. Prepare NEW policy
+  and normal physical-quota lifetime renewal without raising any ceilings.
+- Actual two-command staff re-invite/ownerSESSION accept21:41:56 renews same
+  cse/C/owner/offer to ACTIVErev4, expiresOct22T23:59:59. Version list identical;
+  no new customer/offer/version/bindings/funding. Proof
+  /private/tmp/01044-existing-customer-renewal-actual-20261019/verified.json.
+  Fresh both placements expire21:57; configuration/spec/artifacts/vector binding
+  current readbacks pass21:43. One probe used customer actor on staff-only vector
+  GET and omitted reservation target query; probe corrected, permissions intact.
+- Seven parent bounded-fictional-canary reviews prepared21:44, not fullP5/P7;
+  exact source-time corrections retained separately, originals unchanged. New
+  policy/quota receipt eighth review pending. Main owns live work, Confucius
+  offline policy input, Harvey funding/apply contracts, Faraday AI-state recovery.
+  No customer runtime/reservation/provider funding/model/promotion yet. UI LAST.
+  Optional local off-source denial probe still pending direct approval; do not
+  repeat rejected test or route around it. Firewall remains open per owner.
+
+## 2026-10-19 21:22 UTC Read-Only Host Installed; Production Client Qualification Correction
+
+- R5 key-only complete: actual statusINSTALLED_OFFLINE_CHECKS_ONLY,8focused
+  parenttests PASS. Exact sourceSHAa1c20b513117773ccad17dcc03301ebcca516d43cb60713cba2e208d8eb8a02e.
+  Newkey ACTIVE, accountlocked10000/solegroup, exactsudoonlypython-Iadapter.
+  Root-owned files independently verified; oldadmin keySHA48d469cd...same;
+  allpriorjournals preserved. Do NOT replay ANY old host mutation mode.
+- Actual production-HOST SSH smoke: realcontainer/volume/directory/missing
+  metadata match rootreadback; shell/interactive/mutation/PTY/forward/wrongpin
+  deny. InitialsmokeFAIL ONLY expectedSFTPstderrmissing; actualexit70/empty
+  protocol data provesdenial. Explicit host-ssh-smoke-supplement.actual.json
+  preserves originalFAIL, makesno service/permission change. Container-mode
+  helper now correctly accepts that subsystem transport denial and remains
+  NOT RUN until newproductionimage. Host key/pin normalization matchesJava.
+- Optional localworkstation off-source denial probe was REJECTED byauto-review
+  BEFOREexecution(outside approved production-source key use). Do NOT retry
+  or indirectroute. Requiredforproduction has specific humanquestionpending,
+  /private/tmp/01044-staging-verifier-offsource-denial-probe-approval-20261019.json,
+  privateauth:1406; no humanreply yet. Continue alreadyapprovedprodactivation.
+- Parent-reviewed installedhost proof and fresh21:18savedconfigGET complete:
+  installroot/host-install.parent-reviewed.json and production-config-final-readback.private.json.
+  NewprodR3input input.parent-reviewed.json SHA d952810b...a5a3df. PrepareSTOP
+  beforeANYHTTP/baseline/plan/intent: legacy Java38qualification pinsOLD host
+  adapter983339... (15tests), but current9e-ownedpolicy adapter isb79... (19tests).
+  Do NOT fakeinstalledhash, rewriteoldq38 or downgradehostadapter to satisfyit.
+- Genuine new19parenttests +shellsyntax PASS/currenthash/independentinstalled
+  readback in /private/tmp/01044-current-readonly-host-assets-qualification-20261019.json.
+  Curie RESUMED owns small NEWproductionR4 privateclient: keepq38forJava,
+  separately pin actualcurrent19hostqualification; all139/audit/config/clock/
+  directhuman/normaldeploy guards unchanged. No source/backend/frameworkchange.
+  Main owns livework; freshconfig+window needed if >15min beforeR4prepare.
+- Stage8a6/493d34ceb39b/206/UP accepted; prod8b stillhealthy, ONErestartunused.
+  No customerreservation/grant/model/runtimeapply/promotion/P7/UIextraction yet.
+  Parentrequiredexec/nativejobs allcomplete; Curieactive, Halleyfinishingfrozen
+  R5handoff. Maincontinues, no missingmaterialblocker exceptoptionaloffsourceprobe.
+
+## 2026-10-19 21:12 UTC Account And Exact Sudo Rule Present; Key Still Absent
+
+- R3 completed ONLY locked-account, then falsely stopped on root sudo-l exit0
+  with exact "not allowed" stdout. Actual command-specific list query denies
+  id-u(code1/empty), own-user sudo-n probes denied; no preexisting broad grant.
+  Accountuid/gid10000 passwordlocked, soleown group. Original/R2/R3 neverreplay.
+- R4 completed ONLY exact-sudoers, then falsely stopped on canonical tag order:
+  ACTUAL `(root) NOSETENV: NOPASSWD: /usr/bin/python3 -I /usr/local/libexec/loomai-retirement-read-only-adapter.py`.
+  Defaults env_reset,!setenv,!env_keep,!env_check; no other allowed commands;
+  explicit id authorization still denies. Rulefile root0440 exact approved
+  bytes, no key exists/no SSH access active. No scope expansion is needed.
+- Halley owns NEW R5 KEY-ONLY completion, preserving all prior setup/rules and
+  journals; R4 and old helpers must NOT be replayed. R4journalSHA
+ 51ddd5977083438addb6af01e4bcabdee2f8a92bea85963b37f33ebb15aa8268;
+  actualsudo listingSHAc824b8117bd08de61d0e3b9bb22d6e686c4f059e9b2ba7d070bab43b1fe1e33b.
+  Actualcaptures in installroot failed-continuation-r4-journal.actual.private.json
+  and post-rule-sudo-list.actual.json. Parentroot for hostfacts remains
+  /private/tmp/01044-staging-retirement-verifier-install-20261019.
+- Main active, stage8a6 fullacceptance stays PASS; prod8b remains healthy and
+  its ONE approved restart still unused. ProductionR3 candidate-only input
+  input.candidate-proven-host-PENDING.json pins actual3candidateproofs but has
+  hostaccepted=false/windowunset: NOT dispatchable. Final host/key denials,
+  freshconfigGET/prodR3rollout/containerSSH/admission/apply/P7/UIlast remain.
+  No customerreservation/grant/model/runtime. No required exec/nativejob running.
+
+## 2026-10-19 20:59 UTC SSH-Packaged Staging Accepted; Final Host Account Correction
+
+- Normal stagejobskuxoecu3f4xh7yj35u06gar FULLY VERIFIED20:57:14UTC,
+  source8a6e358425c1a3a5220e7ed6c10ec2b1d71f86a7/root64ff81e...8a020,
+  native493d34ceb39b/schema206/UP; actual native ssh-V PASS,139tables/rawaudits/
+  fullconfig/env preserved. Actualproof
+  /private/tmp/01044-ssh-packaged-staging-rollout-r2-20261019/staging.verified.json.
+  DO NOT replay any mutation or verify(wxproofexists). First stagehelper root
+  remains untouched with NO mutation intents. Correct input usesR2attendance.
+- Curie new productionR3 helper /private/tmp/01044-production-host-verifier-rollout-r3-20261019/rollout.mjs
+  and stageR2 qualified42focused parenttests PASS. ONLYpaired forward/same-second
+  destination.server.sentinel_updated_at/updated_at exception, installedsource
+  pinned. Rawmetadata retained/allotherfields strict. Helpers frozen; Curie and
+  Confucius work complete/closed. Production approval ONErestart remains unused.
+- First hostinstaller originalstoppedcandidate-only. Explicit R2 continuation
+  pinnedoriginaljournal passed13newtests (29withoriginal16) +actualpreflight,
+  then stopped at useradd: journalctl proves unsupported -K CREATE_MAIL_SPOOL.
+  Actualstateusers[], dedicatedgroupgid10000 members[], nokey/nosudorule/nolocks.
+  Root-owned home/.ssh/config/docker/adapter/launcher/policy/libexec now EXIST
+  and must NOT be blindly re-created or treated absent. No login access active.
+  Admin key/sshd config preserved, no reload/privatekeytransfer.
+- Actual useradd -D with NOsettingargs prints CREATE_MAIL_SPOOL=no. Its -K
+  accepts login.defs keys, not that /etc/default/useradd option. Halley owns
+  NEW R3 narrow continuation of exactly this partial state, removing only the
+  unsupported override, not changing globaldefaults. Do NOT rerun original/R2.
+  OriginaljournalSHAcdcf0e56...2417; R2eventsSHA88015e429e07d2cc5c8d13021dc850d9fe58a59396edc8b99768ce611c646d19;
+  R2candidateSHA7a55c79dac514ad31c6b1ea3840ef8f93351e2f7833d0bb359c80887c319f8ea.
+  Bothcaptures under /private/tmp/01044-staging-retirement-verifier-install-20261019,
+  including failed-continuation-r2-journal.actual.private.json and useradd-effective-defaults.actual.json.
+- No customerreservation/providergrant/model/runtime/promotion/UIextraction yet.
+  Main active on exact hoststep, then metadata/denial smoke, fresh configGET,
+  ONEprodR3 normalrollout/effectivecontainerSSH, fresh admission/apply/promotion/P7.
+  Completed network/secrets/env mutation modes remain no-replay. No required
+  exec/nativejob remains running after acceptedstage; Halley still active.
+
+## 2026-10-19 20:51 UTC Two Bounded Verification Corrections In Progress
+
+- Actual immutable image ssh-V PASS in isolated network-disabled/read-only
+  container, removed normally; proof /private/tmp/01044-backend-ssh-client-actual-20261019.json.
+  Parent22 rollout +19 adapter +16 installer +15 staging-helper tests PASS.
+- Stage new-image prepare succeeded, plan5a1abd572a84b00d4876b1f68ad56687b4a4eb9c559bcdb3aeb741708fa41f52,
+  expires21:01UTC, but execute STOPPED BEFORE ANY PATCH/start intent on actual
+  destination.server.sentinel_updated_at + paired updated_at heartbeat clocks.
+  All other metadata/env equal. Installed Coolify Server.php sentinelHeartbeat
+  source confirms exact setter/save; both raw observations retained in
+  /private/tmp/01044-ssh-packaged-backend-staging-acceptance-20261019.
+  Original helper/plan frozen; Curie owns new narrowly qualified clock-aware
+  stage/prod helpers, never broadly ignoring destination/server changes.
+- Host read-only installer preflight PASS exact50db6dde...424fd. First install
+  stopped after ONLY root journal +sudoers.candidate; strict visudo rejects
+  env_keep=""/env_check="" empty strings. Actual readback: account/home/sudo
+  rule ABSENT, admin key/sshd config unchanged. No key activated. Preserve
+  /var/lib/loomai-retirement-read-only-install-20261019 journal/candidate and
+  original installer; DO NOT REPLAY or start fresh root to evade its interlock.
+  Read-only visudo stdin validates !env_keep,!env_check replacement PASS.
+  Halley01a155e3-44e9-7da0-b21a-64559b281855 owns explicit narrow continuation
+  accepting only that fully inspected failed-candidate state, preserving old
+  journal/candidate, no account adoption/overwrite/deletion.
+- Main live helpers are /private/tmp/01044-retirement-verifier-{network,key,
+  secrets,configuration,install-host,live-smoke}.mjs. Network/secrets/config
+  already complete: never replay their mutation modes. Private recovery copy
+  stored ignored0600. Host-install intent/result are terminal incomplete, not
+  no-effects: two root-owned setup artifacts exist; no login access exists yet.
+  Live-smoke helper prepared but NOT executed. Main handles all hosted work.
+- Confucius01a155e6-abed-7643-86e1-4557a5dea717 prepares offline first-admission
+  evidence /private/tmp/01044-first-admission-readiness-review-20261019; no
+  fresh live evidence is invented. No customer reservation/provider grant/model/
+  runtime/promotion. Production remains8b, staging795; ONE approved production
+  restart still unused. UI extraction LAST. Main active; no required exec or
+  provider job currently running after the explicit pre-dispatch STOP.
+
+## 2026-10-19 20:43 UTC Restricted Host Approval Received; Packaging Gap Fixed
+
+- Direct human message01a155d5-7467-70f2-b00c-d4b5c80f8a78 says "ok" to the
+  exact staging-only read-only account/key and ONE normal production restart.
+  Parent independently verified the human reply; approval SHAa8191e26...0ba15.
+  No duplicate approval needed. Main actively continues; UI extraction LAST.
+- Actual production container had no ssh binary; actual CI uses
+  Platfrom/backend/deploy/railway/Dockerfile, not the sibling Dockerfile.
+  Focused commit8a6e358425c1a3a5220e7ed6c10ec2b1d71f86a7 adds openssh-client,
+  pushed; CI39320845015 backend118294270001 SUCCESS/UI SKIPPED. Actual image
+  root64ff81e78a1bfa96cde93367a4d722b82c1fef09497adf7ef754cf51aed8a020,
+  amd64235418f6d43eba1ae37e1548e38933d0ff9a66b374158c1befe953c10a70e574;
+  exact OCI revision verified. Image proof /private/tmp/01044-backend-ssh-packaged-image-20261019.json.
+  Earlier38 Java tests/package retained; this dependency-only fix changes no
+  framework/schema/Java. Receiver auto-deploy restored TRUE, no demo job.
+- Hetzner Cloud already allows exact production IP; no cloud firewall change.
+  One staging UFW TCP22 rule from46.225.162.106/32 added, all old rules preserved;
+  actual production backend TCP connection now PASS. Local maintenance access
+  stays open; this service rule is enduring infrastructure, not a temporary rule.
+- New dedicated key0600 generated; pin derived from EXISTING trusted known_hosts,
+  no unverified keyscan. Two supported production managed-secret PUTs +metadata/
+  reference inventory PASS: null customer ID, no customer resource references.
+  Recovery copy is in the ignored0600 private auth doc; never print/commit it.
+  Exactly6 approved runtime config values +6 generated preview mirrors saved,
+  unrelated164 old rows preserved. Old production container unchanged; NO
+  effective host activation/restart yet. Private root
+  /private/tmp/01044-staging-retirement-verifier-install-20261019.
+- Host account/adapter installation and real SSH negative/metadata tests remain
+  pending. Curie owns offline new-image staging/prod rollout helpers, Halley
+  owns offline bounded installer, Confucius owns offline first-admission review.
+  Main owns live actions. No customer reservation/financial grant/model/runtime
+  apply, new business DB, promotion or vector copy. Refresh expired preparation
+  evidence before admission; physical policy expires21:44:39UTC.
+
 ## 2026-10-19 20:14 UTC Key Fix On Staging; Safe Host Assets Committed
 
 - Backend-only79552555fcf72946c1618df24ad7bb6abec96451 pushed. Parent actual

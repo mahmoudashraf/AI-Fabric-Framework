@@ -6,7 +6,51 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
-Current continuation, 2026-10-19 20:14UTC: atomic unused Free01 handoff and
+Current continuation, 2026-10-19 22:00UTC: new measured policy/unchanged physical
+quota published21:48; ownerSESSION staging reservationfde33719... passes21:49.
+Stage-only provider grant6USD/200000tokens/25chat issued21:51 within unchanged
+whole-task allowance. Normal apply exposes a real409 channel-policy bug before
+release creation. Readback proves zero releases/allocations/provider effects,
+existing reservation and unused grant intact. Generic shared policy now allows
+production-qualified artifacts on staging, never reverse, in apply+readiness;
+44 focused actual-module tests/package pass, no framework/schema/UI change.
+Source publication and guarded rollout are next before same-key customer retry.
+No customer runtime/index/model/promotion yet. AI-state restore/fullP5/P7 open;
+UI extraction LAST. Earlier checkpoints below remain historical.
+
+Earlier continuation, 2026-10-19 21:47UTC: BOTH backends accepted8a6e35842/
+root64ff81e...8a020/schema206/UP. Production's one approved restart completed;
+full139-table/audit/config verification and11 actual container SSH checks pass.
+The original strict config_hash STOP is preserved with a narrow read-only
+derived-snapshot supplement, not a broad ignore. New actual61-sample host
+baselines complete; these are not candidate-load proof. Same-customer normal
+staff invitation/owner acceptance renews entitlement to ACTIVErev4 through
+22October23:59:59, existing versions unchanged. Fresh placements and current
+source/storage/Inbox/artifact bindings pass. New measured-policy publication,
+physical-quota deadline renewal and first customer reservation remain next;
+no runtime, provider funding, model call or promotion yet. FullP5/P7 open; UI LAST.
+
+Earlier continuation, 2026-10-19 21:22UTC: new8a6e backend staging rollout fully
+passes image/SSH/health206/139-table/config preservation. Approved read-only host
+account/key/sudo setup is installed; real metadata reads and privilege-denial
+checks pass with an explicitly retained SFTP diagnostic-only test correction.
+Production remains healthy8b, one normal restart still unused. Its private client
+is correcting only a stale host-asset qualification reference; current host
+assets separately pass19 actual tests, Java38-test proof stays unchanged. Optional
+off-source negative test needs separate human approval after pre-execution denial.
+No customer runtime/funding/model call or promotion yet; UI extraction LAST.
+
+Earlier continuation, 2026-10-19 20:43UTC: the explicit restricted host approval
+is received. The missing SSH-client dependency in the actual CI Dockerfile is
+fixed/pushed8a6e35842 and backend-only CI39320845015 passes. Production-to-staging
+TCP22 now passes after one exact-IP OS-firewall rule; existing rules/admin
+access preserved, no Hetzner Cloud change. Dedicated key/pin supported-secret
+storage and six saved runtime settings verify, but the old production container
+is unchanged. Account installation, new-image staging acceptance, one production
+activation and full hosted customer acceptance remain pending. No customer
+runtime/provider grant/model call or vector copy. UI extraction remains LAST.
+
+Earlier continuation, 2026-10-19 20:14UTC: atomic unused Free01 handoff and
 physical admission policy/quota publication are actually verified. The key-file
 newline fix79552555f passes38 focused actual-module tests/package and backend-
 only CI39316033539; no framework change. Staging795/rootb1/schema206/UP passes

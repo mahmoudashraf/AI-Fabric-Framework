@@ -1,5 +1,83 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-19 22:00 UTC First Admission Passes; Actual Apply Contract Corrected
+
+- New measured policy and same-ceiling physical quota pass normal publication
+  and readback. First ownerSESSION staging reservationfde33719... passes21:49,
+  full AI-only topology charged; no customer inventory/CRM/simulator database.
+- Stage-only6USD/200000token/25chat provider grant passes21:51, with zero
+  allocation. Original whole-task allowance and all old records remain intact.
+- Normal apply returns409 before any release because production-promoted
+  immutable artifact is rejected by staging's strict channel-name equality.
+  Actual reconciliation proves zero release/binding/allocation effects and
+  unchanged reservation rev0/unused grant. No blind retry or alternate key.
+- Shared generic platform policy permits production-qualified artifact testing
+  in staging, never reverse. Apply+readiness use the same policy; all immutable
+  artifact/ownership/capability/approval gates remain.44 actual focused tests
+  and package pass, independent review noP1/P2. Source/CI/rollout next; framework,
+  schema, offer and runtime artifact are unchanged. UI extraction LAST.
+
+## 2026-10-19 21:47 UTC Backend And Configuration Prerequisites Accepted
+
+- Both backends8a6e/root64ff/schema206/UP accepted. Production's single approved
+  restart completed; all139tables/audits/effective config preserved. The exact
+  expected Coolify derived hash is independently recomputed; original strict
+  STOP retained with a narrow supplement. Actual container restricted SSH11/11.
+- Fresh measured baselines complete on both hosts. Same-customer entitlement
+  normally renewed to ACTIVErev4 through22October23:59:59; immutable versions
+  unchanged. Customer placement and source/action/storage plus reviewed Inbox
+  and runtime artifact configuration readbacks pass. A staff-only vector GET
+  correctly denied the customer probe; corrected actor, no permissions change.
+- No customer runtime or provider financial grant yet. Fresh measured policy,
+  physical quota deadline and first admission remain next. Bounded canary review
+  does not claim AI-state restore/fullP5/P7. Independent production indexing,
+  no business-system DB ownership and UI extraction LAST remain unchanged.
+
+## 2026-10-19 21:22 UTC Host Installed And Staging Accepted
+
+- Actual normal stage jobskuxoecu3f4xh7yj35u06gar fully verifies8a6e35842 /
+  root64ff81e...8a020 / native493d34ceb39b /206/UP, all139tables/audits/config
+  preserved, actual container SSH client present. No framework/runtime upgrade.
+- Restricted staging account/key and exact metadata-only sudo command are now
+  installed. Host-specific sudoers/useradd/list-rendering stops are retained;
+  separately pinned continuations completed only unfinished steps. No old
+  operation was blindly retried, no privilege scope expanded, no sshd reload.
+  Actual file hashes/permissions/admin preservation and production-source
+  metadata/denial tests verify. One SFTP diagnostic assertion failed despite
+  exit70/empty protocol; an explicit read-only supplement preserves that fact.
+- A local off-source denial test was blocked before execution because original
+  approval limited key use to production. Separate human approval is pending
+  in Required for production; no retry or indirect execution is permitted.
+- Production remains healthy8b, no restart yet. Rollout client found its old
+  Java38-test record also pinned an older host adapter. Current policy-aware
+  adapter separately passes19 actual tests/shell syntax and installed hash
+  readback. A narrow client qualification correction uses that separate proof;
+  it does not alter the Java qualification, application code or old evidence.
+- Full customer admission/apply/index/auth/actions/handover/promotion/retirement/
+  P7 remain open; UI extraction LAST. No staging vectors are copied to production.
+
+## 2026-10-19 20:43 UTC Approved Infrastructure Preparation
+
+- The exact restricted host setup approval is received and independently
+  verified. New dedicated key/trusted existing pin are stored via normal
+  managed-secret APIs and the ignored private recovery document. Metadata and
+  all non-audit reference inventories prove no customer binding/reference.
+- One exact production-IP staging UFW rule passes preservation and actual
+  production-container TCP22 checks. Hetzner Cloud needed no change. Existing
+  administrator keys/access remain unchanged; no broad network opening.
+- Actual CI Dockerfile lacked SSH client. Dependency-only commit8a6e35842 is
+  pushed, backend-only CI39320845015 passes, exact immutable root64ff81e...8a020
+  and revision are independently verified. No framework/schema/Java change.
+  Receiver auto-deploy is restored TRUE without a demo deployment.
+- Six approved runtime host-verifier fields and generated preview mirrors are
+  saved with every unrelated old row preserved; production remains running its
+  old container. Actual account installation, new-image staging acceptance and
+  the ONE production activation/restart are still pending, not claimed complete.
+- Customer runtime apply/index/actions/handover/promotion/retirement/P7 remain
+  open. Production will independently index its approved sources; no staging
+  vector transfer. UI extraction remains LAST. Main continues with three
+  bounded parallel offline tasks and parent-owned hosted operations.
+
 ## 2026-10-19 20:14 UTC Source Qualification And Staging Acceptance
 
 - SSH-key final-LF fix committed/pushed79552555f; actual-module38 focused tests

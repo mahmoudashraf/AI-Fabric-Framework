@@ -26,6 +26,7 @@ import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVe
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -205,9 +206,44 @@ class DeploymentBehaviorReadinessServiceTest {
     }
 
     @Test
-    void evaluateRejectsArtifactPromotedForAnotherEnvironment() throws Exception {
+    void evaluateAcceptsProductionPromotedArtifactAsStagingHostedProof() throws Exception {
         Fixture fixture = verifiedFixture("staging");
         fixture.artifact().setPromotionChannel("production");
+        when(readinessRepository.findByMaterialHash(any())).thenReturn(Optional.empty());
+        when(readinessRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service().evaluate(
+            fixture.deployment().getId(),
+            new EvaluateDeploymentBehaviorReadinessRequest(fixture.release().getId(), conversationalProof(), null)
+        );
+
+        assertThat(result.maturity()).isEqualTo("HOSTED_PROVEN");
+        assertThat(result.effectiveMaturity()).isEqualTo("HOSTED_PROVEN");
+        assertThat(result.hostedProofs()).hasSize(1);
+        JsonNode proof = result.hostedProofs().get(0);
+        assertThat(proof.path("environment").asText()).isEqualTo("staging");
+        assertThat(proof.has("releaseId")).isFalse();
+        assertThat(proof.has("targetProfileId")).isFalse();
+        assertThat(proof.has("sourceArtifactId")).isFalse();
+        assertThat(proof.path("releaseStatus").asText()).isEqualTo("APPLIED_VERIFIED");
+        assertThat(proof.path("verificationStatus").asText()).isEqualTo("PASSED");
+
+        ArgumentCaptor<DeploymentBehaviorReadinessEntity> saved =
+            ArgumentCaptor.forClass(DeploymentBehaviorReadinessEntity.class);
+        verify(readinessRepository).save(saved.capture());
+        JsonNode persistedProofs = objectMapper.readTree(saved.getValue().getHostedProofsJson());
+        assertThat(persistedProofs).hasSize(1);
+        JsonNode persistedProof = persistedProofs.get(0);
+        assertThat(persistedProof.path("environment").asText()).isEqualTo("staging");
+        assertThat(persistedProof.path("releaseId").asText()).isEqualTo(fixture.release().getId());
+        assertThat(persistedProof.path("targetProfileId").asText()).isEqualTo(fixture.release().getTargetProfileId());
+        assertThat(persistedProof.path("sourceArtifactId").asText()).isEqualTo(fixture.artifact().getId());
+    }
+
+    @Test
+    void evaluateRejectsStagingPromotedArtifactForProductionHostedProof() throws Exception {
+        Fixture fixture = verifiedFixture("production");
+        fixture.artifact().setPromotionChannel("staging");
 
         assertThatThrownBy(() -> service().evaluate(
             fixture.deployment().getId(),
@@ -216,6 +252,20 @@ class DeploymentBehaviorReadinessServiceTest {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("promotion channel")
             .hasMessageContaining("hosted-proof environment");
+    }
+
+    @Test
+    void evaluateRejectsUnpromotedProductionArtifactForStagingHostedProof() throws Exception {
+        Fixture fixture = verifiedFixture("staging");
+        fixture.artifact().setPromotionChannel("production");
+        fixture.artifact().setPromotedAt(null);
+
+        assertThatThrownBy(() -> service().evaluate(
+            fixture.deployment().getId(),
+            new EvaluateDeploymentBehaviorReadinessRequest(fixture.release().getId(), conversationalProof(), null)
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("requires a promoted source artifact");
     }
 
     @Test

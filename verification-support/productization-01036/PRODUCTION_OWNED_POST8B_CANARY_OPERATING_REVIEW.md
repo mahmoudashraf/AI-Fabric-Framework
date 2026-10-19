@@ -5,6 +5,27 @@ authorization, not customer launch acceptance or an SLA.
 
 ## Scope And Evidence
 
+Current addendum, 19October22:00UTC: new policy and physical quota renewal pass
+21:48, first ownerSESSION staging reservation21:49 and capped stage grant21:51.
+Normal apply409 exposed strict artifact-channel equality before release creation;
+actual reconciliation proves zero release/provider-allocation effects, with the
+reservation and unused grant intact. The platform-only directional channel fix
+passes44 actual focused tests/package and independent review. Source/CI/rollout
+and same-key apply retry remain next. No customer runtime/index/model/promotion
+yet. These operational allowances do not certify fullP5/P7 or AI-state restore.
+
+Current addendum, 19October21:47UTC: both backends now accepted on8a6e35842,
+root64ff81e...8a020, schema206/UP; production's one approved restart completed.
+Full139-table/audit/config checks and11 actual restricted-container SSH tests
+pass. Original strict config_hash STOP is retained with a narrowly verified
+pure-snapshot supplement. New61-sample baselines end21:31:48/21:33:36; the older
+8b rollout and19:39 measurements below remain historical. Same-customer normal
+renewal makes entitlement ACTIVErev4 through22October23:59:59, with versions
+unchanged. Fresh customer placements/source/storage/Inbox/artifact configuration
+pass. New measured policy/physical quota deadline still require normal API
+publication before reservation. No customer runtime, funding or model call yet.
+This authorizes bounded fictional-data canary preparation, not fullP5/P7.
+
 - Production control plane, customer `cus-9fd67f55`, tenant `ten-3977745c`,
   deployment `dep-096af01e`, published version `ver-76abc66f`.
 - Customer staging uses `dtp-coolify-staging-behavior` on `46.224.145.148`;
@@ -108,6 +129,15 @@ the old measurement reports remain historical and unchanged.
   extraction has already passed. Hosted acceptance remains open; UI last.
 
 ## Actual Subsequent Progress
+
+- At20:43UTC, direct human approval for the restricted host setup is verified.
+  Dedicated key/trusted existing pin and six saved verifier settings pass normal
+  API/readback checks; production has not restarted. One exact production-IP
+  UFW rule preserves all old rules and restores actual backend TCP22; Hetzner
+  Cloud already allowed the path. Actual CI Dockerfile's missing SSH client is
+  fixed8a6e35842/backend CI39320845015 PASS, new root64ff81e...8a020 verified.
+  Host account installation, new-image staging acceptance and actual SSH
+  restrictions remain pending; older pending-approval notes below are historical.
 
 - Policy `01036-post8b-prodcp-canary-20261019` and the customer's physical quota
   were published and verified through normal APIs and stored-record readback at
