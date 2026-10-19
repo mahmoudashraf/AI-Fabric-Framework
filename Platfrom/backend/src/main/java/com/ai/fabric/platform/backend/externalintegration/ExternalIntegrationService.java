@@ -169,8 +169,10 @@ public class ExternalIntegrationService {
 
     private Context context(String offerId, DeploymentEntity deployment, String versionId, String targetId,
                             String slotId, String profileId, String operationKey, Operation operation) {
+        // READ authorizes deployment/target; the exact external selection is still policy-validated below.
+        boolean read = operation == Operation.READ;
         var approved = authorization.authorize(deployment.getCustomerId(), new AuthorizationRequest(offerId, targetId, deployment.getId(),
-            deployment.getTenantId(), null, operation, operationKey, Set.of(), slotId, profileId, null));
+            deployment.getTenantId(), null, operation, operationKey, Set.of(), read ? null : slotId, read ? null : profileId, null));
         var profile = policy.requireProfile(approved.definition(), slotId, profileId, targetId);
         var version = versions.findById(versionId).filter(value -> deployment.getId().equals(value.getDeploymentId())
             && "PUBLISHED".equals(value.getStatus()) && value.getConfigHash() != null && !value.getConfigHash().isBlank())

@@ -84,6 +84,28 @@ class ExternalIntegrationControllerTest {
             assertThatThrownBy(() -> controller.approve("offer", "dep", null)).isInstanceOf(AccessDeniedException.class);
         }
     }
+
+    @Test void realMethodSecurityKeepsSummaryCustomerOnlyAndForwardsEveryScopeField() {
+        try (var context = new AnnotationConfigApplicationContext(SecurityConfig.class)) {
+            var controller = context.getBean(ExternalIntegrationController.class);
+            var service = context.getBean(ExternalIntegrationService.class);
+            var result = new Summary("binding", "approval", "dep", "version", "target", "slot", "profile", "CONFIGURED", 0);
+            when(service.read("offer", "dep", "version", "target", "slot", "profile")).thenReturn(result);
+            SecurityContextHolder.clearContext();
+            assertThatThrownBy(() -> controller.read("offer", "dep", "version", "target", "slot", "profile"))
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+            for (var role : new PlatformRole[]{PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT}) {
+                ExternalIntegrationFixture.authenticate(role, "non-customer");
+                assertThatThrownBy(() -> controller.read("offer", "dep", "version", "target", "slot", "profile"))
+                    .isInstanceOf(AccessDeniedException.class);
+            }
+            verifyNoInteractions(service);
+            ExternalIntegrationFixture.authenticate(PlatformRole.CUSTOMER_ADMIN, "customer");
+            assertThat(controller.read("offer", "dep", "version", "target", "slot", "profile")).isEqualTo(result);
+            verify(service).read("offer", "dep", "version", "target", "slot", "profile");
+            verifyNoMoreInteractions(service);
+        }
+    }
     @Configuration @EnableMethodSecurity static class SecurityConfig {
         @Bean ExternalIntegrationService service() { return mock(ExternalIntegrationService.class); }
         @Bean ExternalIntegrationController controller(ExternalIntegrationService service) { return new ExternalIntegrationController(service); }
