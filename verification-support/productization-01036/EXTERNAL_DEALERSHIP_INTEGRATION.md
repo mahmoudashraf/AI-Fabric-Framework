@@ -210,14 +210,19 @@ are mocked effect boundaries; synthetic reviewed hosts/targets are not hosted
 access proof. Separate245-case SQL verification covers immutable credential
 generations and low-level privilege/TLS checks. Counts overlap earlier runs.
 
-The source publication helper remains deliberately checkpointed while the final
-merged ownership/lifecycle verification completes. Independent review found a
-worker revocation race and missing external checks in recovery; source fixes
-and additional PostgreSQL concurrency tests are being integrated. Coolify and
+The source publication helper remains deliberately checkpointed pending the
+separate hosted target-local credential-generation and attended rollout proof.
+Local merged ownership/lifecycle verification now passes3,343 tests across350
+classes with zero failures/errors/skips. Independent review found a worker
+revocation race and missing external checks in recovery; the source fixes and
+their40-case actual PostgreSQL concurrency/revocation qualification also pass
+without failures/errors/skips. Coolify and
 optional managed-Inbox resource creation/deletion must use exact durable ownership
 proof, not names, descriptions or historical handles. Do not treat the older
 blocker names as evidence that the already tested customer commands are absent,
-or remove them solely because APIs/enums exist. Hosted apply, indexing, provider
+or remove them solely because APIs/enums exist. The local customer-command gate
+is proven; its old blocker name is not a claim that those APIs remain absent.
+Hosted apply, indexing, provider
 auth, capacity, production promotion and final UI remain separate gates.
 
 The ordinary external-Inbox variant has the additional

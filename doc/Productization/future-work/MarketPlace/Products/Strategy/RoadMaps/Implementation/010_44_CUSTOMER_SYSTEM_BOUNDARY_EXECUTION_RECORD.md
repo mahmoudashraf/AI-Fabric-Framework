@@ -456,3 +456,119 @@ changes. No service start/stop/delete/build or provider/model call was made.
   access-key IDs, GitHub tokens or private-key PEM blocks; this is not a blanket
   historical secret audit. The full regression run is still pending and C5 will
   have its own source change and verification path.
+
+### V201 Actual-Archive Rehearsal
+
+- Parent expanded the opt-in local test to the exact six pending migrations
+  V196-V201 and an explicit zero-row assertion for the shared-service ledger.
+  Both actual approved archives pass, two cases with zero failures/errors/skips.
+  Normal Flyway validates all201 migrations; all original fields in the21
+  preserved tables remain unchanged, historical release SQL columns stay null,
+  and both ownership ledgers stay empty. No repair, ignored checksum, backfill,
+  hosted call, Spring worker or provider/model operation is introduced.
+- Log: `/private/tmp/01044-archive-migration-201.log`. Parent session1334 completed;
+  its separate build target is free. The shared-service source implementation
+  still needs its own lifecycle qualification and merged-source verification.
+- Backend foundation is committed locally as `5cef0210a`. Earlier local commits
+  remain `00f3852c5` and `8b11c4217`; none has been pushed by this work.
+
+### Full Foundation Regression Result
+
+- Actual-module backend suite completed3,263 tests across348 test classes:
+  one failure, one error, zero skips. Both are the old owned-dependency physical-
+  reclamation cases in `PlatformManagedProductProvisioningServiceTest`; their
+  fixtures omit the newly required real ownership helper/graph/receipts and fail
+  at the earlier ownership guard. No other failure was reported.
+- This is not green release evidence. Jason owns correcting those two fixtures
+  alongside the C5 shared-service tests, preserving real positive ownership proof
+  and the original physical-absence assertions rather than weakening production
+  checks. Parent will rerun the merged suite. Session9644 is complete; the actual
+  backend build target is free.
+- Parent's review of in-progress C5 also requires denial of an old UUID that
+  reappears after its receipt is `DELETED`, matching the completed C4 boundary.
+  C5 must prove real Spring transaction suspension/local durable intent and keep
+  provider HTTP outside database locks. These are final qualification criteria,
+  not claims that the unfinished shared-service source already passes.
+
+### Shared Admin Caller Verification
+
+- Parent adds the shared-service authority check to Product Admin secret
+  rotation before vault/registry changes. Its focused actual-module run passes
+  19 tests, zero failures/errors/skips, including ordered authorization-before-
+  write and denial-with-no-local-side-effects cases. It preserves the existing
+  contract: this command updates desired credentials, not an automatic deploy.
+- Pure desired Shopify billing/release settings remain editable before first
+  provisioning. They neither grant resource ownership nor trigger remote
+  mutations; adding a live-resource requirement there would obstruct legitimate
+  initial configuration. Separate managed-inference provisioning is not silently
+  included in the C5 safety claim.
+- Parent requires exact deployment/application readback for shared start/restart;
+  an already-healthy app cannot hide a null or mismatched provider response.
+  C5 qualification also covers deleted-UUID reappearance and retained credentials
+  whose lifecycle authority is unproven. V201 is evolving to include explicit
+  mutation-pending state, so its final frozen checksum must be rehearsed again
+  against both actual archives before that source is qualified.
+
+### Final Ownership Follow-Ups And Frozen Migration
+
+- The final focused actual-module run passes376 tests across nine classes,
+  zero failures/errors/skips. Log:
+  `/private/tmp/01044-ownership-final-intended-credential.log`. Counts overlap
+  earlier C4/C5 runs and are not additive. The previous375-case fixture failure
+  is superseded, not counted as passing.
+- Shared Docker services require a full source commit and image digest, deploy
+  by digest and verify repository/hash after update and terminal deployment.
+  Malformed desired metadata fails before provider effects; live image drift
+  cannot be hidden by an already-healthy application.
+- Direct Coolify deletion requires explicitly empty attached storage. Mounted,
+  unavailable or malformed storage must use the existing frozen target-retirement
+  contract. App/database deletion does not request volume, network or broad
+  Docker cleanup; app stop does not request broad cleanup either.
+- Shared-service credential rotation requires its own creation claim, not just
+  application ownership or a secret-name prefix. The caller captures one exact
+  secret name; committed-state preflight validates that same name before the
+  vault write. A real PostgreSQL transaction test proves an uncommitted foreign
+  name cannot pass preflight and reach the vault. Supplied or historically
+  unproven credentials remain retained and cannot be rotated by this command.
+- Independent sol6.1/max read-only re-review closed all confirmed P1/P2 findings
+  in these fixes. No framework changes, query-term routing, hidden recovery or
+  provider mutation were introduced. Structural identity/URI checks are resource
+  authorization, not LLM semantic decisions.
+- Final actual-archive rehearsal passes2 tests, zero failures/errors/skips,
+  using V201 SHA256
+  `707b3c3e10a560784f9c2e8d31a2cd2e8717ace89be88693067c79e19a8b54ae`.
+  Source and compiled migration hashes match. Both original Platform backups
+  migrate195 to201 with normal validation,21 preserved tables unchanged,
+  historical SQL release columns null and both ownership ledgers empty. Log:
+  `/private/tmp/01044-final-archive-migration-201.log`.
+- Full merged actual-module regression is running separately. C5 and these
+  follow-ups are not yet committed/published at this checkpoint. Hosted control
+  planes remain unchanged atcab320545/migration195. Publication remains held
+  for the repository-destination decision; UI extraction remains last.
+
+### Full Merged Backend Qualification
+
+- Completed2026-10-19 04:15UTC using the actual `Platfrom/backend/pom.xml`,
+  offline Maven and permitted local Docker/JVM access: **3,343 tests across350
+  classes, zero failures, errors or skips**, process exit0. Log:
+  `/private/tmp/01044-final-merged-backend.log`; fresh XML results under
+  `Platfrom/backend/target/surefire-reports` were counted from this run only.
+- All1,843 backend main/test source and resource files remained unchanged
+  throughout the run. Their sorted path/content SHA256 manifest is
+  `8a34bf788cfe27912ba2bcdc26611642bae613ec2742495b13cdaa62e9b2da20`.
+  This is the final merged result, not a sum of overlapping focused runs.
+- The two old reclamation cases remain present and now use real durable
+  ownership/graph fixtures. All14 test slots in the rewritten shared-service
+  test remain; expectations that previously authorized name adoption or deletion
+  now require explicit rejection. Additional positive/negative ownership cases
+  are in dedicated unit and PostgreSQL classes. Tests were not removed to hide
+  the earlier failures.
+- Final archive qualification is separate:2 passing actual-backup tests against
+  the frozen V201 checksum above, not included in the3,343 normal test count.
+  The semantic-decision source guard and `git diff --check` also pass.
+- A bounded scan of the17 changed/new backend files found no AWS access-key ID,
+  GitHub-token or private-key PEM patterns. It is not a historical secret audit.
+  Local source publication still requires the owner's repository decision.
+- Backend packaging is the next local check. No full hosted release gate,
+  corrected offer activation, customer runtime, provider effect, framework
+  release or UI extraction is claimed by this green local regression.

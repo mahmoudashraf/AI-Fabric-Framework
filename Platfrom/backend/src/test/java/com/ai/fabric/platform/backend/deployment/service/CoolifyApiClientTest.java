@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -653,6 +654,23 @@ class CoolifyApiClientTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings={"{}","[]","{\"persistent_storages\":null,\"file_storages\":[]}",
+        "{\"persistent_storages\":[],\"file_storages\":{}}"})
+    void malformedStorageInventoryNeverMeansNoAttachedStorage(String body) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/api/v1/applications/app-uuid/storages",exchange -> sendJson(exchange,200,body));
+        server.createContext("/api/v1/databases/database-uuid/storages",exchange -> sendJson(exchange,200,body));
+        server.start();
+        try {
+            var client = new CoolifyApiClient(objectMapper);
+            assertThatThrownBy(() -> client.listApplicationStorages(connection(server),"app-uuid"))
+                .isInstanceOf(CoolifyApiException.class).hasMessageContaining("storage inventory is malformed");
+            assertThatThrownBy(() -> client.listDatabaseStorages(connection(server),"database-uuid"))
+                .isInstanceOf(CoolifyApiException.class).hasMessageContaining("storage inventory is malformed");
+        } finally { server.stop(0); }
     }
 
     @Test

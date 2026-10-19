@@ -152,8 +152,11 @@ changes are planned by this task.
    were already revoked and its runtime cannot drain, normal replacement may
    block. Recover old connectivity or use a separately proved recovery flow;
    neither a browser quiescence flag nor destructive retirement is a bypass.
-2. Parent-owned customer wrapper/API/UI and entitlement/replay tests, merged
-   Spring integration and any hosted canary remain separate acceptance gates.
+2. Parent-owned customer wrapper/API and entitlement/replay qualification are
+   recorded separately in010.44. The final merged actual-module backend run now
+   passes3,343 tests across350 classes without failures/errors/skips. Customer
+   UI functional acceptance and every hosted canary remain open; this does not
+   certify the whole product or hosted SQL replacement.
 3. The previously reported managed Coolify exact-name adoption/creation-receipt
    issue belongs to the separate generic-ownership workstream. That source has
    changed concurrently; this SQL handoff does not independently close its gate.
@@ -202,7 +205,7 @@ of scope; ordinary version-based credential replacement is the implemented path.
 ## Control-Plane Archive Migration Rehearsal
 
 `ControlPlaneArchiveMigrationIT` is an explicitly selected local test for the
-current migration195-to200 upgrade, not a hosted deployment or runtime-state
+current migration195-to201 upgrade, not a hosted deployment or runtime-state
 restore. The normal unit-test pattern does not select this `IT` class.
 
 Prepare the owner-approved custom PostgreSQL18 archives as `staging.dump` and
@@ -221,20 +224,30 @@ mvn -o -f Platfrom/backend/pom.xml -Dtest=ControlPlaneArchiveMigrationIT test
 The test creates temporary PostgreSQL instances on a fresh Docker bridge with
 loopback-only ports. It starts no Spring application, scheduler or worker and
 makes no provider/model calls. Restore diagnostics are discarded. It validates
-the exact five pending migrations, runs normal Flyway migration validation,
-applies196-200, then validates all200 migrations. It does not repair history or
+the exact six pending migrations, runs normal Flyway migration validation,
+applies196-201, then validates all201 migrations. It does not repair history or
 ignore checksum mismatches.
 
 Aggregate SHA256 comparisons cover all original fields in21 customer, identity,
 credential, offer, reservation and resource tables. The two new V198 release
-columns must remain null on historical rows, and the ownership ledger must stay
-empty: migration must not fabricate ownership for old handles. Containers and
+columns must remain null on historical rows, and both the customer-resource and
+shared-service ownership ledgers must stay empty: migration must not fabricate
+ownership for old handles or registry metadata. Containers and
 their temporary data are closed through Testcontainers; source archives remain
 private and unchanged. Later upgrades require a newly reviewed migration ceiling
-and preservation assertions, not blindly reusing this fixed195-to200 acceptance.
+and preservation assertions, not blindly reusing this fixed195-to201 acceptance.
 
-Both actual approved archives passed this migration/preservation rehearsal on
-2026-10-19. The subsequent local-transport safeguard is part of the final merged
-rerun; the full customer workflow, concurrent revocation, ownership adapters,
-hosted activation and UI gates remain separately tracked in010.44's execution
-record. This result is not proof that either live control plane is atV200.
+The final frozen V201 rehearsal passed on2026-10-19 against both actual approved
+archives: **two tests, zero failures/errors/skips**, six exact pending migrations,
+201 validated migrations, unchanged preserved records and both new ownership
+ledgers empty. Source and compiled V201 SHA256 both equal
+`707b3c3e10a560784f9c2e8d31a2cd2e8717ace89be88693067c79e19a8b54ae`.
+Log: `/private/tmp/01044-final-archive-migration-201.log`; XML reports are under
+`/private/tmp/01044-parent-boundary-tests/target/surefire-reports`.
+Earlier rehearsals used earlier migration contents and are historical evidence,
+not substitutes for this frozen-source result.
+
+This is migration evidence, not hosted activation or customer runtime-state
+recovery. Customer workflow, concurrent revocation and ownership qualification
+have their own results in010.44's execution record; hosted acceptance and UI
+gates remain separate. Local rehearsal never proves the live control-plane version.

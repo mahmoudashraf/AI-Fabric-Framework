@@ -109,23 +109,24 @@ class ControlPlaneArchiveMigrationIT {
                     assertEquals(Set.of(
                         "196:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED", "197:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
                         "198:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED", "199:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
-                        "200:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
-                        "Only the exact five pending migrations may precede the normal migrate validation");
+                        "200:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED", "201:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
+                        "Only the exact six pending migrations may precede the normal migrate validation");
                 }
                 try {
-                    assertEquals(5, flyway.migrate().migrationsExecuted);
+                    assertEquals(6, flyway.migrate().migrationsExecuted);
                     flyway.validate();
                 } catch (RuntimeException failure) {
                     throw new AssertionError("Archive migration/validation failed; private diagnostics withheld");
                 }
                 assertEquals(before, preserved(connection), "Existing customer/credential/resource state must remain unchanged");
-                assertEquals("200", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
-                assertEquals("200", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+                assertEquals("201", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
+                assertEquals("201", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"));
                 assertEquals("5", scalar(connection, "SELECT count(*) FROM platform_marketplace_plugins WHERE id IN "
                     + "('mkp-data-dealership-external-stock-v1','mkp-action-dealership-external-discovery-v1',"
                     + "'mkp-action-dealership-external-engagement-v1','mkp-template-dealership-external-systems-v1',"
                     + "'mkp-template-dealership-external-systems-managed-inbox-v1')"));
                 assertEquals("0", scalar(connection, "SELECT count(*) FROM platform_managed_resource_ownership"));
+                assertEquals("0", scalar(connection, "SELECT count(*) FROM platform_managed_service_ownership"));
                 assertEquals("0", scalar(connection, "SELECT count(*) FROM platform_deployment_releases "
                     + "WHERE ai_state_storage_snapshot_json IS NOT NULL OR ai_state_storage_fingerprint IS NOT NULL"));
             } catch (java.sql.SQLException failure) {

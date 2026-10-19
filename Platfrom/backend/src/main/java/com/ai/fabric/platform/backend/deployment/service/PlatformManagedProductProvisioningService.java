@@ -68,6 +68,12 @@ public class PlatformManagedProductProvisioningService {
     private final CoolifyHostVolumeReclamationService hostVolumeReclamationService;
 
     private OwnedDependencyOwnership ownedDependencyOwnership;
+    private PlatformManagedServiceOwnership sharedServiceOwnership;
+
+    @Autowired
+    void setSharedServiceOwnership(PlatformManagedServiceOwnership sharedServiceOwnership) {
+        this.sharedServiceOwnership = sharedServiceOwnership;
+    }
 
     @Autowired
     void setOwnedDependencyOwnership(OwnedDependencyOwnership ownedDependencyOwnership) {
@@ -177,631 +183,241 @@ public class PlatformManagedProductProvisioningService {
         );
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public PlatformManagedProductServiceSummary reconcile(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        serviceService.requireNotOwnedDependency(service);
-        if (requiresCoolifyLifecycle(service)) {
-            return reconcileCoolify(service);
-        }
-        if (!requiresRailwayLifecycle(service)) {
-            if (hasText(service.getBaseUrl()) && !"ACTIVE".equalsIgnoreCase(service.getStatus())) {
-                service.setStatus("ACTIVE");
-                service.setUpdatedAt(Instant.now());
-                serviceRepository.save(service);
-            }
-            return serviceService.getService(serviceRef);
-        }
-
-        service.setStatus("PROVISIONING");
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-
-        try {
-            ReconciledRailwayService reconciled = reconcileRailwayService(service);
-            finalizeActiveService(
-                service,
-                reconciled.projectId(),
-                reconciled.environmentId(),
-                reconciled.serviceId(),
-                reconciled.instance(),
-                reconciled.publicBaseUrl(),
-                reconciled.deploymentId(),
-                "Railway product service reconciled successfully."
-            );
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RECONCILED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of(
-                    "serviceRef", service.getServiceRef(),
-                    "deploymentId", reconciled.deploymentId(),
-                    "status", service.getStatus()
-                )
-            );
-            return serviceService.getService(serviceRef);
-        } catch (RuntimeException ex) {
-            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastReconcileStatus", "lastReconcileMessage");
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RECONCILE_FAILED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of(
-                    "serviceRef", service.getServiceRef(),
-                    "error", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName())
-                )
-            );
-            throw ex;
-        }
+        return reconcile(serviceRef, null);
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public PlatformManagedProductServiceSummary reconcile(String serviceRef, String targetProfileId) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        serviceService.requireNotOwnedDependency(service);
-        String normalizedTargetProfileId = trimToNull(targetProfileId);
-        if (hasText(normalizedTargetProfileId)) {
-            ObjectNode details = mutableDetails(service);
-            alignCoolifyDomainWithTargetProfile(service, details, normalizedTargetProfileId);
-            details.put("providerType", "COOLIFY");
-            details.put("targetProfileId", normalizedTargetProfileId);
-            service.setDetailsJson(details.toPrettyString());
-            service.setUpdatedAt(Instant.now());
-            serviceRepository.save(service);
-        }
-        return reconcile(serviceRef);
+        return reconcileCoolify(requireSharedCoolifyService(serviceRef), trimToNull(targetProfileId));
     }
 
-    private void alignCoolifyDomainWithTargetProfile(PlatformManagedProductServiceEntity service,
-                                                      ObjectNode details,
-                                                      String targetProfileId) {
-        if (targetProfileRepository == null || coolifyTargetProfileResolver == null) {
-            return;
-        }
-        DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId)
-            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify target profile not found: " + targetProfileId));
-        CoolifyTargetProfileConfig config = coolifyTargetProfileResolver.requireConnection(profile).config();
-        String previousTargetProfileId = trimToNull(details.path("targetProfileId").asText(null));
-        boolean targetChanged = hasText(previousTargetProfileId)
-            && !previousTargetProfileId.equals(targetProfileId);
-        boolean domainOutsideTarget = hasText(service.getBaseUrl())
-            && !coolifyDomainMatchesProfile(service.getBaseUrl(), config);
-        if (!targetChanged && !domainOutsideTarget) {
-            return;
-        }
-        service.setBaseUrl(null);
-        service.setPrivateNetworkUrl(null);
-        details.remove("coolifyFqdn");
-    }
-
-    private boolean coolifyDomainMatchesProfile(String domains, CoolifyTargetProfileConfig config) {
-        String suffix = trimToNull(config.defaultPublicDomainSuffix());
-        if (!hasText(suffix)) {
-            return true;
-        }
-        String normalizedSuffix = suffix.startsWith(".") ? suffix.substring(1) : suffix;
-        String lowerSuffix = normalizedSuffix.toLowerCase(Locale.ROOT);
-        for (String domain : domains.split(",")) {
-            String host = normalizedUrlHost(domain);
-            if (hasText(host)
-                && (host.equalsIgnoreCase(normalizedSuffix)
-                || host.toLowerCase(Locale.ROOT).endsWith("." + lowerSuffix))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public PlatformManagedProductServiceSummary scale(String serviceRef, Integer desiredReplicas) {
+        requireSharedServiceMutationAuthority(serviceRef);
         serviceService.updateDesiredReplicas(serviceRef, desiredReplicas);
         return reconcile(serviceRef);
     }
 
-    @Transactional
+    /** Credential writers must check this before changing either vault or registry state. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public void requireSharedServiceMutationAuthority(String serviceRef) {
+        PlatformManagedProductServiceEntity service = requireSharedCoolifyService(serviceRef);
+        CoolifyBinding binding = resolveCoolifyBinding(service, null);
+        var owner = sharedServiceOwnership.context(service, binding.profile(), binding.connection(), sharedServiceName(service));
+        sharedServiceOwnership.observe(sharedServiceOwnership.existing(owner));
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public void requireSharedServiceCredentialMutationAuthority(String serviceRef, String expectedSecretName) {
+        PlatformManagedProductServiceEntity service = requireSharedCoolifyService(serviceRef);
+        if (!java.util.Objects.equals(expectedSecretName, service.getSecretName())) throw PlatformManagedServiceOwnershipJournal.denied();
+        CoolifyBinding binding = resolveCoolifyBinding(service, null);
+        var context = sharedServiceOwnership.context(service, binding.profile(), binding.connection(), sharedServiceName(service));
+        var owned = sharedServiceOwnership.existing(context);
+        sharedServiceOwnership.observe(owned);
+        sharedServiceOwnership.requireCredentialMutation(owned, expectedSecretName);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public PlatformManagedProductServiceSummary restart(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        serviceService.requireNotOwnedDependency(service);
-        if (requiresCoolifyLifecycle(service)) {
-            return restartCoolify(service);
-        }
-        if (!requiresRailwayLifecycle(service)) {
-            return serviceService.getService(serviceRef);
-        }
-        if (!hasText(service.getRailwayEnvironmentId()) || !hasText(service.getRailwayServiceId())) {
-            return reconcile(serviceRef);
-        }
-
-        service.setStatus("PROVISIONING");
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-
-        try {
-            String deploymentId = railwayGraphqlClient.deployService(service.getRailwayServiceId(), service.getRailwayEnvironmentId());
-            RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
-                deploymentId,
-                sharedServiceName(service),
-                provisioningProperties.deploymentTimeout(),
-                productProvisioningProperties.pollInterval(),
-                () -> railwayGraphqlClient.getDeployment(deploymentId),
-                duration -> Thread.sleep(Math.max(duration.toMillis(), 0L)),
-                ex -> {
-                }
-            );
-
-            RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
-                service.getRailwayEnvironmentId(),
-                service.getRailwayServiceId()
-            );
-            String publicBaseUrl = ensureServiceDomain(
-                service.getRailwayProjectId(),
-                service.getRailwayEnvironmentId(),
-                service.getRailwayServiceId()
-            );
-            finalizeActiveService(
-                service,
-                blankToFallback(service.getRailwayProjectId(), null),
-                blankToFallback(service.getRailwayEnvironmentId(), null),
-                blankToFallback(service.getRailwayServiceId(), null),
-                instance,
-                publicBaseUrl,
-                deploymentId,
-                "Managed product service restarted successfully."
-            );
-            ObjectNode details = mutableDetails(service);
-            details.put("lastRestartedAt", Instant.now().toString());
-            details.put("lastRestartStatus", "SUCCESS");
-            details.put("lastRestartMessage", "Managed product service restarted successfully.");
-            service.setDetailsJson(details.toPrettyString());
-            serviceRepository.save(service);
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RESTARTED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of(
-                    "serviceRef", service.getServiceRef(),
-                    "deploymentId", deploymentId
-                )
-            );
-            return serviceService.getService(serviceRef);
-        } catch (RuntimeException ex) {
-            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastRestartStatus", "lastRestartMessage");
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RESTART_FAILED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of(
-                    "serviceRef", service.getServiceRef(),
-                    "error", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName())
-                )
-            );
-            throw ex;
-        }
-    }
-
-    @Transactional
-    public PlatformManagedProductServiceEntity refreshRailwayBindingFromWorkspace(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        serviceService.requireNotOwnedDependency(service);
-        if (isCoolifyManaged(service)) {
-            return service;
-        }
-        if (!requiresRailwayLifecycle(service)) {
-            return service;
-        }
-
-        RailwayGraphqlClient.RailwayProjectSnapshot project = resolveCurrentProjectSnapshot(service);
-        RailwayGraphqlClient.RailwayEnvironmentSummary environment = project == null
-            ? null
-            : project.environmentNamed(resolveEnvironmentName(service));
-        RailwayGraphqlClient.RailwayServiceSummary railwayService = project == null
-            ? null
-            : project.serviceNamed(sharedServiceName(service));
-        boolean needsRefresh = !hasText(service.getRailwayProjectId())
-            || !hasText(service.getRailwayEnvironmentId())
-            || !hasText(service.getRailwayServiceId())
-            || project == null
-            || environment == null
-            || railwayService == null
-            || !service.getRailwayProjectId().equals(project.id())
-            || !service.getRailwayEnvironmentId().equals(environment.id())
-            || !service.getRailwayServiceId().equals(railwayService.id());
-        if (!needsRefresh) {
-            return service;
-        }
-
-        RailwayGraphqlClient.RailwayProjectSnapshot discoveredProject = railwayGraphqlClient.findProjectByName(
-            provisioningProperties.workspaceId(),
-            sharedProjectName(service)
-        );
-        if (discoveredProject == null) {
-            return service;
-        }
-        RailwayGraphqlClient.RailwayEnvironmentSummary discoveredEnvironment = discoveredProject.environmentNamed(resolveEnvironmentName(service));
-        if (discoveredEnvironment == null) {
-            return service;
-        }
-        RailwayGraphqlClient.RailwayServiceSummary discoveredService = discoveredProject.serviceNamed(sharedServiceName(service));
-        if (discoveredService == null) {
-            return service;
-        }
-
-        RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
-            discoveredEnvironment.id(),
-            discoveredService.id()
-        );
-        String publicBaseUrl = hasText(service.getBaseUrl())
-            ? service.getBaseUrl().trim()
-            : ensureServiceDomain(discoveredProject.id(), discoveredEnvironment.id(), discoveredService.id());
-        String lastDeploymentId = trimToNull(mutableDetails(service).path("lastDeploymentId").asText(null));
-        finalizeActiveService(
-            service,
-            discoveredProject.id(),
-            discoveredEnvironment.id(),
-            discoveredService.id(),
-            instance,
-            publicBaseUrl,
-            lastDeploymentId,
-            "Railway product service linkage refreshed from workspace inventory."
-        );
-        platformAuditService.record(
-            "MANAGED_PRODUCT_RAILWAY_BINDING_REFRESHED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of(
-                "serviceRef", service.getServiceRef(),
-                "railwayProjectId", discoveredProject.id(),
-                "railwayEnvironmentId", discoveredEnvironment.id(),
-                "railwayServiceId", discoveredService.id()
-            )
-        );
-        return service;
-    }
-
-    @Transactional
-    public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        serviceService.requireNotOwnedDependency(service);
-        if (requiresCoolifyLifecycle(service)) {
-            return forceRecreateCoolify(service);
-        }
-        if (!requiresRailwayLifecycle(service)) {
-            return serviceService.getService(serviceRef);
-        }
-
-        platformAuditService.record(
-            "MANAGED_PRODUCT_FORCE_RECREATE_REQUESTED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef())
-        );
-
-        RailwayGraphqlClient.RailwayProjectSnapshot existingProject = null;
-        if (hasText(service.getRailwayProjectId())) {
-            try {
-                existingProject = railwayGraphqlClient.getProject(service.getRailwayProjectId());
-            } catch (RuntimeException ignored) {
-                existingProject = null;
-            }
-        }
-        if (existingProject == null) {
-            existingProject = railwayGraphqlClient.findProjectByName(
-                provisioningProperties.workspaceId(),
-                sharedProjectName(service)
-            );
-        }
-        if (existingProject != null && hasText(existingProject.id())) {
-            railwayGraphqlClient.deleteProject(existingProject.id());
-            awaitProjectDeletion(existingProject.id(), sharedProjectName(service));
-        }
-
-        clearRailwayBinding(service);
-        return reconcile(serviceRef);
-    }
-
-    @Transactional
-    public PlatformManagedProductServiceSummary decommission(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        serviceService.requireNotOwnedDependency(service);
-        long dependentStores = shopifyStoreConnectionRepository.countByProductServiceId(service.getId());
-        if (dependentStores > 0) {
-            throw new ResponseStatusException(
-                CONFLICT,
-                "Managed product service still has " + dependentStores + " dependent store mapping(s)."
-            );
-        }
-        if (requiresCoolifyLifecycle(service)) {
-            return decommissionCoolify(service);
-        }
-
-        if (hasText(service.getRailwayProjectId())) {
-            railwayGraphqlClient.deleteProject(service.getRailwayProjectId());
-            awaitProjectDeletion(service.getRailwayProjectId(), sharedProjectName(service));
-        } else if (hasText(service.getRailwayServiceId())) {
-            railwayGraphqlClient.deleteService(service.getRailwayServiceId());
-        }
-
-        if (hasText(service.getSecretName()) && platformSecretService.isManagedSecretName(service.getSecretName())) {
-            platformSecretService.clearManagedSecret(
-                service.getSecretName(),
-                Map.of("serviceRef", service.getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET")
-            );
-        }
-
-        service.setRailwayProjectId(null);
-        service.setRailwayEnvironmentId(null);
-        service.setRailwayServiceId(null);
-        service.setBaseUrl(null);
-        service.setPrivateNetworkUrl(null);
-        service.setActualReplicas(0);
-        service.setStatus("DECOMMISSIONED");
-        ObjectNode details = mutableDetails(service);
-        details.put("lastDecommissionedAt", Instant.now().toString());
-        details.put("lastDecommissionStatus", "SUCCESS");
-        details.put("lastDecommissionMessage", "Managed product service decommissioned successfully.");
-        service.setDetailsJson(details.toPrettyString());
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-        platformAuditService.record(
-            "MANAGED_PRODUCT_DECOMMISSIONED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef())
-        );
+        PlatformManagedProductServiceEntity service = requireSharedCoolifyService(serviceRef);
+        CoolifyBinding binding = resolveCoolifyBinding(service, null);
+        var context = sharedServiceOwnership.context(service, binding.profile(), binding.connection(), sharedServiceName(service));
+        var owned = sharedServiceOwnership.existing(context);
+        SharedDeployment deployed = sharedServiceOwnership.mutate(owned, () -> {
+            CoolifyActionResponse response = coolifyApiClient.restart(binding.connection(), owned.uuid());
+            return new SharedDeployment(awaitSharedCoolifyDeployment(owned, response), response);
+        });
+        finalizeSharedCoolifyService(service, binding, owned, deployed, "MANAGED_PRODUCT_RESTARTED", "Coolify product service restarted successfully.");
         return serviceService.getService(serviceRef);
     }
 
-    private PlatformManagedProductServiceSummary reconcileCoolify(PlatformManagedProductServiceEntity service) {
-        ensureCoolifySupportAvailable();
-        service.setStatus("PROVISIONING");
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-        try {
-            CoolifyBinding binding = resolveCoolifyBinding(service);
-            CoolifyApplicationSummary application = reconcileCoolifyApplication(service, binding);
-            ensureServiceSecret(service);
-            String publicBaseUrl = publicBaseUrl(application);
-            coolifyApiClient.updateEnvironmentVariables(
-                binding.connection(),
-                application.uuid(),
-                buildCoolifyServiceEnv(service, publicBaseUrl)
-            );
-            CoolifyActionResponse deployResponse = coolifyApiClient.start(binding.connection(), application.uuid(), true, true);
-            CoolifyApplicationSummary observed = awaitCoolifyDeployment(
-                binding.connection(),
-                application.uuid(),
-                application,
-                deployResponse
-            );
-            CoolifyApplicationCapacity.requireReadback(
-                observed,
-                coolifyManagedServiceRuntimeSettings(service),
-                "MANAGED_PRODUCT_RUNTIME_CAPACITY_DRIFT"
-            );
-            finalizeActiveCoolifyService(
-                service,
-                binding.profile().getId(),
-                binding.connection().config().projectUuid(),
-                binding.connection().config().environmentUuid(),
-                observed,
-                deployResponse,
-                publicBaseUrl(observed),
-                "Coolify product service reconciled successfully."
-            );
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RECONCILED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of(
-                    "serviceRef", service.getServiceRef(),
-                    "providerType", "COOLIFY",
-                    "coolifyApplicationUuid", observed.uuid()
-                )
-            );
-            return serviceService.getService(service.getServiceRef());
-        } catch (RuntimeException ex) {
-            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastReconcileStatus", "lastReconcileMessage");
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RECONCILE_FAILED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of(
-                    "serviceRef", service.getServiceRef(),
-                    "providerType", "COOLIFY",
-                    "error", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName())
-                )
-            );
-            throw ex;
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public PlatformManagedProductServiceEntity refreshRailwayBindingFromWorkspace(String serviceRef) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
+        if (requiresRailwayLifecycle(service) || hasText(service.getRailwayProjectId())
+            || hasText(service.getRailwayEnvironmentId()) || hasText(service.getRailwayServiceId())
+            || "RAILWAY".equalsIgnoreCase(mutableDetails(service).path("providerType").asText(null))) {
+            throw PlatformManagedServiceOwnershipJournal.denied();
         }
+        return service;
     }
 
-    private PlatformManagedProductServiceSummary restartCoolify(PlatformManagedProductServiceEntity service) {
-        ensureCoolifySupportAvailable();
-        ObjectNode details = mutableDetails(service);
-        String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
-        if (!hasText(applicationUuid)) {
-            return reconcile(service.getServiceRef());
-        }
-        CoolifyBinding binding = resolveCoolifyBinding(service);
-        try {
-            CoolifyActionResponse response = coolifyApiClient.restart(binding.connection(), applicationUuid);
-            CoolifyApplicationSummary existing = coolifyApiClient.getApplication(binding.connection(), applicationUuid)
-                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify application not found: " + applicationUuid));
-            CoolifyApplicationSummary observed = awaitCoolifyDeployment(
-                binding.connection(),
-                applicationUuid,
-                existing,
-                response
-            );
-            finalizeActiveCoolifyService(
-                service,
-                binding.profile().getId(),
-                binding.connection().config().projectUuid(),
-                binding.connection().config().environmentUuid(),
-                observed,
-                response,
-                publicBaseUrl(observed),
-                "Coolify product service restarted successfully."
-            );
-            ObjectNode updatedDetails = mutableDetails(service);
-            updatedDetails.put("lastRestartedAt", Instant.now().toString());
-            updatedDetails.put("lastRestartStatus", "SUCCESS");
-            updatedDetails.put("lastRestartMessage", "Coolify product service restarted successfully.");
-            service.setDetailsJson(updatedDetails.toPrettyString());
-            serviceRepository.save(service);
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RESTARTED",
-                "MANAGED_PRODUCT_SERVICE",
-                service.getServiceRef(),
-                Map.of("serviceRef", service.getServiceRef(), "providerType", "COOLIFY")
-            );
-            return serviceService.getService(service.getServiceRef());
-        } catch (RuntimeException ex) {
-            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastRestartStatus", "lastRestartMessage");
-            throw ex;
-        }
-    }
-
-    private PlatformManagedProductServiceSummary forceRecreateCoolify(PlatformManagedProductServiceEntity service) {
-        ensureCoolifySupportAvailable();
-        platformAuditService.record(
-            "MANAGED_PRODUCT_FORCE_RECREATE_REQUESTED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef(), "providerType", "COOLIFY")
-        );
-        CoolifyBinding binding = resolveCoolifyBinding(service);
-        ObjectNode details = mutableDetails(service);
-        String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
-        CoolifyApplicationSummary discovered = findCoolifyApplication(
-            binding,
-            sharedServiceName(service),
-            firstNonBlank(service.getBaseUrl(), coolifyDomain(service, binding.connection().config()))
-        );
-        String discoveredUuid = discovered == null ? null : trimToNull(discovered.uuid());
-        boolean deleted = false;
-        if (hasText(applicationUuid)) {
-            deleted = deleteCoolifyApplicationIfPresent(binding.connection(), applicationUuid);
-        }
-        if (!deleted && hasText(discoveredUuid) && !discoveredUuid.equals(applicationUuid)) {
-            deleteCoolifyApplicationIfPresent(binding.connection(), discoveredUuid);
-        }
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
+        PlatformManagedProductServiceEntity service = requireSharedCoolifyService(serviceRef);
+        deleteSharedCoolifyService(service);
+        platformAuditService.record("MANAGED_PRODUCT_FORCE_RECREATE_REQUESTED","MANAGED_PRODUCT_SERVICE",serviceRef,
+            Map.of("serviceRef",serviceRef,"providerType","COOLIFY"));
         clearCoolifyBinding(service);
-        return reconcile(service.getServiceRef());
+        return reconcileCoolify(service, null);
     }
 
-    private PlatformManagedProductServiceSummary decommissionCoolify(PlatformManagedProductServiceEntity service) {
-        ensureCoolifySupportAvailable();
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public PlatformManagedProductServiceSummary decommission(String serviceRef) {
+        PlatformManagedProductServiceEntity service = requireSharedCoolifyService(serviceRef);
         long dependentStores = shopifyStoreConnectionRepository.countByProductServiceId(service.getId());
         if (dependentStores > 0) {
-            throw new ResponseStatusException(
-                CONFLICT,
-                "Managed product service still has " + dependentStores + " dependent store mapping(s)."
-            );
+            throw new ResponseStatusException(CONFLICT,
+                "Managed product service still has " + dependentStores + " dependent store mapping(s).");
         }
-        ObjectNode details = mutableDetails(service);
-        String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
-        if (hasText(applicationUuid)) {
-            CoolifyBinding binding = resolveCoolifyBinding(service);
-            coolifyApiClient.delete(binding.connection(), applicationUuid, true, false, true, true);
-        }
-        if (hasText(service.getSecretName()) && platformSecretService.isManagedSecretName(service.getSecretName())) {
-            platformSecretService.clearManagedSecret(
-                service.getSecretName(),
-                Map.of("serviceRef", service.getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET")
-            );
-        }
+        deleteSharedCoolifyService(service);
         service.setBaseUrl(null);
         service.setPrivateNetworkUrl(null);
         service.setActualReplicas(0);
         service.setStatus("DECOMMISSIONED");
-        details.remove(List.of("coolifyApplicationUuid", "coolifyProjectUuid", "coolifyEnvironmentUuid", "coolifyFqdn"));
-        details.put("providerType", "COOLIFY");
+        ObjectNode details = mutableDetails(service);
+        // Retain the exact deleted receipt/UUID as evidence, not live mutation authority.
+        if (hasText(service.getSecretName())) details.put("credentialDisposition", "RETAINED_OWNERSHIP_UNPROVEN");
+        details.put("sharedOwnershipState","DELETED");
         details.put("lastDecommissionedAt", Instant.now().toString());
         details.put("lastDecommissionStatus", "SUCCESS");
-        details.put("lastDecommissionMessage", "Coolify product service decommissioned successfully.");
+        details.put("lastDecommissionMessage", "Owned Coolify service deletion was verified.");
         service.setDetailsJson(details.toPrettyString());
         service.setUpdatedAt(Instant.now());
         serviceRepository.save(service);
-        platformAuditService.record(
-            "MANAGED_PRODUCT_DECOMMISSIONED",
-            "MANAGED_PRODUCT_SERVICE",
-            service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef(), "providerType", "COOLIFY")
-        );
+        platformAuditService.record("MANAGED_PRODUCT_DECOMMISSIONED","MANAGED_PRODUCT_SERVICE",serviceRef,
+            Map.of("serviceRef",serviceRef,"providerType","COOLIFY"));
+        return serviceService.getService(serviceRef);
+    }
+
+    private PlatformManagedProductServiceEntity requireSharedCoolifyService(String serviceRef) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        serviceService.requireNotOwnedDependency(service);
+        if (sharedServiceOwnership == null || !requiresCoolifyLifecycle(service)
+            || hasText(service.getRailwayProjectId()) || hasText(service.getRailwayEnvironmentId())
+            || hasText(service.getRailwayServiceId())) throw PlatformManagedServiceOwnershipJournal.denied();
+        return service;
+    }
+
+    private PlatformManagedProductServiceSummary reconcileCoolify(PlatformManagedProductServiceEntity service, String targetOverride) {
+        CoolifyBinding binding = resolveCoolifyBinding(service, targetOverride);
+        var context = sharedServiceOwnership.context(service, binding.profile(), binding.connection(), sharedServiceName(service));
+        boolean docker = PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE.equals(upper(service.getServiceKind()));
+        var publicRequest = docker ? null : coolifyPublicApplicationRequest(service, binding, sharedServiceName(service));
+        var dockerRequest = docker ? coolifyDockerImageApplicationRequest(service, binding, sharedServiceName(service)) : null;
+        var owned = sharedServiceOwnership.reconcile(context, docker ? dockerRequest.domains() : publicRequest.domains(),
+            () -> docker ? coolifyApiClient.createDockerImageApplication(binding.connection(), dockerRequest)
+                : coolifyApiClient.createPublicApplication(binding.connection(), publicRequest));
+        CoolifyApplicationSummary application = sharedServiceOwnership.observe(owned);
+        if (docker && !hasText(application.imageRepository())) throw PlatformManagedServiceOwnershipJournal.denied();
+        sharedServiceOwnership.mutate(owned, () -> {
+            if (docker) {
+                coolifyApiClient.updateDockerImageApplication(binding.connection(), owned.uuid(),
+                    dockerRequest.withDomains(mergeCoolifyDomains(dockerRequest.domains(), application.fqdn())));
+                requireSharedDockerImage(sharedServiceOwnership.observeDuringMutation(owned), dockerRequest);
+            } else {
+                coolifyApiClient.updatePublicApplication(binding.connection(), owned.uuid(),
+                    publicRequest.withDomains(mergeCoolifyDomains(publicRequest.domains(), application.fqdn())));
+            }
+            return null;
+        });
+        sharedServiceOwnership.mutate(owned, () -> {
+            ensureSharedServiceSecret(service, owned);
+            coolifyApiClient.updateEnvironmentVariables(binding.connection(), owned.uuid(),
+                buildCoolifyServiceEnv(service, publicBaseUrl(application)));
+            return null;
+        });
+        SharedDeployment deployed = sharedServiceOwnership.mutate(owned, () -> {
+            CoolifyActionResponse response = coolifyApiClient.start(binding.connection(), owned.uuid(), true, true);
+            CoolifyApplicationSummary observed = awaitSharedCoolifyDeployment(owned, response);
+            if (docker) requireSharedDockerImage(observed, dockerRequest);
+            CoolifyApplicationCapacity.requireReadback(observed, coolifyManagedServiceRuntimeSettings(service),
+                "MANAGED_PRODUCT_RUNTIME_CAPACITY_DRIFT");
+            return new SharedDeployment(observed, response);
+        });
+        finalizeSharedCoolifyService(service, binding, owned, deployed, "MANAGED_PRODUCT_RECONCILED", "Coolify product service reconciled successfully.");
         return serviceService.getService(service.getServiceRef());
     }
 
-    private CoolifyApplicationSummary reconcileCoolifyApplication(PlatformManagedProductServiceEntity service,
-                                                                 CoolifyBinding binding) {
-        if (PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE.equals(upper(service.getServiceKind()))) {
-            return reconcileCoolifyDockerImageApplication(service, binding);
-        }
-        String appName = sharedServiceName(service);
-        CoolifyCreatePublicApplicationRequest request = coolifyPublicApplicationRequest(service, binding, appName);
+    private void finalizeSharedCoolifyService(PlatformManagedProductServiceEntity service, CoolifyBinding binding,
+            PlatformManagedServiceOwnership.Binding owned, SharedDeployment deployed, String action, String message) {
+        sharedServiceOwnership.observe(owned);
         ObjectNode details = mutableDetails(service);
-        String existingUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
-        CoolifyApplicationSummary existing = null;
-        if (hasText(existingUuid)) {
-            existing = coolifyApiClient.getApplication(binding.connection(), existingUuid).orElse(null);
+        details.put(PlatformManagedServiceOwnership.RECEIPT, owned.receipt().id());
+        details.put("sharedOwnershipState","OWNED");
+        if ("MANAGED_PRODUCT_RESTARTED".equals(action)) {
+            details.put("lastRestartedAt",Instant.now().toString());
+            details.put("lastRestartStatus","SUCCESS");
+            details.put("lastRestartMessage",message);
         }
-        if (existing == null) {
-            existing = findCoolifyApplication(
-                binding,
-                appName,
-                firstNonBlank(service.getBaseUrl(), request.domains())
-            );
+        if ("PENDING".equals(details.path("lastForceRecreateStatus").asText())) {
+            details.put("lastForceRecreateStatus","SUCCESS");
+            details.put("lastForceRecreateMessage","Verified owned replacement was created and deployed.");
         }
-        if (existing != null && hasText(existing.uuid())) {
-            request = request.withDomains(mergeCoolifyDomains(request.domains(), existing.fqdn()));
-            coolifyApiClient.updatePublicApplication(binding.connection(), existing.uuid(), request);
-            return coolifyApiClient.getApplication(binding.connection(), existing.uuid()).orElse(existing);
-        }
-        String uuid = coolifyApiClient.createPublicApplication(binding.connection(), request);
-        return coolifyApiClient.getApplication(binding.connection(), uuid)
-            .orElse(new CoolifyApplicationSummary(uuid, appName, request.domains(), "created", null, null, objectMapper.createObjectNode()));
+        service.setDetailsJson(details.toPrettyString());
+        service.setEnvironmentScope(binding.profile().getEnvironmentName());
+        finalizeActiveCoolifyService(service, binding.profile().getId(), binding.connection().config().projectUuid(),
+            binding.connection().config().environmentUuid(), deployed.application(), deployed.response(), publicBaseUrl(deployed.application()), message);
+        platformAuditService.record(action,"MANAGED_PRODUCT_SERVICE",service.getServiceRef(),
+            Map.of("serviceRef",service.getServiceRef(),"providerType","COOLIFY","coolifyApplicationUuid",owned.uuid()));
     }
 
-    private CoolifyApplicationSummary reconcileCoolifyDockerImageApplication(
-        PlatformManagedProductServiceEntity service,
-        CoolifyBinding binding
-    ) {
-        String appName = sharedServiceName(service);
-        CoolifyCreateDockerImageApplicationRequest request = coolifyDockerImageApplicationRequest(service, binding, appName);
-        ObjectNode details = mutableDetails(service);
-        String existingUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
-        CoolifyApplicationSummary existing = null;
-        if (hasText(existingUuid)) {
-            existing = coolifyApiClient.getApplication(binding.connection(), existingUuid).orElse(null);
+    private record SharedDeployment(CoolifyApplicationSummary application, CoolifyActionResponse response) { }
+
+    private void ensureSharedServiceSecret(PlatformManagedProductServiceEntity service, PlatformManagedServiceOwnership.Binding owned) {
+        if (PlatformManagedProductServiceService.STANDALONE_AI_WORKSPACE_SERVICE.equals(upper(service.getServiceKind()))) return;
+        if (hasText(service.getSecretName())) {
+            // A supplied reference permits reading a configured key, not creating/replacing it.
+            if (!platformSecretService.isSecretPresent(service.getSecretName())) throw PlatformManagedServiceOwnershipJournal.denied();
+            return;
         }
-        if (existing == null) {
-            existing = findCoolifyApplication(
-                binding,
-                appName,
-                firstNonBlank(service.getBaseUrl(), request.domains())
-            );
+        String name = defaultSecretName(service.getServiceRef());
+        if (platformSecretService.isSecretPresent(name)) throw PlatformManagedServiceOwnershipJournal.denied();
+        sharedServiceOwnership.requireUnusedCredentialName(owned, name);
+        platformSecretService.upsertManagedSecret(name, UUID.randomUUID().toString().replace("-", ""),
+            Map.of("serviceRef", service.getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET"));
+        sharedServiceOwnership.recordGeneratedCredentialName(owned, name);
+        service.setSecretName(name);
+    }
+
+    private CoolifyApplicationSummary awaitSharedCoolifyDeployment(PlatformManagedServiceOwnership.Binding owned,
+                                                                  CoolifyActionResponse response) {
+        String deploymentUuid = PlatformManagedServiceOwnershipJournal.required(response == null ? null : response.deploymentUuid(),128);
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            CoolifyApplicationSummary observed = sharedServiceOwnership.observeDuringMutation(owned);
+            CoolifyDeploymentSummary deployment = coolifyApiClient.getDeployment(owned.context().connection(), deploymentUuid)
+                .orElseThrow(PlatformManagedServiceOwnershipJournal::denied);
+            if (!deploymentUuid.equals(deployment.deploymentUuid()) || !owned.uuid().equals(deployment.applicationUuid()))
+                throw PlatformManagedServiceOwnershipJournal.denied();
+            if (coolifyDeploymentFailed(deployment)) throw new ResponseStatusException(CONFLICT, "Coolify shared service deployment failed.");
+            if (Set.of("FINISHED","SUCCESS","SUCCEEDED","COMPLETED").contains(upper(deployment.status()))
+                && coolifyApplicationReady(observed)) return observed;
+            sleepSharedPoll();
         }
-        if (existing != null && hasText(existing.uuid())) {
-            request = request.withDomains(mergeCoolifyDomains(request.domains(), existing.fqdn()));
-            if (!hasText(existing.imageRepository())) {
-                coolifyApiClient.delete(binding.connection(), existing.uuid(), true, false, true, true);
-                awaitCoolifyApplicationDeletion(binding.connection(), existing.uuid());
-            } else {
-                coolifyApiClient.updateDockerImageApplication(binding.connection(), existing.uuid(), request);
-                return coolifyApiClient.getApplication(binding.connection(), existing.uuid()).orElse(existing);
+        throw PlatformManagedServiceOwnershipJournal.denied();
+    }
+
+    private void deleteSharedCoolifyService(PlatformManagedProductServiceEntity service) {
+        CoolifyBinding binding = resolveCoolifyBinding(service, null);
+        var context = sharedServiceOwnership.context(service, binding.profile(), binding.connection(), sharedServiceName(service));
+        var owned = sharedServiceOwnership.existing(context);
+        var live = sharedServiceOwnership.observe(owned, true);
+        if (live.isPresent()) {
+            // Never resend an uncertain DELETE, even when the exact UUID remains visible.
+            if (!"OWNED".equals(owned.receipt().state())) throw PlatformManagedServiceOwnershipJournal.denied();
+            owned = sharedServiceOwnership.beginDeletion(owned);
+            coolifyApiClient.delete(binding.connection(), owned.uuid(), true, false, false, false);
+            Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+            while (sharedServiceOwnership.observe(owned, true).isPresent()) {
+                if (!Instant.now().isBefore(deadline)) throw PlatformManagedServiceOwnershipJournal.denied();
+                sleepSharedPoll();
             }
         }
-        String uuid = coolifyApiClient.createDockerImageApplication(binding.connection(), request);
-        return coolifyApiClient.getApplication(binding.connection(), uuid)
-            .orElse(new CoolifyApplicationSummary(
-                uuid,
-                appName,
-                request.domains(),
-                "created",
-                request.imageRepository(),
-                request.imageTag(),
-                objectMapper.createObjectNode()
-            ));
+        sharedServiceOwnership.deleted(owned);
+    }
+
+    private void sleepSharedPoll() {
+        try {
+            Thread.sleep(Math.max(productProvisioningProperties.pollInterval().toMillis(), 1L));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while verifying shared service lifecycle.", ex);
+        }
     }
 
     private CoolifyCreateDockerImageApplicationRequest coolifyDockerImageApplicationRequest(
@@ -813,8 +429,12 @@ public class PlatformManagedProductProvisioningService {
         ObjectNode details = mutableDetails(service);
         String imageRepository = requiredDetail(details, "imageRepository");
         String imageTag = requiredDetail(details, "imageTag");
-        requiredDetail(details, "imageDigest");
-        requiredDetail(details, "sourceCommit");
+        String imageDigest = requiredDetail(details, "imageDigest");
+        String sourceCommit = requiredDetail(details, "sourceCommit");
+        if (!imageRepository.matches("[A-Za-z0-9._/-]+") || !imageDigest.matches("sha256:[a-f0-9]{64}")
+            || !sourceCommit.matches("[a-f0-9]{40}") || !sourceCommit.equals(imageTag)) {
+            throw new ResponseStatusException(CONFLICT, "MANAGED_PRODUCT_IMAGE_RELEASE_INVALID");
+        }
         String healthPath = firstNonBlank(healthPath(service), config.defaultHealthCheckPath());
         return new CoolifyCreateDockerImageApplicationRequest(
             config.projectUuid(),
@@ -822,7 +442,7 @@ public class PlatformManagedProductProvisioningService {
             config.environmentName(),
             config.environmentUuid(),
             imageRepository,
-            imageTag,
+            "sha256-" + imageDigest.substring("sha256:".length()),
             firstNonBlank(config.defaultPortsExposes(), "8080"),
             config.destinationUuid(),
             appName,
@@ -836,6 +456,14 @@ public class PlatformManagedProductProvisioningService {
             config.forceHttps(),
             config.autogenerateDomain()
         );
+    }
+
+    private void requireSharedDockerImage(CoolifyApplicationSummary observed,
+                                         CoolifyCreateDockerImageApplicationRequest requested) {
+        if (!requested.imageRepository().equals(observed.imageRepository())
+            || !requested.imageTag().equals(observed.imageTag())) {
+            throw new ResponseStatusException(CONFLICT, "MANAGED_PRODUCT_IMAGE_REFERENCE_DRIFT");
+        }
     }
 
     private CoolifyApplicationRuntimeSettings coolifyManagedServiceRuntimeSettings(
@@ -900,15 +528,6 @@ public class PlatformManagedProductProvisioningService {
         );
     }
 
-    private CoolifyApplicationSummary findCoolifyApplication(CoolifyBinding binding,
-                                                             String appName,
-                                                             String baseUrl) {
-        return coolifyApiClient.listApplications(binding.connection()).stream()
-            .filter(app -> appName.equalsIgnoreCase(blankToFallback(app.name(), ""))
-                || coolifyFqdnMatchesBaseUrl(app.fqdn(), baseUrl))
-            .findFirst()
-            .orElse(null);
-    }
 
     private void awaitCoolifyApplicationDeletion(CoolifyConnection connection, String applicationUuid) {
         Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
@@ -926,40 +545,6 @@ public class PlatformManagedProductProvisioningService {
         throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify application deletion: " + applicationUuid);
     }
 
-    private CoolifyApplicationSummary awaitCoolifyDeployment(CoolifyConnection connection,
-                                                             String applicationUuid,
-                                                             CoolifyApplicationSummary fallback,
-                                                             CoolifyActionResponse deployResponse) {
-        String deploymentUuid = deployResponse == null ? null : trimToNull(deployResponse.deploymentUuid());
-        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
-        Duration pollInterval = productProvisioningProperties.pollInterval();
-        CoolifyApplicationSummary latest = fallback;
-        CoolifyDeploymentSummary deployment = null;
-        while (Instant.now().isBefore(deadline)) {
-            if (hasText(deploymentUuid)) {
-                deployment = coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
-            }
-            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
-            if (coolifyDeploymentFailed(deployment)) {
-                throw new IllegalStateException(
-                    "Coolify deployment failed for managed product service application " + applicationUuid
-                        + " (deployment=" + deployment.deploymentUuid()
-                        + ", status=" + deployment.status() + ")."
-                );
-            }
-            boolean deploymentReady = !hasText(deploymentUuid) || coolifyDeploymentFinished(deployment);
-            if (deploymentReady && coolifyApplicationReady(latest)) {
-                return latest;
-            }
-            try {
-                Thread.sleep(Math.max(pollInterval.toMillis(), 250L));
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Interrupted while waiting for Coolify deployment.", ex);
-            }
-        }
-        throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify deployment: " + applicationUuid);
-    }
 
     private boolean coolifyApplicationReady(CoolifyApplicationSummary application) {
         if (application == null || !hasText(application.status())) {
@@ -992,19 +577,6 @@ public class PlatformManagedProductProvisioningService {
             || normalized.contains("CANCELED");
     }
 
-    private boolean deleteCoolifyApplicationIfPresent(CoolifyConnection connection, String applicationUuid) {
-        try {
-            coolifyApiClient.delete(connection, applicationUuid, true, false, true, true);
-            awaitCoolifyApplicationDeletion(connection, applicationUuid);
-            return true;
-        } catch (RuntimeException ex) {
-            String message = blankToFallback(ex.getMessage(), "").toLowerCase(Locale.ROOT);
-            if (message.contains("404") || message.contains("not found")) {
-                return false;
-            }
-            throw ex;
-        }
-    }
 
     static String coolifyGitRepository(String repository) {
         String normalized = trimToNull(repository);
@@ -1090,27 +662,18 @@ public class PlatformManagedProductProvisioningService {
         serviceRepository.save(service);
     }
 
-    private CoolifyBinding resolveCoolifyBinding(PlatformManagedProductServiceEntity service) {
+    private CoolifyBinding resolveCoolifyBinding(PlatformManagedProductServiceEntity service, String targetOverride) {
         ensureCoolifySupportAvailable();
         ObjectNode details = mutableDetails(service);
-        String targetProfileId = trimToNull(details.path("targetProfileId").asText(null));
-        DeploymentTargetProfileEntity profile;
-        if (hasText(targetProfileId)) {
-            profile = targetProfileRepository.findById(targetProfileId)
-                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify target profile not found: " + targetProfileId));
-        } else {
-            profile = resolveDefaultCoolifyPlatformServiceProfile();
-            details.put("providerType", "COOLIFY");
-            details.put("targetProfileId", profile.getId());
-            service.setDetailsJson(details.toPrettyString());
-            serviceRepository.save(service);
-        }
-        if (!profile.isActive() || !profile.isPlatformServicesAllowed()) {
-            throw new ResponseStatusException(CONFLICT, "Coolify target profile is not active for platform services: " + profile.getId());
-        }
-        if (hasText(profile.getEnvironmentName())) {
-            service.setEnvironmentScope(profile.getEnvironmentName().trim());
-        }
+        String recorded = trimToNull(details.path("targetProfileId").asText(null));
+        if (hasText(targetOverride) && hasText(recorded) && !targetOverride.equals(recorded))
+            throw PlatformManagedServiceOwnershipJournal.denied();
+        String targetProfileId = firstNonBlank(targetOverride, recorded);
+        DeploymentTargetProfileEntity profile = hasText(targetProfileId)
+            ? targetProfileRepository.findById(targetProfileId).orElseThrow(PlatformManagedServiceOwnershipJournal::denied)
+            : resolveDefaultCoolifyPlatformServiceProfile();
+        if (!profile.isActive() || !profile.isPlatformServicesAllowed() || profile.getProviderType() != DeploymentProviderType.COOLIFY)
+            throw PlatformManagedServiceOwnershipJournal.denied();
         return new CoolifyBinding(profile, coolifyTargetProfileResolver.requireConnection(profile));
     }
 
@@ -1254,8 +817,10 @@ public class PlatformManagedProductProvisioningService {
         details.remove(List.of("coolifyApplicationUuid", "coolifyProjectUuid", "coolifyEnvironmentUuid", "coolifyFqdn"));
         details.put("providerType", "COOLIFY");
         details.put("lastForceRecreatedAt", Instant.now().toString());
-        details.put("lastForceRecreateStatus", "SUCCESS");
-        details.put("lastForceRecreateMessage", "Coolify product service linkage was cleared and will be recreated.");
+        details.put("lastForceRecreateStatus", "PENDING");
+        details.put("lastReconcileStatus", "RECONCILIATION_REQUIRED");
+        details.put("sharedOwnershipState", "CREATE_PENDING");
+        details.put("lastForceRecreateMessage", "Owned deletion was verified; replacement is not yet verified.");
         service.setDetailsJson(details.toPrettyString());
         service.setUpdatedAt(Instant.now());
         serviceRepository.save(service);

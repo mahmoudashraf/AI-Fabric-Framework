@@ -1431,7 +1431,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             CoolifyActionResponse response = coolifyApiClient.stopDatabase(connection, handle.getProviderResourceUuid());
             return actionSummary(handle, "STOP", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
         }
-        CoolifyActionResponse response = coolifyApiClient.stop(connection, handle.getProviderResourceUuid(), true);
+        CoolifyActionResponse response = coolifyApiClient.stop(connection, handle.getProviderResourceUuid(), false);
         return actionSummary(handle, "STOP", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
     }
 
@@ -1451,6 +1451,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     public DeploymentProviderResourceActionSummary delete(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
         var authorization = requireOwnedHandle(connection, handle, true);
+        if (authorization.present()) requireDirectDeleteWithoutStorage(connection, handle);
         requireResourceOwnership().beginDeletion(authorization.receipt(), handle);
         if (!authorization.present()) {
             finishRetirementDeletion(handle);
@@ -1459,13 +1460,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         try {
             if (isRuntimePostgresDatabase(handle)) {
-                CoolifyActionResponse response = coolifyApiClient.deleteDatabase(connection, handle.getProviderResourceUuid(), true, true, true, true);
+                CoolifyActionResponse response = coolifyApiClient.deleteDatabase(connection, handle.getProviderResourceUuid(), true, false, false, false);
                 waitForDatabaseAbsent(connection, handle.getProviderResourceUuid());
                 finishRetirementDeletion(handle);
                 clearRuntimeDatabaseSecret(handle, reason);
                 return actionSummary(handle, "DELETE", "COMPLETED", response.message(), response.deploymentUuid(), response.raw());
             }
-            CoolifyActionResponse response = coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, true, true);
+            CoolifyActionResponse response = coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, false, false);
             waitForApplicationAbsent(connection, handle.getProviderResourceUuid());
             finishRetirementDeletion(handle);
             return actionSummary(handle, "DELETE", "COMPLETED", response.message(), response.deploymentUuid(), response.raw());
@@ -1482,6 +1483,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 return absentDeleteSummary(handle);
             }
             throw ex;
+        }
+    }
+
+    private void requireDirectDeleteWithoutStorage(CoolifyConnection connection,
+                                                  DeploymentProviderResourceHandleEntity handle) {
+        List<CoolifyApplicationStorageSummary> storages;
+        try {
+            storages = isRuntimePostgresDatabase(handle)
+                ? coolifyApiClient.listDatabaseStorages(connection, handle.getProviderResourceUuid())
+                : coolifyApiClient.listApplicationStorages(connection, handle.getProviderResourceUuid());
+        } catch (CoolifyApiException failure) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                "COOLIFY_RESOURCE_STORAGE_RETIREMENT_REQUIRED", failure);
+        }
+        // Resource ownership alone does not authorize deleting attached storage.
+        if (storages == null || !storages.isEmpty()) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                "COOLIFY_RESOURCE_STORAGE_RETIREMENT_REQUIRED");
         }
     }
 

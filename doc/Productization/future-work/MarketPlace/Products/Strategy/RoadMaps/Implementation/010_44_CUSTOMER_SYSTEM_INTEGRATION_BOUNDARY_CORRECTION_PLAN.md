@@ -1,9 +1,9 @@
 # 010.44 Customer System Integration Boundary Correction
 
 - Created: 2026-10-18.
-- Status: implementation in progress from 2026-10-19; parallel source work and local verification, not live-verified.
+- Status: local backend source implemented and verified on 2026-10-19; full backend3,343 tests pass with zero failures/errors/skips. Not published, deployed or live-verified.
 - Priority: blocks the current 010.36 simulated-dealership customer offer and its hosted apply/promotion.
-- Baseline: private Platform branch `Platform-V11`, commit `cab320545cc3dc1900c313ed1e6b40da1e7d0628`.
+- Baseline: local Platform branch `Platform-V11`, commit `cab320545cc3dc1900c313ed1e6b40da1e7d0628`. Publication requires the separately tracked repository-destination decision.
 - Current implementation evidence: [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).
 - Related: [010.36](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md), [execution record](010_36_PRODUCTIZATION_EXECUTION_RECORD.md), [ownership audit](010_44_CUSTOMER_SYSTEM_OWNERSHIP_BOUNDARY_AUDIT.md), [010.26 dealership demo](010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md).
 
@@ -11,15 +11,15 @@
 
 - Owner authorized implementation and continuation of independent work, with a
   checkpoint for work depending on this correction.
-- In progress, parent: reviewed artifact ownership policy at publication,
-  admission and worker boundaries; independent negative architecture tests.
-- In progress, Raman: immutable AI-only customer template, external DATA/ACTION
-  binding configuration, corrected package/offer helpers and focused tests.
+- Source implemented and locally verified: reviewed artifact ownership policy
+  at publication, admission and worker boundaries, independent negative
+  architecture tests, immutable AI-only templates, external DATA/ACTION binding
+  configuration and corrected package/offer helpers.
 - Source implemented and parent-verified: generic Railway/vector adoption and
   cleanup ownership safety, with local provider-fake and real PostgreSQL
   regressions. Ampere/Hume capacity failures did not discard their partial work.
 - Source implemented, Hooke: provider-authoritative action target validation,
-  independent demo FK migration and actual sync/indexing readiness;117 focused
+  independent demo FK migration and actual sync/indexing readiness;146 focused
   tests pass, including real PostgreSQL. Hosted demo upgrade is still pending.
 - Source implemented and locally verified, Einstein: typed customer-provided
   AI-state PostgreSQL and immutable new-candidate credential generations/V200,
@@ -30,9 +30,19 @@
   run passes19 cases throughV200. Real offer/invitation/acceptance/bootstrap,
   S3 binding, version publication and isolated target/candidate credentials
   succeed. This is not hosted apply/promotion or real-provider acceptance.
-- In progress, Planck: C4 Coolify receipt-checked application/database
-  reconciliation and lifecycle actions; no name-based adoption or conflict
-  deletion. Parent is integrating final source and verifying independent paths.
+- C4 Coolify receipt-checked reconciliation/lifecycle/retirement qualification
+  passes316 cases, including eight PostgreSQL cases. External binding/revocation
+  qualification passes40. Both runs have zero failures/errors/skips.
+- C5 shared-platform services now use a separate service-registry ownership
+  journal/V201, without inventing a customer/deployment owner. Final parent
+  ownership/admin follow-ups pass376 cases, zero failures/errors/skips. They
+  cover digest-pinned images, storage-aware deletion, URL references and exact
+  committed credential ownership. Independent re-review closed the confirmed
+  findings. The full merged backend run now passes3,343 tests across350 classes,
+  zero failures/errors/skips; its source remained unchanged throughout the run.
+- Both approved Platform archives pass the final V196-V201 migration rehearsal,
+  all201 validations, preservation of21 tables and empty new ownership ledgers.
+  This is isolated local evidence, not a hosted migration or historical adoption.
 - Separate preserved work: cancellation-only HTTP error handling and its tests
   passed20 cases and is committed locally as `00f3852c5`; no push, deployment or
   valid live cancellation is implied.
@@ -139,13 +149,14 @@ PostgreSQL. Selection must be explicit during new deployment creation and become
 part of immutable deployment configuration. It is never a reason to retain the
 dealership business DB or make LoomAI-managed SQL mandatory.
 
-The Platform does not currently provide a complete typed external runtime-SQL
-binding contract. `CoolifyDeploymentProvider` reconciles `COOLIFY_POSTGRES`, and
-productized targets require that durable binding. A JDBC override applied after
-managed database provisioning is not BYO storage support. If the owner selects
-customer-provided operational SQL, implement the binding, validation and
-migration permissions before claiming that posture works. File H2 defaults are
-not a substitute for the current durable product contract.
+The original baseline lacked a complete typed external runtime-SQL binding
+contract. The local correction now implements explicit storage selection,
+scoped connection approval, TLS/privilege validation, schema-only migrations
+and immutable credential generations. The unchanged hosted baseline does not
+yet expose that correction. A JDBC override applied after managed database
+provisioning is still not BYO storage support; file H2 defaults do not satisfy
+the durable product contract. Local tests do not certify hosted connectivity,
+generation replacement or production readiness.
 
 ## 4. Correct Target Composition
 
@@ -378,6 +389,19 @@ to special-case dealership image names.
   ownership checks. Summary/history/log reads must not rebind Railway resources
   or create a domain. Unsupported legacy Railway mutations remain blocked;
   provider errors are not permission for name-based discovery or project deletion.
+- Credential rotation must check service mutation authority before vault or
+  registry writes, plus an exact service-owned credential creation claim. A
+  prefix or existing configured name is not credential ownership; committed
+  preflight must validate the exact name subsequently written by the caller.
+  Pure desired billing/release settings do not require an
+  already-provisioned resource: they remain local configuration, not ownership
+  evidence. Provider work runs outside database transactions; durable uncertain
+  mutation state cannot be converted into success from an already-healthy app.
+- Lifecycle success needs the exact returned deployment and owning application,
+  terminal provider success and live health/readback. Missing or mismatched
+  mutation responses remain blocked. A UUID reappearing after a deleted receipt
+  must not regain mutation/delete authority. Never automatically clear a global
+  or otherwise unproven credential merely because its configured app was deleted.
 - Check foreign registry, deployment graph, handle, release and vector references
   before mutation/deletion. Exclude only the exact owning registry row. Preserve
   existing running fixtures, secrets and rows, and add positive future-owned
@@ -443,7 +467,8 @@ another AI Fabric release for a private-template correction.
 - A cancellation-only HTTP parsing/status fix remains locally frozen in
   `AdmissionUnusedReservationCancellationController.java` and
   `AdmissionUnusedReservationCancellationHttpTest.java`. Its sidecar 61 tests
-  passed, including 20 embedded HTTP cases; it is not committed or deployed.
+  passed, including 20 embedded HTTP cases; local commit `00f3852c5` preserves
+  the fix separately. It is not pushed or deployed.
   Keep that separate from this architecture correction.
 - No valid cancellation was sent. The v11 physical reservation remains held;
   no runtime release or model allocation was created. Never release it through

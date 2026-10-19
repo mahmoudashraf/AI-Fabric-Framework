@@ -541,6 +541,42 @@ class CoolifyResourceOwnershipReconciliationTest {
     }
 
     @ParameterizedTest
+    @CsvSource({"APPLICATION,persistent", "APPLICATION,file", "RUNTIME_POSTGRES_DATABASE,persistent",
+        "RUNTIME_POSTGRES_DATABASE,file", "APPLICATION,unknown", "RUNTIME_POSTGRES_DATABASE,unknown",
+        "APPLICATION,unavailable", "RUNTIME_POSTGRES_DATABASE,unavailable"})
+    void directDeletionCannotDestroyStorageWithoutItsSeparateRetirementProof(String kind, String storage) {
+        var receipt = own(kind, "owned");
+        var handle = handle(kind, "owned", receipt.id());
+        persist(handle);
+        install(kind, "owned");
+        if ("unknown".equals(storage)) client.attachedStorages = null;
+        else if ("unavailable".equals(storage)) client.storageFailure = true;
+        else client.attachedStorages = List.of(new CoolifyApplicationStorageSummary("customer-storage",storage,
+            "customer-source","/customer/documents","/customer/source",true,mapper.createObjectNode()));
+
+        assertThatThrownBy(() -> provider.delete(handle, "direct-delete"))
+            .hasMessageContaining("COOLIFY_RESOURCE_STORAGE_RETIREMENT_REQUIRED");
+
+        assertThat(client.effects).isEmpty();
+        assertThat(client.deleteOptions).isEmpty();
+        assertThat(receipts.ownership.receipt(receipt.id()).state()).isEqualTo("OWNED");
+        verify(secrets, never()).clearManagedSecret(anyString(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {APP, DB})
+    void storageFreeDirectDeletionNeverRequestsVolumeNetworkOrHostCleanup(String kind) {
+        var receipt = own(kind, "owned");
+        var handle = handle(kind, "owned", receipt.id());
+        persist(handle);
+        install(kind, "owned");
+
+        assertThat(provider.delete(handle, "direct-delete").status()).isEqualTo("COMPLETED");
+
+        assertThat(client.deleteOptions).containsExactly(List.of(true,false,false,false));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {APP, DB})
     void deleteJournalSurvivesCallerRollback(String kind) {
         var receipt = own(kind, "owned");
@@ -901,6 +937,9 @@ class CoolifyResourceOwnershipReconciliationTest {
         final Map<String, CoolifyApplicationSummary> applications = new LinkedHashMap<>();
         final Map<String, CoolifyDatabaseSummary> databases = new LinkedHashMap<>();
         final List<String> effects = new ArrayList<>();
+        final List<List<Boolean>> deleteOptions = new ArrayList<>();
+        List<CoolifyApplicationStorageSummary> attachedStorages = List.of();
+        boolean storageFailure;
         int reads;
         int lists;
         int evidenceReads;
@@ -1010,7 +1049,15 @@ class CoolifyResourceOwnershipReconciliationTest {
         @Override public CoolifyActionResponse start(CoolifyConnection ignored, String uuid, boolean force, boolean instant) { return effect("start-app", uuid, false); }
         @Override public CoolifyActionResponse stop(CoolifyConnection ignored, String uuid, boolean dockerCleanup) { return effect("stop-app", uuid, false); }
         @Override public CoolifyActionResponse restart(CoolifyConnection ignored, String uuid) { return effect("restart-app", uuid, false); }
-        @Override public CoolifyActionResponse delete(CoolifyConnection ignored, String uuid, boolean stop, boolean configuration, boolean volumes, boolean networks) {
+        @Override public List<CoolifyApplicationStorageSummary> listApplicationStorages(CoolifyConnection ignored, String uuid) {
+            if (storageFailure) throw new CoolifyApiException("synthetic storage read failure",503,"/storages");
+            return attachedStorages;
+        }
+        @Override public List<CoolifyApplicationStorageSummary> listDatabaseStorages(CoolifyConnection ignored, String uuid) {
+            return listApplicationStorages(ignored,uuid);
+        }
+        @Override public CoolifyActionResponse delete(CoolifyConnection ignored, String uuid, boolean configurations, boolean volumes, boolean cleanup, boolean networks) {
+            deleteOptions.add(List.of(configurations,volumes,cleanup,networks));
             var result = deletionEffect("delete-app", uuid, APP);
             if (deleteFailure == 0 || removeBeforeDeleteFailure) applications.remove(uuid);
             if (deleteFailure != 0) throw new CoolifyApiException("synthetic ambiguous delete", deleteFailure, "/applications/" + uuid);
@@ -1019,7 +1066,8 @@ class CoolifyResourceOwnershipReconciliationTest {
         @Override public CoolifyActionResponse startDatabase(CoolifyConnection ignored, String uuid) { return effect("start-db", uuid, true); }
         @Override public CoolifyActionResponse stopDatabase(CoolifyConnection ignored, String uuid) { return effect("stop-db", uuid, true); }
         @Override public CoolifyActionResponse restartDatabase(CoolifyConnection ignored, String uuid) { return effect("restart-db", uuid, true); }
-        @Override public CoolifyActionResponse deleteDatabase(CoolifyConnection ignored, String uuid, boolean stop, boolean configuration, boolean volumes, boolean networks) {
+        @Override public CoolifyActionResponse deleteDatabase(CoolifyConnection ignored, String uuid, boolean configurations, boolean volumes, boolean cleanup, boolean networks) {
+            deleteOptions.add(List.of(configurations,volumes,cleanup,networks));
             var result = deletionEffect("delete-db", uuid, DB);
             if (deleteFailure == 0 || removeBeforeDeleteFailure) databases.remove(uuid);
             if (deleteFailure != 0) throw new CoolifyApiException("synthetic ambiguous delete", deleteFailure, "/databases/" + uuid);

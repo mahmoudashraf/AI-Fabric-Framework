@@ -650,16 +650,18 @@ public class PlatformManagedProductAdminService {
         if (!hasText(value)) {
             throw new ResponseStatusException(CONFLICT, "Secret value is required.");
         }
-        if (platformSecretService.isManagedSecretName(service.getSecretName())) {
+        String secretName = service.getSecretName();
+        provisioningService.requireSharedServiceCredentialMutationAuthority(serviceRef, secretName);
+        if (platformSecretService.isManagedSecretName(secretName)) {
             platformSecretService.upsertManagedSecret(
-                service.getSecretName(),
+                secretName,
                 value.trim(),
                 Map.of("serviceRef", service.getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET")
             );
-        } else if (platformSecretService.isSupportedSecretName(service.getSecretName())) {
-            platformSecretService.updateSecret(service.getSecretName(), value.trim());
+        } else if (platformSecretService.isSupportedSecretName(secretName)) {
+            platformSecretService.updateSecret(secretName, value.trim());
         } else {
-            throw new ResponseStatusException(CONFLICT, "Unsupported secret type for managed product service: " + service.getSecretName());
+            throw new ResponseStatusException(CONFLICT, "Unsupported secret type for managed product service: " + secretName);
         }
         ObjectNode details = mutableDetails(service);
         details.put("lastSecretRotatedAt", Instant.now().toString());
@@ -670,7 +672,7 @@ public class PlatformManagedProductAdminService {
             "MANAGED_PRODUCT_SECRET_ROTATED",
             TARGET_TYPE,
             service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef(), "secretName", service.getSecretName())
+            Map.of("serviceRef", service.getServiceRef(), "secretName", secretName)
         );
         return serviceService.getService(serviceRef);
     }

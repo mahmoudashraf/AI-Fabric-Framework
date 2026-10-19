@@ -180,10 +180,16 @@ class CoolifyOwnershipDeletionPostgresTest {
             if (present) members.addObject().put("uuid", "owned").put("name", "runtime").put("environment_id", 22);
             return Optional.of(new CoolifyEnvironmentSummary(environment, "staging", project, null, raw));
         }
-        @Override public CoolifyActionResponse delete(CoolifyConnection ignored, String uuid, boolean stop, boolean configuration,
-                boolean volumes, boolean networks) {
+        @Override public List<CoolifyApplicationStorageSummary> listApplicationStorages(CoolifyConnection ignored, String uuid) {
+            assertThat(uuid).isEqualTo("owned");
+            return List.of();
+        }
+        @Override public CoolifyActionResponse delete(CoolifyConnection ignored, String uuid, boolean configurations, boolean volumes,
+                boolean cleanup, boolean networks) {
             assertThat(journal.receipt(receipt.id()).state()).isEqualTo("DELETE_PENDING");
             assertThat(uuid).isEqualTo(receipt.resourceId());
+            assertThat(configurations).isTrue();
+            assertThat(volumes || cleanup || networks).isFalse();
             deletes++;
             present = false;
             if (failAfterDelete) throw new CoolifyApiException("synthetic ambiguous delete", 503, "/applications/owned");

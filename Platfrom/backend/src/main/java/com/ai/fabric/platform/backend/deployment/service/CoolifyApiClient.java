@@ -674,6 +674,11 @@ public class CoolifyApiClient {
             true
         );
         List<CoolifyApplicationStorageSummary> storages = new ArrayList<>();
+        if (response == null || !response.isObject() || !response.path("persistent_storages").isArray()
+            || !response.path("file_storages").isArray()) {
+            throw new CoolifyApiException("Coolify storage inventory is malformed.", 502,
+                "/" + resourcePath + "/" + encodePath(resourceUuid) + "/storages");
+        }
         appendStorages(storages, response.path("persistent_storages"), "persistent");
         appendStorages(storages, response.path("file_storages"), "file");
         return List.copyOf(storages);

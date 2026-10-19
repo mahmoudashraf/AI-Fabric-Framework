@@ -54,13 +54,69 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PlatformManagedProductAdminServiceTest {
 
     private HttpServer httpServer;
+
+    @Test
+    void secretRotationRejectsUnprovenOwnershipBeforeChangingVaultOrRegistry() {
+        var fixture = secretRotationFixture();
+        String before = fixture.service().getDetailsJson();
+        doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            "PLATFORM_SERVICE_RECONCILIATION_REQUIRED"))
+            .when(fixture.provisioning()).requireSharedServiceCredentialMutationAuthority(fixture.service().getServiceRef(),fixture.service().getSecretName());
+
+        assertThatThrownBy(() -> fixture.admin().rotateSecret(fixture.service().getServiceRef(), "example-new-key"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("PLATFORM_SERVICE_RECONCILIATION_REQUIRED");
+
+        verifyNoInteractions(fixture.secrets(), fixture.repository(), fixture.audit());
+        assertThat(fixture.service().getDetailsJson()).isEqualTo(before);
+    }
+
+    @Test
+    void secretRotationChecksOwnershipBeforeWritingDesiredCredentials() {
+        var fixture = secretRotationFixture();
+        when(fixture.secrets().isManagedSecretName(fixture.service().getSecretName())).thenReturn(true);
+
+        fixture.admin().rotateSecret(fixture.service().getServiceRef(), " example-new-key ");
+
+        var ordered = inOrder(fixture.provisioning(), fixture.secrets(), fixture.repository());
+        ordered.verify(fixture.provisioning()).requireSharedServiceCredentialMutationAuthority(fixture.service().getServiceRef(),fixture.service().getSecretName());
+        ordered.verify(fixture.secrets()).isManagedSecretName(fixture.service().getSecretName());
+        ordered.verify(fixture.secrets()).upsertManagedSecret(fixture.service().getSecretName(), "example-new-key",
+            java.util.Map.of("serviceRef", fixture.service().getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET"));
+        ordered.verify(fixture.repository()).save(fixture.service());
+        verify(fixture.provisioning(), never()).reconcile(any(String.class));
+    }
+
+    private record SecretRotationFixture(PlatformManagedProductAdminService admin,
+        PlatformManagedProductServiceEntity service, PlatformManagedProductProvisioningService provisioning,
+        PlatformSecretService secrets, PlatformManagedProductServiceRepository repository, PlatformAuditService audit) { }
+
+    private SecretRotationFixture secretRotationFixture() {
+        var service = productService("shopify-bridge-owned");
+        service.setSecretName("MANAGED_PRODUCT_BRIDGE_OWNED_API_KEY");
+        var services = mock(PlatformManagedProductServiceService.class);
+        var repository = mock(PlatformManagedProductServiceRepository.class);
+        var secrets = mock(PlatformSecretService.class);
+        var provisioning = mock(PlatformManagedProductProvisioningService.class);
+        var audit = mock(PlatformAuditService.class);
+        when(services.requireService(service.getServiceRef())).thenReturn(service);
+        var admin = new PlatformManagedProductAdminService(services, repository,
+            mock(ShopifyStoreConnectionRepository.class), mock(PlatformCustomerRepository.class),
+            mock(DeploymentRepository.class), mock(DeploymentVersionRepository.class),
+            mock(DeploymentReleaseRepository.class), mock(PlatformConsumerRepository.class),
+            secrets, provisioning, audit, mock(RailwayGraphqlClient.class), mock(ShopifyStoreConnectionService.class),
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()), new ShopifyStoreReadinessEvaluator(), new ObjectMapper());
+        return new SecretRotationFixture(admin, service, provisioning, secrets, repository, audit);
+    }
 
     @AfterEach
     void tearDown() {
