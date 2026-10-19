@@ -6,7 +6,37 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
-Current continuation, 2026-10-19 22:00UTC: new measured policy/unchanged physical
+Current continuation, 2026-10-19 22:48UTC: initial evidence-renewal source is
+qualified: final actual326 focused tests pass with zero failures/errors/skips,
+including57 real PostgreSQL cases, corruption/cancellation/consumer preservation
+and real JPA cache/locking regressions. Package passes22:47:33. The R2 three
+remaining errors were only Mockito restubbing in the new JPA fixture; setup was
+corrected without changing assertions or production source. Both failed runs
+remain private, not relabelled green. Source commit/CI/guarded rollout and normal
+same-key owner retry are next. No new runtime/index/provider call yet; no
+framework/schema/runtime-artifact change. FullP5/P7 and UI-LAST remain open.
+
+Earlier continuation, 2026-10-19 22:37UTC: source71fbaa28b was committed/pushed,
+CI39331881456 passed, and both backends fully accepted rootimage0258fcd9...e691,
+schema206/UP with all139 tables/audits/config preserved. The source-only
+maintenance interval is closed. Actual read-only22:23 confirms the same R7 is
+RESERVEDrev0 with no releases or provider allocations. Its initial placement
+evidence expired before retry; a generic, explicit, append-only evidence-renewal
+path is being implemented rather than changing the original authorization,
+capacity lifetime or grant. A required configuration-only consumer/DRAFT app
+must be proven and preserved, never detached as a retry workaround.
+
+The first nonfinal actual backend run compiled and ran248 tests:243 passed,
+5 errors, no assertion failures/skips. Four errors expose new proof-record
+roundtrip ordering; one is a duplicate-revision test fixture. Reports remain at
+/private/tmp/01044-initial-evidence-renewal-failed-r1-20261019. Corrections,
+independent review, final PostgreSQL/concurrency qualification and guarded rollout
+are pending; no new recovery code is deployed. Separately, latest-runtime local
+typed budget dump/drop/restore passes with zero provider calls, exact accounting
+and six scope denials; this is subsystem proof only, not full hosted P5 recovery.
+The final customer apply/index/promotion/P7 proof and UI-LAST extraction remain.
+
+Earlier continuation, 2026-10-19 22:00UTC: new measured policy/unchanged physical
 quota published21:48; ownerSESSION staging reservationfde33719... passes21:49.
 Stage-only provider grant6USD/200000tokens/25chat issued21:51 within unchanged
 whole-task allowance. Normal apply exposes a real409 channel-policy bug before

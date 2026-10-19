@@ -215,7 +215,8 @@ receipt, regardless of whether its allocation was first created during planning.
 For apply/promotion/activation use explicit target and release identities, not
 the deployment's latest runtime URL. `requireOwnedConsumer` checks app ownership;
 the parent must still enforce candidate/version/consumer-binding revision and
-provider-handle generation through R1/R2. Keep framework selection at `0.8.35`.
+provider-handle generation through R1/R2. Use the immutable framework/runtime
+artifact pinned by the current reviewed offer.
 
 Binding writes must resolve the slot under the authorized customer/deployment/
 target/release and replace/revoke only that owned binding. Accept secret values
@@ -288,6 +289,29 @@ credentials must not be copied into source or deployment-readable manifests.
 Do not substitute demo fixtures for these prerequisites.
 
 ## Retry And Replacement Contracts
+
+An initial `APPLY` or `PROMOTION_APPLY` can outlive the placement evidence used
+to reserve capacity, even when a failed command created no release or provider
+effect. Obtain fresh placement through the entitled target's placement-evidence
+endpoint, then explicitly call
+`POST /catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/refresh-evidence`
+with `targetProfileId`, `versionId`, the original `operation` and `operationKey`,
+and integral `expectedRevision`. Retry the original apply only after confirming
+the renewed reservation through its normal status route. An uncertain refresh
+response is reconciled by readback, not by creating another reservation or key.
+
+Evidence renewal is limited to the same owning customer and still-unused
+`RESERVED` allocation. The original authorization remains immutable; an
+append-only record links fresh checks to it. Customer/offer/entitlement revision,
+version/configuration, bindings, physical placement and charged demand must
+remain unchanged. The reservation ID, generation, absolute lifetime and funding
+are not extended or reset. Existing releases, provider allocations, workers,
+unknown effects or changed authority block this path. External checks finish
+outside the ledger transaction, followed by local authorization/fence checks.
+This is not promotion, rollback, a provider-funding renewal or an automatic
+fallback when apply fails.
+Revision/busy/scope conflicts return `409`; failed authoritative admission
+checks may return `412`. Neither response authorizes an apply or a new key.
 
 AI Workspace creation persists a whole-command receipt in the same transaction
 as the installation, domains and draft origin projection. The browser must reuse

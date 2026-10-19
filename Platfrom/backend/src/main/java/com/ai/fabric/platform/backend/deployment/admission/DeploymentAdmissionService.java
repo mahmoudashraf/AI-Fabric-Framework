@@ -48,6 +48,8 @@ public class DeploymentAdmissionService {
     private final TargetRetirementGateService retirementGates;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AdmissionUnusedConsumerDetachment unusedConsumerDetachment;
+    @org.springframework.beans.factory.annotation.Autowired
+    private InitialAdmissionRenewalAuthorizer initialRenewalAuthorizer;
 
     public DeploymentAdmissionService(AdmissionStore store, AdmissionJson json, ObjectMapper mapper,
                                       DeploymentRepository deployments, DeploymentVersionRepository versions,
@@ -110,6 +112,47 @@ public class DeploymentAdmissionService {
     }
     public Reservation status(String deploymentId, String reservationId) {
         return owned(deploymentId, reservationId, false);
+    }
+    public Reservation refreshCustomerEvidence(String deploymentId, String expectedVersionId, String reservationId,
+                                                long expectedRevision, Reserve command) {
+        if (command == null || command.customerContext() == null || command.allocationId() != null || expectedRevision < 0)
+            throw new AdmissionFailure(BAD_REQUEST, "INITIAL_RENEWAL_COMMAND_REQUIRED");
+        required(command.operationKey(), 128); required(command.manifestId(), 64);
+        Reservation reservation = owned(deploymentId, required(reservationId, 64), true);
+        if (reservation.revision() != expectedRevision) throw new AdmissionFailure(CONFLICT, "STALE_RESERVATION_FENCE");
+        if (!reservation.manifestId().equals(command.manifestId())
+            || !command.operationKey().equals(command.customerContext().operationKey()))
+            throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_SCOPE_CHANGED");
+        return renewInitialCustomerEvidence(deploymentId, expectedVersionId,
+            new Fence(reservation.id(), expectedRevision, reservation.generation()), command.customerContext());
+    }
+    /** Refresh only evidence for an initial, unused customer APPLY; never extend its capacity lifetime. */
+    public Reservation renewInitialCustomerEvidence(String deploymentId, String expectedVersionId, Fence expectedFence,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext freshContext) {
+        if (freshContext == null || expectedFence == null || expectedFence.revision() < 0)
+            throw new AdmissionFailure(BAD_REQUEST, "INITIAL_RENEWAL_CONTEXT_AND_FENCE_REQUIRED");
+        required(expectedFence.generation(), 64); required(expectedVersionId, 64);
+        Reservation reservation = owned(deploymentId, id(expectedFence), true);
+        if (!reservation.generation().equals(expectedFence.generation()) || reservation.revision() != expectedFence.revision())
+            throw new AdmissionFailure(CONFLICT, "STALE_RESERVATION_FENCE");
+        Manifest manifest = store.reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+        if (!expectedVersionId.equals(manifest.versionId()))
+            throw new AdmissionFailure(CONFLICT, "REVIEWED_VERSION_CHANGED");
+        DeploymentEntity deployment = authorize(deploymentId, true);
+        validateCustomerScope(deployment, manifest, new Reserve(freshContext.operationKey(), manifest.id(), freshContext));
+        store.requireInitialRenewalScope(reservation, freshContext);
+        if (initialRenewalAuthorizer == null)
+            throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_AUTHORIZER_REQUIRED");
+        AdmissionContext context = store.context(reservation.customerId(), reservation.tenantId(), deploymentId, manifest.id());
+        String providerGrants = store.initialProviderGrantsFingerprint(reservation);
+        // Collect before entering the ledger transaction; the callback below must do only local reads.
+        PrerequisiteReadback readback = validateAdmission(deployment, context);
+        return store.renewInitialCustomerEvidence(expectedFence, context, freshContext, readback, providerGrants,
+            actor(), Instant.now(), () -> {
+                store.lockAuthoritativeRows(context);
+                initialRenewalAuthorizer.requireCurrent(freshContext, readback);
+                localGuard(deploymentId, context);
+            });
     }
     /** Customer-safe callers use this only through their bounded projection service. */
     public List<Reservation> activeCustomerReservations(String deploymentId, String targetProfileId) {

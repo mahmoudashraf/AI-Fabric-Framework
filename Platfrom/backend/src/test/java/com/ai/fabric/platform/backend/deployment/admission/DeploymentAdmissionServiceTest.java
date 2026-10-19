@@ -21,9 +21,19 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.orm.jpa.EntityManagerHolder;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -201,6 +211,108 @@ class DeploymentAdmissionServiceTest extends AdmissionFixture {
         assertThatThrownBy(() -> service.reserve("deployment1", new Reserve("op", "manifest1")))
             .hasMessageContaining("TARGET_RETIREMENT_FENCED");
         assertThat(store.held()).isEmpty();
+    }
+
+    @ParameterizedTest @ValueSource(strings={"version","profile","profile-lock"})
+    void renewalClearsRealJpaCacheBeforeFinalPublishedVersionAndProfileChecks(String changed) throws Exception {
+        approveLiveInputs();
+        var source = mock(AdmissionEvidenceSource.class);
+        when(source.read(any())).thenAnswer(invocation -> evidence(invocation.getArgument(0), Instant.now()));
+        adapters.registerSingleton("readback", source);
+        var original = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
+            "customer", "tenant", "deployment1", null, TARGET,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING,
+            "offer", "offer-fingerprint", 1, "P1",
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY, "apply",
+            new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedLimits(
+                "measurement", 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1),
+            new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedTopology(1, 1, 1, 1, 0, 0, 0, 1));
+        var reservation = service.reserveCustomer("deployment1", "version", new Reserve("apply", "manifest1", original));
+        var fresh = new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext(
+            original.customerId(), original.tenantId(), original.deploymentId(), null, original.targetProfileId(), original.intent(),
+            original.offerId(), original.offerFingerprint(), original.entitlementRevision(), "P2", original.operation(),
+            original.operationKey(), original.limits(), original.topology());
+        var profile = targets.findById(TARGET).orElseThrow();
+        profile.setName("Synthetic reviewed profile"); profile.setCreatedAt(Instant.now()); profile.setUpdatedAt(Instant.now());
+        var version = versions.findById("version").orElseThrow();
+        version.setSourceDraftId("draft"); version.setVersionLabel("v1"); version.setPublishedAt(Instant.now());
+        version.setActionsConfigJson("{}"); version.setEntityConfigJson("{}"); version.setRoutingConfigJson("{}");
+        version.setProviderConfigJson("{}"); version.setSecurityConfigJson("{}"); version.setPromptConfigJson("{}");
+        version.setActionsArtifactYaml("{}"); version.setEntityArtifactYaml("{}"); version.setRoutingArtifactYaml("{}"); version.setManifestJson("{}");
+
+        var factory = new LocalContainerEntityManagerFactoryBean();
+        factory.setDataSource(dataSource); factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+        factory.setManagedTypes(PersistenceManagedTypes.of(DeploymentTargetProfileEntity.class.getName(), DeploymentVersionEntity.class.getName()));
+        factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "create-drop", "hibernate.physical_naming_strategy",
+            "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy"));
+        factory.afterPropertiesSet();
+        var emf = factory.getObject(); var entities = emf.createEntityManager();
+        try (var competing = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            entities.getTransaction().begin(); entities.persist(profile); entities.persist(version); entities.getTransaction().commit();
+            // Keep these managed, exactly as an OpenEntityManagerInView request can across its preparation transaction.
+            assertThat(entities.contains(profile)).isTrue(); assertThat(entities.contains(version)).isTrue();
+            TransactionSynchronizationManager.bindResource(emf, new EntityManagerHolder(entities));
+            when(targets.findById(TARGET)).thenAnswer(invocation -> Optional.ofNullable(entities.find(DeploymentTargetProfileEntity.class, TARGET)));
+            when(versions.findById("version")).thenAnswer(invocation -> Optional.ofNullable(entities.find(DeploymentVersionEntity.class, "version")));
+            var authorization = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceAuthorizationService.class);
+            var profileWriter = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.Future<Integer>>();
+            when(authorization.prepareAdmission(eq("customer"), any())).thenAnswer(invocation -> {
+                if (changed.equals("profile-lock")) {
+                    assertThat(entities.find(DeploymentTargetProfileEntity.class, TARGET).isActive()).isTrue();
+                    var started = new java.util.concurrent.CountDownLatch(1);
+                    profileWriter.set(competing.submit(() -> {
+                        started.countDown();
+                        return jdbc.update("UPDATE deployment_target_profiles SET active=false WHERE id=?", TARGET);
+                    }));
+                    assertThat(started.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                    assertThatThrownBy(() -> profileWriter.get().get(150, java.util.concurrent.TimeUnit.MILLISECONDS))
+                        .isInstanceOf(java.util.concurrent.TimeoutException.class);
+                }
+                return new com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization(fresh, null);
+            });
+            var placement = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerTargetPlacementService.class);
+            var observed = new java.util.concurrent.atomic.AtomicReference<Instant>();
+            String fingerprint = store.context("customer", "tenant", "deployment1", "manifest1").target().profileFingerprint();
+            when(placement.requireEvidenceById(any(), eq(fresh.intent()), eq("P2"))).thenAnswer(invocation ->
+                new com.ai.fabric.platform.backend.customerselfservice.entity.CustomerPlacementEvidenceEntity("P2", TARGET, fresh.intent(),
+                    fingerprint, STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(), observed.get(), observed.get().plusSeconds(60)));
+            var authorizer = new InitialAdmissionRenewalAuthorizer(authorization, placement, targets);
+            ReflectionTestUtils.setField(authorizer, "entityManager", entities);
+            ReflectionTestUtils.setField(service, "initialRenewalAuthorizer", authorizer);
+            var ledger = spy(store);
+            doReturn("synthetic-provider-grant-fingerprint").when(ledger).initialProviderGrantsFingerprint(any());
+            var transactions = new JpaTransactionManager(emf); transactions.setDataSource(dataSource);
+            // Isolate the real service/authorizer/cache ordering; ledger commit and NOWAIT are covered separately.
+            doAnswer(invocation -> new TransactionTemplate(transactions).execute(tx -> {
+                invocation.<Runnable>getArgument(7).run(); return reservation;
+            })).when(ledger).renewInitialCustomerEvidence(any(), any(), any(), any(), anyString(), anyString(), any(), any());
+            ReflectionTestUtils.setField(service, "store", ledger);
+            doAnswer(invocation -> {
+                if (changed.equals("version")) {
+                    jdbc.update("UPDATE platform_deployment_versions SET status='DRAFT' WHERE id='version'");
+                    assertThat(entities.find(DeploymentVersionEntity.class, "version").getStatus()).isEqualTo("PUBLISHED");
+                } else if (changed.equals("profile")) {
+                    jdbc.update("UPDATE deployment_target_profiles SET network_policy_json='{\"changed\":true}' WHERE id=?", TARGET);
+                    assertThat(entities.find(DeploymentTargetProfileEntity.class, TARGET).getNetworkPolicyJson()).isEqualTo("{}");
+                }
+                observed.set(Instant.now()); return evidence(invocation.getArgument(0), observed.get());
+            }).when(source).read(any());
+            if (changed.equals("profile-lock")) {
+                assertThat(service.refreshCustomerEvidence("deployment1", "version", reservation.id(), 0,
+                    new Reserve("apply", "manifest1", fresh))).isEqualTo(reservation);
+                assertThat(profileWriter.get().get(3, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(1);
+                assertThat(jdbc.queryForObject("SELECT active FROM deployment_target_profiles WHERE id=?", Boolean.class, TARGET)).isFalse();
+            } else {
+                assertThatThrownBy(() -> service.refreshCustomerEvidence("deployment1", "version", reservation.id(), 0,
+                    new Reserve("apply", "manifest1", fresh)))
+                    .hasMessageContaining(changed.equals("version") ? "REVIEWED_VERSION_CHANGED" : "TARGET_PROFILE_CHANGED");
+            }
+            assertThat(store.require(reservation.id())).isEqualTo(reservation);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='INITIAL_PROOF'", Long.class)).isZero();
+        } finally {
+            if (TransactionSynchronizationManager.hasResource(emf)) TransactionSynchronizationManager.unbindResource(emf);
+            entities.close(); factory.destroy();
+        }
     }
     @Test
     void statusCannotReadGuessedReservationFromAnotherDeployment() {

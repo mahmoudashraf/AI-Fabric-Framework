@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.customerselfservice;
 
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDeploymentEntity;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Request;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.RefreshRequest;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
@@ -160,6 +161,57 @@ class CustomerAdmissionReservationServiceTest {
         });
         verifyReadAuthorization("staging-target");
         verify(admissions).activeCustomerReservations("deployment", "staging-target");
+    }
+
+    @Test
+    void refreshesTheOriginalApplyEvidenceAfterAuthorizationTransactionEnds() {
+        var reservation = admissions.status("deployment", "reservation");
+        when(admissions.refreshCustomerEvidence(eq("deployment"), eq("version"), eq("reservation"), eq(0L), any()))
+            .thenReturn(reservation);
+
+        assertThat(service.refreshEvidence("offer", "deployment", "reservation", refreshRequest(0)).id())
+            .isEqualTo("reservation");
+
+        var order = inOrder(transactions, authorization, manifests, admissions);
+        order.verify(authorization).prepareAdmission(eq("customer"), any());
+        order.verify(authorization).requireReviewedVersion(eq(prepared), any());
+        order.verify(transactions).commit(any());
+        order.verify(manifests).prepare(eq(deployment), any(), eq(prepared));
+        ArgumentCaptor<Reserve> command = ArgumentCaptor.forClass(Reserve.class);
+        order.verify(admissions).refreshCustomerEvidence(eq("deployment"), eq("version"), eq("reservation"), eq(0L), command.capture());
+        assertThat(command.getValue().operationKey()).isEqualTo("operation");
+        assertThat(command.getValue().customerContext()).isEqualTo(prepared.context());
+        assertThat(command.getValue().allocationId()).isNull();
+        verify(admissions, never()).reserveCustomer(anyString(), anyString(), any());
+    }
+
+    @Test
+    void evidenceRefreshRejectsOtherOperationsNegativeFencesAndForeignVersions() {
+        assertThatThrownBy(() -> service.refreshEvidence("offer", "deployment", "reservation", refreshRequest(-1)))
+            .isInstanceOf(CustomerSelfServiceException.class);
+        assertThatThrownBy(() -> service.refreshEvidence("offer", "deployment", "reservation",
+            new RefreshRequest("staging-target", "version", Operation.READ, "operation", 0)))
+            .isInstanceOf(CustomerSelfServiceException.class);
+        verifyNoInteractions(admissions);
+
+        versions.findById("version").orElseThrow().setDeploymentId("foreign");
+        assertThatThrownBy(() -> service.refreshEvidence("offer", "deployment", "reservation", refreshRequest(0)))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
+        verifyNoInteractions(admissions);
+    }
+
+    @Test
+    void evidenceRefreshCannotReachAdmissionWhenOwnerAuthorizationFails() {
+        when(authorization.prepareAdmission(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.deny(RESOURCE_SCOPE_MISMATCH));
+        assertThatThrownBy(() -> service.refreshEvidence("offer", "deployment", "reservation", refreshRequest(0)))
+            .isInstanceOf(CustomerSelfServiceException.class);
+        verifyNoInteractions(admissions, manifests);
+    }
+
+    private RefreshRequest refreshRequest(long revision) {
+        return new RefreshRequest("staging-target", "version", Operation.APPLY, "operation", revision);
     }
 
     private void verifyReadAuthorization(String targetProfileId) {

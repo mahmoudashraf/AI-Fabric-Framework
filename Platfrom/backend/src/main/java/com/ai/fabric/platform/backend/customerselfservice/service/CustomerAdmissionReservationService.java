@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.customerselfservice.service;
 
 import com.ai.fabric.platform.backend.customerselfservice.entity.CustomerOfferDeploymentEntity;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Request;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.RefreshRequest;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Summary;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AuthorizationRequest;
@@ -80,6 +81,22 @@ public class CustomerAdmissionReservationService {
         return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), result.intent(),
             request.operation(), result.state(), result.revision(), result.expiresAt(), result.expiryState(),
             result.keepUntil(), result.occupiesActiveSlot(), result.chargedDemand());
+    }
+
+    public Summary refreshEvidence(String offerId, String deploymentId, String reservationId, RefreshRequest request) {
+        if (blank(offerId, 64) || blank(reservationId, 64) || request == null || request.expectedRevision() < 0
+            || (request.operation() != Operation.APPLY && request.operation() != Operation.PROMOTION_APPLY)) throw invalid();
+        Request originalApply = new Request(request.targetProfileId(), request.versionId(), null,
+            request.operation(), request.operationKey());
+        validate(originalApply);
+        var actor = entitlements.requireCustomerActor();
+        DeploymentEntity deployment = ownedDeployment(actor.customerId(), deploymentId);
+        Authorization prepared = preparation.execute(status -> prepare(offerId, deployment, originalApply));
+        if (prepared == null) throw deny(RESOURCE_SCOPE_MISMATCH);
+        var version = versions.findById(request.versionId()).orElseThrow(() -> deny(RESOURCE_SCOPE_MISMATCH));
+        var manifest = manifests.prepare(deployment, version, prepared);
+        return summary(admissions.refreshCustomerEvidence(deploymentId, request.versionId(), reservationId,
+            request.expectedRevision(), new Reserve(request.operationKey(), manifest.id(), prepared.context(), null)));
     }
 
     public Summary status(String offerId, String deploymentId, String reservationId) {

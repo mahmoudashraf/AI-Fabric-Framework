@@ -8,6 +8,61 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 22:48 UTC Initial Evidence Recovery Qualified; Source Rollout Next
+
+- Generic customer POST admission-reservations/{id}/refresh-evidence implemented.
+  Same original applykey/R7/generation/manifest/version/config/owner/entitlement;
+  append-only INITIAL_PROOF plus exact INITIAL_EVIDENCE_RENEWED event head.
+  Original authorization bytes/fingerprints, capacity lifetime and funding stay
+  unchanged. Fresh checks run outside locks, then authoritative rows are locked
+  before JPA cache clear/revalidation. Unknown effects/used allocations deny.
+- Required configuration-only consumer and never-activated DRAFT Engage app are
+  strictly proven/preserved, not detached. Shared existing validator retains
+  cancellation semantics. Renewal-then-cancel/replay and head-corruption checks
+  pass; unrelated spent grants no longer falsely imply this R7 was used.
+- FINAL R3 actual JDK21 module run326/0fail/0error/0skip, including57 real local
+  PostgreSQL cases and3 real JPA-cache/profile-lock regressions. Package PASS
+  22:47:33. Source freeze15Javafiles plus README in private r3 proof. R1(248/5errors) and
+  R2(326/3errors) preserved: record-local set-order fix and test fixture/restub
+  corrections; no weakened assertions/global serializer/framework change.
+- Main owns source commit/CI/guarded staged rollout and actual customer retry.
+  Both running backends remain accepted71fbaa28b/0258/206/UP. Actual R7 still
+  RESERVEDrev0 and grant unused as22:23readback; no runtime/index/model yet.
+  New private rollout helper62 parent tests PASS, no dispatch/candidate proof
+  yet. UI LAST. Current policy valid23:30; fresh evidence required after rollout.
+- Faraday independently cleared four source P2s, now reviews policy validity vs
+  allocation-lifetime continuity OFFLINE only; do not silently extend/relabel
+  policy or change current held scope. Confucius source frozen. Main required
+  sessions completed. Platform-Updates informed22:45; next by23:15.
+- Local latest-runtime typed budget dump/drop/restore PASS under isolatedDocker,
+  exact d2b1/3809 artifact, zero provider calls, six scope denials; NOT fullP5
+  hosted recovery. Original Java harness unchanged, only runner/private pin copy.
+
+## 2026-10-19 22:19 UTC Channel Fix Live; Initial Evidence Recovery In Progress
+
+- Commit71fbaa28bb4d8eaa467df03bf8eb53314156f981 pushed; CI39331881456
+  passed. Exact rootimage0258fcd9...e691/source71f/schema206/UP accepted on
+  staging22:09:17 and production22:14:22. Full139tables/audits/config/env
+  preserved; normal jobs yue291v38tlz05zf9oldn26z/l2ukwskgdxa3d0xn7jgbl2sd.
+  Proofroot /private/tmp/01044-artifact-channel-backend-rollout-20261019;
+  maintenance.completed.json closes this no-writer window. Never replay its
+  deploy or exclusive verifier completion. Receiver auto-deploy restoredTRUE.
+- Approved ONE local off-source probe22:08 genuinely denied publickey with
+  empty stdout, no changes. Requiredforproduction marks approval consumed,
+  remainingAttempts0; offsource-denial.actual.json in hostinstall proofroot.
+- Initial R7fde33719 remains RESERVEDrev0, providergrant still unused; original
+  409 had zero release/binding/allocation effects. Placement21:57 expired.
+  Offline source review proves no supported same-key initial evidence refresh:
+  fresh placement changes immutable authorization fingerprint; ordinary replay
+  retains stale evidence. No cancel/recreate, SQL repair or authorization bypass.
+- Implement narrow append-only evidence renewal for unused initial APPLY only,
+  preserving original receipt/reservation/generation/expiry/envelope/grant and
+  same applykey. Confucius owns admission core/tests; main owns customer safe
+  route/model/service/tests. Recheck live state after source rollout before use.
+- Faraday qualifies local typed budget backup/restore against actual pinned
+  runtime d2b1a979/3809a658, not oldimage; no hosted restore claim. No customer
+  runtime/model/index/promotion yet. Full010.36/P5/P7 unfinished; UI staysLAST.
+
 ## 2026-10-19 22:00 UTC First Reservation And Funding Pass; Artifact Channel Fix Qualified
 
 - NEW actual policy01036-post-verifier-prodcp-canary-20261019 and unchanged-

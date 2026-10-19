@@ -26,6 +26,7 @@ import static org.springframework.http.HttpStatus.*;
 /** All ledger writes serialize on a database row, across threads/processes and across target pools. */
 @Repository
 class AdmissionStore {
+    private record InitialRenewalHead(long revision, String actor, String reference) { }
     record ReleasePrerequisiteAllocation(
         Reservation reservation,
         ReleaseBinding release,
@@ -380,6 +381,173 @@ class AdmissionStore {
             """, (rs, row) -> json.read(rs.getString(1), AuthorizationReceipt.class), customer, deployment, target, key);
     }
 
+    void requireInitialRenewalScope(Reservation reservation,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext fresh) {
+        var receipt = initialRenewalAuthorization(reservation, fresh);
+        if (!InitialAdmissionEvidenceRenewal.sameScope(receipt.command().customerContext(), fresh))
+            throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_SCOPE_CHANGED");
+    }
+
+    private AuthorizationReceipt initialRenewalAuthorization(Reservation reservation,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext fresh) {
+        if (fresh == null || reservation.state() != State.RESERVED || reservation.expiryState() != ExpiryState.CURRENT
+            || !reservation.expiresAt().isAfter(clock.instant()) || reservation.workerToken() != null
+            || reservation.failureCode() != null || reservation.retirementOperationId() != null
+            || reservation.drainDeadline() != null || reservation.recoveryUntil() != null
+            || reservation.nextRetryAt() != null || reservation.attempts() != 0 || reservation.retentionEnvelope() != null
+            || reservation.keepUntil() != null || reservation.keepEntitlementReference() != null || reservation.extensions() != 0)
+            throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_REQUIRES_UNUSED_RESERVATION");
+        var receipts = authorizationRows(reservation.customerId(), reservation.deploymentId(), reservation.targetProfileId(), fresh.operationKey());
+        if (receipts.size() != 1) throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_AUTHORIZATION_REQUIRED");
+        var receipt = receipts.getFirst();
+        var command = receipt.command();
+        Manifest manifest = reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+        if (command == null || command.customerContext() == null || command.allocationId() != null
+            || !reservation.id().equals(receipt.reservationId()) || !reservation.generation().equals(receipt.generation())
+            || !reservation.operationKey().equals(command.operationKey()) || !reservation.manifestId().equals(command.manifestId())
+            || !reservation.manifestFingerprint().equals(receipt.manifestFingerprint())
+            || !reservation.requestFingerprint().equals(receipt.requestFingerprint())
+            || !Objects.equals(reservation.customerContextFingerprint(), receipt.contextFingerprint())
+            || reservation.customerOperation() != command.customerContext().operation()
+            || !json.fingerprint(command.customerContext()).equals(receipt.contextFingerprint())
+            || !commandFingerprint(reservation.customerId(), reservation.tenantId(), reservation.deploymentId(), manifest, command)
+                .equals(receipt.requestFingerprint()))
+            throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_AUTHORIZATION_CHANGED");
+        return receipt;
+    }
+
+    String initialProviderGrantsFingerprint(Reservation reservation) {
+        var rows = jdbc.query("""
+            SELECT id,fingerprint,payload_json,lifecycle_status,allocated_chat_attempts,allocated_total_tokens,allocated_cost_nano_usd
+              FROM provider_usage_grants WHERE customer_id=? AND target_profile_id=? ORDER BY id
+            """, (rs, row) -> {
+                return List.of(rs.getString("id"), rs.getString("fingerprint"), rs.getString("payload_json"), rs.getString("lifecycle_status"),
+                    rs.getLong("allocated_chat_attempts"), rs.getLong("allocated_total_tokens"), rs.getLong("allocated_cost_nano_usd"));
+            }, reservation.customerId(), reservation.targetProfileId());
+        return json.fingerprint(rows);
+    }
+
+    Reservation renewInitialCustomerEvidence(Fence fence, AdmissionContext checked,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext fresh,
+        PrerequisiteReadback evidence, String providerGrantsFingerprint, String actor, Instant requestedAt, Runnable localGuard) {
+        try {
+            return transaction.execute(status -> {
+            // Apply owns deployment first. Never wait for it, or hold its ledger while waiting for its authorization.
+            try {
+                if (jdbc.query("SELECT id FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), checked.deploymentId()).size() != 1)
+                    throw new AdmissionFailure(NOT_FOUND, "DEPLOYMENT_NOT_FOUND");
+                jdbc.queryForObject("SELECT id FROM deployment_admission_mutex WHERE id=1 FOR UPDATE NOWAIT", Integer.class);
+                jdbc.query("SELECT operation_key FROM deployment_admission_authorizations WHERE reservation_id=? ORDER BY operation_key FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), fence.reservationId());
+                jdbc.query("SELECT id FROM deployment_capacity_reservations WHERE id=? FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), fence.reservationId());
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "INITIAL_RENEWAL_BUSY");
+            }
+            Reservation reservation = fenced(fence);
+            requireInitialRenewalScope(reservation, fresh);
+            var receipt = initialRenewalAuthorization(reservation, fresh);
+            AdmissionContext current = context(reservation.customerId(), reservation.tenantId(), reservation.deploymentId(), reservation.manifestId());
+            if (!json.fingerprint(current).equals(json.fingerprint(checked)))
+                throw new AdmissionFailure(CONFLICT, "ADMISSION_POLICY_CHANGED");
+            validateCustomerScope(current, new Reserve(fresh.operationKey(), reservation.manifestId(), fresh));
+            requireUsableAllocation(reservation, current, effectiveTime(requestedAt));
+            var owners = jdbc.queryForList("SELECT actor_id FROM deployment_admission_events WHERE reservation_id=? AND event_type='RESERVED'",
+                String.class, reservation.id());
+            if (!owners.equals(List.of(actor))) throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_OWNER_CHANGED");
+            Long authorizations = jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_authorizations WHERE reservation_id=?", Long.class, reservation.id());
+            if (authorizations == null || authorizations != 1L)
+                throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_AUTHORIZATION_AMBIGUOUS");
+            var unused = new AdmissionUnusedReservationEvidence(jdbc, json);
+            var configured = AdmissionUnusedConsumerDetachment.readForInitialEvidenceRenewal(jdbc, json, reservation, fresh);
+            var noEffects = unused.read(reservation, current.manifest(), configured.consumerIds());
+            if (!providerGrantsFingerprint.equals(initialProviderGrantsFingerprint(reservation)))
+                throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_PROVIDER_GRANT_CHANGED");
+            localGuard.run();
+            Instant now = effectiveTime(requestedAt);
+            if (!json.fingerprint(reservation).equals(json.fingerprint(fenced(fence)))
+                || !json.fingerprint(current).equals(json.fingerprint(context(reservation.customerId(), reservation.tenantId(),
+                    reservation.deploymentId(), reservation.manifestId()))))
+                throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_AUTHORITY_CHANGED");
+            policy(current.policy(), now); grant(current.grant(), now); prerequisites(current, evidence, now);
+            requireUsableAllocation(reservation, current, now);
+            if (!configured.equals(AdmissionUnusedConsumerDetachment.readForInitialEvidenceRenewal(jdbc, json, reservation, fresh))
+                || !noEffects.equals(unused.read(reservation, current.manifest(), configured.consumerIds()))
+                || !providerGrantsFingerprint.equals(initialProviderGrantsFingerprint(reservation)))
+                throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_EFFECTS_CHANGED");
+            var prior = initialEvidenceRenewal(reservation, receipt);
+            if (prior != null && prior.context().equals(fresh) && prior.readback().equals(evidence)
+                && reservation.prerequisiteReadback().equals(evidence)) return reservation;
+            long revision = Math.incrementExact(reservation.revision());
+            var renewal = new InitialAdmissionEvidenceRenewal(reservation.id(), reservation.generation(), receipt.requestFingerprint(),
+                receipt.contextFingerprint(), reservation.revision(), revision, fresh, evidence, actor, now);
+            String key = InitialAdmissionEvidenceRenewal.key(receipt.requestFingerprint(), revision);
+            review(InitialAdmissionEvidenceRenewal.KIND, key, renewal, actor, now);
+            Mutation mutation = new Mutation(reservation);
+            mutation.prerequisiteReadback = evidence;
+            mutation.evidence = "initial-proof:" + key + ":" + json.fingerprint(renewal);
+            return save(reservation, mutation, "INITIAL_EVIDENCE_RENEWED", actor, now);
+            });
+        } catch (org.springframework.dao.DataAccessException busy) {
+            throw unusedCancellationLockFailure(busy, "INITIAL_RENEWAL_BUSY");
+        }
+    }
+
+    private InitialAdmissionEvidenceRenewal initialEvidenceRenewal(Reservation reservation, AuthorizationReceipt receipt) {
+        if (!reservation.requestFingerprint().equals(receipt.requestFingerprint())) return null;
+        // The ledger emits exactly one event per revision; a deleted head cannot hide behind an older proof.
+        Long events = jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_events WHERE reservation_id=? AND revision BETWEEN 0 AND ?",
+            Long.class, reservation.id(), reservation.revision());
+        if (events == null || events != Math.incrementExact(reservation.revision()))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_RECORD_CHANGED");
+        var heads = jdbc.query("""
+            SELECT revision,actor_id,evidence_reference FROM deployment_admission_events
+             WHERE reservation_id=? AND event_type='INITIAL_EVIDENCE_RENEWED' ORDER BY revision DESC LIMIT 1
+            """, (rs, row) -> new InitialRenewalHead(rs.getLong("revision"), rs.getString("actor_id"), rs.getString("evidence_reference")), reservation.id());
+        if (heads.isEmpty()) {
+            Long orphaned = jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind=? AND record_key LIKE ?",
+                Long.class, InitialAdmissionEvidenceRenewal.KIND, receipt.requestFingerprint() + ":%");
+            if (orphaned == null || orphaned != 0 || reservation.evidenceReference() == null || reservation.evidenceReference().startsWith("initial-proof:"))
+                throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_RECORD_CHANGED");
+            return null;
+        }
+        var head = heads.getFirst();
+        if (head.revision() > reservation.revision())
+            throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_RECORD_CHANGED");
+        String key = InitialAdmissionEvidenceRenewal.key(receipt.requestFingerprint(), head.revision());
+        var rows = jdbc.query("""
+            SELECT record_key,fingerprint,payload_json FROM deployment_admission_reviews
+             WHERE kind=? AND record_key=?
+            """, (rs, row) -> {
+                var value = json.read(rs.getString("payload_json"), InitialAdmissionEvidenceRenewal.class);
+                if (!json.fingerprint(value).equals(rs.getString("fingerprint"))
+                    || !key.equals(InitialAdmissionEvidenceRenewal.key(receipt.requestFingerprint(), value.revision()))
+                    || !head.actor().equals(value.actor())
+                    || !("initial-proof:" + key + ":" + json.fingerprint(value)).equals(head.reference()))
+                    throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_RECORD_CHANGED");
+                return value;
+            }, InitialAdmissionEvidenceRenewal.KIND, key);
+        if (rows.size() != 1) throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_RECORD_CHANGED");
+        var renewal = rows.getFirst();
+        if (!reservation.id().equals(renewal.reservationId()) || !reservation.generation().equals(renewal.generation())
+            || !receipt.requestFingerprint().equals(renewal.authorizationRequestFingerprint())
+            || !receipt.contextFingerprint().equals(renewal.originalContextFingerprint())
+            || renewal.expectedRevision() < 0 || renewal.revision() != renewal.expectedRevision() + 1
+            || renewal.revision() > reservation.revision()
+            || !InitialAdmissionEvidenceRenewal.sameScope(receipt.command().customerContext(), renewal.context())
+            || renewal.readback() == null || !reservation.manifestFingerprint().equals(renewal.readback().manifestFingerprint())
+            || !reservation.bindingFingerprint().equals(renewal.readback().bindingFingerprint()))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_RECORD_CHANGED");
+        return renewal;
+    }
+
+    private com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext effectiveCustomerContext(
+        Reservation reservation, AuthorizationReceipt receipt) {
+        var renewal = initialEvidenceRenewal(reservation, receipt);
+        return renewal == null ? receipt.command().customerContext() : renewal.context();
+    }
+
     void requireCustomerAuthorization(Reservation reservation,
         com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested) {
         var receipts = authorizationRows(requested.customerId(), requested.deploymentId(), requested.targetProfileId(), requested.operationKey());
@@ -387,12 +555,13 @@ class AdmissionStore {
         AuthorizationReceipt receipt = receipts.getFirst();
         reservation = candidateAuthorization(reservation, receipt);
         Manifest manifest = reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+        var effectiveContext = effectiveCustomerContext(reservation, receipt);
         if (!reservation.id().equals(receipt.reservationId()) || !reservation.generation().equals(receipt.generation())
             || !reservation.manifestFingerprint().equals(receipt.manifestFingerprint())
-            || !json.fingerprint(requested).equals(receipt.contextFingerprint())
+            || !json.fingerprint(receipt.command().customerContext()).equals(receipt.contextFingerprint())
             || !receipt.requestFingerprint().equals(commandFingerprint(requested.customerId(), requested.tenantId(),
                 requested.deploymentId(), manifest, receipt.command()))
-            || !requested.equals(receipt.command().customerContext())) {
+            || !json.fingerprint(requested).equals(json.fingerprint(effectiveContext)) || !requested.equals(effectiveContext)) {
             throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_CAPACITY_RESERVATION_INVALID");
         }
         requireReleaseAuthorization(reservation, receipt.command());
@@ -570,7 +739,7 @@ class AdmissionStore {
                     || receipt.command() == null || receipt.command().customerContext() == null) {
                     throw new AdmissionFailure(CONFLICT, "ADMISSION_RELEASE_PREREQUISITE_RECORD_MISMATCH");
                 }
-                return new ReleasePrerequisiteAllocation(reservation, binding, receipt.command().customerContext());
+                return new ReleasePrerequisiteAllocation(reservation, binding, effectiveCustomerContext(reservation, receipt));
             }, requested.releaseId(), requested.customerId(), requested.tenantId(), requested.deploymentId(),
             requested.targetProfileId());
         if (rows.size() != 1) {
@@ -595,7 +764,7 @@ class AdmissionStore {
         if (receipts.size() != 1) throw new AdmissionFailure(PRECONDITION_FAILED, "EXACT_APPLY_AUTHORIZATION_REQUIRED");
         AuthorizationReceipt receipt = receipts.getFirst();
         var command = receipt.command();
-        var scope = command == null ? null : command.customerContext();
+        var scope = command == null ? null : effectiveCustomerContext(reservation, receipt);
         if (scope == null || !java.util.Set.of(
                 com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY,
                 com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.PROMOTION_APPLY).contains(scope.operation())
@@ -605,7 +774,7 @@ class AdmissionStore {
             || !binding.versionId().equals(manifest.versionId()) || !binding.versionConfigHash().equals(manifest.versionConfigHash())
             || !reservation.id().equals(receipt.reservationId()) || !reservation.generation().equals(receipt.generation())
             || !reservation.manifestFingerprint().equals(receipt.manifestFingerprint())
-            || !json.fingerprint(scope).equals(receipt.contextFingerprint())
+            || !json.fingerprint(command.customerContext()).equals(receipt.contextFingerprint())
             || !receipt.requestFingerprint().equals(commandFingerprint(customerId, tenantId, deploymentId, manifest, command))
             || !customerId.equals(scope.customerId()) || !tenantId.equals(scope.tenantId())
             || !deploymentId.equals(scope.deploymentId()) || !binding.targetProfileId().equals(scope.targetProfileId())
@@ -646,7 +815,8 @@ class AdmissionStore {
         Reservation authorized = candidateAuthorization(allocation, receipt);
         AdmissionContext current = context(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), authorized.manifestId());
         requireUsableAllocation(authorized, current, clock.instant());
-        requireCustomerAuthorization(authorized, receipt.command().customerContext());
+        requireCustomerAuthorization(authorized, effectiveCustomerContext(authorized, receipt));
+        if (initialEvidenceRenewal(authorized, receipt) != null) prerequisites(current, authorized.prerequisiteReadback(), clock.instant());
         String currentRelease = currentReleaseId(allocation);
         if (currentRelease != null && !"ACTIVE".equals(releaseBinding(currentRelease).state())) {
             throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_ALREADY_IN_PROGRESS");
@@ -735,7 +905,7 @@ class AdmissionStore {
                     || !reservation.manifestFingerprint().equals(authorization.manifestFingerprint())
                     || authorization.command() == null || authorization.command().customerContext() == null)
                     throw new AdmissionFailure(CONFLICT, "UNUSED_CANCELLATION_AUTHORIZATION_CHANGED");
-                requireCustomerAuthorization(reservation, authorization.command().customerContext());
+                requireCustomerAuthorization(reservation, effectiveCustomerContext(reservation, authorization));
                 if (command.authorizationOperationKey().equals(authorization.command().operationKey())) selected = authorization;
             }
             if (selected == null || !command.authorizationRequestFingerprint().equals(selected.requestFingerprint()))

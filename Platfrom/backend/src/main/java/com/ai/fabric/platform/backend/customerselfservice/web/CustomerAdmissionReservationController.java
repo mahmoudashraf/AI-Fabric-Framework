@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.customerselfservice.web;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Request;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.RefreshRequest;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerAdmissionReservationContracts.Summary;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerAdmissionReservationService;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferCodec;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+
+import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.invalid;
 
 @RestController
 @RequestMapping("/api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations")
@@ -32,6 +35,18 @@ public class CustomerAdmissionReservationController {
     public Summary reserve(@PathVariable String offerId, @PathVariable String deploymentId,
                            @RequestBody JsonNode body) {
         return reservations.reserve(offerId, deploymentId, codec.read(codec.write(body), Request.class));
+    }
+
+    @PostMapping("/{reservationId}/refresh-evidence")
+    public Summary refreshEvidence(@PathVariable String offerId, @PathVariable String deploymentId,
+                                   @PathVariable String reservationId, @RequestBody JsonNode body) {
+        if (body == null || !body.isObject() || !body.path("expectedRevision").isIntegralNumber()
+            || !body.path("expectedRevision").canConvertToLong()) throw invalid();
+        for (String field : List.of("targetProfileId", "versionId", "operation", "operationKey")) {
+            if (!body.path(field).isTextual()) throw invalid();
+        }
+        return reservations.refreshEvidence(offerId, deploymentId, reservationId,
+            codec.read(codec.write(body), RefreshRequest.class));
     }
 
     @GetMapping

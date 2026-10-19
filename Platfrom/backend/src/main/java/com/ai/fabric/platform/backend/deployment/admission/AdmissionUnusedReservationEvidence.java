@@ -58,7 +58,7 @@ public final class AdmissionUnusedReservationEvidence {
         var consumers = jdbc.queryForList("SELECT id FROM platform_consumers WHERE bound_deployment_id=? AND (bound_target_profile_id=? OR bound_target_profile_id IS NULL) ORDER BY id",
             String.class, deployment, target);
         if (!consumers.equals(authorizedConsumerIds)) throw denied("UNUSED_CANCELLATION_CONSUMER_ASSIGNED");
-        absent("SELECT COUNT(*) FROM deployment_admission_events WHERE reservation_id=? AND event_type NOT IN ('RESERVED','ALLOCATION_OPERATION_AUTHORIZED')",
+        absent("SELECT COUNT(*) FROM deployment_admission_events WHERE reservation_id=? AND event_type NOT IN ('RESERVED','ALLOCATION_OPERATION_AUTHORIZED','INITIAL_EVIDENCE_RENEWED')",
             reservation.id());
 
         var retained = jdbc.query("""
@@ -202,7 +202,7 @@ public final class AdmissionUnusedReservationEvidence {
         if (!java.util.Objects.equals(receipt.evidence().targetGate(), targetGate(r)))
             throw denied("UNUSED_VECTOR_HANDOFF_RETIREMENT_GATE_CHANGED");
         absent("SELECT COUNT(*) FROM platform_deployment_deletion_operations WHERE deployment_id=?", r.deploymentId());
-        absent("SELECT COUNT(*) FROM deployment_admission_events WHERE reservation_id=? AND event_type NOT IN ('RESERVED','ALLOCATION_OPERATION_AUTHORIZED','CANCELLED_UNUSED_NO_EFFECT')", r.id());
+        absent("SELECT COUNT(*) FROM deployment_admission_events WHERE reservation_id=? AND event_type NOT IN ('RESERVED','ALLOCATION_OPERATION_AUTHORIZED','INITIAL_EVIDENCE_RENEWED','CANCELLED_UNUSED_NO_EFFECT')", r.id());
         var retained = jdbc.query("""
             SELECT * FROM deployment_provider_resource_handles
              WHERE deployment_id=? AND (target_profile_id=? OR target_profile_id IS NULL) ORDER BY id FOR UPDATE NOWAIT

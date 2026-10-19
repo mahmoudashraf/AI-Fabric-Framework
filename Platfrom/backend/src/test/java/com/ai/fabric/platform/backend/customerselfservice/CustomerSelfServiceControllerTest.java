@@ -181,6 +181,33 @@ class CustomerSelfServiceControllerTest {
         verify(reservations).list("offer", "deployment", "staging-target");
     }
 
+    @Test void admissionEvidenceRefreshIsOwnerOnlyAndDoesNotAcceptScopeOrFundingOverrides() throws Exception {
+        String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/admission-reservations/reservation/refresh-evidence";
+        String request = "{\"targetProfileId\":\"staging-target\",\"versionId\":\"version\","
+            + "\"operation\":\"APPLY\",\"operationKey\":\"operation\",\"expectedRevision\":0}";
+        mvc.perform(as(post(route).contentType("application/json").content(request), PlatformRole.CUSTOMER_ADMIN))
+            .andExpect(status().isOk());
+        verify(reservations).refreshEvidence(eq("offer"), eq("deployment"), eq("reservation"), argThat(value ->
+            value.expectedRevision() == 0 && "operation".equals(value.operationKey())));
+        clearInvocations(reservations);
+        for (PlatformRole role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(as(post(route).contentType("application/json").content(request), role)).andExpect(status().isForbidden());
+        }
+        mvc.perform(post(route).contentType("application/json").content(request)).andExpect(status().isForbidden());
+        for (String extra : List.of("\"customerId\":\"other\"", "\"grantId\":\"other\"", "\"manifestId\":\"caller\"",
+            "\"expiresAt\":\"2099-01-01T00:00:00Z\"", "\"allocationId\":\"other\"")) {
+            mvc.perform(as(post(route).contentType("application/json").content(request.substring(0, request.length() - 1) + "," + extra + "}"),
+                PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
+        }
+        for (String revision : List.of("null", "\"0\"", "0.0", "9223372036854775808")) {
+            mvc.perform(as(post(route).contentType("application/json").content(request.replace("\"expectedRevision\":0", "\"expectedRevision\":" + revision)),
+                PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(as(post(route).contentType("application/json").content(request.replace(",\"expectedRevision\":0", "")),
+            PlatformRole.CUSTOMER_ADMIN)).andExpect(status().isBadRequest());
+        verifyNoInteractions(reservations);
+    }
+
     @Test void customerAiStateBindingIsOwnerRouteOnlyAndPreservesWriteOnlyCredentials() throws Exception {
         String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/ai-state-storage-binding";
         String body = aiStateBody();

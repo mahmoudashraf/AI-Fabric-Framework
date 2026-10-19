@@ -27,6 +27,10 @@ public final class CustomerAdmissionReservationContracts {
                                    long expectedRevision, @NotBlank String operationKey,
                                    @NotBlank String reason, boolean keepAfterPromotion) { }
 
+    /** Refreshes checks for the original, unused apply; it does not extend capacity or funding. */
+    public record RefreshRequest(String targetProfileId, String versionId, Operation operation,
+                                 String operationKey, long expectedRevision) { }
+
     public record Summary(String id,
                           String deploymentId,
                           String targetProfileId,

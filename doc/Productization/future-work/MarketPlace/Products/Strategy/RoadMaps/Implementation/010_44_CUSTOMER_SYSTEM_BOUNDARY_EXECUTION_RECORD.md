@@ -1,5 +1,24 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-19 22:48 UTC Generic Initial Evidence Recovery Qualified
+
+- Both backends accepted71f/0258/schema206/UP, full139-table/config/audit
+  preservation; source-only maintenance closed. The original unused R7/grant
+  remain unchanged and no release, provider allocation or model call exists.
+- Implemented explicit customer evidence renewal for an unused initial apply.
+  It preserves original authorization, key, generation, expiry, topology and
+  funding; fresh evidence is linked through append-only review/event records.
+  Existing configuration-only consumer/DRAFT app is proven and retained.
+- Four independent source findings fixed: lock-before-cache-clear freshness,
+  cancellation using renewed evidence without changing original fingerprints,
+  unrelated spent grants not treated as this R7's effects, and committed proof
+  head integrity without fallback to missing/older evidence. No framework or
+  runtime-artifact/schema change; all behavior remains customer/domain neutral.
+- Actual final module326 tests/zero failures/errors/skips, including57 PostgreSQL
+  cases and real JPA/profile-lock regressions; package PASS22:47:33. Both earlier
+  failed runs are retained. Source commit/CI/guarded rollout and actual same-key
+  customer apply/index/lifecycle proof remain next. UI extraction LAST.
+
 ## 2026-10-19 22:00 UTC First Admission Passes; Actual Apply Contract Corrected
 
 - New measured policy and same-ceiling physical quota pass normal publication

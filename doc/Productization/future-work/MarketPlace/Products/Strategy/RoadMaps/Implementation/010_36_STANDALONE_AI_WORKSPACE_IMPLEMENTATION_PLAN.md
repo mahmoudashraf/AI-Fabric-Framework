@@ -1,6 +1,16 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Current checkpoint, 2026-10-19 22:00UTC: measured policy/quota and first actual
+- Current checkpoint, 2026-10-19 22:48UTC: channel fix71f is fully accepted on
+  both backends with schema206/UP and all139 tables/config preserved. Generic
+  unused-initial-apply evidence renewal now passes326 focused module tests,
+  including57 PostgreSQL cases and real JPA freshness/locking regressions, plus
+  package. Same R7/key/authorization/lifetime/funding, append-only proof head,
+  configuration-only consumer/DRAFT app preservation and cancellation remain
+  strict. Source commit/CI/rollout and actual customer retry are next; not yet
+  deployed. No framework/runtime-artifact/schema change. Latest-runtime local
+  budget restore passes, not full hostedP5. Full customerP7/UI-LAST remain open.
+
+- Earlier checkpoint, 2026-10-19 22:00UTC: measured policy/quota and first actual
   customerSESSION staging reservation pass. Bounded stage provider grant issued
   within original task allowance; no allocation/model call. First normal apply
   returns409 because production-qualified artifact cannot pass legacy staging

@@ -5,7 +5,16 @@ authorization, not customer launch acceptance or an SLA.
 
 ## Scope And Evidence
 
-Current addendum, 19October22:00UTC: new policy and physical quota renewal pass
+Current addendum, 19October22:48UTC: both source71f backends are accepted with
+all139-table/config/audit checks. Unused initial evidence-renewal source passes
+326 focused tests including57 real PostgreSQL cases and real JPA freshness/
+locking checks; package passes. Original R7/key/authorization/lifetime/funding
+and configuration-only consumer/DRAFT app are preserved. This new source is not
+yet committed/deployed and does not certify hosted P5/P7. Latest-runtime local
+typed budget restore passes separately with zero provider calls; hosted state
+recovery, independent production indexing and customer promotion remain pending.
+
+Earlier addendum, 19October22:00UTC: new policy and physical quota renewal pass
 21:48, first ownerSESSION staging reservation21:49 and capped stage grant21:51.
 Normal apply409 exposed strict artifact-channel equality before release creation;
 actual reconciliation proves zero release/provider-allocation effects, with the
