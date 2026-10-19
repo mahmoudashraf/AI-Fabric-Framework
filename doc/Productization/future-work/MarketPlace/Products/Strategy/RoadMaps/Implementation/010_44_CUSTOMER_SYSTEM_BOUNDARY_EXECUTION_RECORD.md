@@ -1003,3 +1003,72 @@ an app, or claiming hosted workload readiness.
   backend image and sequential rollout. Financial counters/history are preserved;
   the USD12 allowance remains cumulative across the whole task. UI extraction
   stays last and no framework release/change is involved.
+
+### Authoritative Customer And Unused Cross-Control-Plane Transfer
+
+- Owner explicitly approved the single production-control-plane customer and
+  requested coordination with `Required for production`. That session verified
+  the direct approval: no duplicate permission request is needed. Existing Free01
+  is assigned to this customer's customer-staging intent only after audited
+  relinquishment; the existing Frankfurt Serverless serves the same customer's
+  eventual production intent. No additional paid vector cluster is authorized.
+- Current handoff code is intentionally local-control-plane/same-customer. It
+  cannot prove a cross-control-plane transfer from a new database's absence of
+  source rows. V205 implementation is therefore in progress: staff-only permanent
+  source release with complete UNUSED history, irreversible cluster tombstone,
+  scoped local serving-credential clearance, reviewed authenticated source proof
+  and one-use destination claim through normal binding checks. Local credential
+  clearance is not provider token revocation. A binding-only source requires
+  genuine no-effect proof, not a fabricated reservation/cancellation.
+- The authenticated staff coordinator is the explicitly documented trust anchor;
+  an unsigned digest is evidence integrity, not source authentication by itself.
+  Server-owned control-plane identity and configured peer origins pin the exact
+  destination customer/tenant/deployment/target/version. Customer-supplied proof
+  cannot self-authorize a claim. PostgreSQL race/replay/rollback and independent
+  security qualification remain open; no source release or claim has run live.
+- Verification commitbc59c6a16 is pushed; backend image workflow39244401233
+  succeeds, with the UI job skipped. Both live control planes remain schema202.
+  Preflight made no hosted mutation. Its apparent row drift was positively traced
+  to session timezone and locale-dependent aggregate sorting: isolated restores
+  of the exact backups and byte-C/row-set comparisons match all131 tables on
+  both servers. The verifier is being corrected without ignoring any row changes
+  or weakening the live-before/live-after preservation requirement.
+
+### V205 Parent Qualification And Single-Rollout Boundary
+
+- Actual complete backend default suite passes3,628 tests across359 classes;
+  the actual-module critical PostgreSQL gate passes121 tests across3 classes.
+  The actual root archive test separately passes2 cases from the exact private
+  staging/production202 snapshots through205. All gates have zero failures,
+  errors or skips. Every original131-table row/column fingerprint and financial
+  attribution check is preserved; all six new receipt tables are empty and
+  replay applies zero migrations. The archive test matches the independently
+  qualified private source byte-for-byte. No source/test changes occurred during
+  the default gate; its excluded archive test was updated only afterwards.
+- Packaging passes and contains V203,V204,V205 plus the transfer service. Jar
+  SHA256: `b5002d7ed5b0bf3fee9dc14ba89d6d8cf53f7b6712d21ac67c82f3e30eaeda74`.
+  Focused qualification remains328 passing tests. Independent review found and
+  resolved claim-SQL placeholders, terminal archival readback and upstream-error
+  leakage; no confirmedP0-P2 remains. Provider refresh already skips preserved
+  bindings, so the immutable source tombstone was not weakened for observation.
+- The independent receiver's final live verification is now complete: exact
+  running image/module-source equivalence, V5, old-key401, wrong-scope rejection,
+  new scoped authorization and authenticated action-GET405. Six website vehicles
+  and73 receipts remain unchanged. This is read-only proof, not end-to-end action
+  execution or new runtime acceptance. Provider-generated cache/container name
+  transitions are exact version/plan-bound proofs; omitted API ID is established
+  through the installed contract, UUID-bound read-only provider identity and
+  inspected container label. Historical build settings remain explicitly unproven.
+- Three nonsecret CP identity/origin/peer values per server were separately
+  reviewed and configured using the normal Coolify environment API, with exact
+  post-readback and no restart. All original configuration rows remain unchanged,
+  including staging's identical legacy preview duplicates. These values activate
+  with the new binary; they are not a completed handoff or provider credential
+  revocation. The USD12 whole-task allowance and all financial history remain
+  untouched, with no model calls or allocations.
+- Deploy the qualified changes directly202-to205 as one backend rollout.
+  The already-built204 image and read-only prepared204 plan are not dispatched.
+  Both hosted CPs still run0c426/schema202. Immutable-image CI, sequential hosted
+  verification, fresh production-owned customer, transfer, apply/index/actions/
+  authentication, promotion/retirement and P7 remain open. UI extraction is last;
+  neither framework0.8.36 nor its runtime artifact is changed by this work.

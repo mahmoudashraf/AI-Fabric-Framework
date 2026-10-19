@@ -1,5 +1,35 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Latest qualification, 2026-10-19: V205 UNUSED cross-control-plane source
+  relinquishment and one-use destination claim are implemented and independently
+  reviewed. Focused328 tests pass; actual backend3,628 tests/359 classes,121
+  actual-module PostgreSQL tests and both actual202-to205 backup rehearsals pass,
+  all without failures/errors/skips. Packaging passes. Three server-owned identity
+  settings perCP are configured and verified without a restart or alteration of
+  existing environment values. The source-qualified changes will roll out
+  directly202-to205; no intermediate204 deployment is needed. Both hosted CPs
+  still run0c426/schema202; no vector transfer or new customer apply is complete.
+  The independent external receiver's read-only V5/authentication verification
+  now passes. Fresh production-owned customer, live indexing/actions/authentication,
+  promotion/retirement and P7 remain pending. UI extraction stays last. Framework
+  and runtime artifact remain unchanged on0.8.36.
+
+- Continuation checkpoint, 2026-10-19: the owner approved one authoritative
+  production-control-plane customer, customer staging on the existing Free01
+  service, then production on the already authorized Frankfurt Serverless. The
+  developer canary remains configuration-only; no extra paid cluster is needed.
+  Fresh dealership AI state and indexes are allowed, seeded from external
+  integrations and S3 policies, without copying legacy conversations/indexes or
+  provisioning a dealership inventory database. Existing audit/financial history
+  remains intact. The cross-control-plane UNUSED release/claim lifecycle is
+  being implemented and independently reviewed; no reassignment has occurred.
+  The source-qualified backend changes through schema204 are pushed asbc59c6a16;
+  backend-only image CI39244401233 succeeds and skips the unchanged UI image.
+  Actual3573 default,88 critical PostgreSQL and2 actual backup migration tests
+  pass with zero failures/errors/skips. Both hosted CPs remain202 pending their
+  sequential verified rollout. Hosted acceptance/P7 remain open; UI extraction
+  stays last. See the current010.44 execution record for exact boundaries.
+
 - Current checkpoint, 2026-10-19: both control planes verify source0c42606c2,
   migration202 and healthUP. Approved unused cancellation and audited Free-01
   handoff to dep-70b3d2c1 are verified, preserving data and financial history.

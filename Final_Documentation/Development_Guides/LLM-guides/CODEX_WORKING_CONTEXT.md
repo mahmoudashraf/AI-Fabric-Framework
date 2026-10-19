@@ -8,7 +8,76 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 V205 Qualified, Single Hosted Rollout Pending
+
+- Owner-approved topology and USD12 whole-task allowance remain unchanged. No
+  vector release/claim, model allocation/call or fresh customer apply has occurred.
+  Both hosted CPs still0c426/schema202. Do not deploy intermediate204: bundle the
+  qualified changes directly202-to205. UI extraction remains last/uncommitted.
+- V205 source is frozen and independently reviewed with no open confirmedP0-P2.
+  Focused328 tests pass, including33 new transfer PG cases and unchanged handoff/
+  cancellation regressions. Actual ROOT default suite passes3,628/359classes;
+  actual ROOT critical PG passes121/3classes; actual ROOT202-to205 archive
+  rehearsal passes2. All zero failures/errors/skips. Both exact archives preserve
+  all131 original tables/columns, financial attribution and replay0; all6 new
+  receipt tables empty. Packaging passes; jarSHAb5002d7ed5b0bf3fee9dc14ba89d6d8cf53f7b6712d21ac67c82f3e30eaeda74.
+- Immutable reports: /private/tmp/01044-platform-205-qualification-20261019,
+  full-result.json,critical-result.json,full/,critical/,archive/. Root archive
+  Java now matches qualified205 sourceSHA247e4d9fca7d0e4d930dab692bd34083656e3e167d21a5cf3e3804fc4aecaa88.
+  Curie's separate19-file manifestb38c9e... excludes this parent archive update;
+  all production/test files were unchanged after full-gate start. Framework0.8.36
+  and runtime artifactd2b1a9792 are unchanged; no framework release/matrix.
+- Receiver final READ-ONLY verification is now VERIFIED. Both exact source-
+  equivalence94e293... and generated-transitionbf9014... proofs are required.
+  LiveV5/scope denial/old-key401/new-key405 checks preserve6 vehicles/73 receipts;
+  no action write/model call.185 private-helper regressions pass. API omits its
+  numeric ID by installed contract; UUID-bound read-only provider ID and inspected
+  label prove264 instead. Historical three build settings remain unproven and
+  are explicitly not claimed preserved. New customer end-to-end remains open.
+- Parent corrected rollout verifier only: explicit London/C canonical hashes
+  prove all131 tables match both backups/live. Automatic last_online_at is
+  excluded only after installed PushServerUpdateJob proof; all85 retained config
+  fields, settings/env/source/cache remain keyed. Process-level PG read-only is
+  enforced before Laravel bootstrap.46 offline helper tests pass. Old204 staging
+  PREPARED plan cd240... was never dispatched and is superseded by205.
+- Three nonsecret identity settings perCP were separately reviewed/configured
+  with normal Coolify env API and reconciled: loomai-staging-control-plane and
+  loomai-production-control-plane, exact canonical origins and reciprocal peers.
+  All old env/app configuration preserved; staging's23 identical preview-only
+  duplicates were retained as an exact row multiset, not edited/deduplicated.
+  No restart/image change yet; settings activate with205 rollout. Sealed receipts
+  /private/tmp/01044-transfer-identities-20261019/{staging,production}.json.
+- Pasteur owns new PRIVATE205 rollout helper, copied from the now-frozen204
+  verifier. It must handle the explicitly reviewed old/new generated-cache
+  transition from identity env additions, all other fields strict. Final source,
+  CI digest/report pins follow the parent commit; no hosted call by agent.
+  Chandra is closed; Curie/Hume source work complete. Hetzner remains open per
+  owner until full-plan completion. New production customer bootstrap API handoff
+  /private/tmp/01044-production-cp-bootstrap-handoff-20261019.txt is ready.
+
 ## 2026-10-19 Combined V203/V204 Qualification Checkpoint
+
+- Pushed verification commitbc59c6a16; backend-only CI39244401233 SUCCESS,
+  UI image job SKIPPED. Immutable OCI root f630c1d1c60ff6eb44a10db00fd0adf60ed9c3de8d1afaaea958493e34d7e1a8,
+  amd64 child1d3297bfbbf259bf31448216195ae477d5c3188d213c9a8ffa62fc1e0251a3a7.
+  Both hosted CPs still202; private preflight triggered no deployment.
+- Required for production independently confirmed exact owner approval is already
+  sufficient; no repeat approval is needed. Free01 is for the single authoritative
+  production-owned customer's customer-staging target; the existing Frankfurt
+  Serverless is for that same customer's production target. No extra paid cluster.
+  Existing same-CP/same-customer handoff cannot implement this cross-CP move.
+- V205 source work is in progress, uncommitted/undeployed: permanent UNUSED
+  source relinquishment/tombstone, scoped local credential removal (not provider
+  revocation), authenticated staff-coordinator proof review and one-use destination
+  claim. Fresh binding-only proof must not invent a reservation. Curie owns source/
+  tests, Hume independent security review; no customer inventory/database change.
+- CP preflight false drift is positively diagnosed: JVM/JDBC Europe/London vs
+  psql UTC timestamp rendering, then locale-dependent aggregate row sorting.
+  Isolated restore of the exact archives plus byte-C and row-set hash comparison
+  proves ALL131 tables match live on BOTH servers. No row change was ignored.
+  Private proof: 01044-backend-v204-helper.W5IbecnS/local-canonical-diagnostic-24af2168bce8.private.json.
+  Rollout helper canonicalization and exact generated Coolify-cache transition
+  checks are being qualified before any dispatch; no blind mutation retry.
 
 - Owner approved one production-control-plane customer as the authoritative live
   canary, leaving the current developer canary configuration-only. Per explicit

@@ -66,6 +66,8 @@ public class DeploymentExistingVectorBindingService {
     private com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence unusedCancellations;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ExistingVectorBindingHandoffStore handoffs;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ExternalVectorClusterLocks transferLocks;
 
     public DeploymentExistingVectorBindingService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentTargetProfileRepository targets, DeploymentProviderResourceHandleRepository handles,
@@ -86,8 +88,25 @@ public class DeploymentExistingVectorBindingService {
     }
 
     private Summary bind(String deploymentId, String targetId, Request request, Set<String> verifiedHandoffSources, boolean committedReplay) {
+        return bind(deploymentId, targetId, request, verifiedHandoffSources, committedReplay,
+            !verifiedHandoffSources.isEmpty() && !committedReplay);
+    }
+
+    private Summary bind(String deploymentId, String targetId, Request request, Set<String> verifiedHandoffSources,
+                         boolean committedReplay, boolean requireEmpty) {
         if (request == null) throw failure("EXTERNAL_VECTOR_BINDING_REQUEST_REQUIRED");
-        var deployment = deployments.findByIdForUpdate(deploymentId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        String requestedCluster = text(request.clusterId(), 128);
+        var lockIds = new TreeSet<String>(); lockIds.add(deploymentId);
+        handles.findByProviderResourceUuidOrderByIdAsc(requestedCluster).forEach(h -> lockIds.add(h.getDeploymentId()));
+        var locked = new TreeMap<String, DeploymentEntity>();
+        for (String id : lockIds) locked.put(id, deployments.findByIdForUpdate(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND)));
+        if (transferLocks != null) {
+            transferLocks.lock(requestedCluster);
+            transferLocks.requireNotReleased(requestedCluster);
+        }
+        if (handles.findByProviderResourceUuidOrderByIdAsc(requestedCluster).stream().anyMatch(h -> !locked.containsKey(h.getDeploymentId())))
+            throw new ResponseStatusException(CONFLICT, "EXTERNAL_VECTOR_CLUSTER_CHANGED");
+        var deployment = locked.get(deploymentId);
         scope(deployment, targetId);
         var target = targets.findById(targetId).filter(value -> value.isActive())
             .orElseThrow(() -> failure("EXTERNAL_VECTOR_TARGET_REQUIRED"));
@@ -169,7 +188,7 @@ public class DeploymentExistingVectorBindingService {
         }
         JsonNode scoped = scopes.targetScopedProviderConfig(deployment, config, targetId);
         verifyServingScope(version, endpoint.toString(), credentials,
-            scoped.path("milvusCollectionPrefix").asText(), option, !verifiedHandoffSources.isEmpty() && !committedReplay);
+            scoped.path("milvusCollectionPrefix").asText(), option, requireEmpty);
         Map<String, ?> ownership = Map.of("deploymentId", deploymentId, "targetProfileId", targetId,
             "resourceKind", RESOURCE_KIND, "externalResourceOwned", false);
         if (authType == AuthenticationType.TOKEN) {
@@ -219,6 +238,7 @@ public class DeploymentExistingVectorBindingService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND)));
         var deployment = locked.get(deploymentId); scope(deployment, targetId);
         if (deployment.getArchivedAt() != null) throw failure("UNUSED_VECTOR_HANDOFF_DESTINATION_UNAVAILABLE");
+        if (transferLocks != null) { transferLocks.lock(clusterId); transferLocks.requireNotReleased(clusterId); }
         var all = handles.lockClusterBindings(clusterId);
         if (all.stream().anyMatch(value -> !locked.containsKey(value.getDeploymentId())))
             throw new ResponseStatusException(CONFLICT, "UNUSED_VECTOR_HANDOFF_CLUSTER_CHANGED");
@@ -301,6 +321,7 @@ public class DeploymentExistingVectorBindingService {
             throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN);
     }
 
+    @Transactional
     public JsonNode resolve(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
         if (!required(provider)) return provider;
         var local = validateLocalBinding(deployment, version, provider, targetId);
@@ -326,19 +347,27 @@ public class DeploymentExistingVectorBindingService {
     }
 
     /** Local credential evidence only. Provider identity, serving access and health are not checked. */
+    @Transactional
     public JsonNode resolveLocal(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
         if (!required(provider)) return provider;
         return validateLocalBinding(deployment, version, provider, targetId).providerConfig();
     }
 
     private LocalBinding validateLocalBinding(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
+        return validateLocalBinding(deployment, version, provider, targetId, Set.of("ACTIVE"));
+    }
+
+    private LocalBinding validateLocalBinding(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider,
+                                              String targetId, Set<String> allowedStatuses) {
         scope(deployment, targetId); mode(provider);
+        if (transferLocks != null) deployments.findByIdForUpdate(deployment.getId()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
         AuthenticationType authType = configuredAuthenticationType(provider);
         if (version == null || !"PUBLISHED".equals(version.getStatus()) || version.getConfigHash() == null || version.getConfigHash().isBlank()) {
             throw failure("EXTERNAL_VECTOR_PUBLISHED_VERSION_REQUIRED");
         }
         var handle = handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(deployment.getId(), targetId, RESOURCE_KIND)
-            .filter(value -> "ACTIVE".equals(value.getStatus())).orElseThrow(() -> failure("EXTERNAL_VECTOR_BINDING_REQUIRED"));
+            .filter(value -> allowedStatuses.contains(value.getStatus())).orElseThrow(() -> failure("EXTERNAL_VECTOR_BINDING_REQUIRED"));
+        if (transferLocks != null) { transferLocks.lock(handle.getProviderResourceUuid()); transferLocks.requireNotReleased(handle.getProviderResourceUuid()); }
         var metadata = metadata(handle);
         ObjectNode integrity = (ObjectNode) metadata.deepCopy();
         integrity.remove("fingerprint");
@@ -393,6 +422,33 @@ public class DeploymentExistingVectorBindingService {
 
     private record LocalBinding(DeploymentProviderResourceHandleEntity handle, JsonNode metadata, JsonNode providerConfig,
                                 ServingCredentials credentials, String collectionPrefix) { }
+
+    @Transactional
+    public Summary bindTransferClaim(String deploymentId, String targetId, Request request, boolean committedReplay) {
+        requireHandoffStaff();
+        return bind(deploymentId, targetId, request, Set.of(), committedReplay, !committedReplay);
+    }
+
+    /** Read-only provider inventory; credentials remain local and are never included in transfer proof. */
+    @Transactional
+    public void verifyTransferEmpty(String bindingId, String expectedFingerprint) {
+        var handle = handles.findById(bindingId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        var deployment = deployments.findById(handle.getDeploymentId()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        var meta = metadata(handle);
+        if (!expectedFingerprint.equals(meta.path("fingerprint").asText())) throw failure("UNUSED_VECTOR_TRANSFER_BINDING_CHANGED");
+        var version = versions.findById(meta.path("versionId").asText()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        var local = validateLocalBinding(deployment, version, config(version), handle.getTargetProfileId(), Set.of("ACTIVE", "RETAINED_UNUSED"));
+        String managementKey = secrets.resolveSecret("ZILLIZ_CLOUD_API_KEY");
+        if (managementKey == null || managementKey.isBlank()) throw failure("EXTERNAL_VECTOR_READBACK_CREDENTIAL_REQUIRED");
+        var observed = observe(handle.getProviderResourceUuid(), managementKey);
+        if (observed == null || !handle.getProviderResourceUuid().equals(observed.clusterId())
+            || !meta.path("projectId").asText().equals(observed.projectId())
+            || !meta.path("regionId").asText().equals(observed.regionId())
+            || !meta.path("deploymentOption").asText().equals(observed.deploymentOption())
+            || !"RUNNING".equalsIgnoreCase(observed.status()) || !handle.getFqdn().equals(observed.connectAddress()))
+            throw failure("EXTERNAL_VECTOR_PROVIDER_IDENTITY_CHANGED");
+        verifyServingScope(version, observed.connectAddress(), local.credentials(), local.collectionPrefix(), observed.deploymentOption(), true);
+    }
 
     public Summary get(String deploymentId, String targetId) {
         return handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(deploymentId, targetId, RESOURCE_KIND)

@@ -229,6 +229,12 @@ public final class AdmissionUnusedReservationEvidence {
                 && binding.resourceKind().equals(handle.getResourceKind()) && binding.identityFingerprint().equals(identity(handle)));
     }
 
+    /** Authentic historical cancellation remains readable after a later terminal transfer release. */
+    public UnusedReservationCancellationReceipt requireTransferCancellation(DeploymentProviderResourceHandleEntity handle, String receiptId) {
+        return committedCancellations(handle).stream().filter(r -> r.id().equals(receiptId) && retainedBy(r, handle))
+            .findFirst().orElseThrow(() -> denied("UNUSED_VECTOR_TRANSFER_CANCELLATION_REQUIRED"));
+    }
+
     private List<UnusedReservationCancellationReceipt> committedCancellations(DeploymentProviderResourceHandleEntity handle) {
         return jdbc.query("""
             SELECT c.*,r.payload_json AS reservation_json,r.revision AS reservation_revision,r.expiry_state AS reservation_expiry_state,

@@ -46,7 +46,9 @@ class ControlPlaneArchiveMigrationIT {
         "production", new ReviewedArchive("nkti6x5r7ovw1xx8q0ykhweq", 7683556,
             "cdbd6da49b136740b0ff42f73c4a0566813f9b0841e9e00bb79a150eda33ccb8"));
     private static final Set<String> NEW_TABLES = Set.of(
-        "deployment_external_index_retention_receipts", "provider_usage_grant_void_receipts");
+        "deployment_external_index_retention_receipts", "provider_usage_grant_void_receipts",
+        "deployment_vector_transfer_releases", "deployment_vector_transfer_release_bindings",
+        "deployment_vector_transfer_reviews", "deployment_vector_transfer_claims");
     private static final Set<String> REQUIRED_ORIGINAL_TABLES = Set.of(
         "deployment_unused_vector_handoffs", "deployment_admission_unused_cancellations",
         "deployment_source_prerequisite_evidence", "deployment_provider_resource_handles",
@@ -101,6 +103,7 @@ class ControlPlaneArchiveMigrationIT {
                 assertEquals("202", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
                 assertEquals("0", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE NOT success"));
                 Set<String> originalTables = tableNames(connection);
+                assertEquals(131, originalTables.size(), "All 131 original CP202 tables must be present");
                 assertTrue(originalTables.containsAll(REQUIRED_ORIGINAL_TABLES), "Required original ledgers must exist");
                 assertTrue(originalTables.stream().noneMatch(NEW_TABLES::contains), "Only a CP202 archive is accepted");
                 assertEquals("0", scalar(connection, """
@@ -112,18 +115,19 @@ class ControlPlaneArchiveMigrationIT {
                 Fingerprint originalHistory = history(connection);
                 Fingerprint expectedAttribution = expectedAttribution(connection);
                 Flyway flyway = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-                    .locations("classpath:db/migration").target("204").load();
+                    .locations("classpath:db/migration").target("205").load();
                 var validation = flyway.validateWithResult();
                 if (!validation.validationSuccessful) {
                     Set<String> codes = validation.invalidMigrations.stream().map(value ->
                         (value.version != null && value.version.matches("[0-9.]{1,20}") ? value.version : "unversioned")
                             + ":" + value.errorDetails.errorCode).collect(java.util.stream.Collectors.toSet());
                     assertEquals(Set.of("203:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
-                        "204:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
-                        "Only V203 and V204 may be pending before normal migration validation");
+                        "204:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
+                        "205:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
+                        "Only V203, V204 and V205 may be pending before normal migration validation");
                 }
                 try {
-                    assertEquals(2, flyway.migrate().migrationsExecuted);
+                    assertEquals(3, flyway.migrate().migrationsExecuted);
                     flyway.validate();
                     assertPreserved(connection, originalTables, before, originalHistory, expectedAttribution);
                     assertEquals(0, flyway.migrate().migrationsExecuted, "Exact migration replay must be a no-op");
@@ -132,9 +136,9 @@ class ControlPlaneArchiveMigrationIT {
                 } catch (RuntimeException failure) {
                     throw new AssertionError("Archive migration/validation failed; private diagnostics withheld");
                 }
-                System.out.println("ARCHIVE_202_TO_204_PASS " + new ObjectMapper().writeValueAsString(Map.of(
+                System.out.println("ARCHIVE_202_TO_205_PASS " + new ObjectMapper().writeValueAsString(Map.of(
                     "environment", environment, "archiveSha256", REVIEWED_ARCHIVES.get(environment).sha256(),
-                    "from", "202", "to", "204", "migrationsExecuted", 2, "replayMigrationsExecuted", 0,
+                    "from", "202", "to", "205", "migrationsExecuted", 3, "replayMigrationsExecuted", 0,
                     "preservedTableCount", before.size(), "originalTables", before,
                     "originalHistory", originalHistory, "verifiedEventAttribution", expectedAttribution)));
             } catch (java.sql.SQLException failure) {
@@ -212,7 +216,7 @@ class ControlPlaneArchiveMigrationIT {
 
     private Fingerprint history(Connection connection) throws java.sql.SQLException {
         return fingerprint(connection, "SELECT to_jsonb(h) AS entry FROM public.flyway_schema_history h "
-            + "WHERE version IS NULL OR version NOT IN ('203','204')");
+            + "WHERE version IS NULL OR version NOT IN ('203','204','205')");
     }
 
     private Fingerprint expectedAttribution(Connection connection) throws java.sql.SQLException {
@@ -233,15 +237,15 @@ class ControlPlaneArchiveMigrationIT {
                                  Fingerprint originalHistory, Fingerprint expectedAttribution) throws java.sql.SQLException {
         Set<String> expectedTables = new LinkedHashSet<>(originalTables);
         expectedTables.addAll(NEW_TABLES);
-        assertEquals(expectedTables, tableNames(connection), "Only the two approved receipt tables may be added");
+        assertEquals(expectedTables, tableNames(connection), "Only the six approved receipt tables may be added");
         assertEquals(before, preserved(connection, originalTables), "All original table counts, columns and canonical hashes must be unchanged");
         assertEquals(originalHistory, history(connection), "Original Flyway history must be unchanged");
-        assertEquals("204", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
+        assertEquals("205", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
         assertEquals("0", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE NOT success"));
-        assertEquals("203,204", scalar(connection, "SELECT string_agg(version,',' ORDER BY installed_rank) "
-            + "FROM flyway_schema_history WHERE version IN ('203','204') AND success"));
+        assertEquals("203,204,205", scalar(connection, "SELECT string_agg(version,',' ORDER BY installed_rank) "
+            + "FROM flyway_schema_history WHERE version IN ('203','204','205') AND success"));
         for (String table : NEW_TABLES) assertEquals("0", scalar(connection, "SELECT count(*) FROM public." + quoted(table)),
-            "Migration must not seed retention or grant-void receipts");
+            "Migration must not seed retention, grant-void, or vector-transfer receipts");
         assertEquals("0", scalar(connection, "SELECT count(*) FROM provider_usage_grants WHERE lifecycle_status IS DISTINCT FROM 'ACTIVE'"));
         assertEquals(expectedAttribution, fingerprint(connection,
             "SELECT jsonb_build_object('id',id,'grant_id',grant_id) AS entry FROM public.provider_usage_allowance_events"),

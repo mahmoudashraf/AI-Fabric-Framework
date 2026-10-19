@@ -152,6 +152,9 @@ class DeploymentExistingVectorBindingServiceTest {
 
     private DeploymentProviderResourceHandleEntity historicalHandle(String id) {
         var handle = new DeploymentProviderResourceHandleEntity(); handle.setId(id);
+        var owner = new DeploymentEntity(); owner.setId("deployment-" + id);
+        handle.setDeploymentId(owner.getId());
+        when(deployments.findByIdForUpdate(owner.getId())).thenReturn(Optional.of(owner));
         handle.setProviderType(DeploymentProviderType.COOLIFY); handle.setProviderResourceUuid(CLUSTER);
         handle.setTargetProfileId(TARGET);
         handle.setStatus("RETAINED_UNUSED"); handle.setResourceKind(DeploymentExistingVectorBindingService.RESOURCE_KIND);
