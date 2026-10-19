@@ -43,7 +43,10 @@ class ControlPlaneArchiveMigrationIT {
         "platform_tenant_scoped_vector_resources", "ai_workspace_installations",
         "deployment_provider_resource_handles", "platform_deployment_managed_vector_resources",
         "deployment_managed_dependency_graphs", "platform_managed_product_services",
-        "platform_customer_offers", "platform_customer_offer_entitlements", "platform_customer_offer_deployments"
+        "platform_customer_offers", "platform_customer_offer_entitlements", "platform_customer_offer_deployments",
+        "deployment_admission_unused_cancellations", "deployment_admission_authorizations", "deployment_admission_events",
+        "platform_consumer_binding_history", "platform_customer_entitlement_commands",
+        "platform_managed_resource_ownership", "platform_managed_service_ownership", "provider_usage_allocations"
     };
 
     @ParameterizedTest
@@ -97,7 +100,7 @@ class ControlPlaneArchiveMigrationIT {
             // Only aggregates/hashes leave the isolated database, never rows or stored credentials.
             try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
                 assertEquals("18", scalar(connection, "SELECT current_setting('server_version_num')::int / 10000"));
-                assertEquals("195", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
+                assertEquals("201", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
                 Map<String, String> before = preserved(connection);
                 Flyway flyway = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                     .locations("classpath:db/migration").load();
@@ -106,21 +109,19 @@ class ControlPlaneArchiveMigrationIT {
                     Set<String> codes = validation.invalidMigrations.stream().map(value ->
                         (value.version != null && value.version.matches("[0-9.]{1,20}") ? value.version : "unversioned")
                             + ":" + value.errorDetails.errorCode).collect(java.util.stream.Collectors.toSet());
-                    assertEquals(Set.of(
-                        "196:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED", "197:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
-                        "198:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED", "199:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
-                        "200:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED", "201:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
-                        "Only the exact six pending migrations may precede the normal migrate validation");
+                    assertEquals(Set.of("202:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
+                        "Only the exact additive handoff migration may precede the normal migrate validation");
                 }
                 try {
-                    assertEquals(6, flyway.migrate().migrationsExecuted);
+                    assertEquals(1, flyway.migrate().migrationsExecuted);
                     flyway.validate();
                 } catch (RuntimeException failure) {
                     throw new AssertionError("Archive migration/validation failed; private diagnostics withheld");
                 }
                 assertEquals(before, preserved(connection), "Existing customer/credential/resource state must remain unchanged");
-                assertEquals("201", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
-                assertEquals("201", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+                assertEquals("202", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
+                assertEquals("202", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+                assertEquals("0", scalar(connection, "SELECT count(*) FROM deployment_unused_vector_handoffs"));
                 assertEquals("5", scalar(connection, "SELECT count(*) FROM platform_marketplace_plugins WHERE id IN "
                     + "('mkp-data-dealership-external-stock-v1','mkp-action-dealership-external-discovery-v1',"
                     + "'mkp-action-dealership-external-engagement-v1','mkp-template-dealership-external-systems-v1',"

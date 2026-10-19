@@ -498,3 +498,46 @@ The platform now supports enterprise tenant-bound vector storage operations arou
 - verification, diagnostics, cleanup posture, and migration compatibility all operate at the tenant-resource boundary
 
 This is the current operator model for Track A on `Platform-V3`.
+
+## 16. Audited Reuse Of A Never-Used External Vector Cluster
+
+The V202 control-plane contract adds an explicit `PLATFORM_ADMIN`-only operation
+for retained external Zilliz bindings. It does not change ordinary binding or
+authorize cross-customer sharing. This is unused infrastructure reuse, not a
+migration of tenant data.
+
+Prerequisites: a committed `CANCELLED_UNUSED_NO_EFFECT` reservation cancellation,
+the exact retained source binding fingerprint and cancellation receipt, the
+same customer and target, a different destination deployment with an immutable
+published version, a distinct server-derived collection prefix, and the original
+approval reference. All historical bindings for the cluster must be accounted
+for. Any release, later reservation, provider allocation, assigned consumer,
+retirement/deletion operation, changed source ownership or foreign collection
+blocks reuse. Serving credentials must pass fresh read-only provider checks.
+The first handoff requires an entirely empty cluster, even if a collection
+already matches the destination prefix. Committed replay may subsequently
+verify collections belonging to that prefix; it never creates a second binding.
+
+Use the existing Platform staff authentication boundary:
+
+```text
+POST /api/deployments/{deploymentId}/targets/{targetId}/existing-vector-binding/handoff-unused
+GET  /api/deployments/{deploymentId}/targets/{targetId}/existing-vector-binding/handoff-unused/{operationKey}
+```
+
+The request contains `operationKey`, `approvalReference`, a complete `sources`
+list (`bindingId`, `cancellationReceiptId`, `expectedBindingFingerprint`), and
+`connection` using the explicit existing-vector binding contract, including its
+authentication type and serving credentials. Credentials belong only in the
+authenticated request/private secret input, never shared evidence or command
+logs. Unknown JSON fields and scalar coercion are rejected.
+
+The new active binding, managed credential references, audit and immutable receipt
+commit atomically. Source handles, original metadata and credentials remain
+unchanged. Provider verification only reads cluster identity and collection
+names; no create, drop, delete or rotation is performed. A repeated identical
+operation returns the same receipt without claiming another retirement epoch.
+Changed commands or credentials fail closed. After a transport-unknown outcome,
+read the exact operation receipt before any deliberate replay; never generate a
+new operation key to escape uncertainty. Hosted installation of V202 must be
+verified separately; source availability alone does not prove deployment.

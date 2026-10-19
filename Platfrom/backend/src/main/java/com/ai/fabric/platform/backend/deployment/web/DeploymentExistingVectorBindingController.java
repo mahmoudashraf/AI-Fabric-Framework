@@ -2,6 +2,16 @@ package com.ai.fabric.platform.backend.deployment.web;
 
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Request;
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Summary;
+import com.ai.fabric.platform.backend.deployment.model.UnusedVectorBindingHandoffContracts;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Map;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentExistingVectorBindingService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,5 +35,32 @@ public class DeploymentExistingVectorBindingController {
 
     @GetMapping public Summary get(@PathVariable String deploymentId, @PathVariable String targetId) {
         return service.get(deploymentId, targetId);
+    }
+
+    @PostMapping("/handoff-unused")
+    public UnusedVectorBindingHandoffContracts.Receipt handoff(@PathVariable String deploymentId, @PathVariable String targetId,
+            @RequestBody UnusedVectorBindingHandoffContracts.Request request) {
+        return service.handoffUnused(deploymentId, targetId, request);
+    }
+
+    @GetMapping("/handoff-unused/{operationKey}")
+    public UnusedVectorBindingHandoffContracts.Receipt handoffReceipt(@PathVariable String deploymentId, @PathVariable String targetId,
+            @PathVariable String operationKey) {
+        return service.getUnusedHandoff(deploymentId, targetId, operationKey);
+    }
+
+    @RestControllerAdvice(assignableTypes = DeploymentExistingVectorBindingController.class)
+    public static class InvalidBindingRequestHandler {
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        public ResponseEntity<Map<String, Object>> invalidJson() {
+            if (!PlatformSecurityContext.isAuthenticated()) return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED");
+            if (PlatformSecurityContext.currentPrincipal().role() != PlatformRole.PLATFORM_ADMIN)
+                return error(HttpStatus.FORBIDDEN, "FORBIDDEN");
+            return error(HttpStatus.BAD_REQUEST, "EXTERNAL_VECTOR_REQUEST_INVALID");
+        }
+
+        private ResponseEntity<Map<String, Object>> error(HttpStatus status, String code) {
+            return ResponseEntity.status(status).body(Map.of("success", false, "errorCode", code));
+        }
     }
 }

@@ -1,5 +1,18 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Approved continuation, 2026-10-19: the owner approved the exact unused
+  reservation cancellation and audited Free-01 handoff from `dep-6e29bab9` to
+  `dep-70b3d2c1`. That approval supersedes earlier pending-decision notes only
+  for these operations. The initial API409 made no changes; investigation found
+  a false zero-epoch assumption in the retirement gate, not evidence of a used
+  deployment. Source correction records and locks the unchanged available gate
+  while retaining all actual no-effect checks. V202 adds an explicit audited
+  same-customer unused-cluster handoff; ordinary tenant binding stays strict.
+  Qualification and rollout are in progress, not hosted acceptance. Fresh
+  archive201-to202 rehearsals pass for both control planes, and all198 support
+  tests pass without skips. Full backend and real PostgreSQL gates remain in
+  progress. UI extraction stays last and independently reversible.
+
 - **Architecture blocker, owner correction 2026-10-18:** customer AI deployments must not provision dealership inventory/lead systems, the example dealership backend/database, or an external provider simulator as customer-product defaults. The current simulated-dealership dependency graph violates this boundary and must not be applied/promoted unchanged. [010.44](010_44_CUSTOMER_SYSTEM_INTEGRATION_BOUNDARY_CORRECTION_PLAN.md) supersedes conflicting simulator/receiver/database provisioning assumptions in section 10, including R5. Keep the AI solution and DATA/ACTION integrations, separate external demo fixtures, preserve customer-managed storage and optional BYO vector services, and explicitly account for required AI operational state. Historical implementation evidence below is retained, not acceptance of the invalid architecture. UI extraction remains last.
 
 - Latest hosted checkpoint, 2026-10-19: both control planes verify `ceaacf12e`, digest `sha256:f59d045994b81cd2e8fb1208defaf50b1f50a2b16e8441fe393781a8b2020d11`, migration201 and public healthUP. Actual backend qualification passes3,343 tests across350 classes with zero failures/errors/skips; packaging and fresh Platform195-to201 archive rehearsals pass. The existing public repository is intentional. The AI-only attended offer is published on staging and independently verified through normal customer invitation/acceptance/catalogue readback. Customer `dep-70b3d2c1` passes configuration-only bootstrap, app, read-only S3, immutable-version replay and foreign-scope denial checks; it has zero releases, managed graphs or provider/model allocations. `81b9e5b6f` contains the verified publisher/preflight; `f7b7bd58c` contains the separately tested demo HTTP fix. Full support175 and demo161 tests pass with no skips. Runtime remains `d2b1a9792` / AI Fabric0.8.36, not rebuilt. The exact old reservation and Free-01 stay unchanged pending specific owner decisions. Hosted apply/index/actions/handover, capacity, production promotion and P7 remain open. UI extraction remains last. See [010.44 execution](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).

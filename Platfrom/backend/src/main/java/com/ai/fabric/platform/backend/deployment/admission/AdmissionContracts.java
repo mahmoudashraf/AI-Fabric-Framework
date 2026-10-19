@@ -169,9 +169,13 @@ public final class AdmissionContracts {
     public record RetainedBindingMetadata(String handleId, String resourceKind, String identityFingerprint,
                                            BindingCancellationDisposition disposition) { }
     public record UnusedAuthorityCandidate(String snapshotId, String fingerprint, long generation) { }
+    public record UnusedTargetGate(String gateId, long epoch, long rowVersion) { }
     /** Local no-effect evidence only; neither external absence nor provider health is asserted. */
     public record UnusedReservationEvidence(List<RetainedBindingMetadata> retainedBindings,
-                                             List<UnusedAuthorityCandidate> authorityCandidates) {
+                                             List<UnusedAuthorityCandidate> authorityCandidates, UnusedTargetGate targetGate) {
+        public UnusedReservationEvidence(List<RetainedBindingMetadata> retainedBindings, List<UnusedAuthorityCandidate> authorityCandidates) {
+            this(retainedBindings, authorityCandidates, null);
+        }
         public UnusedReservationEvidence {
             retainedBindings = List.copyOf(retainedBindings);
             authorityCandidates = List.copyOf(authorityCandidates);

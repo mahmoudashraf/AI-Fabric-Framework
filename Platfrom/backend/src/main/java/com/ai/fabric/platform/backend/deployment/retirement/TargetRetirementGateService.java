@@ -28,6 +28,24 @@ public class TargetRetirementGateService {
     @Transactional(propagation = Propagation.MANDATORY)
     public long requireAvailableForMutation(String deploymentId, String targetProfileId) {
         var gate = lock(deploymentId, targetProfileId);
+        requireAvailable(deploymentId, targetProfileId, gate);
+        gate.setEpoch(gate.getEpoch() + 1);
+        gate.setUpdatedAt(Instant.now());
+        gates.save(gate);
+        return gate.getEpoch();
+    }
+
+    /** A committed command replay must respect retirement without claiming a new mutation epoch. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void requireAvailableForReplay(String deploymentId, String targetProfileId) {
+        deployments.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found."));
+        var gate = gates.findForUpdate(deploymentId, targetProfileId)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "TARGET_RETIREMENT_FENCE_MISSING"));
+        requireAvailable(deploymentId, targetProfileId, gate);
+    }
+
+    private void requireAvailable(String deploymentId, String targetProfileId, TargetRetirementGateEntity gate) {
         if (!"AVAILABLE".equals(gate.getState())) {
             throw new ResponseStatusException(CONFLICT, "TARGET_RETIREMENT_FENCED");
         }
@@ -36,10 +54,6 @@ public class TargetRetirementGateService {
             .anyMatch(operation -> operation.getState() != TargetRetirementContracts.State.COMPLETE
                 && operation.getState() != TargetRetirementContracts.State.CANCELLED);
         if (plannedOrRunning) throw new ResponseStatusException(CONFLICT, "TARGET_RETIREMENT_FENCED");
-        gate.setEpoch(gate.getEpoch() + 1);
-        gate.setUpdatedAt(Instant.now());
-        gates.save(gate);
-        return gate.getEpoch();
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

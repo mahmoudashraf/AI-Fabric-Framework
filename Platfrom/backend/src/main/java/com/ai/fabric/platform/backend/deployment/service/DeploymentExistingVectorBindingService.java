@@ -8,6 +8,9 @@ import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingCont
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Request;
 import com.ai.fabric.platform.backend.deployment.model.ExistingVectorBindingContracts.Summary;
 import com.ai.fabric.platform.backend.deployment.model.PreservedExternalBindingKinds;
+import com.ai.fabric.platform.backend.deployment.model.UnusedVectorBindingHandoffContracts;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
@@ -30,6 +33,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.TreeMap;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -57,6 +64,8 @@ public class DeploymentExistingVectorBindingService {
     private final ObjectMapper mapper;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence unusedCancellations;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ExistingVectorBindingHandoffStore handoffs;
 
     public DeploymentExistingVectorBindingService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentTargetProfileRepository targets, DeploymentProviderResourceHandleRepository handles,
@@ -73,12 +82,17 @@ public class DeploymentExistingVectorBindingService {
 
     @Transactional
     public Summary bind(String deploymentId, String targetId, Request request) {
+        return bind(deploymentId, targetId, request, Set.of(), false);
+    }
+
+    private Summary bind(String deploymentId, String targetId, Request request, Set<String> verifiedHandoffSources, boolean committedReplay) {
         if (request == null) throw failure("EXTERNAL_VECTOR_BINDING_REQUEST_REQUIRED");
         var deployment = deployments.findByIdForUpdate(deploymentId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
         scope(deployment, targetId);
         var target = targets.findById(targetId).filter(value -> value.isActive())
             .orElseThrow(() -> failure("EXTERNAL_VECTOR_TARGET_REQUIRED"));
-        retirement.requireAvailableForMutation(deploymentId, targetId);
+        if (committedReplay) retirement.requireAvailableForReplay(deploymentId, targetId);
+        else retirement.requireAvailableForMutation(deploymentId, targetId);
         var version = versions.findById(text(request.versionId(), 64)).filter(value -> deploymentId.equals(value.getDeploymentId())
             && "PUBLISHED".equals(value.getStatus())).orElseThrow(() -> failure("EXTERNAL_VECTOR_PUBLISHED_VERSION_REQUIRED"));
         var config = config(version);
@@ -130,7 +144,8 @@ public class DeploymentExistingVectorBindingService {
                 || all.stream().anyMatch(value -> value.getProviderType() != target.getProviderType()
                     || !clusterId.equals(value.getProviderResourceUuid())
                     || !targetId.equals(value.getTargetProfileId())
-                    || !unusedCancellations.permitsFreshBinding(value, deployment.getCustomerId(), deployment.getTenantId(), approval, newPrefix)))
+                    || !(verifiedHandoffSources.contains(value.getId())
+                        || unusedCancellations.permitsFreshBinding(value, deployment.getCustomerId(), deployment.getTenantId(), approval, newPrefix))))
                 throw new ResponseStatusException(CONFLICT, "EXTERNAL_VECTOR_CLUSTER_ALREADY_BOUND");
         }
         String managementKey = secrets.resolveSecret("ZILLIZ_CLOUD_API_KEY");
@@ -154,7 +169,7 @@ public class DeploymentExistingVectorBindingService {
         }
         JsonNode scoped = scopes.targetScopedProviderConfig(deployment, config, targetId);
         verifyServingScope(version, endpoint.toString(), credentials,
-            scoped.path("milvusCollectionPrefix").asText(), option);
+            scoped.path("milvusCollectionPrefix").asText(), option, !verifiedHandoffSources.isEmpty() && !committedReplay);
         Map<String, ?> ownership = Map.of("deploymentId", deploymentId, "targetProfileId", targetId,
             "resourceKind", RESOURCE_KIND, "externalResourceOwned", false);
         if (authType == AuthenticationType.TOKEN) {
@@ -185,6 +200,105 @@ public class DeploymentExistingVectorBindingService {
             Map.of("targetProfileId", targetId, "versionId", version.getId(), "bindingId", handle.getId(),
                 "fingerprint", fingerprint, "externalResourceOwned", false, "approvalReference", approval));
         return summary(handle);
+    }
+
+    @Transactional
+    public UnusedVectorBindingHandoffContracts.Receipt handoffUnused(String deploymentId, String targetId,
+            UnusedVectorBindingHandoffContracts.Request request) {
+        requireHandoffStaff();
+        if (handoffs == null || unusedCancellations == null) throw failure("UNUSED_VECTOR_HANDOFF_UNAVAILABLE");
+        validateHandoff(request);
+        var sources = request.sources().stream().sorted(java.util.Comparator.comparing(UnusedVectorBindingHandoffContracts.Source::bindingId)).toList();
+        String clusterId = text(request.connection().clusterId(), 128);
+        var historical = handles.findByProviderResourceUuidOrderByIdAsc(clusterId);
+        var lockIds = new TreeSet<String>(); lockIds.add(deploymentId);
+        historical.forEach(handle -> lockIds.add(handle.getDeploymentId()));
+        var locked = new TreeMap<String, DeploymentEntity>();
+        // Every handoff uses the same deployment-then-cluster lock order, including competing destinations.
+        for (String id : lockIds) locked.put(id, deployments.findByIdForUpdate(id)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND)));
+        var deployment = locked.get(deploymentId); scope(deployment, targetId);
+        if (deployment.getArchivedAt() != null) throw failure("UNUSED_VECTOR_HANDOFF_DESTINATION_UNAVAILABLE");
+        var all = handles.lockClusterBindings(clusterId);
+        if (all.stream().anyMatch(value -> !locked.containsKey(value.getDeploymentId())))
+            throw new ResponseStatusException(CONFLICT, "UNUSED_VECTOR_HANDOFF_CLUSTER_CHANGED");
+        var prior = handoffs.find(deploymentId, targetId, request.operationKey());
+        String replayBindingId = prior.map(value -> value.binding().bindingId()).orElse(null);
+        var sourceHandles = all.stream().filter(value -> !value.getId().equals(replayBindingId)).toList();
+        if (!sourceHandles.stream().map(DeploymentProviderResourceHandleEntity::getId).sorted().toList()
+            .equals(sources.stream().map(UnusedVectorBindingHandoffContracts.Source::bindingId).toList()))
+            throw new ResponseStatusException(CONFLICT, "UNUSED_VECTOR_HANDOFF_EXACT_SOURCE_SET_REQUIRED");
+        var target = targets.findById(targetId).filter(value -> value.isActive()).orElseThrow(() -> failure("EXTERNAL_VECTOR_TARGET_REQUIRED"));
+        var version = versions.findById(text(request.connection().versionId(), 64))
+            .filter(value -> deploymentId.equals(value.getDeploymentId()) && "PUBLISHED".equals(value.getStatus()))
+            .orElseThrow(() -> failure("EXTERNAL_VECTOR_PUBLISHED_VERSION_REQUIRED"));
+        String prefix = scopes.targetScopedProviderConfig(deployment, config(version), targetId).path("milvusCollectionPrefix").asText();
+        for (int index = 0; index < sources.size(); index++) {
+            var source = sources.get(index); var handle = sourceHandles.get(index);
+            var owner = locked.get(handle.getDeploymentId());
+            if (deploymentId.equals(handle.getDeploymentId()) || owner.getArchivedAt() != null
+                || !deployment.getCustomerId().equals(owner.getCustomerId())
+                || handle.getProviderType() != target.getProviderType() || !targetId.equals(handle.getTargetProfileId())
+                || !clusterId.equals(handle.getProviderResourceUuid()))
+                throw new ResponseStatusException(CONFLICT, "UNUSED_VECTOR_HANDOFF_OWNERSHIP_CHANGED");
+            unusedCancellations.requireUnusedHandoffSource(handle, source.cancellationReceiptId(), source.expectedBindingFingerprint(),
+                deployment.getCustomerId(), request.approvalReference(), prefix);
+        }
+        if (prior.isEmpty() && handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(deploymentId, targetId, RESOURCE_KIND).isPresent())
+            throw new ResponseStatusException(CONFLICT, "UNUSED_VECTOR_HANDOFF_DESTINATION_ALREADY_BOUND");
+        Summary binding = bind(deploymentId, targetId, request.connection(), sources.stream()
+            .map(UnusedVectorBindingHandoffContracts.Source::bindingId).collect(java.util.stream.Collectors.toSet()), prior.isPresent());
+        var handle = handles.findById(binding.bindingId()).orElseThrow(() -> failure("EXTERNAL_VECTOR_BINDING_REQUIRED"));
+        var safeCommand = mapper.createObjectNode().put("deploymentId", deploymentId).put("customerId", deployment.getCustomerId())
+            .put("tenantId", deployment.getTenantId()).put("targetProfileId", targetId).put("operationKey", request.operationKey())
+            .put("approvalReference", request.approvalReference()).put("versionId", version.getId())
+            .put("versionConfigHash", version.getConfigHash()).put("bindingRequestFingerprint", metadata(handle).path("requestFingerprint").asText());
+        safeCommand.set("sources", mapper.valueToTree(sources));
+        String commandFingerprint = DeploymentEvidenceFingerprint.hash(mapper, safeCommand);
+        if (prior.isPresent()) {
+            var receipt = prior.get();
+            if (!commandFingerprint.equals(receipt.commandFingerprint()) || !binding.equals(receipt.binding())
+                || !deployment.getCustomerId().equals(receipt.customerId()) || !deployment.getTenantId().equals(receipt.tenantId()))
+                throw new ResponseStatusException(CONFLICT, "UNUSED_VECTOR_HANDOFF_OPERATION_REUSED");
+            return receipt;
+        }
+        var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        var unsigned = new UnusedVectorBindingHandoffContracts.Receipt("uvh-" + UUID.randomUUID(), request.operationKey(), commandFingerprint,
+            deploymentId, deployment.getCustomerId(), deployment.getTenantId(), targetId, clusterId, version.getId(), version.getConfigHash(),
+            sources, request.approvalReference(), binding, PlatformSecurityContext.actorIdOrSystem(), now, null);
+        var receipt = new UnusedVectorBindingHandoffContracts.Receipt(unsigned.id(), unsigned.operationKey(), commandFingerprint,
+            deploymentId, unsigned.customerId(), unsigned.tenantId(), targetId, clusterId, version.getId(), version.getConfigHash(), sources,
+            unsigned.approvalReference(), binding, unsigned.actorId(), now, handoffs.fingerprint(unsigned));
+        handoffs.append(receipt);
+        audit.record("EXTERNAL_VECTOR_UNUSED_HANDOFF", "DEPLOYMENT", deploymentId,
+            Map.of("targetProfileId", targetId, "receiptId", receipt.id(), "bindingId", binding.bindingId(),
+                "sourceBindingIds", sources.stream().map(UnusedVectorBindingHandoffContracts.Source::bindingId).toList(),
+                "fingerprint", receipt.fingerprint(), "externalResourceOwned", false, "approvalReference", receipt.approvalReference()));
+        return receipt;
+    }
+
+    public UnusedVectorBindingHandoffContracts.Receipt getUnusedHandoff(String deploymentId, String targetId, String operationKey) {
+        requireHandoffStaff();
+        if (handoffs == null) throw failure("UNUSED_VECTOR_HANDOFF_UNAVAILABLE");
+        return handoffs.find(deploymentId, targetId, text(operationKey, 128)).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+    }
+
+    private void validateHandoff(UnusedVectorBindingHandoffContracts.Request request) {
+        if (request == null || request.connection() == null || request.sources() == null || request.sources().isEmpty() || request.sources().size() > 32)
+            throw failure("UNUSED_VECTOR_HANDOFF_REQUEST_REQUIRED");
+        text(request.operationKey(), 128); text(request.approvalReference(), 255);
+        if (!request.approvalReference().equals(request.connection().approvalReference())
+            || request.sources().stream().map(UnusedVectorBindingHandoffContracts.Source::bindingId).distinct().count() != request.sources().size())
+            throw failure("UNUSED_VECTOR_HANDOFF_REQUEST_INVALID");
+        for (var source : request.sources()) {
+            text(source.bindingId(), 64); text(source.cancellationReceiptId(), 64); text(source.expectedBindingFingerprint(), 64);
+        }
+    }
+
+    private void requireHandoffStaff() {
+        if (!PlatformSecurityContext.isAuthenticated()) throw new ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED);
+        if (PlatformSecurityContext.currentPrincipal().role() != PlatformRole.PLATFORM_ADMIN)
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN);
     }
 
     public JsonNode resolve(DeploymentEntity deployment, DeploymentVersionEntity version, JsonNode provider, String targetId) {
@@ -378,6 +492,11 @@ public class DeploymentExistingVectorBindingService {
 
     private void verifyServingScope(DeploymentVersionEntity version, String endpoint, ServingCredentials credentials,
                                    String prefix, String deploymentOption) {
+        verifyServingScope(version, endpoint, credentials, prefix, deploymentOption, false);
+    }
+
+    private void verifyServingScope(DeploymentVersionEntity version, String endpoint, ServingCredentials credentials,
+                                   String prefix, String deploymentOption, boolean requireEmpty) {
         java.util.List<String> collections;
         try {
             collections = credentials.authType() == AuthenticationType.TOKEN
@@ -388,6 +507,7 @@ public class DeploymentExistingVectorBindingService {
         if (collections == null || prefix.isBlank() || collections.stream().anyMatch(name -> !name.startsWith(prefix))) {
             throw failure("EXTERNAL_VECTOR_FOREIGN_COLLECTIONS_PRESENT");
         }
+        if (requireEmpty && !collections.isEmpty()) throw failure("UNUSED_VECTOR_HANDOFF_CLUSTER_NOT_EMPTY");
         if ("Free".equals(deploymentOption)) {
             java.util.Set<String> expected = new java.util.HashSet<>();
             try {

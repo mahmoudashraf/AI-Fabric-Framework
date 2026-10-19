@@ -814,3 +814,50 @@ an app, or claiming hosted workload readiness.
   No new runtime apply or production promotion. Specific cancellation/handoff
   approval is still needed; continue through normal customer binding/admission
   and hosted acceptance after that, keeping UI extraction last.
+
+### Owner-Approved Unused Reservation And Audited Vector Handoff
+
+- Owner explicitly answered "Yes" to cancelling the unused `dep-6e29bab9`
+  reservation and performing an audited Free-01 handoff to `dep-70b3d2c1`, with
+  data and the existing allowance retained. Older pending-approval notes for
+  these exact actions are superseded; no unrelated resource deletion, allowance
+  reset or ownership transfer is authorized.
+- Fresh private Platform-only backups and a fresh fenced zero-effect preflight
+  pass. Approved-operation evidence uses new `01044-approved-unused-cancellation`
+  files, preserving the older preflight. No business/Coolify database backup or
+  data mutation is implied by the Platform archives.
+- Implementation tracking: normal same-tenant binding remains unchanged. Add a
+  separate staff-only, same-customer unused-binding handoff with exact committed
+  cancellation/source identity, complete historical-source proof, immutable
+  destination version/target and distinct collection prefix. Store an audited,
+  idempotent receipt atomically with the new binding; preserve original handles,
+  metadata, collections and secrets. Verify replay, forged/used/cross-customer
+  negatives, rollback and PostgreSQL active-binding concurrency before rollout.
+- Parent implements the core boundary; independent workers own the external
+  binding API canary and real PostgreSQL handoff qualification. Hosted binding,
+  admission, provider-budget and runtime gates still apply. UI extraction last.
+
+### Approved Handoff Implementation And Qualification In Progress
+
+- The exact cancellation attempt returned HTTP409. Independent read-only
+  reconciliation confirms the reservation remains `RESERVED`, revision0, with
+  no cancellation row or event. No blind retry, SQL ownership edit or provider
+  deletion was used. A separate worker is diagnosing the original guard failure.
+- Added a staff-admin-only handoff contract, additive V202 receipt ledger,
+  complete-source locking, exact committed cancellation proof, immutable version
+  and provider-scope verification, credential-bound replay and atomic audit.
+  Ordinary same-tenant binding checks remain unchanged. No framework changes.
+- Focused binding/authentication tests passed119 cases. The initial restricted
+  JVM attempt could not attach Mockito; rerunning with normal local JVM
+  permissions passed rather than suppressing the failing tests. New PostgreSQL
+  qualification caught two real integrity gaps: a replay advanced a retirement
+  epoch, and saved cancellation JSON was not compared to the actual row revision.
+  Both are corrected in source and are undergoing repeat qualification.
+- Fresh private staging/production Platform archives restore successfully into
+  isolated local PostgreSQL18 and migrate201-to202 with zero preserved-row
+  changes and an empty handoff ledger:2 tests, zero failures/errors/skips.
+  Source S3, vector data, business systems and hosted control planes are unchanged.
+- External binding API canary/client has23 local passing tests. It exposed a
+  customer summary READ slot-authorization mismatch; the owning worker is
+  correcting that boundary with regression tests. This is not permission to
+  bypass customer authorization or treat an unknown command as successful.

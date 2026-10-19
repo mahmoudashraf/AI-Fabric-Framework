@@ -8,6 +8,32 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 Approved Free-01 Handoff Continuation
+
+- Owner explicitly approved cancelling unused reservationf0e90dba on dep-6e29bab9
+  and audited Free-01 reuse by dep-70b3d2c1, preserving data/allowance. Initial
+  API409 is reconciled no-effect (RESERVED/rev0/no cancellation). Reproduced cause:
+  AVAILABLE retirement gateepoch7 from configuration mutations was falsely treated
+  as evidence of runtime use. No hosted retry or SQL release used.
+- In progress: locked exact gate snapshot before/after cancellation; separate
+  staff-admin-only same-customer handoff/V202 with atomic secrets/binding/audit/
+  receipt, complete source evidence, original immutable ownership retained,
+  cluster-empty prerequisite on first handoff, credential-bound replay without
+  advancing retirement epoch. Framework remains0.8.36; no semantic matching.
+- Fresh private Platform-only backups201-to202 restore/rehearsal2PASS; focused
+  vector/HTTP119PASS and full support198PASS/0skip. Independent real PostgreSQL
+  tests/review caught additional revision/event/resource and empty-cluster gaps,
+  now corrected in source, undergoing final qualification. Actual full backend
+  suite running; do not infer hosted readiness from these source checks.
+- External customer binding summary READ authorization mismatch fixed separately
+  with31 focused passing tests. Unknown command outcomes remain fail-closed;
+  no new lookup/bypass. Live fixture authority for new customer needs explicit
+  review before binding; preserve existing external business database/data.
+- Private helpers: /private/tmp/01044-backend-v202-rollout.mjs (not executed),
+  /private/tmp/01044-approved-vector-handoff-live.mjs (not executed). Fresh
+  cancellation helper now uses new v202 evidence paths after rollout. Keep all
+  old rejected-operation receipts. UI extraction remains dirty/uncommitted last.
+
 ## Current Session Decisions
 
 - User wants concise chat feedback because long chat text can make Codex sessions unloadable.
@@ -6236,3 +6262,21 @@ test is being called hosted acceptance. UI extraction remains last.
   allunrelatedUI/media. NoUI extraction/build/deployment occurred.
   Oldreservationcancel/Free01handoff STILL lackspecificapproval. Neverretryrejected
   cancellationindirectly; don't inventsecondgrant. UI extractionlast, noframeworkrelease.
+
+### 2026-10-19 Exact Cancellation And Free-01 Handoff Approved
+
+- NEWEST owner answer "Yes" explicitly approves the preceding question: cancel
+  the unused reservation for dep-6e29bab9 and perform an audited Free-01 handoff
+  to dep-70b3d2c1, preserving all data and the existing cumulative allowance.
+  This supersedes the older pending-approval notes for those exact actions only.
+- Fresh Platform-only backups: /private/tmp/01044-control-plane-pre-handoff-20261019,
+  staging SHA f0b1e48197c0e7b2ea164653eb6297e06ab3c77b29e03d4de89183bb23e1a55f,
+  production SHA1938a7819b01289f45b6b00d4916a8d189ac448a9d1dc224d124f0624ae55e26.
+  Fresh cancellation preflight passes; private approved evidence uses
+  /private/tmp/01044-approved-unused-cancellation-{before,command,receipt}-20261019.json.
+  Old evidence files remain untouched. Parent owns exact cancellation and new
+  generic handoff contracts/service/store/V202. No direct ownership rewrite.
+- Chandrasekhar01a1535c-15f4-7a93-a85e-d10d533e6843 owns new customer external
+  binding helper/tests only; Curie01a15360-a1b3-72f2-ae28-017f43ddf055 owns new real
+  PostgreSQL handoff IT only. Both sol6.1/max, no hosted actions/commit/push.
+  Parent owns critical implementation and hosted orchestration; UI remains last.

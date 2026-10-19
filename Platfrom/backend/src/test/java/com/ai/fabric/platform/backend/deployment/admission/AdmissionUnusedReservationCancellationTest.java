@@ -40,7 +40,7 @@ class AdmissionUnusedReservationCancellationTest extends AdmissionFixture {
             "CREATE TABLE deployment_managed_dependency_graphs(id VARCHAR(64),deployment_id VARCHAR(64),target_profile_id VARCHAR(64))",
             "CREATE TABLE provider_usage_allocations(id VARCHAR(64),deployment_id VARCHAR(64),target_profile_id VARCHAR(64))",
             "CREATE TABLE platform_target_retirement_operations(id VARCHAR(64),deployment_id VARCHAR(64),target_profile_id VARCHAR(64))",
-            "CREATE TABLE platform_target_retirement_gates(id VARCHAR(64),deployment_id VARCHAR(64),target_profile_id VARCHAR(64),state VARCHAR(64),epoch BIGINT,operation_id VARCHAR(64))",
+            "CREATE TABLE platform_target_retirement_gates(id VARCHAR(64),deployment_id VARCHAR(64),target_profile_id VARCHAR(64),state VARCHAR(64),epoch BIGINT,operation_id VARCHAR(64),row_version BIGINT NOT NULL DEFAULT 0)",
             "CREATE TABLE platform_deployment_deletion_operations(id VARCHAR(64),deployment_id VARCHAR(64))",
             "CREATE TABLE platform_consumers(id VARCHAR(64),consumer_id VARCHAR(128),customer_id VARCHAR(64),status VARCHAR(64),bound_deployment_id VARCHAR(64),bound_target_profile_id VARCHAR(64),bound_release_id VARCHAR(64),binding_revision BIGINT,row_version BIGINT)",
             "CREATE TABLE deployment_provider_resource_handles(id VARCHAR(64) PRIMARY KEY,deployment_id VARCHAR(64),target_profile_id VARCHAR(64),release_id VARCHAR(64),resource_kind VARCHAR(64),status VARCHAR(64),metadata_json TEXT,provider_type VARCHAR(32),provider_resource_uuid VARCHAR(255),provider_project_uuid VARCHAR(255),provider_environment_uuid VARCHAR(255),provider_server_uuid VARCHAR(255),fqdn TEXT,created_at TIMESTAMP WITH TIME ZONE,updated_at TIMESTAMP WITH TIME ZONE)",
