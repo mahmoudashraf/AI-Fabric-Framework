@@ -5738,3 +5738,377 @@ Critical fixes that made the gate pass:
   CPUmax347.914m, Dockerfsavailable133,181,198,336bytes. Report
   /private/tmp/01036-production-post-precision-pre-fit-baseline-20261018.json.
   Idlefleetonly, noadmission/policy/productioncapacityapproval/workloadproof.
+
+## 2026-10-18 Owner Architecture Correction: 010.44 Supersedes Bundled Business Systems
+
+- Latest owner request is to prepare the correction for a separate parallel task
+  and investigate similar mistakes. Current turn is plan/audit only, not a
+  continuation of the old customer-offer rollout. No provider mutations,
+  destructive operations or model calls during this audit.
+- Customer AI deployments deliver AI runtime/workers and plugin integrations,
+  NOT dealership inventory, CRM/lead/booking systems or per-customer provider
+  simulators. Existing example dealership backend/DB and Auto Trader simulator
+  remain independent external fixtures. Auto Trader uses DATA/ACTION plugins;
+  BYO vector service and customer-owned read-only documents remain supported.
+- New handoff: 010_44_CUSTOMER_SYSTEM_INTEGRATION_BOUNDARY_CORRECTION_PLAN.md;
+  evidence: 010_44_CUSTOMER_SYSTEM_OWNERSHIP_BOUNDARY_AUDIT.md in the same
+  implementation directory. 010.36 top now explicitly blocks unchanged customer
+  package apply/promotion. This is an operational hold, not an implemented new
+  policy guard. Do not run the prepared v12 publication/configuration scripts.
+- Source confirms the package bundles the dealership demo backend/database plus
+  simulator. Local seeded inventory validates leads while AI discovery uses the
+  DATA provider: split business authority, NOT proven duplicate vector corpora.
+  Initialization checks local rows/non-null status rather than indexing success;
+  scoped lifecycle READY does not prove the whole go-live scorecard is green.
+- Two additional P1 ownership defects: Railway reuses named projects then hard
+  deletes the project before current inventory/ownership checks; managed-vector
+  named resource/collection reuse can become deletable managed ownership without
+  durable creation proof. Track isolated Railway/vector fixes, retain uncertain
+  resources, do not test destructive paths on live resources. New retained-
+  external native-token binding is a separate path and must stay preserved.
+- Required AI operational SQL is not a business inventory DB. Owner did NOT
+  silently approve hosting that SQL. Current typed Coolify mode is managed
+  PostgreSQL; JDBC override is not end-to-end BYO SQL. Resolve hosting/ownership
+  explicitly; implement typed external AI-state binding if chosen. Do not hide
+  durability gaps with file H2, vector documents or removing features.
+- Actual deployed backend cab320545cc3dc1900c313ed1e6b40da1e7d0628, exact image
+  sha256:ded22d9042b49e4551348ec797544accfd75d90470551b4ec6d24b753716f6bf,
+  migration195/publicUP/singlecontainer verified both control planes. Native
+  runtime unchanged d2b1a9792/framework0.8.36. Pre195 backups in
+  /private/tmp/01036-control-plane-pre-195-final-20261018; actual PG18 isolated
+  restores PASS in RW06yGzAXL25(stage), Dx7nNrLCTivQ(prod) report directories.
+- Fresh bounded read-only receipt
+  /private/tmp/01044-resource-boundary-audit-20261018.json at22:47:42.387Z:
+  zero managed graphs BOTH CPs; dep-6e29bab9 zero releases/provider allocations;
+  reservation f0e90dba-14f0-4787-b583-7dcf712bc4b2 remains RESERVED/revision0.
+  Existing separate staging demo DB is not evidence that the new package was
+  instantiated. Provider status metadata is not container health proof.
+- Local cancellation HTTP fix remains uncommitted in
+  AdmissionUnusedReservationCancellationController.java and new
+  AdmissionUnusedReservationCancellationHttpTest.java. Sidecar61PASS/0skip,
+  including20 embedded HTTP cases, reproduces old malformed-staff-body401 and
+  scopes corrected400 without changing anonymous401/customer403. Separate from
+  010.44. No valid live cancellation sent. Old reservation/grant/bindings retained.
+- Read-only audit sidecars Raman/Ampere completed with no edits/live operations.
+  No other mandatory business-system provisioner found in inspected catalogue/
+  generic/Shopify paths; complete live ProdUS/historical provider inventory was
+  not audited. No live data-loss evidence. Preserve all unrelated dirty changes,
+  all30 stopped workloads, Free-01, approved production vector resource and
+  cumulative staging USD12/200000token/50request allowance (zero allocated).
+  Keep Hetzner access open as owner instructed. UI extraction stays last.
+
+## 2026-10-19 010.44 Implementation Authorized And Started
+
+- Owner now explicitly requests implementation and continuation of unrelated
+  work, or a checkpoint when it depends on the correction. This supersedes the
+  prior audit-only instruction. Track current work in
+  010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md beside the plan/audit.
+- Parent owns generic reviewed managed-artifact ownership manifest and enforcement
+  at registration/promotion/publication/customer composition/admission/worker
+  boundaries. Raman owns V196/catalogue/AI-only helpers; Ampere owns V197/
+  Railway+vector ownership; Franklin owns external demo provider validation and
+  real sync/indexing readiness. All are source/local-test tasks, no live ops.
+- Runtime-state hosting question sent to owner; answer pending. Both options
+  exclude customer business DB provisioning. Do not silently select managed SQL,
+  pretend typed external SQL already works, or weaken durability to file H2.
+- 010.36 hosted customer apply/promotion depends on corrected ownership/topology,
+  actual storage posture and fresh exact capacity evidence; checkpoint, do not
+  run old v12 scripts. Independent cancellation HTTP tests can continue. No valid
+  cancellation sent, old reservation/grant/bindings remain. UI extraction last.
+- Parent sandbox test run failed Mockito self-attachment; escalated local run
+  executed88/one assertion failure/zero errors/skips. Stable missing-contract
+  promotion error was corrected; full integrated rerun still required. No test
+  weakening, provider/model calls or new release. Preserve unrelated dirty files
+  and all stopped workloads; keep Hetzner access open.
+
+- Owner answered AI-state question: YES optional LoomAI-provided AI-state SQL,
+  explicitly selected when creating new dealership deployment. Not business DB.
+  Parent adds Setting.AI_STATE_STORAGE_MODE + bootstrap aiStateStorageMode and
+  immutable draft.providerConfig.aiStateStorageMode MANAGED_POSTGRES/CUSTOMER_POSTGRES.
+  Newton01a15145-22e8-70d3-9570-285e59e0b56a owns genuine external SQL binding,
+  managed-mode choice enforcement, generation/retirement and V198. No fake JDBC
+  overlay/provision-first. UI functional choice last, extraction still on hold.
+  Franklin109 localtests passed but provider-only lead path needs independent
+  demo-schema FK migration; explicitly authorized to complete with actual local
+  PostgreSQL proof, no substitute seededinventory and no live DB mutation.
+
+## 2026-10-19 010.44 Parent Integration Checkpoint
+
+- Owner reconfirmed optional LoomAI-managed **AI-state** PostgreSQL as an explicit
+  creation choice. Inventory/CRM/booking systems and provider simulators remain
+  external integrations. Customer-provided state SQL is not managed infrastructure.
+- Parent added reviewed external-profile definition/validation, detached symbolic
+  install compilation and provenance, bootstrap resync after offer association,
+  pre-effect/frozen-release binding checks, connector-only typed credential env,
+  and admission re-readback of exact external binding fingerprints. No semantic
+  heuristics or automatic provider/account choice. Full integration still running.
+- Parent local evidence:145 earlier focused tests,114 follow-up cross-contract
+  tests,89 ownership/cleanup/runtime-env tests; all zero failures/errors/skips.
+  These are overlapping focused runs, not an additive total or full release gate.
+  Last89 includes real PostgreSQL creation/retention/concurrency checks. No live
+  provider or model calls, commit or push in this checkpoint.
+- Full Spring profile run subsequently found missing test-schema columns for
+  new release AI-state snapshots:64 tests/23context errors/zero skips. Parent
+  added H2 V120.24 mirror and latest command enums; genuine PostgreSQL migrations
+  remain the authority. Rerun in progress; do not claim context green yet.
+- Einstein reported167 SQL tests green incl PostgreSQL/TLS and is now addressing
+  the explicitly blocked credential-rotation lifecycle. Hooke reported117 demo
+  tests green incl realPG and independently caught two wrapper gaps (GET lacked
+  transaction, requested version lacked reviewed-offer check). Parent fixed both;
+  Hooke now adds actual transaction/persistence integration coverage.
+- Raman owns external API/V199, policy/compiler-evidence validation and protocol
+  tests. Parent owns ExternalIntegrationCompositionService/Requirement and all
+  cross-boundary wiring. Hume hit capacity and was closed, preserving its C1/C2
+  patch; parent reviewed and verified89 focused tests. No ownership backfill of
+  historical resources. Qdrant root deletion remains conservative when complete
+  child inventory cannot be proven.
+- Customer offer publisher intentionally still checkpoints until external API,
+  SQL-mode and lifecycle integration is genuinely verified; do not flip a flag
+  or run old bundled-topology publishers. All old hosted reservation/allowance/
+  Free-01/stopped resources remain untouched. UI extraction stays LAST, retain
+  unrelated dirty UI/site/media changes. Keep Hetzner access open per owner.
+## 2026-10-19 Continued 010.44 Customer Path
+
+The independent cancellation HTTP fix is committed locally as `00f3852c5`, not
+pushed/deployed. Both control planes remain on the last verified `cab320545`
+checkpoint. Actual PostgreSQL template/bootstrap plus the20-case HTTP suite
+passed21 cases before extending the test to normal customer commands. Fresh
+read-only SSH showed low server load and ample available memory/disk; no provider
+mutations or firewall changes. Keep Hetzner access open as the owner requested.
+
+Normal actual offer publication/invitation/acceptance/bootstrap now exercises
+both explicit AI-state choices. It found an editable-draft state mismatch:
+template setup yields `MODIFIED`; the initial storage selector accepted only
+`DRAFT`. Source now accepts those two existing editable states only; focused
+unit and PostgreSQL rerun is underway. Catalogue worker is checking truthful
+false knowledge-consent defaults. Full integration publication gates remain.
+Einstein owns immutable candidate-version AI SQL credential generations/V200;
+Hooke owns the independent actual wrapper persistence test. No source/local
+test is being called hosted acceptance. UI extraction remains last.
+
+## 2026-10-19 Recovery And Source Integration Checkpoint
+
+- Owner explicitly approved private local Platform database archives and isolated
+  restores. Both archives exist under
+  `/private/tmp/01044-control-plane-pre-200-20261019/` with private directory/file
+  permissions. Actual PostgreSQL18 restores passed at migration195; temporary
+  owned fixtures were removed. See010.44 execution record for hashes/reports.
+  No Coolify, runtime or customer business database was exported.
+- Actual normal customer PostgreSQL workflow plus SQL wrapper persistence now
+  passes19 cases, zero failures/errors/skips, through production migrationV200.
+  Both explicit AI-state choices, S3 binding, immutable versions and scoped
+  external bindings are covered. This is not hosted apply/promotion evidence.
+- Einstein completed245 focused SQL regressions plus two real Spring/H2 profile
+  cases, all passing without skips. Immutable candidate credential generations
+  do not mutate an active version's secrets or binding. Hooke's independent demo
+  follow-up passes146 tests including16 PostgreSQL cases and forced idempotency
+  races; a parent rerun is in progress. Raman's latest79 Node/six PostgreSQL and
+  parser cases pass. Their write scopes are frozen and workers closed.
+- Planck01a151a5-2028-7a23-bad5-840bd7dd9810 owns remaining Coolify C4 creation
+  receipts, live placement and lifecycle/reference guards. Do not accept older
+  failing fixture reports as passing or edit that active source scope in parallel.
+  Legacy handles do not acquire ownership through names or receipt backfill.
+- Support suite136, shared frontend API contracts14, actual UI production build
+  and semantic source guard pass. Existing UI bundle-size warning remains. UI
+  storage-choice/binding forms and extraction are NOT accepted/deployed yet;
+  extraction must remain last and separately reversible.
+- Authenticated read-only GitHub API confirmed current origin
+  `mahmoudashraf/AI-Fabric-Framework` is PUBLIC. Private product source must not
+  be pushed or published until owner answers the pending destination question.
+  Existing macOS Git credential helper works; private-document classic token
+  returns401. Never print/persist credential-helper output or raw tokens.
+- Both live control planes remain atcab320545/migration195; only local commit
+  00f3852c5 exists for the separate cancellation HTTP fix. No new live apply,
+  provider deletion, model call or financial allowance was made. Keep the held
+  reservation, Free-01, approved production vector resource and30 stopped
+  workloads. Keep Hetzner access open until plan completion as owner requested.
+
+## 2026-10-19 Lifecycle Follow-Up In Progress
+
+- Independent demo correction committed locally as8b11c4217 after parent146/146
+  PASS, zero skips. No push/deploy. Current origin remains PUBLIC; owner private
+  destination/publishing question is pending. Do not publish private source/images.
+- Actual staging AND production archives passed isolated195-to200 migrations and
+  all200 Flyway validations. Original fields across21 customer/credential/resource/
+  offer tables are preserved by aggregate SHA256, new SQL release columns null,
+  V197 ownership table empty. Testhelper initially rejected expected pending
+  migrations and schema-added null fields; corrected exact checks, no repair or
+  ignore-policy. Added local Docker socket/loopback guard; final safeguard rerun
+  running with provider-allowance critical contract. Parent session57616 owns
+  `/private/tmp/01044-parent-boundary-tests` output; never run another Maven
+  process against that target while active. Earlier parent sessions complete.
+- Parfit01a151bc-8a02-7b40-8492-8a76fb3008af found two concrete lifecycle gaps.
+  Parent fixed current-binding validation for recovery/redispatch/late-success
+  and denied binding or offer revoke/re-invite while an exact unfinished
+  external release owns the effect interval. Snapshot/revoke share deployment
+  and entitlement locks. Unknown status/target denies; no long HTTP transaction,
+  false revoke receipt or automatic cancellation. Parent45 focused tests PASS.
+  Parfit owns only additional actual PostgreSQL concurrency/revocation tests.
+- Planck C4 checkpoint191 PASS/0skip includes107 new fake-provider cases using
+  real ledger plus four PostgreSQL cases, but9 old positive fixtures and deletion
+  journal were open. Worker is continuing those and implements the parent's new
+  internal CoolifyRetirementOwnership SPI. Parent owns TargetRetirementProviderResources
+  integration/tests and CoolifyApiClient mutation-no-retry fix (57casesPASS).
+  Parent SPI adapter code needs actual implementation before full Spring gate.
+- Jason01a151cc-e299-7df2-9517-87e3c2d36a38 now owns ONLY managed-dependency
+  provisioning region(~1800+) in PlatformManagedProductProvisioningService,
+  new helper and tests: remove pending-create name adoption, require exact graph/
+  customer/target creation proof for lifecycle/operator/volumes/retirement.
+  Earlier shared-platform-service provisioning region is deliberately not his
+  scope; no blanket cleanup safety claim. Parent owns retirement files/APIclient;
+  Planck owns normal provider/helper, Parfit owns external concurrency tests.
+- Older3079-case full run is NOT green evidence:3 failures/20 errors/0skip,
+  predating latest C4 membership fix. Several errors are fixture wiring/temporary
+  runner repoRoot, not new production defects. Parent adds missing resolver to
+  the non-external allowance test context and updates legacy-delete expected
+  denial; do not weaken production DI or fabricate positive ownership receipts.
+- Actual backend package passed before follow-up changes. No live mutations,
+  budget/reset/provider calls, new images or framework change. Full merged
+  context/source qualification and hosted canary remain open. UI extraction LAST.
+
+### 010.44 Continued Merged Qualification (2026-10-19)
+
+- Parent session52172 completed PASS108/0skip through the actual backend POM:
+  actual archived staging/production migration195->200,98 provider-budget cases,
+  admission HTTP, runtime authority and unowned legacy cleanup retention.
+  Sidecar session57616 was an old transitional compile failure, not active.
+- Jason's customer managed-dependency correction is frozen,109PASS incl8PG.
+  Parent reviewed its helper/provider integration. Jason is now working ONLY
+  the earlier shared-platform-service region plus new service-scoped journal/
+  V201/tests (C5). Shared services must not fake customer/deployment ownership.
+  Concrete independent findings: name/FQDN adoption, discovered-app deletion,
+  visible source UUID on retarget, metadata-only lifecycle, Railway read rebinding.
+  Existing live fixtures/rows/secrets remain intact and unadopted.
+- Parent full actual backend suite runs as session9644, log
+  `/private/tmp/01044-full-backend-actual-module.log`. Do not run another Maven
+  process against the actual backend target until complete. This run began
+  before C5 and is not final qualification of later source.
+- Support Node suite passes136/0skip with
+  RUN_01036_LOCAL_CONTROL_PLANE_DOCKER_TEST=true and
+  CP_RESTORE_TEST_DOCKER_HOST=unix:///var/run/docker.sock. Prior opt-in command
+  failed before fixture creation because the required socket argument was absent.
+  Parent sessions72221,78317,89413 are complete. Semantic source guard and
+  git diff whitespace guard pass.
+- Parfit owns the40-case external PG rerun after parent fixed the duplicated
+  RELEASE_IN_PROGRESS prefix. Planck owns final C4 journal/retirement/global
+  exact persisted-handle exclusion qualification. No hosted acceptance claimed.
+- Existing owner-facing task is `Required for production`,
+  01a14123-a0af-7bb1-9df5-b1c981bd3a4a. Attempt to post the public-origin/private-
+  product publishing prerequisite there was denied by permission review. Do not
+  retry indirectly. Owner can answer in main; current public origin is NOT
+  consent to publish private product source/images. No push or image publication.
+- Parent owns actual-archive IT adaptation once V201 exists; retain exact
+  pending-migration checks, all historical preservation checks and no backfill.
+  Framework stays0.8.36. Hosted rollout, fresh customer lifecycle and final UI
+  extraction remain open. Keep retained resources, cumulative grant and firewall
+  posture unchanged; no speculative provider provisioning or model spending.
+
+### 010.44 Local Foundation Committed; C5 Continues
+
+- Local foundation commit5cef0210a contains150 backend/catalogue/support/010.44
+  document files; noUI/media/sourcepush. Earlier00f3852c5/8b11c4217 retained.
+- Planck C4 frozen316PASS/0skip incl8PG; Parfit external concurrency40PASS/0skip.
+  Both agents closed. Jason remains active ONLY on C5 shared-service region,
+  new PlatformManagedServiceOwnership/Journal, V201 and related tests, plus two
+  legacy owned-reclamation fixture corrections. Do not edit his shared files.
+- Parent actual backend session9644 completed3263tests/1failure/1error/0skip.
+  Both badcases are legacy owned-reclamation fixtures lacking new real graph/
+  receipt helper. Jason notified. No other failure. Actual target nowfree;
+  broadresultNOTgreen until fixes+mergedrerun. Log/private/tmp/01044-full-backend-actual-module.log.
+- Parent archive session1334 completed2PASS/0skip after exact195->201 migration,
+  all201valid,21preservedtables unchanged, bothnewledgers empty. Target
+  /private/tmp/01044-parent-boundary-tests nowfree. V201 thenhash
+  2a0f265669e489312d1d9598c5c29014feee363367e354e39009225ce49567ae;
+  Jason may update SQLforMUTATION_PENDING, rerunfinalarchiveifhashchanges.
+- C5independentreviewmust cover DELETEDreceipt+reappearedUUID denial, realSpring
+  NOT_SUPPORTEDproviderboundary anddurablecreateintentafterouterrollback.
+  ParentownsarchiveIT/docs only. Repositorydecisionpending; nohostedmutations.
+
+### 010.44 C5 Integrated Follow-Ups (2026-10-19)
+
+- Jason froze C5 at170PASS/0skip incl12PG and was closed. Parent then fixed
+  standalone Docker requests to deploy by actual sha256 digest and verify image
+  repository/hash after update and successful deployment; added malformed/drift
+  regressions. Shared/admin initial88 cases passed, including4realPG.
+- Popper01a15243-383b-7173-a2f2-f9297db243c3 (sol6.1,max) independently found
+  3confirmed issues: nativeDBdirectdeletevolumeauthority, URL-only path references,
+  and rotationproving app but not credentialownership. Parfitcapacityfailure was
+  closed; Popper currently rechecks only these fixes, read-only.
+- Parent fixes directapp/DBdelete: present storage must be explicitly empty
+  beforejournal/effects, otherwise existingtargetretirementrequired; no unchecked
+  volume/network/Dockercleanup flags. StorageHTTPparser now rejects malformed
+  missing/nonarrayinventories. App stop also avoids broadcleanup.
+- Shared URLrefs compare structured URI origins (path/query ignored, defaultport
+  normalized). V201addsnullableuniquecredential_secret_name; only new credential
+  creationrecords claim+registryname inonelocaltx, neverhistoricalbackfill.
+  Rotationchecks actual configuredname+exact originalserviceownerclaim, supports
+  retained claim acrossownedappgenerations, rejects shared/foreign/unproven refs.
+  ProductAdminnowcalls requireSharedServiceCredentialMutationAuthority before
+  vaultwrites. Supplied keys and all decommissioned credentials remain retained.
+- Parenttargeted9classrun375cases had2failures/1error ONLY because the PG fake
+  omitted new storage readback and attempted synthetic network; parent added
+  explicit fake emptyinventory and asserts actual safeDELETEflag semantics.
+  Fresh rerun ACTIVEsession24364 onactualbackendtarget, log
+  /private/tmp/01044-final-ownership-followups-green.log. Do not share thattarget.
+  Previoussessions69184/32215/83609 are complete.
+- FinalV201nowhash707b3c3e10a560784f9c2e8d31a2cd2e8717ace89be88693067c79e19a8b54ae.
+  Old archivedrehearsal SQLhash differs; rerun2actualapprovedarchives after final
+  sourcegreen, and fullbackend3263+ regression. No frameworkchanges/releases.
+  BackendC5+followups stilluncommitted; sourcepublicationdecision stillpending.
+
+### Resume Here: 010.44 Local Qualification Complete, Hosted Rollout Open
+
+2026-10-19, after04:15UTC:
+
+- New local source commit `12fb4e4b2` completes C5/shared-service ownership and
+  parent follow-ups. Earlier local commits `5cef0210a`, `8b11c4217`, `00f3852c5`
+  remain. None has been pushed by this work. Unrelated UI/site/media/index edits
+  are preserved and not part of these source commits.
+- Actual backend/POM full suite: **3,343 tests /350 classes /0fail /0error /
+  0skip**, exit0. Log `/private/tmp/01044-final-merged-backend.log`. Backend
+  main/test files did not change during the run; sorted1,843-file path/content
+  manifest SHA256 `8a34bf788cfe27912ba2bcdc26611642bae613ec2742495b13cdaa62e9b2da20`.
+  Final targeted ownership376 overlaps the full suite. Both old failing
+  reclamation fixtures are corrected, not removed;14 shared-service test slots
+  remain with unsafe adoption expectations replaced by rejection assertions.
+- Offline backend package AFTER commit12fb4e4b2 exits0; log
+  `/private/tmp/01044-final-merged-backend-package.log`. Semantic source guard,
+  whitespace and bounded21-staged-file credential-pattern scans pass. This is
+  not a historical secret audit, full hosted release gate or UI acceptance.
+- Final actual private Platform archives both pass195->201 rehearsal,2tests,
+  0fail/error/skip,201 migrations valid,21 original tables preserved, historical
+  release SQL columnsnull and both ownership ledgers empty. Log
+  `/private/tmp/01044-final-archive-migration-201.log`. V201 source/compiled hash
+  `707b3c3e10a560784f9c2e8d31a2cd2e8717ace89be88693067c79e19a8b54ae`.
+  Old archive logs with earlier V201 checksums are historical, not current proof.
+- Popper's final independent sol6.1/max recheck closed confirmed P1/P2 findings:
+  direct-delete storage authority, path-qualified URL references, credential
+  ownership and exact committed name matching. Unknown provider outcomes remain
+  pending; no retry/adoption, prefix ownership or hidden successful lifecycle.
+- All agents CLOSED; sessions11060(full),17974(archive),89945(package) and older
+  focused sessions are complete. No pending parallel coding task to wake and no
+  shared Maven target is occupied. Do not restart completed agents/duplicate work.
+- Live control planes remain unchanged atcab320545/migration195, last read-only
+  inventory confirmed exact digestded22d9042b49e4551348ec797544accfd75d90470551b4ec6d24b753716f6bf.
+  Runtime artifact remainsd2b1a9792 /Framework0.8.36. No framework release,
+  hosted apply, provider effect, model call or extra financial allowance occurred.
+- PUBLIC-origin/private-product decision remains open. Current origin is
+  `mahmoudashraf/AI-Fabric-Framework` and authenticated metadata confirms public.
+  Main-task async question asks for private repository URL or explicit public
+  publication approval. Do not push/image-publish before that answer. Earlier
+  message to `Required for production` was denied; no indirect retry is allowed.
+  Git osxkeychain helper works; old private-doc classic token401. Never print or
+  persist raw credential-helper output/private auth material.
+- Next: reviewed source/artifact/control-plane upgrade, corrected AI-only offer
+  and fresh scoped bindings, hosted customer index/actions/HITL/generation canary,
+  measured capacity and promotion/P7. Support publisher remains checkpointed;
+  oldv12 bundled-business scripts are invalid. Do not remove hosted gates because
+  local API tests pass. UI functional acceptance/extraction stays LAST and must
+  remain independently reversible, after the non-UI hosted gate.
+- Preserve exact reservationf0e90dba-14f0-4787-b583-7dcf712bc4b2, same-tenant
+  Free-01, approved production vector cluster, external S3/business systems and
+  all30 stopped workloads. Existing campaign remains USD12/200ktokens/50requests,
+  embeddings included, solegrantpug-01036-dealership-staging-20261018 expires
+  2026-10-19T15:00Z; no renewal/reset/reallocation is implied. Keep Hetzner access
+  open until full implementation as owner directed. Customer business databases
+  are NEVER AI dependencies; optional managed AI-state PostgreSQL is approved.

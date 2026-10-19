@@ -1,6 +1,11 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-- Latest hosted checkpoint, 2026-10-18: both control planes are strictly verified on `d2b1a9792` / migration193 / public healthUP after fresh private pre-V193 backups and successful isolated restores of both. Runtime CI39164527840 passed; the exact image `sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140` was inspected offline and all20 framework0.8.36 jars match Central. Its source/capability manifest matched committed code. Artifact `dsa-94841998` is registered/promoted on staging only. New template1.8, spec1.8 and offer v11 are the next composition; older published offers stay immutable. No customer runtime apply, provider credit allocation or production promotion has occurred. This checkpoint supersedes older deployed-source/publication status below; UI extraction remains last.
+- **Architecture blocker, owner correction 2026-10-18:** customer AI deployments must not provision dealership inventory/lead systems, the example dealership backend/database, or an external provider simulator as customer-product defaults. The current simulated-dealership dependency graph violates this boundary and must not be applied/promoted unchanged. [010.44](010_44_CUSTOMER_SYSTEM_INTEGRATION_BOUNDARY_CORRECTION_PLAN.md) supersedes conflicting simulator/receiver/database provisioning assumptions in section 10, including R5. Keep the AI solution and DATA/ACTION integrations, separate external demo fixtures, preserve customer-managed storage and optional BYO vector services, and explicitly account for required AI operational state. Historical implementation evidence below is retained, not acceptance of the invalid architecture. UI extraction remains last.
+
+- Latest source checkpoint, 2026-10-19: 010.44 AI-only templates, explicit AI-state storage choice, scoped external DATA/ACTION bindings, immutable candidate credentials and customer/shared-service ownership guards are implemented locally. Final actual-module backend regression passes3,343 tests across350 classes with zero failures/errors/skips; offline backend packaging also passes. Both approved Platform backups pass the final195-to201 migration rehearsal, all201 validations and preservation of21 tables without ownership backfill. Foundation is locally committed as `5cef0210a`, shared-service/final ownership follow-ups as `12fb4e4b2`. Focused SQL/customer/support results remain separately recorded and overlap the full suite. No push or hosted upgrade: the public-origin/private-product repository decision is still required. Hosted apply/promotion/P7 remain open; UI extraction remains last.
+- Hosted checkpoint, 2026-10-18, reconfirmed image inventory2026-10-19: both control planes remain on `cab320545` / migration195, previously public-health verified UP. Runtime artifact remains `d2b1a9792` / AI Fabric0.8.36. The architecture correction above blocks the dealership customer offer regardless of earlier test/publication success. The22:47:42UTC audit found no managed-dependency graphs on either plane and no release/model allocation for `dep-6e29bab9`; its reservation remains held. Cancellation-only HTTP handling passed20 tests and is committed locally as `00f3852c5`, not pushed/deployed. No valid cancellation, corrected customer apply or production promotion has been performed. See [010.44 audit](010_44_CUSTOMER_SYSTEM_OWNERSHIP_BOUNDARY_AUDIT.md) and its execution record. Earlier dated checkpoints below are historical, not instructions to resume the invalid graph.
+
+- Earlier hosted checkpoint, 2026-10-18: both control planes were strictly verified on `d2b1a9792` / migration193 / public healthUP after fresh private pre-V193 backups and successful isolated restores of both. Runtime CI39164527840 passed; the exact image `sha256:3809a6585ad19f25c0139d60cf1b9aa742b7831a6213fcec4bdfe6fb52e0b140` was inspected offline and all20 framework0.8.36 jars match Central. Its source/capability manifest matched committed code. Artifact `dsa-94841998` was registered/promoted on staging only. Template1.8, spec1.8 and offer v11 were the next composition at that checkpoint; older published offers stay immutable. No customer runtime apply, provider credit allocation or production promotion had occurred. Superseded by the current checkpoint and architecture blocker above.
 
 - Status: standalone delivery source implemented; shared frontend deployed on staging and production; earlier hosted public, identity, handover, and recovery canaries passed. Section 10 backend contracts are live through `58bf670de` on both control planes, migration 192, including reviewed retained-external vector binding, pre-allocation validation and resolved inventory projection. Template 1.7 is seeded on both control planes; dependent spec 1.7 and offer v10 are published on staging only as a full-feature 2,750mCPU measurement candidate, not approved production capacity. Prior offers remain immutable. The inspected runtime image remains pinned to `600f136bf` with AI Fabric 0.8.35. Nine real-owner v10 configuration-only checks, six additional read-only binding/configuration checks, eleven earlier exact-image offline budget-denial checks and a local exact-image budget-store export/restore rehearsal pass; these do not prove hosted runtime activation, provider use or safe stale-snapshot reactivation. The same attended staging campaign has owner-approved cumulative ceilings of 50 interactive requests, 200,000 tokens and USD 12 total provider spend including embeddings, without resets; its sole grant remains unallocated. Owner approved existing Free-01 and the existing broader serving key at zero additional vector cost, retaining cluster and data. Native-token integration/publication, actual binding, measured admission, hosted provisioning/indexing/recovery, retained-index lifecycle completion, production fit and complete P7 acceptance remain open. Local UI extraction remains uncommitted and undeployed until the non-extraction functional gate. See the execution record for exact evidence and remaining gates.
 - Current vector-auth update, 2026-10-18: owner explicitly authorized the existing broader API key for the exact Free-01 synthetic staging campaign. Another password, restricted key or allocation approval is not pending. This exception does not establish provider-enforced tenant ACLs or authorize another cluster, account/key/role changes, paid infrastructure or production promotion. Native SDK metadata authentication passed with zero collections and no writes/model calls. Framework0.8.36 publication passed; BOM/core/Milvus artifacts were verified on Central. Private backend476, runtime425, provider-accounting140, connector76 and vectorization32 tests passed, all zero skips. The local runtime contains20 framework0.8.36 jars and the token capability; this is not hosted image proof. No runtime has received the credential yet. This supersedes earlier credential/scope blockers while preserving all spending, retention and admission gates.
@@ -560,8 +565,10 @@ customer-staging expiry, offboarding, or post-promotion retirement policy.
 For this offer the approved physical placement is explicit:
 
 - **Customer staging:** staging Coolify server `46.224.145.148`, including
-  target-provisioned runtime, connector, workers, databases, and selected
-  simulator/inbox dependencies or their isolated staging-service bindings.
+  target-provisioned runtime, connector, workers, explicitly selected managed
+  AI-state PostgreSQL and optional managed Basic Inbox. External simulator,
+  dealership business services and customer storage are bindings, not resources
+  created or owned by the AI deployment.
 - **Customer production:** production Coolify server `46.225.162.106` for
   production-target deployments and their reviewed dependencies.
 - **Shared production services:** production Platform control plane and Engage
@@ -588,11 +595,14 @@ customer unrestricted access to every active profile. The production shared
 frontend keeps its managed-service target, `dtp-coolify-production`, instead
 of a runtime-only `*-behavior` profile.
 
-The first offer provisions dedicated customer/target simulator, test command
-receiver, and Basic Inbox instances where selected. The shared production
-Platform/Engage frontend remains shared. Existing Northfield dependencies are
-not a customer-tenancy pool. Any future shared dependency pool requires its
-own proved isolation and provisioning contract before adoption.
+The first offer does not provision a simulator, dealership backend, test-command
+receiver or inventory/lead database. It binds explicitly approved external stock
+and action services through DATA/ACTION plugins. The independently hosted demo
+fixtures remain example customer/provider systems, not a customer-tenancy pool.
+AI-state PostgreSQL hosting is an explicit managed/customer-provided choice;
+Basic Inbox is the optional LoomAI-owned conversation service. The production
+Platform/Engage frontend remains shared. Any external fixture/account capacity
+must be established and reviewed independently of the AI deployment.
 
 Normal promotion follows 010.16: the same logical deployment lineage, a
 verified immutable version/artifact, and a new release on a different target.
@@ -717,19 +727,22 @@ The exact first template must declare and verify its complete dependency set:
   ACTION contributions for approved reads and customer-confirmed test enquiry
   effects; the existing INTEGRATION conversation-channel contribution and
   Basic Inbox when human handover is enabled; the reviewed dealership pack.
-- A customer/environment-scoped simulator account/fixture namespace, token
+- An externally supplied customer/environment-scoped simulator account/fixture namespace, token
   material, webhook subscription/signature binding, media allowlist, and
-  target-specific connector configuration. Use a dedicated instance per
-  customer/target for this offer; shared-service tenancy is deferred. Customers
+  target-specific connector configuration. The simulator and its source data
+  are independently operated outside the AI deployment; shared-service tenancy
+  must be separately proved. Customers
   cannot reuse Northfield's simulator account or records. Global fixture reset
   is never exposed as a customer-scoped reset on shared infrastructure.
-- Automatic provisioning/reconciliation of selected simulator, test command
-  receiver, and inbox dependencies through existing managed-service/provider
-  lifecycles under R5's owned dependency graph and capacity reservation. Template
-  bootstrap currently installs contribution records; it does not already
-  provision simulator/inbox accounts, databases, operator keys, or callbacks.
-  The ordinary dealership website/backend remains independent. No new Auto
-  Trader bridge or customer-authored bootstrap backend is introduced.
+- Reviewed immutable external profiles, write-only credentials and account scope
+  for DATA/ACTION integrations. Bootstrap compiles symbolic aliases, not a live
+  provider account. Target-scoped bindings and actual access/sync/indexing
+  evidence are required before apply/readiness. No simulator, business database,
+  receiver seeding/reset or customer system lifecycle is part of the dependency
+  graph. R5 provisions only selected AI operational services, including optional
+  Basic Inbox; managed AI-state PostgreSQL is separately explicit and counted.
+  The dealership website/backend remains independent. No Auto Trader bridge or
+  customer-authored chat-bootstrap backend is introduced.
 - An approved per-customer copy of fictional policy/operations fixtures for
   the simulated template. The promotable template uses the same S3-compatible
   connector contract in staging and production, with target-specific approved
@@ -883,8 +896,10 @@ the following as a separate customer-visible closure:
 3. Disable retired-target new sessions and remove target-specific callbacks,
    scheduled work, provider sessions, and credentials when no authorized work
    still depends on them. Preserve other targets' authority and shared services.
-4. Reconcile runtime/connector/worker/inbox, database, index/namespace, simulator
-   fixture, and volume ownership/reference/backup-retention before reclamation.
+4. Reconcile owned runtime/connector/worker/inbox, managed AI-state database,
+   derived index/namespace and volume ownership/reference/retention before
+   reclamation. Detach retained external source/business bindings without
+   deleting their simulator, inventory, receiver, database, files or accounts.
    Preserve customer source objects and independently owned/shared dependencies.
 5. Reconcile abandoned/partial apply resources and read back actual provider
    state. Retain immutable history/configuration/audit evidence and report that
@@ -1166,14 +1181,15 @@ and verify them. Passing documentation review alone does not close P0.
 - [ ] Implement R6 fail-closed customer scope, safe entitled target/template
   discovery and scoped write-only binding operations. Verify missing/disabled/
   foreign customer, target, secret and operator authority without global grants.
-- [ ] Use Marketplace contribution/compiler and managed-service paths to create
-  a new customer's complete staging composition from production Platform.
-  Implement R5 dedicated dependency provision/reconcile with durable ownership,
-  capacity reservations, callback/secret/operator lifecycle and compensation.
-- [ ] Seed/sync that customer's synthetic stock/media and approved documents;
+- [ ] Use Marketplace contributions/compiler and scoped external DATA/ACTION
+  bindings to create a new customer's AI staging composition from production.
+  Implement R5 ownership/capacity/callback/secret/operator lifecycle only for
+  selected AI operational services; never create customer business systems.
+- [ ] Establish synthetic stock/media in the independently operated provider
+  fixture outside the deployment, then sync/index it and approved documents;
   verify change/delete reconciliation, receipt isolation, and human replies.
 - [ ] Prove two customers cannot read, mutate, reset, or use each other's
-  simulator, index, actions, credentials, operator inbox, or app configuration.
+  external provider account, index, actions, credentials, operator inbox, or app configuration.
 - [ ] Verify customer-owned document binding/discovery/preview/index/refresh/
   removal and retrieval evidence under the installed audience policy, including
   anonymous denial of private content and preservation of source objects.
@@ -1293,9 +1309,12 @@ Primary owners/locations to reuse:
   Marketplace compiler, managed-product-service, customer-consumer,
   AI Workspace installation/binding/readiness, authorization, and verification
   services under `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/`.
-- Data plane: private runtime and Generic REST Connector, existing provider
-  simulator and demo command receiver, `product-services/basic-loomai-inbox-service`,
+- AI data plane: private runtime and Generic REST Connector,
+  `product-services/basic-loomai-inbox-service`,
   widget/installer, reviewed dealership/generic packs, and standalone shell.
+- External integration fixtures: existing provider simulator and independently
+  operated dealership demo backend/command receiver. Their business databases
+  are not part of a customer AI deployment or its managed dependency graph.
 - Verification: extend `verification-support/standalone-ai-workspace` and
   existing dealership/provider/document/handover verification paths; create
   temporary customer fixtures only when needed, not a permanent duplicate fleet.
@@ -1518,17 +1537,24 @@ changing connector type after staging verification; source preservation and
 staging/production isolation pass; production mounts remain denied. Any semantic
 connector/policy change is a new candidate, not a hidden promotion overlay.
 
-#### R5. Dedicated Dependencies And Operator Onboarding
+#### R5. AI Operational Dependencies And External Onboarding
 
 **Current gap:** the simulator has one configured Auto Trader advertiser per
 instance and a fixture-wide reset. Basic Inbox has one configured tenant/
 deployment/binding and configured per-operator keys. Marketplace bootstrap
 installs contributions but is not a completed dependency-provisioning workflow.
 
-The first offer uses dedicated simulator, test command receiver and Basic Inbox
-instances per customer/target where selected. Extend existing managed-service/
-provider primitives with a typed dependency specification, not a new bridge,
-plugin type or second provisioner. Shared tenancy is deferred, not assumed.
+The customer AI topology must not contain the simulator, dealership website/
+backend, test command receiver or business PostgreSQL. Those are independently
+operated external systems. Bind their exact advertiser/account, endpoints and
+write-only credentials using reviewed DATA/ACTION profiles and frozen per-target
+release evidence. Initial unbound configuration is not integration readiness.
+
+Only explicitly selected AI operational services belong in the managed graph,
+such as Basic Inbox. AI-state PostgreSQL is separately selected as managed or
+customer-provided at creation; capacity and retirement must match that choice.
+Use existing managed-service/provider primitives with an explicit AI-purpose,
+lifecycle and persistence contract. No new bridge or domain-specific provisioner.
 
 The reviewed template must identify immutable service/image contracts, database/
 volume needs, generated account/binding IDs, secret purposes, callbacks/origins,
@@ -1538,10 +1564,11 @@ each new customer. Reconcile the same owned instances on retry/update rather
 than allocating another permanent service set.
 
 Persist the dependency graph and operation/resource identities before/through
-creation, reserve its full capacity, create/reuse scoped secrets, configure the
-simulated advertiser and callback signature, and register callback hosts from
-trusted target bindings. Wait for actual service/database readiness, then seed
-the customer's fixtures and run sync/canaries. Compensate partial creation only
+creation, reserve its full AI-service capacity, create/reuse scoped secrets,
+and register callback hosts from trusted target bindings. External advertiser
+accounts and fixture contents are configured independently, not seeded by the
+AI initializer. Verify actual service readiness, external access, successful
+reconciliation/indexing and freshness before canaries. Compensate partial creation only
 for resources proved owned and unused. Configuration/version changes must not
 silently reset a customer's fixture state.
 
@@ -1559,7 +1586,8 @@ it; no per-customer shell/env editing may be required from engineering.
 have distinct accounts, callbacks, effects, index/inbox state and authority;
 reset/read/write/reply/revoke cannot cross them. Fresh onboarding, partial
 failure, restart, repeated reconciliation and scoped retirement need no manual
-binding repair. Dependencies and their databases/volumes are capacity-accounted.
+binding repair. Only owned AI dependencies and their persistence are capacity-
+accounted; retained external source/business systems cannot be deleted on retirement.
 
 #### R6. Customer-Safe Authorization And Configuration Surface
 

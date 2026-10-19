@@ -1730,3 +1730,109 @@ write-only bindings, never this ledger.
   Free-01 for that tenant requires an explicit owner answer; current retained
   binding reuse remains SAME-TENANT only. UI extraction is still last and has
   not been advanced to hide these backend/live-readiness boundaries.
+
+### 2026-10-18 Owner Boundary Correction And Parallel Handoff
+
+- Owner rejected provisioning customer dealership inventory/lead systems inside
+  the AI deployment. Investigation confirms the new package bundles a simulator
+  and the dealership demo backend with business PostgreSQL. Existing independent
+  demo fixtures may remain, but customer AI composition must use external DATA/
+  ACTION integrations. Earlier package/gate success is not architecture acceptance.
+- [010.44 correction plan](010_44_CUSTOMER_SYSTEM_INTEGRATION_BOUNDARY_CORRECTION_PLAN.md)
+  prepares separate parallel workstreams and
+  [ownership audit](010_44_CUSTOMER_SYSTEM_OWNERSHIP_BOUNDARY_AUDIT.md) records
+  source evidence, limitations and required verification. No correction has been
+  implemented by this documentation/audit task. Invalid customer apply/promotion
+  is operationally paused; a durable offer/policy block still requires work.
+- Wider source audit confirmed Railway project-delete-first and managed-vector
+  resource/collection adoption-to-delete risks without sufficient ownership proof.
+  Receiver initialization has split local/provider inventory authority and weak
+  READY evidence, but no duplicate vector pipeline was proven. AI operational
+  SQL hosting remains an explicit decision; current typed BYO SQL is incomplete.
+- Backend `cab320545` / exact digest
+  `sha256:ded22d9042b49e4551348ec797544accfd75d90470551b4ec6d24b753716f6bf`
+  is verified on both control planes, migration195/publicUP. Runtime remains
+  `d2b1a9792` / AI Fabric0.8.36. Strict HTTP verification found a malformed staff
+  cancellation-body response incorrectly returning401; a scoped local fix plus
+  embedded HTTP regression passed61/61 but remains uncommitted/undeployed.
+- Read-only metadata receipt at22:47:42UTC,
+  `/private/tmp/01044-resource-boundary-audit-20261018.json`, found zero managed
+  graphs on both control planes and zero releases/provider allocations for
+  `dep-6e29bab9`. Its exact revision0 reservation is still RESERVED. No valid
+  cancellation, provider mutation, model call or customer apply occurred in this
+  audit. No actual customer data loss was established.
+- Retain all stopped workloads, external source data, Free-01 and approved
+  production vector resource. Do not run old v12 topology publishers unchanged,
+  reset allowance/reservation state, or close Hetzner access contrary to the
+  owner's instruction. UI extraction remains last and independently reversible.
+
+### 2026-10-19 AI-Only Ownership Correction Checkpoint
+
+- Owner explicitly approved optional hosted AI-state PostgreSQL, with a genuine
+  customer-provided PostgreSQL alternative. Neither posture authorizes customer
+  inventory, CRM, lead or booking infrastructure. Customer S3 remains external
+  and read-only; simulator and dealership business receiver are independent
+  external integrations, not customer AI dependencies.
+- Local commits: `00f3852c5` scoped cancellation HTTP errors; `8b11c4217`
+  independent demo business-state/source-authority correction; `5cef0210a`
+  C1-C4 backend/catalogue/storage/external-binding foundation. No push or hosted
+  upgrade is implied. See the dedicated [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md)
+  for exact source/test boundaries rather than adding overlapping test counts.
+- C4 provider/retirement qualification passes316 cases including eight real
+  PostgreSQL cases. External binding/entitlement concurrency passes40. Managed
+  dependency ownership passes109 including eight PostgreSQL cases. Package
+  support passes136 with its real local restore case enabled. All these runs
+  have zero failures/errors/skips. Full actual-module regression remains running.
+- Fresh approved private Platform backups were restored on isolated local
+  PostgreSQL18. Both also pass migration195 through201, normal validation of all
+  201 migrations, original-record preservation across21 tables and empty new
+  customer/shared-service ownership ledgers. No historical adoption/backfill,
+  Flyway repair or hosted database change occurred.
+- Independent follow-up found the same ownership category in older shared-
+  platform-service provisioning. C5 implements a separate service-registry
+  journal and guarded lifecycle. That source follow-up is still in progress;
+  metadata-only historical bindings must not grant mutation/delete authority.
+- Authenticated metadata confirms current Git origin is public. Publishing
+  private product source/images is held for the owner's repository destination
+  decision; no public push, registry publication or visibility change occurred.
+  Sending that prerequisite to `Required for production` was denied by permission
+  review, so no indirect retry was made. The owner can answer in the main task.
+- Hosted AI-only offer publication, fresh customer apply/index/actions/handover,
+  target generation/promotion, capacity/load evidence and P7 certification remain
+  open. Existing reservation, external vector bindings, source objects, stopped
+  workloads and cumulative financial campaign remain preserved. UI extraction is
+  last, after non-UI hosted acceptance, and is not advanced to hide these gates.
+
+### 2026-10-19 Final Local Ownership Qualification
+
+- The merged backend is green:3,343 tests across350 classes, zero failures,
+  errors or skips, using the actual module/POM and Docker-backed cases. Source
+  stayed fixed for the whole run. Offline backend packaging also passes. Logs:
+  `/private/tmp/01044-final-merged-backend.log` and
+  `/private/tmp/01044-final-merged-backend-package.log`.
+- Final actual staging/production backup rehearsals separately pass2 cases,
+  normal195-to201 migration/validation and preservation of21 tables. Final V201
+  SHA256 is `707b3c3e10a560784f9c2e8d31a2cd2e8717ace89be88693067c79e19a8b54ae`.
+  Ownership ledgers remain empty for historical resources. No hosted upgrade,
+  ownership backfill or customer data mutation is implied.
+- Local source commits are `00f3852c5` cancellation HTTP errors, `8b11c4217`
+  independent demo correction, `5cef0210a` AI-only composition/storage/external
+  binding foundation and `12fb4e4b2` shared-service/final ownership correction.
+  Independent re-review closed the confirmed P1/P2 findings. AI Fabric remains
+  0.8.36; no framework change or release was made.
+- Customer AI resources are runtime/connector/workers, derived vector evidence,
+  an explicitly selected managed or customer-provided AI-state PostgreSQL, and
+  optional AI conversation Inbox. Simulator, dealership inventory and business
+  action systems remain independent DATA/ACTION integrations. Customer S3 stays
+  read-only and externally owned.
+- Publication is still held: the only configured Git origin is public, while
+  Platform product code is intended private. Owner must supply the private
+  destination or explicitly approve public publication. The question was asked
+  in the main task; no cross-task permission workaround was attempted.
+- Hosted offer/apply/index/actions/handover, immutable target-generation
+  replacement, capacity/load, production promotion and P7 remain open. Customer
+  UI functional acceptance/extraction is not certified by these backend results;
+  extraction stays last. All execution sessions/agents are closed, so no local
+  background task is required to resume. Preserve the held reservation, same-
+  tenant Free-01, approved production cluster, source data, cumulative grant,
+  stopped workloads and owner-approved open Hetzner access.
