@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -40,6 +41,15 @@ public class ApiExceptionHandler {
             "success", false,
             "errorCode", exception.getStatusCode().toString().replace(' ', '_'),
             "message", exception.getReason() == null ? "Request failed." : exception.getReason()
+        ));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<?> methodNotAllowed(HttpRequestMethodNotSupportedException exception) {
+        return ResponseEntity.status(exception.getStatusCode()).headers(exception.getHeaders()).body(Map.of(
+            "success", false,
+            "errorCode", "METHOD_NOT_ALLOWED",
+            "message", "This HTTP method is not supported for the requested resource."
         ));
     }
 
