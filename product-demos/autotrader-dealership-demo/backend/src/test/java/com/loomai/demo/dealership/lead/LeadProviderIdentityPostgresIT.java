@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import com.loomai.demo.dealership.provider.ProviderStockClient;
+import com.loomai.demo.dealership.security.ReceiverBindingService;
+import com.loomai.demo.dealership.security.ReceiverBindingService.Scope;
 import com.sun.net.httpserver.HttpServer;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
@@ -94,7 +96,7 @@ class LeadProviderIdentityPostgresIT {
         var originalOperations = jdbc.queryForList("SELECT * FROM loomai_managed_dependency_operation");
         var originalChecksums = jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history WHERE version IN ('1','2','3') ORDER BY version");
 
-        assertThat(migrate(data).migrationsExecuted).isEqualTo(1);
+        assertThat(migrate(data).migrationsExecuted).isEqualTo(2);
 
         var migrated = jdbc.queryForMap("SELECT * FROM dealership_lead_request");
         assertThat(migrated).containsAllEntriesOf(originalLead)
@@ -107,13 +109,12 @@ class LeadProviderIdentityPostgresIT {
             var service = service(data, provider.client(), properties);
             var legacyRequest = new LeadService.ActionExecutionRequest("dealership_request_test_drive", "legacy-request", true,
                 "legacy-website-id", "Existing Buyer", "existing@example.test", "+44 7700 900111", null, null, false, auth("session", "tenant"));
-            var receipt = inTransaction(data, () -> service.execute(legacyRequest));
-            assertThat(receipt.receiptCode()).isEqualTo("EXISTING-RECEIPT");
-            assertThat(receipt.status()).isEqualTo("CONTACTED");
-            assertThat(receipt.createdAt()).isEqualTo(createdAt);
+            assertThat(new LeadRepository(jdbc).findByIdempotencyKey(scope(properties), "legacy-request")).isEmpty();
+            assertThatThrownBy(() -> inTransaction(data, () -> service.execute(legacyRequest)))
+                .isInstanceOf(ResponseStatusException.class);
             assertThat(service.detail("old-lead").contact()).containsEntry("email", "existing@example.test");
+            assertThat(service.detail("old-lead").lead().scopeStatus()).isEqualTo("LEGACY_OPERATOR_ONLY");
             assertThat(jdbc.queryForObject("SELECT encrypted_contact FROM dealership_lead_request WHERE id='old-lead'", String.class)).isEqualTo(encrypted);
-            assertThat(provider.calls()).isZero();
 
             var fresh = inTransaction(data, () -> service.execute(request("upgraded-provider-request", "session", "tenant", true)));
             assertThat(fresh.vehicle()).isEqualTo("2025 Meridian E7");
@@ -126,16 +127,100 @@ class LeadProviderIdentityPostgresIT {
     }
 
     @Test
+    void v5PreservesAll73LegacyReceiptsAndSeparatesSequentialReceiverOwnersWithoutBackfill() throws Exception {
+        var data = postgres.newSchema();
+        var jdbc = new JdbcTemplate(data);
+        assertThat(Flyway.configure().dataSource(data).locations("classpath:db/migration")
+            .target(MigrationVersion.fromVersion("4")).load().migrate().migrationsExecuted).isEqualTo(4);
+        insertLegacyInventory(jdbc);
+        var properties = properties();
+        var encryption = encryption(properties);
+        for (int index = 0; index < 73; index++) {
+            jdbc.update("""
+                INSERT INTO dealership_lead_request
+                  (id,idempotency_key,action_type,vehicle_id,encrypted_contact,status,consent_recorded,source_session_id,receipt_code,created_at,updated_at)
+                VALUES (?,?,?,?,?,'CONTACTED',true,'session',?,TIMESTAMP '2010-01-01 00:00:00',TIMESTAMP '2010-01-02 00:00:00')
+                """, "legacy-" + index, "preserved-key-" + index, "dealership_request_test_drive", "legacy-website-id",
+                encryption.encrypt(Map.of("name", "Fictional Buyer " + index, "email", "legacy-" + index + "@example.test")), "LEGACY-" + index);
+        }
+        var originals = jdbc.queryForList("SELECT * FROM dealership_lead_request ORDER BY id");
+        var inventory = jdbc.queryForList("SELECT * FROM dealership_vehicle ORDER BY id");
+        var checksums = jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history ORDER BY installed_rank");
+
+        assertThat(migrate(data).migrationsExecuted).isEqualTo(1);
+        var rows = jdbc.queryForList("SELECT * FROM dealership_lead_request ORDER BY id");
+        assertThat(rows).hasSize(73);
+        for (int index = 0; index < 73; index++) {
+            assertThat(rows.get(index)).containsAllEntriesOf(originals.get(index));
+            for (String column : List.of("receiver_binding_id", "receiver_binding_fingerprint", "receiver_customer_id",
+                "receiver_tenant_id", "receiver_deployment_id", "receiver_advertiser_id", "receiver_request_key"))
+                assertThat(rows.get(index)).containsEntry(column, null);
+        }
+        assertThat(jdbc.queryForList("SELECT * FROM dealership_vehicle ORDER BY id")).isEqualTo(inventory);
+        assertThat(jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history WHERE version<>'5' ORDER BY installed_rank"))
+            .isEqualTo(checksums);
+        assertThatThrownBy(() -> jdbc.update("UPDATE dealership_lead_request SET receiver_binding_id='forged-owner' WHERE id='legacy-0'"))
+            .isInstanceOf(DataIntegrityViolationException.class);
+
+        try (var provider = new StockProvider()) {
+            var service = service(data, provider.client(), properties);
+            service.purgeExpired();
+            properties.getPrivacy().setLeadRetentionEnabled(true);
+            service.purgeExpired();
+            assertThat(jdbc.queryForList("SELECT * FROM dealership_lead_request ORDER BY id")).isEqualTo(rows);
+            assertThatThrownBy(() -> service.updateStatus("legacy-0", "CANCELLED"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, denied -> assertThat(denied.getStatusCode().value()).isEqualTo(409));
+            assertThat(service.detail("legacy-0").lead().scopeStatus()).isEqualTo("LEGACY_OPERATOR_ONLY");
+            assertThat(service.detail("legacy-0").lead().receiverScope()).isNull();
+            var first = inTransaction(data, () -> service.execute(request("preserved-key-0", "session", "tenant", true)));
+            assertThat(first.receiptCode()).isNotEqualTo("LEGACY-0");
+            var firstRow = jdbc.queryForMap("SELECT * FROM dealership_lead_request WHERE receiver_binding_fingerprint=?", scope(properties).fingerprint());
+            var oldKey = properties.getReceiver().getApiKey();
+            var oldScope = scope(properties);
+            properties.getReceiver().setEnabled(false);
+            assertThatThrownBy(() -> service.execute(request("preserved-key-0", "session", "tenant", true)))
+                .isInstanceOfSatisfying(ResponseStatusException.class, denied -> assertThat(denied.getStatusCode().value()).isEqualTo(503));
+            var receiver = properties.getReceiver();
+            receiver.setBindingId("receiver-2"); receiver.setCustomerId("customer-2"); receiver.setTenantId("tenant-2");
+            receiver.setDeploymentId("deployment-2"); receiver.setApiKey("synthetic-new-receiver-credential-123456789");
+            receiver.setEnabled(true);
+            var binding = new ReceiverBindingService(properties, provider.client());
+            assertThatThrownBy(() -> binding.authenticate(oldKey)).isInstanceOfSatisfying(ResponseStatusException.class,
+                denied -> assertThat(denied.getStatusCode().value()).isEqualTo(401));
+            binding.authenticate(receiver.getApiKey());
+            var nextAuth = new LeadService.VerifiedAuthContext("subject", "ANONYMOUS_SESSION", "PUBLIC_RUNTIME_TOKEN", "PUBLIC_BROWSER",
+                "session", "deployment-2", "customer-2", "tenant-2", "runtime", List.of());
+            var oldRequest = request("preserved-key-0", "session", "tenant", true);
+            var nextRequest = new LeadService.ActionExecutionRequest(oldRequest.actionId(), oldRequest.idempotencyKey(), true,
+                oldRequest.vehicleReference(), oldRequest.name(), oldRequest.email(), oldRequest.phone(), null, null, false, nextAuth);
+            var restarted = service(data, provider.client(), properties);
+            assertThatThrownBy(() -> inTransaction(data, () -> restarted.execute(oldRequest)))
+                .isInstanceOfSatisfying(ResponseStatusException.class, denied -> assertThat(denied.getStatusCode().value()).isEqualTo(403));
+            var second = inTransaction(data, () -> restarted.execute(nextRequest));
+            assertThat(second.receiptCode()).isNotEqualTo(first.receiptCode());
+            assertThat(inTransaction(data, () -> restarted.execute(nextRequest))).isEqualTo(second);
+            assertThat(jdbc.queryForMap("SELECT * FROM dealership_lead_request WHERE receiver_binding_fingerprint=?", oldScope.fingerprint()))
+                .isEqualTo(firstRow);
+            assertThat(jdbc.queryForList("SELECT * FROM dealership_lead_request WHERE receiver_binding_fingerprint IS NULL ORDER BY id"))
+                .isEqualTo(rows);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_lead_request", Long.class)).isEqualTo(75);
+            assertThat(properties.getRuntime().getPrivateAccess().getCustomerId()).isEqualTo("customer");
+        }
+        assertThat(jdbc.queryForList("SELECT * FROM dealership_vehicle ORDER BY id")).isEqualTo(inventory);
+        assertThat(migrate(data).migrationsExecuted).isZero();
+    }
+
+    @Test
     void freshPostgresPersistsCanonicalIdentityAndEncryptedSnapshotThenReplaysAfterServiceRestart() throws Exception {
         var data = postgres.newSchema();
-        assertThat(migrate(data).migrationsExecuted).isEqualTo(4);
+        assertThat(migrate(data).migrationsExecuted).isEqualTo(5);
         var jdbc = new JdbcTemplate(data);
         var properties = properties();
         try (var provider = new StockProvider()) {
             var service = service(data, provider.client(), properties);
             var request = request("provider-request", "session", "tenant", true);
             var first = inTransaction(data, () -> service.execute(request));
-            var record = new LeadRepository(jdbc).findByIdempotencyKey("provider-request").orElseThrow();
+            var record = new LeadRepository(jdbc).findByIdempotencyKey(scope(properties), "provider-request").orElseThrow();
             assertThat(record.vehicleId()).isEqualTo(STOCK_ID);
             assertThat(record.providerStockId()).isEqualTo(STOCK_ID);
             assertThat(record.providerAdvertiserId()).isEqualTo("advertiser-1");
@@ -166,7 +251,7 @@ class LeadProviderIdentityPostgresIT {
                 .hasMessageContaining("Confirmed action evidence is required");
             var otherAdvertiser = service(data, new ProviderStockClient(provider.baseUrl(), "key", "secret", "other-advertiser", Duration.ofSeconds(2)), properties);
             assertThatThrownBy(() -> inTransaction(data, () -> otherAdvertiser.execute(request)))
-                .hasMessageContaining("different confirmed request");
+                .hasMessageContaining("receiver binding is unavailable");
             assertThat(provider.calls()).isEqualTo(calls);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_vehicle", Long.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_lead_request", Long.class)).isEqualTo(1);
@@ -236,9 +321,9 @@ class LeadProviderIdentityPostgresIT {
             var first = attempts.getFirst().receipt();
             assertThat(attempts.getLast().receipt()).isEqualTo(first);
             verify(repository, times(2)).insert(any());
-            verify(repository, times(3)).findByIdempotencyKey(request.idempotencyKey());
+            verify(repository, times(3)).findByIdempotencyKey(scope(properties), request.idempotencyKey());
             var persisted = jdbc.queryForMap("SELECT * FROM dealership_lead_request");
-            var record = repository.findByIdempotencyKey(request.idempotencyKey()).orElseThrow();
+            var record = repository.findByIdempotencyKey(scope(properties), request.idempotencyKey()).orElseThrow();
             assertThat(record.receiptCode()).isEqualTo(first.receiptCode());
             assertThat(record.createdAt()).isEqualTo(first.createdAt());
             assertThat(encryption(properties).decrypt(record.encryptedContact()).get("_providerStock"))
@@ -275,7 +360,7 @@ class LeadProviderIdentityPostgresIT {
             var attempts = race(data, provider, service, original, other);
 
             verify(repository, times(2)).insert(any());
-            verify(repository, times(3)).findByIdempotencyKey(original.idempotencyKey());
+            verify(repository, times(3)).findByIdempotencyKey(scope(properties), original.idempotencyKey());
             assertThat(attempts.stream().filter(attempt -> attempt.receipt() != null)).hasSize(1);
             assertThat(attempts.stream().filter(attempt -> attempt.failure() != null)).hasSize(1);
             var winner = attempts.stream().filter(attempt -> attempt.receipt() != null).findFirst().orElseThrow();
@@ -284,7 +369,7 @@ class LeadProviderIdentityPostgresIT {
             assertThat(loser.failure().getReason()).isEqualTo("The idempotency key belongs to a different confirmed request.");
             assertThat(loser.failure().getMessage()).doesNotContain("new@example.test", "other@example.test", "Other Buyer");
             var persisted = jdbc.queryForMap("SELECT * FROM dealership_lead_request");
-            var record = repository.findByIdempotencyKey(original.idempotencyKey()).orElseThrow();
+            var record = repository.findByIdempotencyKey(scope(properties), original.idempotencyKey()).orElseThrow();
             var privateData = encryption(properties).decrypt(record.encryptedContact());
             assertThat(record.sourceSessionId()).isEqualTo(winner.request().authContext().sessionId());
             assertThat(record.actionType()).isEqualTo(winner.request().actionId());
@@ -317,21 +402,21 @@ class LeadProviderIdentityPostgresIT {
             var service = service(data, provider.client(), properties);
             inTransaction(data, () -> service.execute(request("original", "session", "tenant", true)));
             inTransaction(data, () -> service.execute(request("contended-key", "session", "tenant", true)));
-            var original = new LeadRepository(jdbc).findByIdempotencyKey("original").orElseThrow();
+            var original = new LeadRepository(jdbc).findByIdempotencyKey(scope(properties), "original").orElseThrow();
             var before = jdbc.queryForList("SELECT * FROM dealership_lead_request ORDER BY id");
             var initialLookup = new AtomicBoolean(true);
             var conflicting = new LeadRepository(jdbc) {
-                @Override public Optional<LeadRecord> findByIdempotencyKey(String key) {
-                    return initialLookup.getAndSet(false) ? Optional.empty() : super.findByIdempotencyKey(key);
+                @Override public Optional<LeadRecord> findByIdempotencyKey(Scope scope, String key) {
+                    return initialLookup.getAndSet(false) ? Optional.empty() : super.findByIdempotencyKey(scope, key);
                 }
                 @Override public LeadRecord insert(LeadRecord input) {
                     return super.insert(new LeadRecord(collision.equals("id") ? original.id() : input.id(), input.idempotencyKey(),
                         input.actionType(), input.vehicleId(), input.encryptedContact(), input.status(), input.consentRecorded(),
                         input.sourceSessionId(), collision.equals("receipt") ? original.receiptCode() : input.receiptCode(),
-                        input.createdAt(), input.updatedAt(), input.providerStockId(), input.providerAdvertiserId()));
+                        input.createdAt(), input.updatedAt(), input.providerStockId(), input.providerAdvertiserId(), input.receiverScope(), input.receiverRequestKey()));
                 }
             };
-            var failing = new LeadService(conflicting, provider.client(), encryption(properties), properties);
+            var failing = new LeadService(conflicting, provider.client(), encryption(properties), properties, new ReceiverBindingService(properties, provider.client()));
 
             assertThatThrownBy(() -> inTransaction(data, () -> failing.execute(request("contended-key", "session", "tenant", true))))
                 .isInstanceOfSatisfying(ResponseStatusException.class, failure -> {
@@ -374,7 +459,7 @@ class LeadProviderIdentityPostgresIT {
         var interceptor = new TransactionInterceptor();
         interceptor.setTransactionManager(new DataSourceTransactionManager(data));
         interceptor.setTransactionAttributeSource(new AnnotationTransactionAttributeSource());
-        var factory = new ProxyFactory(new LeadService(repository, provider, encryption(properties), properties));
+        var factory = new ProxyFactory(new LeadService(repository, provider, encryption(properties), properties, new ReceiverBindingService(properties, provider)));
         factory.setProxyTargetClass(true); factory.addAdvice(interceptor);
         var service = (LeadService) factory.getProxy();
         assertThat(AopUtils.isAopProxy(service)).isTrue();
@@ -407,6 +492,10 @@ class LeadProviderIdentityPostgresIT {
         var properties = new DealershipDemoProperties();
         var access = properties.getRuntime().getPrivateAccess();
         access.setCustomerId("customer"); access.setTenantId("tenant"); access.setDeploymentId("deployment");
+        var receiver = properties.getReceiver();
+        receiver.setEnabled(true); receiver.setBindingId("receiver-1"); receiver.setCustomerId("customer");
+        receiver.setTenantId("tenant"); receiver.setDeploymentId("deployment"); receiver.setAdvertiserId("advertiser-1");
+        receiver.setApiKey("synthetic-dedicated-receiver-key-123456");
         properties.getPrivacy().setEncryptionKeyBase64(Base64.getEncoder().encodeToString(new byte[32]));
         return properties;
     }
@@ -416,7 +505,13 @@ class LeadProviderIdentityPostgresIT {
     }
 
     private static LeadService service(DriverManagerDataSource data, ProviderStockClient provider, DealershipDemoProperties properties) {
-        return new LeadService(new LeadRepository(new JdbcTemplate(data)), provider, encryption(properties), properties);
+        return new LeadService(new LeadRepository(new JdbcTemplate(data)), provider, encryption(properties), properties,
+            new ReceiverBindingService(properties, provider));
+    }
+
+    private static Scope scope(DealershipDemoProperties properties) {
+        var receiver = properties.getReceiver();
+        return new Scope(receiver.getBindingId(), receiver.getCustomerId(), receiver.getTenantId(), receiver.getDeploymentId(), receiver.getAdvertiserId());
     }
 
     private static <T> T inTransaction(DriverManagerDataSource data, java.util.function.Supplier<T> body) {

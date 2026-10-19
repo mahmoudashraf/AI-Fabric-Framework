@@ -3,6 +3,7 @@ package com.loomai.demo.dealership.lead;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import com.loomai.demo.dealership.provider.ProviderStockClient;
+import com.loomai.demo.dealership.security.ReceiverBindingService;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,16 +41,20 @@ class LeadServiceTest {
         access.setDeploymentId("deployment");
         access.setTenantId("tenant");
         access.setCustomerId("customer");
+        var receiver = properties.getReceiver();
+        receiver.setEnabled(true); receiver.setBindingId("receiver-1"); receiver.setCustomerId("customer");
+        receiver.setTenantId("tenant"); receiver.setDeploymentId("deployment"); receiver.setAdvertiserId("advertiser-1");
+        receiver.setApiKey("synthetic-dedicated-receiver-key-123456");
         properties.getPrivacy().setEncryptionKeyBase64(Base64.getEncoder().encodeToString(new byte[32]));
         encryption = new PiiEncryptionService(properties, new ObjectMapper());
         repository = mock(LeadRepository.class);
         provider = mock(ProviderStockClient.class);
         when(provider.configuredAdvertiserId()).thenReturn("advertiser-1");
-        when(repository.findByIdempotencyKey(anyString())).thenAnswer(invocation -> Optional.ofNullable(saved));
+        when(repository.findByIdempotencyKey(any(), anyString())).thenAnswer(invocation -> Optional.ofNullable(saved));
         when(repository.insert(any())).thenAnswer(invocation -> { saved = invocation.getArgument(0); return saved; });
         when(provider.requireAvailableStock("PROVIDER-ONLY-99")).thenReturn(new ProviderStockClient.Stock(
             "PROVIDER-ONLY-99", "advertiser-1", "2025 Meridian E7", Instant.now().minusSeconds(60), Instant.now()));
-        service = new LeadService(repository, provider, encryption, properties);
+        service = new LeadService(repository, provider, encryption, properties, new ReceiverBindingService(properties, provider));
     }
 
     @Test
@@ -138,7 +143,8 @@ class LeadServiceTest {
             new ClassPathResource("db/migration/V3__managed_dependency_current_operation.sql"),
             new ClassPathResource("db/migration/V4__external_provider_lead_identity.sql")).execute(data);
         var jdbc = new JdbcTemplate(data);
-        var migrated = new LeadService(new LeadRepository(jdbc), provider, encryption, properties);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V5__scoped_receiver_receipts.sql")).execute(data);
+        var migrated = new LeadService(new LeadRepository(jdbc), provider, encryption, properties, new ReceiverBindingService(properties, provider));
         var first = migrated.execute(request("session", true));
         assertThat(migrated.execute(request("session", true))).isEqualTo(first);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_vehicle", Long.class)).isZero();
@@ -151,7 +157,7 @@ class LeadServiceTest {
     void receiptReplayCannotCrossTheConfiguredAdvertiserBoundary() {
         service.execute(request("session", true));
         when(provider.configuredAdvertiserId()).thenReturn("other-advertiser");
-        assertThatThrownBy(() -> service.execute(request("session", true))).hasMessageContaining("different confirmed request");
+        assertThatThrownBy(() -> service.execute(request("session", true))).hasMessageContaining("receiver binding is unavailable");
         verify(repository, times(1)).insert(any());
         verify(provider, times(1)).requireAvailableStock(anyString());
     }
@@ -173,7 +179,7 @@ class LeadServiceTest {
     void insertRaceReturnsThePersistedWinnerWithoutUsingTheLosingProviderSnapshot() {
         var original = service.execute(request("session", true));
         var winner = saved;
-        when(repository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(repository.findByIdempotencyKey(any(), anyString())).thenReturn(Optional.empty());
         doReturn(winner).when(repository).insert(any());
         when(provider.requireAvailableStock(anyString())).thenReturn(new ProviderStockClient.Stock(
             "PROVIDER-ONLY-99", "advertiser-1", "Different provider snapshot", Instant.now(), Instant.now()));
@@ -192,9 +198,9 @@ class LeadServiceTest {
             winner = new LeadRepository.LeadRecord(winner.id(), winner.idempotencyKey(), winner.actionType(), winner.vehicleId(),
                 winner.encryptedContact(), winner.status(), winner.consentRecorded(), winner.sourceSessionId(), winner.receiptCode(),
                 winner.createdAt(), winner.updatedAt(), changed.equals("provider-stock") ? "OTHER-STOCK" : winner.providerStockId(),
-                changed.equals("advertiser") ? "other-advertiser" : winner.providerAdvertiserId());
+                changed.equals("advertiser") ? "other-advertiser" : winner.providerAdvertiserId(), winner.receiverScope(), winner.receiverRequestKey());
         }
-        when(repository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(repository.findByIdempotencyKey(any(), anyString())).thenReturn(Optional.empty());
         doReturn(winner).when(repository).insert(any());
         var input = new LeadService.ActionExecutionRequest(
             changed.equals("action") ? "dealership_request_callback" : original.actionId(), original.idempotencyKey(), true,
@@ -225,8 +231,9 @@ class LeadServiceTest {
             field.equals("session") ? request("x".repeat(161), true).authContext() : original.authContext());
 
         assertThatThrownBy(() -> service.execute(input)).isInstanceOfSatisfying(ResponseStatusException.class,
-            failure -> assertThat(failure.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
-        verifyNoInteractions(provider, repository);
+            failure -> assertThat(failure.getStatusCode()).isEqualTo(field.equals("session") ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST));
+        verify(provider, never()).requireAvailableStock(anyString());
+        verifyNoInteractions(repository);
     }
 
     private LeadService.ActionExecutionRequest request(String session, boolean confirmed) {

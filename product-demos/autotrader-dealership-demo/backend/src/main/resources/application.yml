@@ -62,9 +62,18 @@ dealership:
   internal:
     api-key-header: ${APP_INTERNAL_API_KEY_HEADER:X-DEALERSHIP-INTERNAL-KEY}
     api-key: ${APP_INTERNAL_API_KEY:}
+  receiver:
+    enabled: ${DEALERSHIP_RECEIVER_ENABLED:false}
+    binding-id: ${DEALERSHIP_RECEIVER_BINDING_ID:}
+    customer-id: ${DEALERSHIP_RECEIVER_CUSTOMER_ID:}
+    tenant-id: ${DEALERSHIP_RECEIVER_TENANT_ID:}
+    deployment-id: ${DEALERSHIP_RECEIVER_DEPLOYMENT_ID:}
+    advertiser-id: ${DEALERSHIP_RECEIVER_ADVERTISER_ID:}
+    api-key: ${DEALERSHIP_RECEIVER_API_KEY:}
   privacy:
     encryption-key-base64: ${APP_PII_ENCRYPTION_KEY_BASE64:}
     lead-retention: ${APP_LEAD_RETENTION:P30D}
+    lead-retention-enabled: ${APP_LEAD_RETENTION_ENABLED:false}
   provider-simulator:
     enabled: ${PROVIDER_SIMULATOR_ENABLED:false}
     base-url: ${PROVIDER_SIMULATOR_BASE_URL:}

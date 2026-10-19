@@ -4,6 +4,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import com.loomai.demo.dealership.security.ReceiverBindingService;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -14,9 +15,11 @@ import java.net.URI;
 public class ProductionConfigurationValidator implements ApplicationRunner {
 
     private final DealershipDemoProperties properties;
+    private final ReceiverBindingService receivers;
 
-    public ProductionConfigurationValidator(DealershipDemoProperties properties) {
+    public ProductionConfigurationValidator(DealershipDemoProperties properties, ReceiverBindingService receivers) {
         this.properties = properties;
+        this.receivers = receivers;
     }
 
     @Override
@@ -68,6 +71,15 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
         }
         validateEncryptionKey(missing);
         validateStaffPasswordHash(missing);
+        if (properties.getReceiver().isEnabled()) {
+            try { receivers.requireActive(); }
+            catch (org.springframework.web.server.ResponseStatusException invalid) {
+                missing.add("DEALERSHIP_RECEIVER_* (complete scope, matching advertiser and dedicated credential required)");
+            }
+        }
+        if (properties.getPrivacy().isLeadRetentionEnabled() && (properties.getPrivacy().getLeadRetention() == null
+            || properties.getPrivacy().getLeadRetention().isNegative() || properties.getPrivacy().getLeadRetention().isZero()))
+            missing.add("APP_LEAD_RETENTION (must be positive when enabled)");
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Production configuration is incomplete: " + String.join(", ", missing));
         }

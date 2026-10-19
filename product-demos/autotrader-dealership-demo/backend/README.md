@@ -69,11 +69,53 @@ APP_BUILD_TIME=<ISO-8601-build-time>
 Required for the external confirmed lead-action capability:
 
 ```text
+DEALERSHIP_RECEIVER_ENABLED=true
+DEALERSHIP_RECEIVER_BINDING_ID=<new-explicit-fixture-binding-id>
+DEALERSHIP_RECEIVER_CUSTOMER_ID=<authorized-customer-id>
+DEALERSHIP_RECEIVER_TENANT_ID=<authorized-tenant-id>
+DEALERSHIP_RECEIVER_DEPLOYMENT_ID=<authorized-deployment-id>
+DEALERSHIP_RECEIVER_ADVERTISER_ID=<authorized-advertiser-id>
+DEALERSHIP_RECEIVER_API_KEY=<dedicated-random-receiver-key-at-least-32-characters>
 AUTOTRADER_PROVIDER_BASE_URL=https://<explicit-stock-provider-or-simulator>
 AUTOTRADER_PROVIDER_KEY=<server-only-scoped-read-key>
 AUTOTRADER_PROVIDER_SECRET=<server-only-scoped-read-secret>
 AUTOTRADER_ADVERTISER_ID=<authorized-advertiser-id>
 ```
+
+The receiver is disabled by default. Both `/api/internal/authz/check` and
+`/api/internal/actions/execute` require the dedicated receiver key in
+`X-DEALERSHIP-INTERNAL-KEY` and resolve the same exact customer/tenant/deployment
+binding. The advertiser must match the configured provider-read account.
+Neither `APP_INTERNAL_API_KEY` nor any `LOOMAI_RUNTIME_*` or Inbox credential is
+a receiver fallback; reusing one of those credentials is rejected. Keep those
+old integration settings unchanged until a separate deliberate cutover.
+
+This is one active external business fixture, not a managed AI dependency or a
+multi-customer database service. For sequential cutover, disable the receiver,
+stop/drain old callers, replace the complete receiver binding and its dedicated
+credential, restart, then explicitly approve/bind that credential through the
+new deployment's external ACTION slot. Revoke the old external binding and
+credential separately; a Platform-local approval is not proof of remote access.
+Use a new binding ID for the new owner. Scope fingerprints include all five
+binding fields, so even reusing an ID label cannot transfer receipt ownership.
+Do not copy the old runtime signing keys, staff login or Inbox authority to the
+new customer. There is no need to clone this instance or its business database.
+
+V5 adds nullable receiver-scope metadata without rewriting or assigning owners
+to historical rows. New receipts persist the full binding, its fingerprint and
+the caller's idempotency key. Their storage key is a structured digest of the
+binding fingerprint and caller key; the existing global unique constraint and
+historical keys remain intact. Replays look up the exact binding and still
+require the original confirmed payload/session. Unscoped rows never replay to
+a receiver, including after a legacy-key collision. Operator projections label
+them `LEGACY_OPERATOR_ONLY`; their status and content remain read-only. Staff
+views remain global fixture-operator surfaces, not customer receipt APIs.
+
+Lead retention is explicitly off by default (`APP_LEAD_RETENTION_ENABLED=false`).
+An operator may deliberately enable `APP_LEAD_RETENTION_ENABLED=true` with a
+positive `APP_LEAD_RETENTION` (default `P30D`) for scoped receipts only. Legacy
+unscoped receipts are always excluded from purging. Preserve the existing DB
+and PII encryption key; changing a receiver binding never migrates those rows.
 
 These credentials must read the same advertiser as the DATA plugin. The
 simulator must be selected explicitly; simulator-control credentials are not a

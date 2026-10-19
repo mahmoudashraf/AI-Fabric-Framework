@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loomai.demo.dealership.lead.LeadService;
 import com.loomai.demo.dealership.provider.ProviderStockClient;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -28,10 +29,12 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyString;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ApiExceptionHandlerHttpTest {
-    private static final String INTERNAL_KEY = "method-regression-internal-key";
+    private static final String INTERNAL_KEY = "method-regression-dedicated-receiver-key";
     private static final String ACTION_PATH = "/api/internal/actions/execute";
     private static final String DATABASE = "jdbc:h2:mem:method-regression-" + UUID.randomUUID()
         + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1";
@@ -39,7 +42,14 @@ class ApiExceptionHandlerHttpTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> DATABASE);
-        registry.add("dealership.internal.api-key", () -> INTERNAL_KEY);
+        registry.add("dealership.internal.api-key", () -> "old-global-key-not-a-receiver-key");
+        registry.add("dealership.receiver.enabled", () -> true);
+        registry.add("dealership.receiver.binding-id", () -> "method-receiver");
+        registry.add("dealership.receiver.api-key", () -> INTERNAL_KEY);
+        registry.add("dealership.receiver.deployment-id", () -> "deployment");
+        registry.add("dealership.receiver.customer-id", () -> "customer");
+        registry.add("dealership.receiver.tenant-id", () -> "tenant");
+        registry.add("dealership.receiver.advertiser-id", () -> "advertiser-1");
         registry.add("dealership.privacy.encryption-key-base64", () -> Base64.getEncoder()
             .encodeToString("0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8)));
         registry.add("dealership.runtime.enabled", () -> "false");
@@ -54,9 +64,13 @@ class ApiExceptionHandlerHttpTest {
     private final HttpClient client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
 
+    @BeforeEach
+    void configuredReceiverAccount() { when(provider.configuredAdvertiserId()).thenReturn("advertiser-1"); }
+
     @AfterEach
     void noActionOrProviderReadWasExecuted() {
-        verifyNoInteractions(leads, provider);
+        verifyNoInteractions(leads);
+        verify(provider, never()).requireAvailableStock(anyString());
     }
 
     @Test

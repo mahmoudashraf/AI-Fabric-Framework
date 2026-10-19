@@ -17,6 +17,7 @@ public class DealershipDemoProperties {
     private List<String> allowedOrigins = new ArrayList<>(List.of("http://127.0.0.1:4321", "http://localhost:4321"));
     private final Staff staff = new Staff();
     private final Internal internal = new Internal();
+    private final Receiver receiver = new Receiver();
     private final Privacy privacy = new Privacy();
     private final Runtime runtime = new Runtime();
     private final ProviderSimulator providerSimulator = new ProviderSimulator();
@@ -36,6 +37,7 @@ public class DealershipDemoProperties {
     public void setAllowedOrigins(List<String> allowedOrigins) { this.allowedOrigins = allowedOrigins == null ? new ArrayList<>() : new ArrayList<>(allowedOrigins); }
     public Staff getStaff() { return staff; }
     public Internal getInternal() { return internal; }
+    public Receiver getReceiver() { return receiver; }
     public Privacy getPrivacy() { return privacy; }
     public Runtime getRuntime() { return runtime; }
     public ProviderSimulator getProviderSimulator() { return providerSimulator; }
@@ -62,10 +64,38 @@ public class DealershipDemoProperties {
     public static class Privacy {
         private String encryptionKeyBase64;
         private Duration leadRetention = Duration.ofDays(30);
+        private boolean leadRetentionEnabled;
         public String getEncryptionKeyBase64() { return encryptionKeyBase64; }
         public void setEncryptionKeyBase64(String encryptionKeyBase64) { this.encryptionKeyBase64 = encryptionKeyBase64; }
         public Duration getLeadRetention() { return leadRetention; }
         public void setLeadRetention(Duration leadRetention) { this.leadRetention = leadRetention; }
+        public boolean isLeadRetentionEnabled() { return leadRetentionEnabled; }
+        public void setLeadRetentionEnabled(boolean leadRetentionEnabled) { this.leadRetentionEnabled = leadRetentionEnabled; }
+    }
+
+    public static class Receiver {
+        private boolean enabled;
+        private String bindingId;
+        private String customerId;
+        private String tenantId;
+        private String deploymentId;
+        private String advertiserId;
+        private String apiKey;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public String getBindingId() { return bindingId; }
+        public void setBindingId(String bindingId) { this.bindingId = bindingId; }
+        public String getCustomerId() { return customerId; }
+        public void setCustomerId(String customerId) { this.customerId = customerId; }
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public String getDeploymentId() { return deploymentId; }
+        public void setDeploymentId(String deploymentId) { this.deploymentId = deploymentId; }
+        public String getAdvertiserId() { return advertiserId; }
+        public void setAdvertiserId(String advertiserId) { this.advertiserId = advertiserId; }
+        public String getApiKey() { return apiKey; }
+        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
     }
 
     public static class ProviderSimulator {

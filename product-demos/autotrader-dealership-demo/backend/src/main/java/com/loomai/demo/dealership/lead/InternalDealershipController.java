@@ -3,6 +3,7 @@ package com.loomai.demo.dealership.lead;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import com.loomai.demo.dealership.provider.ProviderStockClient;
+import com.loomai.demo.dealership.security.ReceiverBindingService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -22,13 +23,15 @@ public class InternalDealershipController {
     private final ProviderStockClient stockClient;
     private final LeadService leads;
     private final DealershipDemoProperties properties;
+    private final ReceiverBindingService bindings;
 
     public InternalDealershipController(ProviderStockClient stockClient,
                                         LeadService leads,
-                                        DealershipDemoProperties properties) {
+                                        DealershipDemoProperties properties, ReceiverBindingService bindings) {
         this.stockClient = stockClient;
         this.leads = leads;
         this.properties = properties;
+        this.bindings = bindings;
     }
 
     @PostMapping("/authz/check")
@@ -40,9 +43,8 @@ public class InternalDealershipController {
         String resourceId = text(request, "resourceId");
         String operation = text(request, "operationType");
 
-        boolean boundary = StringUtils.hasText(subjectId)
-            && equalsConfigured(properties.getRuntime().getPrivateAccess().getDeploymentId(), deploymentId)
-            && equalsConfigured(properties.getRuntime().getPrivateAccess().getTenantId(), tenantId);
+        var binding = bindings.requireActive();
+        boolean boundary = bindings.permits(binding, subjectId, text(auth, "sessionId"), text(auth, "customerId"), tenantId, deploymentId);
         boolean supportedOperation = operation != null && List.of(
             "READ", "RETRIEVE", "SEARCH", "EXECUTE_ACTION", "CREATE_LEAD", "REQUEST_TEST_DRIVE", "REQUEST_CALLBACK"
         ).contains(operation.toUpperCase());
@@ -99,10 +101,6 @@ public class InternalDealershipController {
         return normalized.startsWith(prefix) ? normalized.substring(prefix.length()) : normalized;
     }
 
-    private boolean equalsConfigured(String expected, String actual) {
-        return StringUtils.hasText(expected) && expected.trim().equals(actual);
-    }
-
     private boolean booleanValue(Object value) {
         return value instanceof Boolean bool ? bool : value != null && Boolean.parseBoolean(value.toString());
     }
@@ -113,8 +111,7 @@ public class InternalDealershipController {
 
     private String text(JsonNode node, String field) {
         JsonNode value = node == null ? null : node.path(field);
-        return value == null || value.isMissingNode() || value.isNull() || !StringUtils.hasText(value.asText())
-            ? null : value.asText().trim();
+        return value == null || !value.isTextual() ? null : value.textValue();
     }
 
     public record ConnectorActionRequest(String actionId, Map<String, Object> params,

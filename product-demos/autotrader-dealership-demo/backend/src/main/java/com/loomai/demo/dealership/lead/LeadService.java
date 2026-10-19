@@ -2,6 +2,8 @@ package com.loomai.demo.dealership.lead;
 
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import com.loomai.demo.dealership.provider.ProviderStockClient;
+import com.loomai.demo.dealership.security.ReceiverBindingService;
+import com.loomai.demo.dealership.security.ReceiverBindingService.Scope;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -35,15 +37,17 @@ public class LeadService {
     private final ProviderStockClient stockClient;
     private final PiiEncryptionService encryption;
     private final DealershipDemoProperties properties;
+    private final ReceiverBindingService bindings;
 
     public LeadService(LeadRepository repository,
                        ProviderStockClient stockClient,
                        PiiEncryptionService encryption,
-                       DealershipDemoProperties properties) {
+                       DealershipDemoProperties properties, ReceiverBindingService bindings) {
         this.repository = repository;
         this.stockClient = stockClient;
         this.encryption = encryption;
         this.properties = properties;
+        this.bindings = bindings;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -55,7 +59,7 @@ public class LeadService {
         if (!request.confirmationAccepted()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Confirmed action evidence is required.");
         }
-        validateBoundary(request.authContext());
+        Scope binding = validateBoundary(request.authContext());
         String sessionId = require(request.authContext().sessionId(), "sessionId", 160);
         String vehicleReference = ProviderStockClient.canonicalStockId(request.vehicleReference());
         if (CALLBACK_ACTION.equals(request.actionId().trim()) && !request.consent()) {
@@ -85,15 +89,17 @@ public class LeadService {
 
         java.util.Optional<LeadRepository.LeadRecord> existing;
         try {
-            existing = repository.findByIdempotencyKey(idempotencyKey);
+            existing = repository.findByIdempotencyKey(binding, idempotencyKey);
         } catch (DataAccessException ex) {
             throw storeUnavailable();
         }
         if (existing.isPresent()) {
-            return confirmedReceipt(existing.get(), request, vehicleReference, sessionId, contact);
+            return confirmedReceipt(existing.get(), request, binding, vehicleReference, sessionId, contact);
         }
 
         ProviderStockClient.Stock stock = stockClient.requireAvailableStock(vehicleReference);
+        if (!binding.advertiserId().equals(stock.advertiserId()))
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Provider stock does not match the receiver binding.");
         Map<String, Object> storedContact = new LinkedHashMap<>(contact);
         storedContact.put(STOCK_SNAPSHOT, Map.of(
             "stockId", stock.stockId(), "advertiserId", stock.advertiserId(), "displayName", stock.displayName(),
@@ -102,12 +108,12 @@ public class LeadService {
         Instant now = Instant.now();
         try {
             LeadRepository.LeadRecord created = repository.insert(new LeadRepository.LeadRecord(
-                UUID.randomUUID().toString(), idempotencyKey, request.actionId().trim(), stock.stockId(),
+                UUID.randomUUID().toString(), binding.storageKey(idempotencyKey), request.actionId().trim(), stock.stockId(),
                 encryption.encrypt(storedContact), "NEW", request.consent(), sessionId,
                 "NFM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), now, now,
-                stock.stockId(), stock.advertiserId()
+                stock.stockId(), stock.advertiserId(), binding, idempotencyKey
             ));
-            return confirmedReceipt(created, request, vehicleReference, sessionId, contact);
+            return confirmedReceipt(created, request, binding, vehicleReference, sessionId, contact);
         } catch (DataAccessException ex) {
             throw storeUnavailable();
         }
@@ -134,34 +140,37 @@ public class LeadService {
         }
         LeadRepository.LeadRecord existing = repository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead request was not found."));
+        if (existing.receiverScope() == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Legacy receipts are retained read-only for the fixture operator.");
         repository.updateStatus(id, normalized);
         return summary(repository.findById(id).orElse(existing));
     }
 
     @Scheduled(cron = "${APP_LEAD_RETENTION_CRON:0 20 3 * * *}")
     public void purgeExpired() {
+        if (!properties.getPrivacy().isLeadRetentionEnabled()) return;
+        var retention = properties.getPrivacy().getLeadRetention();
+        if (retention == null || retention.isNegative() || retention.isZero())
+            throw new IllegalStateException("Scoped lead retention must be positive.");
         repository.deleteOlderThan(Instant.now().minus(properties.getPrivacy().getLeadRetention()));
     }
 
-    private void validateBoundary(VerifiedAuthContext context) {
-        var expected = properties.getRuntime().getPrivateAccess();
+    private Scope validateBoundary(VerifiedAuthContext context) {
+        Scope binding = bindings.requireActive();
         if (context == null || !StringUtils.hasText(context.subjectId()) || !StringUtils.hasText(context.sessionId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Verified runtime session context is required.");
         }
-        if (!matches(expected.getDeploymentId(), context.deploymentId())
-            || !matches(expected.getTenantId(), context.tenantId())
-            || !matches(expected.getCustomerId(), context.customerId())) {
+        if (!bindings.permits(binding, context.subjectId(), context.sessionId(), context.customerId(), context.tenantId(), context.deploymentId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Runtime identity does not own this dealership boundary.");
         }
-    }
-
-    private boolean matches(String expected, String actual) {
-        return StringUtils.hasText(expected) && expected.trim().equals(trim(actual));
+        return binding;
     }
 
     private LeadReceipt confirmedReceipt(LeadRepository.LeadRecord record, ActionExecutionRequest request,
-                                         String vehicleReference, String sessionId, Map<String, Object> expectedContact) {
-        if (!request.actionId().trim().equals(record.actionType())
+                                         Scope binding, String vehicleReference, String sessionId, Map<String, Object> expectedContact) {
+        if (!binding.equals(record.receiverScope()) || !request.idempotencyKey().trim().equals(record.receiverRequestKey())
+            || !binding.storageKey(record.receiverRequestKey()).equals(record.idempotencyKey())
+            || !request.actionId().trim().equals(record.actionType())
             || !vehicleReference.equals(record.vehicleId())
             || (record.providerStockId() != null && !vehicleReference.equals(record.providerStockId()))
             || (record.providerAdvertiserId() != null
@@ -184,7 +193,8 @@ public class LeadService {
     private LeadSummary summary(LeadRepository.LeadRecord record) {
         return new LeadSummary(
             record.id(), record.receiptCode(), record.actionType(), record.status(), record.vehicleId(),
-            displayName(record), record.createdAt(), record.updatedAt()
+            displayName(record), record.createdAt(), record.updatedAt(),
+            record.receiverScope() == null ? "LEGACY_OPERATOR_ONLY" : "SCOPED_RECEIVER_BINDING", record.receiverScope()
         );
     }
 
@@ -243,6 +253,6 @@ public class LeadService {
     public record LeadReceipt(String receiptCode, String actionType, String status, Instant createdAt,
                               String vehicle, String message) { }
     public record LeadSummary(String id, String receiptCode, String actionType, String status, String vehicleId,
-                              String vehicle, Instant createdAt, Instant updatedAt) { }
+                              String vehicle, Instant createdAt, Instant updatedAt, String scopeStatus, Scope receiverScope) { }
     public record LeadDetail(LeadSummary lead, Map<String, Object> contact) { }
 }

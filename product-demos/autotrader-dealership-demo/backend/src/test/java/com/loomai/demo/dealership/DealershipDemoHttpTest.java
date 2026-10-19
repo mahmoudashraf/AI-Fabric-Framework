@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class DealershipDemoHttpTest {
 
-    private static final String INTERNAL_KEY = "integration-test-internal-key";
+    private static final String INTERNAL_KEY = "integration-test-dedicated-receiver-key-123456";
     private static final String ENCRYPTION_KEY = Base64.getEncoder().encodeToString(
         "0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8)
     );
@@ -48,7 +48,14 @@ class DealershipDemoHttpTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:h2:mem:dealership-" + UUID.randomUUID() + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH");
-        registry.add("dealership.internal.api-key", () -> INTERNAL_KEY);
+        registry.add("dealership.internal.api-key", () -> "legacy-global-internal-key-not-active");
+        registry.add("dealership.receiver.enabled", () -> true);
+        registry.add("dealership.receiver.binding-id", () -> "http-receiver");
+        registry.add("dealership.receiver.api-key", () -> INTERNAL_KEY);
+        registry.add("dealership.receiver.deployment-id", () -> "dep-dealership-demo");
+        registry.add("dealership.receiver.customer-id", () -> "customer-dealership-demo");
+        registry.add("dealership.receiver.tenant-id", () -> "tenant-dealership-demo");
+        registry.add("dealership.receiver.advertiser-id", () -> "advertiser-1");
         registry.add("dealership.public-media-base-url", () -> "https://dealership.example.test");
         registry.add("dealership.privacy.encryption-key-base64", () -> ENCRYPTION_KEY);
         registry.add("dealership.staff.username", () -> "staff");
@@ -278,7 +285,7 @@ class DealershipDemoHttpTest {
     }
 
     @Test
-    void authenticatedStaffCanUpdateALeadWithTheIssuedCsrfContract() throws Exception {
+    void legacyReceiptsStayReadOnlyEvenWithTheIssuedStaffCsrfContract() throws Exception {
         String leadId = "lead-csrf-" + UUID.randomUUID();
         jdbc.update("""
             INSERT INTO dealership_lead_request
@@ -309,8 +316,8 @@ class DealershipDemoHttpTest {
                 .header(csrfBody.path("headerName").asText(), csrfBody.path("token").asText())
                 .contentType("application/json")
                 .content("{\"status\":\"CANCELLED\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.item.status").value("CANCELLED"));
+            .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT status FROM dealership_lead_request WHERE id=?", String.class, leadId)).isEqualTo("NEW");
     }
 
     @Test
@@ -425,24 +432,24 @@ class DealershipDemoHttpTest {
             .isEqualTo(firstJson.path("data").path("receiptCode").asText());
 
         String encrypted = jdbc.queryForObject(
-            "SELECT encrypted_contact FROM dealership_lead_request WHERE idempotency_key = ?",
+            "SELECT encrypted_contact FROM dealership_lead_request WHERE receiver_request_key = ?",
             String.class,
             idempotencyKey
         );
         assertThat(encrypted).startsWith("v1.").doesNotContain("avery@example.test").doesNotContain("Avery Buyer");
         Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM dealership_lead_request WHERE idempotency_key = ?",
+            "SELECT COUNT(*) FROM dealership_lead_request WHERE receiver_request_key = ?",
             Integer.class,
             idempotencyKey
         );
         assertThat(count).isEqualTo(1);
         Boolean consentRecorded = jdbc.queryForObject(
-            "SELECT consent_recorded FROM dealership_lead_request WHERE idempotency_key = ?",
+            "SELECT consent_recorded FROM dealership_lead_request WHERE receiver_request_key = ?",
             Boolean.class,
             idempotencyKey
         );
         assertThat(consentRecorded).isFalse();
-        assertThat(jdbc.queryForMap("SELECT vehicle_id, provider_stock_id, provider_advertiser_id FROM dealership_lead_request WHERE idempotency_key = ?", idempotencyKey))
+        assertThat(jdbc.queryForMap("SELECT vehicle_id, provider_stock_id, provider_advertiser_id FROM dealership_lead_request WHERE receiver_request_key = ?", idempotencyKey))
             .containsEntry("vehicle_id", "PROVIDER-ONLY-99").containsEntry("provider_stock_id", "PROVIDER-ONLY-99")
             .containsEntry("provider_advertiser_id", "advertiser-1");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_vehicle WHERE id = 'PROVIDER-ONLY-99'", Long.class)).isZero();
@@ -534,6 +541,7 @@ class DealershipDemoHttpTest {
                 "subjectId", "anonymous-session-1",
                 "sessionId", "anonymous-session-1",
                 "deploymentId", deploymentId,
+                "customerId", "customer-dealership-demo",
                 "tenantId", "tenant-dealership-demo"
             )
         ));

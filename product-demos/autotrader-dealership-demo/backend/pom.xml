@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
+        <dealership.build.directory>${project.basedir}/target</dealership.build.directory>
     </properties>
 
     <dependencies>
@@ -74,6 +75,7 @@
     </dependencies>
 
     <build>
+        <directory>${dealership.build.directory}</directory>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
