@@ -8,6 +8,73 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-19 Combined V203/V204 Qualification Checkpoint
+
+- Owner approved one production-control-plane customer as the authoritative live
+  canary, leaving the current developer canary configuration-only. Per explicit
+  instruction, sent the exact unused Free01/production Serverless ownership
+  question to `Required for production`; no further transfer has been executed.
+- Actual backend qualification now PASS:3,573 default tests/356 classes;88
+  critical PostgreSQL tests;2 final actual CP202-to204 archive rehearsals. Both
+  archives preserve all131 original tables, attribution and migration history;
+  replay applies zero migrations. Initial rehearsal failed before migration on
+  local Ryuk socket mounting; rerun with the container-side socket override
+  passes, keeping Ryuk enabled. Packaging passes with V203/V204 present.
+- Final archives: /private/tmp/01044-control-plane-pre-v204-final-20261019.
+  Package SHA256 c250a4012765d56a899a90442f56e731e965b6dbb35febc08c548875f68ef731.
+  Default/critical summaries and final-archives-fixed/package logs are private
+  under /private/tmp/01044-platform-integrated-204-*. Both hosted CPs still202.
+- External ACTION approval/binding/replays PASS eia-7471f65d.../eib-855afae0...;
+  receiver read-only scope checks PASS with no business/model writes. Exact
+  native sourceff538 and reviewed module source1735 are distinguished; identical
+  module/build inputs and running image are independently proven. Final strict
+  receiver helper verification stops on PRESERVED_APPLICATION_CHANGED; read-only
+  field reconciliation is in progress, not permission to relax config fences.
+- Installed Coolify `/deploy` treats literal query `force=false` as truthy; omit
+  that parameter for future no-force requests. Existing receiver job actually
+  rebuilt without cache; report this honestly. Core `/start` uses proper boolean
+  parsing and is unaffected. No framework/vendor patch is required.
+
+- Latest owner clarification: current dealership may start with fresh data;
+  do not migrate legacy conversations, AI state or indexes into its replacement.
+  Seed fresh indexes from the external simulator and customer S3 policies. This
+  does not introduce a dealership inventory DB inside the AI deployment, reset
+  financial counters, or waive control-plane schema/configuration preservation.
+  The single production-owned canary topology question remains separate; no
+  further vector ownership transfer is inferred from the fresh-data permission.
+
+- Local separate commits: e0ab64580 unused-approval lifecycle (166 focused tests,
+  including73PG); f74b7e549 standalone-origin transaction fix (76 tests,45 real
+  proxy/JPA); e207623c1 retained external-index capacity (29PG +380 scoped tests).
+  Both P2 independent-review findings are fixed. These commits are not yet pushed
+  or deployed; both CPs remain0c426/migration202. Actual full backend currently
+  runs with log /private/tmp/01044-platform-integrated-204-full-20261019.log.
+- Fresh CP202 private backups: /private/tmp/01044-control-plane-pre-v204-rollout-20261019.
+  Pasteur updates only ControlPlaneArchiveMigrationIT for exact202-to204/full
+  original-row preservation; do not reuse its old201-to202 assumptions.
+- DATA approval/binding/replays PASS eia-e531bb5d.../eib-22b9772b...;206 support
+  tests pass. ACTION v2 private material is prepared but no approval/BIND POST:
+  /private/tmp/01044-external-data-private.XClcW9/action-approval-pending-v2-8rQUNu1P5DxJ.
+  Needs parent receiver verification and fresh placement evidence first.
+- Old dep-f023c863 runtime/connector remain running. Normal STOP rejects missing
+  historical ownership receipts before Coolify mutation. Do not fabricate
+  ownership or claim retirement. The independent receiver credential cutover
+  explicitly accepts old callers' action outage, with strict old-key denial;
+  their compute stays included in the baseline. No direct-provider bypass.
+- Receiver native job y3cp433kk3l0gfxadu977yuc FINISHED. Verification is NOT closed:
+  configured source1735a5f90, job reportsff5381bae. Both commits have identical
+  entire receiver module Git tree0c2e00a82529c394209de860cc690a04a586d3c2 and
+  no root-POM/.mvn changes, but Hume is independently checking running-image/
+  checkout provenance before accepting exact bounded source equivalence.
+  Current private helper /private/tmp/01044-independent-demo-v5-rollout.mjs,
+  state /private/tmp/01044-independent-demo-v5-rollout-20261019-v2/state.json.
+  Do not repeat env/source/deploy mutations.68 helper tests pass; actual V4 backup
+  SQL rehearsal preserves6 vehicles/73 receipts/all legacy fields. Live V5/data/
+  auth checks still require completed verification, no lead/model call yet.
+- Latest owner budget clarification remains whole-taskUSD12 across both envs,
+  not staging-only; no automaticUSD20 recharge or duplicate funding. Hosted
+  grant remains unchanged/unallocated. UI extraction remains last and undeployed.
+
 ## 2026-10-19 V202 Hosted Verification And Task Budget Clarification
 
 - Both control planes now verify source0c42606c2, migration202, healthUP and

@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.testcontainers.DockerClientFactory;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,10 +17,14 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -35,19 +40,18 @@ class ControlPlaneArchiveMigrationIT {
         PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
     private static final Set<PosixFilePermission> PRIVATE_DIRECTORY = Set.of(
         PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE);
-    private static final String[] PRESERVED_TABLES = {
-        "platform_customers", "platform_customer_tenants", "platform_deployments",
-        "platform_deployment_drafts", "platform_deployment_versions", "platform_deployment_releases",
-        "platform_users", "platform_user_sessions", "platform_secrets", "deployment_target_profiles",
-        "deployment_provider_credentials", "deployment_capacity_reservations",
-        "platform_tenant_scoped_vector_resources", "ai_workspace_installations",
-        "deployment_provider_resource_handles", "platform_deployment_managed_vector_resources",
-        "deployment_managed_dependency_graphs", "platform_managed_product_services",
-        "platform_customer_offers", "platform_customer_offer_entitlements", "platform_customer_offer_deployments",
-        "deployment_admission_unused_cancellations", "deployment_admission_authorizations", "deployment_admission_events",
-        "platform_consumer_binding_history", "platform_customer_entitlement_commands",
-        "platform_managed_resource_ownership", "platform_managed_service_ownership", "provider_usage_allocations"
-    };
+    private static final Map<String, ReviewedArchive> REVIEWED_ARCHIVES = Map.of(
+        "staging", new ReviewedArchive("m58iwvqdkfie8tykohmhyj7t", 8752658,
+            "c0b8b78b8b23e24c22faf9c06d3c073bdde585bc0347fe17bf95e89f1b937e35"),
+        "production", new ReviewedArchive("nkti6x5r7ovw1xx8q0ykhweq", 7683556,
+            "cdbd6da49b136740b0ff42f73c4a0566813f9b0841e9e00bb79a150eda33ccb8"));
+    private static final Set<String> NEW_TABLES = Set.of(
+        "deployment_external_index_retention_receipts", "provider_usage_grant_void_receipts");
+    private static final Set<String> REQUIRED_ORIGINAL_TABLES = Set.of(
+        "deployment_unused_vector_handoffs", "deployment_admission_unused_cancellations",
+        "deployment_source_prerequisite_evidence", "deployment_provider_resource_handles",
+        "platform_deployment_versions", "platform_deployment_releases", "deployment_capacity_reservations",
+        "platform_audit_events", "provider_usage_grants", "provider_usage_allocations", "provider_usage_allowance_events");
 
     @ParameterizedTest
     @ValueSource(strings = {"staging", "production"})
@@ -58,13 +62,7 @@ class ControlPlaneArchiveMigrationIT {
         Path root = Path.of(directory);
         assertTrue(root.isAbsolute() && root.normalize().equals(root) && root.toRealPath().equals(root));
         assertEquals(PRIVATE_DIRECTORY, Files.getPosixFilePermissions(root));
-        Path archive = root.resolve(environment + ".dump");
-        assertTrue(Files.isRegularFile(archive, LinkOption.NOFOLLOW_LINKS));
-        assertEquals(archive, archive.toRealPath());
-        assertEquals(PRIVATE_FILE, Files.getPosixFilePermissions(archive));
-        try (var input = Files.newInputStream(archive)) {
-            assertEquals("PGDMP", new String(input.readNBytes(5), java.nio.charset.StandardCharsets.US_ASCII));
-        }
+        Path archive = reviewedArchive(root, environment);
         String configuredHost = System.getenv("DOCKER_HOST");
         assertTrue(configuredHost == null || configuredHost.startsWith("unix:///"), "Remote Docker is forbidden");
         var dockerHost = DockerClientFactory.instance().getTransportConfig().getDockerHost();
@@ -100,55 +98,171 @@ class ControlPlaneArchiveMigrationIT {
             // Only aggregates/hashes leave the isolated database, never rows or stored credentials.
             try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
                 assertEquals("18", scalar(connection, "SELECT current_setting('server_version_num')::int / 10000"));
-                assertEquals("201", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
-                Map<String, String> before = preserved(connection);
+                assertEquals("202", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
+                assertEquals("0", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE NOT success"));
+                Set<String> originalTables = tableNames(connection);
+                assertTrue(originalTables.containsAll(REQUIRED_ORIGINAL_TABLES), "Required original ledgers must exist");
+                assertTrue(originalTables.stream().noneMatch(NEW_TABLES::contains), "Only a CP202 archive is accepted");
+                assertEquals("0", scalar(connection, """
+                    SELECT count(*) FROM information_schema.columns WHERE table_schema='public'
+                    AND ((table_name='provider_usage_grants' AND column_name='lifecycle_status')
+                      OR (table_name='provider_usage_allowance_events' AND column_name='grant_id'))
+                    """));
+                Map<String, TableSnapshot> before = preserved(connection, originalTables);
+                Fingerprint originalHistory = history(connection);
+                Fingerprint expectedAttribution = expectedAttribution(connection);
                 Flyway flyway = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-                    .locations("classpath:db/migration").load();
+                    .locations("classpath:db/migration").target("204").load();
                 var validation = flyway.validateWithResult();
                 if (!validation.validationSuccessful) {
                     Set<String> codes = validation.invalidMigrations.stream().map(value ->
                         (value.version != null && value.version.matches("[0-9.]{1,20}") ? value.version : "unversioned")
                             + ":" + value.errorDetails.errorCode).collect(java.util.stream.Collectors.toSet());
-                    assertEquals(Set.of("202:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
-                        "Only the exact additive handoff migration may precede the normal migrate validation");
+                    assertEquals(Set.of("203:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
+                        "204:RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED"), codes,
+                        "Only V203 and V204 may be pending before normal migration validation");
                 }
                 try {
-                    assertEquals(1, flyway.migrate().migrationsExecuted);
+                    assertEquals(2, flyway.migrate().migrationsExecuted);
                     flyway.validate();
+                    assertPreserved(connection, originalTables, before, originalHistory, expectedAttribution);
+                    assertEquals(0, flyway.migrate().migrationsExecuted, "Exact migration replay must be a no-op");
+                    flyway.validate();
+                    assertPreserved(connection, originalTables, before, originalHistory, expectedAttribution);
                 } catch (RuntimeException failure) {
                     throw new AssertionError("Archive migration/validation failed; private diagnostics withheld");
                 }
-                assertEquals(before, preserved(connection), "Existing customer/credential/resource state must remain unchanged");
-                assertEquals("202", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
-                assertEquals("202", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"));
-                assertEquals("0", scalar(connection, "SELECT count(*) FROM deployment_unused_vector_handoffs"));
-                assertEquals("5", scalar(connection, "SELECT count(*) FROM platform_marketplace_plugins WHERE id IN "
-                    + "('mkp-data-dealership-external-stock-v1','mkp-action-dealership-external-discovery-v1',"
-                    + "'mkp-action-dealership-external-engagement-v1','mkp-template-dealership-external-systems-v1',"
-                    + "'mkp-template-dealership-external-systems-managed-inbox-v1')"));
-                assertEquals("0", scalar(connection, "SELECT count(*) FROM platform_managed_resource_ownership"));
-                assertEquals("0", scalar(connection, "SELECT count(*) FROM platform_managed_service_ownership"));
-                assertEquals("0", scalar(connection, "SELECT count(*) FROM platform_deployment_releases "
-                    + "WHERE ai_state_storage_snapshot_json IS NOT NULL OR ai_state_storage_fingerprint IS NOT NULL"));
+                System.out.println("ARCHIVE_202_TO_204_PASS " + new ObjectMapper().writeValueAsString(Map.of(
+                    "environment", environment, "archiveSha256", REVIEWED_ARCHIVES.get(environment).sha256(),
+                    "from", "202", "to", "204", "migrationsExecuted", 2, "replayMigrationsExecuted", 0,
+                    "preservedTableCount", before.size(), "originalTables", before,
+                    "originalHistory", originalHistory, "verifiedEventAttribution", expectedAttribution)));
             } catch (java.sql.SQLException failure) {
                 throw new AssertionError("Archive integrity query failed; private diagnostics withheld");
             }
         }
     }
 
-    private Map<String, String> preserved(Connection connection) throws java.sql.SQLException {
-        Map<String, String> result = new LinkedHashMap<>();
-        for (String table : PRESERVED_TABLES) {
-            // V198 adds nullable columns, not historical binding ownership. Compare
-            // every original field and separately require both new fields to stay null.
-            String row = "platform_deployment_releases".equals(table)
-                ? "(to_jsonb(t)-'ai_state_storage_snapshot_json'-'ai_state_storage_fingerprint')"
-                : "to_jsonb(t)";
-            result.put(table, scalar(connection, "SELECT count(*)::text || ':' || encode(sha256(convert_to("
-                + "coalesce(string_agg(" + row + "::text,E'\\n' ORDER BY " + row + "::text),''),'UTF8')),'hex') FROM "
-                + table + " t"));
+    private Path reviewedArchive(Path root, String environment) throws Exception {
+        Path manifest = root.resolve("manifest.json");
+        privateFile(manifest);
+        var resources = new ObjectMapper().readTree(manifest.toFile()).path("resources");
+        assertTrue(resources.isArray() && resources.size() == REVIEWED_ARCHIVES.size(), "Exact archive manifest required");
+        var reviewed = REVIEWED_ARCHIVES.get(environment);
+        Path archive = root.resolve(environment + ".dump");
+        privateFile(archive);
+        int matches = 0;
+        for (var resource : resources) {
+            if (!environment.equals(resource.path("environment").asText())) continue;
+            matches++;
+            assertTrue(reviewed.databaseUuid().equals(resource.path("databaseUuid").asText()), "Reviewed CP database required");
+            assertTrue(archive.toString().equals(resource.path("path").asText()), "Archive path must match its manifest");
+            assertTrue(reviewed.sha256().equals(resource.path("sha256").asText()), "Reviewed archive SHA256 required");
+            assertEquals(reviewed.bytes(), resource.path("bytes").asLong());
+        }
+        assertEquals(1, matches, "Exactly one environment receipt required");
+        assertEquals(reviewed.bytes(), Files.size(archive));
+        try (var input = Files.newInputStream(archive)) {
+            assertEquals("PGDMP", new String(input.readNBytes(5), java.nio.charset.StandardCharsets.US_ASCII));
+        }
+        var digest = MessageDigest.getInstance("SHA-256");
+        try (var input = new DigestInputStream(Files.newInputStream(archive), digest)) {
+            input.transferTo(java.io.OutputStream.nullOutputStream());
+        }
+        assertEquals(reviewed.sha256(), HexFormat.of().formatHex(digest.digest()), "Archive bytes must match reviewed backup");
+        return archive;
+    }
+
+    private void privateFile(Path file) throws java.io.IOException {
+        assertTrue(Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS));
+        assertEquals(file, file.toRealPath());
+        assertEquals(PRIVATE_FILE, Files.getPosixFilePermissions(file));
+    }
+
+    private Set<String> tableNames(Connection connection) throws java.sql.SQLException {
+        Set<String> result = new LinkedHashSet<>();
+        try (var statement = connection.createStatement(); var rows = statement.executeQuery(
+            "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename<>'flyway_schema_history' ORDER BY tablename")) {
+            while (rows.next()) result.add(rows.getString(1));
         }
         return result;
+    }
+
+    private Map<String, TableSnapshot> preserved(Connection connection, Set<String> tables) throws java.sql.SQLException {
+        Map<String, TableSnapshot> result = new LinkedHashMap<>();
+        for (String table : tables) {
+            // Only V204's two new financial columns are excluded. Every preexisting
+            // field, including AI-state snapshots, is hashed exactly as restored.
+            String row = switch (table) {
+                case "provider_usage_grants" -> "to_jsonb(t)-'lifecycle_status'";
+                case "provider_usage_allowance_events" -> "to_jsonb(t)-'grant_id'";
+                default -> "to_jsonb(t)";
+            };
+            var data = fingerprint(connection, "SELECT " + row + " AS entry FROM public." + quoted(table) + " t");
+            var columns = fingerprint(connection, """
+                SELECT to_jsonb(c) AS entry FROM information_schema.columns c
+                WHERE table_schema='public' AND table_name=?
+                AND NOT ((table_name='provider_usage_grants' AND column_name='lifecycle_status')
+                  OR (table_name='provider_usage_allowance_events' AND column_name='grant_id'))
+                """, table);
+            result.put(table, new TableSnapshot(data, columns));
+        }
+        return result;
+    }
+
+    private Fingerprint history(Connection connection) throws java.sql.SQLException {
+        return fingerprint(connection, "SELECT to_jsonb(h) AS entry FROM public.flyway_schema_history h "
+            + "WHERE version IS NULL OR version NOT IN ('203','204')");
+    }
+
+    private Fingerprint expectedAttribution(Connection connection) throws java.sql.SQLException {
+        // V204 may attribute only known grant approvals and these exact allocation
+        // events. Unresolved or other historical events must remain unattributed.
+        return fingerprint(connection, """
+            SELECT jsonb_build_object('id',e.id,'grant_id',CASE
+              WHEN e.event_type='GRANT_APPROVED' THEN g.id
+              WHEN e.event_type IN ('ALLOWANCE_ALLOCATED','ALLOWANCE_INITIALIZED','ALLOWANCE_ACTIVE') THEN a.grant_id
+              ELSE NULL END) AS entry
+            FROM public.provider_usage_allowance_events e
+            LEFT JOIN public.provider_usage_grants g ON g.id=e.subject_id
+            LEFT JOIN public.provider_usage_allocations a ON a.approval_id=e.subject_id
+            """);
+    }
+
+    private void assertPreserved(Connection connection, Set<String> originalTables, Map<String, TableSnapshot> before,
+                                 Fingerprint originalHistory, Fingerprint expectedAttribution) throws java.sql.SQLException {
+        Set<String> expectedTables = new LinkedHashSet<>(originalTables);
+        expectedTables.addAll(NEW_TABLES);
+        assertEquals(expectedTables, tableNames(connection), "Only the two approved receipt tables may be added");
+        assertEquals(before, preserved(connection, originalTables), "All original table counts, columns and canonical hashes must be unchanged");
+        assertEquals(originalHistory, history(connection), "Original Flyway history must be unchanged");
+        assertEquals("204", scalar(connection, "SELECT max(version::int) FROM flyway_schema_history WHERE success"));
+        assertEquals("0", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE NOT success"));
+        assertEquals("203,204", scalar(connection, "SELECT string_agg(version,',' ORDER BY installed_rank) "
+            + "FROM flyway_schema_history WHERE version IN ('203','204') AND success"));
+        for (String table : NEW_TABLES) assertEquals("0", scalar(connection, "SELECT count(*) FROM public." + quoted(table)),
+            "Migration must not seed retention or grant-void receipts");
+        assertEquals("0", scalar(connection, "SELECT count(*) FROM provider_usage_grants WHERE lifecycle_status IS DISTINCT FROM 'ACTIVE'"));
+        assertEquals(expectedAttribution, fingerprint(connection,
+            "SELECT jsonb_build_object('id',id,'grant_id',grant_id) AS entry FROM public.provider_usage_allowance_events"),
+            "Only the documented financial history attribution is permitted");
+    }
+
+    private Fingerprint fingerprint(Connection connection, String entries, String... parameters) throws java.sql.SQLException {
+        String sql = "SELECT count(*) AS row_count,encode(sha256(convert_to("
+            + "coalesce(string_agg(entry::text,E'\\n' ORDER BY entry::text),''),'UTF8')),'hex') AS sha256 FROM (" + entries + ") entries";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setQueryTimeout(30);
+            for (int index = 0; index < parameters.length; index++) statement.setString(index + 1, parameters[index]);
+            try (var rows = statement.executeQuery()) {
+                assertTrue(rows.next());
+                return new Fingerprint(rows.getLong("row_count"), rows.getString("sha256"));
+            }
+        }
+    }
+
+    private String quoted(String identifier) {
+        return '"' + identifier.replace("\"", "\"\"") + '"';
     }
 
     private String scalar(Connection connection, String sql) throws java.sql.SQLException {
@@ -157,4 +271,8 @@ class ControlPlaneArchiveMigrationIT {
             return rows.getString(1);
         }
     }
+
+    private record ReviewedArchive(String databaseUuid, long bytes, String sha256) { }
+    private record Fingerprint(long rows, String sha256) { }
+    private record TableSnapshot(Fingerprint data, Fingerprint columns) { }
 }

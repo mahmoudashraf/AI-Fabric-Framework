@@ -970,3 +970,36 @@ an app, or claiming hosted workload readiness.
   zero failures/errors/skips. The actual full backend module and fresh202-to204
   archive rehearsal remain separate parent integration gates. No hosted retention
   approval, capacity release, model funding, framework change or UI extraction.
+
+### Combined V203/V204 Parent Integration Qualification
+
+- The actual Platform backend default suite passes3,573 tests across356 classes,
+  with zero failures/errors/skips. The actual module's critical PostgreSQL gate
+  passes88 tests:29 retained-index and59 unused-binding handoff cases. These are
+  distinct from the earlier focused source qualifications, not additive claims
+  about the default-suite test count.
+- Final private snapshots from both hosted schema202 control planes restore
+  into isolated local PostgreSQL18 and migrate202-to204:2 passing rehearsals,
+  zero failures/errors/skips. All131 original tables, their preexisting columns
+  and canonical row hashes remain unchanged; V204 event attribution is checked
+  separately. Both migration replays apply zero changes. The initial run failed
+  before migrations because of local Docker socket mounting; the corrected
+  container-side socket override passes without disabling Ryuk or suppressing
+  assertions. Hosted databases were not changed by these rehearsals.
+- Local packaging succeeds and contains both V203 and V204. The tested jar's
+  SHA256 is `c250a4012765d56a899a90442f56e731e965b6dbb35febc08c548875f68ef731`.
+  These checks qualify the backend source, not a future CI image or live rollout.
+- DATA and ACTION customer approval/binding/replays now pass on the existing
+  configuration-only canary. Receiver live read-only checks preserve6 website
+  vehicles and73 receipts, reject old/wrong-scope keys, and accept only the new
+  scoped authorization. No lead write or model call is implied. A strict final
+  helper config-fence mismatch remains under read-only reconciliation.
+- Owner approved a single production-control-plane customer for the final live
+  proof and allows fresh dealership AI state/indexes, with no legacy data copy.
+  The developer canary will remain configuration-only. The exact unused vector
+  ownership arrangement has been sent to `Required for production` as requested;
+  no cross-customer or cross-control-plane binding transfer has occurred.
+- Both hosted backends remain schema202 pending the separately verified immutable
+  backend image and sequential rollout. Financial counters/history are preserved;
+  the USD12 allowance remains cumulative across the whole task. UI extraction
+  stays last and no framework release/change is involved.
