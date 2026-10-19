@@ -1,8 +1,13 @@
 package com.loomai.demo.dealership.lead;
 
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.ArgumentPreparedStatementSetter;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -18,15 +23,40 @@ public class LeadRepository {
     }
 
     public LeadRecord insert(LeadRecord lead) {
-        jdbc.update("""
+        String sql = """
             INSERT INTO dealership_lead_request
-                (id, idempotency_key, action_type, vehicle_id, encrypted_contact, status,
+                (id, idempotency_key, action_type, vehicle_id, provider_stock_id, provider_advertiser_id, encrypted_contact, status,
                  consent_recorded, source_session_id, receipt_code, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, lead.id(), lead.idempotencyKey(), lead.actionType(), lead.vehicleId(), lead.encryptedContact(),
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """;
+        Object[] values = {lead.id(), lead.idempotencyKey(), lead.actionType(), lead.vehicleId(), lead.providerStockId(),
+            lead.providerAdvertiserId(), lead.encryptedContact(),
             lead.status(), lead.consentRecorded(), lead.sourceSessionId(), lead.receiptCode(),
-            Timestamp.from(lead.createdAt()), Timestamp.from(lead.updatedAt()));
-        return lead;
+            Timestamp.from(lead.createdAt()), Timestamp.from(lead.updatedAt())};
+        boolean inserted = Boolean.TRUE.equals(jdbc.execute((ConnectionCallback<Boolean>) connection -> {
+            // A unique-key violation aborts PostgreSQL transactions unless its statement is rolled back first.
+            Savepoint savepoint = connection.getAutoCommit() ? null : connection.setSavepoint();
+            try (var statement = connection.prepareStatement(sql)) {
+                new ArgumentPreparedStatementSetter(values).setValues(statement);
+                statement.executeUpdate();
+                return true;
+            } catch (SQLException failure) {
+                if (savepoint != null) connection.rollback(savepoint);
+                if (!"23505".equals(failure.getSQLState())) throw failure;
+                return false;
+            } finally {
+                if (savepoint != null) connection.releaseSavepoint(savepoint);
+            }
+        }));
+        if (!inserted) {
+            // Only an idempotency-key winner may be recovered; ID/receipt collisions are store failures.
+            if (findById(lead.id()).isPresent() || !query(" WHERE receipt_code = ?", lead.receiptCode()).isEmpty()) {
+                throw new DataIntegrityViolationException("The lead identity could not be stored.");
+            }
+            return findByIdempotencyKey(lead.idempotencyKey())
+                .orElseThrow(() -> new DataIntegrityViolationException("The conflicting lead receipt is unavailable."));
+        }
+        return findById(lead.id()).orElseThrow(() -> new DataIntegrityViolationException("The stored lead receipt is unavailable."));
     }
 
     public Optional<LeadRecord> findByIdempotencyKey(String key) {
@@ -56,7 +86,7 @@ public class LeadRepository {
 
     private String select() {
         return """
-            SELECT id, idempotency_key, action_type, vehicle_id, encrypted_contact, status,
+            SELECT id, idempotency_key, action_type, vehicle_id, provider_stock_id, provider_advertiser_id, encrypted_contact, status,
                    consent_recorded, source_session_id, receipt_code, created_at, updated_at
               FROM dealership_lead_request
             """;
@@ -67,11 +97,13 @@ public class LeadRepository {
             rs.getString("id"), rs.getString("idempotency_key"), rs.getString("action_type"),
             rs.getString("vehicle_id"), rs.getString("encrypted_contact"), rs.getString("status"),
             rs.getBoolean("consent_recorded"), rs.getString("source_session_id"), rs.getString("receipt_code"),
-            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant()
+            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
+            rs.getString("provider_stock_id"), rs.getString("provider_advertiser_id")
         );
     }
 
     public record LeadRecord(String id, String idempotencyKey, String actionType, String vehicleId,
                              String encryptedContact, String status, boolean consentRecorded,
-                             String sourceSessionId, String receiptCode, Instant createdAt, Instant updatedAt) { }
+                             String sourceSessionId, String receiptCode, Instant createdAt, Instant updatedAt,
+                             String providerStockId, String providerAdvertiserId) { }
 }

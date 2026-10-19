@@ -1,9 +1,7 @@
 package com.loomai.demo.dealership.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.loomai.demo.dealership.config.ManagedDependencyProperties;
-import com.loomai.demo.dealership.inventory.VehicleRepository;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +20,7 @@ class ManagedDependencyLifecycleServiceTest {
     private ManagedDependencyLifecycleService service;
     private RuntimeConnectorOperationsClient connector;
     private JdbcTemplate jdbc;
+    private final Instant indexedAt = Instant.now().minusSeconds(30);
 
     @BeforeEach void setUp() {
         JdbcDataSource data = new JdbcDataSource();
@@ -30,23 +29,21 @@ class ManagedDependencyLifecycleServiceTest {
             new ClassPathResource("db/migration/V2__managed_dependency_lifecycle.sql"),
             new ClassPathResource("db/migration/V3__managed_dependency_current_operation.sql")).execute(data);
         connector = mock(RuntimeConnectorOperationsClient.class);
-        VehicleRepository vehicles = mock(VehicleRepository.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        ObjectNode evidence = mapper.createObjectNode().put("status", "READY");
-        when(connector.reconcileSource()).thenReturn(evidence);
-        when(connector.sourceStatus()).thenReturn(evidence);
-        when(connector.configuredSourceId()).thenReturn("source-1");
-        when(vehicles.count()).thenReturn(3L);
+        var evidence = new RuntimeConnectorOperationsClient.SourceEvidence("source-1", "provider-profile", "advertiser-binding",
+            "v1", indexedAt, 3, 3, "a".repeat(64));
+        when(connector.initializeSource(anyString())).thenReturn(evidence);
+        when(connector.currentSourceEvidence()).thenReturn(evidence);
         jdbc = new JdbcTemplate(data);
-        service = new ManagedDependencyLifecycleService(properties(), connector, vehicles,
-            jdbc, mapper);
+        service = new ManagedDependencyLifecycleService(properties(), connector, jdbc, mapper);
     }
 
-    @Test void initializePerformsSeedSyncReadbackOnceAndReplays() {
-        assertThat(service.execute(request("INITIALIZE", "op-1")).evidenceReference()).contains("source-1", "vehicles:3");
+    @Test void initializeUsesVerifiedConnectorEvidenceWithoutWebsiteInventoryAndReplays() {
+        assertThat(service.execute(request("INITIALIZE", "op-1")).evidenceReference()).contains("source-1", "indexed:3", "advertiser-binding");
+        assertThat(service.execute(request("INITIALIZE", "op-1")).observedAt()).isEqualTo(indexedAt);
         assertThat(service.execute(request("INITIALIZE", "op-1")).replay()).isTrue();
-        verify(connector, times(1)).reconcileSource();
-        verify(connector, times(1)).sourceStatus();
+        verify(connector, times(1)).initializeSource(matches("[a-f0-9]{64}"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_vehicle", Long.class)).isZero();
     }
 
     @Test void changedPayloadForAnOperationAndForeignBindingFailClosed() {
@@ -100,6 +97,31 @@ class ManagedDependencyLifecycleServiceTest {
         service.execute(request("INITIALIZE", "generation-1"));
         assertThat(service.current("fresh-challenge-012345").current().operationKey()).isEqualTo("generation-2");
         jdbc.update("UPDATE loomai_managed_dependency_state SET binding_id='foreign' WHERE singleton_id=1");
+        assertThatThrownBy(() -> service.current("fresh-challenge-012345"))
+            .hasMessageContaining("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
+    }
+
+    @Test void initializationFailureCannotPersistReadyOrAnOperationReceipt() {
+        when(connector.initializeSource(anyString())).thenThrow(new IllegalStateException("INDEXING_FAILED"));
+        assertThatThrownBy(() -> service.execute(request("INITIALIZE", "failed"))).hasMessageContaining("INDEXING_FAILED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loomai_managed_dependency_state", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM loomai_managed_dependency_operation", Long.class)).isZero();
+    }
+
+    @Test void readyReadbackRevalidatesEvidenceAndNeverRenewsItsTimestamp() {
+        service.execute(request("INITIALIZE", "init"));
+        var before = jdbc.queryForMap("SELECT * FROM loomai_managed_dependency_state WHERE singleton_id=1");
+        assertThat(service.current("fresh-challenge-012345").current().observedAt()).isEqualTo(indexedAt);
+        assertThat(service.current("other-challenge-012345").current().observedAt()).isEqualTo(indexedAt);
+        verify(connector, times(2)).currentSourceEvidence();
+        when(connector.currentSourceEvidence()).thenThrow(new IllegalStateException("STALE_INDEXING_EVIDENCE"));
+        assertThatThrownBy(() -> service.current("fresh-challenge-012345")).hasMessageContaining("STALE_INDEXING_EVIDENCE");
+        assertThat(jdbc.queryForMap("SELECT * FROM loomai_managed_dependency_state WHERE singleton_id=1")).isEqualTo(before);
+    }
+
+    @Test void storedReadyStateWithoutTheCurrentOperationReceiptIsUnproven() {
+        service.execute(request("INITIALIZE", "init"));
+        jdbc.update("DELETE FROM loomai_managed_dependency_operation WHERE operation_key='init'");
         assertThatThrownBy(() -> service.current("fresh-challenge-012345"))
             .hasMessageContaining("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
     }

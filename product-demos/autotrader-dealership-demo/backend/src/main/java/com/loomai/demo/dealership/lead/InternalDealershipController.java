@@ -2,13 +2,15 @@ package com.loomai.demo.dealership.lead;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
-import com.loomai.demo.dealership.inventory.VehicleRepository;
+import com.loomai.demo.dealership.provider.ProviderStockClient;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -17,14 +19,14 @@ import java.util.Map;
 @RequestMapping("/api/internal")
 public class InternalDealershipController {
 
-    private final VehicleRepository vehicles;
+    private final ProviderStockClient stockClient;
     private final LeadService leads;
     private final DealershipDemoProperties properties;
 
-    public InternalDealershipController(VehicleRepository vehicles,
+    public InternalDealershipController(ProviderStockClient stockClient,
                                         LeadService leads,
                                         DealershipDemoProperties properties) {
-        this.vehicles = vehicles;
+        this.stockClient = stockClient;
         this.leads = leads;
         this.properties = properties;
     }
@@ -50,10 +52,8 @@ public class InternalDealershipController {
             && List.of("READ", "RETRIEVE", "SEARCH", "EXECUTE_ACTION").contains(operation.toUpperCase());
         boolean orchestrationEntry = "rag:intent".equals(resourceId)
             && "READ".equalsIgnoreCase(operation);
-        boolean activeTarget = orchestrationEntry
-            || inventorySearch
-            || resolvesToOneActiveVehicle(vehicleReference);
-        boolean granted = boundary && supportedOperation && activeTarget;
+        boolean granted = boundary && supportedOperation
+            && (orchestrationEntry || inventorySearch || resolvesToOneActiveVehicle(vehicleReference));
 
         return Map.of(
             "granted", granted,
@@ -81,7 +81,13 @@ public class InternalDealershipController {
     }
 
     private boolean resolvesToOneActiveVehicle(String reference) {
-        return StringUtils.hasText(reference) && vehicles.resolveActiveReference(reference).size() == 1;
+        try {
+            stockClient.requireAvailableStock(reference);
+            return true;
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().equals(HttpStatus.BAD_REQUEST) || ex.getStatusCode().equals(HttpStatus.CONFLICT)) return false;
+            throw ex;
+        }
     }
 
     private String normalizeVehicleReference(String resourceId) {
@@ -89,8 +95,8 @@ public class InternalDealershipController {
             return null;
         }
         String normalized = resourceId.trim();
-        int separator = normalized.lastIndexOf(':');
-        return separator >= 0 ? normalized.substring(separator + 1) : normalized;
+        String prefix = properties.getRuntime().getInventoryVectorSpace() + ":";
+        return normalized.startsWith(prefix) ? normalized.substring(prefix.length()) : normalized;
     }
 
     private boolean equalsConfigured(String expected, String actual) {

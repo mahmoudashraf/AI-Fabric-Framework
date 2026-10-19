@@ -1,13 +1,10 @@
 package com.loomai.demo.dealership.runtime;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loomai.demo.dealership.config.ManagedDependencyProperties;
-import com.loomai.demo.dealership.inventory.VehicleRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -22,13 +19,12 @@ public class ManagedDependencyLifecycleService {
     public static final String VERSION = "loomai-managed-dependency-lifecycle/v1";
     private final ManagedDependencyProperties properties;
     private final RuntimeConnectorOperationsClient connector;
-    private final VehicleRepository vehicles;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
 
     public ManagedDependencyLifecycleService(ManagedDependencyProperties properties,
-        RuntimeConnectorOperationsClient connector, VehicleRepository vehicles, JdbcTemplate jdbc, ObjectMapper mapper) {
-        this.properties = properties; this.connector = connector; this.vehicles = vehicles; this.jdbc = jdbc; this.mapper = mapper;
+        RuntimeConnectorOperationsClient connector, JdbcTemplate jdbc, ObjectMapper mapper) {
+        this.properties = properties; this.connector = connector; this.jdbc = jdbc; this.mapper = mapper;
     }
 
     public boolean authorized(String supplied) {
@@ -38,7 +34,7 @@ public class ManagedDependencyLifecycleService {
 
     /**
      * The source reconcile is idempotent but remote, so it must not run while a
-     * database transaction is held. The reviewed topology uses one receiver
+     * database transaction is held. This independently operated demo uses one
      * replica; serialization prevents duplicate in-process execution while the
      * durable operation ledger handles restart replay.
      */
@@ -55,14 +51,13 @@ public class ManagedDependencyLifecycleService {
         long active = activeWork();
         String state;
         String evidence;
+        Instant observedAt = Instant.now();
         switch (request.command()) {
             case "INITIALIZE" -> {
-                JsonNode reconcile = connector.reconcileSource();
-                JsonNode status = connector.sourceStatus();
-                if (vehicles.count() < 1 || status == null || status.isNull()) conflict("MANAGED_DEPENDENCY_SEED_SYNC_NOT_READY");
+                var source = connector.initializeSource(fingerprint);
                 state = "READY";
-                evidence = "receiver:" + connector.configuredSourceId() + ":vehicles:" + vehicles.count()
-                    + ":reconcile:" + sha256(reconcile == null ? "null" : reconcile.toString()).substring(0, 16);
+                evidence = source.reference();
+                observedAt = source.observedAt();
             }
             case "DISABLE" -> { state = "DISABLED"; evidence = "receiver:disabled:" + properties.bindingId(); }
             case "VERIFY_UNUSED" -> {
@@ -76,28 +71,43 @@ public class ManagedDependencyLifecycleService {
             state, properties.bindingId(), Timestamp.from(now), request.operationKey());
         if (updated == 0) jdbc.update("INSERT INTO loomai_managed_dependency_state (singleton_id, lifecycle_state, binding_id, updated_at, operation_key) VALUES (1, ?, ?, ?, ?)",
             state, properties.bindingId(), Timestamp.from(now), request.operationKey());
-        Readback result = readback(request, state, active, now, evidence, false);
+        Readback result = readback(request, state, active, observedAt, evidence, false);
         jdbc.update("INSERT INTO loomai_managed_dependency_operation (operation_key, request_sha256, response_json, created_at) VALUES (?, ?, ?, ?)",
             request.operationKey(), fingerprint, write(result), Timestamp.from(now));
         return result;
     }
 
-    @Transactional(readOnly = true)
     public synchronized CurrentReadback current(String challenge) {
         requireConfigured();
         if (challenge == null || !challenge.matches("[A-Za-z0-9-]{16,128}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MANAGED_DEPENDENCY_CHALLENGE_INVALID");
         }
-        var state = jdbc.query("SELECT lifecycle_state, binding_id, operation_key FROM loomai_managed_dependency_state WHERE singleton_id = 1",
-            (rs, row) -> new CurrentState(rs.getString(1), rs.getString(2), rs.getString(3))).stream()
+        var state = jdbc.query("SELECT lifecycle_state, binding_id, operation_key, updated_at FROM loomai_managed_dependency_state WHERE singleton_id = 1",
+            (rs, row) -> new CurrentState(rs.getString(1), rs.getString(2), rs.getString(3), rs.getTimestamp(4).toInstant())).stream()
             .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "MANAGED_DEPENDENCY_NOT_INITIALIZED"));
         if (!properties.bindingId().equals(state.bindingId()) || !StringUtils.hasText(state.operationKey())) {
             conflict("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
         }
+        var receipts = jdbc.query("SELECT response_json FROM loomai_managed_dependency_operation WHERE operation_key = ?",
+            (rs, row) -> read(rs.getString(1)), state.operationKey());
+        if (receipts.size() != 1) conflict("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
+        var receipt = receipts.getFirst();
+        if (!state.state().equals(receipt.state()) || !state.bindingId().equals(receipt.bindingId())
+            || !properties.customerId().equals(receipt.customerId()) || !properties.tenantId().equals(receipt.tenantId())
+            || !properties.deploymentId().equals(receipt.deploymentId()) || !properties.targetProfileId().equals(receipt.targetProfileId())
+            || !properties.versionId().equals(receipt.versionId()) || !properties.accountId().equals(receipt.accountId())
+            || !properties.slot().equals(receipt.slot()) || !properties.serviceRef().equals(receipt.serviceRef())
+            || !state.operationKey().equals(receipt.operationKey())) conflict("MANAGED_DEPENDENCY_CURRENT_STATE_UNPROVEN");
+        Instant observedAt = state.updatedAt();
+        String evidence = receipt.evidenceReference();
+        if ("READY".equals(state.state())) {
+            var source = connector.currentSourceEvidence();
+            observedAt = source.observedAt();
+            evidence = source.reference();
+        }
         var current = new Readback(VERSION, state.state(), properties.customerId(), properties.tenantId(),
             properties.deploymentId(), properties.targetProfileId(), properties.versionId(), properties.slot(), properties.serviceRef(),
-            properties.accountId(), state.bindingId(), state.operationKey(), activeWork(), Instant.now(),
-            "receiver:current:" + state.bindingId() + ":" + state.operationKey(), false);
+            properties.accountId(), state.bindingId(), state.operationKey(), activeWork(), observedAt, evidence, false);
         return new CurrentReadback(current, challenge);
     }
 
@@ -139,7 +149,7 @@ public class ManagedDependencyLifecycleService {
     private String sha256(String v) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(v.getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException(e); } }
     private void conflict(String reason) { throw new ResponseStatusException(HttpStatus.CONFLICT, reason); }
     private record Stored(String fingerprint, String response) { }
-    private record CurrentState(String state, String bindingId, String operationKey) { }
+    private record CurrentState(String state, String bindingId, String operationKey, Instant updatedAt) { }
     public record Request(String contractVersion, String command, String initializationContract, String customerId, String tenantId,
         String deploymentId, String targetProfileId, String versionId, String slot, String serviceRef, String accountId,
         String bindingId, String operationKey) { }

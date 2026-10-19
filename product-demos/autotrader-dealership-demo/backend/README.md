@@ -4,8 +4,8 @@ This service is the customer-owned application boundary for the public
 dealership demo. It is intentionally independent from both the provider and
 the LoomAI deployment:
 
-- the dealership database owns the website catalogue, exact filters, current
-  dealership availability, and buyer leads;
+- the dealership database owns its website display catalogue, exact filters,
+  and buyer lead records;
 - the deployment-local LoomAI connector authenticates to the configured stock
   provider, indexes its approved projection, receives signed notifications,
   and exposes governed provider read actions;
@@ -16,7 +16,15 @@ the LoomAI deployment:
 
 The website catalogue and provider fixture share stable `stockId` values for
 the demo, but neither is populated from the other. Replacing the provider does
-not require replacing the dealership website.
+not require replacing the dealership website. New confirmed lead requests
+validate the canonical stock ID and current availability against the external
+provider, not the website's independent display rows. Provider-only stock can
+therefore be used without adding a substitute website inventory row.
+
+This backend and its business database are independent demonstration customer
+systems. They are not provisioned, seeded, retired or deleted with a customer AI
+deployment. The AI-only customer templates bind external DATA/ACTION services;
+see [the current integration contract](../../../verification-support/productization-01036/EXTERNAL_DEALERSHIP_INTEGRATION.md).
 
 All included vehicles are fictional. The provider canary uses a synthetic
 public-document contract fixture; it is not an official Auto Trader sandbox,
@@ -58,6 +66,23 @@ APP_BUILD_COMMIT=<source-commit>
 APP_BUILD_TIME=<ISO-8601-build-time>
 ```
 
+Required for the external confirmed lead-action capability:
+
+```text
+AUTOTRADER_PROVIDER_BASE_URL=https://<explicit-stock-provider-or-simulator>
+AUTOTRADER_PROVIDER_KEY=<server-only-scoped-read-key>
+AUTOTRADER_PROVIDER_SECRET=<server-only-scoped-read-secret>
+AUTOTRADER_ADVERTISER_ID=<authorized-advertiser-id>
+```
+
+These credentials must read the same advertiser as the DATA plugin. The
+simulator must be selected explicitly; simulator-control credentials are not a
+stock API credential fallback. Missing credentials or an unavailable provider
+return a capability error and create no lead. The stock client never accepts
+an endpoint or advertiser from the browser/model and does not follow redirects.
+The API uses `/authenticate` form exchange and an advertiser/stock-scoped
+`/stock` read before accepting a new request.
+
 Required when the assigned runtime is enabled:
 
 ```text
@@ -74,6 +99,11 @@ LOOMAI_RUNTIME_INVENTORY_VECTOR_SPACE=dealer-vehicle
 LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID=autotrader-dealership-stock-source
 LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID=autotrader-stock-events
 ```
+
+Those source IDs describe the original independent demo configuration. For the
+010.44 external customer template, set the exact compiled IDs instead:
+`dealership-external-stock-source` and `external-dealership-stock-events`.
+Do not infer a source ID from a provider name or silently use another source.
 
 The runtime credentials stay backend-only. They authorize only the exact
 private scopes needed for source status, source reconciliation, and webhook
@@ -120,6 +150,12 @@ AI_WORKSPACE_CONNECT_ORIGINS=https://api.loomai.pro,https://<assigned-runtime>
 ```
 
 ## Deployment contracts
+
+The checked-in `deployment/runtime`, `deployment/connector` and original
+`staging-profile.json` below preserve the independently operated demo's original
+configuration. They are not the new customer self-service provisioning graph.
+The current customer template uses reviewed external plugin profiles and the
+Platform compiler, not a bundled instance of this backend or its database.
 
 - `deployment/runtime/ai-entity-config.yml` registers `dealer-vehicle`.
 - `deployment/document-sources` contains public-safe fictional policy and
@@ -174,6 +210,7 @@ and the deployment connector's terminal `COMPLETED` or `DEAD_LETTER` evidence.
 
 ```bash
 mvn test
+mvn -o -Dtest='*Test,LeadProviderIdentityPostgresIT' test
 docker build \
   -f product-demos/autotrader-dealership-demo/backend/Dockerfile \
   -t loomai/dealership-demo-backend:local \
@@ -192,6 +229,9 @@ GET /api/public/vehicles/resolve?dealershipId=<id>&reference=<buyer-facing-refer
 GET /api/public/security/csrf
 ```
 
-The lower-level vehicle resolver is not model-selectable. Buyer-facing stock
-references are resolved again inside trusted dealer-owned action paths before a
-lead can be written.
+The lower-level website vehicle resolver is not model-selectable or authoritative
+for provider stock validation. Lead actions require a canonical provider stock ID
+and perform trusted provider validation. Exact retries reuse the original
+encrypted snapshot and receipt; racing duplicate keys revalidate the full
+confirmed payload/session/advertiser before replay. A changed request conflicts
+instead of being reported as the earlier successful request.

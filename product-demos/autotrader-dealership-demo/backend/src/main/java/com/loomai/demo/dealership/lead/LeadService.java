@@ -1,12 +1,12 @@
 package com.loomai.demo.dealership.lead;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
-import com.loomai.demo.dealership.inventory.Vehicle;
-import com.loomai.demo.dealership.inventory.VehicleRepository;
+import com.loomai.demo.dealership.provider.ProviderStockClient;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,47 +29,35 @@ public class LeadService {
         TEST_DRIVE_ACTION
     );
     private static final Set<String> STATUSES = Set.of("NEW", "CONTACTED", "COMPLETED", "CANCELLED");
+    private static final String STOCK_SNAPSHOT = "_providerStock";
 
     private final LeadRepository repository;
-    private final VehicleRepository vehicles;
+    private final ProviderStockClient stockClient;
     private final PiiEncryptionService encryption;
     private final DealershipDemoProperties properties;
 
     public LeadService(LeadRepository repository,
-                       VehicleRepository vehicles,
+                       ProviderStockClient stockClient,
                        PiiEncryptionService encryption,
                        DealershipDemoProperties properties) {
         this.repository = repository;
-        this.vehicles = vehicles;
+        this.stockClient = stockClient;
         this.encryption = encryption;
         this.properties = properties;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public LeadReceipt execute(ActionExecutionRequest request) {
         if (request == null || !SUPPORTED_ACTIONS.contains(trim(request.actionId()))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Action is not supported.");
         }
         String idempotencyKey = require(request.idempotencyKey(), "idempotencyKey", 180);
-        var existing = repository.findByIdempotencyKey(idempotencyKey);
-        if (existing.isPresent()) {
-            return receipt(existing.get(), vehicles.findActiveById(existing.get().vehicleId()).orElse(null));
-        }
         if (!request.confirmationAccepted()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Confirmed action evidence is required.");
         }
         validateBoundary(request.authContext());
-        String vehicleReference = require(request.vehicleReference(), "vehicleReference", 160);
-        List<Vehicle> vehicleMatches = vehicles.resolveActiveReference(vehicleReference);
-        if (vehicleMatches.size() != 1) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                vehicleMatches.isEmpty()
-                    ? "The selected vehicle is no longer active."
-                    : "The selected vehicle reference is ambiguous."
-            );
-        }
-        Vehicle vehicle = vehicleMatches.getFirst();
+        String sessionId = require(request.authContext().sessionId(), "sessionId", 160);
+        String vehicleReference = ProviderStockClient.canonicalStockId(request.vehicleReference());
         if (CALLBACK_ACTION.equals(request.actionId().trim()) && !request.consent()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contact consent is required.");
         }
@@ -89,23 +78,44 @@ public class LeadService {
 
         Map<String, Object> contact = new LinkedHashMap<>();
         put(contact, "name", name);
-        put(contact, "email", bounded(email, 200));
-        put(contact, "phone", bounded(phone, 80));
-        put(contact, "preferredDate", bounded(request.preferredDate(), 40));
-        put(contact, "message", bounded(request.message(), 500));
+        put(contact, "email", optionalBounded(email, 200));
+        put(contact, "phone", optionalBounded(phone, 80));
+        put(contact, "preferredDate", optionalBounded(request.preferredDate(), 40));
+        put(contact, "message", optionalBounded(request.message(), 500));
 
-        Instant now = Instant.now();
-        LeadRepository.LeadRecord created = repository.insert(new LeadRepository.LeadRecord(
-            UUID.randomUUID().toString(), idempotencyKey, request.actionId().trim(), vehicle.id(),
-            encryption.encrypt(contact), "NEW", request.consent(), bounded(request.authContext().sessionId(), 160),
-            "NFM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), now, now
+        java.util.Optional<LeadRepository.LeadRecord> existing;
+        try {
+            existing = repository.findByIdempotencyKey(idempotencyKey);
+        } catch (DataAccessException ex) {
+            throw storeUnavailable();
+        }
+        if (existing.isPresent()) {
+            return confirmedReceipt(existing.get(), request, vehicleReference, sessionId, contact);
+        }
+
+        ProviderStockClient.Stock stock = stockClient.requireAvailableStock(vehicleReference);
+        Map<String, Object> storedContact = new LinkedHashMap<>(contact);
+        storedContact.put(STOCK_SNAPSHOT, Map.of(
+            "stockId", stock.stockId(), "advertiserId", stock.advertiserId(), "displayName", stock.displayName(),
+            "providerUpdatedAt", stock.providerUpdatedAt().toString(), "validatedAt", stock.validatedAt().toString()
         ));
-        return receipt(created, vehicle);
+        Instant now = Instant.now();
+        try {
+            LeadRepository.LeadRecord created = repository.insert(new LeadRepository.LeadRecord(
+                UUID.randomUUID().toString(), idempotencyKey, request.actionId().trim(), stock.stockId(),
+                encryption.encrypt(storedContact), "NEW", request.consent(), sessionId,
+                "NFM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), now, now,
+                stock.stockId(), stock.advertiserId()
+            ));
+            return confirmedReceipt(created, request, vehicleReference, sessionId, contact);
+        } catch (DataAccessException ex) {
+            throw storeUnavailable();
+        }
     }
 
     public List<LeadSummary> latest(int limit) {
         return repository.latest(limit).stream()
-            .map(record -> summary(record, vehicles.findActiveById(record.vehicleId()).orElse(null)))
+            .map(this::summary)
             .toList();
     }
 
@@ -113,8 +123,7 @@ public class LeadService {
         LeadRepository.LeadRecord lead = repository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead request was not found."));
         return new LeadDetail(
-            summary(lead, vehicles.findActiveById(lead.vehicleId()).orElse(null)),
-            encryption.decrypt(lead.encryptedContact())
+            summary(lead), contact(lead)
         );
     }
 
@@ -126,7 +135,7 @@ public class LeadService {
         LeadRepository.LeadRecord existing = repository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead request was not found."));
         repository.updateStatus(id, normalized);
-        return summary(repository.findById(id).orElse(existing), vehicles.findActiveById(existing.vehicleId()).orElse(null));
+        return summary(repository.findById(id).orElse(existing));
     }
 
     @Scheduled(cron = "${APP_LEAD_RETENTION_CRON:0 20 3 * * *}")
@@ -140,7 +149,8 @@ public class LeadService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Verified runtime session context is required.");
         }
         if (!matches(expected.getDeploymentId(), context.deploymentId())
-            || !matches(expected.getTenantId(), context.tenantId())) {
+            || !matches(expected.getTenantId(), context.tenantId())
+            || !matches(expected.getCustomerId(), context.customerId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Runtime identity does not own this dealership boundary.");
         }
     }
@@ -149,19 +159,50 @@ public class LeadService {
         return StringUtils.hasText(expected) && expected.trim().equals(trim(actual));
     }
 
-    private LeadReceipt receipt(LeadRepository.LeadRecord record, Vehicle vehicle) {
+    private LeadReceipt confirmedReceipt(LeadRepository.LeadRecord record, ActionExecutionRequest request,
+                                         String vehicleReference, String sessionId, Map<String, Object> expectedContact) {
+        if (!request.actionId().trim().equals(record.actionType())
+            || !vehicleReference.equals(record.vehicleId())
+            || (record.providerStockId() != null && !vehicleReference.equals(record.providerStockId()))
+            || (record.providerAdvertiserId() != null
+                && !record.providerAdvertiserId().equals(stockClient.configuredAdvertiserId()))
+            || !Objects.equals(sessionId, record.sourceSessionId())
+            || request.consent() != record.consentRecorded() || !expectedContact.equals(contact(record))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The idempotency key belongs to a different confirmed request.");
+        }
+        return receipt(record);
+    }
+
+    private LeadReceipt receipt(LeadRepository.LeadRecord record) {
         return new LeadReceipt(
             record.receiptCode(), record.actionType(), record.status(), record.createdAt(),
-            vehicle == null ? record.vehicleId() : vehicle.displayName(),
+            displayName(record),
             "Your request is in the dealership review inbox. A team member will use the contact details you confirmed."
         );
     }
 
-    private LeadSummary summary(LeadRepository.LeadRecord record, Vehicle vehicle) {
+    private LeadSummary summary(LeadRepository.LeadRecord record) {
         return new LeadSummary(
             record.id(), record.receiptCode(), record.actionType(), record.status(), record.vehicleId(),
-            vehicle == null ? "Unavailable vehicle" : vehicle.displayName(), record.createdAt(), record.updatedAt()
+            displayName(record), record.createdAt(), record.updatedAt()
         );
+    }
+
+    private String displayName(LeadRepository.LeadRecord record) {
+        Object snapshot = encryption.decrypt(record.encryptedContact()).get(STOCK_SNAPSHOT);
+        if (snapshot instanceof Map<?, ?> fields && record.vehicleId().equals(fields.get("stockId"))
+            && fields.get("displayName") instanceof String name && StringUtils.hasText(name)) return name;
+        return record.vehicleId();
+    }
+
+    private Map<String, Object> contact(LeadRepository.LeadRecord record) {
+        Map<String, Object> contact = new LinkedHashMap<>(encryption.decrypt(record.encryptedContact()));
+        contact.remove(STOCK_SNAPSHOT);
+        return contact;
+    }
+
+    private ResponseStatusException storeUnavailable() {
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "The dealership lead store is temporarily unavailable.");
     }
 
     private String require(String value, String field, int max) {
@@ -172,9 +213,12 @@ public class LeadService {
         return normalized;
     }
 
-    private String bounded(String value, int max) {
+    private String optionalBounded(String value, int max) {
         String normalized = trim(value);
-        return normalized == null ? null : normalized.substring(0, Math.min(max, normalized.length()));
+        if (normalized != null && normalized.length() > max) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Confirmed request values must be at most " + max + " characters.");
+        }
+        return normalized;
     }
 
     private String trim(String value) {

@@ -3,16 +3,24 @@ package com.loomai.demo.dealership.runtime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Component
 public class RuntimeConnectorOperationsClient {
@@ -23,6 +31,17 @@ public class RuntimeConnectorOperationsClient {
     private final DealershipDemoProperties properties;
     private final RuntimePrivateAssertionSigner signer;
     private final RestClient restClient;
+
+    @Value("${dealership.runtime.integration-connection-profile-ref:}")
+    private String expectedConnectionProfileRef = "";
+    @Value("${dealership.runtime.integration-resource-binding-ref:}")
+    private String expectedResourceBindingRef = "";
+    @Value("${dealership.runtime.integration-source-version:}")
+    private String expectedSourceVersion = "";
+    @Value("${dealership.runtime.integration-min-records:1}")
+    private int minimumRecords = 1;
+    @Value("${dealership.runtime.integration-max-age-seconds:600}")
+    private long maxAgeSeconds = 600;
 
     public RuntimeConnectorOperationsClient(DealershipDemoProperties properties,
                                             RuntimePrivateAssertionSigner signer,
@@ -41,13 +60,138 @@ public class RuntimeConnectorOperationsClient {
     }
 
     public JsonNode reconcileSource() {
+        return reconcileSource("dealership-reconcile-" + UUID.randomUUID());
+    }
+
+    public JsonNode reconcileSource(String idempotencyKey) {
+        if (idempotencyKey == null || !idempotencyKey.matches("[!-~]{1,128}")) {
+            throw new IllegalArgumentException("A bounded reconciliation idempotency key is required.");
+        }
         return restClient.post()
             .uri(sourceUrl() + "/reconcile")
             .headers(headers -> applyPrivateHeaders(headers, WRITE_SCOPE))
+            .header("Idempotency-Key", idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .body("{}")
             .retrieve()
             .body(JsonNode.class);
+    }
+
+    public SourceEvidence initializeSource(String operationFingerprint) {
+        requireReadinessConfiguration();
+        if (operationFingerprint == null || !operationFingerprint.matches("[a-f0-9]{64}")) {
+            throw new IllegalArgumentException("An initialization operation fingerprint is required.");
+        }
+        try {
+            JsonNode completed = reconcileSource("receiver-init-" + operationFingerprint);
+            Instant completedAt = verifyState(completed);
+            SourceEvidence observed = verifySource(sourceStatus());
+            if (observed.observedAt().isBefore(completedAt)) throw notReady();
+            return observed;
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Connector indexing evidence is unavailable.");
+        }
+    }
+
+    public SourceEvidence currentSourceEvidence() {
+        requireReadinessConfiguration();
+        try {
+            return verifySource(sourceStatus());
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Connector indexing evidence is unavailable.");
+        }
+    }
+
+    private SourceEvidence verifySource(JsonNode source) {
+        if (source == null || !configuredSourceId().equals(source.path("sourceId").asText())
+            || !source.path("enabled").isBoolean() || !source.path("enabled").booleanValue()
+            || !expectedConnectionProfileRef.equals(source.path("connectionProfileRef").asText())
+            || !expectedResourceBindingRef.equals(source.path("protectedResourceBindingRef").asText())
+            || !properties.getRuntime().getInventoryVectorSpace().equals(source.path("vectorSpace").asText())
+            || !"READY".equals(source.path("preflightState").asText())
+            || !"CURRENT".equals(source.path("freshnessState").asText())
+            || !source.path("work").isArray()) throw notReady();
+        JsonNode state = source.path("state");
+        Instant successAt = verifyState(state);
+        Instant startedAt = instant(state, "lastStartedAt");
+        for (JsonNode work : source.path("work")) {
+            if (!configuredSourceId().equals(work.path("sourceId").asText())) throw notReady();
+            Instant updatedAt = instant(work, "updatedAt");
+            String status = work.path("status").asText();
+            // A new successful baseline supersedes old terminal failures, not pending work.
+            boolean recoveredFailure = Set.of("FAILED", "FAILED_PERMANENT", "CANCELLED", "DEAD_LETTER").contains(status)
+                && updatedAt.isBefore(startedAt);
+            if (!recoveredFailure && (!"COMPLETED".equals(status) || hasError(work, "errorCode"))) throw notReady();
+        }
+        JsonNode counts = state.path("counts");
+        return new SourceEvidence(configuredSourceId(), expectedConnectionProfileRef, expectedResourceBindingRef,
+            expectedSourceVersion, successAt, count(counts, "indexedCount"), count(counts, "completedWorkCount"),
+            digest(source.toString()));
+    }
+
+    private Instant verifyState(JsonNode state) {
+        if (state == null || !configuredSourceId().equals(state.path("sourceId").asText())
+            || !"COMPLETED".equals(state.path("status").asText())
+            || !expectedSourceVersion.equals(state.path("sourceVersion").asText())
+            || hasError(state, "errorClass") || hasError(state, "errorMessage")) throw notReady();
+        JsonNode counts = state.path("counts");
+        long sourceCount = count(counts, "sourceCount");
+        long normalized = count(counts, "normalizedCount");
+        long indexed = count(counts, "indexedCount");
+        long deleted = count(counts, "deletedCount");
+        long accepted = count(counts, "acceptedWorkCount");
+        long completed = count(counts, "completedWorkCount");
+        if (count(counts, "failedWorkCount") != 0 || sourceCount < minimumRecords || indexed < minimumRecords
+            || normalized < minimumRecords || accepted < normalized || accepted != completed
+            || indexed > completed || deleted != completed - indexed) throw notReady();
+        Instant started = instant(state, "lastStartedAt");
+        Instant success = instant(state, "lastSuccessAt");
+        Instant updated = instant(state, "updatedAt");
+        Instant now = Instant.now();
+        if (success.isBefore(started) || updated.isBefore(success)
+            || success.isBefore(now.minusSeconds(maxAgeSeconds)) || updated.isAfter(now.plusSeconds(5))) throw notReady();
+        if (!state.path("lastErrorAt").isNull() && !state.path("lastErrorAt").isMissingNode()
+            && instant(state, "lastErrorAt").isAfter(success)) throw notReady();
+        return success;
+    }
+
+    private void requireReadinessConfiguration() {
+        if (!StringUtils.hasText(expectedConnectionProfileRef) || !StringUtils.hasText(expectedResourceBindingRef)
+            || !StringUtils.hasText(expectedSourceVersion) || minimumRecords < 1 || maxAgeSeconds < 1
+            || maxAgeSeconds > 86400) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Scoped connector readiness requirements are not configured.");
+        }
+    }
+
+    private long count(JsonNode counts, String field) {
+        JsonNode value = counts.path(field);
+        if (!value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() < 0) throw notReady();
+        return value.longValue();
+    }
+
+    private Instant instant(JsonNode node, String field) {
+        try {
+            return Instant.parse(node.path(field).textValue());
+        } catch (RuntimeException ex) {
+            throw notReady();
+        }
+    }
+
+    private boolean hasError(JsonNode node, String field) {
+        JsonNode error = node.path(field);
+        return !error.isMissingNode() && !error.isNull() && (!error.isTextual() || StringUtils.hasText(error.textValue()));
+    }
+
+    private ResponseStatusException notReady() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "CONNECTOR_SCOPED_INDEXING_NOT_READY");
+    }
+
+    private static String digest(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     public WebhookEventEvidence awaitWebhookEvent(String eventId, Duration timeout) {
@@ -146,5 +290,14 @@ public class RuntimeConnectorOperationsClient {
     }
 
     public record WebhookEventEvidence(String status, int attemptCount, String errorClass) {
+    }
+
+    public record SourceEvidence(String sourceId, String connectionProfileRef, String resourceBindingRef,
+                                 String sourceVersion, Instant observedAt, long indexedCount,
+                                 long completedWorkCount, String evidenceHash) {
+        public String reference() {
+            return "connector:" + sourceId + ":profile:" + connectionProfileRef + ":binding:" + resourceBindingRef
+                + ":indexed:" + indexedCount + ":completed:" + completedWorkCount + ":sha256:" + evidenceHash;
+        }
     }
 }

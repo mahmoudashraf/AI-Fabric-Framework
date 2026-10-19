@@ -2,10 +2,15 @@ package com.loomai.demo.dealership;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loomai.demo.dealership.lead.PiiEncryptionService;
+import com.loomai.demo.dealership.provider.ProviderStockClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -13,14 +18,18 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.web.server.ResponseStatusException;
 import jakarta.servlet.http.Cookie;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,6 +74,20 @@ class DealershipDemoHttpTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PiiEncryptionService encryption;
+    @MockBean ProviderStockClient provider;
+
+    @BeforeEach
+    void providerContract() {
+        when(provider.configuredAdvertiserId()).thenReturn("advertiser-1");
+        when(provider.requireAvailableStock(anyString())).thenAnswer(invocation -> {
+            String stockId = ProviderStockClient.canonicalStockId(invocation.getArgument(0));
+            if (!"veh-aster-e1".equals(stockId) && !"PROVIDER-ONLY-99".equals(stockId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected provider stock is not currently available.");
+            }
+            return new ProviderStockClient.Stock(stockId, "advertiser-1", "2025 Aster E1", Instant.now(), Instant.now());
+        });
+    }
 
     @Test
     void exposesStructuredInventoryAndFacetsFromTheApplicationDatabase() throws Exception {
@@ -263,7 +286,7 @@ class DealershipDemoHttpTest {
                  consent_recorded, source_session_id, receipt_code, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """, leadId, "csrf-" + UUID.randomUUID(), "dealership_request_test_drive",
-            "veh-aster-e1", "test-encrypted-contact", "NEW", false, "csrf-session",
+            "veh-aster-e1", encryption.encrypt(Map.of("name", "Test Buyer")), "NEW", false, "csrf-session",
             "NFM-CSRF" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
 
         MvcResult login = mvc.perform(post("/api/staff/session")
@@ -326,18 +349,18 @@ class DealershipDemoHttpTest {
     }
 
     @Test
-    void internalAuthorizationResolvesBuyerFacingTargetsAndFailsClosedOnAmbiguity() throws Exception {
+    void internalAuthorizationRequiresCanonicalProviderTargetsInsteadOfWebsiteNameResolution() throws Exception {
         mvc.perform(post("/api/internal/authz/check")
                 .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
                 .contentType("application/json")
-                .content(authzRequest("dep-dealership-demo", "2025 Aster E1", "READ")))
+                .content(authzRequest("dep-dealership-demo", "PROVIDER-ONLY-99", "READ")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.granted").value(true));
 
         mvc.perform(post("/api/internal/authz/check")
                 .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
                 .contentType("application/json")
-                .content(authzRequest("dep-dealership-demo", "Aster E1", "REQUEST_TEST_DRIVE")))
+                .content(authzRequest("dep-dealership-demo", "dealer-vehicle:PROVIDER-ONLY-99", "REQUEST_TEST_DRIVE")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.granted").value(true));
 
@@ -357,7 +380,7 @@ class DealershipDemoHttpTest {
             "idempotencyKey", idempotencyKey,
             "params", Map.of(
                 "confirmationAccepted", true,
-                "vehicleReference", "Aster E1",
+                "vehicleReference", "PROVIDER-ONLY-99",
                 "name", "Avery Buyer",
                 "email", "avery@example.test",
                 "phone", "+44 7700 900123",
@@ -419,6 +442,10 @@ class DealershipDemoHttpTest {
             idempotencyKey
         );
         assertThat(consentRecorded).isFalse();
+        assertThat(jdbc.queryForMap("SELECT vehicle_id, provider_stock_id, provider_advertiser_id FROM dealership_lead_request WHERE idempotency_key = ?", idempotencyKey))
+            .containsEntry("vehicle_id", "PROVIDER-ONLY-99").containsEntry("provider_stock_id", "PROVIDER-ONLY-99")
+            .containsEntry("provider_advertiser_id", "advertiser-1");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dealership_vehicle WHERE id = 'PROVIDER-ONLY-99'", Long.class)).isZero();
     }
 
     @Test
@@ -428,7 +455,7 @@ class DealershipDemoHttpTest {
             "idempotencyKey", "test-drive-contact-" + UUID.randomUUID(),
             "params", Map.of(
                 "confirmationAccepted", true,
-                "vehicleReference", "Aster E1",
+                "vehicleReference", "PROVIDER-ONLY-99",
                 "name", "Avery Buyer",
                 "email", "avery@example.test"
             ),
@@ -464,7 +491,7 @@ class DealershipDemoHttpTest {
             "idempotencyKey", "callback-test-" + UUID.randomUUID(),
             "params", Map.of(
                 "confirmationAccepted", true,
-                "vehicleReference", "Aster E1",
+                "vehicleReference", "PROVIDER-ONLY-99",
                 "name", "Avery Buyer",
                 "phone", "+44 7700 900123"
             ),
