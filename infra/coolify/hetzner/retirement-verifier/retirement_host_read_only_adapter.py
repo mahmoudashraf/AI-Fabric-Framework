@@ -2,6 +2,7 @@
 """Read-only, fixed-command host metadata verifier. No operation manifests or repairs."""
 
 import contextlib
+import json
 import os
 from pathlib import Path
 import posixpath
@@ -18,6 +19,7 @@ MAX_OUTPUT_BYTES = 4096
 REQUEST_SECONDS = 8
 PROCESS_SECONDS = 3
 TRUSTED_DATA_ROOT = "/data/coolify"
+HOST_POLICY_PATH = "/etc/loomai-retirement-read-only/host-policy.json"
 RESOURCE_UUID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z", re.ASCII)
 VOLUME_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z", re.ASCII)
 ABSOLUTE_PATH = re.compile(r"/[A-Za-z0-9._/-]+\Z", re.ASCII)
@@ -78,11 +80,40 @@ def parse_command(raw):
     raise Denied()
 
 
-def check_trusted_directory(info):
-    require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022)
+def check_trusted_directory(info, expected_uid=0):
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == expected_uid and not info.st_mode & 0o022)
 
 
-def directory_present(path):
+def load_host_policy():
+    for parent in Path(HOST_POLICY_PATH).parents:
+        check_trusted_directory(os.lstat(parent))
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(HOST_POLICY_PATH, flags)
+    try:
+        info = os.fstat(descriptor)
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+                and stat.S_IMODE(info.st_mode) == 0o600 and 0 < info.st_size <= 4096)
+        raw = os.read(descriptor, 4097)
+        require(len(raw) == info.st_size)
+    finally:
+        os.close(descriptor)
+
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result)
+            result[key] = value
+        return result
+
+    policy = json.loads(raw.decode("ascii"), object_pairs_hook=unique_fields)
+    require(isinstance(policy, dict) and set(policy) == {"schemaVersion", "dataRootOwnerUid"}
+            and policy["schemaVersion"] == "loomai-retirement-read-only-host/v1"
+            and type(policy["dataRootOwnerUid"]) is int
+            and 0 <= policy["dataRootOwnerUid"] <= 2147483647)
+    return policy
+
+
+def directory_present(path, data_root_owner_uid=0):
     require(retained_path_allowed(path))
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     descriptor = os.open("/", flags)
@@ -102,7 +133,8 @@ def directory_present(path):
             child = os.open(component, flags, dir_fd=descriptor)
             try:
                 if index < base_depth:
-                    check_trusted_directory(os.fstat(child))
+                    check_trusted_directory(os.fstat(child),
+                                            data_root_owner_uid if index == base_depth - 1 else 0)
             except Exception:
                 os.close(child)
                 raise
@@ -191,8 +223,10 @@ def main():
     try:
         require(len(sys.argv) == 1 and os.geteuid() == 0)
         with bounded_request():
+            policy = load_host_policy()
             raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 2)
-            code, output = execute(raw, LocalDocker())
+            code, output = execute(raw, LocalDocker(),
+                                   lambda path: directory_present(path, policy["dataRootOwnerUid"]))
             if output:
                 sys.stdout.write(output + "\n")
             return code

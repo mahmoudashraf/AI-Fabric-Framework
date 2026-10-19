@@ -44,6 +44,15 @@ uses only `/usr/bin/docker` and the local `/var/run/docker.sock`, with a fixed
 empty Docker config and clean environment. Verify those exact host paths and
 the trusted `/data/coolify` directory ownership before activation.
 
+Install `host-policy.example.json` as
+`/etc/loomai-retirement-read-only/host-policy.json`, root-owned with mode 0600,
+setting `dataRootOwnerUid` to the independently inspected owner of exactly
+`/data/coolify`. The current staging read-only preflight observes UID 9999;
+the example's 0 is not a deployment default or evidence of the host's owner.
+Ancestors must still be protected root-owned directories; symlinks, writable
+policy files, duplicate/unknown fields and undeclared owners are rejected.
+This fixed per-host setting has no customer or per-operation resource manifest.
+
 The approved command grammar is intentionally limited to the backend runner's
 five current/legacy container-owner read forms, exact anchored volume-name
 lookups and `test -d` on normalized descendants of `/data/coolify` without

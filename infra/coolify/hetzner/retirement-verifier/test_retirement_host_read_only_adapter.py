@@ -208,5 +208,58 @@ class ProcessBoundaryTests(unittest.TestCase):
                 docker.assert_not_called()
 
 
+class HostPolicyTests(unittest.TestCase):
+    def load(self, raw, **changes):
+        info = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_uid=0, st_nlink=1, st_size=len(raw))
+        for key, value in changes.items():
+            setattr(info, key, value)
+        parent = types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o750, st_uid=0)
+        with mock.patch.object(adapter.os, "lstat", return_value=parent), \
+                mock.patch.object(adapter.os, "open", return_value=17) as opened, \
+                mock.patch.object(adapter.os, "fstat", return_value=info), \
+                mock.patch.object(adapter.os, "read", return_value=raw), \
+                mock.patch.object(adapter.os, "close") as closed:
+            value = adapter.load_host_policy()
+        opened.assert_called_once_with(adapter.HOST_POLICY_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        closed.assert_called_once_with(17)
+        return value
+
+    def test_explicit_root_or_service_data_owner_is_accepted_without_widening_ancestors(self):
+        for uid in [0, 9999]:
+            raw = ('{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":%d}' % uid).encode()
+            self.assertEqual(self.load(raw)["dataRootOwnerUid"], uid)
+            info = types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o750, st_uid=uid)
+            adapter.check_trusted_directory(info, uid)
+            if uid != 0:
+                with self.assertRaises(adapter.Denied):
+                    adapter.check_trusted_directory(info)
+
+    def test_unsafe_policy_metadata_or_size_fails_closed(self):
+        raw = b'{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":9999}'
+        for changes in [{"st_uid":9999}, {"st_mode":stat.S_IFREG | 0o644}, {"st_mode":stat.S_IFLNK | 0o600},
+                        {"st_nlink":2}, {"st_size":0}, {"st_size":4097}, {"st_size":len(raw)+1}]:
+            with self.subTest(changes=changes), self.assertRaises(adapter.Denied):
+                self.load(raw, **changes)
+
+    def test_untrusted_policy_parent_is_rejected_before_open(self):
+        for mode, uid in [(stat.S_IFDIR | 0o777, 0), (stat.S_IFDIR | 0o750, 9999), (stat.S_IFLNK | 0o750, 0)]:
+            parent = types.SimpleNamespace(st_mode=mode, st_uid=uid)
+            with mock.patch.object(adapter.os, "lstat", return_value=parent), \
+                    mock.patch.object(adapter.os, "open") as opened, self.assertRaises(adapter.Denied):
+                adapter.load_host_policy()
+            opened.assert_not_called()
+
+    def test_duplicate_unknown_boolean_negative_or_wrong_schema_policy_is_rejected(self):
+        for raw in [b'{}', b'[]',
+                    b'{"schemaVersion":"other","dataRootOwnerUid":9999}',
+                    b'{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":true}',
+                    b'{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":-1}',
+                    b'{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":2147483648}',
+                    b'{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":9999,"extra":1}',
+                    b'{"schemaVersion":"loomai-retirement-read-only-host/v1","dataRootOwnerUid":0,"dataRootOwnerUid":9999}']:
+            with self.subTest(raw=raw), self.assertRaises(adapter.Denied):
+                self.load(raw)
+
+
 if __name__ == "__main__":
     unittest.main()
