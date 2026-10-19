@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -158,20 +159,31 @@ public class AIWorkspaceDomainService {
 
     @Transactional(readOnly = true)
     public AIWorkspaceDomainEntity resolveVerifiedOrigin(String origin) {
+        return findVerifiedOrigin(origin)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "AI Workspace app is unavailable."));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AIWorkspaceDomainEntity> findVerifiedOrigin(String origin) {
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(origin == null ? "" : origin.trim());
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getPort() >= 0
+            || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
+            || (uri.getPath() != null && !uri.getPath().isBlank() && !"/".equals(uri.getPath()))) {
+            return Optional.empty();
+        }
         String hostname;
         try {
-            var uri = java.net.URI.create(origin == null ? "" : origin.trim());
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getPort() >= 0
-                || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
-                || (uri.getPath() != null && !uri.getPath().isBlank() && !"/".equals(uri.getPath()))) {
-                throw new IllegalArgumentException();
-            }
             hostname = normalizeHostname(uri.getHost());
-        } catch (RuntimeException ex) {
-            throw new ResponseStatusException(NOT_FOUND, "AI Workspace app is unavailable.");
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() != BAD_REQUEST.value()) throw ex;
+            return Optional.empty();
         }
-        return repository.findByHostnameAndStatusIn(hostname, List.of(AIWorkspaceDomainStatus.VERIFIED))
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "AI Workspace app is unavailable."));
+        return repository.findByHostnameAndStatusIn(hostname, List.of(AIWorkspaceDomainStatus.VERIFIED));
     }
 
     public String appUrl(AIWorkspaceInstallationEntity installation) {

@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -173,28 +174,33 @@ public class PublicAIWorkspaceManifestService {
 
     @Transactional(readOnly = true)
     public boolean isAppOriginAllowed(String requestOrigin) {
+        String origin;
         try {
-            String origin = normalizeRequestOrigin(requestOrigin);
-            var domain = domainService.resolveVerifiedOrigin(origin);
-            return repository.findById(domain.getInstallationEntityId())
-                .filter(installation -> installation.getStatus() == AIWorkspaceInstallationStatus.ACTIVE)
-                .filter(installation -> effectiveDeliveryMode(installation) == AIWorkspaceDeliveryMode.STANDALONE)
-                .map(installation -> readOrigins(installation.getAllowedOriginsJson()).contains(origin))
-                .orElse(false);
-        } catch (RuntimeException ex) {
+            origin = normalizeRequestOrigin(requestOrigin);
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() != NOT_FOUND.value()) throw ex;
             return false;
         }
+        return domainService.findVerifiedOrigin(origin)
+            .flatMap(domain -> repository.findById(domain.getInstallationEntityId()))
+            .filter(installation -> installation.getStatus() == AIWorkspaceInstallationStatus.ACTIVE)
+            .filter(installation -> effectiveDeliveryMode(installation) == AIWorkspaceDeliveryMode.STANDALONE)
+            .map(installation -> readOrigins(installation.getAllowedOriginsJson()).contains(origin))
+            .orElse(false);
     }
 
     @Transactional(readOnly = true)
     public boolean isOriginAllowed(String installationId, String requestOrigin) {
+        String origin;
         try {
-            String origin = normalizeRequestOrigin(requestOrigin);
-            AIWorkspaceInstallationEntity installation = activeInstallation(installationId);
-            return readOrigins(installation.getAllowedOriginsJson()).contains(origin);
-        } catch (RuntimeException ex) {
+            origin = normalizeRequestOrigin(requestOrigin);
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() != NOT_FOUND.value()) throw ex;
             return false;
         }
+        return findActiveInstallation(installationId)
+            .map(installation -> readOrigins(installation.getAllowedOriginsJson()).contains(origin))
+            .orElse(false);
     }
 
     private ObjectNode connection(AIWorkspaceConnectionMode mode,
@@ -358,11 +364,13 @@ public class PublicAIWorkspaceManifestService {
     }
 
     private AIWorkspaceInstallationEntity activeInstallation(String installationId) {
-        if (installationId == null || !installationId.matches("awi_pub_[a-f0-9]{32}")) unavailable();
-        AIWorkspaceInstallationEntity installation = repository.findByInstallationId(installationId)
-            .orElseThrow(this::unavailableException);
-        if (installation.getStatus() != AIWorkspaceInstallationStatus.ACTIVE) unavailable();
-        return installation;
+        return findActiveInstallation(installationId).orElseThrow(this::unavailableException);
+    }
+
+    private Optional<AIWorkspaceInstallationEntity> findActiveInstallation(String installationId) {
+        if (installationId == null || !installationId.matches("awi_pub_[a-f0-9]{32}")) return Optional.empty();
+        return repository.findByInstallationId(installationId)
+            .filter(installation -> installation.getStatus() == AIWorkspaceInstallationStatus.ACTIVE);
     }
 
     private String normalizeRequestOrigin(String value) {

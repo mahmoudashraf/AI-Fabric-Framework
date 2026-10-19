@@ -920,3 +920,31 @@ an app, or claiming hosted workload readiness.
   certified. Investigate supported ownership reconciliation before attesting
   old callers retired. Do not bypass the guard, rotate old credentials, or
   silently retarget the receiver. Existing business data remains intact.
+
+### Standalone Origin Denial Correction And Receiver Cutover Contract
+
+- Source inspection of real backend error markers reproduced a standalone
+  bootstrap defect: catching a nested transactional404 left the outer transaction
+  rollback-only, replacing an expected unknown-origin denial with500. Both origin
+  checks now use nonthrowing expected-absence lookups; strict manifest/domain
+  resolution still returns404, while genuine database failures propagate.
+  Focused qualification passes76 tests, including45 real Spring transaction-
+  proxy/JPA cases, zero skipped. Source only; not yet deployed.
+- Legacy stop reconciliation confirms the two old AI callers have no historical
+  ownership receipts. Their409 guard runs before Coolify mutation. They remain
+  running; no creation receipt, ownership transfer or direct-provider bypass is
+  authorized or claimed by this correction.
+- The independent business receiver can still undergo an explicit credential
+  cutover. It accepts only the new customer/deployment-scoped key and rejects old
+  keys. The owner-approved sequential migration accepts the old callers' action
+  outage; it does not attest that their processes are retired. Existing capacity
+  baseline continues to include them. Cleanup needs separately reviewed legacy
+  maintenance, not an invented historical creation record.
+- Private receiver tooling stopped once before any mutation because its full
+  provider-response fence included two host-observation timestamps. Exact prior
+  HMAC reconstruction proves every other application field unchanged. Only
+  `/destination/server/updated_at` and `sentinel_updated_at` are normalized; host
+  identity/configuration remain fenced. The unused original preparation remains
+  preserved. The subsequent environment-only update generated Coolify's documented
+  preview mirrors; all pairs require exact values/flags. Reconciliation continues
+  without repeating that update or claiming a deployment before its receipt.

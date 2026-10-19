@@ -8,7 +8,11 @@ import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceDomainType;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceDomainRepository;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Path;
@@ -20,8 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 class AIWorkspaceDomainServiceTest {
 
@@ -106,12 +112,43 @@ class AIWorkspaceDomainServiceTest {
             .thenReturn(Optional.of(domain));
 
         assertThat(service.resolveVerifiedOrigin("https://northfield.apps.loomai.test")).isSameAs(domain);
+        assertThat(service.findVerifiedOrigin("https://northfield.apps.loomai.test")).containsSame(domain);
         assertThatThrownBy(() -> service.resolveVerifiedOrigin("https://northfield.apps.loomai.test/path"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("unavailable");
         assertThatThrownBy(() -> service.resolveVerifiedOrigin("https://unknown.apps.loomai.test"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("unavailable");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "not an origin", "http://northfield.apps.loomai.test",
+        "https://northfield.apps.loomai.test:443", "https://northfield.apps.loomai.test/path",
+        "https://user@northfield.apps.loomai.test", "https://northfield.apps.loomai.test?query=1",
+        "https://northfield.apps.loomai.test#fragment", "https://localhost"})
+    void invalidOriginLookupIsEmptyAndStrictResolverRetains404(String origin) {
+        assertThat(service.findVerifiedOrigin(origin)).isEmpty();
+        assertThatThrownBy(() -> service.resolveVerifiedOrigin(origin))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> assertThat(ex.getStatusCode().value()).isEqualTo(NOT_FOUND.value()));
+        verify(repository, never()).findByHostnameAndStatusIn(any(), any());
+    }
+
+    @Test
+    void unknownOriginLookupIsEmptyWithoutAnException() {
+        when(repository.findByHostnameAndStatusIn("unknown.apps.loomai.test", List.of(AIWorkspaceDomainStatus.VERIFIED)))
+            .thenReturn(Optional.empty());
+        assertThat(service.findVerifiedOrigin("https://unknown.apps.loomai.test")).isEmpty();
+    }
+
+    @Test
+    void lookupAndStrictResolverDoNotMaskRepositoryFailures() {
+        var failure = new DataAccessResourceFailureException("fixture database unavailable");
+        when(repository.findByHostnameAndStatusIn("northfield.apps.loomai.test", List.of(AIWorkspaceDomainStatus.VERIFIED)))
+            .thenThrow(failure);
+        assertThatThrownBy(() -> service.findVerifiedOrigin("https://northfield.apps.loomai.test")).isSameAs(failure);
+        assertThatThrownBy(() -> service.resolveVerifiedOrigin("https://northfield.apps.loomai.test")).isSameAs(failure);
     }
 
     @Test
