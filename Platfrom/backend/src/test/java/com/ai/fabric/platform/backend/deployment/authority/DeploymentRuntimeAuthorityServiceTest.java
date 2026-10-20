@@ -273,6 +273,48 @@ class DeploymentRuntimeAuthorityServiceTest {
             "different", "session-anon", true, List.of("chat:query"), Duration.ofMinutes(1))).hasMessageContaining("inconsistent");
     }
 
+    @Test void workerVerificationUsesOnlyFixedReadScopesAndBoundedAssertionsWithoutOperatorAuthority() throws Exception {
+        var frozen = release("staging", "release-stage");
+        var release = releases.findById(frozen.releaseId()).orElseThrow();
+        clearInvocations(access);
+        for (boolean documents : List.of(false, true)) {
+            Instant before = Instant.now();
+            var result = service.issueReleaseVerificationHeaders(deployment, release, documents);
+            var claims = payload(result.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+            assertThat(claims.path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
+            assertThat(claims.path("sub").asText()).isEqualTo("platform-release-verification");
+            var scopes = new ArrayList<String>(); claims.path("scopes").forEach(scope -> scopes.add(scope.asText()));
+            assertThat(scopes).containsExactlyInAnyOrderElementsOf(documents
+                ? RuntimePrivateAccessSupport.documentReadScopes() : RuntimePrivateAccessSupport.adminReadScopes());
+            assertThat(Instant.parse(claims.path("exp").asText())).isAfter(before).isBefore(before.plusSeconds(301));
+        }
+        verifyNoInteractions(access);
+        release.setProvisioningStatus("QUEUED");
+        assertThatThrownBy(() -> service.issueReleaseVerificationHeaders(deployment, release, false)).hasMessageContaining("not provisioned");
+    }
+
+    @Test void generationWorkerRequiresBothExactFrozenReleasesAndIssuesNoArbitraryScopes() throws Exception {
+        var previous = release("staging", "release-old");
+        var next = release("staging", "release-next");
+        var nextRow = releases.findById(next.releaseId()).orElseThrow();
+        clearInvocations(access);
+        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), previous.fingerprint(), "replace:release-next"))
+            .hasMessageContaining("claimed provisioning release");
+        nextRow.setStatus("PROVISIONING"); nextRow.setProvisioningStatus("RUNNING");
+        var result = service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), previous.fingerprint(), "replace:release-next");
+        var claims = payload(result.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        var scopes = new ArrayList<String>(); claims.path("scopes").forEach(scope -> scopes.add(scope.asText()));
+        assertThat(scopes).containsExactlyInAnyOrder("runtime:target-retirement:read", "runtime:target-retirement:write");
+        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, nextRow.getId(), next.fingerprint(), "replace:release-next"))
+            .hasMessageContaining("Distinct");
+        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), "0".repeat(64), "replace:release-next"))
+            .hasMessageContaining("Previous generation authority changed");
+        nextRow.setRuntimeAuthoritySnapshotId(previous.snapshotId());
+        assertThatThrownBy(() -> service.issueGenerationTransitionHeaders(deployment, nextRow, previous.releaseId(), previous.fingerprint(), "replace:release-next"))
+            .hasMessageContaining("exact release");
+        verifyNoInteractions(access);
+    }
+
     @Test void missingContextInvalidOriginsStaleFingerprintAndUnprovisionedReleaseAreBlocked() {
         assertThatThrownBy(() -> service.freezeCandidate("dep-1", null, "version-1", List.of())).isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> service.freezeCandidate("dep-1", "staging", "version-1", List.of("https://*.example.com"))).hasMessageContaining("exact HTTPS");
@@ -353,7 +395,9 @@ class DeploymentRuntimeAuthorityServiceTest {
         var release = new DeploymentReleaseEntity(); release.setId(releaseId); release.setDeploymentId("dep-1");
         release.setTargetProfileId(target); release.setDeploymentVersionId("version-1"); release.setProvisioningStatus("ACTIVE"); release.setStatus("VERIFYING");
         when(releases.findById(releaseId)).thenReturn(Optional.of(release));
-        return service.freezeRelease("dep-1", target, releaseId, candidate.snapshotId(), candidate.fingerprint());
+        var frozen = service.freezeRelease("dep-1", target, releaseId, candidate.snapshotId(), candidate.fingerprint());
+        release.setRuntimeAuthoritySnapshotId(frozen.snapshotId()); release.setRuntimeAuthorityFingerprint(frozen.fingerprint());
+        return frozen;
     }
     private Map<String, String> headers(RuntimeAuthorityBinding.Snapshot snapshot) {
         return service.issueSystemHeaders(snapshot.binding().deploymentId(), snapshot.binding().targetProfileId(), snapshot.releaseId(),

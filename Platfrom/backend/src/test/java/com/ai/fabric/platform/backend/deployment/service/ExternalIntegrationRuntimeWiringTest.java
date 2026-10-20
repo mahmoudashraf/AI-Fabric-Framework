@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 class ExternalIntegrationRuntimeWiringTest {
     @Test void onlyConnectorGetsFrozenValuesAndSecretFlagsComeFromTheTypedProjection() {
         var fixture = new Fixture();
-        when(fixture.bindings.releaseEnvironment("deployment", "version", "target", "release", "authority"))
+        when(fixture.bindings.releaseEnvironmentForProvisioning(fixture.deployment, fixture.version, fixture.release))
             .thenReturn(new ReleaseEnvironment(Map.of("MANAGED_EXTERNAL_INTEGRATION_CONFIG", "https://provider.example.com"),
                 Map.of("MANAGED_EXTERNAL_INTEGRATION_CREDENTIAL", "SCOPED_CREDENTIAL_REFERENCE")));
         when(fixture.vault.resolveSecret("SCOPED_CREDENTIAL_REFERENCE")).thenReturn("synthetic-private-value");
@@ -36,7 +36,7 @@ class ExternalIntegrationRuntimeWiringTest {
 
     @Test void missingCredentialOrCollidingAliasStopsEnvironmentGeneration() {
         var fixture = new Fixture();
-        when(fixture.bindings.releaseEnvironment(any(), any(), any(), any(), any()))
+        when(fixture.bindings.releaseEnvironmentForProvisioning(any(), any(), any()))
             .thenReturn(new ReleaseEnvironment(Map.of(), Map.of("ALIAS", "SCOPED_REFERENCE")));
         assertThatThrownBy(() -> fixture.provider.mergeFrozenExternalIntegrationEnvironment(fixture.deployment,
             fixture.version, fixture.release, "connector", new LinkedHashMap<>())).hasMessageContaining("Missing managed target authority secret");

@@ -24,6 +24,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding.*;
 import static com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose.*;
@@ -66,6 +70,8 @@ public class DeploymentRuntimeAuthorityService {
     private final RuntimePrivateAssertionSigningService signer;
     private final PlatformAuditService audit;
     private final ObjectMapper mapper;
+    @Autowired
+    private JdbcTemplate workerReadback;
 
     public DeploymentRuntimeAuthorityService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentReleaseRepository releases, DeploymentTargetProfileRepository targets, DeploymentAccessService access,
@@ -209,7 +215,16 @@ public class DeploymentRuntimeAuthorityService {
     public EnvironmentPlan releaseEnvironmentPlanForProvisioning(DeploymentEntity deployment,
                                                                   DeploymentVersionEntity version,
                                                                   DeploymentReleaseEntity release) {
+        return environment(requireReleaseUnchangedForProvisioning(deployment, version, release).binding());
+    }
+
+    /** Internal worker boundary: only persisted, synchronously frozen release authority is accepted. */
+    @Transactional
+    public Snapshot requireReleaseUnchangedForProvisioning(DeploymentEntity deployment,
+                                                            DeploymentVersionEntity version,
+                                                            DeploymentReleaseEntity release) {
         if (deployment == null || version == null || release == null
+            || deployment.getId() == null || version.getId() == null || release.getId() == null
             || !deployment.getId().equals(release.getDeploymentId())
             || !version.getId().equals(release.getDeploymentVersionId())
             || !deployment.getId().equals(version.getDeploymentId())
@@ -218,20 +233,45 @@ public class DeploymentRuntimeAuthorityService {
             || release.getRuntimeAuthorityFingerprint() == null) {
             throw conflict("Release lacks complete frozen target authority evidence.");
         }
-        RuntimeAuthorityEntity authority = authority(deployment, release.getTargetProfileId());
-        RuntimeAuthoritySnapshotEntity snapshot = snapshots.findById(release.getRuntimeAuthoritySnapshotId())
-            .orElseThrow(() -> conflict("Frozen release authority snapshot is unavailable."));
+        DeploymentEntity locked = lock(deployment.getId(), release.getTargetProfileId(), true, false);
+        // JDBC joins this transaction but bypasses JPA's pre-fence identity map. Never clear or
+        // refresh outer managed entities: provisioning may have pending mutable provider state.
+        DeploymentEntity current = workerRow(DeploymentEntity.class, "select * from platform_deployments where id=?", () -> locked, locked.getId());
+        var target = workerRow(com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity.class,
+            "select * from deployment_target_profiles where id=?", () -> targets.findById(release.getTargetProfileId()).orElseThrow(), release.getTargetProfileId());
+        if (!target.isActive() || current.getArchivedAt() != null || "ARCHIVED".equals(current.getStatus())) throw conflict("Target authority is unavailable for an inactive target or archived deployment.");
+        var persistedRelease = workerRow(DeploymentReleaseEntity.class, "select * from platform_deployment_releases where id=?",
+            () -> release(current, release.getTargetProfileId(), release.getId()), release.getId());
+        var persistedVersion = workerRow(DeploymentVersionEntity.class, "select * from platform_deployment_versions where id=?",
+            () -> version(current, version.getId()), version.getId());
+        if (!Objects.equals(current.getCustomerId(), deployment.getCustomerId())
+            || !Objects.equals(current.getTenantId(), deployment.getTenantId())
+            || !current.getId().equals(persistedRelease.getDeploymentId())
+            || !release.getTargetProfileId().equals(persistedRelease.getTargetProfileId())
+            || !current.getId().equals(persistedVersion.getDeploymentId())
+            || !"PUBLISHED".equals(persistedVersion.getStatus())
+            || !version.getId().equals(persistedRelease.getDeploymentVersionId())
+            || !Objects.equals(version.getConfigHash(), persistedVersion.getConfigHash())
+            || !Objects.equals(release.getRuntimeAuthoritySnapshotId(), persistedRelease.getRuntimeAuthoritySnapshotId())
+            || !Objects.equals(release.getRuntimeAuthorityFingerprint(), persistedRelease.getRuntimeAuthorityFingerprint())) {
+            throw conflict("Frozen release authority evidence does not match the persisted deployment, version and release.");
+        }
+        RuntimeAuthorityEntity authority = workerAuthority(current.getId(), release.getTargetProfileId());
+        requireOwner(current, authority);
+        RuntimeAuthoritySnapshotEntity snapshot = workerRow(RuntimeAuthoritySnapshotEntity.class,
+            "select * from platform_runtime_authority_snapshots where id=?", () -> snapshots.findById(release.getRuntimeAuthoritySnapshotId())
+                .orElseThrow(() -> conflict("Frozen release authority snapshot is unavailable.")), release.getRuntimeAuthoritySnapshotId());
         if (!release.getId().equals(snapshot.getReleaseId())
             || !version.getId().equals(snapshot.getVersionId())
             || !release.getRuntimeAuthorityFingerprint().equals(snapshot.getFingerprint())) {
             throw conflict("Frozen release authority evidence does not match the exact release and version.");
         }
-        return environment(checkedSnapshot(
-            deployment,
+        return checkedSnapshot(
+            current,
             authority,
             snapshot,
-            release.getRuntimeAuthorityFingerprint()
-        ).binding());
+            release.getRuntimeAuthorityFingerprint(), persistedVersion, workerSecrets(authority)
+        );
     }
 
     @Transactional
@@ -247,13 +287,47 @@ public class DeploymentRuntimeAuthorityService {
     @Transactional
     public Map<String, String> issueProviderBudgetProvisioningHeaders(DeploymentEntity deployment,
         DeploymentVersionEntity version, DeploymentReleaseEntity release) {
-        releaseEnvironmentPlanForProvisioning(deployment, version, release);
-        requireProvisioned(release);
-        var snapshot = snapshots.findById(release.getRuntimeAuthoritySnapshotId()).orElseThrow();
-        var checked = checkedSnapshot(deployment, authority(deployment, release.getTargetProfileId()),
-            snapshot, release.getRuntimeAuthorityFingerprint());
+        var checked = requireReleaseUnchangedForProvisioning(deployment, version, release);
+        requireProvisioned(workerRelease(release.getId()));
         return headers(checked.binding(), "platform-provider-budget", "SYSTEM_PROCESS", release.getId(), false,
             List.of("runtime:admin:overview", "runtime:admin:provider-budget:write"), Duration.ofMinutes(2));
+    }
+
+    /** Fixed read-only scopes for the post-provisioning worker; never an operator impersonation. */
+    @Transactional
+    public Map<String, String> issueReleaseVerificationHeaders(DeploymentEntity deployment,
+        DeploymentReleaseEntity release, boolean documentRead) {
+        if (release == null) throw conflict("Explicit verification release is required.");
+        var checked = requireReleaseUnchangedForProvisioning(deployment,
+            versions.findById(required(release.getDeploymentVersionId())).orElseThrow(() -> conflict("Verification version is unavailable.")), release);
+        requireProvisioned(workerRelease(release.getId()));
+        return headers(checked.binding(), "platform-release-verification", "SYSTEM_PROCESS",
+            (documentRead ? "document-release-verification-" : "release-verification-") + release.getId(), false,
+            documentRead ? RuntimePrivateAccessSupport.documentReadScopes() : RuntimePrivateAccessSupport.adminReadScopes(), Duration.ofMinutes(5));
+    }
+
+    /** Exact previous/next frozen releases, with only the generation-transition worker scopes. */
+    @Transactional
+    public Map<String, String> issueGenerationTransitionHeaders(DeploymentEntity deployment,
+        DeploymentReleaseEntity nextRelease, String previousReleaseId, String expectedPreviousFingerprint, String operationId) {
+        if (nextRelease == null || Objects.equals(previousReleaseId, nextRelease.getId())) throw conflict("Distinct generation releases are required.");
+        if (!Objects.equals("replace:" + nextRelease.getId(), operationId)) throw conflict("Generation transition operation does not match the exact replacement.");
+        requireReleaseUnchangedForProvisioning(deployment,
+            versions.findById(required(nextRelease.getDeploymentVersionId())).orElseThrow(() -> conflict("Replacement version is unavailable.")), nextRelease);
+        var persistedNext = workerRelease(nextRelease.getId());
+        if (!"PROVISIONING".equals(persistedNext.getStatus()) || !"RUNNING".equals(persistedNext.getProvisioningStatus())) {
+            throw conflict("Generation transition requires the exact claimed provisioning release.");
+        }
+        var previous = workerRelease(required(previousReleaseId));
+        if (!deployment.getId().equals(previous.getDeploymentId()) || !nextRelease.getTargetProfileId().equals(previous.getTargetProfileId())) {
+            throw conflict("Release does not belong to the explicit deployment and target.");
+        }
+        if (!Objects.equals(expectedPreviousFingerprint, previous.getRuntimeAuthorityFingerprint())) throw conflict("Previous generation authority changed.");
+        var checked = requireReleaseUnchangedForProvisioning(deployment,
+            versions.findById(required(previous.getDeploymentVersionId())).orElseThrow(() -> conflict("Previous version is unavailable.")), previous);
+        requireProvisioned(previous);
+        return headers(checked.binding(), "platform-runtime-generation", "SYSTEM_PROCESS", operationId, false,
+            List.of("runtime:target-retirement:read", "runtime:target-retirement:write"), Duration.ofMinutes(5));
     }
 
     /**
@@ -409,12 +483,17 @@ public class DeploymentRuntimeAuthorityService {
 
     private RuntimeAuthorityBinding binding(DeploymentEntity deployment, DeploymentVersionEntity version,
                                              RuntimeAuthorityEntity authority, List<String> origins) {
+        return binding(deployment, version, authority, origins, null);
+    }
+
+    private RuntimeAuthorityBinding binding(DeploymentEntity deployment, DeploymentVersionEntity version,
+        RuntimeAuthorityEntity authority, List<String> origins, Map<String, PlatformSecretEntity> currentSecrets) {
         var refs = new EnumMap<RuntimeAuthorityPurpose, SecretRevision>(RuntimeAuthorityPurpose.class);
         var all = revisions(authority);
         for (var purpose : requiredPurposes(deployment, version)) {
             var revision = all.get(purpose);
             if (revision == null) throw conflict("Required target authority secret slot is missing.");
-            checkedSecret(authority, purpose, revision, integrity(authority));
+            checkedSecret(authority, purpose, revision, integrity(authority), currentSecrets);
             refs.put(purpose, revision);
         }
         try {
@@ -434,6 +513,12 @@ public class DeploymentRuntimeAuthorityService {
 
     private Snapshot checkedSnapshot(DeploymentEntity deployment, RuntimeAuthorityEntity authority,
                                       RuntimeAuthoritySnapshotEntity snapshot, String expectedFingerprint) {
+        return checkedSnapshot(deployment, authority, snapshot, expectedFingerprint, null, null);
+    }
+
+    private Snapshot checkedSnapshot(DeploymentEntity deployment, RuntimeAuthorityEntity authority,
+        RuntimeAuthoritySnapshotEntity snapshot, String expectedFingerprint, DeploymentVersionEntity currentVersion,
+        Map<String, PlatformSecretEntity> currentSecrets) {
         requireActive(authority);
         if (expectedFingerprint == null || !expectedFingerprint.equals(snapshot.getFingerprint())
             || !deployment.getId().equals(snapshot.getDeploymentId()) || !authority.getTargetProfileId().equals(snapshot.getTargetProfileId())) {
@@ -443,14 +528,20 @@ public class DeploymentRuntimeAuthorityService {
         if (!expectedFingerprint.equals(hash(write(frozen))) || !snapshot.getVersionId().equals(frozen.versionId())) {
             throw conflict("Frozen target authority metadata is inconsistent.");
         }
-        var current = binding(deployment, version(deployment, snapshot.getVersionId()), authority, frozen.allowedOrigins());
+        var current = binding(deployment, currentVersion == null ? version(deployment, snapshot.getVersionId()) : currentVersion,
+            authority, frozen.allowedOrigins(), currentSecrets);
         if (!expectedFingerprint.equals(hash(write(current)))) throw conflict("Target authority drifted; a new apply and verification is required.");
         return projection(snapshot, frozen);
     }
 
     private PlatformSecretEntity checkedSecret(RuntimeAuthorityEntity authority, RuntimeAuthorityPurpose purpose,
                                                 SecretRevision revision, Map<RuntimeAuthorityPurpose, String> integrity) {
-        var secret = ownedSecret(authority, purpose, revision);
+        return checkedSecret(authority, purpose, revision, integrity, null);
+    }
+
+    private PlatformSecretEntity checkedSecret(RuntimeAuthorityEntity authority, RuntimeAuthorityPurpose purpose,
+        SecretRevision revision, Map<RuntimeAuthorityPurpose, String> integrity, Map<String, PlatformSecretEntity> currentSecrets) {
+        var secret = ownedSecret(authority, purpose, revision, currentSecrets);
         if (secret.getUpdatedAt() == null || !secret.getUpdatedAt().toString().equals(revision.revision())
             || secret.getSecretValue() == null || secret.getSecretValue().isBlank()
             || !Objects.equals(integrity.get(purpose), hash(secret.getSecretValue()))) {
@@ -460,8 +551,14 @@ public class DeploymentRuntimeAuthorityService {
     }
 
     private PlatformSecretEntity ownedSecret(RuntimeAuthorityEntity authority, RuntimeAuthorityPurpose purpose, SecretRevision revision) {
+        return ownedSecret(authority, purpose, revision, null);
+    }
+
+    private PlatformSecretEntity ownedSecret(RuntimeAuthorityEntity authority, RuntimeAuthorityPurpose purpose, SecretRevision revision,
+        Map<String, PlatformSecretEntity> currentSecrets) {
         if (!reference(authority, purpose).equals(revision.reference())) throw conflict("Target secret reference ownership is inconsistent.");
-        var secret = secrets.findById(revision.reference()).orElseThrow(() -> conflict("Target authority secret is missing or revoked."));
+        var secret = currentSecrets == null ? secrets.findById(revision.reference()).orElse(null) : currentSecrets.get(revision.reference());
+        if (secret == null) throw conflict("Target authority secret is missing or revoked.");
         if (!authority.getDeploymentId().equals(secret.getDeploymentId()) || !secret.isManagedByPlatform()
             || secret.getScopeType() != PlatformSecretScopeType.DEPLOYMENT_MANAGED
             || secret.getOwnerType() != PlatformSecretOwnerType.PLATFORM_MANAGED) {
@@ -502,10 +599,11 @@ public class DeploymentRuntimeAuthorityService {
         if (scopes == null || scopes.isEmpty() || scopes.stream().anyMatch(s -> s == null || !s.matches("[a-z0-9][a-z0-9:_-]{0,127}"))) {
             throw new ResponseStatusException(BAD_REQUEST, "Explicit verified identity scopes are required.");
         }
-        var authority = authorities.findByDeploymentIdAndTargetProfileId(binding.deploymentId(), binding.targetProfileId()).orElseThrow();
+        var authority = workerAuthority(binding.deploymentId(), binding.targetProfileId());
         var integrity = integrity(authority);
-        String trustedKey = checkedSecret(authority, TRUSTED_BACKEND_API_KEY, binding.secrets().get(TRUSTED_BACKEND_API_KEY), integrity).getSecretValue();
-        String signingKey = checkedSecret(authority, PRIVATE_ASSERTION_SIGNING_KEY, binding.secrets().get(PRIVATE_ASSERTION_SIGNING_KEY), integrity).getSecretValue();
+        var currentSecrets = workerSecrets(authority);
+        String trustedKey = checkedSecret(authority, TRUSTED_BACKEND_API_KEY, binding.secrets().get(TRUSTED_BACKEND_API_KEY), integrity, currentSecrets).getSecretValue();
+        String signingKey = checkedSecret(authority, PRIVATE_ASSERTION_SIGNING_KEY, binding.secrets().get(PRIVATE_ASSERTION_SIGNING_KEY), integrity, currentSecrets).getSecretValue();
         var claims = new RuntimePrivateAssertionClaims(subject, subjectType,
             proxy ? "PLATFORM_PROXY_SESSION" : "PRIVATE_RUNTIME_BACKEND_MEDIATED", proxy ? "PLATFORM_PROXY" : "TRUSTED_BACKEND",
             session, binding.deploymentId(), binding.customerId(), binding.tenantId(), binding.privateIssuer(), Instant.now().plus(lifetime),
@@ -571,6 +669,42 @@ public class DeploymentRuntimeAuthorityService {
 
     private String reference(RuntimeAuthorityEntity authority, RuntimeAuthorityPurpose purpose) {
         return "MANAGED_RTA_" + purpose.name() + "_" + authority.getId().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private DeploymentReleaseEntity workerRelease(String id) {
+        return workerRow(DeploymentReleaseEntity.class, "select * from platform_deployment_releases where id=?",
+            () -> releases.findById(id).orElseThrow(() -> conflict("Frozen release is unavailable.")), id);
+    }
+
+    private RuntimeAuthorityEntity workerAuthority(String deploymentId, String targetProfileId) {
+        return workerRow(RuntimeAuthorityEntity.class,
+            "select * from platform_runtime_target_authorities where deployment_id=? and target_profile_id=?",
+            () -> authorities.findByDeploymentIdAndTargetProfileId(deploymentId, targetProfileId)
+                .orElseThrow(() -> conflict("Explicit target authority has not been generated.")), deploymentId, targetProfileId);
+    }
+
+    private Map<String, PlatformSecretEntity> workerSecrets(RuntimeAuthorityEntity authority) {
+        if (workerReadback == null) return null;
+        var current = new LinkedHashMap<String, PlatformSecretEntity>();
+        for (var revision : revisions(authority).values()) {
+            var secret = workerRow(PlatformSecretEntity.class, "select * from platform_secrets where name=?",
+                () -> secrets.findById(revision.reference()).orElseThrow(), revision.reference());
+            current.put(revision.reference(), secret);
+        }
+        return current;
+    }
+
+    private <T> T workerRow(Class<T> type, String select, Supplier<T> directFixture, Object... parameters) {
+        if (workerReadback == null) {
+            // Direct-constructor mock fixtures have no persistence context. A transactional
+            // production invocation must never fall back to potentially cached entity reads.
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
+                throw conflict("Authoritative worker readback is unavailable.");
+            return directFixture.get();
+        }
+        var rows = workerReadback.query(select, BeanPropertyRowMapper.newInstance(type), parameters);
+        if (rows.size() != 1) throw conflict("Exact frozen worker authority row is unavailable.");
+        return rows.getFirst();
     }
 
     private Map<RuntimeAuthorityPurpose, SecretRevision> revisions(RuntimeAuthorityEntity authority) {

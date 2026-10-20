@@ -157,13 +157,11 @@ public class DeploymentRuntimeGenerationService {
             || !previousReleaseId.equals(snapshot.getReleaseId())) {
             throw failure("RUNTIME_GENERATION_PREVIOUS_AUTHORITY_SCOPE_INVALID");
         }
-        return new Scope(deployment.getId(), nextRelease.getTargetProfileId(), previousReleaseId, snapshot.getFingerprint());
+        return new Scope(deployment, nextRelease, previousReleaseId, snapshot.getFingerprint());
     }
 
     private Map<String, String> headers(Scope scope, String operationId) {
-        return authority.issueSystemHeaders(scope.deploymentId(), scope.targetProfileId(), scope.releaseId(),
-            scope.authorityFingerprint(), "platform-runtime-generation", operationId,
-            List.of(READ_SCOPE, WRITE_SCOPE), HEADER_TTL);
+        return authority.issueGenerationTransitionHeaders(scope.deployment(), scope.nextRelease(), scope.previousReleaseId(), scope.authorityFingerprint(), operationId);
     }
 
     private void validate(Readback readback, Target target, String tenantId) {
@@ -245,7 +243,7 @@ public class DeploymentRuntimeGenerationService {
     public record RemoteDependencyEvidence(Map<String, String> readbacks) {
         public RemoteDependencyEvidence { readbacks = readbacks == null ? Map.of() : Map.copyOf(readbacks); }
     }
-    private record Scope(String deploymentId, String targetProfileId, String releaseId,
+    private record Scope(DeploymentEntity deployment, DeploymentReleaseEntity nextRelease, String previousReleaseId,
                          String authorityFingerprint) { }
     @FunctionalInterface interface Sleeper { void sleep(long millis) throws InterruptedException; }
 }

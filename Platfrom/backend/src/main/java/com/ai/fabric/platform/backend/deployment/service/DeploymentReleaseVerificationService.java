@@ -975,12 +975,7 @@ public class DeploymentReleaseVerificationService {
 
     private Map<String, String> runtimeAdminHeaders(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         if (runtimeAuthorityService != null) {
-            return runtimeAuthorityService.issueSystemHeaders(
-                deployment.getId(), release.getTargetProfileId(), release.getId(),
-                release.getRuntimeAuthorityFingerprint(), "platform-release-verification",
-                "release-verification-" + release.getId(), RuntimePrivateAccessSupport.adminReadScopes(),
-                Duration.ofMinutes(15)
-            );
+            return runtimeAuthorityService.issueReleaseVerificationHeaders(deployment, release, false);
         }
         // Direct-constructor unit fixtures predate target authority injection; Spring production always injects it.
         return RuntimePrivateAccessSupport.issueSystemHeaders(
@@ -997,12 +992,7 @@ public class DeploymentReleaseVerificationService {
 
     private Map<String, String> runtimeDocumentReadHeaders(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         if (runtimeAuthorityService != null) {
-            return runtimeAuthorityService.issueSystemHeaders(
-                deployment.getId(), release.getTargetProfileId(), release.getId(),
-                release.getRuntimeAuthorityFingerprint(), "platform-release-verification",
-                "document-release-verification-" + release.getId(), RuntimePrivateAccessSupport.documentReadScopes(),
-                Duration.ofMinutes(15)
-            );
+            return runtimeAuthorityService.issueReleaseVerificationHeaders(deployment, release, true);
         }
         return RuntimePrivateAccessSupport.issueSystemHeaders(
             platformSecretService,

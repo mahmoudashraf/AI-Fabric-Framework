@@ -283,8 +283,7 @@ public class DeploymentReleaseExecutionService {
 
         if (com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationRequirement
             .required(readJson(version.getCompositionProvenanceJson()))) {
-            transactionOperations.executeWithoutResult(status -> externalIntegrations.releaseEnvironment(deploymentId,
-                versionId, release.getTargetProfileId(), releaseId, release.getRuntimeAuthorityFingerprint()));
+            transactionOperations.executeWithoutResult(status -> externalIntegrations.releaseEnvironmentForProvisioning(deployment, version, release));
         }
         if (admissionReleaseCoordinator != null) admissionReleaseCoordinator.beginProvisioning(releaseId);
         transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));

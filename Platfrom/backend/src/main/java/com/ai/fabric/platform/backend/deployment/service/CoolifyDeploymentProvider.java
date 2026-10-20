@@ -2958,8 +2958,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         if (!SERVICE_ROLE_CONNECTOR.equals(serviceRole)) return;
         if (!com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationRequirement
             .required(readJson(version.getCompositionProvenanceJson()))) return;
-        var plan = externalIntegrations.releaseEnvironment(deployment.getId(), version.getId(), release.getTargetProfileId(),
-            release.getId(), release.getRuntimeAuthorityFingerprint());
+        var plan = externalIntegrations.releaseEnvironmentForProvisioning(deployment, version, release);
         plan.configEnvironment().forEach((name, value) -> {
             if (env.containsKey(name)) throw new IllegalStateException("EXTERNAL_INTEGRATION_ENVIRONMENT_COLLISION");
             putEnv(env, name, value, false);

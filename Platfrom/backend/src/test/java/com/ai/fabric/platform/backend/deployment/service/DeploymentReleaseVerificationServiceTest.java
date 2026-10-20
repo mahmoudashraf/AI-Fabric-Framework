@@ -56,6 +56,20 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
+    @Test void asynchronousVerificationUsesOnlyTheTypedWorkerHeaderBoundary() {
+        var service = releaseVerificationService(mock(PlatformSecretService.class), mock(DeploymentArtifactService.class));
+        var authority = mock(com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService.class);
+        ReflectionTestUtils.setField(service, "runtimeAuthorityService", authority);
+        var deployment = deployment("https://runtime.example", null); var release = release();
+        when(authority.issueReleaseVerificationHeaders(deployment, release, false)).thenReturn(Map.of("test", "read-only"));
+        when(authority.issueReleaseVerificationHeaders(deployment, release, true)).thenReturn(Map.of("test", "documents"));
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "runtimeAdminHeaders", deployment, release)).isEqualTo(Map.of("test", "read-only"));
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "runtimeDocumentReadHeaders", deployment, release)).isEqualTo(Map.of("test", "documents"));
+        org.mockito.Mockito.verify(authority).issueReleaseVerificationHeaders(deployment, release, false);
+        org.mockito.Mockito.verify(authority).issueReleaseVerificationHeaders(deployment, release, true);
+        org.mockito.Mockito.verifyNoMoreInteractions(authority);
+    }
+
     @Test
     void tokenSecretVerificationUsesOnlyConfiguredReferenceAndSafePurposeMetadata() throws Exception {
         var secrets = mock(PlatformSecretService.class);

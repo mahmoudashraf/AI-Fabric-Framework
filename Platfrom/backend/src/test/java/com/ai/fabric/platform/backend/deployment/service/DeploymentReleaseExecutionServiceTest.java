@@ -47,6 +47,19 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
 
+    @Test void externalIntegrationWorkerUsesTypedAuthorityBeforeAdmissionBudgetAndProviderEffects() {
+        var fixture = new BindingApplyFixture();
+        fixture.version.setCompositionProvenanceJson("{\"externalIntegrationProfiles\":[{\"profileId\":\"reviewed\"}]}");
+        var external = mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);
+        ReflectionTestUtils.setField(fixture.service, "externalIntegrations", external);
+        var denial = new IllegalStateException("EXACT_FROZEN_RELEASE_CHANGED");
+        org.mockito.Mockito.doThrow(denial).when(external).releaseEnvironmentForProvisioning(fixture.deployment, fixture.version, fixture.release);
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).isSameAs(denial);
+        verify(external).releaseEnvironmentForProvisioning(fixture.deployment, fixture.version, fixture.release);
+        verify(external, never()).releaseEnvironment(any(), any(), any(), any(), any());
+        fixture.assertNoProviderEffects();
+    }
+
     @Test
     void customerSqlBindingDriftBlocksBeforeAdmissionBudgetOrProviderEffects() {
         var fixture = new BindingApplyFixture();

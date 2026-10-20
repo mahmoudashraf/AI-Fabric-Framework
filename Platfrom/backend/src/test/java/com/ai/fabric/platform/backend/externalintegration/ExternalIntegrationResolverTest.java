@@ -119,4 +119,23 @@ class ExternalIntegrationResolverTest {
         assertThatThrownBy(() -> f.resolver.releaseEnvironment(f.deployment.getId(), f.version.getId(), f.target.getId(), "release-generic", "authority-fingerprint"))
             .hasMessageContaining("BINDING_STALE_OR_FOREIGN");
     }
+
+    @Test void workerEnvironmentUsesExactTypedAuthorityAndNeverTheOperatorMethod() throws Exception {
+        var f = new ExternalIntegrationFixture(); f.bind(); f.release();
+        f.resolver.freezeRelease(f.deployment.getId(), f.version.getId(), f.target.getId(), "release-generic", "authority-fingerprint");
+        var release = f.releases.findById("release-generic").orElseThrow();
+        release.setRuntimeAuthorityFingerprint("authority-fingerprint");
+        var checked = f.authority.requireReleaseUnchanged(f.deployment.getId(), f.target.getId(), release.getId(), "authority-fingerprint");
+        when(f.authority.requireReleaseUnchangedForProvisioning(f.deployment, f.version, release)).thenReturn(checked);
+        clearInvocations(f.authority); SecurityContextHolder.clearContext();
+        assertThat(f.resolver.releaseEnvironmentForProvisioning(f.deployment, f.version, release).secretEnvironment()).hasSize(1);
+        verify(f.authority).requireReleaseUnchangedForProvisioning(f.deployment, f.version, release);
+        verify(f.authority, never()).requireReleaseUnchanged(any(), any(), any(), any());
+        int before = f.dnsCalls.get();
+        doThrow(new IllegalStateException("FROZEN_AUTHORITY_CHANGED")).when(f.authority)
+            .requireReleaseUnchangedForProvisioning(f.deployment, f.version, release);
+        assertThatThrownBy(() -> f.resolver.releaseEnvironmentForProvisioning(f.deployment, f.version, release))
+            .hasMessage("FROZEN_AUTHORITY_CHANGED");
+        assertThat(f.dnsCalls.get()).isEqualTo(before);
+    }
 }

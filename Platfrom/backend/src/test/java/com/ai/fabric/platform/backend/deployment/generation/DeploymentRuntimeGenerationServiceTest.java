@@ -45,8 +45,8 @@ class DeploymentRuntimeGenerationServiceTest {
         snapshot.setId("authority-old"); snapshot.setDeploymentId("dep-1"); snapshot.setTargetProfileId("staging");
         snapshot.setVersionId("version-old"); snapshot.setReleaseId("release-old"); snapshot.setFingerprint("a".repeat(64));
         when(snapshots.findByReleaseId("release-old")).thenReturn(Optional.of(snapshot));
-        when(authority.issueSystemHeaders(eq("dep-1"), eq("staging"), eq("release-old"), eq("a".repeat(64)),
-            anyString(), anyString(), anyList(), any())).thenReturn(Map.of("Authorization", "private"));
+        when(authority.issueGenerationTransitionHeaders(deployment, next, "release-old", "a".repeat(64), "replace:release-new"))
+            .thenReturn(Map.of("Authorization", "private"));
     }
 
     @Test void drainsFencesAndAdoptsExactGenerationWithoutPersistingHeaders() {
@@ -78,6 +78,8 @@ class DeploymentRuntimeGenerationServiceTest {
             "c".repeat(64), "coolify-stop:runtime-uuid:2026-10-14T12:00:00Z");
         assertThat(result.current().target().releaseId()).isEqualTo("release-new");
         assertThat(result.current().fenceEpoch()).isEqualTo(4);
+        verify(authority, atLeastOnce()).issueGenerationTransitionHeaders(deployment, next, "release-old", "a".repeat(64), "replace:release-new");
+        verify(authority, never()).issueSystemHeaders(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test void remoteObligationsRequireAuthoritativeEvidenceBeforeFencing() {

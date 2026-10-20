@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding.Snapshot;
 
 import static com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.*;
 import static com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy.conflict;
@@ -97,6 +99,21 @@ public class ExternalIntegrationResolver {
     @Transactional(propagation = Propagation.REQUIRED, timeout = 15)
     public ReleaseEnvironment releaseEnvironment(String deploymentId, String versionId, String targetId,
                                                   String releaseId, String expectedAuthorityFingerprint) {
+        return releaseEnvironment(deploymentId, versionId, targetId, releaseId, expectedAuthorityFingerprint,
+            () -> authority.requireReleaseUnchanged(deploymentId, targetId, releaseId, expectedAuthorityFingerprint));
+    }
+
+    /** Internal provisioning boundary; does not turn a missing request principal into API authority. */
+    @Transactional(propagation = Propagation.REQUIRED, timeout = 15)
+    public ReleaseEnvironment releaseEnvironmentForProvisioning(DeploymentEntity deployment,
+        DeploymentVersionEntity version, DeploymentReleaseEntity release) {
+        if (deployment == null || version == null || release == null) throw conflict("RELEASE_SCOPE_MISMATCH");
+        return releaseEnvironment(deployment.getId(), version.getId(), release.getTargetProfileId(), release.getId(),
+            release.getRuntimeAuthorityFingerprint(), () -> authority.requireReleaseUnchangedForProvisioning(deployment, version, release));
+    }
+
+    private ReleaseEnvironment releaseEnvironment(String deploymentId, String versionId, String targetId,
+        String releaseId, String expectedAuthorityFingerprint, Supplier<Snapshot> checkedAuthority) {
         Context context = context(deploymentId, versionId, targetId);
         if (!required(context)) {
             if (store.snapshot(releaseId).isPresent()) throw conflict("FROZEN_RELEASE_CHANGED");
@@ -105,7 +122,7 @@ public class ExternalIntegrationResolver {
         store.fenceDeployment(deploymentId);
         context = context(deploymentId, versionId, targetId);
         fenceEntitlement(context);
-        requireRelease(context, releaseId, expectedAuthorityFingerprint);
+        requireRelease(context, releaseId, expectedAuthorityFingerprint, checkedAuthority);
         List<Projection> current = resolve(context, true);
         if (current.isEmpty()) {
             if (store.snapshot(releaseId).isPresent()) throw conflict("FROZEN_RELEASE_CHANGED");
@@ -133,8 +150,7 @@ public class ExternalIntegrationResolver {
         boolean frozen = store.snapshot(release.getId()).isPresent();
         if (!required && !frozen) return;
         if (!required) throw conflict("FROZEN_RELEASE_CHANGED");
-        releaseEnvironment(deployment.getId(), version.getId(), release.getTargetProfileId(),
-            release.getId(), release.getRuntimeAuthorityFingerprint());
+        releaseEnvironmentForProvisioning(deployment, version, release);
     }
 
     private Context context(String deploymentId, String versionId, String targetId) {
@@ -211,12 +227,19 @@ public class ExternalIntegrationResolver {
     }
 
     private void requireRelease(Context context, String releaseId, String expectedFingerprint) {
+        requireRelease(context, releaseId, expectedFingerprint,
+            () -> authority.requireReleaseUnchanged(context.deployment().getId(), context.targetId(), releaseId, expectedFingerprint));
+    }
+
+    private void requireRelease(Context context, String releaseId, String expectedFingerprint, Supplier<Snapshot> checkedAuthority) {
         var release = releases.findById(releaseId).filter(value -> context.deployment().getId().equals(value.getDeploymentId())
             && context.version().getId().equals(value.getDeploymentVersionId()) && context.targetId().equals(value.getTargetProfileId()))
             .orElseThrow(() -> conflict("RELEASE_SCOPE_MISMATCH"));
-        var snapshot = authority.requireReleaseUnchanged(context.deployment().getId(), context.targetId(), release.getId(), expectedFingerprint);
+        var snapshot = checkedAuthority.get();
         var binding = snapshot.binding();
-        if (!context.deployment().getCustomerId().equals(binding.customerId()) || !context.deployment().getTenantId().equals(binding.tenantId())
+        if (!release.getId().equals(snapshot.releaseId()) || !context.deployment().getId().equals(binding.deploymentId())
+            || !context.targetId().equals(binding.targetProfileId())
+            || !context.deployment().getCustomerId().equals(binding.customerId()) || !context.deployment().getTenantId().equals(binding.tenantId())
             || !context.version().getId().equals(binding.versionId()) || !context.version().getConfigHash().equals(binding.versionConfigHash())
             || !expectedFingerprint.equals(snapshot.fingerprint())) throw conflict("RUNTIME_AUTHORITY_SCOPE_MISMATCH");
     }

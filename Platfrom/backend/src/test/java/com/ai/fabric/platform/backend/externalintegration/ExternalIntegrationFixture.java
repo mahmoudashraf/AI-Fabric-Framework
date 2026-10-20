@@ -166,10 +166,13 @@ class ExternalIntegrationFixture {
     void release() {
         var release = new DeploymentReleaseEntity(); release.setId("release-generic"); release.setDeploymentId(deployment.getId());
         release.setDeploymentVersionId(version.getId()); release.setTargetProfileId(target.getId());
+        release.setRuntimeAuthoritySnapshotId("authority-snapshot"); release.setRuntimeAuthorityFingerprint("authority-fingerprint");
         when(releases.findById(release.getId())).thenReturn(Optional.of(release));
         var binding = new RuntimeAuthorityBinding(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), target.getId(), version.getId(),
             version.getConfigHash(), 1, "private", "private-audience", "public", "public-audience", true, true, List.of(), Map.of());
         when(authority.requireReleaseUnchanged(deployment.getId(), target.getId(), release.getId(), "authority-fingerprint"))
+            .thenReturn(new RuntimeAuthorityBinding.Snapshot("authority-snapshot", release.getId(), "authority-fingerprint", binding));
+        when(authority.requireReleaseUnchangedForProvisioning(deployment, version, release))
             .thenReturn(new RuntimeAuthorityBinding.Snapshot("authority-snapshot", release.getId(), "authority-fingerprint", binding));
     }
     void customer() { authenticate(PlatformRole.CUSTOMER_ADMIN, "owner"); }
