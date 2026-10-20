@@ -8,6 +8,70 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 17:40 UTC Explicit Profile Adoption Backend Verified On Both Control Planes
+
+- Backend-only b4d1cfe065ba08aac4d579eb755925f6bb6e2a7d is committed,
+  pushed and live on staging/production, exact image c7ed7bc060ee1ae35e51fd0fad2da281cfb15b57326192f074b9d74ca7c75eb5.
+  One focused run passes152 cases/65 actual PostgreSQL, zero failures/errors/
+  skips. Five-file independent review is clear; CI39465068990 succeeds, UI job
+  skipped. Main verifies five XML suites, qualified JAR and1924 Git inputs plus
+  two separately identified ignored metadata records. Framework/runtime unchanged.
+- Stage native jobv3fzyfgclrt19b5r5o3rzg10 verifies17:36:15, production
+  xywzx9leenbizebtqy8q7xyt verifies17:39:38. Schema206/UP, all139 raw tables,
+  history, financial state and effective configuration are preserved after fresh
+  Platform-only backups. Closure17:40:07 SHA94e6fc19...55ca2 in private
+  explicit-workspace-profile-adoption-20261020. Completed jobs must not replay.
+- Optional selectedWorkspaceProfileId explicitly adopts only an exact immutable
+  destination-offer profile, preserving identity/slug/origins/domains. No silent
+  key substitution or weaker authorization. Original keep-settings403 remains
+  preserved/reconciled and is not retried. New owner profile-selection command
+  is being prepared; assignment/new version are NOT yet verified.
+- Actual five-minute post2da host measurements back a normal fleet-policy
+  publication verified17:28:08, FP9724b6da...fc01, valid19:06:27UTC. Physical
+  quota/funding/history remain unchanged; no charged reservation or allocation.
+  Actual native review, not redated reports or a startup-capacity claim.
+- Functional UI59 tests, TypeScript and10 loopback browser scenarios pass;
+  latest profile/durable-hold changes are frozen, not hosted/P6. Receiver runner
+  real closure-format mismatch is being corrected before any mutation. Customer
+  external bindings, empty Free01 binding handoff (NO vector records), first
+  apply, hosted P5/promotion/P7 and final reversible UI extraction remain OPEN.
+  Four agents are resumed; no user material missing; firewall stays OPEN.
+
+## 2026-10-20 17:09 UTC Source Live; Customer Profile Alignment Remains Open
+
+- Exact2da841301/imagee6127cbfa2ac9d9ca091c0fb961a495a8837f853d97fb8d3caaabc4faeb97a53
+  is verified on bothCPs/schema206/UP. Stagejoblaheyo1f8dvpt5upvp7byzsf
+  verifies16:52:15, container91771e7ae237; prodjoby7nqwjcpaoj3zbxrstq3jhy1
+  verifies16:57:41, container88807ed8d2d8. All139 tables/raw audits/config/
+  effective env/financial history remain unchanged. Fresh Platform-only backups
+  precede each rollout. Closure16:58:45 SHA73e38764...2c11 is in private
+  existing-consumer-source-rollout-20261020. Both native jobs are COMPLETE;
+  never replay them. Framework/runtime/UI artifacts unchanged, firewall OPEN.
+- Initial read-only image collection stops on a GHCR blob redirect; source and
+  failure remain. Separate image-r2 follows only bounded HTTPS digest-bound
+  registry download redirects without forwarding bearer credentials off GHCR.
+  Immutable registry/source/CI proof passes; exact qualified OS/tool layers and
+  Dockerfile/effective image config are inherited, not new SSH execution.
+- One normal customer configuration POST returns403 SETTING_FORBIDDEN17:00:31.
+  Preserve its intent/response; NEVER retry it. Ten fresh owner GETs reconcile
+  exact unchanged app/consumer/draft/offer/storage/install/version/release state.
+  Structured settings match except the Supabase public key: existing app uses
+  valid legacy anon key; reviewed new offer uses valid publishable key. Both
+  return Auth settings200 for SAME project. This is not a Supabase outage.
+- New generic explicit profile-adoption choice is being implemented: optional
+  expectedDraftWorkspaces[].selectedWorkspaceProfileId; omission/null preserves
+  saved settings. Provided ID must resolve the immutable destination offer's
+  reviewed profile. Normal APP/AUTH/DOMAIN validation runs before transactional
+  app update/binding; identity/slug/origins/domain rows remain. No automatic
+  migration, policy relaxation, admin fallback or raw config input. Main owns
+  three production files/Maven; Confucius owns two tests; Faraday owns UI.
+  Main source-only compile passes17:08; tests/review/package/deploy pending.
+- New deployment still CONFIGURATION_ONLY, consumer unbound revision2, appDRAFT
+  rowVersion0, NO version/admission/runtime/index/model usage. Actual fresh
+  capacity collection is authorized after closure for policy renewal; expired
+  old17:04 policy cannot authorize apply. Receiver cutover/handoff remain prep.
+  Hosted apply/P5/promotion/P7 and final reversible UI extraction stay OPEN.
+
 ## 2026-10-20 16:44 UTC Existing-App Assignment Qualified And Pushed
 
 - Backend-only commit2da8413010ad71c04afe25956485dea3b8886da5 is pushed.

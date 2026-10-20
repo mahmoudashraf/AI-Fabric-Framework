@@ -1,5 +1,32 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Hosted checkpoint,20October17:40UTC: explicit reviewed-profile adoption
+  backendb4d1cfe06/imagec7ed7bc0 is verified on BOTH control planes/schema206/UP,
+ 152 focused cases/65 actualPG pass, independent review clear, CI39465068990
+  backend succeeds/UI skipped. Fresh backups and all139-table/config/financial
+  preservation pass; source-only maintenance closes17:40:07. Original403 stays
+  preserved, not retried; new explicit profile-choice command is preparing,
+  not yet accepted. Normal renewed fleet policyFP9724b6da is verified17:28,
+  valid19:06:27, unchanged physical quota/funding. Latest functional UI59tests/
+  TypeScript/10 loopback browser scenarios pass, not hosted/P6. Receiver actual
+  closure-format integration is being corrected before mutation. Scoped external
+  bindings, empty binding handoff with NO record copying, first apply, hosted
+  P5/promotion/P7 and reversible UI extraction LAST remain open. No framework/
+  runtime release or paid/model work occurs this cycle; no missing user material.
+
+- Hosted checkpoint,20October17:09UTC: bothCPs verify2da841301/imagee6127cbf,
+  schema206/UP; maintenance closes16:58:45 preserving all139 tables/history/
+  configuration/financial state. Completed native rollout jobs are not replayed.
+  One normal owner assignment command returns403SETTING_FORBIDDEN17:00:31;
+  ten read-only owner readbacks prove no configuration effect. Existing app's
+  valid legacy Supabase anon key differs from the new offer's valid publishable
+  key for the SAME project. No Supabase outage or auth fallback. Generic explicit
+  reviewed-profile adoption is being implemented, normal APP/AUTH/DOMAIN checks
+  retained, no automatic key change/admin bypass. Source compile passes; tests/
+  review/package/deploy remain. New deployment is still configuration-only, app
+  DRAFT/unbound, noV/runtime/index/model. Fresh capacity-policy renewal, external
+  cutover/handoff/apply, hosted P5/promotion/P7 and UI extraction LAST remain.
+
 - Source checkpoint,20October16:44UTC: generic existing-app configuration-only
   assignment is committed/pushed2da841301,124 focused cases/51 actualPG and
   package pass. Independent source review has no remaining P1/P2 after adding

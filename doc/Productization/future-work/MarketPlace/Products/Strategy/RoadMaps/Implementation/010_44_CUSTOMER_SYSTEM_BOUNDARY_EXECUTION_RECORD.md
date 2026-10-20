@@ -1,5 +1,60 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 17:40 UTC Explicit Profile Adoption Qualified And Live
+
+- Generic five-file backendb4d1cfe065ba08aac4d579eb755925f6bb6e2a7d is
+  pushed. Actual single focused run152 cases/65PG/zero failures/errors/skips
+  passes; independent review clear, CI39465068990 backend succeeds/UI skipped.
+  Qualified JAR97abd8bb...d85e, source-bound imagec7ed7bc0...75eb5. No framework,
+  runtime artifact or database migration change.
+- Stage verifies17:36:15/nativeb0d95f9dfc31/jobv3fzyfgclrt19b5r5o3rzg10;
+  production17:39:38/native1640155bcd41/jobxywzx9leenbizebtqy8q7xyt.
+  Both206/UP; fresh Platform-only backups precede normal non-force updates.
+  All139 raw tables/history/financial/config/env remain exact. Source-only
+  closure17:40:07 SHA94e6fc19...55ca2; completed jobs cannot be replayed.
+- Explicit profile selection retains normal APP/AUTH/DOMAIN and owner/revision/
+  unused-draft checks. No selection keeps saved settings; selected ID resolves
+  exact reviewed offer profile. App update and canonical binding/origin/audits
+  share one transaction. Identity/slug/origins/domain records cannot change.
+  Old403 no-effect journal is preserved; a new explicit-choice owner command
+  is preparing, not yet accepted. No admin/SQL repair or hidden fallback.
+- Fresh actual five-minute stage/prod measurements are normally published17:28,
+  policyFP9724b6da...fc01 valid19:06:27UTC. Original physical ceilings/quota/
+  funding/zero charged reservations remain. No report redating or startup proof.
+- Latest functional UI59tests/tsc/10 loopback scenarios pass; not hosted/P6.
+  Receiver tool real closure-format gap is corrected before mutation, not by
+  relabeling evidence. NewV/external bindings/empty Free01 handoff/first apply,
+  hosted recovery/promotion/P7 and final reversible UI extraction remain OPEN.
+  No vector records, business data, runtime or model work is transferred/started.
+
+## 2026-10-20 17:09 UTC Source Rollout Verified; Explicit Profile Adoption Needed
+
+- Both control planes verify2da841301/e6127cbf/schema206/UP. Staging verifies
+  16:52:15, production16:57:41; source-only maintenance closes16:58:45 with
+  all139 tables/raw history/financial/configuration/effective env preserved.
+  Private closure SHA73e38764...2c11. Both normal native jobs are complete and
+  may never be replayed. Platform-only backups are private; no customer business
+  DB/Coolify backup, framework/runtime/UI rollout or new model usage occurs.
+- Customer configuration command is dispatched ONCE and denied403
+  SETTING_FORBIDDEN17:00:31. Ten exact normal owner readbacks prove unchanged
+  configuration state; original intent/response stay preserved, no retry. The
+  only differing structured profile setting is the Supabase public key. Both
+  stored legacy anon key and reviewed publishable key are valid for SAME project
+  (actual Auth settings200 each, no key values recorded in diagnostic output).
+- An explicit reviewed-profile adoption option is now being added to the generic
+  configuration contract, not a dealership workaround. Absent/null selection
+  keeps saved settings; a provided profile ID resolves only the destination
+  offer's immutable reviewed profile. All normal APP/AUTH/DOMAIN checks remain;
+  app identity/slug/origins/domain records cannot change. Adoption and binding
+  are transactional, caller-reviewed, revision-fenced and replay-safe. No admin
+  fallback, silent key replacement or policy widening. Main compile passes;
+  focused tests, independent review and source publication are pending.
+- New customer remains configuration-only/unbound, appDRAFT row0, no version,
+  reservation, graph, runtime, index or model. Fresh post-rollout capacity
+  collection is authorized for the expired policy's normal renewal. Receiver
+  cutover/scoped external approvals/empty binding handoff, hosted P5/promotion/P7
+  and final reversible UI extraction remain open. No vector records transfer.
+
 ## 2026-10-20 16:44 UTC Configuration-Only Assignment Source Qualified
 
 - Normal customer existing-consumer configuration route is committed/pushed
