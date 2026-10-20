@@ -64,6 +64,8 @@ import {
   publishCustomerDeploymentVersion,
   planCustomerPreparedFailureRecovery,
   recoverCustomerPreparedFailure,
+  planCustomerFailedApplyRetry,
+  retryCustomerFailedApply,
   requestDeploymentPracticalProductionApply,
   reserveCustomerDeploymentAdmission,
   rollbackDeploymentPracticalProductionConsumer,
@@ -78,6 +80,9 @@ import {
   type CustomerPreparedFailureRecoveryPlanRequest,
   type CustomerPreparedFailureRecoveryPlan,
   type CustomerPreparedFailureRecoverySummary,
+  type CustomerFailedApplyRetryPlanRequest,
+  type CustomerFailedApplyRetryPlan,
+  type CustomerFailedApplyRetrySummary,
   type DeploymentPracticalPromotionSummary,
   type DeploymentReleaseSummary,
   type DeploymentVersionSummary,
@@ -401,6 +406,10 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
   const recoveryResult = useScopedOneTimeValue<CustomerPreparedFailureRecoverySummary>(JSON.stringify([
     session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
     selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id,
+  ]))
+  const failedRetryResult = useScopedOneTimeValue<CustomerFailedApplyRetrySummary>(JSON.stringify([
+    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
+    selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id, stagingRelease?.id,
   ]))
   const candidateScope = JSON.stringify({ deploymentId: selectedDeploymentId,
     targetProfileId: selectedProductionTargetProfileId, stagingReleaseId: stagingRelease?.id,
@@ -1139,6 +1148,22 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
                   {recoveryResult.value ? <Alert severity="success" sx={{ overflowWrap: 'anywhere' }}>
                     Prepared failure reconciled. Receipt {recoveryResult.value.receiptId}. Prepared resources and allowance are retained; the original release remains FAILED. No provider retry or financial mutation was performed.
                   </Alert> : null}
+                  <FailedApplyRetryPanel session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
+                    targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
+                    available={!stagingApply.isPending && !retirementStarted && admissionsQuery.isSuccess && !admissionsQuery.isFetching
+                      && releasesQuery.isSuccess && !releasesQuery.isFetching && catalogueQuery.isSuccess && !catalogueQuery.isFetching}
+                    onAuthorized={async (receipt, scope) => {
+                      failedRetryResult.publish(failedRetryResult.capture(), receipt)
+                      setAdmission(current => current?.id === scope.reservationId ? null : current)
+                      await Promise.all([
+                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
+                          scope.deploymentId, scope.targetProfileId], exact: true }),
+                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
+                      ])
+                    }} />
+                  {failedRetryResult.value ? <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>
+                    Owned-service redeploy authorized. Receipt {failedRetryResult.value.receiptId}. Runtime and connector redeploy on the same release and reservation, retaining resources and allowance. Deployment completion is not yet verified.
+                  </Alert> : null}
                   <KnownNoEffectSettlementPanel
                     key={JSON.stringify([session.actorId, session.authenticationMode, customerId])}
                     authority={{ actorId: session.actorId ?? '', customerId, authenticationMode: session.authenticationMode }}
@@ -1558,6 +1583,132 @@ function PreparedFailureReview({ scope, onRecovered }: { scope: PreparedFailureR
         disabled={pending !== null || held || Boolean(protectionError)} onChange={event => setConfirmed(event.target.checked)} />} />
       <Button variant="outlined" startIcon={<CheckCircleRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
         disabled={!confirmed || pending !== null || held || Boolean(protectionError)} onClick={() => void recover()}>Recover prepared failure</Button>
+    </> : null}
+  </Stack>
+}
+
+type FailedApplyRetryReview = { scope: PreparedFailureRecoveryScope; plan: CustomerFailedApplyRetryPlan; commandBody: string }
+export const failedApplyRetryHoldScope = (scope: PreparedFailureRecoveryScope) => JSON.stringify(['FAILED_APPLY_RETRY', scope.customerId, scope.reservationId])
+
+export function prepareCustomerFailedApplyRetry(scope: PreparedFailureRecoveryScope,
+  request: CustomerFailedApplyRetryPlanRequest, response: CustomerFailedApplyRetryPlan): FailedApplyRetryReview {
+  if (response?.boundary !== 'INITIAL_COOLIFY_CONNECTOR_STARTUP_FAILURE_V1') throw new Error('Unsupported owned-service retry boundary.')
+  if (request.acceptOwnedServiceRedeploy !== true || response?.command?.acceptOwnedServiceRedeploy !== true
+    || !Array.isArray(response.redeployedServiceRoles) || JSON.stringify([...response.redeployedServiceRoles].sort()) !== '["connector","runtime"]') {
+    throw new Error('Explicit redeploy acceptance and both owned runtime and connector roles are required.')
+  }
+  const reviewed = prepareCustomerFailureRecovery(scope, request, response)
+  return { ...reviewed, plan: structuredClone(response) }
+}
+
+export function confirmedCustomerFailedApplyRetry(scope: PreparedFailureRecoveryScope, prepared: FailedApplyRetryReview, confirmed: boolean) {
+  confirmedCustomerFailureRecovery(scope, prepared, confirmed)
+  return prepared.plan.command
+}
+
+export function checkedCustomerFailedApplyRetryReceipt(prepared: FailedApplyRetryReview,
+  receipt: CustomerFailedApplyRetrySummary): CustomerFailedApplyRetrySummary {
+  if (!receipt || !recoveryText(receipt.receiptId) || receipt.reservationId !== prepared.scope.reservationId
+    || receipt.generation !== prepared.plan.command.fence.generation || receipt.fromRevision !== prepared.scope.revision
+    || receipt.revision !== prepared.scope.revision + 1 || receipt.releaseId !== prepared.scope.releaseId
+    || receipt.status !== 'APPLY_REQUESTED' || receipt.financialMutationPerformed !== false
+    || !Array.isArray(receipt.retainedAllocationIds) || !receipt.retainedAllocationIds.every(recoveryText)
+    || receipt.retainedAllocationIds.length !== 1
+    || new Set(receipt.retainedAllocationIds).size !== receipt.retainedAllocationIds.length
+    || !recoveryText(receipt.authorizedAt) || !Number.isFinite(Date.parse(receipt.authorizedAt))) {
+    throw new Error('Redeploy authorization response is unconfirmed. Do not resubmit; reconcile the original command.')
+  }
+  return receipt
+}
+
+type FailedApplyRetryPanelProps = Omit<PreparedFailurePanelProps, 'onRecovered'> & {
+  onAuthorized: (receipt: CustomerFailedApplyRetrySummary, scope: PreparedFailureRecoveryScope) => void | Promise<void>
+}
+export function FailedApplyRetryPanel(props: FailedApplyRetryPanelProps) {
+  const { session, offer, deploymentId, targetProfileId, reservation, release } = props
+  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+    || !recoveryText(session.actorId) || !recoveryText(session.customerId) || offer.entitlement.customerId !== session.customerId
+    || offer.entitlement.status !== 'ACTIVE' || !offer.targets.some(target => target.id === targetProfileId && target.capabilities.includes('APPLY'))
+    || !reservation || reservation.deploymentId !== deploymentId || reservation.targetProfileId !== targetProfileId
+    || reservation.state !== 'OUTCOME_UNKNOWN' || reservation.expiryState !== 'CURRENT' || !release
+    || release.deploymentId !== deploymentId || release.targetProfileId !== targetProfileId || release.status !== 'FAILED') return null
+  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
+    offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
+    deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
+  return <FailedApplyRetryReview key={JSON.stringify(scope)} scope={scope} onAuthorized={props.onAuthorized} />
+}
+
+function FailedApplyRetryReview({ scope, onAuthorized }: { scope: PreparedFailureRecoveryScope; onAuthorized: FailedApplyRetryPanelProps['onAuthorized'] }) {
+  const queryClient = useQueryClient()
+  const guard = useScopedOneTimeValue<boolean>(JSON.stringify(scope)), token = guard.capture()
+  const current = () => guard.publish(token, true)
+  const holds = useRef(createDurableCommandHolds()), request = useRef<CustomerFailedApplyRetryPlanRequest | null>(null), busy = useRef(false)
+  const [reason, setReason] = useState(''), [accepted, setAccepted] = useState(false), [confirmed, setConfirmed] = useState(false)
+  const [prepared, setPrepared] = useState<FailedApplyRetryReview | null>(null)
+  const [pending, setPending] = useState<'plan' | 'retry' | null>(null), [error, setError] = useState<string | null>(null)
+  let held = false, protectionError: string | null = null
+  try { held = Boolean(holds.current.read(failedApplyRetryHoldScope(scope))) }
+  catch (failure) { protectionError = errorText(failure) }
+  const ownerStillCurrent = async () => {
+    const session = await fetchPlatformAuthSession()
+    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+      || session.actorId !== scope.actorId || session.customerId !== scope.customerId) throw new Error('Redeploy authority changed. Review current state.')
+  }
+  async function plan() {
+    if (busy.current || held || protectionError || !accepted || !reason.trim() || !current()) return
+    busy.current = true; setPending('plan'); setError(null); setPrepared(null); setConfirmed(false)
+    request.current ??= { releaseId: scope.releaseId, operationKey: crypto.randomUUID(), reason: reason.trim(), acceptOwnedServiceRedeploy: true }
+    try {
+      await ownerStillCurrent()
+      const review = prepareCustomerFailedApplyRetry(scope, request.current,
+        await planCustomerFailedApplyRetry(scope.offerId, scope.deploymentId, scope.reservationId, request.current))
+      if (current()) setPrepared(review)
+    } catch (failure) {
+      if (current()) setError(failure instanceof Error && 'status' in failure && [403, 409].includes(Number(failure.status))
+        ? `Redeploy retry is not eligible: ${errorText(failure)}` : errorText(failure))
+    } finally { busy.current = false; if (current()) setPending(null) }
+  }
+  async function retry() {
+    if (busy.current || held || protectionError || !prepared || !confirmed || !current()) return
+    busy.current = true; setPending('retry'); setError(null)
+    let dispatched = false, receipt: CustomerFailedApplyRetrySummary | null = null
+    try {
+      const command = confirmedCustomerFailedApplyRetry(scope, prepared, confirmed)
+      await ownerStillCurrent()
+      await holds.current.claim(failedApplyRetryHoldScope(scope), command.operationKey, prepared.commandBody, current)
+      if (!current()) return
+      dispatched = true
+      receipt = checkedCustomerFailedApplyRetryReceipt(prepared,
+        await retryCustomerFailedApply(scope.offerId, scope.deploymentId, scope.reservationId, command))
+    } catch (failure) {
+      if (current()) setError(dispatched ? 'Redeploy authorization response is unconfirmed. Do not resubmit; reconcile the original command.' : errorText(failure))
+    } finally {
+      busy.current = false
+      if (current()) setPending(null)
+      if (dispatched) void queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
+        scope.deploymentId, scope.targetProfileId], exact: true }).catch(() => undefined)
+    }
+    if (receipt) await onAuthorized(receipt, structuredClone(scope))
+  }
+  return <Stack spacing={1} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+    <Typography variant="subtitle2">Retry failed owned services</Typography>
+    <Alert severity="warning">This authorizes real redeploys of both runtime and connector, not an effect-free recovery or a connector-only retry. The same release, reservation, resources and allowance are retained.</Alert>
+    <TextField label="Redeploy reason" size="small" fullWidth value={reason} inputProps={{ maxLength: 255 }}
+      disabled={Boolean(request.current) || pending !== null || held || Boolean(protectionError)} onChange={event => setReason(event.target.value)} />
+    <FormControlLabel label="I accept redeployment of both owned runtime and connector services." control={<Checkbox checked={accepted}
+      disabled={Boolean(request.current) || pending !== null || held || Boolean(protectionError)} onChange={event => setAccepted(event.target.checked)} />} />
+    {error || protectionError ? <Alert severity="warning">{error ?? protectionError}</Alert> : null}
+    {held ? <Alert severity="warning">A redeploy intent is recorded. Reconcile the original command before any further retry.</Alert> : null}
+    <Button variant="outlined" startIcon={<FactCheckOutlinedIcon />} sx={{ alignSelf: 'flex-start' }}
+      disabled={!accepted || !reason.trim() || pending !== null || held || Boolean(protectionError)} onClick={() => void plan()}>Preview owned-service retry</Button>
+    {prepared ? <>
+      <Typography variant="body2">Release {scope.releaseId} &middot; reservation {scope.reservationId} &middot; revision {prepared.plan.command.fence.revision}</Typography>
+      <Typography variant="body2">Redeployed roles: {prepared.plan.redeployedServiceRoles.join(', ')}</Typography>
+      <Typography variant="caption">Boundary: {prepared.plan.boundary}</Typography>
+      <FormControlLabel label="I confirm this plan authorizes real runtime and connector redeploys." control={<Checkbox checked={confirmed}
+        disabled={pending !== null || held || Boolean(protectionError)} onChange={event => setConfirmed(event.target.checked)} />} />
+      <Button variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
+        disabled={!confirmed || pending !== null || held || Boolean(protectionError)} onClick={() => void retry()}>Authorize owned-service redeploy</Button>
     </> : null}
   </Stack>
 }

@@ -8487,3 +8487,41 @@ export function recoverCustomerPreparedFailure(
     { method: 'POST', body: JSON.stringify(command) },
   )
 }
+
+export type CustomerFailedApplyRetryPlanRequest = CustomerPreparedFailureRecoveryPlanRequest & { acceptOwnedServiceRedeploy: true }
+export type CustomerFailedApplyRetryCommand = CustomerPreparedFailureRecoveryCommand & { acceptOwnedServiceRedeploy: true }
+export type CustomerFailedApplyRetryPlan = {
+  command: CustomerFailedApplyRetryCommand
+  boundary: string
+  redeployedServiceRoles: string[]
+}
+export type CustomerFailedApplyRetrySummary = {
+  receiptId: string
+  reservationId: string
+  generation: string
+  fromRevision: number
+  revision: number
+  releaseId: string
+  status: 'APPLY_REQUESTED'
+  financialMutationPerformed: boolean
+  retainedAllocationIds: string[]
+  authorizedAt: string
+}
+
+export function planCustomerFailedApplyRetry(
+  offerId: string, deploymentId: string, reservationId: string, payload: CustomerFailedApplyRetryPlanRequest,
+) {
+  return request<CustomerFailedApplyRetryPlan>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/failed-apply-retry-plan`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function retryCustomerFailedApply(
+  offerId: string, deploymentId: string, reservationId: string, command: CustomerFailedApplyRetryCommand,
+) {
+  return request<CustomerFailedApplyRetrySummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/retry-failed-apply`,
+    { method: 'POST', body: JSON.stringify(command) },
+  )
+}
