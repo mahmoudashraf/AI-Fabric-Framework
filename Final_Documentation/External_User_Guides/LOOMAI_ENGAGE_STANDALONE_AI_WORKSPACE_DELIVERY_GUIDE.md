@@ -158,6 +158,39 @@ handover ownership, and blocked requests are not transferred or replayed.
 - Login, sign-out, and account switching use separate identity storage
   namespaces.
 
+### Explicit Recovery Before Native Provisioning
+
+When a release fails after local preparation but before creating any native
+workload, do not cancel its reservation as unused or approve another provider
+allowance. Local secret/graph preparation and lifetime allowance allocation
+are real history even if no application has started.
+
+The owner-only recovery contract uses the normal customer session:
+
+```text
+POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/prepared-failure-recovery-plan
+{ "releaseId": "<failed-release>", "operationKey": "<unique-key>", "reason": "<reason>" }
+
+POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/recover-prepared-failure
+<the exact command returned by the plan>
+```
+
+Planning makes no configuration change. Execution requires current ownership,
+entitlement, reservation revision and an unchanged server-derived proof. The
+initial supported boundary is a terminal Coolify source-resolution failure
+before native reconciliation, with no dependency create intent or initialized
+provider allowance. Native-effect or ambiguous failures remain blocked for
+their owning reconciliation/retirement path; an error message alone is never
+recovery evidence.
+
+Successful recovery retains the same reservation, graph, secrets, allowance
+and failed-release history. It restores admission to `RESERVED` and fences the
+failed release without retrying a provider request, detaching the app, deleting
+resources, refunding credits or resetting counters. A new apply is a separate
+explicit operation and must pass normal fresh authorization and prerequisites.
+Reuse the same operation key only to recover its immutable receipt, not to
+repeat an uncertain provider operation.
+
 ## 6. Release Verification
 
 Before activating a customer app, prove:

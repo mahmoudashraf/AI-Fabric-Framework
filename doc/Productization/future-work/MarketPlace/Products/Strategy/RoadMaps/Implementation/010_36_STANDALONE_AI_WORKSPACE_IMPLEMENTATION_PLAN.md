@@ -1,6 +1,27 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October20:40UTC, both CPs verify55f76fb8e/imagec7754fc8/schema206/UP,
+  preserving139 tables/config/history/finances. Window closes20:37. Normal owner
+  prepared recovery succeeds20:40, SAME R is RESERVEDrev3; failed release stays
+  FAILED/fenced, graph/secrets/allowance preserved, no retry/reset/new grant.
+  New normal owner apply authorization is NEXT; customer runtime/index/production
+  promotion/hosted operations and UI rollout are not yet verified. UI-LAST stands.
+  At20October20:26UTC, projection and explicit prepared-failure recovery qualify:
+ 287 cases/81 actualPG, zero failures/errors/skips after explicit reconciliation
+  of unchanged passing suites and the corrected allowance policy fixture. Source
+ 55f76fb8e is pushed in one backend-only build, CI39491903944 running. Not live
+  yet; no owner recovery or apply replay. Terminal observer CAS/race regression
+  pass, independent review clear. Main sequences rollout; bounded functional
+  recovery UI is the only parallel task, separate from P6/extraction LAST.
+  At20October20:08UTC, first normal customer apply fails before native creation:
+  runtime-only target-secret declarations were omitted from dependency planning.
+  Narrow2-file fixb7428595b passes41 tests/package locally, not pushed/live yet.
+  Local graph/operator/secrets and a $6 UNINITIALIZED allowance allocation remain
+  real effects. Explicit owner prepared-failure recovery is being implemented/
+  tested before ONE combined backend rollout; no retry, SQL repair, refund or
+  replacement allowance. Runtime/index/production promotion/UI rollout remain
+  unverified. Main owns sequential flow; one relevant read-only review only.
   At20October19:33UTC, M3 external receiver/ACTION gate completes: normal staff
   approval and owner SESSION binding succeed, exact reviewed profile and native
   receipt/checkpoint. Runtime-to-receiver business proof remains M5. One bounded

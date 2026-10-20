@@ -10,6 +10,68 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At20:40UTC, normal owner prepared recovery is HOSTED VERIFIED. New endpoint
+  plans20020:39:20 then recovers20020:40:07, receipt75fdb88a-d125-4afa-8696-3edf53ddbefd.
+  SAME Rc4d054ec/gen c74e2887 is RESERVEDrev3; failedrel-c58d9d38 remains
+  FAILED and bindingNO_EFFECT. Full raw release/graph/grant/allocation/financial
+  events stay exact; no provider retry/reset/new allowance. Proofcd9e1d70c5d9e72a274cdf5997ff63dc75ce7dd330d2aca2aebf141920390023
+  in /private/tmp/01044-owner-prepared-failure-recovery-20261020. Never replay
+  actual recovery POST. Prior owner GET409PLACEMENT_EVIDENCE_STALE is retained;
+  one normal owner metadata refresh restores fresh placement before planning.
+- Both CPs now HOSTED VERIFIED55f76fb8e/imagec7754fc800416923df76c728924066887d35434d213c11aad8172dc00f173718,
+  schema206/UP. Stagejobq224o3vd5xcf0hmilljsbxgg/nativebcecd404aa5b verifies
+ 20:33:19; prodjobkys1re4ebqpkwktozyjxjq4w/native0ebc17dd8d01 verifies20:36:37.
+  Fresh Platform-only backups, all139 tables/config/effective env/history and
+  finances preserved. Source-only window closes20:37:19, proofb00090742b0093f5b57ee0ae7d3388258595116b96f1a6b0b1c81bc98a0eff28
+  in /private/tmp/01044-prepared-failure-backend-rollout-20261020. Jobs COMPLETE,
+  never replay. Framework/runtime/UI unchanged. Next: new explicit owner APPLY
+  authorization referencing SAME recovered allocationIdR; no newfunding. M5-M9
+  still open; Faraday bounded functional recovery UI only, P6 LAST.
+
+- At20:26UTC, source is qualified and pushed as ONE backend image build:
+  b7428595b runtime-target-secret union; e9475f4ad test-only policy fixture;
+ 55f76fb8e670efbb9eab122cb62be5d6b1b4af32 explicit owner prepared recovery.
+  Reconciled287 unique cases/81 actualPG/zero failures/errors/skips; unchanged
+ 41 dependency cases +178 unchanged recovery/auth/admission cases +68 allowance
+  cases with complete fixed-clock policy fixture. Earlier failed runs retained,
+  not relabeled. JARa605bb20794e0e368bb95cd1e6d8267e2ec87d89060500b12e2db674f26a20a2;
+  proof42e1a56cef85d403b937a47f7cea8ee6b141204ab8da6719c980de2e040d807d
+  at /private/tmp/01044-prepared-failure-recovery-qualification-20261020.
+  CI39491903944 RUNNING, not deployed. New recovery uses PREPARED_REPAIR
+  review kind (16-char schema respected), restores SAME R, retains financial/
+  local preparation, and performs no native retry. Terminal binding CAS blocks
+  stale observers; deterministic actual-PG race passes, independent review clear.
+- Main prepares ONE backend rollout under private prepared-failure-backend-
+  rollout-20261020; existing139-table/config/history guards reused. Only exact
+  failed binding's source-proven updated_at polling clock normalizes, every
+  other field/binding remains literal;13 offline projection checks pass. No
+  actual rollout or owner recovery POST yet. Faraday is the only active bounded
+  parallel task: minimal functional owner recovery control, no P6/extraction/
+  deployment. Main owns sequential hosted rollout/recovery/apply. No user input.
+
+- At20:08UTC, first normal owner APPLY is FAILED, not live: rel-c58d9d38,
+  R c4d054ec-f700-4cd6-9127-ba74132c9096/gen c74e2887-a62d-489a-bbc1-4826413dd70c
+  is OUTCOME_UNKNOWN/rev2. DATA/ACTION/S3/empty vector binding remain configured.
+  Actual capacity policy01036-postreceiver-pg-inbox-fleet-20261020 and $6/200k/
+ 25-chat PUG allocationpua-9a083459-f4a4-41a4-a414-4299ed870570 exist. Allocation
+  is UNINITIALIZED, not model spend; never refund/reset/delete/regrant it.
+- Root cause: generic TARGET_SECRET collector omitted runtimeEnvironment values.
+  Three added regressions fail before fix; all41 focused dependency cases and
+  package pass after fix. Exact2-file commitb7428595b is LOCAL, not yet pushed/
+  deployed. Proofae826babaa5245b542439fa761d8273842e1e91570c4dd1a49f24e4243b9c596
+  in /private/tmp/01044-target-secret-runtime-projection-fix-20261020.
+- Independent read-only audit positively corroborates failure before native
+  creation: graph node PLANNED, false create intents/null app+DB UUIDs, no new
+  provider/native entries. Local graph/operator/secrets/funding DID persist;
+  existing known-no-effect settlement cannot recover this state. Main now adds
+  explicit owner plan/proof-fenced prepared-failure recovery, retaining SAME R,
+  graph/secrets/allowance/history and permitting no provider retry. Exact typed
+  source-resolution failure boundary, no native effects, stale-proof/fence and
+  owner checks required. Focused actual-PG/auth/allowance tests running; not
+  qualified/deployed yet. One bounded read-only review relevant; others parked.
+  Intend ONE backend rollout after both fixes qualify. Framework/runtime0.8.36
+  unchanged; no business DB or vector-record copy. M5-M9 remain open, UI-LAST.
+
 - M3 COMPLETE19:33UTC: normal ACTION approvaleia-2f40f7ec-59d7-4038-912c-54e5cc961007
   and owner SESSION BIND eib-99c1b4b9-e864-4c1c-843a-bbcfbb02d376/rev0 succeed
   with unchanged committed external-bindings client1ac3bc40. Exact D7438/Vc8cb/

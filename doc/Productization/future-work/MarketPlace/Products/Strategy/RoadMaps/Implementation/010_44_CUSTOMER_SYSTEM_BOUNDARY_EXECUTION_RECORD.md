@@ -9,13 +9,14 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-20 19:33 UTC. The detailed
+Authoritative short checklist, updated 2026-10-20 20:40 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
 - **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
   healthy staging and production, preserved configuration/history. Both verify
-  b4d1cfe06/schema206. [Hosted closure](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/maintenance.completed.json).
+ 55f76fb8e/imagec7754fc8/schema206 after287-case qualification.
+  [Hosted closure](/private/tmp/01044-prepared-failure-backend-rollout-20261020/maintenance.completed.json).
 - **M2 COMPLETE: Customer configuration path.** Acceptance: normal owner app
   reuse/profile choice, customer-owned S3, immutable version and approved DATA
   binding without privileged repair. App stays DRAFT; versionver-c8cb7261,
@@ -47,7 +48,15 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   fenced; only four source-justified worker timing/lease fields normalize, with
   full raw evidence retained. Original pre-intent failures stay preserved and
   were never POSTed. [Actual closure](/private/tmp/01044-attended-free01-handoff-20261020/operation-route-stable-r2/closure.actual.json).
-- **M5 PENDING: Hosted staging workload.** Acceptance: normal customer admission/
+- **M5 IN PROGRESS: Hosted staging workload.** First normal owner
+  admission/allowance succeeds, but applyrel-c58d9d38 fails before native work.
+  Generic runtime-only TARGET_SECRET projection fix passes41 cases/package;
+  prepared-failure recovery qualifies287 cases/81 actualPG and package. Source
+ 55f76fb8e/imagec7754fc8 is live on both CPs. Normal owner prepared recovery
+  succeeds20:40, SAME R is RESERVEDrev3 with graph/secret/allocation/history
+  preserved; failed release stays FAILED/fenced. No blind retry/reset/new grant.
+  Separate fresh apply authorization is next, not yet a customer runtime.
+  Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
   confirmed-action receipts, identity isolation and human handover. No customer
   business database may be provisioned. [010.36 journey](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#103-complete-self-service-journey).
@@ -72,11 +81,89 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** fresh measured admission policy and first customer reservation/apply.
-One independent read-only capacity collector is relevant parallel work while
-main prepares admission offline; only main may publish/reserve/apply. No shared
-mutations occur during collection. **Required user input: none
+**Next:** new owner APPLY authorization using SAME recovered allocation, then
+hosted runtime/index/chat/action/identity/handover gates. Only the bounded
+functional recovery UI is parallel; main owns sequential work and every mutation.
+**Required user input: none
 currently.** No new spending or deployment authority is implied by this list.
+
+## 2026-10-20 20:40 UTC Both Backends And Normal Owner Recovery Verified
+
+- Single buildCI39491903944 succeeds/backend only, UI skipped. Immutable OCI
+  registry chain verifies55f76fb8e/imagec7754fc8; qualified OS/tool layers retained.
+  Stagejobq224o3vd5xcf0hmilljsbxgg verifies20:33:19, prodjobkys1re4ebqpkwktozyjxjq4w
+  verifies20:36:37. Both schema206/UP with fresh Platform-only backups, all139
+  tables/raw history/config/financial state preserved. Normal deploy, no force.
+  Window closes20:37:19 with proofb00090742b0093f5b57ee0ae7d3388258595116b96f1a6b0b1c81bc98a0eff28.
+- Owner preparation GET correctly rejects expired placement with409
+  PLACEMENT_EVIDENCE_STALE. Exact rejection is retained; no recovery command had
+  been sent. One normal owner placement refresh precedes successful owner read
+  and plan200. No freshness check or authorization is weakened.
+- Actual owner recovery20020:40:07 yieldsreceipt75fdb88a-d125-4afa-8696-3edf53ddbefd.
+  SAME Rc4d054ec/gen c74e2887 returns RESERVEDrev3. Failed release remains
+  FAILED, its binding becomes NO_EFFECT; entire local graph, grants, allocation,
+  events and failed-release row are exact before/after. No provider call replay,
+  financial reset, new allowance or business database. Actualproofcd9e1d70c5d9e72a274cdf5997ff63dc75ce7dd330d2aca2aebf141920390023
+  is in /private/tmp/01044-owner-prepared-failure-recovery-20261020. Do not repeat
+  the actual recovery POST. A separate fresh normal apply is NEXT, not yet live.
+- Read-only pre-rollout sample20:29: staging load1.31,10.8GB available memory,
+ 37% disk; production load0.22,12.6GB available,14% disk; no unhealthy containers.
+  Swap is excluded from capacity. These samples are not hosted startup/traffic/
+  recovery certification. Functional recovery UI remains bounded parallel work;
+  main sequences all mutations. M5-M9 remain open and UI extraction stays LAST.
+
+## 2026-10-20 20:26 UTC Recovery Qualified And Pushed, Not Yet Hosted
+
+- Three separately scoped commits are pushed in one event: b7428595b projection,
+  e9475f4ad allowance test-fixture alignment,55f76fb8e explicit owner recovery.
+  Build39491903944 is running; no backend rollout/recovery/apply command yet.
+- Final reconciled qualification passes287 unique cases:41 unchanged dependency
+  cases,178 recovery/auth/admission cases including81 real PostgreSQL, and68
+  isolated allowance cases. Raw XML and input snapshots bind each passing suite
+  to unchanged production source. Only the older allowance test fixture changes
+  between the five passing recovery suites and its final isolated run: complete
+  policy fingerprint/identity/reference, canonical permitted placement and fixed
+  clock. Original failures remain private; no production guard is relaxed.
+- Independent review identifies a real stale-observer race. Terminal-state SQL
+  CAS prevents NO_EFFECT/SUPERSEDED resurrection; a deterministic PostgreSQL test
+  pauses the observer after its checks, commits recovery, then resumes it. This
+  passes and follow-up review reports no unresolved concrete P1/P2.
+- Packagea605bb20...20a2 and exact Git input binding qualify; no schema/framework/
+  runtime change. Proof42e1a56cef85d403b937a47f7cea8ee6b141204ab8da6719c980de2e040d807d
+  is in /private/tmp/01044-prepared-failure-recovery-qualification-20261020.
+  The separately prepared rollout preserves139 tables/config/financial history,
+  with13 focused checks for its narrow observer-clock comparison projection.
+- A single relevant parallel UI task adds explicit recovery planning/confirmation
+  to the current functional customer console. It may not deploy or extract UI.
+  Main owns all sequential infrastructure/recovery/apply actions. M5-M9 remain
+  open and the failed release/allowance are untouched.
+
+## 2026-10-20 20:08 UTC First Apply Failure And Narrow Recovery Correction
+
+- Fresh61x5s host measurements back policy01036-postreceiver-pg-inbox-fleet-20261020,
+  valid21:38:58UTC, published normally with unchanged physical quota. Normal owner
+  reserve c4d054ec-f700-4cd6-9127-ba74132c9096 succeeds19:42:44. Actual APPLY
+  rel-c58d9d38 fails19:47 with DEPENDENCY_TARGET_SECRET_MISSING. No apply replay.
+- Callback secret exists in frozen authority but is declared only in connector
+  runtimeEnvironment, which the collector ignored. Unioning declared service/
+  runtime references preserves the original authority allowlist and missing-key
+  rejection. Three red regressions become green;41 dependency cases/package
+  pass, zero failures/skips. Local commitb7428595b is not pushed/live yet.
+- Read-only graph, ledger and both-provider/native audit corroborates no native
+  workload creation: planned node, false create intents, null native identifiers.
+  Local preparation/operator/secrets and allowance allocation DID persist. The
+  $6/200k/25-chat allocation is UNINITIALIZED and must remain immutable, not
+  refunded, erased, replaced or confused with actual provider spending.
+  [Audit](/private/tmp/01044-first-pg-apply-no-effect-audit-20261020/HANDOFF.md).
+- Existing settlement supports only pre-provisioning/no-allocation failures.
+  Main adds explicit customer plan/command recovery for the exact typed failure
+  before native reconciliation. It restores SAME R to RESERVED, fences the
+  failed release, and retains graph, secrets, financial state and history. It
+  performs NO provider retry, deletion, consumer detachment or financial write.
+  Next apply still needs fresh normal owner authorization/prerequisites. Actual
+  PostgreSQL/auth/allowance tests and one independent read-only review are in
+  progress. No framework release or unrelated matrix. One combined backend
+  rollout follows qualification; M5-M9 remain open and UI extraction LAST.
 
 ## 2026-10-20 19:33 UTC Customer ACTION Binding Verified
 
