@@ -9,7 +9,7 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-20 20:40 UTC. The detailed
+Authoritative short checklist, updated 2026-10-20 21:08 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
@@ -55,7 +55,14 @@ workload or a customer-ready product; local checks are not hosted acceptance.
  55f76fb8e/imagec7754fc8 is live on both CPs. Normal owner prepared recovery
   succeeds20:40, SAME R is RESERVEDrev3 with graph/secret/allocation/history
   preserved; failed release stays FAILED/fenced. No blind retry/reset/new grant.
-  Separate fresh apply authorization is next, not yet a customer runtime.
+  Separate fresh apply authorization succeeds20:43, rel-b7206a67, but connector
+  startup fails. Native runtime and operational PostgreSQL now exist; R is
+  OUTCOME_UNKNOWN, same allowance remains UNINITIALIZED. Pre-native recovery is
+  no longer applicable. Exact-image offline startup reaches liveness UP103.6s at
+ 0.25CPU/768MiB; Coolify's connector defaults stop the hosted attempt earlier.
+  Local fixf22f9e6dd explicitly supplies bounded startup health settings for every
+  JVM role;40 provider tests pass, not pushed/deployed. A fenced partial-native
+  continuation is the next main-owned gap; no blind retry or financial reset.
   Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
   confirmed-action receipts, identity isolation and human handover. No customer
@@ -73,19 +80,54 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   separately committed/deployed functional/security corrections and verified
   compatible existing UI. Three P2 fixes are complete locally; projected33-file
   candidate passes build/TypeScript,84 unit/API cases,8 boundary checks and16
-  loopback browser scenarios. Isolated functional commitb1073117e is pushed,
-  not deployed/hosted acceptance. Original staff capability
+  loopback browser scenarios. Functional commitb1073117e and recovery UI0a7c6053d
+  are pushed; latest UI-only CI39494817690 succeeds. Recovery UI additionally
+  passes12 unit/hold cases,6 loopback browser scenarios, TypeScript and build.
+  Neither is deployed/hosted acceptance. Original staff capability
   baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-three-p2-projection-20261020/HANDOFF.md).
 - **M9 PENDING, LAST: UI redesign/extraction and final certification.** Start
   only after required M1-M8 acceptance. Prove STAFF-001..039 parity, shared
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** new owner APPLY authorization using SAME recovered allocation, then
-hosted runtime/index/chat/action/identity/handover gates. Only the bounded
-functional recovery UI is parallel; main owns sequential work and every mutation.
+**Next:** main implements and qualifies explicit partial-native continuation,
+then ONE backend build/rollout containing it and the startup-policy correction.
+Fresh provider-job/ownership proof and atomic stale-observer protection are
+required; no replacement resource, funding reset or pre-native recovery shortcut.
+Then hosted runtime/index/chat/action/identity/handover gates. The two relevant
+independent diagnostics are complete; all parallel agents are parked. Main owns
+the sequential flow and every mutation.
 **Required user input: none
 currently.** No new spending or deployment authority is implied by this list.
+
+## 2026-10-20 21:08 UTC Startup Diagnosis Complete; Native Continuation Open
+
+- Actual rel-b7206a67 failed at connector startup, after creating runtime
+  t10b61aaiushqjgg18t69ro5, connector eytecr2su1npt7hxfzsdtw99 and operational
+  PostgreSQL zsser23sc8bsain7k8nocu4c. Runtime is healthy; failed connector job
+  ez8buqf5gu3vly51mlo3wroy rolled back. No new apply/recovery command was sent.
+- The reviewed target defines runtime health grace180s but no connector override.
+  ONE exact-image local synthetic run,0.25CPU/768MiB, reaches liveness UP103.6s,
+  with prompt PostgreSQL connection and no startup exception. This supports the
+  short connector startup budget as cause; neutral routing and local cpuset0
+  do not prove full hosted dealership startup. Owned local resources are removed.
+- Source commitf22f9e6dd is LOCAL,40 provider tests pass, no framework/runtime
+  change. Explicit10s/5s/18/180s health defaults apply to every JVM role; explicit
+  role/generic settings still win and invalid values still fail. Qualification:
+  /private/tmp/01044-connector-startup-budget-fix-20261020. XML SHA
+ 6afd288484dce2b3d5c4f3c85abcfd2a08227b0bba3e445fe3a8d6c0d110dd93.
+- Same-release partial-native continuation is not implemented by existing APIs.
+  Normal start/restart only queues native work; it cannot finish release,
+  allowance initialization or dependencies. Retirement is not a fast substitute.
+  Required next path: explicit owner-fenced retry, exact native ownership and
+  terminal-job evidence, unchanged R/version/graph/financial allocation, durable
+  failed-attempt history, atomic protection from stale FAILED observers. Full
+  provisioning redeploys runtime and connector containers, even if UUIDs stay;
+  it must not be represented as connector-only or an effect-free retry.
+- Relevant independent diagnostics are finished, agents parked; sequential work
+  remains with main. Avoid a separate image build for the startup fix: combine
+  with qualified continuation in one backend rollout. UI0a7c6053d image CI is
+  green but not deployed. M5-M9 remain open; extraction LAST, no green release.
 
 ## 2026-10-20 20:40 UTC Both Backends And Normal Owner Recovery Verified
 

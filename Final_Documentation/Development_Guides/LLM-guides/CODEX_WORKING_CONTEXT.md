@@ -10,6 +10,38 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At21:08UTC, latest owner instruction is explicit: main owns sequential flow;
+  parallel agents are only for relevant independent checks. Both bounded checks
+  below are complete and agents are parked. Do not wait for them or repeat them.
+- M5 is NOT green. New normal owner apply rel-b7206a67 was authorized20:43,
+  failed at wait_for_coolify_connector, and now HAS native effects: runtime
+  t10b61aaiushqjgg18t69ro5 is healthy, connector eytecr2su1npt7hxfzsdtw99 exists
+  but jobez8buqf5gu3vly51mlo3wroy FAILED/rolled back, runtime PostgreSQL
+  zsser23sc8bsain7k8nocu4c exists. Same Rc4d054ec is OUTCOME_UNKNOWN and same
+  allocationpua-9a083459 remains UNINITIALIZED. Never reuse pre-native recovery,
+  replay apply, reset/refund funding, or declare these native resources absent.
+- Startup-policy mismatch is supported by actual job logs and ONE exact-image
+  offline reproduction: connector liveness first UP103.6s at0.25CPU/768MiB;
+  native job allowed only10 short attempts while runtime had explicit180s grace.
+  Neutral local routing/cpuset0 is NOT full hosted configuration qualification.
+  Local source fixf22f9e6dd gives every JVM role explicit10s interval/5s timeout/
+ 18retries/180s grace, retaining role/generic overrides and invalid-value failure.
+  All40 CoolifyDeploymentProviderTest cases pass. LOCAL commit, not pushed/live;
+  retain it for ONE combined backend build after the continuation fix qualifies.
+  Evidence /private/tmp/01044-connector-startup-budget-fix-20261020; local cold
+  report /private/tmp/01044-connector-cold-start-diagnostic-20261020/actual-one/report.json
+  SHA24ba4791982cb6c1915dfd43d957ece3f19a14512ea201b1910eb42462bc6a47.
+- Source audit confirms no existing same-release partial-native continuation.
+  Retirement/reapply is not a shortcut: active reservation blocks retirement,
+  retired target/graph cannot be readmitted, external index requires retention.
+  Next MAIN task: explicit fenced same-release continuation, retaining existing
+  R/resources/graph/allocation and failed-attempt history; fresh native job and
+  ownership checks, plus atomic fresh-state protection against a stale FAILED
+  observer, are required. Full provision rerun replaces runtime AND connector
+  containers; never describe it as connector-only or native-job idempotent.
+- Functional recovery UI0a7c6053d is pushed, CI39494817690 SUCCESS; not deployed.
+  UI extraction remains LAST. Both CPs still55f76fb8e/schema206/UP. M5-M9 open.
+
 - At20:40UTC, normal owner prepared recovery is HOSTED VERIFIED. New endpoint
   plans20020:39:20 then recovers20020:40:07, receipt75fdb88a-d125-4afa-8696-3edf53ddbefd.
   SAME Rc4d054ec/gen c74e2887 is RESERVEDrev3; failedrel-c58d9d38 remains

@@ -1,6 +1,17 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October21:08UTC, M5 rel-b7206a67 has native runtime/operational PostgreSQL
+  but FAILED connector startup. Same R is OUTCOME_UNKNOWN, same provider
+  allocation UNINITIALIZED; no replay/reset/refund or pre-native recovery reuse.
+  Local exact-image reproduction supports too-short connector startup allowance:
+  liveness UP103.6s at0.25CPU/768MiB, not full hosted qualification. Startup fix
+  f22f9e6dd passes40 provider tests locally, not pushed/live. Next main-owned
+  task is explicit partial-native continuation with fresh ownership/terminal-job
+  proof, same resources/funding, preserved failed-attempt history and atomic
+  stale-observer protection. Combine qualified fixes into ONE backend build.
+  Functional UI0a7c6053d CI succeeds, not deployed. Independent diagnostics are
+  complete, agents parked; main owns sequential flow. M5-M9/UI-LAST unchanged.
   At20October20:40UTC, both CPs verify55f76fb8e/imagec7754fc8/schema206/UP,
   preserving139 tables/config/history/finances. Window closes20:37. Normal owner
   prepared recovery succeeds20:40, SAME R is RESERVEDrev3; failed release stays
