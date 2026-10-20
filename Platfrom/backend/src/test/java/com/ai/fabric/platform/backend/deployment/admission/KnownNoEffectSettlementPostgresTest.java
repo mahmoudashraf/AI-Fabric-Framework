@@ -605,19 +605,156 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
 
     private com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState preparedGraphState;
     private long beforePreparedReviewCount;
+
+    @Test void nativeRetryReusesTheSameReleaseResourcesAndAllowanceAndPreservesFailedAttempt() {
+        nativeFailure(); var r = store.require(original.id()); var before = nativePreserved();
+        var draft = nativeDraft(r.fence(), true); var candidate = store.failedApplyRetryCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var nativeProof = nativeReadback(NOW);
+        var plan = store.planFailedApplyRetry("customer", "deployment", r.id(), draft, candidate, nativeProof, value -> { });
+        var queued = store.queueFailedApplyRetry("customer", "deployment", r.id(), plan.command(), candidate, nativeProof, "owner", value -> { });
+        assertThat(queued.releaseId()).isEqualTo("failed-release"); assertThat(queued.financialMutationPerformed()).isFalse();
+        assertThat(queued.retainedAllocationIds()).containsExactly("retained-allocation");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+        assertThat(store.require(r.id()).generation()).isEqualTo(r.generation());
+        assertThat(store.require(r.id()).expiresAt()).isEqualTo(r.expiresAt());
+        assertThat(store.require(r.id()).demand()).isEqualTo(r.demand());
+        assertThat(store.held()).hasSize(1); assertThat(nativePreserved()).isEqualTo(before);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("RETRY_QUEUED");
+        assertThat(jdbc.queryForObject("SELECT status FROM platform_deployment_releases WHERE id='failed-release'", String.class)).isEqualTo("APPLY_REQUESTED");
+        var details = json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(details.path("retryHistory").get(0).path("progress").path("steps").findValuesAsText("key")).contains("wait_for_coolify_connector");
+        assertThat(details.path("progress").path("currentStepKey").asText()).isEqualTo("queue_release");
+        assertThat(store.recordedFailedApplyRetry("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).isEqualTo(queued);
+        assertThat(count("deployment_admission_reviews") - beforePreparedReviewCount).isEqualTo(1);
+        coordinator().beginProvisioning("failed-release");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.PROVISIONING);
+        assertThat(nativePreserved()).isEqualTo(before);
+    }
+
+    @Test void nativeRetryUsesOwnerBoundaryDispatchesOnceAndHasNoProviderOrFinancialWorkInPlan() {
+        nativeFailure(); var api = nativeApi("customer"); var before = allRelevant();
+        var plan = api.plan("offer", "deployment", original.id(), new FailedApplyRetryContracts.PlanRequest("failed-release", "native-retry", "Retry existing owned services", true));
+        assertThat(allRelevant()).isEqualTo(before);
+        assertThat(json.write(plan)).doesNotContain("inventory", "payload_json", "secret", "failedReleaseJson");
+        assertThat(plan.redeployedServiceRoles()).containsExactly("runtime", "connector");
+        var result = api.retry("offer", "deployment", original.id(), plan.command());
+        assertThat(api.retry("offer", "deployment", original.id(), plan.command())).isEqualTo(result);
+        verify(retryExecution, times(1)).executeApply("deployment", "version", "failed-release");
+    }
+
+    @Test void nativeRetryRejectsForeignOwnerAndMissingRedeployAcceptanceBeforeProviderReadback() {
+        nativeFailure(); var before = allRelevant();
+        assertThatThrownBy(() -> nativeApi("foreign").plan("offer", "deployment", original.id(),
+            new FailedApplyRetryContracts.PlanRequest("failed-release", "native-retry", "Retry", true))).isInstanceOf(AdmissionFailure.class);
+        assertThatThrownBy(() -> store.failedApplyRetryCandidate("customer", "deployment", original.id(), nativeDraft(store.require(original.id()).fence(), false), value -> { }))
+            .hasMessageContaining("REDEPLOY_ACCEPTANCE_REQUIRED");
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"nativeProof", "nativeExpired", "nativeMissing", "release", "graph", "nativeUuid", "allocation"})
+    void nativeRetryRejectsChangedOrExpiredProofWithoutAnyWrites(String change) {
+        nativeFailure(); var r = store.require(original.id()); var draft = nativeDraft(r.fence(), true);
+        var candidate = store.failedApplyRetryCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var readback = nativeReadback(NOW);
+        var plan = store.planFailedApplyRetry("customer", "deployment", r.id(), draft, candidate, readback, value -> { });
+        switch (change) {
+            case "nativeProof" -> readback = new FailedApplyRetryContracts.NativeReadback(NOW, Map.of("APPLICATION", "changed", "CONNECTOR_APPLICATION", "connector", "RUNTIME_POSTGRES_DATABASE", "postgres"));
+            case "nativeExpired" -> readback = nativeReadback(NOW.minusSeconds(61));
+            case "nativeMissing" -> readback = new FailedApplyRetryContracts.NativeReadback(NOW, Map.of("APPLICATION", "runtime"));
+            case "release" -> jdbc.update("UPDATE platform_deployment_releases SET error_message='different failure' WHERE id='failed-release'");
+            case "graph" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET status='FAILED' WHERE id='prepared-graph'");
+            case "nativeUuid" -> jdbc.update("UPDATE deployment_provider_resource_handles SET provider_resource_uuid='different-native' WHERE resource_kind='CONNECTOR_APPLICATION'");
+            case "allocation" -> jdbc.update("UPDATE provider_usage_allocations SET initialization_state='ACTIVE',store_uuid='synthetic-store',initialization_fingerprint=runtime_allocation_fingerprint,initialized_at=?,activated_at=? WHERE approval_id='retained-allocation'",
+                Timestamp.from(NOW), Timestamp.from(NOW));
+            default -> throw new AssertionError(change);
+        }
+        var checkedReadback = readback; var before = allRelevant();
+        assertThatThrownBy(() -> store.queueFailedApplyRetry("customer", "deployment", r.id(), plan.command(), candidate, checkedReadback, "owner", value -> { }))
+            .isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before); assertThat(store.require(r.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+    }
+
+    @Test void staleFailedObserverCannotUndoAnExplicitlyQueuedNativeRetry() throws Exception {
+        nativeFailure(); var r = store.require(original.id()); var draft = nativeDraft(r.fence(), true);
+        var candidate = store.failedApplyRetryCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var readback = nativeReadback(NOW); var plan = store.planFailedApplyRetry("customer", "deployment", r.id(), draft, candidate, readback, value -> { });
+        var checked = new CountDownLatch(1); var resume = new CountDownLatch(1);
+        var late = new AdmissionStore(jdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(NOW, ZoneOffset.UTC)) {
+            @Override void observeFailedRelease(ReleaseBinding binding, java.util.function.Supplier<DeploymentReleaseEntity> load, String actor, java.time.Instant now) {
+                checked.countDown(); await(resume); super.observeFailedRelease(binding, load, actor, now);
+            }
+        };
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var observer = pool.submit(() -> coordinator(late).observe("failed-release"));
+            assertThat(checked.await(10, TimeUnit.SECONDS)).isTrue();
+            try { store.queueFailedApplyRetry("customer", "deployment", r.id(), plan.command(), candidate, readback, "owner", value -> { }); }
+            finally { resume.countDown(); }
+            observer.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("RETRY_QUEUED");
+        jdbc.update("UPDATE platform_deployment_releases SET status='PRE_APPLY_BLOCKED',provisioning_status='BLOCKED' WHERE id='failed-release'");
+        coordinator().observe("failed-release");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("OUTCOME_UNKNOWN");
+    }
+
+    private void nativeFailure() {
+        preparedFailure();
+        var keys = List.of("queue_release", "preflight_verification", "prepare_apply", "coolify_preflight", "ensure_deployment_execution_secrets",
+            "resolve_coolify_source", "resolve_coolify_customer_scope", "reconcile_coolify_runtime_application", "record_coolify_runtime_handle_provisional",
+            "reconcile_coolify_document_source_storage", "reconcile_coolify_connector_application", "record_coolify_connector_handle_provisional",
+            "configure_coolify_runtime_private_network", "configure_coolify_connector_private_network", "reconcile_coolify_runtime_database",
+            "record_coolify_runtime_database_handle_provisional", "configure_coolify_runtime_environment", "configure_coolify_connector_environment",
+            "trigger_coolify_runtime_deploy", "wait_for_coolify_runtime", "trigger_coolify_connector_deploy", "wait_for_coolify_connector", "apply_failed");
+        var steps = keys.stream().map(key -> Map.of("key", key, "status", switch (key) {
+            case "queue_release" -> "QUEUED"; case "prepare_apply" -> "RUNNING";
+            case "wait_for_coolify_connector", "apply_failed" -> "FAILED"; default -> "COMPLETED";
+        })).toList();
+        jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'",
+            json.write(Map.of("progress", Map.of("currentStepKey", "apply_failed", "currentStepStatus", "FAILED", "steps", steps))));
+        for (String kind : List.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE"))
+            jdbc.update("INSERT INTO deployment_provider_resource_handles(id,deployment_id,release_id,target_profile_id,provider_type,resource_kind,provider_resource_uuid,status,metadata_json,created_at,updated_at) VALUES (?,'deployment','failed-release',?,'COOLIFY',?,?,'DEPLOY_REQUESTED','{}',?,?)",
+                "native-" + kind, TARGET, kind, "uuid-" + kind, Timestamp.from(NOW), Timestamp.from(NOW));
+    }
+    private FailedApplyRetryContracts.Command nativeDraft(Fence fence, boolean accept) {
+        return new FailedApplyRetryContracts.Command(fence, "failed-release", "native-retry", "Retry existing owned services", accept, null);
+    }
+    private FailedApplyRetryContracts.NativeReadback nativeReadback(java.time.Instant observedAt) {
+        return new FailedApplyRetryContracts.NativeReadback(observedAt, Map.of("APPLICATION", "runtime", "CONNECTOR_APPLICATION", "connector", "RUNTIME_POSTGRES_DATABASE", "postgres"));
+    }
+    private Map<String, String> nativePreserved() {
+        var result = new TreeMap<String, String>();
+        for (String table : List.of("provider_usage_grants", "provider_usage_allocations", "provider_usage_allowance_events",
+            "deployment_managed_dependency_graphs", "deployment_provider_resource_handles", "platform_deployment_versions", "platform_consumers", "ai_workspace_installations")) result.put(table, rows(table));
+        return result;
+    }
+    private com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseExecutionService retryExecution;
+    private FailedApplyRetryController nativeApi(String customerId) {
+        var entitlements = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.class);
+        when(entitlements.requireCustomerActor()).thenReturn(new com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.CustomerActor(customerId, "owner"));
+        var boundary = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+        when(boundary.prepareAdmission(any(), eq(TARGET), eq(CustomerOfferContracts.Operation.APPLY), anyString()))
+            .thenAnswer(call -> new CustomerOfferContracts.Authorization(scope(call.getArgument(3)), null));
+        var deployments = mock(DeploymentRepository.class); when(deployments.findById("deployment")).thenReturn(Optional.of(deployment()));
+        var versions = mock(DeploymentVersionRepository.class); when(versions.findById("version")).thenReturn(Optional.of(version()));
+        var provider = mock(com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider.class);
+        when(provider.failedApplyRetryReadback(anyString(), anyString(), anyString(), any(), any())).thenReturn(nativeReadback(NOW));
+        retryExecution = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseExecutionService.class);
+        return new FailedApplyRetryController(new FailedApplyRetryService(store, entitlements, boundary, deployments, versions, provider, retryExecution));
+    }
+
     @Test void staleObserverPausedAfterChecksCannotResurrectRecoveredBindingOrReservation() throws Exception {
         preparedFailure(); var r = store.require(original.id());
         var plan = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
         var checked = new CountDownLatch(1); var resume = new CountDownLatch(1);
-        var lateJdbc = new JdbcTemplate(dataSource) {
-            @Override public int update(String sql, Object... args) {
-                if (sql.startsWith("UPDATE deployment_admission_release_bindings SET state=") && "OUTCOME_UNKNOWN".equals(args[0])) {
-                    checked.countDown(); await(resume);
-                }
-                return super.update(sql, args);
+        var lateStore = new AdmissionStore(jdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(NOW, ZoneOffset.UTC)) {
+            @Override void observeFailedRelease(ReleaseBinding binding, java.util.function.Supplier<DeploymentReleaseEntity> load,
+                String actor, java.time.Instant now) {
+                checked.countDown(); await(resume);
+                super.observeFailedRelease(binding, load, actor, now);
             }
         };
-        var lateStore = new AdmissionStore(lateJdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(NOW, ZoneOffset.UTC));
         try (var pool = Executors.newSingleThreadExecutor()) {
             var observer = pool.submit(() -> coordinator(lateStore).observe("failed-release"));
             assertThat(checked.await(10, TimeUnit.SECONDS)).isTrue();
@@ -746,6 +883,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         var associations = mock(com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository.class);
         var releases = mock(DeploymentReleaseRepository.class); var versions = mock(DeploymentVersionRepository.class);
         when(associations.existsById("deployment")).thenReturn(true); when(releases.findById(anyString())).thenAnswer(call -> Optional.of(release(call.getArgument(0))));
+        when(releases.findByIdForUpdate(anyString())).thenAnswer(call -> Optional.of(release(call.getArgument(0))));
         when(versions.findById("version")).thenReturn(Optional.of(version()));
         return new AdmissionReleaseCoordinator(ledger, associations, releases, versions, c -> evidence(c, NOW),
             mock(AdmissionResourceReadbackSource.class), Clock.fixed(NOW, ZoneOffset.UTC));

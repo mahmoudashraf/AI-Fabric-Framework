@@ -246,6 +246,21 @@ public class CoolifyApiClient {
         return Optional.of(toDeployment(response));
     }
 
+    /** A bounded complete history is required; a truncated page cannot prove that no job is pending. */
+    public List<CoolifyDeploymentSummary> applicationDeploymentHistory(CoolifyConnection connection, String applicationUuid) {
+        JsonNode response = requestJson(connection, "GET",
+            "/deployments/applications/" + encodePath(applicationUuid) + "?skip=0&take=100", null, false);
+        if (response == null || !response.path("count").isIntegralNumber()
+            || !response.path("count").canConvertToInt() || !response.path("deployments").isArray()
+            || response.path("count").asInt() != response.path("deployments").size()
+            || response.path("deployments").size() > 100) {
+            throw new IllegalStateException("COOLIFY_COMPLETE_DEPLOYMENT_HISTORY_REQUIRED");
+        }
+        var deployments = new ArrayList<CoolifyDeploymentSummary>();
+        for (JsonNode item : response.path("deployments")) deployments.add(toDeployment(item));
+        return List.copyOf(deployments);
+    }
+
     public String createDockerImageApplication(CoolifyConnection connection,
                                                CoolifyCreateDockerImageApplicationRequest request) {
         ObjectNode body = dockerImageApplicationBody(request);

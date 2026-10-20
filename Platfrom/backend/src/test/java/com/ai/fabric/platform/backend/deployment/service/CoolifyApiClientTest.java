@@ -24,6 +24,35 @@ class CoolifyApiClientTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @ParameterizedTest
+    @ValueSource(strings = {"{\"count\":2,\"deployments\":[]}", "{\"deployments\":[]}",
+        "{\"count\":\"0\",\"deployments\":[]}", "{\"count\":0,\"deployments\":{}}"})
+    void deploymentHistoryRejectsTruncatedOrMalformedInventory(String response) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/deployments/applications/app", exchange -> sendJson(exchange, 200, response));
+        server.start();
+        try {
+            assertThatThrownBy(() -> new CoolifyApiClient(objectMapper).applicationDeploymentHistory(connection(server), "app"))
+                .hasMessage("COOLIFY_COMPLETE_DEPLOYMENT_HISTORY_REQUIRED");
+        } finally { server.stop(0); }
+    }
+
+    @Test
+    void deploymentHistoryUsesTheInstalledApiContractAndReturnsTypedJobs() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/deployments/applications/app", exchange -> {
+            assertThat(exchange.getRequestMethod()).isEqualTo("GET");
+            assertThat(exchange.getRequestURI().getRawQuery()).isEqualTo("skip=0&take=100");
+            sendJson(exchange, 200, "{\"count\":1,\"deployments\":[{\"deployment_uuid\":\"job\",\"status\":\"failed\"}]}");
+        });
+        server.start();
+        try {
+            var jobs = new CoolifyApiClient(objectMapper).applicationDeploymentHistory(connection(server), "app");
+            assertThat(jobs).hasSize(1); assertThat(jobs.getFirst().deploymentUuid()).isEqualTo("job");
+            assertThat(jobs.getFirst().status()).isEqualTo("failed");
+        } finally { server.stop(0); }
+    }
+
+    @ParameterizedTest
     @CsvSource({"project,429", "project,503", "environment,503", "database,503", "restart,503", "delete,503"})
     void ambiguousMutationResponseIsNeverAutomaticallyRepeated(String operation, int status) throws Exception {
         var requests = new AtomicInteger();

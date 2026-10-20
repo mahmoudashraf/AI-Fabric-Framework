@@ -11,7 +11,7 @@ import java.util.TreeMap;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-/** Positive, local control-flow proof of failure before native reconciliation; absence alone is insufficient. */
+/** Positive local control-flow proof for narrowly defined initial apply failures. */
 final class PreparedFailureRecoveryEvidence {
     private static final String BOUNDARY = "COOLIFY_SOURCE_RESOLUTION_FAILED_BEFORE_NATIVE_EFFECTS_V1";
     private static final Map<String, String> STEPS = Map.of("queue_release", "QUEUED",
@@ -21,8 +21,12 @@ final class PreparedFailureRecoveryEvidence {
         "coolify_preflight", "ensure_deployment_execution_secrets", "resolve_coolify_source", "apply_failed");
     private final JdbcTemplate jdbc;
     private final AdmissionJson json;
+    private final boolean nativeRetry;
 
-    PreparedFailureRecoveryEvidence(JdbcTemplate jdbc, AdmissionJson json) { this.jdbc = jdbc; this.json = json; }
+    PreparedFailureRecoveryEvidence(JdbcTemplate jdbc, AdmissionJson json) { this(jdbc, json, false); }
+    PreparedFailureRecoveryEvidence(JdbcTemplate jdbc, AdmissionJson json, boolean nativeRetry) {
+        this.jdbc = jdbc; this.json = json; this.nativeRetry = nativeRetry;
+    }
 
     PreparedFailureRecoveryContracts.Proof read(Reservation r, String releaseId, Manifest manifest) {
         var inventory = new TreeMap<String, String>();
@@ -41,8 +45,9 @@ final class PreparedFailureRecoveryEvidence {
         if (!details.isObject() || details.size() != 1 || !progress.isObject()
             || !"apply_failed".equals(progress.path("currentStepKey").asText())
             || !"FAILED".equals(progress.path("currentStepStatus").asText()) || !progress.path("steps").isArray()
-            || progress.path("steps").size() != ORDER.size()) throw denied("CONTROL_FLOW_UNPROVEN");
-        for (int i = 0; i < ORDER.size(); i++) {
+            || !nativeRetry && progress.path("steps").size() != ORDER.size()) throw denied("CONTROL_FLOW_UNPROVEN");
+        if (nativeRetry) requireConnectorStartupFailure(progress.path("steps"));
+        else for (int i = 0; i < ORDER.size(); i++) {
             var step = progress.path("steps").get(i);
             if (!ORDER.get(i).equals(step.path("key").asText())
                 || !STEPS.get(ORDER.get(i)).equals(step.path("status").asText())) throw denied("CONTROL_FLOW_UNPROVEN");
@@ -76,14 +81,26 @@ final class PreparedFailureRecoveryEvidence {
             throw denied("RELEASE_SET_AMBIGUOUS");
         var events = rows("SELECT * FROM deployment_admission_events WHERE reservation_id=? ORDER BY revision FOR UPDATE NOWAIT", r.id());
         if (events.size() != r.revision() + 1 || events.stream().anyMatch(event -> !List.of("RESERVED", "INITIAL_EVIDENCE_RENEWED",
-            "ALLOCATION_OPERATION_AUTHORIZED", "RELEASE_PROVISIONING_STARTED", "OUTCOME_UNKNOWN").contains(event.get("event_type"))))
+            "ALLOCATION_OPERATION_AUTHORIZED", "RELEASE_PROVISIONING_STARTED", "OUTCOME_UNKNOWN").contains(event.get("event_type"))
+                && !(nativeRetry && "PREPARED_FAILURE_RECOVERED_BEFORE_NATIVE_EFFECTS".equals(event.get("event_type")))))
             throw denied("ADMISSION_HISTORY_AMBIGUOUS");
         for (int i = 0; i < events.size(); i++) if (((Number) events.get(i).get("revision")).longValue() != i)
             throw denied("ADMISSION_HISTORY_AMBIGUOUS");
         inventory.put("admissionEvents", json.fingerprint(events));
         var handles = rows("SELECT * FROM deployment_provider_resource_handles WHERE deployment_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId());
-        if (handles.stream().anyMatch(h -> !PreservedExternalBindingKinds.isPreserved((String) h.get("resource_kind"))
-            || h.get("release_id") != null || !r.targetProfileId().equals(h.get("target_profile_id")))) throw denied("NATIVE_HISTORY_PRESENT");
+        if (handles.stream().anyMatch(h -> !r.targetProfileId().equals(h.get("target_profile_id"))
+            || (PreservedExternalBindingKinds.isPreserved((String) h.get("resource_kind")) ? h.get("release_id") != null
+                : !nativeRetry || !releaseId.equals(h.get("release_id")) || !"COOLIFY".equals(h.get("provider_type"))
+                    || h.get("provider_resource_uuid") == null))) throw denied("NATIVE_HISTORY_PRESENT");
+        if (nativeRetry) {
+            var nativeKinds = handles.stream().filter(h -> !PreservedExternalBindingKinds.isPreserved((String) h.get("resource_kind")))
+                .map(h -> (String) h.get("resource_kind")).sorted().toList();
+            if (nativeKinds.size() != new java.util.HashSet<>(nativeKinds).size()
+                || !nativeKinds.containsAll(List.of("APPLICATION", "CONNECTOR_APPLICATION"))
+                || !List.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE").containsAll(nativeKinds))
+                throw denied("NATIVE_INVENTORY_AMBIGUOUS");
+            inventory.put("nativeKinds", json.write(nativeKinds));
+        }
         inventory.put("retainedExternalBindings", json.fingerprint(handles));
         var graphs = rows("SELECT * FROM deployment_managed_dependency_graphs WHERE deployment_id=? AND target_profile_id=? ORDER BY id FOR UPDATE NOWAIT",
             r.deploymentId(), r.targetProfileId());
@@ -139,8 +156,36 @@ final class PreparedFailureRecoveryEvidence {
         if (financialEvents.size() != 1 || !"ALLOWANCE_ALLOCATED".equals(financialEvents.getFirst().get("event_type"))
             || !Objects.equals(allocation.get("grant_id"), financialEvents.getFirst().get("grant_id"))) throw denied("ALLOCATION_EFFECT_HISTORY");
         inventory.put("retainedFinancialEvents", json.fingerprint(financialEvents));
-        return new PreparedFailureRecoveryContracts.Proof(BOUNDARY, Map.copyOf(inventory),
+        return new PreparedFailureRecoveryContracts.Proof(nativeRetry ? FailedApplyRetryContracts.BOUNDARY : BOUNDARY, Map.copyOf(inventory),
             List.of((String) allocation.get("approval_id")));
+    }
+
+    private void requireConnectorStartupFailure(JsonNode steps) {
+        var ordered = List.of("queue_release", "preflight_verification", "prepare_apply", "coolify_preflight",
+            "ensure_deployment_execution_secrets", "resolve_coolify_source", "resolve_coolify_customer_scope",
+            "reconcile_coolify_runtime_application", "record_coolify_runtime_handle_provisional",
+            "reconcile_coolify_document_source_storage", "reconcile_coolify_connector_application",
+            "record_coolify_connector_handle_provisional", "configure_coolify_runtime_private_network",
+            "configure_coolify_connector_private_network", "reconcile_coolify_runtime_database",
+            "record_coolify_runtime_database_handle_provisional", "configure_coolify_runtime_environment",
+            "configure_coolify_connector_environment", "trigger_coolify_runtime_deploy", "wait_for_coolify_runtime",
+            "trigger_coolify_connector_deploy", "wait_for_coolify_connector", "apply_failed");
+        var optional = java.util.Set.of("reconcile_coolify_document_source_storage", "reconcile_coolify_runtime_database",
+            "record_coolify_runtime_database_handle_provisional");
+        var keys = new java.util.ArrayList<String>();
+        for (var step : steps) {
+            String key = step.path("key").asText(); keys.add(key);
+            String status = switch (key) {
+                case "queue_release" -> "QUEUED";
+                case "prepare_apply" -> "RUNNING";
+                case "wait_for_coolify_connector", "apply_failed" -> "FAILED";
+                default -> "COMPLETED";
+            };
+            if (!status.equals(step.path("status").asText())) throw denied("CONTROL_FLOW_UNPROVEN");
+        }
+        if (keys.size() != new java.util.HashSet<>(keys).size()
+            || !keys.equals(ordered.stream().filter(key -> !optional.contains(key) || keys.contains(key)).toList()))
+            throw denied("CONTROL_FLOW_UNPROVEN");
     }
 
     private List<Map<String, Object>> rows(String sql, Object... args) { return jdbc.queryForList(sql, args); }

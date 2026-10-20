@@ -40,6 +40,7 @@ class AdmissionReleaseCoordinatorTest extends AdmissionFixture {
         release.setDeploymentVersionId("version"); release.setTargetProfileId(TARGET); release.setStatus("APPLY_REQUESTED");
         when(offers.existsById("deployment1")).thenReturn(true);
         when(releases.findById("release")).thenReturn(Optional.of(release));
+        when(releases.findByIdForUpdate("release")).thenReturn(Optional.of(release));
         when(versions.findById("version")).thenReturn(Optional.of(version));
         var c = context("manifest");
         var scope = new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment1", null, TARGET,

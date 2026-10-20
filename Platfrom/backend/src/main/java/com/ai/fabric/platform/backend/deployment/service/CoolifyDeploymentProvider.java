@@ -1638,6 +1638,60 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
     }
 
+    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback failedApplyRetryReadback(
+        String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt) {
+        Instant observedAt = Instant.now();
+        var handles = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(deploymentId, targetProfileId)
+            .stream().filter(h -> !PreservedExternalBindingKinds.isPreserved(h.getResourceKind())).toList();
+        var kinds = handles.stream().map(DeploymentProviderResourceHandleEntity::getResourceKind).collect(java.util.stream.Collectors.toSet());
+        if (handles.size() != kinds.size() || !kinds.containsAll(Set.of(RESOURCE_KIND_APPLICATION, RESOURCE_KIND_CONNECTOR_APPLICATION))
+            || !Set.of(RESOURCE_KIND_APPLICATION, RESOURCE_KIND_CONNECTOR_APPLICATION, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE).containsAll(kinds))
+            throw failedApplyRetryUnproven();
+        var inventory = new java.util.TreeMap<String, String>();
+        for (var handle : handles) {
+            if (!releaseId.equals(handle.getReleaseId()) || handle.getProviderType() != DeploymentProviderType.COOLIFY)
+                throw failedApplyRetryUnproven();
+            var connection = connectionForHandle(handle);
+            requireOwnedHandle(connection, handle, false);
+            String kind = handle.getResourceKind();
+            var identity = objectMapper.createObjectNode().put("handleId", handle.getId())
+                .put("uuid", handle.getProviderResourceUuid());
+            if (isRuntimePostgresDatabase(handle)) {
+                var database = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+                if (!"running:healthy".equalsIgnoreCase(database.status())) throw failedApplyRetryUnproven();
+                identity.put("status", database.status());
+            } else {
+                var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+                boolean connector = RESOURCE_KIND_CONNECTOR_APPLICATION.equals(kind);
+                if (connector ? !Set.of("exited:unhealthy", "exited", "stopped").contains(app.status())
+                    : !"running:healthy".equalsIgnoreCase(app.status())) throw failedApplyRetryUnproven();
+                var jobs = coolifyApiClient.applicationDeploymentHistory(connection, app.uuid());
+                if (jobs.isEmpty() || jobs.stream().anyMatch(job -> !Set.of("finished", "failed", "cancelled").contains(job.status())
+                    || !StringUtils.hasText(job.deploymentUuid()) || !StringUtils.hasText(job.createdAt()) || !StringUtils.hasText(job.finishedAt())))
+                    throw failedApplyRetryUnproven();
+                var latest = jobs.stream().max(java.util.Comparator.comparing(job -> Instant.parse(job.createdAt()))).orElseThrow();
+                var exact = coolifyApiClient.getDeployment(connection, latest.deploymentUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+                Instant created = Instant.parse(exact.createdAt());
+                if (!app.uuid().equals(exact.applicationUuid()) || !latest.status().equals(exact.status())
+                    || created.isBefore(releaseCreatedAt) || created.isAfter(failedAt)
+                    || !(connector ? "failed".equals(exact.status()) : "finished".equals(exact.status())))
+                    throw failedApplyRetryUnproven();
+                identity.put("status", app.status()).put("image", app.imageRepository())
+                    .put("tag", app.imageTag());
+                var history = identity.putArray("jobs");
+                jobs.stream().sorted(java.util.Comparator.comparing(CoolifyDeploymentSummary::deploymentUuid)).forEach(job ->
+                    history.addObject().put("uuid", job.deploymentUuid()).put("status", job.status())
+                        .put("createdAt", job.createdAt()).put("finishedAt", job.finishedAt()));
+            }
+            inventory.put(kind, identity.toString());
+        }
+        return new com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback(observedAt, Map.copyOf(inventory));
+    }
+
+    private static ResponseStatusException failedApplyRetryUnproven() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "COOLIFY_FAILED_APPLY_RETRY_NATIVE_STATE_UNPROVEN");
+    }
+
     @Override
     public DeploymentProviderResourceLogsSummary logs(DeploymentProviderResourceHandleEntity handle, int lines) {
         CoolifyConnection connection = connectionForHandle(handle);

@@ -123,6 +123,7 @@ class AdmissionNoEffectRetryPostgresTest extends AdmissionFixture {
         resources = mock(AdmissionResourceReadbackSource.class);
         when(offers.existsById(DEPLOYMENT)).thenReturn(true);
         when(releases.findById(anyString())).thenAnswer(call -> releaseEntity(call.getArgument(0)));
+        when(releases.findByIdForUpdate(anyString())).thenAnswer(call -> releaseEntity(call.getArgument(0)));
         when(versions.findById("version")).thenReturn(Optional.of(version));
         coordinator = new AdmissionReleaseCoordinator(store, offers, releases, versions,
             context -> evidence(context, NOW), resources, Clock.fixed(NOW, ZoneOffset.UTC));

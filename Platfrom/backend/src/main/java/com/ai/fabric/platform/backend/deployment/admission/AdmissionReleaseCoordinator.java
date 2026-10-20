@@ -81,14 +81,10 @@ public class AdmissionReleaseCoordinator {
                 store.reconcile(reservation.fence(), readback, false, ACTOR, clock.instant());
                 store.releaseBindingState(releaseId, "ACTIVE");
             }
-        } else if (Set.of("PRE_APPLY_BLOCKED", "FAILED").contains(release.getStatus()) && "QUEUED".equals(binding.state())) {
-            store.releaseBindingState(releaseId, "NO_EFFECT");
         } else if (Set.of("FAILED", "APPLIED_VERIFICATION_FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_BLOCKED")
                 .contains(release.getStatus()) || "AWAITING_CONFIRMATION".equals(release.getProvisioningStatus())) {
-            if (reservation.state() != State.OUTCOME_UNKNOWN) {
-                store.outcome(reservation.fence(), State.OUTCOME_UNKNOWN, "release-outcome:" + releaseId, ACTOR, clock.instant());
-            }
-            store.releaseBindingState(releaseId, "OUTCOME_UNKNOWN");
+            store.observeFailedRelease(binding, () -> releases.findByIdForUpdate(releaseId)
+                .orElseThrow(() -> failure("RELEASE_MISSING")), ACTOR, clock.instant());
         }
     }
 

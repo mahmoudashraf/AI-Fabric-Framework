@@ -1358,12 +1358,12 @@ class AdmissionStore {
     List<String> unsettledReleases(int limit) {
         return locked(() -> {
             var batch = jdbc.query("""
-                SELECT release_id FROM deployment_admission_release_bindings WHERE state IN ('QUEUED','PROVISIONING','OUTCOME_UNKNOWN')
+                SELECT release_id FROM deployment_admission_release_bindings WHERE state IN ('QUEUED','RETRY_QUEUED','PROVISIONING','OUTCOME_UNKNOWN')
                  ORDER BY updated_at,release_id LIMIT ?
                 """, (rs, row) -> rs.getString(1), Math.max(1, Math.min(limit, 32)));
             for (String releaseId : batch) jdbc.update("""
                 UPDATE deployment_admission_release_bindings SET updated_at=?
-                 WHERE release_id=? AND state IN ('QUEUED','PROVISIONING','OUTCOME_UNKNOWN')
+                 WHERE release_id=? AND state IN ('QUEUED','RETRY_QUEUED','PROVISIONING','OUTCOME_UNKNOWN')
                 """, time(clock.instant()), releaseId);
             return batch;
         });
@@ -1381,6 +1381,30 @@ class AdmissionStore {
             UPDATE deployment_admission_release_bindings SET state='SUPERSEDED'
              WHERE reservation_id=? AND generation=? AND release_id<>? AND state='ACTIVE'
             """, binding.reservationId(), binding.generation(), releaseId);
+    }
+
+    void observeFailedRelease(ReleaseBinding expected,
+        Supplier<com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity> loadLockedRelease,
+        String actor, Instant now) {
+        locked(() -> {
+            var release = loadLockedRelease.get();
+            if (!(java.util.Set.of("FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_FAILED", "APPLIED_VERIFICATION_BLOCKED")
+                    .contains(release.getStatus()) || "AWAITING_CONFIRMATION".equals(release.getProvisioningStatus()))) return null;
+            var binding = releaseBinding(expected.releaseId());
+            if (binding == null || !binding.equals(expected) || java.util.Set.of("NO_EFFECT", "SUPERSEDED").contains(binding.state())) return null;
+            var reservation = require(binding.reservationId());
+            if (!binding.generation().equals(reservation.generation()) || !binding.releaseId().equals(currentReleaseId(reservation))) return null;
+            if (java.util.Set.of("FAILED", "PRE_APPLY_BLOCKED").contains(release.getStatus()) && "QUEUED".equals(binding.state())) {
+                jdbc.update("UPDATE deployment_admission_release_bindings SET state='NO_EFFECT',updated_at=? WHERE release_id=? AND state='QUEUED'",
+                    time(now), binding.releaseId());
+            } else {
+                if (reservation.state() != State.OUTCOME_UNKNOWN)
+                    outcomeLocked(reservation.fence(), State.OUTCOME_UNKNOWN, "release-outcome:" + binding.releaseId(), actor, now);
+                jdbc.update("UPDATE deployment_admission_release_bindings SET state='OUTCOME_UNKNOWN',updated_at=? WHERE release_id=? AND state=?",
+                    time(now), binding.releaseId(), binding.state());
+            }
+            return null;
+        });
     }
 
     Reservation acceptActivity(Fence fence, ReleaseBinding binding, ActivityReadback readback) {
@@ -1928,6 +1952,129 @@ class AdmissionStore {
         required(command.releaseId(), 64); required(command.operationKey(), 128); required(command.reason(), 255);
         if (execute && (command.proofFingerprint() == null || !command.proofFingerprint().matches("[a-f0-9]{64}")))
             throw new AdmissionFailure(BAD_REQUEST, "PREPARED_RECOVERY_PROOF_REQUIRED");
+    }
+
+    FailedApplyRetryContracts.Candidate failedApplyRetryCandidate(String customerId, String deploymentId, String reservationId,
+        FailedApplyRetryContracts.Command command, java.util.function.Consumer<Reservation> authorize) {
+        validateFailedApplyRetry(command, false);
+        return locked(() -> failedApplyRetryCandidateLocked(customerId, deploymentId, reservationId, command, authorize));
+    }
+
+    private FailedApplyRetryContracts.Candidate failedApplyRetryCandidateLocked(String customerId, String deploymentId,
+        String reservationId, FailedApplyRetryContracts.Command command, java.util.function.Consumer<Reservation> authorize) {
+        try {
+            var adapter = new PreparedFailureRecoveryContracts.Command(command.fence(), command.releaseId(), command.operationKey(), command.reason(), command.proofFingerprint());
+            var r = preparedRecoveryReservation(customerId, deploymentId, reservationId, adapter, authorize);
+            var proof = new PreparedFailureRecoveryEvidence(jdbc, json, true).read(r, command.releaseId(), context(r).manifest());
+            var release = jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id=?", command.releaseId());
+            return new FailedApplyRetryContracts.Candidate(r, proof.inventory(), json.write(release),
+                ((Timestamp) release.get("created_at")).toInstant(), ((Timestamp) release.get("updated_at")).toInstant(), proof.retainedAllocationIds());
+        } catch (org.springframework.dao.DataAccessException busy) {
+            throw unusedCancellationLockFailure(busy, "FAILED_APPLY_RETRY_BUSY");
+        }
+    }
+
+    FailedApplyRetryContracts.Plan planFailedApplyRetry(String customerId, String deploymentId, String reservationId,
+        FailedApplyRetryContracts.Command command, FailedApplyRetryContracts.Candidate inspected,
+        FailedApplyRetryContracts.NativeReadback readback, java.util.function.Consumer<Reservation> authorize) {
+        validateFailedApplyRetry(command, false);
+        return locked(() -> {
+            var current = failedApplyRetryCandidateLocked(customerId, deploymentId, reservationId, command, authorize);
+            requireRetryCandidateUnchanged(inspected, current);
+            var proof = failedApplyRetryFingerprint(current, readback);
+            return new FailedApplyRetryContracts.Plan(new FailedApplyRetryContracts.Command(current.reservation().fence(),
+                command.releaseId(), command.operationKey(), command.reason(), true, proof), FailedApplyRetryContracts.BOUNDARY,
+                List.of("runtime", "connector"));
+        });
+    }
+
+    FailedApplyRetryContracts.Summary recordedFailedApplyRetry(String customerId, String deploymentId, String reservationId,
+        FailedApplyRetryContracts.Command command, String actor, java.util.function.Consumer<Reservation> authorize) {
+        validateFailedApplyRetry(command, true);
+        return locked(() -> recordedFailedApplyRetryLocked(customerId, deploymentId, reservationId, command, actor, authorize));
+    }
+
+    private FailedApplyRetryContracts.Summary recordedFailedApplyRetryLocked(String customerId, String deploymentId,
+        String reservationId, FailedApplyRetryContracts.Command command, String actor, java.util.function.Consumer<Reservation> authorize) {
+        var reservation = require(reservationId);
+        if (!customerId.equals(reservation.customerId()) || !deploymentId.equals(reservation.deploymentId())
+            || !reservationId.equals(command.fence().reservationId())) throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+        authorize.accept(reservation);
+        String key = failedApplyRetryKey(reservationId, command);
+        if (jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='NATIVE_RETRY' AND record_key=?",
+            String.class, key).isEmpty()) return null;
+        var receipt = verifiedReview("NATIVE_RETRY", key, FailedApplyRetryContracts.Receipt.class);
+        if (!receipt.commandFingerprint().equals(failedApplyRetryCommandFingerprint(customerId, deploymentId, reservationId, actor, command)))
+            throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_OPERATION_REUSED");
+        return receipt.summary();
+    }
+
+    FailedApplyRetryContracts.Summary queueFailedApplyRetry(String customerId, String deploymentId, String reservationId,
+        FailedApplyRetryContracts.Command command, FailedApplyRetryContracts.Candidate inspected,
+        FailedApplyRetryContracts.NativeReadback readback, String actor, java.util.function.Consumer<Reservation> authorize) {
+        validateFailedApplyRetry(command, true); required(actor, 255);
+        return locked(() -> {
+            var prior = recordedFailedApplyRetryLocked(customerId, deploymentId, reservationId, command, actor, authorize);
+            if (prior != null) return prior;
+            var current = failedApplyRetryCandidateLocked(customerId, deploymentId, reservationId, command, authorize);
+            requireRetryCandidateUnchanged(inspected, current);
+            if (!command.proofFingerprint().equals(failedApplyRetryFingerprint(current, readback)))
+                throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_PROOF_CHANGED");
+            Instant now = clock.instant(); var r = current.reservation();
+            Mutation mutation = new Mutation(r); mutation.state = State.RESERVED;
+            mutation.evidence = "failed-apply-retry:" + command.proofFingerprint();
+            var reserved = save(r, mutation, "FAILED_APPLY_RETRY_AUTHORIZED", actor, now);
+            if (jdbc.update("UPDATE deployment_admission_release_bindings SET state='RETRY_QUEUED',updated_at=? WHERE release_id=? AND state='OUTCOME_UNKNOWN'",
+                time(now), command.releaseId()) != 1) throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_BINDING_CHANGED");
+            var failed = json.read(current.failedReleaseJson(), com.fasterxml.jackson.databind.JsonNode.class);
+            var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(failed.path("provisioning_details_json").asText(), com.fasterxml.jackson.databind.JsonNode.class);
+            details.putArray("retryHistory").addObject().put("authorizedAt", now.toString()).put("actorId", actor)
+                .put("failedAt", current.failedAt().toString()).put("errorMessage", failed.path("error_message").asText())
+                .set("progress", details.path("progress").deepCopy());
+            var progress = details.putObject("progress");
+            progress.put("currentStepKey", "queue_release").put("currentStepStatus", "QUEUED")
+                .put("currentStepDescription", "Explicit retry of existing owned services authorized.");
+            progress.putArray("steps").addObject().put("key", "queue_release").put("status", "QUEUED").put("startedAt", now.toString());
+            if (jdbc.update("""
+                UPDATE platform_deployment_releases SET status='APPLY_REQUESTED',provisioning_status='QUEUED',verification_status='PENDING',
+                  current_step_key='queue_release',current_step_description='Explicit retry of existing owned services authorized.',
+                  error_message=NULL,provisioning_details_json=?,updated_at=? WHERE id=? AND status='FAILED' AND current_step_key='apply_failed'
+                """, json.write(details), time(now), command.releaseId()) != 1)
+                throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_RELEASE_CHANGED");
+            jdbc.update("UPDATE platform_deployments SET status='APPLY_REQUESTED',updated_at=? WHERE id=?", time(now), deploymentId);
+            var summary = new FailedApplyRetryContracts.Summary(uuid(), r.id(), r.generation(), r.revision(), reserved.revision(),
+                command.releaseId(), "APPLY_REQUESTED", false, current.retainedAllocationIds(), now);
+            review("NATIVE_RETRY", failedApplyRetryKey(reservationId, command), new FailedApplyRetryContracts.Receipt(actor,
+                failedApplyRetryCommandFingerprint(customerId, deploymentId, reservationId, actor, command), command, current, readback, summary), actor, now);
+            return summary;
+        });
+    }
+
+    private String failedApplyRetryFingerprint(FailedApplyRetryContracts.Candidate candidate, FailedApplyRetryContracts.NativeReadback readback) {
+        if (readback == null || readback.observedAt() == null || readback.inventory() == null
+            || !json.read(candidate.inventory().get("nativeKinds"), List.class).equals(readback.inventory().keySet().stream().sorted().toList()))
+            throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_NATIVE_INVENTORY_REQUIRED");
+        fresh(readback.observedAt(), clock.instant(), 60);
+        return json.fingerprint(Map.of("boundary", FailedApplyRetryContracts.BOUNDARY,
+            "local", candidate.inventory(), "native", readback.inventory()));
+    }
+    private void requireRetryCandidateUnchanged(FailedApplyRetryContracts.Candidate inspected, FailedApplyRetryContracts.Candidate current) {
+        if (inspected == null || !json.fingerprint(inspected).equals(json.fingerprint(current)))
+            throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_LOCAL_STATE_CHANGED");
+    }
+    private String failedApplyRetryKey(String reservationId, FailedApplyRetryContracts.Command command) {
+        return json.fingerprint(Map.of("reservation", reservationId, "generation", command.fence().generation(), "operation", command.operationKey()));
+    }
+    private String failedApplyRetryCommandFingerprint(String customerId, String deploymentId, String reservationId,
+        String actor, FailedApplyRetryContracts.Command command) {
+        return json.fingerprint(Map.of("customer", customerId, "deployment", deploymentId,
+            "reservation", reservationId, "actor", actor, "command", command));
+    }
+    private void validateFailedApplyRetry(FailedApplyRetryContracts.Command command, boolean execute) {
+        if (command == null || !command.acceptOwnedServiceRedeploy())
+            throw new AdmissionFailure(BAD_REQUEST, "FAILED_APPLY_RETRY_REDEPLOY_ACCEPTANCE_REQUIRED");
+        validatePreparedRecovery(new PreparedFailureRecoveryContracts.Command(command.fence(), command.releaseId(),
+            command.operationKey(), command.reason(), command.proofFingerprint()), execute);
     }
 
     private Reservation save(Reservation r, Mutation m, String type, String actor, Instant now) {
