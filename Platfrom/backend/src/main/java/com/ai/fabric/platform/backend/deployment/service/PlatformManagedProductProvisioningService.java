@@ -1516,7 +1516,7 @@ public class PlatformManagedProductProvisioningService {
         var request = new CoolifyCreateDockerImageApplicationRequest(config.projectUuid(), config.serverUuid(),
             config.environmentName(), config.environmentUuid(), image.repository(), image.hashTag(), Integer.toString(spec.port()),
             config.destinationUuid(), serviceRef, marker, domain, true, spec.healthPath(), Integer.toString(spec.port()),
-            new CoolifyApplicationRuntimeSettings(null, null, null, null,
+            new CoolifyApplicationRuntimeSettings(10, 5, 18, 180,
                 spec.capacity().memoryMiB() + "M", null, null,
                 java.math.BigDecimal.valueOf(spec.capacity().milliCpu(), 3).toPlainString(), null),
             false, true, false);
@@ -1548,6 +1548,9 @@ public class PlatformManagedProductProvisioningService {
             recordedVolumes.put(volume.mountPath(), storage.uuid());
         }
         authority.requireLiveVolumes(owner, appUuid, authority.applicationVolumes(owner, appUuid, recordedVolumes, false), false);
+        checkpoint.guard();
+        authority.application(owner, appUuid);
+        coolifyApiClient.updateDockerImageApplication(connection, appUuid, request);
         checkpoint.guard();
         authority.application(owner, appUuid);
         coolifyApiClient.updateEnvironmentVariables(connection, appUuid, environment.apply(dbUuid).stream()

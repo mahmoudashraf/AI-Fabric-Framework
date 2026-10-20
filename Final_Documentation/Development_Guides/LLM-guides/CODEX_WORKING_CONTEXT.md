@@ -10,6 +10,18 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At22:54UTC source7da3196a5 is pushed and CI39510752494 SUCCESS but NOT
+  deployed: proactive native readback catches the same too-short health defaults
+  on the newly created Inbox (5s interval/5s grace/10 attempts). Owned dependency
+  requests now use10s/5s/18/180 and reconcile the exact owned app settings before
+  env/start, preserving image/resources. Final78 ownership/provisioning/HTTP
+  cases pass; unchanged R2 admission/worker results reconcile to198 unique cases,
+  including30 actualPG. Independent review has no concreteP1/P2. Package/final
+  source binding precede one actual rollout; no customer retry POST yet. Initial
+ 7da image is retained but unused, not falsely described as deployed.
+  Existing app domain northfield-demo.apps.loomai.pro now verifies through normal
+  owner API; all readiness checks pass except the still-unverified release binding.
+
 - At22:48UTC checkpointed-setup correction is qualified:196 focused cases,
   including30 actual PostgreSQL, zero failures/errors/skips; stable full backend
   inputs through test/package. JARc82166d87001c270e60c69cc1dc39c2e1669ede22d731cea0f1ce9105e74467e

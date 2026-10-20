@@ -104,6 +104,7 @@ class OwnedDependencyOwnershipTest {
     private void noMutations() {
         verify(api, never()).createDockerImageApplication(any(), any());
         verify(api, never()).createPostgresDatabase(any(), any());
+        verify(api, never()).updateDockerImageApplication(any(), anyString(), any());
         verify(api, never()).updateEnvironmentVariables(any(), anyString(), anyList());
         verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
         verify(api, never()).stop(any(), anyString(), anyBoolean());
@@ -310,6 +311,29 @@ class OwnedDependencyOwnershipTest {
         assertThat(fixture.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).containsOnly("OWNED").hasSize(2);
         verify(api, never()).createPostgresDatabase(any(), any()); verify(api, never()).startDatabase(any(), anyString());
         verify(api, never()).reconcilePersistentVolumeStorage(any(), anyString(), anyString(), anyString());
+        var request = org.mockito.ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
+        verify(api).createDockerImageApplication(eq(connection), request.capture());
+        assertStartupBudget(request.getValue());
+    }
+
+    @Test void resumedOwnedApplicationReceivesStartupBudgetWithoutCreatingAnotherApplication() {
+        existing(true);
+        reconcile(inbox(), "inbox-service");
+        var request = org.mockito.ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
+        verify(api).updateDockerImageApplication(eq(connection), eq("app"), request.capture());
+        assertStartupBudget(request.getValue());
+        assertThat(request.getValue().imageRepository()).isEqualTo("registry.example.test/dependency");
+        assertThat(request.getValue().imageTag()).isEqualTo("sha256-" + "a".repeat(64));
+        verify(api, never()).createDockerImageApplication(any(), any());
+        verify(api, never()).createPostgresDatabase(any(), any());
+        verify(api).start(connection, "app", true, true);
+    }
+
+    private void assertStartupBudget(CoolifyCreateDockerImageApplicationRequest request) {
+        assertThat(request.runtimeSettings().healthCheckIntervalSeconds()).isEqualTo(10);
+        assertThat(request.runtimeSettings().healthCheckTimeoutSeconds()).isEqualTo(5);
+        assertThat(request.runtimeSettings().healthCheckRetries()).isEqualTo(18);
+        assertThat(request.runtimeSettings().healthCheckStartPeriodSeconds()).isEqualTo(180);
     }
 
     @Test void supportedGenericDatabaseCreatesWithPreEffectStorageJournalAndExactReadback() {
