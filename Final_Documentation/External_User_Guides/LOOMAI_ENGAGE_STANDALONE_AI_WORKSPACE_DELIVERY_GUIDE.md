@@ -191,6 +191,44 @@ explicit operation and must pass normal fresh authorization and prerequisites.
 Reuse the same operation key only to recover its immutable receipt, not to
 repeat an uncertain provider operation.
 
+### Explicit Retry After Initial Connector Startup Failure
+
+This is a different operation from pre-native recovery. When the initial
+Coolify runtime and connector already exist but connector startup failed before
+activation, an owner can review a retry of those existing owned applications:
+
+```text
+POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/failed-apply-retry-plan
+{
+  "releaseId": "<failed-release>",
+  "operationKey": "<unique-key>",
+  "reason": "<reason>",
+  "acceptOwnedServiceRedeploy": true
+}
+
+POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/retry-failed-apply
+<the exact command returned by the plan>
+```
+
+Use the normal `CUSTOMER_ADMIN` session. Planning verifies ownership and complete
+terminal provider-job history without starting services. The plan identifies
+`runtime` and `connector` as the affected roles. Review the plan and explicitly
+accept their redeployment before submitting its exact fenced command. Existing
+application and database identities remain; new jobs and container replacements
+are authorized, so downtime is possible. This is not a connector-only restart.
+
+The same release, reservation, version, dependency preparation and provider
+allowance are retained. Failed-attempt progress is archived in the release and
+an immutable receipt; credits and counters are not refunded, reset or replaced.
+Normal preflight, prerequisites, provisioning and verification still run. A
+queued receipt is not a verified or active deployment.
+
+Changed ownership, a stale revision/proof, pending or unproven provider jobs,
+initialized funding, or a different failure phase blocks this initial-boundary
+retry. Repeated or ambiguous failures require their owning reconciliation path.
+Do not automatically fall back between recovery types, cancel the reservation
+as unused, or repeat an uncertain native operation.
+
 ## 6. Release Verification
 
 Before activating a customer app, prove:

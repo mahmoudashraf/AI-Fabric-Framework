@@ -1,6 +1,15 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October21:46UTC, both CPs verify6e8f49882/image8cea4eef/schema206/UP,
+ 206 focused cases/98 actual PostgreSQL, package, review and backend-only CI pass.
+  All139 tables/config/financial history are preserved; maintenance closes21:41.
+  Fresh measured continuity is valid23:31:42 with no capacity/quota/funding
+  increase. One normal owner native retry20021:42 retains rel-b7206a67/R/native
+  identities/graph/allowance and archives the failed attempt. Runtime gate passes;
+  connector is starting, R PROVISIONINGrev8, allocation UNINITIALIZED. No hosted
+  workload-ready claim or POST replay. Main continues sequential observation and
+  acceptance; only bounded functional retry UI is parallel, extraction LAST.
   At20October21:08UTC, M5 rel-b7206a67 has native runtime/operational PostgreSQL
   but FAILED connector startup. Same R is OUTCOME_UNKNOWN, same provider
   allocation UNINITIALIZED; no replay/reset/refund or pre-native recovery reuse.

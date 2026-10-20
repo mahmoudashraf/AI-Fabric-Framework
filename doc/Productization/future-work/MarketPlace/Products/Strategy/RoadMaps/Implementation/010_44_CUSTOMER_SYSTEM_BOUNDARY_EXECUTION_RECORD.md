@@ -9,14 +9,16 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-20 21:08 UTC. The detailed
+Authoritative short checklist, updated 2026-10-20 21:46 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
 - **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
   healthy staging and production, preserved configuration/history. Both verify
- 55f76fb8e/imagec7754fc8/schema206 after287-case qualification.
-  [Hosted closure](/private/tmp/01044-prepared-failure-backend-rollout-20261020/maintenance.completed.json).
+ 6e8f49882/image8cea4eef/schema206 after206 focused cases/98 actual PostgreSQL,
+  package, independent review and backend-only CI39500986100. Source-only
+  maintenance closes21:41 with all139-table/config/financial preservation.
+  [Hosted closure](/private/tmp/01044-native-retry-backend-rollout-20261020/maintenance.completed.json).
 - **M2 COMPLETE: Customer configuration path.** Acceptance: normal owner app
   reuse/profile choice, customer-owned S3, immutable version and approved DATA
   binding without privileged repair. App stays DRAFT; versionver-c8cb7261,
@@ -48,21 +50,15 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   fenced; only four source-justified worker timing/lease fields normalize, with
   full raw evidence retained. Original pre-intent failures stay preserved and
   were never POSTed. [Actual closure](/private/tmp/01044-attended-free01-handoff-20261020/operation-route-stable-r2/closure.actual.json).
-- **M5 IN PROGRESS: Hosted staging workload.** First normal owner
-  admission/allowance succeeds, but applyrel-c58d9d38 fails before native work.
-  Generic runtime-only TARGET_SECRET projection fix passes41 cases/package;
-  prepared-failure recovery qualifies287 cases/81 actualPG and package. Source
- 55f76fb8e/imagec7754fc8 is live on both CPs. Normal owner prepared recovery
-  succeeds20:40, SAME R is RESERVEDrev3 with graph/secret/allocation/history
-  preserved; failed release stays FAILED/fenced. No blind retry/reset/new grant.
-  Separate fresh apply authorization succeeds20:43, rel-b7206a67, but connector
-  startup fails. Native runtime and operational PostgreSQL now exist; R is
-  OUTCOME_UNKNOWN, same allowance remains UNINITIALIZED. Pre-native recovery is
-  no longer applicable. Exact-image offline startup reaches liveness UP103.6s at
- 0.25CPU/768MiB; Coolify's connector defaults stop the hosted attempt earlier.
-  Local fixf22f9e6dd explicitly supplies bounded startup health settings for every
-  JVM role;40 provider tests pass, not pushed/deployed. A fenced partial-native
-  continuation is the next main-owned gap; no blind retry or financial reset.
+- **M5 IN PROGRESS: Hosted staging workload.** Source6e8f49882 is live on both
+  control planes, including the startup policy and explicit owner-fenced initial
+  partial-native retry. Fresh measured policy continuity verifies21:34 with
+  unchanged R/physical budgets/quota/funding, valid23:31:42UTC. Normal owner
+  PLAN200 then one EXECUTE20021:42 queues SAME rel-b7206a67/Rc4d054ec,
+  receipt69854756-db9f-46d5-bf75-c4b44ba574c1. Existing native identities,
+  preparation and allowance remain; failed attempt is archived. At21:46 the
+  runtime gate passes, connector startup is pending, R is PROVISIONINGrev8 and
+  allocation remains UNINITIALIZED. No blind retry/reset/refund/new grant.
   Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
   confirmed-action receipts, identity isolation and human handover. No customer
@@ -90,13 +86,12 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** main implements and qualifies explicit partial-native continuation,
-then ONE backend build/rollout containing it and the startup-policy correction.
-Fresh provider-job/ownership proof and atomic stale-observer protection are
-required; no replacement resource, funding reset or pre-native recovery shortcut.
-Then hosted runtime/index/chat/action/identity/handover gates. The two relevant
-independent diagnostics are complete; all parallel agents are parked. Main owns
-the sequential flow and every mutation.
+**Next:** observe the consumed same-release retry through connector startup,
+credential scrub, dependency completion, source sync and normal verification;
+then hosted runtime/index/chat/action/identity/handover gates. Never replay the
+actual native retry POST. Main owns sequential flow and every mutation. Faraday
+alone handles the independent minimal functional retry UI against frozen APIs;
+no redesign/extraction/hosted work. The source review and diagnostics are closed.
 **Required user input: none
 currently.** No new spending or deployment authority is implied by this list.
 

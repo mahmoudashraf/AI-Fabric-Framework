@@ -10,6 +10,36 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At21:46UTC, MAIN CONTINUES; do not stop after this checkpoint. Both control
+  planes verify6e8f49882769cbab08f2c6f7c9f318c41406c08c/image8cea4eef/schema206/UP.
+  CI39500986100 succeeds/backend only; source qualifies206 focused cases/98 real
+  PostgreSQL, package and independent review. All139-table/config/financial/
+  failed-history preservation passes. Source-only maintenance closes21:41,
+  proof40353202c1100daed1ab36b3781647680ddc0528ac494e8bf72f1964f51f398d
+  in /private/tmp/01044-native-retry-backend-rollout-20261020. Completed jobs are
+  not replayed; framework/runtime artifact0.8.36/d2b1/3809 unchanged.
+- Fresh61x5 host measurements complete21:31; normal owner placement refreshes
+  and append-only policy continuity01036-native-retry-pg-inbox-fleet-20261020
+  verify21:34, FP8bfa6c07d8a040ea404bc38475fc21c649b9d31cea634da63d9cc9311c2e4fd5,
+  valid23:31:42UTC. Same R/funding/quota/physical budgets preserved. Proof
+ 4c4b2dbba9c2374643f9329c897fbfbc4b354a9c80e888aabf6bc902359f8ffa
+  in /private/tmp/01044-native-retry-policy-20261020.
+- Normal owner native retry PLAN200 and one exact-command EXECUTE20021:42,
+  receipt69854756-db9f-46d5-bf75-c4b44ba574c1. SAME rel-b7206a67/Rc4d054ec,
+  same graph/native identities/allowance; no grant/reset/refund/delete/SQL repair.
+  Retry authorizes real runtime+connector jobs; it is NOT effect-free recovery.
+  R transitions rev6 UNKNOWN->rev7 RESERVED->rev8 PROVISIONING. At21:46 runtime
+  native gate passes and connector is starting. Allocationpua-9a083459 remains
+  UNINITIALIZED; no active/workload-ready claim. Never replay actual retry POST.
+  Current helper /private/tmp/01044-owner-native-retry-20261020/main.mjs supports
+  read-only observe; plan/execute modes are consumed. Original failed progress
+  is archived durably. Await credential scrub, dependency initialization,
+  document/stock sync and release verification before hosted user gates.
+- Source review finished, Chandra parked. Only Faraday runs relevant independent
+  functional owner native-retry UI work in platformApi/CustomerDeploymentConsole
+  and focused tests, no redesign/extraction/hosted calls/commits. Main owns
+  sequential deployment and acceptance. M5-M9 remain open; UI extraction LAST.
+
 - At21:08UTC, latest owner instruction is explicit: main owns sequential flow;
   parallel agents are only for relevant independent checks. Both bounded checks
   below are complete and agents are parked. Do not wait for them or repeat them.
