@@ -8,6 +8,61 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 12:21 UTC Settlement And PG Tooling Committed Locally
+
+- Settlement commit558d3b54d066dfa30342e1ec21733630d3e859c4 contains only its
+  ten frozen source/test files. Post-review R8 passes154/0fail/0error/0skip,
+  including87 actualPG cases; offline package passes. Independent P2 is fixed:
+  exact completed receipt recovery precedes capacity-policy resolution but
+  retains current owner authorization. Real PG policy-rollover replay and
+  rollback AFTER actual JPA detach/audit/final admission save both pass.
+  Evidence /private/tmp/01044-postapply-backend-source-fix-rollout-20261020/
+  settlement.offline.qualification-r8.json; R3freeze0f85814d...f081fd. All prior
+  failures/old-source qualifications retained, no source/effect bypass.
+- Separate tooling commit800dfcc74 adds13 verified generic Inbox publication/
+  isolated-PG-proof support files. Main verifies archive/source pins and reruns
+ 140 publication cases,18 proof safety cases and88 private rollout-helper
+  cases PASS. Real exact-image localPG restore proof remains bounded, notP5.
+  No private real inputs/credentials/canary row dumps entered these commits.
+- Remote Platform-V11 still063 at12:21UTC. No push/CI/rollout/settlement/new
+  offer/candidate. Main owns final integration. New explicit receipt-aware
+  V202 SAME-CP/same-customer empty-binding handoff extension is needed because
+  old unused cancellation cannot accept genuine failed-release history. Faraday
+  owns AdmissionUnusedReservationEvidence, V202contracts/binder and narrow
+  tests; NO Store/Sartre/V205 widening. Preserve old handles/history/funds,
+  require actual fully visible empty store/no-writer evidence; no record copy.
+- Confucius has prepared an isolated57-suite combined critical gate from exact
+ 86e4 baseline plus overlays, including all369 prior cases and14 PG suites.
+  Do not start until final V202 freeze/tests and the frozen post-P2 settlement
+  source are both incorporated. Shared backend target is being handed from
+  Sartre to Faraday; main does not race Maven. UI extraction stays LAST.
+
+## 2026-10-20 12:08 UTC Parallel Work Resumed; Hosted State Unchanged
+
+- User restored account capacity; the three original agents resumed their saved
+  tasks. Platform's current Git origin is intentionally PUBLIC, reconfirmed by
+  the user. The separate framework remains Loom-AI-Labs/ai-fabric-framework.
+- Fresh read-only observation at12:02UTC: both backends HTTP200/UP on exact
+ 063347fdd7e5027a7c7ccd984b9c3742c6429c7e / image4181b5c8, schema206.
+  Original R7 stays RESERVEDrev1 with the same generation/absolute expiry;
+  rel-09bd86a7 stays FAILED with NO_EFFECT binding and no native handle.
+  Managed graphs, provider allocations and vector runs all0. No retry/mutation.
+  Evidence /private/tmp/01044-main-resumed-20261020-1205/observation.json.
+- Recovered exact-image Inbox PostgreSQL R4 proof PASS, completed01:28:46UTC;
+  retained-artifact/hash/owned-cleanup audit completed12:02UTC, not a new
+  runtime measurement. Actual V1-V5, scoped dispatch/operator/outbox/restart
+  and quiescent eight-table pg_dump/restore pass, no historical callback replay.
+  Main independently reran18 safety cases:18PASS/0skip. All owned resources
+  removed; failed R1-R3 retained. Local subsystem only, NOT hosted/fullP5.
+  Handoff /private/tmp/01044-local-inbox-postgres-proof-20261020-qualification.
+- New immutable PG-Inbox package tooling frozen:140PASS, including36 new and
+ 104 unchanged legacy cases, no publication/provider effect. Private handoff
+  /private/tmp/01044-postgres-inbox-publication-tooling-20261020/HANDOFF.md.
+  Settlement source/legacy controller fixture qualification and independent
+  review continue. Confucius prepares an isolated combined gate, waiting for
+  the exact final settlement freeze. No source push/CI/rollout, customer
+  settlement or new offer/deployment yet. UI extraction remains LAST.
+
 ## 2026-10-20 01:16 UTC Two Source Fixes Committed; Settlement Pending
 
 - Local commits dda807f2ad71000d59d587f3c04f6772cffadbec (worker authority,

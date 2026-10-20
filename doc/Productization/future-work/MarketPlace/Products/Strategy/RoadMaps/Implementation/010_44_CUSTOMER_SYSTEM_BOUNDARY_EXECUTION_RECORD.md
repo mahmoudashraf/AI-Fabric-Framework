@@ -1,5 +1,75 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 12:21 UTC Settlement Correction Qualified And Local Commits
+
+- Post-review settlement R8 passes154 focused cases,87 actual PostgreSQL,
+  zero failures/errors/skips plus offline package. The P2 policy-rollover
+  receipt replay and the actual JPA-detach/final-write rollback are now tested.
+  All ten source hashes independently verified and committed locally as
+ 558d3b54d. Prior failed/old-source runs remain preserved.
+- Separate800dfcc74 commits13 generic PG Inbox publication/proof support files
+  after main reverified frozen archive/source hashes and reran140+18 tests.
+  Private guarded rollout helper88/88 also passes; still no candidate image,
+  CI run, backend rollout or source publication. Remote remains063.
+- The explicit V202 settled-no-effect proof branch is the remaining source
+  integration step before the prepared combined critical gate. It must not
+  pretend a failed release never existed or repurpose a cancellation receipt.
+  No handle status/metadata rewrite, funds reset, provider deletion or vector
+  copying is authorized. Final hosted source/cleanup/candidate/P5/P7 and UI
+  extraction LAST remain incomplete.
+
+## 2026-10-20 12:18 UTC Receipt Review And Empty Binding Reuse
+
+- Independent settlement review found one P2: completed receipt recovery
+  resolved active capacity-policy continuity before looking up the immutable
+  receipt. A normal later policy excludes released allocations, blocking exact
+  replay. Both context/policy checks now run only for NEW settlement; current
+  owner/offer/session and exact receipt/reservation checks remain mandatory.
+  New real-PG policy-rollover and post-JPA/final-receipt rollback regressions
+  are running. Earlier152-case/R7 source proof remains historical, not reused.
+- Main independently reran140 publication-tooling cases and88 guarded-rollout
+  helper cases PASS, zero skips. Fresh normal admin catalogue reads confirm
+  exact promoted Inboxdsa-1dc83268/runtime dsa-ed384ca8 and publishermpub-loom.
+  Only a private offline template1.1.0/spec proposal exists; native new version
+  ID remains null and no publication or resource request occurred.
+- A genuine next-step lifecycle gap is confirmed: V202 empty binding handoff
+  supports never-applied unused cancellation, not a preserved failed NO_EFFECT
+  release after audited settlement. Normal bind and V205 also correctly reject
+  that history. Implement an EXPLICIT generic known-settlement proof branch
+  in V202 only; do not weaken cancellation/V205, manufacture a cancellation,
+  copy vectors, delete the customer cluster or rewrite old handles/history.
+  Require exact immutable settlement/event/current released reservation, full
+  retained handle proof, current same-customer ownership/approval, new prefix,
+  no subsequent effects and actual complete empty-cluster/no-writer evidence.
+  Append new binding/receipt only. Faraday owns narrow source/tests; main and
+  Sartre review before qualification. This is not staging-to-production data
+  transfer and no handoff has been executed.
+- Final isolated critical gate is prepared with57 selected suites, all prior
+ 369 cases and14 actual PostgreSQL suites. Execution waits for BOTH final
+  corrected settlement and V202 extension freezes. All hosted/P5/P7/promotion
+  and UI-LAST work remains open. No source push, deployment or customer write.
+
+## 2026-10-20 12:08 UTC Recovery Of Verification Work
+
+- All three original parallel agents resumed after the account interruption.
+  Current Platform origin remains intentionally public, as reconfirmed by the
+  user; framework ownership/repository remains separate.
+- Fresh12:02UTC read-only checks confirm both CPs UP on063/image4181/schema206.
+  R7 remains RESERVEDrev1 with its original expiry/generation, failedrel09bd
+  has exactNO_EFFECT binding/no native handle, and customer managed graphs,
+  model allocations and indexing runs remain0. No live retry was made.
+- Exact existing Inbox imaged748/source2035 local PostgreSQL proof actually
+  passed01:28UTC: V1-V5, scoped dispatch/reply/FIFO callbacks, restart and
+  quiescent pg_dump/restore of all eight tables, without historical delivery.
+  Later retained-artifact audit and main18/18 safety rerun pass. Owned resources
+  are gone; original failed attempts remain. This is subsystem evidence only,
+  not hosted provisioning/whole-topology P5 acceptance.
+- New PG immutable publication tooling140/140 passes, old H2 objects/builders
+  unchanged. No publication, funding change or candidate has occurred.
+  Settlement/legacy fixture qualification and independent review are still
+  pending; the final isolated combined gate must use the exact final freeze.
+  Current local backend commits are not yet pushed/deployed. UI stays LAST.
+
 ## 2026-10-20 01:16 UTC Frozen Source Qualification And Commits
 
 - Worker authority commitdda807f2ad71000d59d587f3c04f6772cffadbec and separate

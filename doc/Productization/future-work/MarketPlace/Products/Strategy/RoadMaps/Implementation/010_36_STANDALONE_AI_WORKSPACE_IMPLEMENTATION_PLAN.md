@@ -1,5 +1,26 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Qualified local checkpoint,20October12:21UTC: corrected settlement passes
+ 154 cases/87 actualPG/zero skips and package, committed separately558d3b54d.
+  New PG Inbox publication/proof support is separate800dfcc74; main reruns
+ 140+18 tests PASS and guarded rollout helper88PASS. No push/deploy/live
+  settlement yet; remote/live remain063. An explicit generic V202 empty-binding
+  handoff branch must recognize the genuine audited known-no-effect settlement
+  without erasing failed releases or copying records. Its final source and
+  regressions join the prepared combined critical gate before source rollout.
+  Full hosted P5/P7, customer promotion and UI extraction LAST remain open.
+
+- Resumed checkpoint,20October12:08UTC: all three parallel agents resumed from
+  saved work. Exact existing Inbox imaged748/source2035 passed local PostgreSQL
+  V1-V5, scoped operator/callback flows, restart and quiescent eight-table
+  backup/restore;18 safety cases independently rerun PASS, failed attempts
+  retained and owned local resources removed. This is local subsystem evidence,
+  NOT hosted/fullP5. New immutable PG package tooling140/140 passes offline.
+  Fresh read-only checks still show bothCPs063/4181/206/UP and the original
+  failedR7/NO_EFFECT history unchanged, no customer model/index/dependency work.
+  Settlement fixture/review and the final combined backend gate remain pending.
+  No new publication/push/rollout/customer-ready claim; UI extraction stays LAST.
+
 - Verified source checkpoint,20October01:16UTC: worker authority and production
   Inbox persistence guards are committed separately asdda807f2a/ea96e786f,
   not yet pushed/deployed. Parent isolated final run369/369 passes, including
