@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.customerselfservice.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
@@ -14,10 +15,12 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 public final class CustomerStagingConsumerConfigurationContracts {
     private CustomerStagingConsumerConfigurationContracts() { }
 
-    public record DraftWorkspaceExpectation(String installationEntityId, long expectedRowVersion) {
+    public record DraftWorkspaceExpectation(String installationEntityId, long expectedRowVersion,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String selectedWorkspaceProfileId) {
         public DraftWorkspaceExpectation {
             text(installationEntityId, 64);
             if (expectedRowVersion < 0) throw invalid();
+            if (selectedWorkspaceProfileId != null) text(selectedWorkspaceProfileId, 100);
         }
     }
 
@@ -43,9 +46,14 @@ public final class CustomerStagingConsumerConfigurationContracts {
             if (workspaces == null || !workspaces.isArray() || workspaces.size() > 100) throw invalid();
             var expectations = new ArrayList<DraftWorkspaceExpectation>();
             for (var workspace : workspaces) {
-                fields(workspace, Set.of("installationEntityId", "expectedRowVersion"));
+                if (workspace == null || !workspace.isObject() || workspace.size() < 2 || workspace.size() > 3
+                    || !workspace.has("installationEntityId") || !workspace.has("expectedRowVersion")) throw invalid();
+                workspace.fieldNames().forEachRemaining(name -> {
+                    if (!Set.of("installationEntityId", "expectedRowVersion", "selectedWorkspaceProfileId").contains(name)) throw invalid();
+                });
                 expectations.add(new DraftWorkspaceExpectation(string(workspace, "installationEntityId"),
-                    revision(workspace, "expectedRowVersion")));
+                    revision(workspace, "expectedRowVersion"), workspace.hasNonNull("selectedWorkspaceProfileId")
+                        ? string(workspace, "selectedWorkspaceProfileId") : null));
             }
             return new Request(string(value, "consumerId"), revision(value, "expectedBindingRevision"),
                 revision(value, "expectedEntitlementRevision"), string(value, "operationKey"), expectations);

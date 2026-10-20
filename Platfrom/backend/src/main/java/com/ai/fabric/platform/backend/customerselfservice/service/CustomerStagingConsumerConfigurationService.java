@@ -112,7 +112,7 @@ public class CustomerStagingConsumerConfigurationService {
             || consumer.getBoundReleaseId() != null || consumer.getBoundTargetProfileId() != null) throw conflict(RESOURCE_SCOPE_MISMATCH);
         requireUnusedDraft(deployment);
         requireDraftWorkspaces(actor.customerId(), consumer, deployment, offerId,
-            association.getBootstrapTargetProfileId(), request);
+            association.getBootstrapTargetProfileId(), request, approved.definition());
         var result = consumerService.updateBindingForTrustedPromotion(actor.customerId(), consumer.getConsumerId(),
             deploymentId, null, association.getBootstrapTargetProfileId(),
             "Customer configured an existing unbound staging consumer.", request.expectedBindingRevision(), request.operationKey());
@@ -126,7 +126,8 @@ public class CustomerStagingConsumerConfigurationService {
 
     private void requireDraftWorkspaces(String customerId,
             com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity consumer,
-            DeploymentEntity deployment, String offerId, String targetId, Request request) {
+            DeploymentEntity deployment, String offerId, String targetId, Request request,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Definition definition) {
         String consumerEntityId = consumer.getId();
         var applications = entityManager.createNativeQuery(
             "SELECT * FROM ai_workspace_installations WHERE consumer_entity_id=?1 ORDER BY id FOR UPDATE NOWAIT",
@@ -144,8 +145,19 @@ public class CustomerStagingConsumerConfigurationService {
             value -> value.installationEntityId(), value -> value.expectedRowVersion()));
         if (!actual.equals(expected)) throw conflict(REVISION_CONFLICT);
         for (Object value : applications) {
-            workspaces.authorizeDraftConfigurationForDestination((AIWorkspaceInstallationEntity) value, consumer,
-                deployment, offerId, targetId, request.operationKey());
+            var app = (AIWorkspaceInstallationEntity) value;
+            var expectation = request.expectedDraftWorkspaces().stream()
+                .filter(item -> item.installationEntityId().equals(app.getId())).findFirst().orElseThrow();
+            if (expectation.selectedWorkspaceProfileId() == null) {
+                workspaces.authorizeDraftConfigurationForDestination(app, consumer,
+                    deployment, offerId, targetId, request.operationKey());
+            } else {
+                var profiles = definition.workspaceProfiles().stream()
+                    .filter(profile -> profile.id().equals(expectation.selectedWorkspaceProfileId())).toList();
+                if (profiles.size() != 1) throw deny(SETTING_FORBIDDEN);
+                workspaces.adoptReviewedDraftConfigurationForDestination(app, consumer, deployment,
+                    offerId, targetId, request.operationKey(), profiles.getFirst());
+            }
         }
     }
 

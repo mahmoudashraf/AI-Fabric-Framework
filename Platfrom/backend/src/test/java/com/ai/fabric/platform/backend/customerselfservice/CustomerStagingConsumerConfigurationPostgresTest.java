@@ -3,6 +3,10 @@ package com.ai.fabric.platform.backend.customerselfservice;
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.*;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceDomainService;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceExperiencePackRegistry;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceConnectionProfileRegistry;
+import com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceAuthenticationProfileRegistry;
 import com.ai.fabric.platform.backend.customerselfservice.entity.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
@@ -20,6 +24,9 @@ import com.ai.fabric.platform.backend.tenant.repository.*;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -65,6 +72,8 @@ class CustomerStagingConsumerConfigurationPostgresTest {
     @Autowired PlatformCustomerConsumerService genericConsumers;
     @Autowired CustomerOfferCodec codec;
     @Autowired CustomerSelfServiceOperationBoundary offerBoundary;
+    @Autowired CustomerWorkspaceProfileValidator workspaceProfiles;
+    @Autowired AIWorkspaceDomainService domainService;
     @Autowired PlatformCustomerRepository customers;
     @Autowired PlatformUserRepository users;
     @Autowired PlatformTenantRepository tenants;
@@ -135,7 +144,7 @@ class CustomerStagingConsumerConfigurationPostgresTest {
 
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
     private void authenticate(){CustomerOfferTestFixtures.authenticate(email,PlatformRole.CUSTOMER_ADMIN,"SESSION");}
-    private Request request(){return new Request(consumerId,2,4,"configure-existing",List.of(new DraftWorkspaceExpectation(appId,0)));}
+    private Request request(){return new Request(consumerId,2,4,"configure-existing",List.of(new DraftWorkspaceExpectation(appId,0,null)));}
     private PlatformConsumerSummary configure(){return service.configure(offerId,depId,request());}
 
     @Test void configurationOnlyAssignmentProjectsExactOriginsAndPreservesEveryAppField() throws Exception {
@@ -192,9 +201,9 @@ class CustomerStagingConsumerConfigurationPostgresTest {
         var r=switch(fault){
             case "binding-revision"->new Request(consumerId,1,4,"configure-existing",request().expectedDraftWorkspaces());
             case "entitlement-revision"->new Request(consumerId,2,3,"configure-existing",request().expectedDraftWorkspaces());
-            case "workspace-revision"->new Request(consumerId,2,4,"configure-existing",List.of(new DraftWorkspaceExpectation(appId,1)));
+            case "workspace-revision"->new Request(consumerId,2,4,"configure-existing",List.of(new DraftWorkspaceExpectation(appId,1,null)));
             case "missing-workspace"->new Request(consumerId,2,4,"configure-existing",List.of());
-            case "extra-workspace"->new Request(consumerId,2,4,"configure-existing",List.of(new DraftWorkspaceExpectation(appId,0),new DraftWorkspaceExpectation("nonexistent-app",0)));
+            case "extra-workspace"->new Request(consumerId,2,4,"configure-existing",List.of(new DraftWorkspaceExpectation(appId,0,null),new DraftWorkspaceExpectation("nonexistent-app",0,null)));
             default->throw new AssertionError(fault);
         };
         assertThatThrownBy(()->service.configure(offerId,depId,r)).isInstanceOf(CustomerSelfServiceException.class);assertUnbound();
@@ -242,7 +251,7 @@ class CustomerStagingConsumerConfigurationPostgresTest {
     @Test void completeTwoDraftWorkspaceSetProjectsBothOriginsWithoutEditingEitherApp() throws Exception {
         String other=appId+"-other";createApp(other,"https://second.test.invalid");String before=appRow();
         var result=service.configure(offerId,depId,new Request(consumerId,2,4,"configure-two",List.of(
-            new DraftWorkspaceExpectation(other,0),new DraftWorkspaceExpectation(appId,0))));
+            new DraftWorkspaceExpectation(other,0,null),new DraftWorkspaceExpectation(appId,0,null))));
         assertThat(result.bindingRevision()).isEqualTo(3);assertThat(appRow()).isEqualTo(before);
         var security=codec.read(drafts.findById(draftId).orElseThrow().getSecurityConfigJson(),com.fasterxml.jackson.databind.JsonNode.class);
         assertThat(security.path("corsAllowedOrigins").asText()).contains("https://app.test.invalid","https://second.test.invalid");
@@ -361,6 +370,192 @@ class CustomerStagingConsumerConfigurationPostgresTest {
         assertThat(drafts.findById(next.getId()).orElseThrow().getSecurityConfigJson()).isEqualTo(security);
         assertThat(commands.findByEntitlementIdAndOperationKey(grantId,request().operationKey())).isEmpty();
         assertThat(history.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId)).isEmpty();
+    }
+
+    @Test void explicitReviewedProfileAdoptionChangesOnlyApprovedAuthAndOneAppRevisionBeforeBinding() {
+        var profile=prepareAdoption(false);
+        String app=appRow(),offer=offers.findById(offerId).orElseThrow().getDefinitionJson();
+        String grant=jdbc.queryForObject("SELECT row_to_json(g)::text FROM platform_customer_offer_entitlements g WHERE id=?",String.class,grantId);
+        var result=service.configure(offerId,depId,adoptionRequest(profile.id(),0));
+        assertThat(result.bindingRevision()).isEqualTo(3);assertThat(result.boundDeploymentId()).isEqualTo(depId);
+        assertThat(result.boundReleaseId()).isNull();assertThat(result.boundTargetProfileId()).isEqualTo("staging-target");
+        assertOnlyReviewedAuthChanged(app,profile);
+        assertThat(offers.findById(offerId).orElseThrow().getDefinitionJson()).isEqualTo(offer);
+        assertThat(jdbc.queryForObject("SELECT row_to_json(g)::text FROM platform_customer_offer_entitlements g WHERE id=?",String.class,grantId)).isEqualTo(grant);
+        var security=codec.tree(drafts.findById(draftId).orElseThrow().getSecurityConfigJson());
+        assertThat(security.path("corsAllowedOrigins").asText()).isEqualTo("https://manual.test.invalid,https://app.test.invalid");
+        assertThat(security.path("aiWorkspaceManagedCorsOrigins")).isEqualTo(codec.read("[\"https://app.test.invalid\"]",JsonNode.class));
+        assertThat(security.path("unrelated").asBoolean()).isTrue();
+        assertThat(adoptionAudits()).isEqualTo(1);
+        assertThat(history.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId)).hasSize(1);
+        assertThat(commands.findByEntitlementIdAndOperationKey(grantId,request().operationKey())).isPresent();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_deployment_releases WHERE deployment_id=?",Long.class,depId)).isZero();
+    }
+
+    @Test void reviewedAdoptionReplayReturnsTheReceiptWithoutAnotherAppWriteProjectionOrAudit() {
+        var profile=prepareAdoption(false);var input=adoptionRequest(profile.id(),0);
+        var first=service.configure(offerId,depId,input);String app=appRow();
+        String draft=jdbc.queryForObject("SELECT row_to_json(d)::text FROM platform_deployment_drafts d WHERE id=?",String.class,draftId);
+        String receipt=jdbc.queryForObject("SELECT row_to_json(c)::text FROM platform_customer_entitlement_commands c WHERE entitlement_id=? AND operation_key=?",String.class,grantId,input.operationKey());
+        long audits=jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class);
+        assertThat(service.configure(offerId,depId,input)).isEqualTo(first);
+        assertThat(appRow()).isEqualTo(app);assertThat(apps.findById(appId).orElseThrow().getRowVersion()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT row_to_json(d)::text FROM platform_deployment_drafts d WHERE id=?",String.class,draftId)).isEqualTo(draft);
+        assertThat(jdbc.queryForObject("SELECT row_to_json(c)::text FROM platform_customer_entitlement_commands c WHERE entitlement_id=? AND operation_key=?",String.class,grantId,input.operationKey())).isEqualTo(receipt);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class)).isEqualTo(audits);
+        assertThat(adoptionAudits()).isEqualTo(1);assertThat(history.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId)).hasSize(1);
+    }
+
+    @ParameterizedTest @ValueSource(strings={"omitted","different-profile","changed-app-revision"})
+    void adoptionSelectionAndAppFenceArePartOfTheSameKeyFingerprint(String change) {
+        var profile=prepareAdoption(false);service.configure(offerId,depId,adoptionRequest(profile.id(),0));
+        String app=appRow();long audits=jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class);
+        var changed=adoptionRequest(change.equals("omitted")?null:change.equals("different-profile")?"another-profile":profile.id(),
+            change.equals("changed-app-revision")?1:0);
+        assertThatThrownBy(()->service.configure(offerId,depId,changed)).isInstanceOfSatisfying(CustomerSelfServiceException.class,
+            e->assertThat(e.code()).isEqualTo(CustomerSelfServiceException.Code.OPERATION_KEY_CONFLICT));
+        assertThat(appRow()).isEqualTo(app);assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class)).isEqualTo(audits);
+        assertThat(history.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId)).hasSize(1);
+    }
+
+    @Test void absentSelectionNeverAutomaticallyAdoptsTheOnlyReviewedProfile() {
+        prepareAdoption(false);assertAdoptionDeniedWithoutEffects(request(),CustomerSelfServiceException.Code.SETTING_FORBIDDEN);
+    }
+
+    @Test void profileIdNotInTheDestinationOfferIsDeniedWithoutAnyAppOrBindingWrite() {
+        prepareAdoption(false);
+        assertAdoptionDeniedWithoutEffects(adoptionRequest("not-reviewed-for-this-offer",0),CustomerSelfServiceException.Code.SETTING_FORBIDDEN);
+    }
+
+    @Test void staleWorkspaceRevisionCannotAdoptEvenAnApprovedProfile() {
+        var profile=prepareAdoption(false);
+        assertAdoptionDeniedWithoutEffects(adoptionRequest(profile.id(),1),CustomerSelfServiceException.Code.REVISION_CONFLICT);
+    }
+
+    @ParameterizedTest @ValueSource(strings={"APP_CONFIGURE","AUTH_CONFIGURE","DOMAIN_CONFIGURE"})
+    void profileAdoptionRequiresEveryNormalWorkspaceOperationPermission(String permission) {
+        var profile=prepareAdoption(false);var definition=codec.read(offers.findById(offerId).orElseThrow().getDefinitionJson(),Definition.class);
+        var operations=EnumSet.copyOf(definition.operations());operations.remove(Operation.valueOf(permission));
+        replaceAdoptionFixtureOffer(copyDefinition(definition,operations,definition.settings(),definition.workspaceProfiles()));
+        assertAdoptionDeniedWithoutEffects(adoptionRequest(profile.id(),0),CustomerSelfServiceException.Code.OPERATION_FORBIDDEN);
+    }
+
+    @Test void reviewedAdoptionStillRequiresTheOriginalAppOriginsToBeApproved() {
+        var profile=prepareAdoption(false);
+        jdbc.update("UPDATE ai_workspace_installations SET allowed_origins_json='[\"https://not-approved.test.invalid\"]' WHERE id=?",appId);
+        assertAdoptionDeniedWithoutEffects(adoptionRequest(profile.id(),0),CustomerSelfServiceException.Code.SETTING_FORBIDDEN);
+    }
+
+    @Test void laterProjectionFailureRollsBackAdoptedProfileRevisionAuditBindingAndReceipt() {
+        var profile=prepareAdoption(false);
+        jdbc.update("UPDATE platform_deployment_drafts SET security_config_json='{\"corsAllowedOrigins\":\"https://manual.test.invalid\",\"aiWorkspaceManagedCorsOrigins\":7}' WHERE id=?",draftId);
+        String app=appRow(),draft=jdbc.queryForObject("SELECT row_to_json(d)::text FROM platform_deployment_drafts d WHERE id=?",String.class,draftId);
+        long audits=jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class);
+        assertThatThrownBy(()->service.configure(offerId,depId,adoptionRequest(profile.id(),0)))
+            .isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class,
+                e->assertThat(e.getReason()).isEqualTo("AI Workspace origin projection metadata requires reconciliation."));
+        assertUnbound();assertThat(appRow()).isEqualTo(app);assertThat(apps.findById(appId).orElseThrow().getRowVersion()).isZero();
+        assertThat(jdbc.queryForObject("SELECT row_to_json(d)::text FROM platform_deployment_drafts d WHERE id=?",String.class,draftId)).isEqualTo(draft);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class)).isEqualTo(audits);
+        assertThat(adoptionAudits()).isZero();assertThat(history.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId)).isEmpty();
+        assertThat(commands.findByEntitlementIdAndOperationKey(grantId,request().operationKey())).isEmpty();
+    }
+
+    @Test void standaloneAdoptionPreservesSlugDeliveryOriginsBytesAndEveryCustomDomainRow() {
+        var profile=prepareAdoption(true);String app=appRow();
+        var domains=jdbc.queryForList("SELECT row_to_json(d)::text FROM ai_workspace_domains d WHERE installation_entity_id=? ORDER BY id",String.class,appId);
+        assertThat(domains).hasSize(2);
+        service.configure(offerId,depId,adoptionRequest(profile.id(),0));assertOnlyReviewedAuthChanged(app,profile);
+        assertThat(jdbc.queryForList("SELECT row_to_json(d)::text FROM ai_workspace_domains d WHERE installation_entity_id=? ORDER BY id",String.class,appId)).isEqualTo(domains);
+        assertThat(apps.findById(appId).orElseThrow().getDeliveryMode()).isEqualTo(AIWorkspaceDeliveryMode.STANDALONE);
+    }
+
+    private Request adoptionRequest(String profileId,long appRevision) {
+        return new Request(consumerId,2,4,request().operationKey(),List.of(new DraftWorkspaceExpectation(appId,appRevision,profileId)));
+    }
+
+    private WorkspaceProfile prepareAdoption(boolean standalone) {
+        var json=JsonNodeFactory.instance;
+        var interaction=json.objectNode().put("packCode",AIWorkspaceExperiencePackRegistry.GENERIC_CODE)
+            .put("packVersion",AIWorkspaceExperiencePackRegistry.GENERIC_VERSION)
+            .put("connectionMode",AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED.name())
+            .put("connectionProfileCode",AIWorkspaceConnectionProfileRegistry.AUTHENTICATED)
+            .put("connectionProfileVersion",AIWorkspaceConnectionProfileRegistry.VERSION)
+            .put("deliveryMode",(standalone?AIWorkspaceDeliveryMode.STANDALONE:AIWorkspaceDeliveryMode.EMBEDDED).name());
+        interaction.set("connectionConfiguration",json.objectNode());
+        var configuration=json.objectNode();configuration.putObject("app").put("assistantLabel","Synthetic assistant");
+        interaction.set("configuration",configuration);
+        var theme=json.objectNode().put("primaryColor","#227766");
+        var auth=json.objectNode().put("profileCode",AIWorkspaceAuthenticationProfileRegistry.SUPABASE)
+            .put("profileVersion",AIWorkspaceAuthenticationProfileRegistry.VERSION)
+            .put("interactionPolicy",AIWorkspaceInteractionPolicy.LOGIN_REQUIRED.name());
+        var authConfiguration=json.objectNode().put("projectUrl","https://synthetic-project.supabase.co")
+            .put("publishableKey","sb_publishable_reviewed_synthetic_test");
+        authConfiguration.putArray("methods").add("email-password");auth.set("configuration",authConfiguration);
+        var profile=new WorkspaceProfile("reviewed-workspace-v2","Reviewed synthetic workspace",interaction,theme,auth);
+        var savedAuth=authConfiguration.deepCopy().put("publishableKey","sb_publishable_saved_synthetic_test");
+        var savedConfiguration=configuration.deepCopy();savedConfiguration.set("theme",theme);
+        String slug=standalone?"app-"+appId.substring(4):null;
+        List<String> origins=List.of("https://app.test.invalid");
+        if(standalone) origins=domainService.synchronize(apps.findById(appId).orElseThrow(),AIWorkspaceDeliveryMode.STANDALONE,
+            slug,List.of(appId+".test.invalid"),List.of());
+        // Only local fixture setup: both public profiles are real registry-valid shapes; the destination permits only the reviewed one.
+        jdbc.update("UPDATE ai_workspace_installations SET experience_pack_code=?,experience_pack_version=?,connection_mode=?,connection_profile_code=?,connection_profile_version=?,delivery_mode=?,app_slug=?,interaction_policy=?,auth_profile_code=?,auth_profile_version=?,auth_configuration_json=?,connection_configuration_json=?,configuration_json=?,allowed_origins_json=? WHERE id=?",
+            AIWorkspaceExperiencePackRegistry.GENERIC_CODE,AIWorkspaceExperiencePackRegistry.GENERIC_VERSION,
+            AIWorkspaceConnectionMode.PUBLIC_RUNTIME_AUTHENTICATED.name(),AIWorkspaceConnectionProfileRegistry.AUTHENTICATED,
+            AIWorkspaceConnectionProfileRegistry.VERSION,(standalone?AIWorkspaceDeliveryMode.STANDALONE:AIWorkspaceDeliveryMode.EMBEDDED).name(),slug,
+            AIWorkspaceInteractionPolicy.LOGIN_REQUIRED.name(),AIWorkspaceAuthenticationProfileRegistry.SUPABASE,AIWorkspaceAuthenticationProfileRegistry.VERSION,
+            codec.write(savedAuth),"{}",codec.write(savedConfiguration),"[ "+codec.write(origins).substring(1,codec.write(origins).length()-1)+" ]",appId);
+        var base=reviewedDefinition();
+        var settings=List.of(new SettingRule(Setting.DEPLOYMENT_NAME,ValueType.TEXT,100,Set.of()),
+            new SettingRule(Setting.APP_TITLE,ValueType.TEXT,100,Set.of()),
+            new SettingRule(Setting.INTERACTION_PROFILE_ID,ValueType.CHOICE,100,Set.of(offerBoundary.profileId("workspace",interaction))),
+            new SettingRule(Setting.THEME_PROFILE_ID,ValueType.CHOICE,100,Set.of(offerBoundary.profileId("theme",theme))),
+            new SettingRule(Setting.AUTH_PROFILE_ID,ValueType.CHOICE,100,Set.of(offerBoundary.profileId("auth",auth))),
+            new SettingRule(Setting.APP_DOMAIN,ValueType.CHOICE,255,Set.copyOf(origins)));
+        replaceAdoptionFixtureOffer(copyDefinition(base,base.operations(),settings,List.of(profile)));
+        assertThat(apps.findById(appId).orElseThrow().getRowVersion()).isZero();
+        return profile;
+    }
+
+    private Definition copyDefinition(Definition base,Set<Operation> operations,List<SettingRule> settings,List<WorkspaceProfile> profiles) {
+        return new Definition(base.schemaVersion(),base.name(),base.templateId(),base.template(),base.plugins(),base.artifacts(),
+            base.targets(),operations,settings,base.bindingSlots(),base.documentAudiences(),base.admissionPrerequisites(),
+            base.limits(),base.topology(),base.approvedPolicyRef(),base.operatingPolicyRef(),base.identityPolicyRef(),base.storagePolicyRef(),
+            profiles,base.aiStateStorageTopologies(),base.externalIntegrationProfiles());
+    }
+
+    private void replaceAdoptionFixtureOffer(Definition definition) {
+        workspaceProfiles.validate(definition);
+        jdbc.update("UPDATE platform_customer_offers SET definition_json=?,fingerprint=? WHERE id=?",codec.write(definition),codec.hash(definition),offerId);
+        jdbc.update("UPDATE platform_customer_offer_deployments SET offer_fingerprint=? WHERE deployment_id=?",codec.hash(definition),depId);
+    }
+
+    private void assertOnlyReviewedAuthChanged(String before,WorkspaceProfile profile) {
+        ObjectNode old=(ObjectNode)codec.tree(before),current=(ObjectNode)codec.tree(appRow());
+        assertThat(old.path("row_version").asLong()).isZero();assertThat(current.path("row_version").asLong()).isEqualTo(1);
+        assertThat(codec.tree(current.path("auth_configuration_json").asText())).isEqualTo(profile.authentication().path("configuration"));
+        assertThat(old.path("auth_configuration_json")).isNotEqualTo(current.path("auth_configuration_json"));
+        assertThat(current.path("allowed_origins_json")).isEqualTo(old.path("allowed_origins_json"));
+        old.remove(List.of("auth_configuration_json","row_version","updated_at"));
+        current.remove(List.of("auth_configuration_json","row_version","updated_at"));
+        assertThat(current).isEqualTo(old);
+    }
+
+    private long adoptionAudits() {
+        return jdbc.queryForObject("SELECT count(*) FROM platform_audit_events WHERE action='AI_WORKSPACE_REVIEWED_PROFILE_ADOPTED' AND target_id=?",Long.class,"public-"+appId);
+    }
+
+    private void assertAdoptionDeniedWithoutEffects(Request input,CustomerSelfServiceException.Code code) {
+        String app=appRow(),draft=jdbc.queryForObject("SELECT row_to_json(d)::text FROM platform_deployment_drafts d WHERE id=?",String.class,draftId);
+        long audits=jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class);
+        assertThatThrownBy(()->service.configure(offerId,depId,input)).isInstanceOfSatisfying(CustomerSelfServiceException.class,
+            e->assertThat(e.code()).isEqualTo(code));
+        assertUnbound();assertThat(appRow()).isEqualTo(app);
+        assertThat(jdbc.queryForObject("SELECT row_to_json(d)::text FROM platform_deployment_drafts d WHERE id=?",String.class,draftId)).isEqualTo(draft);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit_events",Long.class)).isEqualTo(audits);
+        assertThat(adoptionAudits()).isZero();assertThat(history.findByConsumerEntityIdOrderByCreatedAtDesc(consumerEntityId)).isEmpty();
+        assertThat(commands.findByEntitlementIdAndOperationKey(grantId,request().operationKey())).isEmpty();
     }
 
     private Definition reviewedDefinition() {

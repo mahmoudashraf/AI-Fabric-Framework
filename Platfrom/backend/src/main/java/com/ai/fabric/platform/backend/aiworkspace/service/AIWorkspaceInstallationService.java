@@ -359,6 +359,56 @@ public class AIWorkspaceInstallationService {
             PlatformConsumerEntity consumer,
             com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity destination,
             String offerId, String targetProfileId, String operationKey) {
+        requireUnboundDraftDestination(entity, consumer, destination);
+        authorizeDraftDestinationInput(storedInput(entity), destination, offerId, targetProfileId, operationKey, null);
+    }
+
+    /** Explicit profile adoption changes only an unactivated app's reviewed settings, never its identity or domains. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void adoptReviewedDraftConfigurationForDestination(AIWorkspaceInstallationEntity entity,
+            PlatformConsumerEntity consumer,
+            com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity destination,
+            String offerId, String targetProfileId, String operationKey,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.WorkspaceProfile profile) {
+        requireUnboundDraftDestination(entity, consumer, destination);
+        if (profile == null) throw new ResponseStatusException(BAD_REQUEST, "A reviewed workspace profile is required.");
+        ObjectNode interaction = requireObject(profile.interaction(), "interaction");
+        ObjectNode authentication = requireObject(profile.authentication(), "authentication");
+        ObjectNode configuration = requireObject(interaction.get("configuration"), "configuration").deepCopy();
+        configuration.remove("theme");
+        if (profile.theme() != null && !profile.theme().isNull()) configuration.set("theme", profile.theme().deepCopy());
+        var customDomains = domainService.summaries(entity.getId()).stream()
+            .filter(domain -> "CUSTOMER_CUSTOM".equals(domain.type()))
+            .map(domain -> domain.hostname()).toList();
+        var input = validateInput(entity.getDisplayName(), profileText(interaction, "packCode"),
+            profileText(interaction, "packVersion"), profileText(interaction, "connectionMode"),
+            profileText(interaction, "connectionProfileCode"), profileText(interaction, "connectionProfileVersion"),
+            interaction.get("connectionConfiguration"), readOrigins(entity.getAllowedOriginsJson()), configuration,
+            profileText(interaction, "deliveryMode"), entity.getAppSlug(), customDomains,
+            profileText(authentication, "interactionPolicy"), profileText(authentication, "profileCode"),
+            profileText(authentication, "profileVersion"), authentication.get("configuration"));
+        if (input.deliveryMode() != entity.getDeliveryMode() || !java.util.Objects.equals(input.appSlug(), entity.getAppSlug())
+            || !new java.util.HashSet<>(input.origins()).equals(new java.util.HashSet<>(readOrigins(entity.getAllowedOriginsJson())))) {
+            throw new ResponseStatusException(CONFLICT, "Reviewed profile adoption cannot change app identity or domains.");
+        }
+        authorizeDraftDestinationInput(input, destination, offerId, targetProfileId, operationKey, profile);
+        String originalOrigins = entity.getAllowedOriginsJson();
+        apply(entity, input);
+        entity.setAllowedOriginsJson(originalOrigins);
+        entity.setUpdatedAt(Instant.now());
+        repository.saveAndFlush(entity);
+        audit("AI_WORKSPACE_REVIEWED_PROFILE_ADOPTED", entity,
+            Map.of("deploymentId", destination.getId(), "offerId", offerId, "profileId", profile.id(), "operationKey", operationKey));
+    }
+
+    private String profileText(ObjectNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isTextual()) throw new ResponseStatusException(BAD_REQUEST, "Reviewed profile field is invalid: " + field);
+        return value.textValue();
+    }
+
+    private void requireUnboundDraftDestination(AIWorkspaceInstallationEntity entity,
+            PlatformConsumerEntity consumer, com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity destination) {
         if (entity == null || consumer == null || destination == null
             || !entity.getConsumerEntityId().equals(consumer.getId())
             || !entity.getCustomerId().equals(consumer.getCustomerId())
@@ -370,7 +420,13 @@ public class AIWorkspaceInstallationService {
             throw new ResponseStatusException(CONFLICT, "Draft workspace destination requires an owned unbound consumer.");
         }
         requireCustomerAccess(entity.getCustomerId());
-        authorizeConfiguration(storedInput(entity), (operation, settings) -> {
+    }
+
+    private void authorizeDraftDestinationInput(ValidatedInput input,
+            com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity destination,
+            String offerId, String targetProfileId, String operationKey,
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.WorkspaceProfile selectedProfile) {
+        authorizeConfiguration(input, (operation, settings) -> {
             var approved = offerBoundary.require(destination, targetProfileId, null, operation, operationKey,
                 settings, null, null, null);
             if (approved == null || !java.util.Objects.equals(offerId, approved.context().offerId())
@@ -380,6 +436,10 @@ public class AIWorkspaceInstallationService {
                 || !java.util.Objects.equals(targetProfileId, approved.context().targetProfileId())) {
                 throw com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
                     com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.RESOURCE_SCOPE_MISMATCH);
+            }
+            if (selectedProfile != null && !approved.definition().workspaceProfiles().contains(selectedProfile)) {
+                throw com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.SETTING_FORBIDDEN);
             }
             return approved;
         });

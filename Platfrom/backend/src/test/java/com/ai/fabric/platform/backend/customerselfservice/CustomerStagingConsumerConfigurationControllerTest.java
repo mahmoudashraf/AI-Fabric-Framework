@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.customerselfservice;
 
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerStagingConsumerConfigurationContracts.Request;
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerStagingConsumerConfigurationService;
+import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferCodec;
 import com.ai.fabric.platform.backend.customerselfservice.web.CustomerStagingConsumerConfigurationController;
 import com.ai.fabric.platform.backend.customerselfservice.web.CustomerSelfServiceExceptionHandler;
 import com.ai.fabric.platform.backend.security.PlatformRole;
@@ -52,7 +53,57 @@ class CustomerStagingConsumerConfigurationControllerTest {
         mvc.perform(post(PATH).contentType("application/json").content(VALID)).andExpect(status().isOk());
         verify(service).configure(eq("offer"),eq("deployment"),argThat(r -> r.consumerId().equals("existing-app")
             && r.expectedBindingRevision()==2 && r.expectedEntitlementRevision()==4
-            && r.expectedDraftWorkspaces().getFirst().expectedRowVersion()==0));
+            && r.expectedDraftWorkspaces().getFirst().expectedRowVersion()==0
+            && r.expectedDraftWorkspaces().getFirst().selectedWorkspaceProfileId()==null));
+    }
+
+    @Test void explicitNullProfileKeepsSavedSettingsAndReachesServiceAsNull() throws Exception {
+        mvc.perform(post(PATH).contentType("application/json").content(withProfile("null"))).andExpect(status().isOk());
+        verify(service).configure(eq("offer"),eq("deployment"),argThat(r ->
+            r.expectedDraftWorkspaces().getFirst().selectedWorkspaceProfileId()==null));
+    }
+
+    @Test void explicitReviewedProfileIdIsDecodedWithoutChangingTheOtherFences() throws Exception {
+        mvc.perform(post(PATH).contentType("application/json").content(withProfile("\"reviewed-workspace-v2\"")))
+            .andExpect(status().isOk());
+        verify(service).configure(eq("offer"),eq("deployment"),argThat(r ->
+            r.operationKey().equals("configure-existing") && r.expectedBindingRevision()==2
+            && r.expectedEntitlementRevision()==4 && r.expectedDraftWorkspaces().size()==1
+            && r.expectedDraftWorkspaces().getFirst().installationEntityId().equals("awi-test")
+            && r.expectedDraftWorkspaces().getFirst().expectedRowVersion()==0
+            && "reviewed-workspace-v2".equals(r.expectedDraftWorkspaces().getFirst().selectedWorkspaceProfileId())));
+    }
+
+    @Test void nullProfileRetainsTheOriginalCanonicalRequestBytesAndSelectionChangesTheFingerprint() throws Exception {
+        var mapper=new ObjectMapper();var codec=new CustomerOfferCodec(mapper);
+        var omitted=mapper.readValue(VALID,Request.class);
+        var explicitNull=mapper.readValue(withProfile("null"),Request.class);
+        assertThat(explicitNull).isEqualTo(omitted);
+        assertThat(codec.write(omitted)).isEqualTo(codec.write(mapper.readTree(VALID)));
+        assertThat(codec.hash(explicitNull)).isEqualTo(codec.hash(omitted));
+        assertThat(codec.write(explicitNull)).doesNotContain("selectedWorkspaceProfileId");
+        var selected=mapper.readValue(withProfile("\"reviewed-workspace-v2\""),Request.class);
+        assertThat(codec.hash(selected)).isNotEqualTo(codec.hash(omitted));
+        assertThat(codec.hash(mapper.readValue(withProfile("\"other-reviewed-workspace\""),Request.class)))
+            .isNotEqualTo(codec.hash(selected));
+    }
+
+    @ParameterizedTest @MethodSource("badProfileBodies")
+    void profileSelectionNeverCoercesTypesOrAcceptsUnknownWorkspaceFields(String body) throws Exception {
+        mvc.perform(post(PATH).contentType("application/json").content(body)).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    static Stream<String> badProfileBodies() {
+        return Stream.of(withProfile("1"),withProfile("true"),withProfile("{}"),withProfile("[]"),
+            withProfile("\"\""),withProfile("\" untrimmed\""),withProfile("\"untrimmed \""),
+            withProfile("\"bad\\nprofile\""),withProfile("\""+"x".repeat(101)+"\""),
+            VALID.replace("\"expectedRowVersion\":0","\"expectedRowVersion\":0,\"profileId\":\"reviewed-workspace-v2\""),
+            withProfile("\"reviewed-workspace-v2\"").replace("\"expectedRowVersion\":0","\"expectedRowVersion\":0,\"extra\":true"));
+    }
+
+    private static String withProfile(String jsonValue) {
+        return VALID.replace("\"expectedRowVersion\":0","\"expectedRowVersion\":0,\"selectedWorkspaceProfileId\":"+jsonValue);
     }
 
     @ParameterizedTest @MethodSource("badBodies")
