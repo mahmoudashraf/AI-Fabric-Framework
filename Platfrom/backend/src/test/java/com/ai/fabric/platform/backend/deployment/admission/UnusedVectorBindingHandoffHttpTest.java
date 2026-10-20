@@ -52,6 +52,28 @@ class UnusedVectorBindingHandoffHttpTest {
         assertThat(errorDispatches.get()).isZero();
     }
 
+    @Test void explicitSettlementAndInventoryReachTheSameAdminOnlyBoundary() throws Exception {
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(VALID);
+        var source = (com.fasterxml.jackson.databind.node.ObjectNode) node.path("sources").get(0);
+        source.remove("cancellationReceiptId"); source.put("knownNoEffectSettlementReceiptId", "settlement");
+        node.putObject("inventoryApproval").put("expectedCredentialFingerprint", "credential")
+            .put("fullVisibilityReviewReference", "visibility").put("noWriterWindowReference", "window");
+        assertThat(post(node.toString(), "synthetic-admin").statusCode()).isEqualTo(200);
+        verify(service).handoffUnused(eq("new"), eq("target"), argThat(value -> value.sources().getFirst().cancellationReceiptId() == null
+            && "settlement".equals(value.sources().getFirst().knownNoEffectSettlementReceiptId()) && value.inventoryApproval() != null));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"both", "neither", "missing-inventory", "partial-inventory"})
+    void settlementProofIsNeverCoercedFromCancellationOrUnreviewedInventory(String change) throws Exception {
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(VALID);
+        var source = (com.fasterxml.jackson.databind.node.ObjectNode) node.path("sources").get(0);
+        if (!change.equals("both")) source.remove("cancellationReceiptId");
+        if (!change.equals("neither")) source.put("knownNoEffectSettlementReceiptId", "settlement");
+        if (change.equals("partial-inventory")) node.putObject("inventoryApproval").put("expectedCredentialFingerprint", "credential");
+        assertThat(post(node.toString(), "synthetic-admin").statusCode()).isEqualTo(400);
+        verifyNoInteractions(service);
+    }
+
     @ParameterizedTest @ValueSource(strings = {"unknown", "scalar", "null", "missing", "nestedUnknown", "nestedScalar", "sources"})
     void malformedCommandsFailBeforeAnyBindingOrProviderWork(String mutation) throws Exception {
         var node = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(VALID);

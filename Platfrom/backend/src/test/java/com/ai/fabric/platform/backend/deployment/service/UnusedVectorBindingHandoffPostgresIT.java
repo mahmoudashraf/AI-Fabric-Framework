@@ -4,6 +4,9 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionJson;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionUnusedReservationEvidence;
 import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
+import com.ai.fabric.platform.backend.deployment.admission.KnownNoEffectHandoffTestFixture;
+import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationIntegrity;
+import com.ai.fabric.platform.backend.deployment.model.UnusedVectorTransferContracts.InventoryApproval;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
@@ -138,6 +141,7 @@ class UnusedVectorBindingHandoffPostgresIT {
     @Autowired DeploymentProviderResourceHandleRepository handles;
     @Autowired PlatformSecretService secrets;
     @Autowired TenantScopedVectorHandleResolver scopes;
+    @Autowired ExternalIntegrationIntegrity integrationIntegrity;
     @Autowired MockMvc mvc;
     @MockBean ZillizCloudControlPlaneClient provider;
 
@@ -282,6 +286,193 @@ class UnusedVectorBindingHandoffPostgresIT {
             .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(mapper.readValue(body, Receipt.class)).isEqualTo(receipt);
         assertThat(databaseSnapshot()).isEqualTo(committed);
+    }
+
+    @Test
+    void realKnownSettlementAndCompleteInventoryAuthorizeOnlyANewBindingAndReplayAfterDestinationIndexes() throws Exception {
+        var known = knownSource();
+        var command = knownRequest(known, destination, inventory());
+        var original = jdbc.queryForMap("SELECT * FROM deployment_provider_resource_handles WHERE id=?", known.handle().getId());
+        String releases = tableSnapshot("platform_deployment_releases");
+        String authorizations = tableSnapshot("deployment_admission_authorizations");
+        String funding = tableSnapshot("provider_usage_grants");
+        assertRejectedWithoutWrites(() -> bindings.bind(destination.deployment().getId(), targetId, connection(destination)));
+        var receipt = handoff(destination, command);
+        assertThat(receipt.emptyClusterReadback()).isNotNull();
+        assertThat(receipt.emptyClusterReadback().collectionsByDatabase()).containsExactlyEntriesOf(Map.of("default", List.of()));
+        var after = jdbc.queryForMap("SELECT * FROM deployment_provider_resource_handles WHERE id=?", known.handle().getId());
+        var identity = new java.util.TreeMap<>(after); identity.put("status", original.get("status")); identity.put("updated_at", original.get("updated_at"));
+        assertThat(identity).isEqualTo(original);
+        assertThat(receipt.sourceTransitions()).singleElement().satisfies(transition -> {
+            assertThat(transition.bindingId()).isEqualTo(known.handle().getId());
+            assertThat(transition.beforeRowFingerprint()).isEqualTo(json.fingerprint(original));
+            assertThat(transition.afterRowFingerprint()).isEqualTo(json.fingerprint(after));
+            assertThat(transition.fromStatus()).isEqualTo("ACTIVE"); assertThat(transition.toStatus()).isEqualTo("RETAINED_UNUSED");
+        });
+        assertThat(tableSnapshot("platform_deployment_releases")).isEqualTo(releases);
+        assertThat(tableSnapshot("deployment_admission_authorizations")).isEqualTo(authorizations);
+        assertThat(tableSnapshot("provider_usage_grants")).isEqualTo(funding);
+        assertThat(handles.findById(known.handle().getId()).orElseThrow().getStatus()).isEqualTo("RETAINED_UNUSED");
+        assertThat(count("deployment_provider_resource_handles", "provider_resource_uuid=? AND status='ACTIVE'", clusterId)).isEqualTo(1);
+        verify(provider).listServingCollections(endpoint, MANAGEMENT_KEY);
+        var committed = databaseSnapshot();
+        clearInvocations(provider);
+        when(provider.listServingCollections(endpoint, MANAGEMENT_KEY)).thenThrow(new AssertionError("Replay must not re-inventory"));
+        when(provider.listServingCollections(endpoint, NEW_TOKEN)).thenReturn(List.of(prefix(destination) + "synthetic_document"));
+        assertThat(handoff(destination, command)).isEqualTo(receipt);
+        assertThat(databaseSnapshot()).isEqualTo(committed);
+        verify(provider, org.mockito.Mockito.never()).listServingCollections(endpoint, MANAGEMENT_KEY);
+        assertRejectedWithoutWrites(() -> handoff(destination, knownRequest(known, destination,
+            new InventoryApproval(inventory().expectedCredentialFingerprint(), "changed-visibility", inventory().noWriterWindowReference()))));
+        assertRejectedWithoutWrites(() -> handoff(destination, knownRequest(known, destination,
+            new InventoryApproval(inventory().expectedCredentialFingerprint(), inventory().fullVisibilityReviewReference(), "changed-window"))));
+        assertThat(bindings.getUnusedHandoff(destination.deployment().getId(), targetId, command.operationKey())).isEqualTo(receipt);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"nonempty", "unobservable", "credential", "visibility", "window"})
+    void knownSettlementStillRequiresActualCompleteEmptyInventoryAndExplicitReviews(String change) throws Exception {
+        var known = knownSource(); var review = inventory();
+        switch (change) {
+            case "nonempty" -> when(provider.listServingCollections(endpoint, MANAGEMENT_KEY)).thenReturn(List.of("foreign_customer_data"));
+            case "unobservable" -> when(provider.listServingCollections(endpoint, MANAGEMENT_KEY)).thenThrow(new IllegalStateException("denied"));
+            case "credential" -> review = new InventoryApproval("0".repeat(64), review.fullVisibilityReviewReference(), review.noWriterWindowReference());
+            case "visibility" -> review = new InventoryApproval(review.expectedCredentialFingerprint(), "", review.noWriterWindowReference());
+            case "window" -> review = new InventoryApproval(review.expectedCredentialFingerprint(), review.fullVisibilityReviewReference(), "");
+            default -> throw new AssertionError(change);
+        }
+        var command = knownRequest(known, destination, review);
+        assertRejectedWithoutWrites(() -> handoff(destination, command));
+        assertThat(secrets.resolveSecret(secretRef("TOKEN", destination))).isNull();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"receipt", "event", "release", "authorization", "handle", "reservation", "activity", "owner", "entitlement"})
+    void knownSettlementProofCannotHidePostSettlementDriftOrNewEffects(String change) throws Exception {
+        var known = knownSource();
+        switch (change) {
+            case "receipt" -> jdbc.update("UPDATE deployment_admission_reviews SET fingerprint=? WHERE kind='NO_EFFECT_SETTLE' AND payload_json::jsonb->>'id'=?", "0".repeat(64), known.proof().receiptId());
+            case "event" -> jdbc.update("UPDATE deployment_admission_events SET evidence_reference='changed' WHERE reservation_id=? AND event_type='SETTLED_KNOWN_NO_EFFECT'", known.proof().reservationId());
+            case "release" -> jdbc.update("UPDATE platform_deployment_releases SET status='PROVISIONING' WHERE id=?", known.proof().releaseId());
+            case "authorization" -> jdbc.update("UPDATE deployment_admission_authorizations SET request_fingerprint='changed' WHERE reservation_id=?", known.proof().reservationId());
+            case "handle" -> jdbc.update("UPDATE deployment_provider_resource_handles SET last_observed_status='changed' WHERE id=?", known.handle().getId());
+            case "reservation" -> jdbc.update("UPDATE deployment_capacity_reservations SET revision=revision+1 WHERE id=?", known.proof().reservationId());
+            case "activity" -> jdbc.update("INSERT INTO deployment_admission_activity_watermarks VALUES (?,?,'ACCEPTED_SESSION',1,?)", known.proof().reservationId(), known.proof().releaseId(), Timestamp.from(now));
+            case "owner" -> jdbc.update("UPDATE platform_users SET status='DISABLED' WHERE id=?", known.ownerId());
+            case "entitlement" -> jdbc.update("UPDATE platform_customer_offer_entitlements SET status='REVOKED' WHERE owner_user_id=?", known.ownerId());
+            default -> throw new AssertionError(change);
+        }
+        clearInvocations(provider);
+        assertRejectedWithoutWrites(() -> handoff(destination, knownRequest(known, destination, inventory())));
+        verifyNoInteractions(provider);
+    }
+
+    @Test void knownSettlementCannotBeReinterpretedAsCancellationOrWidenCrossControlPlaneTransfer() throws Exception {
+        var known = knownSource();
+        var wrong = new Source(known.handle().getId(), known.proof().receiptId(), bindingFingerprint(known.handle()));
+        assertRejectedWithoutWrites(() -> handoff(destination, new UnusedVectorBindingHandoffContracts.Request("wrong-kind", APPROVAL,
+            List.of(source(), wrong), connection(destination))));
+        var transfers = new UnusedVectorTransferEvidence(jdbc, new UnusedVectorTransferJson(), cancellationEvidence);
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx ->
+            transfers.requireConfigurationOnlyDetachment(known.handle()))).hasMessageContaining("SOURCE_NOT_UNUSED");
+    }
+
+    @Test void competingKnownSettlementDestinationsCannotBothCommit() throws Exception {
+        var known = knownSource(); var rival = createDestination("known-rival", customerId);
+        associateOwner(rival, known.ownerId(), "rival-offer-" + fixtureId);
+        var firstObserved = new CountDownLatch(1); var release = new CountDownLatch(1); var calls = new AtomicInteger();
+        when(provider.listServingCollections(endpoint, MANAGEMENT_KEY)).thenAnswer(invocation -> {
+            if (calls.incrementAndGet() == 1) { firstObserved.countDown(); if (!release.await(15, TimeUnit.SECONDS)) throw new AssertionError("timeout"); }
+            return List.of();
+        });
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var first = workers.submit(() -> attempt(() -> handoff(destination, knownRequest(known, destination, inventory()))));
+            try {
+                assertThat(firstObserved.await(10, TimeUnit.SECONDS)).isTrue();
+                var second = workers.submit(() -> attempt(() -> handoff(rival, knownRequest(known, rival, inventory()))));
+                release.countDown();
+                var results = List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
+                assertThat(results).filteredOn(value -> value.receipt() != null).hasSize(1);
+                assertThat(results).filteredOn(value -> value.failure() != null).hasSize(1);
+                assertThat(count("deployment_unused_vector_handoffs", "payload_json::jsonb->>'clusterId'=?", clusterId)).isEqualTo(1);
+                assertThat(count("deployment_provider_resource_handles", "provider_resource_uuid=? AND status='ACTIVE'", clusterId)).isEqualTo(1);
+            } finally { release.countDown(); }
+        }
+    }
+
+    @Test void knownSourceStatusAndEveryDestinationWriteRollBackOnFinalReceiptFailure() throws Exception {
+        var known = knownSource();
+        String function = "known_handoff_failure_" + fixtureId;
+        jdbc.execute("CREATE FUNCTION " + function + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.deployment_id='"
+            + destination.deployment().getId() + "' THEN IF (SELECT status FROM deployment_provider_resource_handles WHERE id='"
+            + known.handle().getId() + "') <> 'RETAINED_UNUSED' THEN RAISE EXCEPTION 'transition-not-applied'; END IF; "
+            + "RAISE EXCEPTION 'synthetic-known-final-failure'; END IF; RETURN NEW; END $$");
+        jdbc.execute("CREATE TRIGGER " + function + " BEFORE INSERT ON deployment_unused_vector_handoffs FOR EACH ROW EXECUTE FUNCTION " + function + "()");
+        var before = databaseSnapshot();
+        try {
+            assertThatThrownBy(() -> handoff(destination, knownRequest(known, destination, inventory())))
+                .hasStackTraceContaining("synthetic-known-final-failure");
+            assertThat(databaseSnapshot()).isEqualTo(before);
+            assertThat(handles.findById(known.handle().getId()).orElseThrow().getStatus()).isEqualTo("ACTIVE");
+        } finally {
+            jdbc.execute("DROP TRIGGER " + function + " ON deployment_unused_vector_handoffs"); jdbc.execute("DROP FUNCTION " + function + "()");
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"status-alone", "transition-hash", "missing-audit", "current-after-row"})
+    void retainedKnownSourceRequiresTheExactAuthenticatedPriorTransition(String change) throws Exception {
+        var known = knownSource(); var command = knownRequest(known, destination, inventory());
+        if (change.equals("status-alone")) jdbc.update("UPDATE deployment_provider_resource_handles SET status='RETAINED_UNUSED' WHERE id=?", known.handle().getId());
+        else {
+            var receipt = handoff(destination, command);
+            switch (change) {
+                case "transition-hash" -> jdbc.update("UPDATE deployment_unused_vector_handoffs SET fingerprint=? WHERE id=?", "0".repeat(64), receipt.id());
+                case "missing-audit" -> jdbc.update("DELETE FROM platform_audit_events WHERE details_json::jsonb->>'receiptId'=?", receipt.id());
+                case "current-after-row" -> jdbc.update("UPDATE deployment_provider_resource_handles SET last_observed_status='changed' WHERE id=?", known.handle().getId());
+                default -> throw new AssertionError(change);
+            }
+        }
+        clearInvocations(provider);
+        assertRejectedWithoutWrites(() -> handoff(destination, command)); verifyNoInteractions(provider);
+    }
+
+    @Test void retainedKnownSourceCarriesForwardOnlyThroughItsPriorV202Transition() throws Exception {
+        var known = knownSource(); var first = handoff(destination, knownRequest(known, destination, inventory()));
+        var nextProof = KnownNoEffectHandoffTestFixture.settle(jdbc, json, transactionManager, integrationIntegrity,
+            destination.deployment(), destination.version(), targetId, known.ownerId(), "destination-offer-" + fixtureId, now);
+        var next = createDestination("carry-forward", customerId); associateOwner(next, known.ownerId(), "next-offer-" + fixtureId);
+        var previousHandle = handles.findById(first.binding().bindingId()).orElseThrow();
+        var sources = List.of(source(), new Source(known.handle().getId(), null, bindingFingerprint(known.handle()), known.proof().receiptId()),
+            new Source(previousHandle.getId(), null, bindingFingerprint(previousHandle), nextProof.receiptId()));
+        var command = new UnusedVectorBindingHandoffContracts.Request("carry-forward", APPROVAL, sources, connection(next), inventory());
+        var second = handoff(next, command);
+        assertThat(second.sourceTransitions()).singleElement().satisfies(value -> assertThat(value.bindingId()).isEqualTo(previousHandle.getId()));
+        assertThat(handles.findById(known.handle().getId()).orElseThrow().getStatus()).isEqualTo("RETAINED_UNUSED");
+        assertThat(count("deployment_provider_resource_handles", "provider_resource_uuid=? AND status='ACTIVE'", clusterId)).isEqualTo(1);
+        assertThat(handoff(next, command)).isEqualTo(second);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"orphan", "unknown-outcome", "current-deployment"})
+    void relevantGrantEventsMustResolveToProvedOtherDeploymentAllocations(String change) throws Exception {
+        var known = knownSource(); String grant = grant();
+        if (change.equals("current-deployment")) allocation(grant, known.owner().deployment().getId(), known.proof().reservationId());
+        else {
+            String subject = change.equals("orphan") ? "missing-allocation" : allocation(grant, destination.deployment().getId(), "different-reservation");
+            financialEvent("unknown-event-" + fixtureId, subject, grant, change.equals("orphan") ? "ALLOWANCE_ALLOCATED" : "OUTCOME_UNKNOWN");
+        }
+        clearInvocations(provider);
+        assertRejectedWithoutWrites(() -> handoff(destination, knownRequest(known, destination, inventory()))); verifyNoInteractions(provider);
+    }
+
+    @Test void legitimateDestinationSpendAndGrantApproveVoidHistoryDoNotInvalidateReplay() throws Exception {
+        var known = knownSource(); var command = knownRequest(known, destination, inventory()); var receipt = handoff(destination, command);
+        String grant = grant(); String allocated = allocation(grant, destination.deployment().getId(), "destination-reservation");
+        financialEvent("allocated-" + fixtureId, allocated, grant, "ALLOWANCE_ALLOCATED");
+        jdbc.update("UPDATE provider_usage_grants SET allocated_chat_attempts=1,allocated_total_tokens=100,allocated_cost_nano_usd=100 WHERE id=?", grant);
+        String voided = "void-" + fixtureId;
+        jdbc.update("INSERT INTO provider_usage_grants SELECT ?,'old-campaign',customer_id,target_profile_id,environment_name,fingerprint,payload_json,0,0,0,approved_by,approved_role,approved_at,'VOID_UNUSED' FROM provider_usage_grants WHERE id=?", voided, grant);
+        financialEvent("voided-" + fixtureId, voided, voided, "GRANT_VOID_UNUSED");
+        var before = databaseSnapshot(); clearInvocations(provider);
+        assertThat(handoff(destination, command)).isEqualTo(receipt); assertThat(databaseSnapshot()).isEqualTo(before);
+        verify(provider, org.mockito.Mockito.never()).listServingCollections(endpoint, MANAGEMENT_KEY);
     }
 
     @Test
@@ -734,6 +925,79 @@ class UnusedVectorBindingHandoffPostgresIT {
             .as("synthetic historical fixture in " + table).isPositive();
     }
 
+    private KnownSource knownSource() throws Exception {
+        var owner = createDestination("known", customerId);
+        var handle = createHistoricalBinding(owner);
+        String ownerId = "handoff-owner-" + fixtureId;
+        jdbc.update("""
+            INSERT INTO platform_users(id,email,display_name,password_hash,role,status,customer_id,created_at,updated_at)
+            VALUES (?,?,?,'unused','CUSTOMER_ADMIN','ACTIVE',?,?,?)
+            """, ownerId, ownerId + "@example.invalid", "Synthetic owner", customerId, Timestamp.from(now), Timestamp.from(now));
+        String offer = "known-offer-" + fixtureId;
+        associateOwner(owner, ownerId, offer);
+        associateOwner(destination, ownerId, "destination-offer-" + fixtureId);
+        var proof = KnownNoEffectHandoffTestFixture.settle(jdbc, json, transactionManager, integrationIntegrity,
+            owner.deployment(), owner.version(), targetId, ownerId, offer, now);
+        return new KnownSource(owner, handle, ownerId, proof);
+    }
+
+    private void associateOwner(Destination owner, String userId, String offer) {
+        jdbc.update("INSERT INTO platform_customer_offers VALUES (?,'{}','synthetic-offer-fingerprint','review','fixture',?)", offer, Timestamp.from(now));
+        jdbc.update("""
+            INSERT INTO platform_customer_offer_entitlements(id,customer_id,offer_id,owner_user_id,invitation_reference,status,revision,expires_at,created_at,updated_at)
+            VALUES (?,?,?,?,?,'ACTIVE',1,?,?,?)
+            """, "ent-" + offer, customerId, offer, userId, "synthetic-invitation", Timestamp.from(now.plusSeconds(3600)), Timestamp.from(now), Timestamp.from(now));
+        jdbc.update("""
+            INSERT INTO platform_customer_offer_deployments(deployment_id,customer_id,tenant_id,offer_id,offer_fingerprint,
+                authorization_entitlement_revision,operation_key,created_at,bootstrap_target_profile_id)
+            VALUES (?,?,?,?,'synthetic-offer-fingerprint',1,'synthetic-bootstrap',?,?)
+            """, owner.deployment().getId(), customerId, owner.deployment().getTenantId(), offer, Timestamp.from(now), targetId);
+    }
+
+    private InventoryApproval inventory() {
+        try {
+            String fingerprint = HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(MANAGEMENT_KEY.getBytes(StandardCharsets.UTF_8)));
+            return new InventoryApproval(fingerprint, "synthetic-full-management-visibility", "synthetic-no-external-writer-window");
+        } catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+
+    private String grant() {
+        String id = "known-grant-" + fixtureId;
+        jdbc.update("""
+            INSERT INTO provider_usage_grants(id,campaign_id,customer_id,target_profile_id,environment_name,fingerprint,payload_json,approved_by,approved_role,approved_at)
+            VALUES (?,'synthetic-campaign',?,?,'staging',?,'{}','fixture','PLATFORM_ADMIN',?)
+            """, id, customerId, targetId, "f".repeat(64), Timestamp.from(now));
+        financialEvent("grant-approved-" + fixtureId, id, id, "GRANT_APPROVED"); return id;
+    }
+
+    private String allocation(String grant, String deploymentId, String reservationId) {
+        String id = "allocation-" + fixtureId;
+        String payload = json.write(Map.of("approvalId", id, "grantId", grant, "scope", Map.of("deploymentId", deploymentId),
+            "initialAdmission", Map.of("reservationId", reservationId)));
+        jdbc.update("""
+            INSERT INTO provider_usage_allocations(approval_id,grant_id,customer_id,deployment_id,target_profile_id,environment_name,
+                approval_fingerprint,runtime_allocation_fingerprint,payload_json,initialization_state,created_at)
+            VALUES (?,?,?,?,?,'staging',?,?,?,'UNINITIALIZED',?)
+            """, id, grant, customerId, deploymentId, targetId, "a".repeat(64), "b".repeat(64), payload, Timestamp.from(now));
+        return id;
+    }
+
+    private void financialEvent(String id, String subject, String grant, String type) {
+        jdbc.update("INSERT INTO provider_usage_allowance_events(id,event_type,subject_id,grant_id,actor_id,actor_role,payload_fingerprint,created_at) VALUES (?,?,?,?,'fixture','PLATFORM_ADMIN',?,?)",
+            id, type, subject, grant, "f".repeat(64), Timestamp.from(now));
+    }
+
+    private String bindingFingerprint(DeploymentProviderResourceHandleEntity handle) {
+        return json.read(handle.getMetadataJson(), com.fasterxml.jackson.databind.JsonNode.class).path("fingerprint").asText();
+    }
+
+    private UnusedVectorBindingHandoffContracts.Request knownRequest(KnownSource known, Destination destination, InventoryApproval review) {
+        return new UnusedVectorBindingHandoffContracts.Request("known-handoff", APPROVAL,
+            List.of(source(), new Source(known.handle().getId(), null, bindingFingerprint(known.handle()), known.proof().receiptId())),
+            connection(destination), review);
+    }
+
     private Destination createDestination(String label, String customer) {
         String deploymentId = "synthetic-" + label + "-dep-" + fixtureId;
         String tenant = "synthetic-" + label + "-tenant-" + fixtureId;
@@ -812,9 +1076,9 @@ class UnusedVectorBindingHandoffPostgresIT {
             "target", targetId, "customerContext", scope));
         var reservation = new Reservation("reservation-" + deploymentId, customerId, scope.tenantId(), deploymentId,
             targetId, Intent.CUSTOMER_STAGING, scope.operationKey(), requestFingerprint, "synthetic-generation-" + fixtureId,
-            1, State.RESERVED, manifest.demand(), "synthetic-policy", manifest.id(), manifestFingerprint, manifest.bindingFingerprint(),
+            0, State.RESERVED, manifest.demand(), "synthetic-policy", manifest.id(), manifestFingerprint, manifest.bindingFingerprint(),
             now, now, now, now.plusSeconds(3600), 0, null, null, ExpiryState.CURRENT, "synthetic-notice-cycle", null,
-            0, null, null, null, null, null, null, json.fingerprint(scope), scope.operation(), null);
+            0, null, null, null, null, "synthetic-initial-readback", null, json.fingerprint(scope), scope.operation(), null);
         var authorization = new AuthorizationReceipt(reservation.id(), reservation.generation(), manifestFingerprint,
             requestFingerprint, json.fingerprint(scope), command);
         // Historical inputs are synthetic; only the production cancellation service creates cancellation proof.
@@ -832,7 +1096,7 @@ class UnusedVectorBindingHandoffPostgresIT {
                 INSERT INTO deployment_capacity_reservations
                 (id,customer_id,deployment_id,target_profile_id,operation_key,request_fingerprint,generation,revision,state,
                  current_slot,expires_at,expiry_state,payload_json,updated_at)
-                VALUES (?,?,?,?,?,?,?,1,'RESERVED',?,?,'CURRENT',?,?)
+                VALUES (?,?,?,?,?,?,?,0,'RESERVED',?,?,'CURRENT',?,?)
                 """, reservation.id(), customerId, deploymentId, targetId, scope.operationKey(), requestFingerprint,
                 reservation.generation(), deploymentId + ":" + targetId, Timestamp.from(reservation.expiresAt()),
                 json.write(reservation), Timestamp.from(now));
@@ -844,8 +1108,8 @@ class UnusedVectorBindingHandoffPostgresIT {
                 """, customerId, deploymentId, targetId, scope.operationKey(), reservation.id(), reservation.generation(),
                 owner.version().getId(), requestFingerprint, authorization.contextFingerprint(), json.write(authorization), Timestamp.from(now));
             jdbc.update("""
-                INSERT INTO deployment_admission_events(id,reservation_id,revision,event_type,actor_id,created_at)
-                VALUES (?,?,1,'RESERVED','synthetic-reviewer',?)
+                INSERT INTO deployment_admission_events(id,reservation_id,revision,event_type,actor_id,evidence_reference,created_at)
+                VALUES (?,?,0,'RESERVED','synthetic-reviewer','synthetic-initial-readback',?)
                 """, "event-" + deploymentId, reservation.id(), Timestamp.from(now));
         });
         return new CancelUnusedReservation(reservation.fence(), "synthetic-cancel", scope.operationKey(),
@@ -910,7 +1174,7 @@ class UnusedVectorBindingHandoffPostgresIT {
         for (String table : List.of("deployment_provider_resource_handles", "platform_secrets", "platform_audit_events",
             "deployment_unused_vector_handoffs", "platform_target_retirement_gates", "provider_usage_grants", "provider_usage_allocations",
             "provider_usage_allowance_events", "deployment_capacity_reservations", "deployment_admission_events",
-            "deployment_admission_authorizations", "deployment_admission_unused_cancellations", "platform_target_retirement_operations",
+            "deployment_admission_authorizations", "deployment_admission_unused_cancellations", "deployment_admission_reviews", "deployment_admission_release_bindings", "platform_target_retirement_operations",
             "deployment_managed_dependency_graphs", "platform_deployment_releases", "platform_consumers", "platform_customers",
             "platform_customer_tenants", "platform_deployments", "platform_deployment_versions")) {
             result.put(table, tableSnapshot(table));
@@ -954,5 +1218,7 @@ class UnusedVectorBindingHandoffPostgresIT {
     }
 
     private record Destination(DeploymentEntity deployment, DeploymentVersionEntity version) { }
+    private record KnownSource(Destination owner, DeploymentProviderResourceHandleEntity handle, String ownerId,
+                               KnownNoEffectHandoffTestFixture.SettledSource proof) { }
     private record Attempt(Receipt receipt, Exception failure) { }
 }

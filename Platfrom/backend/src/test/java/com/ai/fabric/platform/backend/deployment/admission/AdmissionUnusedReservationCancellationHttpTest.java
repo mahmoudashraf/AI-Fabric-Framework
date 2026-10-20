@@ -160,6 +160,9 @@ class AdmissionUnusedReservationCancellationHttpTest {
         PlatformApiExceptionHandler.class, UnrelatedController.class})
     static class HttpApp {
         @Bean DeploymentAdmissionService admissions() { return mock(DeploymentAdmissionService.class); }
+        @Bean InitialAdmissionRenewalAuthorizer initialRenewalAuthorizer() { return mock(InitialAdmissionRenewalAuthorizer.class); }
+        @Bean AdmissionPolicyPlacementVerifier policyPlacementVerifier() { return mock(AdmissionPolicyPlacementVerifier.class); }
+        @Bean jakarta.persistence.EntityManagerFactory entityManagerFactory() { return mock(jakarta.persistence.EntityManagerFactory.class); }
         @Bean PlatformAuthProperties auth() {
             return new PlatformAuthProperties(true, "X-Platform-API-Key", true, true, "session", Duration.ofHours(1),
                 false, "Lax", "synthetic-operator", "synthetic-admin", false, null, null, null);

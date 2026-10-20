@@ -219,6 +219,19 @@ public final class AdmissionUnusedReservationEvidence {
         if (!retained.equals(receipt.evidence().retainedBindings())) throw denied("UNUSED_VECTOR_HANDOFF_RESOURCE_HISTORY_CHANGED");
     }
 
+    public void requireKnownNoEffectHandoffSource(DeploymentProviderResourceHandleEntity handle, String settlementReceiptId,
+            String expectedBindingFingerprint, String customerId, String destinationId, String approvalReference, String newPrefix) {
+        try {
+            new KnownNoEffectVectorHandoffEvidence(jdbc, json).require(handle, settlementReceiptId, expectedBindingFingerprint,
+                customerId, destinationId, approvalReference, newPrefix);
+        } catch (org.springframework.dao.DataAccessException failure) {
+            for (Throwable cause = failure; cause != null; cause = cause.getCause())
+                if (cause instanceof java.sql.SQLException sql && "55P03".equals(sql.getSQLState()))
+                    throw denied("KNOWN_NO_EFFECT_VECTOR_HANDOFF_BUSY");
+            throw failure;
+        }
+    }
+
     private boolean retainedBy(UnusedReservationCancellationReceipt receipt, DeploymentProviderResourceHandleEntity handle) {
         Reservation reservation = receipt.reservation();
         return receipt.outcome() == CancellationOutcome.CANCELLED_UNUSED_NO_EFFECT && !receipt.reclamationPerformed()
