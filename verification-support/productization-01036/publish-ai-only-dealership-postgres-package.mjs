@@ -169,7 +169,21 @@ function checkedPlan(plan, reviewedPlanSha256) {
 }
 
 async function readbacks(plan, request) {
-  for (const row of plan.reads) same(await request(row.path, {allowNotFound: row.allowNotFound}), row.value, "SOURCE_READBACK_DRIFT_REPLAN_REQUIRED");
+  for (const row of plan.reads) {
+    const actual = await request(row.path, {allowNotFound: row.allowNotFound});
+    if (row.path === "/api/deployment-provider/target-profiles") {
+      const code = "SOURCE_READBACK_DRIFT_REPLAN_REQUIRED";
+      check(Array.isArray(row.value) && row.value.length > 0 && Array.isArray(actual), code);
+      const ids = row.value.map(target => target?.id);
+      check(ids.every(id => typeof id === "string" && id.trim() === id && id.length > 0)
+        && new Set(ids).size === ids.length, code);
+      for (const expected of row.value) {
+        const matches = actual.filter(target => target?.id === expected.id);
+        check(matches.length === 1, code);
+        same(matches[0], expected, code);
+      }
+    } else same(actual, row.value, "SOURCE_READBACK_DRIFT_REPLAN_REQUIRED");
+  }
 }
 
 /** One reviewed normal API mutation only. Never registers/promotes artifacts, invites, applies, or retries writes. */

@@ -107,6 +107,55 @@ test("source, artifact, approved version and offer configuration drift require a
   }
 });
 
+test("target readback projects selected profiles from the full fleet without changing the raw response", async () => {
+  const plan = planPostgresDealershipPackage(inputFor("offer"), "offer");
+  const path = "/api/deployment-provider/target-profiles";
+  const selected = plan.reads.find(row => row.path === path).value;
+  const actual = [{id: "unrelated-synthetic-target", active: false}, ...structuredClone(selected).reverse()];
+  const before = structuredClone(actual);
+  const server = fakePhaseServer(plan, endpoint => endpoint === path ? actual : undefined);
+  const receipt = await executePostgresDealershipPhase({plan, reviewedPlanSha256: plan.planSha256, execute: true,
+    request: server.request, checkpoint: async () => {}});
+  assert.equal(receipt.state, "PUBLISHED_CUSTOMER_READBACK_PENDING");
+  assert.equal(server.calls.filter(call => call.method === "POST").length, 1);
+  assert.deepEqual(actual, before);
+});
+
+test("missing or duplicate selected target profiles fail before any publication intent or POST", async () => {
+  const plan = planPostgresDealershipPackage(inputFor("offer"), "offer");
+  const path = "/api/deployment-provider/target-profiles";
+  const selected = plan.reads.find(row => row.path === path).value;
+  for (const actual of [selected.slice(1), [...selected, structuredClone(selected[0])], {targets: selected}]) {
+    const server = fakePhaseServer(plan, endpoint => endpoint === path ? actual : undefined), checkpoints = [];
+    await assert.rejects(executePostgresDealershipPhase({plan, reviewedPlanSha256: plan.planSha256, execute: true,
+      request: server.request, checkpoint: async value => checkpoints.push(value)}), /SOURCE_READBACK_DRIFT_REPLAN_REQUIRED/);
+    assert.equal(server.calls.filter(call => call.method === "POST").length, 0);
+    assert.deepEqual(checkpoints, []);
+  }
+  const input = inputFor("offer"); input.contracts.targets[1] = structuredClone(input.contracts.targets[0]);
+  assert.throws(() => planPostgresDealershipPackage(input, "offer"));
+});
+
+test("whole selected profile changes still fail and unrelated endpoints retain whole-list comparison", async () => {
+  const plan = planPostgresDealershipPackage(inputFor("offer"), "offer");
+  const path = "/api/deployment-provider/target-profiles";
+  const selected = plan.reads.find(row => row.path === path).value;
+  for (const mutate of [rows => { rows[0].resourceDefaults.runtimeLimitsMemory = "2g"; },
+    rows => { rows[0].unreviewedMetadata = "changed"; }]) {
+    const actual = structuredClone(selected); mutate(actual);
+    const server = fakePhaseServer(plan, endpoint => endpoint === path ? actual : undefined);
+    await assert.rejects(executePostgresDealershipPhase({plan, reviewedPlanSha256: plan.planSha256, execute: true,
+      request: server.request, checkpoint: async () => {}}), /SOURCE_READBACK_DRIFT_REPLAN_REQUIRED/);
+    assert.equal(server.calls.filter(call => call.method === "POST").length, 0);
+  }
+  const artifacts = plan.reads.find(row => row.path.includes("serviceName=ai-fabric-runtime"));
+  const server = fakePhaseServer(plan, endpoint => endpoint === artifacts.path
+    ? [...structuredClone(artifacts.value), {id: "unrelated-synthetic-artifact"}] : undefined);
+  await assert.rejects(executePostgresDealershipPhase({plan, reviewedPlanSha256: plan.planSha256, execute: true,
+    request: server.request, checkpoint: async () => {}}), /SOURCE_READBACK_DRIFT_REPLAN_REQUIRED/);
+  assert.equal(server.calls.filter(call => call.method === "POST").length, 0);
+});
+
 test("exact immutable template/spec replay verifies normal readback without any second POST", async () => {
   for (const phase of ["template-submit", "template-validate", "template-publish", "spec"]) {
     const plan = planPostgresDealershipPackage(packageInput("PUBLISHED"), phase), server = fakePhaseServer(plan);
