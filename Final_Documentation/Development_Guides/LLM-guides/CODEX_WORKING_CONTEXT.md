@@ -8,6 +8,46 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 13:58 UTC Source606 Live; Customer Work Still Pending
+
+- Source606309133719830e69d305422552b65c349914c3 is pushed/live on BOTHCPs,
+  imageeb1acede4273d6986b3c5f7e14b6b961f2971d777d69e9ff868ce826f0f7c86e,
+  schema206/UP. CI39430256613 PASS/UI skipped. Main wrapper96d747b4...f59f0
+  verifies1923 tested Git blobs/modes and1618 tests/68 suites/608PG/0skip.
+  No framework/runtime/schema/UI changes in the source batch.
+- Stage jobj98yl9tvae9tz0xvbnrpu8e3 verified13:50:40UTC, containerc8cc90bce988;
+  prod jobyu0i1f4d4fpme6q16o00x4s8 verified13:57:07, container116b448f7498.
+  All139 tables/audits/config/env/R7 grant+failed history preserved. Both final
+  receipts /private/tmp/01044-postapply-backend-source-fix-rollout-20261020/
+  {staging,production}/*.verified.json. Completed: NEVER replay their native jobs.
+  Source closure maintenance.completed.json SHAb0fd6752827960013664adcfd90c827ae68881d4639c8db3dc9efc3244f06208,
+  closed13:58:06.868UTC, no customer mutations. Firewall stays OPEN per user.
+- Platform-only private pg_dump archives /private/tmp/01044-platform-pre606-source-backup-20261020:
+  stage8996ccc3...eb77c, prod d317b4cb...7ef0f, no business/Coolify DBs included.
+  Image/SSH actual R2 review /private/tmp/01044-606-image-proof-20261020:
+  registryroot vs platformmanifest vs config positively distinct; native29root
+  equality verified. Main accepts ONLY documented actual cgroup2 OOM flag
+  false->null,13 safety tests PASS. Original two failed captures unchanged,
+  exact-owned containers removed. No helper guard/source/config weakening.
+- Fresh owner session remains /private/tmp/01044-main-resumed-20261020-1205/
+  owner-session-renewed-1316.private.json. Recheck at use. R7 remains RESERVEDrev1
+  originalgen/expiry, NO_EFFECT rel09bd, zero managed/provider/model/index work.
+  No settlement/newPGspec/offer/customer/bootstrap/binding/funding change yet.
+- Sartre01a15640 collects61x5s current-stage/prod baselines AFTERclosure only,
+  authorized13:58. Frozen command catalogue /private/tmp/01044-postrollout-capacity-command-catalogue-20261020/HANDOFF.md.
+  Policy path /private/tmp/01044-r7-postrollout-policy-continuation-20261020
+  54PASS/sourcefreeze6829cfa2...08f2; new normal policy anchors ORIGINAL policy
+  at CURRENT R7rev1, not consumed oldrev0 helper. Owner helper93PASS/freeze
+  178d6763...bcf under /private/tmp/01044-owner-known-no-effect-settlement-20261020.
+- Confucius01a155e6 now prepares READONLY fresh normal staff catalogue/newPG
+  package proposal under /private/tmp/01044-post606-pg-package-preparation-20261020,
+  main permitted afterprodverified. No write/new IDs. Faraday01a15620 audits
+  actual ORM/connector artifact and private collector36localPG/0skip, freeze
+  959bf0f1...bd2 under /private/tmp/01044-cold-state-collector-independent-20261020.
+  Do not claim hosted P5 from synthetic fixtures. Remaining normal customer
+  settlement/newPG/hosted lifecycle/production promotion/recovery/P7 then UI-LAST.
+  Platform-Updates notified14:41London; next by15:11. No user material pending.
+
 ## 2026-10-20 13:23 UTC Combined Critical Source Gate Green
 
 - /private/tmp/01044-final-combined-backend-critical-gate-20261020/attempts/r1/

@@ -1,5 +1,51 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 13:58 UTC Verified Source On Both Control Planes
+
+- Final606309133719830e69d305422552b65c349914c3 is committed/pushed. Main
+  independently matches all1923 tested Git blobs/modes and raw reports/package;
+  source qualification96d747b4...f59f0 covers1618 tests/68 suites/608PG/0skip.
+  CI39430256613 succeeds with UI skipped. Registry OCI indexeb1acede...7c86e,
+  amd64 manifest7bcf7a73...32c86 and config6470a1b2...9950a are separately
+  verified, not confused. Actual Docker29/containerd native IDs match the index.
+- One normal non-force job per server: stagingj98yl9tvae9tz0xvbnrpu8e3 accepted
+  13:50:40UTC/containerc8cc90bce988; productionyu0i1f4d4fpme6q16o00x4s8 accepted
+  13:57:07UTC/container116b448f7498. Both606/eb1/schema206/UP. All139 tables,
+  raw audits, saved/effective environment, provider config and original R7,
+  failed NO_EFFECT release, external handles and whole-task funding preserved.
+  No source rollout is pending or to be retried.
+- Fresh Platform-only pg_dump custom archives precede each source update at
+  /private/tmp/01044-platform-pre606-source-backup-20261020: staging8792279B,
+  SHA8996ccc3...eb77c; production7798926B, SHAd317b4cb...7ef0f. These are not
+  business-database/full-Coolify backups or a newly rehearsed restore claim.
+- Isolated SSH verifier R1/R2 failures remain intact. Complete R2 evidence
+  proves actual ssh-V exit0, exact image and unchanged positive isolation
+  controls, with the sole HostConfig.OomKillDisable false-to-null transition.
+  Actual host cgroup2 and [official Docker semantics](https://docs.docker.com/engine/containers/runmetrics/#running-docker-on-cgroup-v2)
+  support a separate explicit offline reconciliation; main independently reruns
+  13 safety cases and accepts only that exact transition. Neither failed record
+  is relabelled. Both owned test containers are removed, no third run or broad
+  field waiver. Frozen rollout-v2 guards and all product checks are unchanged.
+- The private input builder initially stopped before effects because it assumed
+  the older optional override map was nonempty, then incorrectly copied multiline
+  values into that single-line-only extra map. These preparation artifacts remain;
+  final inputs correctly preserve the optional-map contract. Full saved-literal
+  environment/native comparisons, metadata/state fingerprints and all94 frozen
+  helper tests remain enforced. No backend/framework workaround or config edit.
+- Source maintenance closes13:58:06.868UTC, receiptb0fd6752...f06208 under
+  /private/tmp/01044-postapply-backend-source-fix-rollout-20261020. Fresh actual
+  post-closure source/health/schema observation also passes both servers. This
+  closure does not close Hetzner/firewall access. No customer mutation occurred
+  during the source window; no model call/new candidate/funding reset is claimed.
+- Sartre now collects fresh post-rollout capacity before a new normal immutable
+  original-policy/R7rev1 continuation and owner placements; its offline policy
+  path54PASS and owner plan/settle helper93PASS are not actual publication or
+  settlement. Confucius prepares fresh PG catalogue/package input without writes.
+  Faraday's private collector36 actual localPG cases remains bounded, with ORM/
+  connector-artifact/host-adapter/cold-restore gaps still open. Next is normal R7
+  settlement, new immutable PG composition/real customer canary, hosted P5/P7,
+  independent production reindex/promotion and final reversible UI extraction.
+
 ## 2026-10-20 13:23 UTC Final Combined Critical Gate Passes
 
 - Actual isolated combined run passes1618 tests in68 suites,608 actualPG,

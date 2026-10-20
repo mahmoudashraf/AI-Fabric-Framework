@@ -1,5 +1,15 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Hosted source checkpoint,20October13:58UTC: exact606309133/imageeb1acede is
+  healthy on staging and production, schema206. Both source rollouts preserve
+  all139 tables/raw audits/configuration/runtime environment and originalR7/
+  failed-release/funding state. CI39430256613 passes, UI job skipped. Fresh
+  Platform-only database backups are private; no business DB/Coolify backup.
+  Source-update window closes13:58:06UTC; Hetzner maintenance access stays open
+  as requested. No framework/runtime/UI rebuild, customer settlement, new PG
+  candidate, funding reset or vector-record transfer. Post-rollout capacity/
+  policy and normal customer closure/newPG/hosted P5/P7 remain next; UI LAST.
+
 - Combined local qualification,20October13:23UTC: all1618 tests pass in68
   suites, including608 actualPG cases; zero failures/errors/skips. All369 prior
   case identities remain covered, frozen source stays unchanged, packaging
