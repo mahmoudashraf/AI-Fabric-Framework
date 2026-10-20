@@ -8,6 +8,100 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 01:16 UTC Two Source Fixes Committed; Settlement Pending
+
+- Local commits dda807f2ad71000d59d587f3c04f6772cffadbec (worker authority,
+ 15 frozen files + retry regression) and ea96e786f187a872158eab34dd4848653f6813bb
+  (nine Inbox guard files). Not pushed/CI/deployed yet; live source stays063.
+- Parent isolated final single run369/0fail/0error/0skip across22 suites PASS,
+  including70 actualPG cases:24 full Boot/JPA worker authority,40 external
+  binding and6 no-effect retry. Rehashed1907 baseline files plus25 overlays;
+  exact fixture supplement and all failed runs retained. First parent run
+  omitted the unchanged outside-backend JSON template (48 setup errors), fixed
+  only the isolated fixture tree. XML suffix-classification correction is
+  recorded; no XML/assertion/source rewrites. Independent worker review noP1/P2.
+  Evidence /private/tmp/01044-parent-frozen-backend-qualification-20261020/
+  parent-qualified-r2.json. This EXCLUDES in-progress settlement/fullP5/P7.
+- Sartre owns known-NO_EFFECT settlement/preview/detachment plus realPG tests,
+  shared Maven exclusive. Main reviews; no live action. Confucius separately
+  qualifies exact existing Inbox image on isolated localPG with synthetic
+  callbacks/restore; Faraday prepares new immutable PG package publication
+  tooling offline. Neither is hosted proof or permission to publish/void funds.
+  No current customer runtime/model/index/new candidate. UI extraction LAST.
+
+## 2026-10-20 01:04 UTC Proper PG Candidate And No-Effect Closure
+
+- Keep current failed rel-09bd86a7/old H2 offer as audit history, not the next
+  workload candidate. Prefer a NEW immutable PostgreSQL-Inbox spec/template/
+  offer and fresh deployment under the SAME customer/eligible owner after
+  normal, verified closure of the known-empty failed attempt. No customer
+  business DB, in-place offer edit, staging state copy or finance reset.
+- Proposed whole AI-only topology:2250mCPU/4096MiBRAM/6144MiBdisk/two AI-state
+  databases/two dependency resources/two derived indexes. This is an OFFLINE
+  proposal, not granted capacity or a published/hosted PG candidate. Runtime
+  and Inbox keep separate owned DB credentials; do not borrow runtime schema.
+- Generic path+production-intent Inbox guard source is frozen/uncommitted;
+  isolated final101 tests PASS. It rejects H2 production admission/provisioning/
+  activation while preserving historical cleanup, staging and external Inbox.
+  Full current backend integration/CI/rollout is still pending.
+- Correct worker boundary and cache-before-fence regressions are in progress.
+  Actual R3 narrow24 real application/JPA cases plus6 actualPG same-allocation
+  retry cases PASS. Earlier R1/R2 failures retained; not a final source-wide
+  qualification. Other agents' production-guard source changed between runs.
+- A genuine R7 lifecycle gap blocks normal known-NO_EFFECT closure: old unused
+  cancel rejects release history; direct/expiry retirement cannot retire the
+  external-only empty inventory. Sartre implements an explicit fenced audited
+  settlement, preserving failed/auth/frozen-config/funding/storage history;
+  unknown effects stay charged. No live settlement/void/new grant/candidate
+  yet. Existing DRAFT app/configuration-only consumer require explicit fenced
+  detachment/reassignment, never implicit deletion. UI extraction remains LAST.
+
+## 2026-10-20 00:47 UTC First Apply Accepted; Worker Authority Defect Found
+
+- Publication serialization stop reconciled with actual Java Reservation /
+  AdmissionJson and packaged Jackson2.15.3: only unordered Set sequence differs;
+  exact typed hash, identity and all remaining checks pass. Parent independently
+  reran34 supplement tests. Original helper/failure/intent preserved, POST never
+  retried. Legitimate supplementary acceptance03fed6...f4f4 at00:39:30UTC.
+- Normal owner evidence refresh succeeds00:39:36, same R7/key/gen/expiry/demand/
+  authorization/grant, revision0->1. Same-key apply returns actualrel-09bd86a7
+  at00:39:53, then FAILED00:39:55 after preflight passes. Exact live stack:
+  ExternalIntegrationResolver.releaseEnvironment -> authority.requireReleaseUnchanged
+  -> DeploymentAccessService operator check with no request principal. Confucius
+  fixes typed persisted worker authority, not admin impersonation/API bypass.
+- Fresh read-only state: R7 RESERVEDrev1, original auth1/applyreceipt1/binding1,
+  allocations0, managedGraphs0, activeReleases0. Two handles are old unchanged
+  external S3/vector bindings, not newly provisioned services. Failed release
+  remains auditable; no blind retry, new allocation or funding reset. Existing
+  same-allocation explicit retry contract is being qualified before use.
+- Independent production Inbox audit finds real P5 gap: current spec uses H2
+  while published production contract requires PostgreSQL; no shared-schema
+  binding exists. Faraday fixes generic H2 mount-path validation and prepares
+  a NEW immutable AI-only PostgreSQL Inbox proposal, preserving held objects.
+  Current correctly mounted H2 staging proof remains bounded, not production
+  durability acceptance. Full hosted flows/P5/P7/promotion/UI-LAST still open.
+
+## 2026-10-20 00:35 UTC Continuity Live; Customer Resume In Progress
+
+- Commit063347fdd7e5027a7c7ccd984b9c3742c6429c7e pushed; backend-only CI39345557767
+  passed. Exact image4181b5c86c962ad7df34f4271eeafeaefdee797f278833c0a3caf959e6422a12
+  accepted on staging00:13:32UTC and production00:17:13UTC. Both schema206/UP,
+  all139 tables/raw audits/configuration/environment and original R7/grant
+  preserved. Maintenance closed00:19:16UTC; no customer writes during rollout.
+- Actual fresh61-sample measurements on each host, followed by normal owner
+  staging/production placement and both scoped DATA/ACTION binding GETs, pass.
+  One normal staff policy-continuation POST returned200 at00:30:10UTC. Saved
+  before/after state and read-only reconciliation retain original allocation,
+  authorization, funding and zero customer releases/provider allocations.
+  The private verifier stopped on reservationFingerprint serialization; this
+  is under independent offline investigation, not waived or retried. No refresh
+  or first apply is claimed. Preserve all exclusive intent/response journals.
+- Live root /private/tmp/01044-current-customer-admission-resume-20261020;
+  source acceptance /private/tmp/01044-policy-continuity-backend-rollout-20261020.
+  Qualified521 unique cases/157PG remain multi-run reconciled, not a clean
+  single module invocation. Runtime artifact/framework unchanged. Hosted flows,
+  operating recovery/capacity, production promotion, P7 and UI-LAST remain open.
+
 ## 2026-10-20 Measured-Policy Continuity Qualified, Not Yet Deployed
 
 - Generic explicit continuation is implemented in existing staff policy

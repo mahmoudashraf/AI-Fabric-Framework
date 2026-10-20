@@ -1,5 +1,80 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 01:16 UTC Frozen Source Qualification And Commits
+
+- Worker authority commitdda807f2ad71000d59d587f3c04f6772cffadbec and separate
+  Inbox production guard commitea96e786f187a872158eab34dd4848653f6813bb are
+  local only. No source push/CI/native rollout or current customer recovery yet.
+- Parent independent isolated run369/0fail/0error/0skip in22 suites passes;
+ 70 realPG cases include actual application/JPA cache-fence and scoped worker
+  behavior. Exact1907baseline/25overlay hashes verified. Initial missing copied
+  template fixture caused48 setup errors; original failed log/reports retained,
+  unchanged fixture copied and full set rerun. Source/denial assertions intact.
+- Known-NO_EFFECT settlement must offer a normal safe customer preview and
+  explicit revision-fenced command, not rely on SSH-visible internal hashes.
+  Qualification remains in progress. Local exact-image Inbox PG and new normal
+  immutable package tooling proceed independently; no live publication or
+  funding change. Full hosted evidence/P5/P7 and UI extraction LAST remain open.
+
+## 2026-10-20 01:04 UTC Corrective Production Path
+
+- Use a new immutable reviewed PostgreSQL-Inbox composition under the same
+  customer/owner after verified normal closure of the known-empty failed
+  attempt. Do not further provision/index the old H2 staging topology solely
+  to replace it later. Separate runtime and Inbox AI-state SQL ownership is
+  legitimate; no inventory/CRM/business database or state transfer is added.
+- Offline proposal adds250mCPU/512MiBRAM/one database/resource, retaining total
+  disk, for whole2250m/4096MiB/6144MiB/two AI-state DBs/two indexes. No spec,
+  offer, allocation, grant or native PG candidate has been published/created.
+  Old immutable objects, failed release and allowance history remain intact.
+- Static path/production-intent guard isolated final101 tests pass; actual
+  current source integration/CI/rollout remain pending. Worker R3 narrow24
+  real application/JPA plus6 actualPG retry tests pass; earlier failed runs
+  retained and other source drift means no aggregate green claim yet.
+- Normal known-NO_EFFECT settlement is a genuine missing lifecycle operation,
+  now being implemented with current owner/fence/complete zero-effect checks,
+  immutable receipt/audit and explicit configuration-only detachment where
+  authorized. Frozen configuration snapshots are not provider effects; unknown
+  outcomes, financial use or native resources cannot be settled as empty.
+  No live settlement, paid allowance reset or SQL repair. UI extraction LAST.
+
+## 2026-10-20 00:47 UTC Actual First Apply Exposes Worker Boundary Defect
+
+- Policy publication independently reconciled with actual Java typed serializer;
+  parent34 supplement tests pass. Initial stopped check and publication intent
+  retained. No retry or ignored fingerprint. Normal owner refresh succeeds,
+  then original same-key apply returnsrel-09bd86a7; failed after preflight at
+ 00:39:55UTC because background external-integration resolution uses the
+  operator-only authority method without an interactive principal.
+- Correct typed persisted worker authority is being implemented without
+  loosening customer APIs. Read-only reconciliation proves original RESERVED
+  allocationrev1/expiry/gen/demand/funds, zero managed graphs/model allocations
+  and no active release. Existing external S3/vector handles are unchanged.
+  The failed release remains preserved; supported same-allocation explicit
+  retry must be qualified before another apply. No SQL repair/new allocation.
+- Production Inbox persistence review identifies H2-vs-PostgreSQL contract gap
+  and a generic wrong-mount validation defect. The current staging mount is
+  correct. New immutable AI-operational PostgreSQL spec/offer/capacity evidence
+  must not mutate the held objects or create dealership business-system state.
+  Source fixes and bounded staging proof continue; full P5/P7/UI-LAST open.
+
+## 2026-10-20 00:35 UTC Continuity Deployed; Same-Customer Resume
+
+- Source063347fdd7e5027a7c7ccd984b9c3742c6429c7e, CI39345557767 and exact
+  image4181b5c8 accepted on both backends; schema206/UP and all139 tables,
+  audits, saved/effective environments, original allocation and grant preserved.
+  No framework/runtime rebuild. Source-only maintenance closed00:19:16UTC.
+- Fresh host baselines, normal owner placement on both targets and exact
+  DATA/ACTION binding GETs pass. The external fixture already has the correct
+  scope: six stock records and five actual WebP media pass read-only checks;
+  no fixture cutover or business database inside the AI deployment is needed.
+- A single normal staff policy-continuation publication returned200 at00:30.
+  Before/after state and fresh read-only reconciliation preserve R7 rev0,
+  original authorization, allowance and zero release/provider allocations.
+  Private verifier fingerprint mismatch is under offline investigation; no
+  verified continuation, refresh/apply or customer readiness is claimed yet.
+  Original intent/response preserved, never replayed. UI extraction stays last.
+
 ## 2026-10-19 22:48 UTC Generic Initial Evidence Recovery Qualified
 
 - Both backends accepted71f/0258/schema206/UP, full139-table/config/audit

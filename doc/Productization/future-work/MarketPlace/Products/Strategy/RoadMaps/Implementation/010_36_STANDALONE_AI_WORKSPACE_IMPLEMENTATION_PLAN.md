@@ -1,5 +1,47 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Verified source checkpoint,20October01:16UTC: worker authority and production
+  Inbox persistence guards are committed separately asdda807f2a/ea96e786f,
+  not yet pushed/deployed. Parent isolated final run369/369 passes, including
+ 70 actualPostgreSQL cases, plus independent worker review; failed setup runs
+  retained. Live backends remain063/4181/206/UP. Known-NO_EFFECT settlement,
+  proper new PG offer/candidate, hosted recovery/promotion/P7 and UI-LAST remain
+  incomplete. This local source gate is not a production acceptance claim.
+
+- Current corrective path,20October01:04UTC: close the exact known-NO_EFFECT
+  failed attempt through a qualified audited product operation, then select a
+  NEW immutable PostgreSQL-backed Inbox spec/template/offer and fresh candidate
+  under the SAME customer/eligible owner. Do not spend model/indexing work on
+  the old H2 topology that cannot satisfy the production contract. Preserve its
+  releases, authorization/funding history and external storage. No in-place
+  offer/spec/demand rewrite or staging-to-production state transfer. Proposed
+  AI-only capacity2250mCPU/4096MiBRAM/6144MiBdisk/two AI-state DBs is not an
+  approved allocation. Worker authority, no-effect settlement, full hosted PG
+  qualification, promotion/recovery/P7 and UI extraction LAST remain open.
+
+- Latest actual checkpoint,20October00:47UTC: continuity publication is
+  independently reconciled using exact typed Java serialization; no publication
+  retry or guard bypass. Normal owner evidence renewal succeeds on the same
+  allocation, followed by acceptedrel-09bd86a7. Background execution fails after
+  preflight because an internal worker calls an operator-session-only authority
+  path. Correct generic worker authority and regressions are in progress; no
+  customer service/model allocation is created. An additional production Inbox
+  persistence gap is recorded: bounded staging H2 is not the documented
+  PostgreSQL production contract. New immutable production topology/capacity
+  review is required, not a hidden edit to the held offer/spec/allocation.
+  Full customer/promotion/recovery acceptance and UI extraction LAST are open.
+
+- Latest actual checkpoint,20October00:35UTC: source063347fdd is committed,
+  pushed and accepted on BOTH control planes, exact image4181b5c8/schema206/UP,
+  all139 tables/audits/configuration and original unused allocation/grant
+  preserved. Backend-only CI39345557767 passes; maintenance closed00:19:16UTC.
+  Fresh host measurements and owner placement/binding readbacks pass. Normal
+  staff policy-continuation POST returned200, but its private verification
+  stopped on reservation serialization and is being reconciled read-only.
+  No retry, customer apply/index/model or full-readiness claim. Hosted flows,
+  operating recovery, production promotion/P7 and independently reversible UI
+  extraction LAST remain open. No framework/runtime-artifact change.
+
 - Continuity source checkpoint,20October00:04UTC: explicit generic measured-
   policy continuation is implemented and independently reviewed without a
   remaining confirmed P1/P2 in changed scope. Parent verifies521 distinct
@@ -1445,6 +1487,11 @@ and verify them. Passing documentation review alone does not close P0.
 
 **P5. Close production operations and limits.**
 
+- [ ] Prove customer-visible preview and explicit settlement of an initial
+  known-NO_EFFECT failed release without SSH/private authorization payloads,
+  provider deletion, paid-usage reset or erased history. Preserve external
+  bindings and DRAFT app identity through explicit revision-fenced detachment;
+  reject active, ambiguous and unknown-effect histories.
 - [ ] Implement and exercise R7 admission/reservation recovery, inactivity and
   bounded retirement scheduling, customer notices, operator key revoke/rotate,
   support escalation and actual backup/restore objectives. Include builds and
