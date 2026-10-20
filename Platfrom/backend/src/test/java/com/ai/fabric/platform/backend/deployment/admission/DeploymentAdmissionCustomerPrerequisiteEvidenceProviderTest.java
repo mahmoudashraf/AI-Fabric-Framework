@@ -156,6 +156,23 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
             .isEqualTo(1L);
     }
 
+    @ParameterizedTest @EnumSource(value=Operation.class, names={"SOURCE_DISCOVER","SOURCE_PREVIEW","SOURCE_INDEX","SOURCE_REFRESH","SOURCE_REMOVE"})
+    void sourceAdministrationUsesExplicitCurrentMeasuredPolicyWithoutRewritingReleaseProvenance(Operation operation) {
+        Reservation allocation = scopedReserve(new Reserve("operation", "manifest1", customerContext));
+        activateRelease("release-1", allocation);
+        var active = store.require(allocation.id());
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(active), NOW, NOW.plusSeconds(300));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW);
+        var source = sourceContext(operation, "source-after-rollover", "release-1", "offer-fingerprint", 2);
+        sourceEvidence(source, NOW.plusSeconds(3), NOW.plusSeconds(60));
+        var resolved = providerAt(NOW.plusSeconds(3)).resolve(source);
+        assertThat(resolved.capacityReservationId()).isEqualTo(active.id());
+        assertThat(store.require(active.id())).isEqualTo(active);
+        assertThat(store.releaseBinding("release-1").reservationId()).isEqualTo(active.id());
+        jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POLICY_CONT'");
+        assertThatThrownBy(() -> providerAt(NOW.plusSeconds(3)).resolve(source)).hasMessageContaining("POLICY_CONTINUITY_REQUIRED");
+    }
+
     @ParameterizedTest
     @EnumSource(value = Operation.class, names = {"SOURCE_DISCOVER", "SOURCE_PREVIEW", "SOURCE_INDEX", "SOURCE_REFRESH", "SOURCE_REMOVE"})
     void sourceOperationsCanPrepareTheExactProvisionedCandidateBeforeActivation(Operation operation) {
@@ -492,8 +509,9 @@ class DeploymentAdmissionCustomerPrerequisiteEvidenceProviderTest extends Admiss
         Budget budget = reviewedPolicy.fleet();
         FleetPolicy replacement = new FleetPolicy("policy2", budget, reviewedPolicy.targets(), reviewedPolicy.lifecycle(),
             reviewedPolicy.restoreEvidenceReference(), reviewedPolicy.privacyEvidenceReference(), reviewedPolicy.supportReference());
-        store.approvePolicy(replacement, "operator", NOW.plusSeconds(1));
-        assertRejected(customerContext, "CUSTOMER_ADMISSION_FINGERPRINT_CHANGED");
+        assertThatThrownBy(() -> store.approvePolicy(replacement, "operator", NOW.plusSeconds(1)))
+            .hasMessageContaining("POLICY_CONTINUITY_COVERAGE_REQUIRED");
+        assertThat(provider.resolve(customerContext).capacityReservationId()).isNotBlank();
     }
 
     @Test

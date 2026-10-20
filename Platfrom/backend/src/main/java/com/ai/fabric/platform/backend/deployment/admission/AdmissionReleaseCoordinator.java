@@ -61,7 +61,7 @@ public class AdmissionReleaseCoordinator {
         if (Set.of("NO_EFFECT", "SUPERSEDED").contains(binding.state())) throw failure("RELEASE_ALLOCATION_FENCED");
         Reservation reservation = store.require(binding.reservationId());
         requireGeneration(binding, reservation);
-        AdmissionContext context = store.context(binding.customerId(), binding.tenantId(), binding.deploymentId(), reservation.manifestId());
+        AdmissionContext context = store.context(reservation);
         PrerequisiteReadback readback = prerequisites.read(context);
         store.beginReleaseProvisioning(binding, context, readback, ACTOR, clock.instant());
     }

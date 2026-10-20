@@ -115,6 +115,30 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
         verify(placement).requireFreshEvidence(any(), eq(TargetIntent.CUSTOMER_STAGING));
     }
 
+    @Test void freshEvidenceAuthorizesHistoricalPolicyReferenceOnlyThroughExactContinuityAndPinsNewMeasurement() {
+        var references = new java.util.HashSet<>(context.manifest().prerequisiteReferences()); references.add("policy:policy");
+        var original = context.manifest();
+        var manifest = new Manifest("held-manifest", original.deploymentId(), original.versionId(), original.versionConfigHash(), TARGET,
+            original.bindingFingerprint(), original.topologyReference(), original.demand(), references);
+        store.approveManifest(manifest, "staff", NOW);
+        var initial = store.context("customer", "tenant", "deployment1", manifest.id());
+        var before = source(properties(true, true)).read(initial);
+        var reservation = store.reserve(initial, new Reserve("apply", manifest.id()), before, "owner", NOW);
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", java.util.List.of(reservation), NOW, NOW.plusSeconds(200));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW);
+        var current = store.context(reservation);
+        var source = source(properties(true, true));
+        org.springframework.test.util.ReflectionTestUtils.setField(source, "admissions", store);
+        var fresh = source.read(current);
+        assertThat(fresh.verifiedPrerequisiteReferences()).contains("policy:policy");
+        assertThat(fresh.evidenceReference()).isNotEqualTo(before.evidenceReference());
+        assertThat(fresh.validUntil()).isEqualTo(NOW.plusSeconds(200));
+        assertThatThrownBy(() -> source.read(store.context("customer", "tenant", "deployment1", manifest.id())))
+            .hasMessageContaining("TYPED_PREREQUISITE_EVIDENCE_REQUIRED");
+        jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POLICY_CONT'");
+        assertThatThrownBy(() -> source.read(current)).hasMessageContaining("POLICY_CONTINUITY_REQUIRED");
+    }
+
     @Test
     void unavailableTransportAndForeignOwnerFailClosed() {
         when(mail.getIfAvailable()).thenReturn(null);

@@ -1,5 +1,23 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Continuity source checkpoint,20October00:04UTC: explicit generic measured-
+  policy continuation is implemented and independently reviewed without a
+  remaining confirmed P1/P2 in changed scope. Parent verifies521 distinct
+  passing focused cases/27 suites, including157 realPG cases, from honest
+  complementary R3/R4 evidence; failed R3 is retained, not relabelled green.
+  Package passes; source commit/CI/rollout and actual continuation still next.
+  Existing allocation lifetime, charges, authority and funding are unchanged.
+  No hosted/P5/P7/customer-ready or final UI acceptance is implied.
+
+- Latest actual checkpoint,20October: recovery source e2d067b53/imagef037c5a1
+  is verified on both control planes, schema206/healthUP, all139tables/audits/
+  configuration and original unused allocation/grant preserved. Normal jobs
+  k992miylfwtap2tvgjvo44ok and hznfaf5ygrth0j3t4613o8f0; maintenance closed
+ 19October23:45UTC. No customer runtime/index/model operation yet. Explicit
+  measured-policy lifetime continuity is being implemented and independently
+  reviewed, not yet accepted. Hosted flows, P5/P7 and final UI extraction remain
+  open; no framework/runtime-artifact change or staging-state copy is implied.
+
 - Current checkpoint, 2026-10-19 22:48UTC: channel fix71f is fully accepted on
   both backends with schema206/UP and all139 tables/config preserved. Generic
   unused-initial-apply evidence renewal now passes326 focused module tests,

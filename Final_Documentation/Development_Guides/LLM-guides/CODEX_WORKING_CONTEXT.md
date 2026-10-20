@@ -8,6 +8,88 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 Measured-Policy Continuity Qualified, Not Yet Deployed
+
+- Generic explicit continuation is implemented in existing staff policy
+  publication/review storage, no schema/table/framework/runtime-image change.
+  Current measured head advances independently of original allocation policy;
+  exact covered reservations keep IDs/generations/keys, manifests, authorization,
+  charges, absolute lifetime and funding. Missing/partial/incompatible coverage,
+  old-policy replay, repeated observations and corrupt authority fail closed.
+- Final source22Javafiles frozen. Parent independently rehashed all1899backend
+  inputs and parsed/deduplicated actual XML:521unique passing cases across27
+  suites, including157 realPG cases. This is MULTI_RUN_RECONCILED, not a single
+  clean module invocation: R3 had512PASS/7HTTPfixtureerrors; correctedR4 gives
+ 7HTTP+2realapplicationcontextPASS. R1/R2/R3failures retained. Only test fixture
+  EntityManagerFactory setup changed after R3, no assertion/access relaxation.
+  Parent JDK21 offline packagePASS at20October00:01UTC. Faraday finalfresh
+ 23:58review has no remaining P1/P2 in changed scope, not fullP5 acceptance.
+- Evidence /private/tmp/01044-policy-continuity-tests-20261020; parent qualifier
+  /private/tmp/01044-qualify-policy-continuity-20261020.mjs. Main owns next
+  commit/CI/exact-image/guarded source rollout. Do not publish a continuation or
+  call customer refresh/apply before that backend is actually accepted.
+- Both fresh61sample host baselines PASS; offline policy proposal only at
+  /private/tmp/01044-measured-policy-continuation-20261020/proposal.parent-offline.json.
+  Actual stored original policy, not its submitted timestamp representation,
+  reproduces originalFP21b843...6dc0ec. No policy/placement/grant write yet.
+- Current external receiver matches this customer/deployment; six scoped stock
+  records and five unique actual WebP media pass. Owner binding GETs correctly
+ 409 stale-placement, not auth denial. No cutover needed; new placement and
+  frozen connector credential proof remain required. Stale APP_BUILD metadata
+  is not source attestation; separate read-only provenance review is retained.
+- No customer release/index/model call yet. P5/P7 and UI-LAST remain open.
+
+## 2026-10-20 Recovery Fix Accepted On Both Control Planes
+
+- Exact e2d067b533b32a9eca4877ee0e29ebb802946f89 / rootimage
+  f037c5a1c05fb050bf101421086c90dbd751ec0a310ea0616b82befecf2269b8 is
+  accepted on staging23:41:18UTC and production23:44:54UTC. Jobs respectively
+  k992miylfwtap2tvgjvo44ok/hznfaf5ygrth0j3t4613o8f0; native containers
+  d4721f3ad957/8785dd4d8195. Schema206, healthUP, all139tables/raw audits,
+  config_hash/full saved/effective env and exact unused R7/grant preserved.
+- New R2 root /private/tmp/01044-initial-evidence-renewal-backend-rollout-r2-20261020
+  contains actual accepted receipts; maintenance.completed.json closes the
+  no-writer interval23:45:12UTC, SHA4ec53bebe5fa9dc4da87b7c637a82f3995adf5102f90600a54419575ca5ecb4f.
+  Completed commands must not replay. Original expired preparation retained;
+  signed no-intent abandonment allowed fresh plans, never an uncertain retry.
+  R2 helper74tests PASS, separate from actual backend326tests. No UI deploy.
+- Main's next source-rollout helper is PENDING in
+  /private/tmp/01044-policy-continuity-backend-rollout-20261020;62 offline tests
+  pass with genuine accepted e2d baseline. No candidate/source/package/CI/image
+  or deployment is claimed there. Continuity source is uncommitted and under
+  Confucius-exclusive Maven plus Faraday review; preserve failed attempts.
+- Current customer still RESERVEDrev0/releases0/providerallocations0 at actual
+ 23:33readback, preserved again by both rollout guards. Capacity measurements
+  expired; do not call initial refresh/apply before qualified explicit policy
+  continuity and new real placement/measurement proof. No funding reset.
+- Fresh staging61-sample baseline ended23:47:07UTC, p95CPU743m/max904m,
+  minavailableRAM10837688320B and DockerFS96465162240B; swap excluded. This is
+  existing-fleet only, not candidate/load/P5 proof. Production measurement is
+  in progress. Sartre performs read-only current external-fixture scope review.
+  Full hosted flows/operating recovery/P7/UI-LAST remain open. Updates sent.
+
+## 2026-10-20 Resumed After Promotion Questions
+
+- Not complete. Recovery source e2d067b533b32a9eca4877ee0e29ebb802946f89 is
+  committed/pushed; actual326 focused backend tests, package and backend-only
+  CI39337571757 pass. Root imagef037c5a1...2269b8 and SSH client were verified.
+  No framework/runtime artifact or UI extraction change was made.
+- Staging was prepared22:54:46UTC, but its signed plan expired23:09:46UTC
+  without patch/start intent or native-job receipt. Actual read-only reconcile
+  after23:30 confirms no dispatched job and old backend still running. Preserve
+  that root; no expired command replay, timestamp relabel or hidden retry.
+- Generic measured-policy lifetime continuity is an independently confirmed P2:
+  short measurement validity cannot strand administration of a still-current
+  held allocation. Confucius implements explicit compatible continuation;
+  Faraday reviews authority/races, Sartre prepares a new no-effect rollout window.
+  Main owns live integration/rollout. No customer/model writes while maintenance
+  is open, no allowance reset or staging-to-production vector/state copying.
+- Current measured policy ended19October23:30UTC, before reserved staging's
+ 20October21:49UTC expiry. Fresh real measurements plus audited continuity are
+  required, not an extension of old evidence. Hosted apply/index/auth/promotion,
+  operating recovery, P7 and UI-LAST remain open. No approval is pending from
+  the user for this already-authorized work. Platform-Updates informed on resume.
+
 ## 2026-10-19 22:48 UTC Initial Evidence Recovery Qualified; Source Rollout Next
 
 - Generic customer POST admission-reservations/{id}/refresh-evidence implemented.

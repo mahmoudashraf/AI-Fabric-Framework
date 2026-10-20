@@ -80,6 +80,20 @@ final class AdmissionRules {
         required(policy.id(), 64); budget(policy.fleet(), now); lifecycle(policy.lifecycle());
         required(policy.restoreEvidenceReference(), 255); required(policy.privacyEvidenceReference(), 255);
         required(policy.supportReference(), 255);
+        if (policy.continuations().size() > 32) throw new AdmissionFailure(BAD_REQUEST, "POLICY_CONTINUITY_COVERAGE_INVALID");
+        int coverage = 0;
+        for (var continuation : policy.continuations()) {
+            required(continuation.originalPolicyId(), 64);
+            if (continuation.originalPolicyFingerprint() == null || !continuation.originalPolicyFingerprint().matches("[a-f0-9]{64}")
+                || continuation.reservations() == null || continuation.reservations().isEmpty())
+                throw new AdmissionFailure(BAD_REQUEST, "POLICY_CONTINUITY_COVERAGE_INVALID");
+            coverage = Math.addExact(coverage, continuation.reservations().size());
+            if (coverage > 256) throw new AdmissionFailure(BAD_REQUEST, "POLICY_CONTINUITY_COVERAGE_INVALID");
+            for (Fence fence : continuation.reservations()) {
+                if (fence == null || fence.revision() < 0) throw new AdmissionFailure(BAD_REQUEST, "POLICY_CONTINUITY_COVERAGE_INVALID");
+                required(fence.reservationId(), 64); required(fence.generation(), 64);
+            }
+        }
         policy.targets().forEach((key, target) -> {
             if (target == null || !key.equals(target.targetProfileId()) || target.intent() == null
                 || "dtp-coolify-prod-staging".equals(key)) throw new AdmissionFailure(PRECONDITION_FAILED, "TARGET_POLICY_INVALID");

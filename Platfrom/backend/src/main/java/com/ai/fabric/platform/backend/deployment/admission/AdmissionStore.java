@@ -55,14 +55,92 @@ class AdmissionStore {
         });
     }
     void approvePolicy(FleetPolicy policy, String actor, Instant requestedAt) {
+        approvePolicy(policy, actor, requestedAt, Map::of);
+    }
+    void approvePolicy(FleetPolicy policy, String actor, Instant requestedAt, Supplier<Map<String, String>> placementGuard) {
+        try {
         locked(() -> {
             Instant now = effectiveTime(requestedAt);
             policy(policy, now);
+            var charged = held();
+            checkCapacity(policy, charged, null, null);
+            var coverage = new java.util.HashSet<String>();
+            var continuities = new ArrayList<AdmissionPolicyContinuity>();
+            if (!policy.continuations().isEmpty()) {
+                for (String targetId : policy.targets().keySet().stream().sorted().toList()) {
+                    if (jdbc.query("SELECT id FROM deployment_target_profiles WHERE id=? FOR UPDATE NOWAIT",
+                        (rs, row) -> rs.getString(1), targetId).size() != 1)
+                        throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_PLACEMENT_REQUIRED");
+                }
+                var ids = policy.continuations().stream().flatMap(value -> value.reservations().stream())
+                    .map(Fence::reservationId).distinct().sorted().toList();
+                for (String reservationId : ids) {
+                    if (jdbc.query("SELECT id FROM deployment_capacity_reservations WHERE id=? FOR UPDATE NOWAIT",
+                        (rs, row) -> rs.getString(1), reservationId).size() != 1)
+                        throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                }
+            }
+            Map<String, String> placements = policy.continuations().isEmpty() ? Map.of() : placementGuard.get();
+            if (!policy.continuations().isEmpty() && !placements.keySet().equals(policy.targets().keySet()))
+                throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_PLACEMENT_REQUIRED");
+            placements.values().forEach(value -> required(value, 255));
+            policy(policy, effectiveTime(requestedAt));
+            var existing = jdbc.queryForList("SELECT fingerprint FROM deployment_admission_reviews WHERE kind='POLICY' AND record_key=?", String.class, policy.id());
+            if (!existing.isEmpty() && !policy.id().equals(activePolicy().id()))
+                throw new AdmissionFailure(CONFLICT, "POLICY_CONTINUITY_HEAD_CHANGED");
+            if (!existing.isEmpty() && !policy.continuations().isEmpty()) {
+                if (!existing.equals(List.of(json.fingerprint(policy)))) throw new AdmissionFailure(CONFLICT, "REVIEWED_RECORD_IMMUTABLE");
+                for (var request : policy.continuations()) for (Fence fence : request.reservations()) {
+                    coverage.add(fence.reservationId());
+                    effectivePolicyAuthority(require(fence.reservationId()), policy);
+                }
+                if (charged.stream().anyMatch(reservation -> !reservation.policyId().equals(policy.id()) && !coverage.contains(reservation.id())))
+                    throw new AdmissionFailure(CONFLICT, "POLICY_CONTINUITY_COVERAGE_REQUIRED");
+                jdbc.update("UPDATE deployment_admission_mutex SET active_policy_ref=? WHERE id=1", policy.id());
+                return null;
+            }
+            if (!policy.continuations().isEmpty()) AdmissionPolicyContinuity.compatible(activePolicy(), policy);
+            for (var request : policy.continuations()) {
+                FleetPolicy original = verifiedReview("POLICY", required(request.originalPolicyId(), 64), FleetPolicy.class);
+                if (!json.fingerprint(original).equals(required(request.originalPolicyFingerprint(), 64))
+                    || request.reservations() == null || request.reservations().isEmpty())
+                    throw new AdmissionFailure(CONFLICT, "POLICY_CONTINUITY_SCOPE_CHANGED");
+                AdmissionPolicyContinuity.compatible(original, policy);
+                for (Fence fence : request.reservations()) {
+                    if (fence == null || fence.revision() < 0 || !coverage.add(required(fence.reservationId(), 64)))
+                        throw new AdmissionFailure(BAD_REQUEST, "POLICY_CONTINUITY_COVERAGE_INVALID");
+                    Reservation reservation = fenced(fence);
+                    if (!reservation.consumesCapacity() || !original.id().equals(reservation.policyId()))
+                        throw new AdmissionFailure(CONFLICT, "POLICY_CONTINUITY_SCOPE_CHANGED");
+                    var allowed = new java.util.TreeSet<String>();
+                    var prior = effectivePolicyAuthority(reservation, activePolicy());
+                    allowed.add("policy:" + original.id());
+                    if (prior != null) allowed.addAll(prior.authorizedPolicyReferences());
+                    allowed.add("policy:" + policy.id());
+                    var currentManifest = reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+                    if (!allowed.containsAll(policyReferences(currentManifest)))
+                        throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_MANIFEST_CHANGED");
+                    continuities.add(new AdmissionPolicyContinuity(original.id(), json.fingerprint(original), policy.id(),
+                        json.fingerprint(policy), activePolicy().id(), json.fingerprint(activePolicy()), fence,
+                        json.fingerprint(reservation), AdmissionPolicyContinuity.identity(json, reservation),
+                        allowed, placements, actor, now));
+                }
+            }
+            if (charged.stream().anyMatch(reservation -> !reservation.policyId().equals(policy.id()) && !coverage.contains(reservation.id())))
+                throw new AdmissionFailure(CONFLICT, "POLICY_CONTINUITY_COVERAGE_REQUIRED");
+            now = effectiveTime(requestedAt);
+            policy(policy, now);
             checkCapacity(policy, held(), null, null);
             review("POLICY", policy.id(), policy, actor, now);
+            for (var continuity : continuities)
+                review(AdmissionPolicyContinuity.KIND, AdmissionPolicyContinuity.key(json, policy.id(), continuity.fence().reservationId()),
+                    continuity, actor, now);
             jdbc.update("UPDATE deployment_admission_mutex SET active_policy_ref=? WHERE id=1", policy.id());
             return null;
         });
+        } catch (org.springframework.dao.DataAccessException busy) {
+            throw unusedCancellationLockFailure(busy, "POLICY_CONTINUITY_BUSY");
+        }
     }
     void approveGrant(CustomerGrant grant, String actor, Instant requestedAt) {
         locked(() -> {
@@ -98,6 +176,7 @@ class AdmissionStore {
                 || policy.reviewAcceptBefore() == null || !policy.reviewAcceptBefore().isAfter(now))
                 throw new AdmissionFailure(PRECONDITION_FAILED, "INDEX_RETENTION_POLICY_INVALID");
             localGuard.run();
+            requireEffectivePolicy(r, context(r));
             Mutation m = new Mutation(r);
             var envelope = new java.util.EnumMap<Dimension, Long>(Dimension.class);
             for (Dimension d : Dimension.values()) envelope.put(d, 0L);
@@ -138,10 +217,21 @@ class AdmissionStore {
         if (rows.isEmpty()) throw new AdmissionFailure(PRECONDITION_FAILED, "REVIEWED_" + kind + "_REQUIRED");
         return rows.get(0);
     }
+    private <T> T verifiedReview(String kind, String key, Class<T> type) {
+        var rows = jdbc.query("SELECT fingerprint,payload_json FROM deployment_admission_reviews WHERE kind=? AND record_key=?",
+            (rs, row) -> {
+                T value = json.read(rs.getString("payload_json"), type);
+                if (!json.fingerprint(value).equals(rs.getString("fingerprint")))
+                    throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_RECORD_CHANGED");
+                return value;
+            }, kind, key);
+        if (rows.size() != 1) throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_REQUIRED");
+        return rows.getFirst();
+    }
     FleetPolicy activePolicy() {
         String id = jdbc.queryForObject("SELECT active_policy_ref FROM deployment_admission_mutex WHERE id=1", String.class);
         if (id == null) throw new AdmissionFailure(PRECONDITION_FAILED, "MEASURED_POLICY_REQUIRED");
-        return reviewed("POLICY", id, FleetPolicy.class);
+        return verifiedReview("POLICY", id, FleetPolicy.class);
     }
     CustomerGrant customerGrant(String customerId) {
         var rows = jdbc.query("SELECT record_ref FROM deployment_admission_grants WHERE customer_id=?", (rs, row) -> rs.getString(1), customerId);
@@ -155,6 +245,83 @@ class AdmissionStore {
         if (target == null || !manifest.deploymentId().equals(deployment) || !grant.targetLimits().containsKey(target.targetProfileId()))
             throw new AdmissionFailure(FORBIDDEN, "TARGET_OR_MANIFEST_NOT_ENTITLED");
         return new AdmissionContext(customer, tenant, deployment, policy, grant, manifest, json.fingerprint(manifest), target);
+    }
+    AdmissionContext context(Reservation reservation) { return context(reservation, reservation.manifestId()); }
+    AdmissionContext context(Reservation reservation, String manifestId) {
+        AdmissionContext current = context(reservation.customerId(), reservation.tenantId(), reservation.deploymentId(), manifestId);
+        var resolved = new AdmissionContext(current.customerId(), current.tenantId(), current.deploymentId(), current.policy(), current.grant(),
+            current.manifest(), current.manifestFingerprint(), current.target(), effectivePolicyAuthority(reservation, current.policy()));
+        requireEffectivePolicy(reservation, resolved);
+        return resolved;
+    }
+    private PolicyAuthority effectivePolicyAuthority(Reservation reservation, FleetPolicy measured) {
+        FleetPolicy original = verifiedReview("POLICY", reservation.policyId(), FleetPolicy.class);
+        if (original.id().equals(measured.id())) {
+            if (!json.fingerprint(original).equals(json.fingerprint(measured)))
+                throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_RECORD_CHANGED");
+            return null;
+        }
+        var coverage = measured.continuations().stream().filter(value -> value.originalPolicyId().equals(original.id())
+            && value.originalPolicyFingerprint().equals(json.fingerprint(original)))
+            .flatMap(value -> value.reservations().stream()).filter(value -> value.reservationId().equals(reservation.id())).toList();
+        if (coverage.size() != 1) throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_REQUIRED");
+        Fence fence = coverage.getFirst();
+        var relation = verifiedReview(AdmissionPolicyContinuity.KIND,
+            AdmissionPolicyContinuity.key(json, measured.id(), reservation.id()), AdmissionPolicyContinuity.class);
+        AdmissionPolicyContinuity.compatible(original, measured);
+        FleetPolicy previous = verifiedReview("POLICY", relation.previousMeasuredPolicyId(), FleetPolicy.class);
+        if (!json.fingerprint(previous).equals(relation.previousMeasuredPolicyFingerprint()))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_RECORD_CHANGED");
+        AdmissionPolicyContinuity.compatible(previous, measured);
+        if (!relation.originalPolicyId().equals(original.id()) || !relation.originalPolicyFingerprint().equals(json.fingerprint(original))
+            || !relation.measuredPolicyId().equals(measured.id()) || !relation.measuredPolicyFingerprint().equals(json.fingerprint(measured))
+            || !relation.fence().equals(fence) || !fence.generation().equals(reservation.generation())
+            || fence.revision() > reservation.revision() || !relation.allocationIdentity().equals(AdmissionPolicyContinuity.identity(json, reservation))
+            || !relation.placementEvidence().keySet().equals(measured.targets().keySet())
+            || !relation.authorizedPolicyReferences().contains("policy:" + original.id())
+            || !relation.authorizedPolicyReferences().contains("policy:" + measured.id()))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_RECORD_CHANGED");
+        return new PolicyAuthority(reservation.id(), reservation.generation(), original.id(), json.fingerprint(original),
+            json.fingerprint(relation), relation.authorizedPolicyReferences());
+    }
+    void requireEffectivePolicy(Reservation reservation, AdmissionContext context) {
+        if (!json.fingerprint(activePolicy()).equals(json.fingerprint(context.policy())))
+            throw new AdmissionFailure(CONFLICT, "ADMISSION_POLICY_CHANGED");
+        if (!Objects.equals(context.policyAuthority(), effectivePolicyAuthority(reservation, context.policy())))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_RECORD_CHANGED");
+        var allowed = context.policyAuthority() == null ? java.util.Set.of("policy:" + context.policy().id())
+            : context.policyAuthority().authorizedPolicyReferences();
+        if (!allowed.containsAll(policyReferences(context.manifest())))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_MANIFEST_CHANGED");
+    }
+    java.util.Set<String> authorizedPolicyReferences(AdmissionContext context) {
+        if (!json.fingerprint(activePolicy()).equals(json.fingerprint(context.policy())))
+            throw new AdmissionFailure(CONFLICT, "ADMISSION_POLICY_CHANGED");
+        if (context.policyAuthority() == null) return java.util.Set.of("policy:" + context.policy().id());
+        var reservation = require(context.policyAuthority().reservationId());
+        requireEffectivePolicy(reservation, context);
+        if (!reservation.customerId().equals(context.customerId()) || !reservation.tenantId().equals(context.tenantId())
+            || !reservation.deploymentId().equals(context.deploymentId()) || !reservation.targetProfileId().equals(context.target().targetProfileId()))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_SCOPE_CHANGED");
+        return context.policyAuthority().authorizedPolicyReferences();
+    }
+    private java.util.Set<String> policyReferences(Manifest manifest) {
+        return manifest.prerequisiteReferences().stream().filter(value -> value.startsWith("policy:"))
+            .collect(java.util.stream.Collectors.toSet());
+    }
+    FleetPolicy manifestPolicy(String deploymentId, String targetId, String versionId) {
+        var matches = held(deploymentId, targetId).stream().filter(Reservation::occupiesActiveSlot).toList();
+        if (matches.size() > 1) throw new AdmissionFailure(CONFLICT, "CURRENT_RESERVATION_REQUIRES_RECONCILIATION");
+        if (matches.isEmpty()) return activePolicy();
+        Reservation reservation = matches.getFirst();
+        Manifest manifest = reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
+        if (!manifest.versionId().equals(versionId)) return activePolicy();
+        var current = context(reservation);
+        policy(current.policy(), clock.instant());
+        var references = policyReferences(manifest);
+        if (references.size() != 1 || !authorizedPolicyReferences(current).containsAll(references))
+            throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_MANIFEST_CHANGED");
+        return verifiedReview("POLICY", references.iterator().next().substring("policy:".length()), FleetPolicy.class);
     }
     Reservation replay(String customer, String deployment, String target, Reserve command, String fingerprint) {
         if (command.customerContext() != null) {
@@ -185,7 +352,15 @@ class AdmissionStore {
     Reservation reserve(AdmissionContext checked, Reserve command, PrerequisiteReadback evidence, String actor, Instant requestedAt, Runnable localGuard) {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
-            AdmissionContext current = context(checked.customerId(), checked.tenantId(), checked.deploymentId(), command.manifestId());
+            if (command.allocationId() != null) {
+                Reservation allocation = require(command.allocationId());
+                if (!allocation.customerId().equals(checked.customerId()) || !allocation.tenantId().equals(checked.tenantId())
+                    || !allocation.deploymentId().equals(checked.deploymentId()) || !allocation.targetProfileId().equals(checked.target().targetProfileId()))
+                    throw new AdmissionFailure(CONFLICT, "ALLOCATION_REAPPLY_SCOPE_INVALID");
+            }
+            AdmissionContext current = command.allocationId() == null
+                ? context(checked.customerId(), checked.tenantId(), checked.deploymentId(), command.manifestId())
+                : context(require(command.allocationId()), command.manifestId());
             validateCustomerScope(current, command);
             String fingerprint = commandFingerprint(current.customerId(), current.tenantId(), current.deploymentId(), current.manifest(), command);
             Reservation replay = replay(current.customerId(), current.deploymentId(), current.target().targetProfileId(), command, fingerprint);
@@ -260,10 +435,11 @@ class AdmissionStore {
             || !allocation.customerId().equals(current.customerId()) || !allocation.tenantId().equals(current.tenantId())
             || !allocation.deploymentId().equals(current.deploymentId())
             || !allocation.targetProfileId().equals(current.target().targetProfileId())
-            || allocation.intent() != current.target().intent() || !allocation.policyId().equals(current.policy().id())) {
+            || allocation.intent() != current.target().intent()) {
             throw new AdmissionFailure(CONFLICT, "ALLOCATION_REAPPLY_SCOPE_INVALID");
         }
-        AdmissionContext previous = context(allocation.customerId(), allocation.tenantId(), allocation.deploymentId(), allocation.manifestId());
+        requireEffectivePolicy(allocation, current);
+        AdmissionContext previous = context(allocation);
         requireUsableAllocation(allocation, previous, now);
         if (allocation.state() != State.ACTIVE || allocation.failureCode() != null || allocation.retirementOperationId() != null
             || allocation.drainDeadline() != null || allocation.recoveryUntil() != null) {
@@ -323,10 +499,11 @@ class AdmissionStore {
         requireUsableAllocation(reservation, current, now, false);
     }
     private void requireUsableAllocation(Reservation reservation, AdmissionContext current, Instant now, boolean lifecycleExtension) {
+        requireEffectivePolicy(reservation, current);
         if (!reservation.customerId().equals(current.customerId()) || !reservation.tenantId().equals(current.tenantId())
             || !reservation.deploymentId().equals(current.deploymentId())
             || !reservation.targetProfileId().equals(current.target().targetProfileId())
-            || reservation.intent() != current.target().intent() || !reservation.policyId().equals(current.policy().id())
+            || reservation.intent() != current.target().intent()
             || !reservation.manifestFingerprint().equals(current.manifestFingerprint())
             || !reservation.bindingFingerprint().equals(current.manifest().bindingFingerprint())
             || !List.of(State.RESERVED, State.PROVISIONING, State.ACTIVE).contains(reservation.state())
@@ -448,7 +625,7 @@ class AdmissionStore {
             Reservation reservation = fenced(fence);
             requireInitialRenewalScope(reservation, fresh);
             var receipt = initialRenewalAuthorization(reservation, fresh);
-            AdmissionContext current = context(reservation.customerId(), reservation.tenantId(), reservation.deploymentId(), reservation.manifestId());
+            AdmissionContext current = context(reservation);
             if (!json.fingerprint(current).equals(json.fingerprint(checked)))
                 throw new AdmissionFailure(CONFLICT, "ADMISSION_POLICY_CHANGED");
             validateCustomerScope(current, new Reserve(fresh.operationKey(), reservation.manifestId(), fresh));
@@ -467,8 +644,7 @@ class AdmissionStore {
             localGuard.run();
             Instant now = effectiveTime(requestedAt);
             if (!json.fingerprint(reservation).equals(json.fingerprint(fenced(fence)))
-                || !json.fingerprint(current).equals(json.fingerprint(context(reservation.customerId(), reservation.tenantId(),
-                    reservation.deploymentId(), reservation.manifestId()))))
+                || !json.fingerprint(current).equals(json.fingerprint(context(reservation))))
                 throw new AdmissionFailure(CONFLICT, "INITIAL_RENEWAL_AUTHORITY_CHANGED");
             policy(current.policy(), now); grant(current.grant(), now); prerequisites(current, evidence, now);
             requireUsableAllocation(reservation, current, now);
@@ -585,7 +761,7 @@ class AdmissionStore {
             || !allocation.id().equals(receipt.reservationId()) || !allocation.generation().equals(receipt.generation())) {
             throw new AdmissionFailure(PRECONDITION_FAILED, "CUSTOMER_CAPACITY_RESERVATION_INVALID");
         }
-        AdmissionContext candidate = context(allocation.customerId(), allocation.tenantId(), allocation.deploymentId(), command.manifestId());
+        AdmissionContext candidate = context(allocation, command.manifestId());
         validateCustomerScope(candidate, command);
         if (!candidate.manifestFingerprint().equals(receipt.manifestFingerprint())
             || !json.fingerprint(command.customerContext()).equals(receipt.contextFingerprint())
@@ -783,6 +959,7 @@ class AdmissionStore {
             || reservation.workerToken() != null || reservation.failureCode() != null) {
             throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVE_RELEASE_ALLOCATION_INVALID");
         }
+        policy(context(reservation).policy(), clock.instant());
         return reservation;
     }
 
@@ -813,7 +990,7 @@ class AdmissionStore {
         jdbc.queryForObject("SELECT id FROM deployment_capacity_reservations WHERE id=? FOR UPDATE", String.class, receipt.reservationId());
         Reservation allocation = require(receipt.reservationId());
         Reservation authorized = candidateAuthorization(allocation, receipt);
-        AdmissionContext current = context(deployment.getCustomerId(), deployment.getTenantId(), deployment.getId(), authorized.manifestId());
+        AdmissionContext current = context(authorized);
         requireUsableAllocation(authorized, current, clock.instant());
         requireCustomerAuthorization(authorized, effectiveCustomerContext(authorized, receipt));
         if (initialEvidenceRenewal(authorized, receipt) != null) prerequisites(current, authorized.prerequisiteReadback(), clock.instant());
@@ -1137,8 +1314,9 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence);
-            AdmissionContext current = context(r.customerId(), r.tenantId(), r.deploymentId(), r.manifestId());
-            if (!json.fingerprint(checked).equals(json.fingerprint(current)) || !r.policyId().equals(current.policy().id())
+            AdmissionContext current = context(r);
+            requireEffectivePolicy(r, current);
+            if (!json.fingerprint(checked).equals(json.fingerprint(current))
                 || !r.manifestFingerprint().equals(current.manifestFingerprint())) throw new AdmissionFailure(CONFLICT, "RESERVATION_POLICY_CHANGED");
             localGuard.run(); now = effectiveTime(requestedAt);
             policy(current.policy(), now); grant(current.grant(), now); prerequisites(current, evidence, now);
@@ -1151,7 +1329,7 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             Reservation reservation = require(binding.reservationId());
-            AdmissionContext current = context(binding.customerId(), binding.tenantId(), binding.deploymentId(), reservation.manifestId());
+            AdmissionContext current = context(reservation);
             requireUsableAllocation(reservation, current, now);
             if (!binding.generation().equals(reservation.generation()) || !binding.releaseId().equals(currentReleaseId(reservation))
                 || !binding.versionId().equals(current.manifest().versionId())

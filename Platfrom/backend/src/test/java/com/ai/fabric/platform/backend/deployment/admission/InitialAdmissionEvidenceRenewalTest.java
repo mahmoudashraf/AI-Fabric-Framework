@@ -92,6 +92,19 @@ class InitialAdmissionEvidenceRenewalTest extends AdmissionFixture {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_release_bindings", Long.class)).isZero();
     }
 
+    @Test void initialEvidenceRenewalUsesExactMeasuredPolicyContinuityWithoutChangingOriginalAuthorityOrFunding() {
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(original), clock.instant(), clock.instant().plusSeconds(300));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, clock.instant());
+        var current = store.context(original);
+        var renewed = store.renewInitialCustomerEvidence(original.fence(), current, freshScope, evidence(current, clock.instant()),
+            originalGrant, "owner", clock.instant(), () -> {});
+        store.requireCustomerAuthorization(renewed, freshScope);
+        assertThat(renewed.policyId()).isEqualTo(original.policyId());
+        assertThat(renewed.expiresAt()).isEqualTo(original.expiresAt());
+        assertThat(store.context(renewed).policy().id()).isEqualTo("policy-next");
+        assertImmutableOriginals();
+    }
+
     @Test void latestPlacementAloneFailsButRenewedContextIsExactAndOriginalKeyCanBindOnlyOnce() {
         assertThatThrownBy(() -> store.requireCustomerAuthorization(original, freshScope)).hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_INVALID");
         var renewed = renew(original.fence(), freshScope, () -> { });

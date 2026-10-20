@@ -444,3 +444,47 @@ document consent, physical policy approval or production readiness.
 is the maximum reviewed envelope; admission must select actual demand from the
 immutable version's `aiStateStorageMode`. Customer PostgreSQL is not charged as
 a hosted database. The customer-business database always remains external.
+
+## Measured Capacity Continuity
+
+An allocation's lifetime and the freshness of a server measurement are separate.
+Refreshing measurements must not recreate allocations, extend their expiry or
+reset provider funding. The existing administrator-only
+`POST /api/platform/admission/reviews/fleet-policies` accepts explicit coverage
+alongside the complete newly reviewed policy:
+
+```json
+{
+  "continuations": [{
+    "originalPolicyId": "original-policy-id",
+    "originalPolicyFingerprint": "<original stored policy SHA256>",
+    "reservations": [{
+      "reservationId": "existing-reservation-id",
+      "revision": 7,
+      "generation": "existing-generation"
+    }]
+  }]
+}
+```
+
+This fragment is an additional field, not a complete publication request. Use a
+new policy ID, real advancing fleet/target observations, current target placement
+proof and exact current reservation fences. Preserve compatible placement,
+profile, lifecycle, ceilings, safety headroom and immutable prerequisite contract.
+Every charged old-policy allocation must be explicitly covered. Publication
+atomically fits all charges, records append-only `POLICY_CONT` authority in the
+existing review store, and advances the measured head without rewriting R7,
+original authorization, manifests, lease or financial history.
+
+Only identical current-head replay is supported; superseded-policy replay,
+partial coverage, changed fences, reused measurements and incompatible contracts
+fail closed. Current authority is resolved explicitly for held operations; no
+missing-record fallback or implicit grandfathering exists. Keep original review
+and audit history. There is no SQL-repair or caller-supplied authority alternative.
+
+After publication, normal customer operation/source prerequisite refresh still
+needs its own fresh connector, ownership, entitlement and placement evidence.
+The unused initial `refresh-evidence` command remains unused-only and is not an
+ACTIVE-allocation migration. Measurements do not certify indexing, workload,
+backup/restore, runtime health or production promotion. Production initializes
+its own derived index; staging vectors and conversation state are not copied.

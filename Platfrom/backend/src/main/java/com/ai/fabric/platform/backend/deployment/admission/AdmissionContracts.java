@@ -50,8 +50,30 @@ public final class AdmissionContracts {
                                   String policyReference, String noticeTransportReference) { }
     public record FleetPolicy(String id, Budget fleet, Map<String, TargetBudget> targets,
                               LifecyclePolicy lifecycle, String restoreEvidenceReference,
-                              String privacyEvidenceReference, String supportReference) {
-        public FleetPolicy { targets = targets == null ? null : Map.copyOf(targets); }
+                              String privacyEvidenceReference, String supportReference,
+                              @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+                              List<PolicyContinuation> continuations) {
+        public FleetPolicy {
+            targets = targets == null ? null : Map.copyOf(targets);
+            continuations = continuations == null ? List.of() : List.copyOf(continuations);
+        }
+        public FleetPolicy(String id, Budget fleet, Map<String, TargetBudget> targets, LifecyclePolicy lifecycle,
+                           String restoreEvidenceReference, String privacyEvidenceReference, String supportReference) {
+            this(id, fleet, targets, lifecycle, restoreEvidenceReference, privacyEvidenceReference, supportReference, List.of());
+        }
+    }
+    /** Explicit coverage, never implicit grandfathering when the active measured snapshot changes. */
+    public record PolicyContinuation(String originalPolicyId, String originalPolicyFingerprint,
+                                     @JsonDeserialize(contentUsing = CancelUnusedFenceDeserializer.class) List<Fence> reservations) {
+        public PolicyContinuation { reservations = reservations == null ? null : List.copyOf(reservations); }
+    }
+    public record PolicyAuthority(String reservationId, String generation, String originalPolicyId,
+                                  String originalPolicyFingerprint, String continuityFingerprint,
+                                  Set<String> authorizedPolicyReferences) {
+        public PolicyAuthority {
+            authorizedPolicyReferences = authorizedPolicyReferences == null ? null
+                : Collections.unmodifiableSet(new TreeSet<>(authorizedPolicyReferences));
+        }
     }
     public record CustomerGrant(String customerId, Vector fleetLimit, Map<String, Vector> targetLimits,
                                 Instant validUntil, String ownerContactEvidenceReference,
@@ -245,7 +267,14 @@ public final class AdmissionContracts {
                                              Vector releasedDemand, Instant settledAt) { }
     public record AdmissionContext(String customerId, String tenantId, String deploymentId,
                                    FleetPolicy policy, CustomerGrant grant, Manifest manifest,
-                                   String manifestFingerprint, TargetBudget target) { }
+                                   String manifestFingerprint, TargetBudget target,
+                                   @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                                   PolicyAuthority policyAuthority) {
+        public AdmissionContext(String customerId, String tenantId, String deploymentId, FleetPolicy policy,
+                                CustomerGrant grant, Manifest manifest, String manifestFingerprint, TargetBudget target) {
+            this(customerId, tenantId, deploymentId, policy, grant, manifest, manifestFingerprint, target, null);
+        }
+    }
     public record PrerequisiteReadback(Instant observedAt, Instant validUntil, String evidenceReference,
                                        Placement placement, String profileFingerprint,
                                        String manifestFingerprint, String bindingFingerprint,

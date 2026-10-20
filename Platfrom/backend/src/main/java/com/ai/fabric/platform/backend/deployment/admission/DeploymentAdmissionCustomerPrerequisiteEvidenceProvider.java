@@ -90,8 +90,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         }
         store.requireCustomerAuthorization(reservation, requested);
 
-        AdmissionContext current = store.context(requested.customerId(), requested.tenantId(), requested.deploymentId(),
-            reservation.manifestId());
+        AdmissionContext current = store.context(reservation);
         validateCurrentReservation(requested, reservation, current, now, true);
         validateDeploymentAndVersion(requested, current);
         validateTarget(current.target());
@@ -159,8 +158,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
             || reservation.expiryState() == ExpiryState.HANDED_OFF || reservation.expiryState() == ExpiryState.RELEASED) {
             throw unavailable("CUSTOMER_CAPACITY_RESERVATION_INVALID");
         }
-        AdmissionContext current = store.context(requested.customerId(), requested.tenantId(), requested.deploymentId(),
-            reservation.manifestId());
+        AdmissionContext current = store.context(reservation);
         validateCurrentReservation(requested, reservation, current, now, false);
         validateReleaseVersion(allocation.release(), current);
         validateDeploymentAndVersion(requested, current);
@@ -252,6 +250,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
     private void validateCurrentReservation(
         com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext requested,
         Reservation reservation, AdmissionContext current, Instant now, boolean requireFreshReadback) {
+        store.requireEffectivePolicy(reservation, current);
         policy(current.policy(), now);
         grant(current.grant(), now);
         manifest(current.manifest());
@@ -259,7 +258,7 @@ public class DeploymentAdmissionCustomerPrerequisiteEvidenceProvider implements 
         if (!reservation.customerId().equals(current.customerId()) || !reservation.tenantId().equals(current.tenantId())
             || !reservation.deploymentId().equals(current.deploymentId())
             || !reservation.targetProfileId().equals(current.target().targetProfileId())
-            || reservation.intent() != current.target().intent() || !reservation.policyId().equals(current.policy().id())
+            || reservation.intent() != current.target().intent()
             || !reservation.manifestFingerprint().equals(current.manifestFingerprint())
             || !reservation.bindingFingerprint().equals(current.manifest().bindingFingerprint())
             || reservation.prerequisiteReadback() == null) {

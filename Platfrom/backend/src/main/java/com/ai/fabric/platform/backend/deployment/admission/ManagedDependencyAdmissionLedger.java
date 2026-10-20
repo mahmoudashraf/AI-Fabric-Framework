@@ -69,8 +69,7 @@ public class ManagedDependencyAdmissionLedger {
             throw unavailable("DEPENDENCY_ADMISSION_INVALID");
         }
 
-        AdmissionContext current = store.context(requirement.customerId(), requirement.tenantId(),
-            requirement.deploymentId(), reservation.manifestId());
+        AdmissionContext current = store.context(reservation);
         policy(current.policy(), now);
         grant(current.grant(), now);
         manifest(current.manifest());
@@ -81,7 +80,6 @@ public class ManagedDependencyAdmissionLedger {
             || !reservation.tenantId().equals(current.tenantId())
             || !reservation.deploymentId().equals(current.deploymentId())
             || !reservation.targetProfileId().equals(current.target().targetProfileId())
-            || !reservation.policyId().equals(current.policy().id())
             || !reservation.manifestId().equals(current.manifest().id())
             || !reservation.manifestFingerprint().equals(current.manifestFingerprint())
             || !reservation.manifestFingerprint().equals(json.fingerprint(current.manifest()))

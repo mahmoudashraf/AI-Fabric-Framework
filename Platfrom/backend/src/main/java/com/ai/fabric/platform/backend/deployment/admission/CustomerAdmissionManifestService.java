@@ -72,7 +72,7 @@ public class CustomerAdmissionManifestService {
             milvusTokenArtifacts.requireReviewedCandidates(version, provider,
                 authorization.definition().artifacts().stream().map(pin -> pin.artifactId()).toList());
         }
-        FleetPolicy policy = store.activePolicy();
+        FleetPolicy policy = store.manifestPolicy(deployment.getId(), authorization.context().targetProfileId(), version.getId());
         CustomerGrant grant = store.customerGrant(deployment.getCustomerId());
         String targetId = authorization.context().targetProfileId();
         if (!policy.targets().containsKey(targetId) || !grant.targetLimits().containsKey(targetId)) {

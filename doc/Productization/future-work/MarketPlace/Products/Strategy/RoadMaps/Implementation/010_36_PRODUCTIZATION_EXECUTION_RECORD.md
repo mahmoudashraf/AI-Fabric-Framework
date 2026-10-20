@@ -2049,3 +2049,143 @@ write-only bindings, never this ledger.
   SSE-S3 and cross-prefix403 checks. No source write/index, mutation-denial probe,
   second grant or customer-runtime readiness claim. Specific held-reservation/
   Free-01 decisions and actual runtime acceptance still gate further rollout.
+
+### Operating Lifetime Continuity Gap
+
+- **OPEN, P2, required before full P5/external readiness.** This is independent
+  of the bounded initial-apply/evidence-renewal qualification; it does not negate
+  that source gate or establish full P5 acceptance. No continuity implementation
+  or hosted verification is claimed.
+- Independent offline review recorded **2026-10-19 22:50:16 UTC**, against base
+  `71fbaa28bb4d8eaa467df03bf8eb53314156f981` plus the then-uncommitted admission
+  source. All four indexed source hashes were rechecked unchanged at current
+  HEAD `e2d067b533b32a9eca4877ee0e29ebb802946f89`. AdmissionStore SHA256:
+  `1aa07971097dccb261f13b2809c2831435ec04b917694dbf94e8dfe96d34a02b`.
+  Detailed source/operation references and independent source index remain in
+  `/private/tmp/01044-admission-policy-lifetime-continuity-review-20261019/`.
+  HANDOFF SHA256:
+  `c253c8c1ccc5891270ed3faba161f4d308116343499c31d6b5c38f9725c3d832`;
+  source-index SHA256:
+  `5cc26d59abe02f7c62614a2452fb57d2ea32d1140d9724288978f7c48ce705ce`.
+- Parent-supplied hosted deadlines, not independently live-read by this reviewer:
+  measured policy `01036-post-verifier-prodcp-canary-20261019` ends
+  **19 October 23:30 UTC**, but the 24-hour staging R7 expires
+  **20 October 21:49 UTC**. The October 23 physical grant and October 22
+  entitlement do not extend measured-evidence validity.
+- `AdmissionRules.policy/budget` rejects expired measurements. Normal policy
+  publication conserves all held charges but switches `AdmissionStore.context`
+  to the new active policy without a held-allocation continuity relation.
+  Existing exact policy-ID and manifest prerequisite bindings can consequently
+  strand activation, source/index administration, reuse and extension. A new
+  production allocation can use a fresh policy, but old held production
+  allocations face the same rollover problem; no blanket promotion success or
+  failure is inferred from staging's old policy ID alone.
+- Existing expiry/notices/drain/retirement/reconciliation paths retain the
+  original pinned lifecycle contract and are not blocked by measured expiry or
+  policy-ID rotation alone. Notice delivery, generation/worker fences, recovery
+  windows, fresh inventory and real no-work/absence proof still apply. This is
+  not an assertion that current serving remains healthy or authorized.
+- Minimal design: extend existing staff publication/ledger authority with an
+  explicit append-only old/new policy fingerprint relation scoped to held
+  allocation identities/fences. Under the ledger lock, require genuinely fresh
+  measurements, unchanged compatible contract/placement/profile identities and
+  capacity for every held charge plus baseline/headroom. A common resolver must
+  distinguish original immutable policy/manifest/offer references from the
+  current measured snapshot; absent, stale or incompatible continuity fails
+  closed. Reuse normal same-allocation authorization and source-prerequisite
+  refresh for fresh readback, not the unused-only renewal endpoint for ACTIVE R7.
+- Preserve original receipts, IDs/generations/keys, charges, absolute expiry,
+  lifecycle promises, quota, entitlement and provider high-water/funding history.
+  No hidden TTL extension, relabelled historical measurement, SQL repair,
+  cancellation of ACTIVE capacity, replacement allowance or new funding. The
+  existing opaque offer compatibility anchor is not fresh measurement provenance.
+- Focused regressions still required: compatible ACTIVE rollover followed by
+  activation/source/index; missing/stale/incompatible relation denial; concurrent
+  rollover/apply preserving fences, charges and counters; expiry/retirement after
+  measurement expiry and policy rotation retaining all notice/drain safeguards.
+  No tests, live calls, framework/LLM changes or new workflow/services were made
+  for this review or record append.
+
+### 2026-10-20 Resumption And Undispatched Rollout
+
+- Initial unused-evidence recovery is committed/pushed as
+  `e2d067b533b32a9eca4877ee0e29ebb802946f89`. Actual focused backend326 tests
+  and package pass; backend-only CI39337571757 succeeds. Exact root image
+  `sha256:f037c5a1c05fb050bf101421086c90dbd751ec0a310ea0616b82befecf2269b8`
+  and its SSH client are independently verified. UI job was skipped.
+- The original staging plan was prepared19October22:54:46UTC and expired
+ 23:09:46UTC without patch/start intents or a native-job receipt. Read-only
+  reconciliation after23:30 confirms no dispatch and no new backend image.
+  Original proof is retained; only a newly reviewed, fresh attended window may
+  proceed. No expired intent is retried or old evidence relabelled.
+- Work resumed after the promotion questions. Generic measured-policy lifetime
+  continuity is now in implementation/independent review, not accepted as fixed.
+  Its current measurement expired before the held reservation. Neither that
+  expiry nor the new work authorizes cancellation/reallocation, funding reset,
+  stale measurement reuse, customer business databases, or staging-state copying.
+- Hosted customer apply/index/auth/actions/handover, production promotion,
+  operating recovery, P7 and final UI extraction remain open. No customer/model
+  write or new backend dispatch is claimed by this checkpoint. UI remains last.
+
+### Recovery Backend Accepted, 20 October
+
+- A newly reviewed attended R2 source-only rollout accepted the exact
+  `e2d067b533b32a9eca4877ee0e29ebb802946f89` image above on staging at
+ 19October23:41:18UTC and production23:44:54UTC. Normal Coolify jobs:
+  `k992miylfwtap2tvgjvo44ok`, `hznfaf5ygrth0j3t4613o8f0`.
+- Both actual receipts prove schema206/healthUP, complete139-table/raw-audit,
+  saved/effective environment and provider-configuration preservation, exact
+  original RESERVEDrev0 allocation and unused grant, and no other applies,
+  bindings, provider allocations or customer release. The no-writer interval
+  closed explicitly23:45:12UTC. No completed mutation may be replayed.
+- Proof root:
+  `/private/tmp/01044-initial-evidence-renewal-backend-rollout-r2-20261020`.
+  Staging receipt SHAc78891268c29ac60cc619c579b6d3cfb43902ffe049a838f91c1d38ead08f493;
+  production SHA8585e1fe8657671d47970b4ad35a0101c86c0ada6ab1390a62dc8e5cc9dcd2b0;
+  closure SHA4ec53bebe5fa9dc4da87b7c637a82f3995adf5102f90600a54419575ca5ecb4f.
+- The expired original plan and exact evidence were retained with one signed
+  no-intent abandonment record. Fresh random plan keys/current saved config,
+  full preflight and actual staging acceptance preceded production. Helper74
+  tests pass, not a replacement for the separately passing backend326 cases.
+- The measured-policy lifetime/replay correction remains uncommitted and in
+  focused qualification/independent review. No first customer apply/index/chat,
+  production promotion or full P5/P7 acceptance is claimed. UI extraction last.
+
+### Explicit Measured-Policy Continuity Source Qualification
+
+- Implemented generically through the existing staff
+  `POST /api/platform/admission/reviews/fleet-policies` publication contract and
+  append-only `POLICY_CONT` reviewed records. No new table/migration, scheduler,
+  framework release, customer business infrastructure or UI change.
+- Coverage binds original policy fingerprint and exact reservation fences.
+  Both original contract and current measured predecessor must be compatible;
+  genuine advancing observations/current placement and all charged envelopes
+  must fit. Missing or partial coverage, superseded replay even with no holds,
+  stale/reused observations, incompatible contracts and corrupt records deny.
+- Original allocation identity, immutable authority/manifest provenance,
+  demand, absolute lifetime and provider funding remain unchanged. Held
+  authorization, prerequisites, source operations, manifest reuse, dependencies
+  and release provisioning use the explicit effective measured authority.
+  Historical lifecycle terms still govern notices, expiry, drain and recovery.
+- Parent independently rehashed all1,899 frozen backend inputs and parsed
+  actual XML from27 suites: **521 distinct passing focused cases**, including
+  **157 real PostgreSQL cases**. This is **MULTI_RUN_RECONCILED**, not one clean
+  full-scope invocation. R3 had519 cases/512PASS/7 controller-fixture errors;
+  R4 corrects only the missing EntityManagerFactory fixture and passes7 HTTP
+  cases plus2 real application-context cases. Failed R1/R2/R3 logs/reports are
+  retained. No production check or test assertion was weakened.
+- Parent JDK21 offline package succeeds20October00:01UTC. Independent fresh
+  source review19October23:58UTC finds no remaining confirmed P1/P2 in changed
+  continuity scope. Source22Javafiles and exact evidence are frozen in
+  `/private/tmp/01044-policy-continuity-tests-20261020`. Commit, CI, immutable
+  image verification, both source rollouts and actual policy publication still
+  remain. Local proof is not hosted operation or P5/P7 acceptance.
+- Fresh host baselines finish23:47UTC staging/23:50UTC production. Offline
+  continuation proposal preserves every ceiling/baseline/headroom/lifecycle
+  and original lease; only current measurements and explicit authority relation
+  advance. No placement, policy, grant, customer apply or model write occurred.
+- Current external canary receiver already authorizes the correct customer/
+  tenant/deployment and denies the old scope. Six scoped stock records and five
+  distinct real WebP images pass. Owner binding reads correctly require fresh
+  placement. No receiver cutover, credential fallback or business action was
+  performed; no first-runtime/index/write readiness is inferred.

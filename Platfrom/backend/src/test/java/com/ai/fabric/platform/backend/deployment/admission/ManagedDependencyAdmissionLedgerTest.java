@@ -54,6 +54,18 @@ class ManagedDependencyAdmissionLedgerTest extends AdmissionFixture {
         assertThat(store.held()).hasSize(1);
     }
 
+    @Test void dependencyReadbackUsesFreshCompatiblePolicyWithoutMovingTheHeldEnvelope() {
+        Reservation reservation = reserve("managed", "apply");
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(reservation), NOW, NOW.plusSeconds(300));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW);
+        var resolved = ledger.require(requirement, reservation.id());
+        assertThat(resolved.reservationId()).isEqualTo(reservation.id());
+        assertThat(store.require(reservation.id())).isEqualTo(reservation);
+        assertThat(resolved.validUntil()).isEqualTo(NOW.plusSeconds(60));
+        jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POLICY_CONT'");
+        assertThatThrownBy(() -> ledger.require(requirement, reservation.id())).hasMessageContaining("POLICY_CONTINUITY_REQUIRED");
+    }
+
     @Test
     void ambiguityExpiryFingerprintAndEnvelopeChangesFailClosed() {
         Reservation reservation = reserve("managed", "apply");

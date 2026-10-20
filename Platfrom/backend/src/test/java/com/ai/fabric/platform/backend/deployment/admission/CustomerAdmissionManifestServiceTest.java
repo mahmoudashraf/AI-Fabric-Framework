@@ -102,6 +102,18 @@ class CustomerAdmissionManifestServiceTest extends AdmissionFixture {
             .containsEntry(Dimension.MEMORY_BYTES, 4_864L * 1024L * 1024L);
     }
 
+    @Test void sameVersionManifestRemainsExactAfterExplicitPolicyContinuity() {
+        var manifest = service.prepare(deployment, version, authorization);
+        var context = store.context("customer", "tenant", deployment.getId(), manifest.id());
+        var reservation = store.reserve(context, new Reserve("operation", manifest.id(), authorization.context()), evidence(context, NOW), "owner", NOW);
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(reservation), NOW, NOW.plusSeconds(300));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW);
+        assertThat(service.prepare(deployment, version, authorization)).isEqualTo(manifest);
+        assertThat(store.require(reservation.id())).isEqualTo(reservation);
+        jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POLICY_CONT'");
+        assertThatThrownBy(() -> service.prepare(deployment, version, authorization)).hasMessageContaining("POLICY_CONTINUITY_REQUIRED");
+    }
+
     @Test
     void managedStateReservesItsExplicitReviewedFootprint() throws Exception {
         storageChoice();

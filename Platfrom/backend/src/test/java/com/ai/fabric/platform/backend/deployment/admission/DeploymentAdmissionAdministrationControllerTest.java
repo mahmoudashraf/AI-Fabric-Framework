@@ -5,6 +5,8 @@ import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -65,6 +67,29 @@ class DeploymentAdmissionAdministrationControllerTest {
         }
     }
 
+    @Test void continuityUsesTheNormalStaffPublicationRouteAndPreservesExplicitRevisionZero() throws Exception {
+        String body = "{\"id\":\"policy-new\",\"continuations\":[{\"originalPolicyId\":\"policy-old\",\"originalPolicyFingerprint\":\""
+            + "a".repeat(64) + "\",\"reservations\":[{\"reservationId\":\"reservation\",\"revision\":0,\"generation\":\"generation\"}]}]}";
+        String route = "/api/platform/admission/reviews/fleet-policies";
+        mvc.perform(as(post(route).contentType("application/json").content(body), PlatformRole.PLATFORM_ADMIN))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.policyId").value("policy-new"));
+        verify(target()).approvePolicy(argThat(policy -> policy.continuations().size() == 1
+            && policy.continuations().getFirst().reservations().equals(List.of(new AdmissionContracts.Fence("reservation", 0, "generation")))));
+        for (var role : List.of(PlatformRole.PLATFORM_OPERATOR, PlatformRole.CUSTOMER_ADMIN, PlatformRole.PUBLIC_API_CLIENT))
+            mvc.perform(as(post(route).contentType("application/json").content(body), role)).andExpect(status().isForbidden());
+        mvc.perform(post(route).contentType("application/json").content(body)).andExpect(status().isForbidden());
+        verify(target(), times(1)).approvePolicy(any());
+    }
+
+    @ParameterizedTest @ValueSource(strings={"",",\"revision\":null",",\"revision\":\"0\"",",\"revision\":0.5"})
+    void continuityFenceRequiresExplicitIntegralRevision(String revision) throws Exception {
+        String body = "{\"id\":\"policy-new\",\"continuations\":[{\"originalPolicyId\":\"policy-old\",\"originalPolicyFingerprint\":\""
+            + "a".repeat(64) + "\",\"reservations\":[{\"reservationId\":\"reservation\",\"generation\":\"generation\"" + revision + "}]}]}";
+        mvc.perform(as(post("/api/platform/admission/reviews/fleet-policies").contentType("application/json").content(body), PlatformRole.PLATFORM_ADMIN))
+            .andExpect(status().isBadRequest());
+        verify(target(), never()).approvePolicy(any());
+    }
+
     @Test
     void onlyPlatformAdministratorsCanPrepareRuntimeAuthorityCandidates() throws Exception {
         String body = "{\"deploymentId\":\"deployment\",\"targetProfileId\":\"target\",\"versionId\":\"version\"}";
@@ -106,6 +131,9 @@ class DeploymentAdmissionAdministrationControllerTest {
     @EnableMethodSecurity
     static class Config {
         @Bean DeploymentAdmissionService admissions() { return mock(DeploymentAdmissionService.class); }
+        @Bean InitialAdmissionRenewalAuthorizer initialRenewalAuthorizer() { return mock(InitialAdmissionRenewalAuthorizer.class); }
+        @Bean AdmissionPolicyPlacementVerifier policyPlacementVerifier() { return mock(AdmissionPolicyPlacementVerifier.class); }
+        @Bean jakarta.persistence.EntityManagerFactory entityManagerFactory() { return mock(jakarta.persistence.EntityManagerFactory.class); }
         @Bean DeploymentService deployments() { return mock(DeploymentService.class); }
         @Bean com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations() {
             return mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class);

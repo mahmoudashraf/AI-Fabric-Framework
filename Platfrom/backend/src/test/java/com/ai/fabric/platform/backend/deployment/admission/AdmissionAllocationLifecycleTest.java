@@ -65,6 +65,45 @@ class AdmissionAllocationLifecycleTest extends AdmissionFixture {
             .hasMessageContaining("CUSTOMER_CAPACITY_RESERVATION_INVALID");
     }
 
+    @Test void activeAllocationCanAuthorizeActivationAndRollbackAfterExplicitMeasuredRollover() {
+        Reservation active = activeAllocationWithExpiredMeasurement();
+        String originalReceipts = json.write(jdbc.queryForList("SELECT payload_json FROM deployment_admission_authorizations ORDER BY operation_key", String.class));
+        var next = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(active), NOW.plusSeconds(3), NOW.plusSeconds(300));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, next, NOW.plusSeconds(3));
+        var current = store.context(active);
+        var activate = new Reserve("activate-after-rollover", active.manifestId(), scope(Operation.ACTIVATE, "activate-after-rollover", "release"), active.id());
+        var authorized = store.reserve(current, activate, evidence(current, NOW), "owner", NOW);
+        store.requireCustomerAuthorization(authorized, activate.customerContext());
+        var rollback = new Reserve("rollback-after-rollover", active.manifestId(), scope(Operation.ROLLBACK, "rollback-after-rollover", "release"), active.id());
+        var rolled = store.reserve(store.context(authorized), rollback, evidence(current, NOW), "owner", NOW);
+        store.requireCustomerAuthorization(rolled, rollback.customerContext());
+        assertThat(rolled.id()).isEqualTo(active.id()); assertThat(rolled.generation()).isEqualTo(active.generation());
+        assertThat(rolled.expiresAt()).isEqualTo(active.expiresAt()); assertThat(rolled.demand()).isEqualTo(active.demand());
+        assertThat(rolled.policyId()).isEqualTo(active.policyId()); assertThat(store.held()).containsExactly(rolled);
+        assertThat(json.write(jdbc.queryForList("SELECT payload_json FROM deployment_admission_authorizations WHERE operation_key IN ('apply','plan') ORDER BY operation_key", String.class)))
+            .isEqualTo(originalReceipts);
+    }
+
+    @Test void reviewedNewVersionBindsAndProvisionsTheSameActiveAllocationAfterMeasuredRollover() {
+        Reservation active = activeAllocationWithExpiredMeasurement();
+        var nextPolicy = AdmissionPolicyContinuityTest.continuation(store, json, "policy-next", List.of(active), NOW.plusSeconds(3), NOW.plusSeconds(300));
+        AdmissionPolicyContinuityTest.publishFixture(store, jdbc, nextPolicy, NOW.plusSeconds(3));
+        var candidate = reviewedVersion("manifest-v2", "version-v2", vector(1));
+        var next = store.context(active, candidate.manifest().id());
+        var command = new Reserve("apply-v2-after-rollover", next.manifest().id(), scope(Operation.PROMOTION_APPLY, "apply-v2-after-rollover", null), active.id());
+        var planned = store.reserve(next, command, evidence(next, NOW.plusSeconds(3)), "owner", NOW.plusSeconds(3));
+        assertThat(planned.manifestId()).isEqualTo(active.manifestId());
+        store.requireCustomerAuthorization(planned, command.customerContext());
+        var binding = bindRelease("release-v2", next.manifest());
+        var current = store.context(store.require(active.id()));
+        var provisioning = store.beginReleaseProvisioning(binding, current, evidence(current, NOW.plusSeconds(3)), "worker", NOW.plusSeconds(3));
+        var verified = settle(provisioning, "release-v2");
+        assertThat(verified.id()).isEqualTo(active.id()); assertThat(verified.generation()).isEqualTo(active.generation());
+        assertThat(verified.policyId()).isEqualTo(active.policyId()); assertThat(verified.expiresAt()).isEqualTo(active.expiresAt());
+        assertThat(verified.demand()).isEqualTo(active.demand()); assertThat(store.held()).containsExactly(verified);
+        assertThat(store.activeCustomerReleaseReservation("customer", "tenant", "deployment", "release-v2")).isEqualTo(verified);
+    }
+
     @Test
     void allocationAndReleaseCannotBeInferredOrBroadened() {
         Reservation allocation = reserveOperation(Operation.PROMOTION_PLAN, "plan", null, null);
@@ -582,6 +621,26 @@ class AdmissionAllocationLifecycleTest extends AdmissionFixture {
         reserveOperation(Operation.PROMOTION_APPLY, "apply", allocation.id(), null);
         Reservation provisioning = store.beginReleaseProvisioning(bindRelease("release"), context, evidence(context, NOW), "worker", NOW);
         return settle(provisioning, "release");
+    }
+
+    private Reservation activeAllocationWithExpiredMeasurement() {
+        var policy = store.activePolicy();
+        var budget = new Budget(policy.fleet().measured(), policy.fleet().baseline(), policy.fleet().headroom(),
+            policy.fleet().measurementReference(), NOW.minusSeconds(1), NOW.plusSeconds(2));
+        var target = policy.targets().get(PROD);
+        store.approvePolicy(new FleetPolicy("short-policy", budget, Map.of(PROD, new TargetBudget(PROD, target.intent(), target.placement(),
+            target.profileFingerprint(), budget)), policy.lifecycle(), policy.restoreEvidenceReference(), policy.privacyEvidenceReference(), policy.supportReference()), "staff", NOW);
+        context = store.context("customer", "tenant", "deployment", "manifest");
+        var original = evidence(context, NOW);
+        var bounded = new PrerequisiteReadback(original.observedAt(), NOW.plusSeconds(2), original.evidenceReference(), original.placement(),
+            original.profileFingerprint(), original.manifestFingerprint(), original.bindingFingerprint(), original.verifiedPrerequisiteReferences(),
+            original.restoreEvidenceReference(), original.privacyEvidenceReference(), original.ownerContactEvidenceReference(), original.noticeTransportReference());
+        var allocation = store.reserve(context, new Reserve("apply", "manifest", scope(Operation.PROMOTION_APPLY, "apply", null)), bounded, "owner", NOW);
+        var provisioning = store.beginReleaseProvisioning(bindRelease("release"), context, bounded, "worker", NOW);
+        var active = settle(provisioning, "release");
+        store = new AdmissionStore(jdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(NOW.plusSeconds(3), ZoneOffset.UTC));
+        assertThat(active.prerequisiteReadback().validUntil()).isBefore(NOW.plusSeconds(3));
+        return active;
     }
 
     private Reservation settle(Reservation provisioning, String releaseId) {

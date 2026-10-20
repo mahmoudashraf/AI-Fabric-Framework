@@ -38,6 +38,8 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
 
     @Autowired
     private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
+    @Autowired
+    private AdmissionStore admissions;
 
     @Autowired
     ProductionAdmissionEvidenceSource(DeploymentTargetProfileRepository targets,
@@ -118,6 +120,8 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
             "customerId", context.customerId(),
             "deploymentId", context.deploymentId(),
             "manifestFingerprint", context.manifestFingerprint(),
+            "policyFingerprint", json.fingerprint(context.policy()),
+            "policyContinuity", context.policyAuthority() == null ? "" : context.policyAuthority().continuityFingerprint(),
             "placementEvidenceId", placementEvidence.getId(),
             "references", new java.util.TreeSet<>(context.manifest().prerequisiteReferences())
         ));
@@ -143,7 +147,12 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
                                             com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity version,
                                             String placementEvidenceId) {
         Set<String> references = new LinkedHashSet<>();
-        references.add("policy:" + context.policy().id());
+        if (context.policyAuthority() != null) {
+            if (admissions == null) throw unavailable("POLICY_CONTINUITY_REQUIRED");
+            references.addAll(admissions.authorizedPolicyReferences(context));
+        } else {
+            references.add("policy:" + context.policy().id());
+        }
         references.add(context.policy().lifecycle().policyReference());
         references.add(context.policy().restoreEvidenceReference());
         references.add(context.policy().privacyEvidenceReference());

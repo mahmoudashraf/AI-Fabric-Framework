@@ -50,6 +50,8 @@ public class DeploymentAdmissionService {
     private AdmissionUnusedConsumerDetachment unusedConsumerDetachment;
     @org.springframework.beans.factory.annotation.Autowired
     private InitialAdmissionRenewalAuthorizer initialRenewalAuthorizer;
+    @org.springframework.beans.factory.annotation.Autowired
+    private AdmissionPolicyPlacementVerifier policyPlacementVerifier;
 
     public DeploymentAdmissionService(AdmissionStore store, AdmissionJson json, ObjectMapper mapper,
                                       DeploymentRepository deployments, DeploymentVersionRepository versions,
@@ -69,7 +71,11 @@ public class DeploymentAdmissionService {
     public void approvePolicy(FleetPolicy policy) {
         staff(); policy(policy, Instant.now());
         policy.targets().values().forEach(this::validateTarget);
-        store.approvePolicy(policy, actor(), Instant.now());
+        store.approvePolicy(policy, actor(), Instant.now(), () -> {
+            if (policyPlacementVerifier == null)
+                throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_PLACEMENT_REQUIRED");
+            return policyPlacementVerifier.requireCurrent(policy);
+        });
     }
     public void approveCustomerGrant(CustomerGrant grant) {
         staff(); grant(grant, Instant.now()); activeCustomer(grant.customerId());
@@ -105,7 +111,9 @@ public class DeploymentAdmissionService {
         String fingerprint = store.commandFingerprint(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest, command);
         Reservation replay = store.replay(deployment.getCustomerId(), deploymentId, manifest.targetProfileId(), command, fingerprint);
         if (replay != null) return replay;
-        AdmissionContext context = store.context(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest.id());
+        AdmissionContext context = command.allocationId() == null
+            ? store.context(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest.id())
+            : store.context(owned(deploymentId, command.allocationId(), true), manifest.id());
         PrerequisiteReadback evidence = validateAdmission(deployment, context);
         // Slow provider/prerequisite reads are above, never inside the ledger transaction.
         return store.reserve(context, command, evidence, actor(), Instant.now(), () -> localGuard(deploymentId, context));
@@ -143,7 +151,7 @@ public class DeploymentAdmissionService {
         store.requireInitialRenewalScope(reservation, freshContext);
         if (initialRenewalAuthorizer == null)
             throw new AdmissionFailure(PRECONDITION_FAILED, "INITIAL_RENEWAL_AUTHORIZER_REQUIRED");
-        AdmissionContext context = store.context(reservation.customerId(), reservation.tenantId(), deploymentId, manifest.id());
+        AdmissionContext context = store.context(reservation);
         String providerGrants = store.initialProviderGrantsFingerprint(reservation);
         // Collect before entering the ledger transaction; the callback below must do only local reads.
         PrerequisiteReadback readback = validateAdmission(deployment, context);
@@ -174,9 +182,10 @@ public class DeploymentAdmissionService {
     public Reservation beginProvisioning(String deploymentId, Fence fence) {
         Reservation reservation = owned(deploymentId, id(fence), true); staff();
         DeploymentEntity deployment = authorize(deploymentId, true);
-        AdmissionContext context = store.context(reservation.customerId(), reservation.tenantId(), deploymentId, reservation.manifestId());
+        AdmissionContext context = store.context(reservation);
         PrerequisiteReadback evidence = validateAdmission(deployment, context);
-        if (!context.manifestFingerprint().equals(reservation.manifestFingerprint()) || !context.policy().id().equals(reservation.policyId()))
+        store.requireEffectivePolicy(reservation, context);
+        if (!context.manifestFingerprint().equals(reservation.manifestFingerprint()))
             throw new AdmissionFailure(CONFLICT, "RESERVATION_POLICY_CHANGED");
         return store.beginProvisioning(fence, context, evidence, actor(), Instant.now(), () -> localGuard(deploymentId, context));
     }
