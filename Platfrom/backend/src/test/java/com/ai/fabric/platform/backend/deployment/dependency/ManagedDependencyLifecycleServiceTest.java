@@ -401,6 +401,15 @@ class ManagedDependencyLifecycleServiceTest {
         var retry = lifecycle.reconcile("dep-1", "staging", "retry"); assertThat(retry.status()).isEqualTo("READY");
         assertThat(store.state(graphs.get(failed.graphId())).nodes.get(0).applicationUuid).isEqualTo(before);
     }
+    @Test void providerHttpFailureKeepsItsStatusWithoutExposingPrivateRequestDetails() {
+        doThrow(new com.ai.fabric.platform.backend.deployment.service.CoolifyApiException(
+            "private upstream detail", 400, "/private?credential=secret")).when(gate)
+            .initializeAndVerify(any(), anyString(), any(), anyString());
+        var result = ready("staging");
+        assertThat(result.status()).isEqualTo("BLOCKED");
+        assertThat(result.failureCode()).isEqualTo("DEPENDENCY_PROVIDER_HTTP_400");
+        assertThat(result.toString()).doesNotContain("upstream detail", "credential=secret", "/private?");
+    }
     @Test void retirementChecksUnusedReclaimedAndRetainsHistory() {
         var ready = ready("staging"); var adapter = new ManagedDependencyRetirementAdapter(lifecycle, store, provider, secrets, validator);
         var plan = adapter.plan("dep-1", "staging");

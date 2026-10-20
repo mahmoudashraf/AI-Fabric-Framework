@@ -353,7 +353,7 @@ class OwnedDependencyOwnershipTest {
         });
         reconcile(spec, "state-service");
         assertThat(service.ownedDependencyDatabaseJdbc(connection, "db")).isEqualTo("jdbc:postgresql://db:5432/dependency");
-        verify(api).startDatabase(connection, "db");
+        verify(api, never()).startDatabase(any(), anyString());
         assertThat(fixture.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).hasSize(3).containsOnly("OWNED");
     }
 
@@ -364,7 +364,8 @@ class OwnedDependencyOwnershipTest {
         fixture.graph(spec, "state-service", new PlatformManagedProductProvisioningService.OwnedDependencyResources(
             null, DATABASE_UUID, false, true, Map.of()));
         var raw = fixture.raw(DATABASE_UUID, "state-service-db", "ManagedDependency:graph:state")
-            .put("image", spec.database().image()).put("is_public", false).put("internal_db_url", url);
+            .put("image", spec.database().image()).put("is_public", false).put("internal_db_url", url)
+            .put("limits_memory", "512M").put("limits_cpus", "0.250");
         fixture.databases.put(DATABASE_UUID, new CoolifyDatabaseSummary(DATABASE_UUID, "state-service-db", "running:healthy",
             "postgresql", "dependency", "dependency", raw));
         fixture.dbStorages.put(DATABASE_UUID, List.of(fixture.storage("db-volume", "db-ai-state", "/var/lib/postgresql/data")));
@@ -384,6 +385,42 @@ class OwnedDependencyOwnershipTest {
         assertThat(fixture.jdbc.queryForList("SELECT * FROM platform_managed_resource_ownership ORDER BY id")).isEqualTo(before);
         verify(api).getDatabase(connection, DATABASE_UUID);
         noMutations();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"exited", "exited:unhealthy", "stopped"})
+    void stoppedOwnedDatabaseStartsExactlyOnceBeforeApplicationSetup(String status) {
+        databaseReconciliation(status);
+        verify(api).startDatabase(connection, DATABASE_UUID);
+    }
+
+    @Test void runningHealthyOwnedDatabaseIsReusedWithoutARejectedStartRequest() {
+        databaseReconciliation("running:healthy");
+        verify(api, never()).startDatabase(any(), anyString());
+    }
+
+    @Test void unknownOwnedDatabaseStateCannotTriggerAnyStartOrApplicationCreation() {
+        existingDatabase("postgres://dependency:synthetic-password@" + DATABASE_UUID + ":5432/dependency", true);
+        var db = fixture.databases.get(DATABASE_UUID);
+        fixture.databases.put(DATABASE_UUID, new CoolifyDatabaseSummary(db.uuid(), db.name(), "unknown", db.databaseType(), db.postgresUser(), db.postgresDatabase(), db.raw()));
+        assertThatThrownBy(() -> reconcile(ManagedDependencyFixtures.http("state", true), "state-service"))
+            .hasMessageContaining("DEPENDENCY_DATABASE_STATE_UNVERIFIED");
+        noMutations();
+    }
+
+    private void databaseReconciliation(String status) {
+        existingDatabase("postgres://dependency:synthetic-password@" + DATABASE_UUID + ":5432/dependency", true);
+        var db = fixture.databases.get(DATABASE_UUID);
+        fixture.databases.put(DATABASE_UUID, new CoolifyDatabaseSummary(db.uuid(), db.name(), status, db.databaseType(), db.postgresUser(), db.postgresDatabase(), db.raw()));
+        when(api.startDatabase(connection, DATABASE_UUID)).thenAnswer(call -> {
+            fixture.databases.put(DATABASE_UUID, db); return new CoolifyActionResponse("started", null, mapper.createObjectNode());
+        });
+        when(api.createDockerImageApplication(eq(connection), any())).thenAnswer(call -> {
+            fixture.applications.put("app", app("app", "state-service", "state")); return "app";
+        });
+        reconcile(ManagedDependencyFixtures.http("state", true), "state-service");
+        verify(api, never()).createPostgresDatabase(any(), any());
+        verify(api).updateEnvironmentVariables(eq(connection), eq("app"), anyList());
+        verify(api).start(connection, "app", true, true);
     }
 
     @ParameterizedTest

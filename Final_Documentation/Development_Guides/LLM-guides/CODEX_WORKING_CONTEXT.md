@@ -10,6 +10,22 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At23:14UTC MAIN CONTINUES. Both backends verifydc3530fd0/image922e6dfc/
+  schema206/UP; all139 tables/history/config/finances preserved, maintenance
+  closurebadb4a5499f1ee82796b3d4ed1c5e5906a6c6c3acd5af53c46d835372a17b736
+  under checkpointed-setup-backend-rollout-20261020. Owner fresh plan200 and
+  exact resume20023:07 receipt386d75bb retain SAME release/R/resources/wallet.
+  Inbox remains PLANNED/app+DB owned, but generic reconcile fails before any app
+  job: installed Coolify DatabasesController:2631 rejects a running DB start400.
+  Positive native evidence remains private, SHA7be40ad6d1790a81b1523201794ba487e3a129a5a305027022ebeaa185f29bd0.
+  Fix starts only EXITED/STOPPED, waits for RUNNING/STARTING/RESTARTING health,
+  rejects unknown state, and preserves safe numeric upstream failure status.
+ 110 final focused checks pass; unchanged admission/worker cases reconcile to204
+  including30 actualPG. Package/source publication next, no new retry POST yet.
+  R now OUTCOME_UNKNOWNrev15, same ACTIVE wallet. Actual read-only5min host
+  baseline runs under next-phase-capacity-20261020 for ensuing admission, not
+  workload certification. No funding reset or framework/runtime/schema change.
+
 - At22:54UTC source7da3196a5 is pushed and CI39510752494 SUCCESS but NOT
   deployed: proactive native readback catches the same too-short health defaults
   on the newly created Inbox (5s interval/5s grace/10 attempts). Owned dependency

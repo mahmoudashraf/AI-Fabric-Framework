@@ -1506,8 +1506,13 @@ public class PlatformManagedProductProvisioningService {
             }
             CoolifyDatabaseCapacity.requireReadback(db, databaseCapacity, "DEPENDENCY_DATABASE_SPEC_DRIFT");
             checkpoint.guard();
-            authority.database(owner, dbUuid);
-            coolifyApiClient.startDatabase(connection, dbUuid);
+            var currentDatabase = authority.database(owner, dbUuid);
+            String databaseState = upper(currentDatabase.status()).split(":", 2)[0];
+            if (java.util.Set.of("EXITED", "STOPPED").contains(databaseState)) {
+                coolifyApiClient.startDatabase(connection, dbUuid);
+            } else if (!java.util.Set.of("RUNNING", "STARTING", "RESTARTING").contains(databaseState)) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_STATE_UNVERIFIED");
+            }
             awaitOwnedDatabase(owner, dbUuid);
         }
         String suffix = config.defaultPublicDomainSuffix().replaceFirst("^\\.", "");

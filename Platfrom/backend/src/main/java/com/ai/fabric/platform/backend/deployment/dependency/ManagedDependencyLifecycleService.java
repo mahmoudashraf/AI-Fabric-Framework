@@ -557,6 +557,10 @@ public class ManagedDependencyLifecycleService {
         } catch (RuntimeException error) {
             String code = error instanceof ResponseStatusException response && response.getReason() != null
                 && response.getReason().matches("[A-Z][A-Z0-9_]{1,63}") ? response.getReason() : "DEPENDENCY_RECONCILE_FAILED";
+            if (error instanceof com.ai.fabric.platform.backend.deployment.service.CoolifyApiException providerError
+                && providerError.statusCode() >= 100 && providerError.statusCode() <= 599) {
+                code = "DEPENDENCY_PROVIDER_HTTP_" + providerError.statusCode();
+            }
             if (token.equals(store.read(graphId).getWorkerToken())) failure(graphId, token, code);
         }
     }
