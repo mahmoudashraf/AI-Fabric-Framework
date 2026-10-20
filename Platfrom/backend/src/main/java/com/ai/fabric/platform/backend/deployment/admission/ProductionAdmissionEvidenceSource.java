@@ -164,8 +164,11 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
         references.add("deployment-version:" + context.manifest().versionId() + ":" + context.manifest().versionConfigHash());
         references.add("binding:" + context.manifest().bindingFingerprint());
         references.add("placement:" + placementEvidenceId);
-        var dependency = dependencyEvidence.resolveForDeployment(context.customerId(), context.tenantId(),
-            context.deploymentId(), context.manifest().topologyReference(), context.manifest().demand());
+        var dependency = context.target().intent() == Intent.CUSTOMER_PRODUCTION
+            ? dependencyEvidence.resolveForProductionDeployment(context.customerId(), context.tenantId(),
+                context.deploymentId(), context.manifest().topologyReference(), context.manifest().demand())
+            : dependencyEvidence.resolveForDeployment(context.customerId(), context.tenantId(),
+                context.deploymentId(), context.manifest().topologyReference(), context.manifest().demand());
         if (dependency.isPresent()
             && !context.manifest().prerequisiteReferences().contains(dependency.get().reference())) {
             throw unavailable("REVIEWED_DEPENDENCY_PREREQUISITE_REQUIRED");

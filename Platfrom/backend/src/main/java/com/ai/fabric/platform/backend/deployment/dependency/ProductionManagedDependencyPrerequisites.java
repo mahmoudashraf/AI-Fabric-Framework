@@ -85,6 +85,9 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         if (!scope.specFingerprint().equals(validator.fingerprint(spec))) fail("DEPENDENCY_SPEC_DRIFT");
         ownership.requireAllowed(spec);
         var evidence = admission.require(requirement(scope, spec), null);
+        if (evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION) {
+            validator.requireProductionInboxPersistence(spec);
+        }
         RuntimeAuthorityBinding authority = authority(scope);
 
         Map<String, String> callbacks = phase == ProvisioningPhase.RUNTIME_BOUND
@@ -134,6 +137,10 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
                                     String operationKey) {
         validateReservation(scope, graph(scope).getReservationRef());
         var graph = graph(scope);
+        var evidence = admission.require(requirement(scope, graphs.spec(graph)), graph.getReservationRef());
+        if (evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION) {
+            new ManagedDependencySpecValidator(mapper).requireProductionInboxPersistence(graphs.spec(graph));
+        }
         var node = exactNode(graph, binding);
         var verifier = verifier(initializationContract);
         provisioning.verifyOwnedDependencyReady(

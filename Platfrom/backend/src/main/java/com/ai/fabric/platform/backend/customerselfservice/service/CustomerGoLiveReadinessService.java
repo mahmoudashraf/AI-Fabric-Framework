@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
 import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
+import com.ai.fabric.platform.backend.deployment.admission.ReviewedManagedDependencyEvidenceService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
@@ -70,6 +71,7 @@ public class CustomerGoLiveReadinessService {
     private final DeploymentAdmissionService admissions;
     private final TargetRetirementOperationRepository retirements;
     private final CustomerReviewedCompositionService composition;
+    private final ReviewedManagedDependencyEvidenceService dependencyEvidence;
     private final ObjectMapper mapper;
 
     public CustomerGoLiveReadinessService(CustomerOfferEntitlementService entitlements,
@@ -86,6 +88,7 @@ public class CustomerGoLiveReadinessService {
                                           DeploymentAdmissionService admissions,
                                           TargetRetirementOperationRepository retirements,
                                           CustomerReviewedCompositionService composition,
+                                          ReviewedManagedDependencyEvidenceService dependencyEvidence,
                                           ObjectMapper mapper) {
         this.entitlements = entitlements;
         this.associations = associations;
@@ -101,6 +104,7 @@ public class CustomerGoLiveReadinessService {
         this.admissions = admissions;
         this.retirements = retirements;
         this.composition = composition;
+        this.dependencyEvidence = dependencyEvidence;
         this.mapper = mapper;
     }
 
@@ -207,6 +211,8 @@ public class CustomerGoLiveReadinessService {
         }
         try { composition.requireVersion(definition, version); }
         catch (RuntimeException error) { failures.add("Published version no longer matches the reviewed composition."); }
+        try { dependencyEvidence.requireProductionPersistence(definition); }
+        catch (RuntimeException error) { failures.add("Managed production dependency persistence is not supported or proven."); }
         try { composition.requireProfile(target, definition.targets().stream()
             .filter(value -> value.targetProfileId().equals(target.getId()))
             .findFirst().orElseThrow()); }

@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArt
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,7 +49,29 @@ public class ReviewedManagedDependencyEvidenceService {
     }
 
     public Optional<Evidence> resolve(Definition definition, Vector envelope) {
-        if (definition == null || definition.template() == null || envelope == null) {
+        return resolve(definition, envelope, false);
+    }
+
+    public Optional<Evidence> resolveForProduction(Definition definition, Vector envelope) {
+        return resolve(definition, envelope, true);
+    }
+
+    public void requireProductionPersistence(Definition definition) {
+        reviewedSpec(definition, true);
+    }
+
+    private Optional<Evidence> resolve(Definition definition, Vector envelope, boolean production) {
+        if (envelope == null) throw invalid("REVIEWED_DEPENDENCY_CONTEXT_REQUIRED");
+        return reviewedSpec(definition, production).map(spec -> {
+            requireEnvelope(envelope, spec);
+            String fingerprint = validator.fingerprint(spec);
+            return new Evidence(definition.template().versionId(), fingerprint,
+                "managed-dependency-spec:" + fingerprint);
+        });
+    }
+
+    private Optional<ManagedDependencySpec> reviewedSpec(Definition definition, boolean production) {
+        if (definition == null || definition.template() == null) {
             throw invalid("REVIEWED_DEPENDENCY_CONTEXT_REQUIRED");
         }
         String templateVersionId = definition.template().versionId();
@@ -81,13 +104,28 @@ public class ReviewedManagedDependencyEvidenceService {
         } catch (RuntimeException error) {
             throw invalid("REVIEWED_DEPENDENCY_OWNERSHIP_UNPROVEN");
         }
-        requireEnvelope(envelope, spec);
-        return Optional.of(new Evidence(templateVersionId, fingerprint,
-            "managed-dependency-spec:" + fingerprint));
+        if (production) {
+            try {
+                validator.requireProductionInboxPersistence(spec);
+            } catch (ResponseStatusException error) {
+                throw invalid(error.getReason());
+            }
+        }
+        return Optional.of(spec);
     }
 
     public Optional<Evidence> resolveForDeployment(String customerId, String tenantId, String deploymentId,
                                                    String topologyReference, Vector envelope) {
+        return resolveForDeployment(customerId, tenantId, deploymentId, topologyReference, envelope, false);
+    }
+
+    public Optional<Evidence> resolveForProductionDeployment(String customerId, String tenantId, String deploymentId,
+                                                             String topologyReference, Vector envelope) {
+        return resolveForDeployment(customerId, tenantId, deploymentId, topologyReference, envelope, true);
+    }
+
+    private Optional<Evidence> resolveForDeployment(String customerId, String tenantId, String deploymentId,
+                                                    String topologyReference, Vector envelope, boolean production) {
         var association = offerDeployments.findById(deploymentId).orElse(null);
         if (association == null) {
             if (topologyReference != null && topologyReference.startsWith("offer-topology:")) {
@@ -106,7 +144,7 @@ public class ReviewedManagedDependencyEvidenceService {
             throw invalid("REVIEWED_DEPENDENCY_OFFER_CHANGED");
         }
         try {
-            return resolve(offerCodec.read(offer.getDefinitionJson(), Definition.class), envelope);
+            return resolve(offerCodec.read(offer.getDefinitionJson(), Definition.class), envelope, production);
         } catch (AdmissionFailure ex) {
             throw ex;
         } catch (RuntimeException ex) {

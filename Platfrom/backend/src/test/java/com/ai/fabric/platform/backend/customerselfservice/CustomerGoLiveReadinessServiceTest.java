@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Pl
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.PrerequisiteReadback;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Reservation;
 import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
+import com.ai.fabric.platform.backend.deployment.admission.ReviewedManagedDependencyEvidenceService;
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.*;
@@ -54,10 +55,11 @@ class CustomerGoLiveReadinessServiceTest {
     private final DeploymentAdmissionService admissions = mock(DeploymentAdmissionService.class);
     private final TargetRetirementOperationRepository retirements = mock(TargetRetirementOperationRepository.class);
     private final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
+    private final ReviewedManagedDependencyEvidenceService dependencyEvidence = mock(ReviewedManagedDependencyEvidenceService.class);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final CustomerGoLiveReadinessService service = new CustomerGoLiveReadinessService(
         entitlements, associations, deployments, releases, versions, targets, verifications, consumers,
-        installations, workspaceReadiness, candidates, admissions, retirements, composition, mapper);
+        installations, workspaceReadiness, candidates, admissions, retirements, composition, dependencyEvidence, mapper);
 
     private DeploymentEntity deployment;
     private DeploymentVersionEntity version;
@@ -195,6 +197,30 @@ class CustomerGoLiveReadinessServiceTest {
         assertThat(summary.activationReady()).isFalse();
         assertThat(summary.items()).filteredOn(item -> item.code().equals("production_connections"))
             .singleElement().extracting("status").isEqualTo(Status.BLOCKED);
+    }
+
+    @Test
+    void unsupportedManagedPersistenceBlocksProjectionAndActivationDespiteFreshStoredEvidence() {
+        doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.PRECONDITION_FAILED,
+            "INBOX_PRODUCTION_POSTGRES_REQUIRED")).when(dependencyEvidence).requireProductionPersistence(definition);
+
+        var summary = service.project("offer", "deployment", "production-release", "workspace");
+
+        assertThat(summary.activationReady()).isFalse();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("reviewed_composition"))
+            .singleElement().extracting("status").isEqualTo(Status.BLOCKED);
+        assertThatThrownBy(() -> service.requireActivationReady(deployment, release, consumer))
+            .hasMessageContaining("Managed production dependency persistence");
+        verify(dependencyEvidence, times(2)).requireProductionPersistence(definition);
+    }
+
+    @Test
+    void nonCustomerActivationKeepsTheExistingBoundary() {
+        when(associations.findById("deployment")).thenReturn(Optional.empty());
+
+        service.requireActivationReady(deployment, release, consumer);
+
+        verifyNoInteractions(dependencyEvidence);
     }
 
     private Definition definition() {

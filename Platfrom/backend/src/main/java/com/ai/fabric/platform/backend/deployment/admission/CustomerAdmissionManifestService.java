@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Prerequisite;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.ReviewedTopology;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDocumentBindingResolver;
@@ -63,6 +64,9 @@ public class CustomerAdmissionManifestService {
             || !"PUBLISHED".equalsIgnoreCase(version.getStatus())
             || !authorization.definition().topology().equals(authorization.context().topology())) {
             throw invalid("CUSTOMER_ADMISSION_MANIFEST_SCOPE_INVALID");
+        }
+        if (authorization.context().intent() == TargetIntent.CUSTOMER_PRODUCTION) {
+            dependencyEvidence.requireProductionPersistence(authorization.definition());
         }
 
         JsonNode provider = version.getProviderConfigJson() == null ? null

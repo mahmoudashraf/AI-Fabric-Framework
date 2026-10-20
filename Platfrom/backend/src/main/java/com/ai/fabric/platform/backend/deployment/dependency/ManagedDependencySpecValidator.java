@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Set;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
@@ -114,6 +117,13 @@ public class ManagedDependencySpecValidator {
         spec.totalCapacity();
     }
 
+    public void requireProductionInboxPersistence(ManagedDependencySpec spec) {
+        for (var service : spec.services()) {
+            if (service.contract() == ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
+                && service.database() == null) fail("INBOX_PRODUCTION_POSTGRES_REQUIRED");
+        }
+    }
+
     private boolean relativePath(String value) {
         return value != null
             && value.matches("/[A-Za-z0-9._/-]{0,511}")
@@ -163,6 +173,45 @@ public class ManagedDependencySpecValidator {
             requireKind(service, "BASIC_INBOX_JDBC_USERNAME", ManagedDependencySpec.ValueKind.DATABASE_USERNAME);
             requireKind(service, "BASIC_INBOX_JDBC_PASSWORD", ManagedDependencySpec.ValueKind.SECRET);
             if (!service.database().passwordPurpose().equals(service.environment().get("BASIC_INBOX_JDBC_PASSWORD").reference())) fail("DATABASE_SECRET_INVALID");
+        } else {
+            validateInboxFilePersistence(service);
+        }
+    }
+    private void validateInboxFilePersistence(ManagedDependencySpec.Service service) {
+        for (var entry : service.environment().entrySet()) {
+            String name = entry.getKey();
+            if (name.startsWith("SPRING_DATASOURCE_") || Set.of("SPRING_FLYWAY_URL", "SPRING_APPLICATION_JSON",
+                "SPRING_CONFIG_LOCATION", "SPRING_CONFIG_ADDITIONAL_LOCATION", "SPRING_CONFIG_IMPORT",
+                "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS").contains(name)) fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
+            if (name.equals("JAVA_OPTS") && (entry.getValue().kind() != ManagedDependencySpec.ValueKind.LITERAL
+                || !entry.getValue().reference().matches("-Xm[sx][0-9]+[kKmMgG](?: +-Xm[sx][0-9]+[kKmMgG])*")))
+                fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
+        }
+        // BASIC_INBOX_KEYS_V1 runs from /app and defaults to ./data/basic-inbox.
+        Path database = Path.of("/app/data/basic-inbox");
+        var jdbc = service.environment().get("BASIC_INBOX_JDBC_URL");
+        if (jdbc != null) {
+            if (jdbc.kind() != ManagedDependencySpec.ValueKind.LITERAL || !jdbc.reference().startsWith("jdbc:h2:file:"))
+                fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
+            String[] parts = jdbc.reference().substring("jdbc:h2:file:".length()).split(";", -1);
+            String file = parts[0];
+            if ((!file.startsWith("/") && !file.startsWith("./")) || !file.matches("[A-Za-z0-9._/-]+")
+                || file.endsWith("/") || file.endsWith("/.")
+                || java.util.Arrays.asList(file.split("/")).contains("..")) fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
+            Set<String> settings = new HashSet<>();
+            for (int index = 1; index < parts.length; index++) {
+                String setting = parts[index].toUpperCase(Locale.ROOT);
+                if (!Set.of("MODE=POSTGRESQL", "DATABASE_TO_LOWER=TRUE", "DEFAULT_NULL_ORDERING=HIGH").contains(setting)
+                    || !settings.add(setting)) fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
+            }
+            database = Path.of("/app").resolve(file).normalize();
+        }
+        Path file = database;
+        try {
+            if (service.volumes().stream().map(volume -> Path.of(volume.mountPath()).normalize())
+                .noneMatch(mount -> !file.equals(mount) && file.startsWith(mount))) fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
+        } catch (InvalidPathException invalid) {
+            fail("INBOX_FILE_PERSISTENCE_UNPROVEN");
         }
     }
     private void requireKind(ManagedDependencySpec.Service service, String name, ManagedDependencySpec.ValueKind kind) {
