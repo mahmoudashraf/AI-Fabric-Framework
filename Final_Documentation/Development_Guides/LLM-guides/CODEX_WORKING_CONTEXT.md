@@ -8,6 +8,62 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 16:20 UTC S3 Accepted; Generic Assignment Gap Being Fixed
+
+- Newdep-7438d398/ten-2e8ab404 remains CONFIGURATION_ONLY, no version,
+  admission, provider allocation, index or model calls. Normal customer S3
+  bindingdsh-4aca83e5-cf8 succeeds15:59:11. The original private after-guard
+  fails only on PostgreSQL timestamp precision (436ns); exact embedded pgjdbc
+  round-trip plus11 fresh owner GETs verify every remaining invariant16:11.
+  Main proof pg-s3.main-accepted.actual.json is private; original failure is
+  retained, POST never repeated. Public content approval remains false.
+- Old unused production financial grant is normally VOID_UNUSED15:58:01,
+  receiptpugv-17c7b88b-fe06-4a52-8381-b026a7c85d50. Original grant/counters/
+  history remain, zero allocations; no refund, reset or replacement funds.
+- Reusing the existing detached consumer/DRAFT Engage app exposes a real
+  origin-projection ordering gap. New generic customer-authorized configuration-
+  only assignment is being implemented using existing binding/history/origin
+  projection, with exact owned DRAFT app expectations. No manual CORS, duplicate
+  app, SQL repair or relaxed verified-release activation. Backend tests/review
+  are pending; no new backend source is deployed yet.
+- Four agents resumed after credit refresh. Functional UI combined40 cases and
+  TypeScript pass; settlement browser smoke5/5 passes on loopback only. These
+  are NOT hosted/P5/P6 acceptance. External receiver attested-image cutover is
+  preparation only, no mutation. Next: qualified assignment/source rollout,
+  normal scoped bindings/empty Free01 handoff/apply, hosted recovery/promotion/
+  P7. UI extraction LAST; Hetzner stays OPEN. No user material missing.
+
+## 2026-10-20 15:48 UTC New PG Offer Accepted And Configuration Bootstrapped
+
+- Tooling selected-profile fixe05cb3fed is committed/pushed,21 focused cases
+  pass; docscheckpointe9f030215 is pushed separately. Backend remainsff203
+  on both control planes; no backend/runtime/framework/UI rollout for this fix.
+- Offer R2 sends one actualPOST409 PLACEMENT_EVIDENCE_STALE at15:40:21.
+  Full native read-only reconciliation proves new offer absent and every old
+  offer unchanged. Original response/intent remain, never relabeled success.
+  Two normal staff probes refresh placement15:41; a separately reviewed R3
+  attempt uses the SAME immutable offer ID/body. Native200 and stored metadata
+  verify15:44:21, fingerprint77a86671ec9baff05ae17974a045061b5661f05a61e79b51185194f3ca4c0aff.
+  Root /private/tmp/01044-main-resumed-20261020-1205/pg-offer-publication-r3.
+- Same existing customercus-9fd67f55/ownerusr-dc2c2ed0 receives a normal staff
+  invitation, accepts asCUSTOMER_ADMIN SESSION, and probes staging normally.
+  New entitlementcse-fbbd9bf9-f9eb-4014-8a13-050dc5ece4ba isACTIVErev2 through
+  Oct24T23:59:59Z. ExplicitMANAGED_POSTGRES bootstrap createsdep-7438d398 /
+  ten-2e8ab404 asCONFIGURATION_ONLY. Actual D/T are parsed from the response,
+  not copied from oldD/T. Existingcon13 remainsdetachedrev2/appDRAFTunchanged.
+  No version/admission/new paid grant/container/index/model call yet. Do not
+  replay completed invitation/acceptance/placement/bootstrap commands.
+- Frozen continuationR3 /private/tmp/01044-same-customer-pg-continuation-r3-20261020
+  has52 offline cases. Normal staff API_KEY is explicit on staff invite only;
+  owner steps remainSESSION with nofallback. Main adapterandphasejournals are
+  private. Current next: customer S3 binding beforev1, separately scoped DATA/
+  ACTION bindings, external receiver authority, empty Free01 binding handoff,
+  normal admission and reviewed paid allocation, then hosted P5/promotion/P7.
+- Functional AI-state UI passes31 nodecases/5 mockedbrowser scenarios/TypeScript;
+  standalone no-effect panel passes6cases/targetedTypeScript. Both are source
+  only, cross-review/integration pending, not hosted acceptance orP6. UI
+  extraction remains LAST; no missing user material. Hetzner access stays OPEN.
+
 ## 2026-10-20 15:30 UTC Settlement Accepted; PG Policy And Quota Published
 
 - Successful owner settlement is accepted by explicit main read-only contract

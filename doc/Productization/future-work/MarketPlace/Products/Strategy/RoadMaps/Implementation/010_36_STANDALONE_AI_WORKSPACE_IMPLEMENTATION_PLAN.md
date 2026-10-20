@@ -1,5 +1,30 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Resumed checkpoint,20October16:20UTC: all four agents resume with renewed
+  credits. New customer S3 binding is accepted by exact native-driver timestamp
+  reconciliation and11 fresh normal owner reads; original private failed guard
+  is retained and successful POST never repeated. Old unused provider grant is
+  normally voided with immutable receipt, no spend reset or replacement grant.
+  New deployment remains CONFIGURATION_ONLY, no version/index/model/effects.
+  A real existing-app origin-projection ordering gap needs a generic normal
+  customer configuration-only assignment, now under implementation and review.
+  No manual CORS/SQL repair/duplicate app or weakened activation. Functional
+  UI40 cases/TypeScript and5 loopback browser scenarios pass, not hosted/P6.
+  External receiver attested-image cutover remains preparation only. Qualified
+  backend rollout, scoped integration/binding/apply, hosted P5/promotion/P7 and
+  final reversible UI extraction remain open. No user material missing.
+
+- Customer configuration checkpoint,20October15:48UTC: new immutable PG offer
+  is published/verified15:44:21, nativeFP77a86671...0aff. Selected-profile
+  verification tooling fixe05cb3fed passes21 cases and is pushed; stale-placement
+  409 is separately reconciled as no write before fresh normal probes and the
+  same-ID/body publication. Existing customer/owner accepts new entitlement
+  ACTIVErev2. ExplicitMANAGED_POSTGRES bootstrap createsdep-7438d398 and its
+  newtenantten-2e8ab404, CONFIGURATION_ONLY. Existing consumerrev2 remains
+  detached and DRAFTapp unchanged. No version, admission, container, index or
+  model usage yet. Customer-owned S3 and scoped external bindings precede live
+  apply. Hosted recovery/promotion/P7 and reversible UI extraction remain open.
+
 - Checkpoint,20October15:30UTC: normal owner no-effect settlement is accepted
   with explicit read-only reconciliation of two verifier-contract gaps only:
   unchanged Set membership and expected JPA row-version increment. Original

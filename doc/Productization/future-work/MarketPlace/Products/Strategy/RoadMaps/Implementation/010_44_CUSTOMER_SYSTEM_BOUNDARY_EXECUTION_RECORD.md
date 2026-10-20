@@ -1,5 +1,58 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 16:20 UTC Storage Accepted And Existing-App Configuration Gap Found
+
+- Normal customer read-only S3 bindingdsh-4aca83e5-cf8 is accepted for new
+  deploymentdep-7438d398/tenantten-2e8ab404. Original POST20015:59:11 is NOT
+  repeated. Its private after-guard failed solely on a436ns timestamp change;
+  exact embedded pgjdbc conversion and11 fresh normal owner GETs verify every
+  other invariant16:11. Original failed result remains preserved. No source
+  writes, discovery, public approval, index, version or provider effects occur.
+- Old unused financial grant is normally voided15:58:01, immutable receipt
+  pugv-17c7b88b-fe06-4a52-8381-b026a7c85d50. Historical amount and counters
+  remain unchanged; no allocation/refund/reset/new financial authority.
+- Existing detached consumercon-13d302a9 and its DRAFT app need a normal
+  configuration-only assignment to project the approved origin before first
+  publication. Current API only handles this when creating a new consumer.
+  Generic backend addition reuses normal binding/history and atomic origin
+  projection, exact customer/entitlement scope and all linked DRAFT expectations.
+  It does not activate a release, relax normal verified activation, duplicate
+  the app or repair configuration through SQL. Implementation/review/test work
+  is in progress, not deployed. Runtime/framework artifacts remain unchanged.
+- Functional UI40 tests/TypeScript and5 loopback browser scenarios pass;
+  source only, not hosted qualification or P6. External receiver attested-image
+  replacement is being prepared without mutation. Hosted first apply, external
+  scoped approvals, empty vector-binding handoff (NO records copied), P5/P7,
+  promotion and final reversible UI extraction remain open. Agents resumed;
+  no missing user material, firewall remains OPEN until completion.
+
+## 2026-10-20 15:48 UTC New Offer And Same-Customer PG Configuration Verified
+
+- Generic selected-target readback fixe05cb3fed is committed/pushed with21
+  focused passing cases. Full raw API responses remain evidence; exact selected
+  records are checked, with missing/duplicate/changed profiles denied. Backend,
+  runtime, framework and UI are not rebuilt for this support-tool correction.
+- R2 offerPOST returns409 PLACEMENT_EVIDENCE_STALE at15:40:21. Full normal
+  native read-only reconciliation proves no new offer row and unchanged prior
+  offers/policy/quota/charge. Two normal staff placement probes refresh evidence
+  at15:41. An explicitly reviewed R3 publishes the SAME immutable ID/body once,
+  verified15:44:21 with nativeFP77a86671ec9baff05ae17974a045061b5661f05a61e79b51185194f3ca4c0aff.
+  Neither original failure nor its journal is overwritten or relabeled PASS.
+- Normal staff invitation and existing customer-owner SESSION acceptance yield
+  entitlementcse-fbbd9bf9-f9eb-4014-8a13-050dc5ece4ba, ACTIVErev2 through
+  Oct24T23:59:59Z. The owner obtains fresh customer-staging placement, then
+  explicitly selectsMANAGED_POSTGRES at bootstrap. Actual normal response creates
+  deploymentdep-7438d398 / tenantten-2e8ab404 asCONFIGURATION_ONLY. Before/after
+  portfolio checks prove exactly one new DRAFT configuration, all prior rows
+  unchanged, existing consumerdetachedrev2 and DRAFTworkspace preserved.
+- Completed phase journals are in the private same-customer-pg-continuation-r3
+  root and must not be replayed. No version/admission/provider allocation,
+  managed graph/container/index or model usage occurs in these phases. S3-first
+  binding, external DATA/ACTION approvals/credentials, receiver authority,
+  empty-binding handoff and normal reviewed apply remain next. No vector record
+  or customer business data is transferred. Hosted P5/promotion/P7 and UI-LAST
+  remain open. Functional storage/settlement UI is prepared, not deployed.
+
 ## 2026-10-20 15:30 UTC Settlement Accepted And PG Admission Records Verified
 
 - Independent saved-state review finds two exact private-verifier contract
