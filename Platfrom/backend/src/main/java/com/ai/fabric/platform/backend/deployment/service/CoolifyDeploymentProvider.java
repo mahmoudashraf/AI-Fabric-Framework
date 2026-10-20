@@ -3117,11 +3117,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private CoolifyApplicationRuntimeSettings serviceRuntimeSettings(JsonNode resourceDefaults,
                                                                      String serviceRole) {
+        // Every role starts a JVM, including roles without their own target-profile health overrides.
         return new CoolifyApplicationRuntimeSettings(
-            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckIntervalSeconds", "healthCheckIntervalSeconds"),
-            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckTimeoutSeconds", "healthCheckTimeoutSeconds"),
-            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckRetries", "healthCheckRetries"),
-            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckStartPeriodSeconds", "healthCheckStartPeriodSeconds"),
+            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckIntervalSeconds", "healthCheckIntervalSeconds", 10),
+            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckTimeoutSeconds", "healthCheckTimeoutSeconds", 5),
+            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckRetries", "healthCheckRetries", 18),
+            positiveIntegerSetting(resourceDefaults, serviceRole, "HealthCheckStartPeriodSeconds", "healthCheckStartPeriodSeconds", 180),
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemory", "limitsMemory"),
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemorySwap", "limitsMemorySwap"),
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemoryReservation", "limitsMemoryReservation"),
@@ -3133,11 +3134,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private Integer positiveIntegerSetting(JsonNode resourceDefaults,
                                            String serviceRole,
                                            String roleSuffix,
-                                           String genericField) {
+                                           String genericField,
+                                           int defaultValue) {
         String field = serviceRolePrefix(serviceRole) + roleSuffix;
         String value = textFirst(resourceDefaults, field, genericField);
         if (!StringUtils.hasText(value)) {
-            return null;
+            return defaultValue;
         }
         try {
             int parsed = Integer.parseInt(value);

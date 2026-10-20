@@ -70,6 +70,48 @@ class CoolifyDeploymentProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void everyJvmRoleReceivesAnExplicitBoundedStartupHealthBudget() throws Exception {
+        var defaults = objectMapper.readTree("{\"runtimeHealthCheckStartPeriodSeconds\":240}");
+        for (String role : List.of("runtime", "connector", "vectorization-runner")) {
+            CoolifyApplicationRuntimeSettings settings = ReflectionTestUtils.invokeMethod(
+                provider(), "serviceRuntimeSettings", defaults, role);
+            assertThat(settings).isEqualTo(new CoolifyApplicationRuntimeSettings(
+                10, 5, 18, "runtime".equals(role) ? 240 : 180, null, null, null, null, null));
+        }
+    }
+
+    @Test
+    void explicitRoleHealthSettingsOverrideGenericSettingsWithoutAffectingOtherRoles() throws Exception {
+        var defaults = objectMapper.readTree("""
+            {"healthCheckIntervalSeconds":7,"healthCheckTimeoutSeconds":8,
+             "healthCheckRetries":9,"healthCheckStartPeriodSeconds":120,
+             "connectorHealthCheckIntervalSeconds":11,"connectorHealthCheckTimeoutSeconds":12,
+             "connectorHealthCheckRetries":13,"connectorHealthCheckStartPeriodSeconds":240}
+            """);
+        CoolifyApplicationRuntimeSettings connector = ReflectionTestUtils.invokeMethod(
+            provider(), "serviceRuntimeSettings", defaults, "connector");
+        assertThat(connector).isEqualTo(new CoolifyApplicationRuntimeSettings(
+            11, 12, 13, 240, null, null, null, null, null));
+        for (String role : List.of("runtime", "vectorization-runner")) {
+            CoolifyApplicationRuntimeSettings settings = ReflectionTestUtils.invokeMethod(
+                provider(), "serviceRuntimeSettings", defaults, role);
+            assertThat(settings).isEqualTo(new CoolifyApplicationRuntimeSettings(
+                7, 8, 9, 120, null, null, null, null, null));
+        }
+    }
+
+    @Test
+    void invalidExplicitHealthSettingsNeverSilentlyUseTheStartupDefault() throws Exception {
+        for (String invalid : List.of("0", "-1", "not-a-number")) {
+            var defaults = objectMapper.createObjectNode().put("connectorHealthCheckRetries", invalid);
+            assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                provider(), "serviceRuntimeSettings", defaults, "connector"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("connectorHealthCheckRetries must be a positive integer");
+        }
+    }
+
+    @Test
     void reviewedImageDigestControlsTheActualCoolifyPullAndRejectsTagDrift() {
         var image = artifact(); image.setImageDigest("sha256:" + "a".repeat(64));
         assertThat(CoolifyDeploymentProvider.sourceImageTag(image)).isEqualTo("sha256-" + "a".repeat(64));
@@ -875,11 +917,11 @@ class CoolifyDeploymentProviderTest {
         assertThat(requests.getAllValues())
             .extracting(CoolifyCreateDockerImageApplicationRequest::runtimeSettings)
             .containsExactly(
-                new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                new CoolifyApplicationRuntimeSettings(10, 5, 18, 180,
                     "1g", null, null, "1.0", "7"),
-                new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                new CoolifyApplicationRuntimeSettings(10, 5, 18, 180,
                     "768m", "768m", "384m", "0.5", "6"),
-                new CoolifyApplicationRuntimeSettings(null, null, null, null,
+                new CoolifyApplicationRuntimeSettings(10, 5, 18, 180,
                     "768m", "768m", "384m", "0.5", "5")
             );
         verify(coolifyApiClient, never()).createPublicApplication(eq(connection), any());
