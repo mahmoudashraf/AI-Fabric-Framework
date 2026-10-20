@@ -62,6 +62,8 @@ import {
   planDeploymentPracticalPromotion,
   probeCustomerOfferTargetPlacement,
   publishCustomerDeploymentVersion,
+  planCustomerPreparedFailureRecovery,
+  recoverCustomerPreparedFailure,
   requestDeploymentPracticalProductionApply,
   reserveCustomerDeploymentAdmission,
   rollbackDeploymentPracticalProductionConsumer,
@@ -73,6 +75,9 @@ import {
   type CustomerOfferSummary,
   type CustomerTargetRetirementSummary,
   type CustomerStagingConsumerConfigurationRequest,
+  type CustomerPreparedFailureRecoveryPlanRequest,
+  type CustomerPreparedFailureRecoveryPlan,
+  type CustomerPreparedFailureRecoverySummary,
   type DeploymentPracticalPromotionSummary,
   type DeploymentReleaseSummary,
   type DeploymentVersionSummary,
@@ -81,6 +86,7 @@ import {
 } from '../../api/platformApi'
 import { canApplyReviewedVersion, CustomerAdmissionCommands } from './customerAdmissionCommands'
 import { KnownNoEffectSettlementPanel } from './KnownNoEffectSettlementPanel'
+import { createDurableCommandHolds } from './durableCommandHolds'
 import { selectableCustomerAssignments, canReviewCustomerAssignment, canConfigureExistingCustomerAssignment, customerAssignmentDraftExpectations,
   customerAssignmentConfigurationRequest, configureExistingCustomerAssignment, assignmentConfigurationSnapshot,
   prepareKnownAssignmentReconciliation, confirmKnownAssignmentReconciliation,
@@ -392,6 +398,10 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
   const currentRejectionConfirmed = rejectionConfirmed?.token === configurationGuard.capture() && rejectionConfirmed.checked
   const activeAdmission = admission?.deploymentId === selectedDeploymentId
     && admission.targetProfileId === stagingTargetProfileId ? admission : admissionsQuery.data?.[0] ?? null
+  const recoveryResult = useScopedOneTimeValue<CustomerPreparedFailureRecoverySummary>(JSON.stringify([
+    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
+    selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id,
+  ]))
   const candidateScope = JSON.stringify({ deploymentId: selectedDeploymentId,
     targetProfileId: selectedProductionTargetProfileId, stagingReleaseId: stagingRelease?.id,
     consumerId: selectedConsumer?.consumerId, bindingRevision: selectedConsumer?.bindingRevision })
@@ -1111,6 +1121,24 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
                       {stagingRelease.errorMessage ? ` ${stagingRelease.errorMessage}` : ''}
                     </Alert>
                   ) : null}
+                  <PreparedFailureRecoveryPanel
+                    session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
+                    targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
+                    available={!stagingApply.isPending && !retirementStarted && admissionsQuery.isSuccess && !admissionsQuery.isFetching
+                      && releasesQuery.isSuccess && !releasesQuery.isFetching && catalogueQuery.isSuccess && !catalogueQuery.isFetching}
+                    onRecovered={async (receipt, scope) => {
+                      recoveryResult.publish(recoveryResult.capture(), receipt)
+                      setAdmission(current => current?.id === scope.reservationId ? null : current)
+                      await Promise.all([
+                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
+                          scope.deploymentId, scope.targetProfileId], exact: true }),
+                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
+                      ])
+                    }}
+                  />
+                  {recoveryResult.value ? <Alert severity="success" sx={{ overflowWrap: 'anywhere' }}>
+                    Prepared failure reconciled. Receipt {recoveryResult.value.receiptId}. Prepared resources and allowance are retained; the original release remains FAILED. No provider retry or financial mutation was performed.
+                  </Alert> : null}
                   <KnownNoEffectSettlementPanel
                     key={JSON.stringify([session.actorId, session.authenticationMode, customerId])}
                     authority={{ actorId: session.actorId ?? '', customerId, authenticationMode: session.authenticationMode }}
@@ -1383,4 +1411,153 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
       ) : null}
     </Stack>
   )
+}
+
+export type PreparedFailureRecoveryScope = {
+  actorId: string; customerId: string; authenticationMode: 'SESSION'
+  offerId: string; offerFingerprint: string; entitlementRevision: number
+  deploymentId: string; targetProfileId: string; reservationId: string; revision: number; releaseId: string
+}
+type PreparedFailureReview = { scope: PreparedFailureRecoveryScope; plan: CustomerPreparedFailureRecoveryPlan; commandBody: string }
+const recoveryText = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+const recoveryRevision = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) < Number.MAX_SAFE_INTEGER
+export const preparedFailureRecoveryHoldScope = (scope: PreparedFailureRecoveryScope) =>
+  JSON.stringify(['PREPARED_FAILURE_RECOVERY', scope.customerId, scope.reservationId])
+
+export function prepareCustomerFailureRecovery(scope: PreparedFailureRecoveryScope,
+  request: CustomerPreparedFailureRecoveryPlanRequest, response: CustomerPreparedFailureRecoveryPlan): PreparedFailureReview {
+  const command = response?.command
+  if (!scope || scope.authenticationMode !== 'SESSION' || ![scope.actorId, scope.customerId, scope.offerId, scope.offerFingerprint,
+    scope.deploymentId, scope.targetProfileId, scope.reservationId, scope.releaseId].every(recoveryText)
+    || !recoveryRevision(scope.revision) || !recoveryRevision(scope.entitlementRevision)
+    || !/^[A-Za-z0-9._:-]{1,128}$/.test(request.operationKey) || !recoveryText(request.reason) || request.reason.length > 255
+    || !recoveryText(response?.boundary) || !command?.fence || command.fence.reservationId !== scope.reservationId
+    || command.fence.revision !== scope.revision || !recoveryText(command.fence.generation)
+    || command.releaseId !== scope.releaseId || request.releaseId !== scope.releaseId
+    || command.operationKey !== request.operationKey || command.reason !== request.reason
+    || !/^[a-f0-9]{64}$/.test(command.proofFingerprint)) {
+    throw new Error('The recovery plan does not match this failed release and reservation. Refresh and review current state.')
+  }
+  const plan = structuredClone(response)
+  return { scope: structuredClone(scope), plan, commandBody: JSON.stringify(plan.command) }
+}
+
+export function confirmedCustomerFailureRecovery(scope: PreparedFailureRecoveryScope, prepared: PreparedFailureReview, confirmed: boolean) {
+  if (!confirmed || JSON.stringify(scope) !== JSON.stringify(prepared.scope)
+    || JSON.stringify(prepared.plan.command) !== prepared.commandBody) throw new Error('Confirm the current unchanged recovery plan before submitting.')
+  return prepared.plan.command
+}
+
+export function checkedCustomerFailureRecoveryReceipt(prepared: PreparedFailureReview,
+  receipt: CustomerPreparedFailureRecoverySummary): CustomerPreparedFailureRecoverySummary {
+  const command = prepared.plan.command
+  if (!receipt || !recoveryText(receipt.receiptId) || receipt.reservationId !== prepared.scope.reservationId
+    || receipt.generation !== command.fence.generation || receipt.fromRevision !== prepared.scope.revision
+    || receipt.revision !== prepared.scope.revision + 1 || receipt.releaseId !== prepared.scope.releaseId
+    || receipt.state !== 'RESERVED' || receipt.providerRetryPerformed !== false || receipt.financialMutationPerformed !== false
+    || !Array.isArray(receipt.retainedAllocationIds) || !receipt.retainedAllocationIds.every(recoveryText)
+    || new Set(receipt.retainedAllocationIds).size !== receipt.retainedAllocationIds.length
+    || !recoveryText(receipt.recoveredAt) || !Number.isFinite(Date.parse(receipt.recoveredAt))) {
+    throw new Error('Recovery response is unconfirmed. Do not resubmit; reconcile the original command.')
+  }
+  return receipt
+}
+
+type PreparedFailurePanelProps = {
+  session: PlatformAuthSessionSummary; offer: CustomerOfferSummary; deploymentId: string; targetProfileId: string
+  reservation: CustomerAdmissionReservationSummary | null; release: DeploymentReleaseSummary | null; available: boolean
+  onRecovered: (receipt: CustomerPreparedFailureRecoverySummary, scope: PreparedFailureRecoveryScope) => void | Promise<void>
+}
+
+export function PreparedFailureRecoveryPanel(props: PreparedFailurePanelProps) {
+  const { session, offer, deploymentId, targetProfileId, reservation, release } = props
+  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+    || !recoveryText(session.actorId) || !recoveryText(session.customerId) || offer.entitlement.customerId !== session.customerId
+    || offer.entitlement.status !== 'ACTIVE' || !offer.targets.some(target => target.id === targetProfileId && target.capabilities.includes('APPLY'))
+    || !reservation || reservation.deploymentId !== deploymentId || reservation.targetProfileId !== targetProfileId
+    || reservation.state !== 'OUTCOME_UNKNOWN' || reservation.expiryState !== 'CURRENT' || !release
+    || release.deploymentId !== deploymentId || release.targetProfileId !== targetProfileId || release.status !== 'FAILED') return null
+  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
+    offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
+    deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
+  return <PreparedFailureReview key={JSON.stringify(scope)} scope={scope} onRecovered={props.onRecovered} />
+}
+
+function PreparedFailureReview({ scope, onRecovered }: { scope: PreparedFailureRecoveryScope; onRecovered: PreparedFailurePanelProps['onRecovered'] }) {
+  const queryClient = useQueryClient()
+  const guard = useScopedOneTimeValue<boolean>(JSON.stringify(scope))
+  const token = guard.capture()
+  const current = () => guard.publish(token, true)
+  const holds = useRef(createDurableCommandHolds())
+  const request = useRef<CustomerPreparedFailureRecoveryPlanRequest | null>(null)
+  const busy = useRef(false)
+  const [reason, setReason] = useState('')
+  const [prepared, setPrepared] = useState<PreparedFailureReview | null>(null)
+  const [confirmed, setConfirmed] = useState(false)
+  const [pending, setPending] = useState<'plan' | 'recover' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  let held = false, protectionError: string | null = null
+  try { held = Boolean(holds.current.read(preparedFailureRecoveryHoldScope(scope))) }
+  catch (failure) { protectionError = errorText(failure) }
+  const ownerStillCurrent = async () => {
+    const session = await fetchPlatformAuthSession()
+    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+      || session.actorId !== scope.actorId || session.customerId !== scope.customerId) throw new Error('Recovery authority changed. Review current state.')
+  }
+  async function plan() {
+    if (busy.current || held || protectionError || !reason.trim() || !current()) return
+    busy.current = true; setPending('plan'); setError(null); setPrepared(null); setConfirmed(false)
+    request.current ??= { releaseId: scope.releaseId, operationKey: crypto.randomUUID(), reason: reason.trim() }
+    const captured = request.current
+    try {
+      await ownerStillCurrent()
+      const response = await planCustomerPreparedFailureRecovery(scope.offerId, scope.deploymentId, scope.reservationId, captured)
+      const review = prepareCustomerFailureRecovery(scope, captured, response)
+      if (current()) setPrepared(review)
+    } catch (failure) {
+      if (current()) setError(failure instanceof Error && 'status' in failure && [403, 409].includes(Number(failure.status))
+        ? `Recovery is not eligible: ${errorText(failure)}` : errorText(failure))
+    } finally { busy.current = false; if (current()) setPending(null) }
+  }
+  async function recover() {
+    if (busy.current || held || protectionError || !prepared || !confirmed || !current()) return
+    busy.current = true; setPending('recover'); setError(null)
+    let dispatched = false
+    let receipt: CustomerPreparedFailureRecoverySummary | null = null
+    try {
+      const command = confirmedCustomerFailureRecovery(scope, prepared, confirmed)
+      await ownerStillCurrent()
+      await holds.current.claim(preparedFailureRecoveryHoldScope(scope), command.operationKey, prepared.commandBody, current)
+      if (!current()) return
+      dispatched = true
+      receipt = checkedCustomerFailureRecoveryReceipt(prepared,
+        await recoverCustomerPreparedFailure(scope.offerId, scope.deploymentId, scope.reservationId, command))
+    } catch (failure) {
+      if (current()) setError(dispatched ? 'Recovery response is unconfirmed. Do not resubmit; reconcile the original command.' : errorText(failure))
+    } finally {
+      busy.current = false
+      if (current()) setPending(null)
+      if (dispatched) void queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
+        scope.deploymentId, scope.targetProfileId], exact: true }).catch(() => undefined)
+    }
+    if (receipt) await onRecovered(receipt, structuredClone(scope))
+  }
+  return <Stack spacing={1} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+    <Typography variant="subtitle2">Prepared failure recovery</Typography>
+    <Typography variant="body2">Failed release: {scope.releaseId}. Recovery retains prepared resources and allowance. Deployment remains a separate explicit action.</Typography>
+    <TextField label="Recovery reason" size="small" fullWidth value={reason} inputProps={{ maxLength: 255 }}
+      disabled={Boolean(request.current) || pending !== null || held || Boolean(protectionError)} onChange={event => setReason(event.target.value)} />
+    {error || protectionError ? <Alert severity="warning">{error ?? protectionError}</Alert> : null}
+    {held ? <Alert severity="warning">A recovery intent is recorded. Reconcile the original command before any further recovery action.</Alert> : null}
+    <Button variant="outlined" startIcon={<FactCheckOutlinedIcon />} sx={{ alignSelf: 'flex-start' }}
+      disabled={pending !== null || held || Boolean(protectionError) || !reason.trim()} onClick={() => void plan()}>Preview prepared failure recovery</Button>
+    {prepared ? <>
+      <Typography variant="body2">Reservation {scope.reservationId} &middot; revision {prepared.plan.command.fence.revision}</Typography>
+      <Typography variant="caption">Boundary: {prepared.plan.boundary}</Typography>
+      <FormControlLabel label="I confirm recovery only for this failed release and reservation." control={<Checkbox checked={confirmed}
+        disabled={pending !== null || held || Boolean(protectionError)} onChange={event => setConfirmed(event.target.checked)} />} />
+      <Button variant="outlined" startIcon={<CheckCircleRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
+        disabled={!confirmed || pending !== null || held || Boolean(protectionError)} onClick={() => void recover()}>Recover prepared failure</Button>
+    </> : null}
+  </Stack>
 }

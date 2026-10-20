@@ -8446,3 +8446,44 @@ export function configureCustomerDeploymentStagingConsumer(
     { method: 'POST', body: JSON.stringify(payload) },
   )
 }
+
+export type CustomerPreparedFailureRecoveryPlanRequest = { releaseId: string; operationKey: string; reason: string }
+
+export type CustomerPreparedFailureRecoveryCommand = CustomerPreparedFailureRecoveryPlanRequest & {
+  fence: { reservationId: string; revision: number; generation: string }
+  proofFingerprint: string
+}
+
+export type CustomerPreparedFailureRecoveryPlan = { command: CustomerPreparedFailureRecoveryCommand; boundary: string }
+
+export type CustomerPreparedFailureRecoverySummary = {
+  receiptId: string
+  reservationId: string
+  generation: string
+  fromRevision: number
+  revision: number
+  releaseId: string
+  state: 'RESERVED'
+  retainedAllocationIds: string[]
+  providerRetryPerformed: boolean
+  financialMutationPerformed: boolean
+  recoveredAt: string
+}
+
+export function planCustomerPreparedFailureRecovery(
+  offerId: string, deploymentId: string, reservationId: string, payload: CustomerPreparedFailureRecoveryPlanRequest,
+) {
+  return request<CustomerPreparedFailureRecoveryPlan>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/prepared-failure-recovery-plan`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function recoverCustomerPreparedFailure(
+  offerId: string, deploymentId: string, reservationId: string, command: CustomerPreparedFailureRecoveryCommand,
+) {
+  return request<CustomerPreparedFailureRecoverySummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/recover-prepared-failure`,
+    { method: 'POST', body: JSON.stringify(command) },
+  )
+}
