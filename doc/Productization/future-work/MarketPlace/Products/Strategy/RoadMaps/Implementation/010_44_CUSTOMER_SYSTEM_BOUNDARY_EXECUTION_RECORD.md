@@ -1,5 +1,31 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 16:44 UTC Configuration-Only Assignment Source Qualified
+
+- Normal customer existing-consumer configuration route is committed/pushed
+  as2da8413010ad71c04afe25956485dea3b8886da5, six backend files only. The
+  source enforces owned current customer/entitlement/target, exact full DRAFT
+  workspace expectations, no prior immutable publication/effects, and normal
+  destination-offer APP/AUTH/DOMAIN settings before canonical atomic binding/
+  history/origin projection. It creates no consumer/app/business infrastructure.
+- Independent review found and closed a real missing destination-profile/origin
+  check before commit. Original109-case artifacts are retained, superseded and
+  unaccepted. Corrected actual124 unique cases/51PG/zero skips pass; package
+  SHA2c7b919385de1b2ff9e7d3883bbf6c6ac5a52b5a6f66717c43fe3ccd2a80c21d.
+  Main parses exact five XML scopes, verifies class/JAR hashes and1924 Git-bound
+  Maven inputs plus2 separately identified ignored metadata records. Source
+  review has no remaining P1/P2. No broad framework matrix/release is performed.
+- New source-runner report-coverage gap is also corrected and independently
+  closed,9 focused checks pass. It reuses existing raw139-table/config/runtime
+  guards, but not the old R7rev1 state or completed native jobs. CI39459761378
+  is running; both liveCPs remainff203/a350/schema206/UP. No actual source
+  rollout, customer assignment, version, index or model/provider usage yet.
+- Fresh16:27 normal native readbacks show no queued jobs, active apply, charged
+  reservation or allocation. Single16:40 load sample is low on both hosts, not
+  a capacity-policy renewal. Attested external receiver cutover and durable UI
+  unknown-outcome/authority checks remain preparation. Hosted P5/promotion/P7,
+  scoped integration/apply and final reversible UI extraction remain open.
+
 ## 2026-10-20 16:20 UTC Storage Accepted And Existing-App Configuration Gap Found
 
 - Normal customer read-only S3 bindingdsh-4aca83e5-cf8 is accepted for new

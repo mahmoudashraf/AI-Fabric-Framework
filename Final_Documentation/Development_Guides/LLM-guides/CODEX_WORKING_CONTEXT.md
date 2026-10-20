@@ -8,6 +8,37 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 16:44 UTC Existing-App Assignment Qualified And Pushed
+
+- Backend-only commit2da8413010ad71c04afe25956485dea3b8886da5 is pushed.
+  Six files: five new configuration-only assignment files plus a narrow shared
+  workspace-authorization extraction. Reuse requires an owned fully unbound
+  consumer, exact never-activated DRAFT app set/revisions, no immutable versions
+  or effects, and destination-offer APP/AUTH/DOMAIN checks before binding.
+  Existing canonical binding/history/origin projection remains atomic. No new
+  app, manual CORS, SQL repair, verified-activation bypass or framework change.
+- Original109-case freeze/JAR stays preserved and superseded, not accepted.
+  Corrected qualification124 unique cases/51 actualPG/zero failures/errors/skips
+  is MULTI_RUN_RECONCILED: four affected suites plus the existing workspace
+  service suite. Package2c7b9193...c21d passes. Independent six-file review has
+  no P1/P2. Main verifies all five XMLs, JAR/classes, unchanged1926 Maven input
+  records,1924 actual Git blobs and2 ignored local metadata records separately.
+  Main source-qualified.actual.json SHA1058759e...a55 is private in the new
+  existing-consumer-source-rollout root. CI39459761378 is RUNNING, not live.
+- Thin new rollout runner reuses untouched139-table/config/runtime guards,
+  adds exact five-suite XML qualification with9 focused rejection/pass cases,
+  and preserves permanent no-retry intents. No old completed rollout is reused.
+  Fresh read-only16:27 checks: bothCPs stillff203/a350/schema206/UP, no queued
+  native jobs/charged reservations/allocations/active applies. New deployment
+  remains CONFIGURATION_ONLY. Actual source rollout/assignment are pending.
+- Single operational sample16:40 (NOT admission measurement): staging load
+  0.40, about10.0GiB available RAM/24 running containers; production load0.59,
+  about11.7GiB available/17 containers. Staging historical swap is excluded from
+  usable capacity. External receiver attested existing CI image is reviewed
+  for a normal pinned-image cutover, not mutated. UI remount/authority holds
+  and existing-assignment controls are being fixed; no UI deploy/extraction.
+  Hosted apply/P5/promotion/P7 and UI-LAST remain open; no missing material.
+
 ## 2026-10-20 16:20 UTC S3 Accepted; Generic Assignment Gap Being Fixed
 
 - Newdep-7438d398/ten-2e8ab404 remains CONFIGURATION_ONLY, no version,

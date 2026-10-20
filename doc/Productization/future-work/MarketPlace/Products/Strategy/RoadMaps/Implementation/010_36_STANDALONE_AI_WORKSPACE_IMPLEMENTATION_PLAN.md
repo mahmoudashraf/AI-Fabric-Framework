@@ -1,5 +1,18 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Source checkpoint,20October16:44UTC: generic existing-app configuration-only
+  assignment is committed/pushed2da841301,124 focused cases/51 actualPG and
+  package pass. Independent source review has no remaining P1/P2 after adding
+  the normal destination-offer origin/profile/auth checks and explicit no-prior-
+  version fence. Main verifies five raw XML scopes,1924 actual Git Maven inputs
+  and2 ignored metadata records separately; original109-case artifacts remain
+  preserved and superseded. No schema/framework/runtime/UI rollout change.
+  CI39459761378 is running; both hostedCPs remainff203/schema206/UP with no
+  active applies/charged reservations/allocations. New customer deployment is
+  still CONFIGURATION_ONLY, not applied. External receiver cutover and durable
+  UI safety fixes are parallel preparation. Actual source rollout, first apply,
+  independent production reindex/promotion/P5/P7 and UI extraction LAST remain.
+
 - Resumed checkpoint,20October16:20UTC: all four agents resume with renewed
   credits. New customer S3 binding is accepted by exact native-driver timestamp
   reconciliation and11 fresh normal owner reads; original private failed guard
