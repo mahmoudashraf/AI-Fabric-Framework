@@ -1,5 +1,22 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Combined local qualification,20October13:23UTC: all1618 tests pass in68
+  suites, including608 actualPG cases; zero failures/errors/skips. All369 prior
+  case identities remain covered, frozen source stays unchanged, packaging
+  exits0. Separate code commits06788a075/91db3db0f are local; final Git/blob
+  binding, affected-only image publication and sequential hosted rollout follow.
+  This source result is not hosted customer/newPG/P5/P7 acceptance. No framework,
+  runtime artifact or UI change; extraction stays LAST and reversible.
+
+- Focused correction checkpoint,20October13:16UTC: actual308 cases pass,
+  including200 PostgreSQL,zero failures/errors/skips,plus package. Independent
+  frozen review finds noP0/P1/P2. Separate local commits06788a075 and91db3db0f
+  preserve legitimate configuration epochs and audit the empty binding handoff
+  without changing history or copying vectors. The expanded68-suite critical
+  gate is RUNNING against exact frozen source; no push/image/rollout yet.
+  Normal login renews the expired original customer-owner session, without a
+  password reset or admin fallback. Hosted newPG/P5/P7 and UI-LAST remain open.
+
 - Qualified local checkpoint,20October12:21UTC: corrected settlement passes
  154 cases/87 actualPG/zero skips and package, committed separately558d3b54d.
   New PG Inbox publication/proof support is separate800dfcc74; main reruns

@@ -8,6 +8,73 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 13:23 UTC Combined Critical Source Gate Green
+
+- /private/tmp/01044-final-combined-backend-critical-gate-20261020/attempts/r1/
+  combined-qualification.json SHA6abbe0bf1e174bbfdcc4908b4f9bab8e3e60a0af91aa6539dde055791baf37c9:
+  1618PASS/68suites/608actualPG/zero failures/errors/skips, all369 priorcaseIDs,
+  sourceunchanged, packageexit0. Jar5a81acc6...f65b. Four scope lists cover
+  13worker/7Inbox/37settlement/11handoff suites. Independent V202review noP0-P2.
+- Source commits06788a075/91db3db0f are local, backendtree clean. Main prepares
+  one candidate doc checkpoint, actual all-file Git blob/mode comparison and
+  report/package acceptance through /private/tmp/01044-main-resumed-20261020-1205/
+  qualify-candidate.mjs, then one affected-only push/CI/source rollout. No source
+  rollout/customer mutation/model call yet; live/remote063. Do not reuse old
+  rollout pending inputs, consumed windows or historicalthree-scope proofs.
+- Fresh original-owner session ref remains owner-session-renewed-1316.private.json
+  in same private main root. Sartre prepares offline normal owner settlement
+  helper; Faraday actual read-only localPG recovery proof. Both are separate
+  from hosted acceptance. NewPG composition/customercanary/P5/P7 and UI-LAST
+  still open. Do not include unrelated dirty UI/media in the backend batch.
+
+## 2026-10-20 13:16 UTC Focused Fixes Green; Combined Gate In Progress
+
+- R7 /private/tmp/01044-known-settled-vector-handoff-20261020 passes308/0/0/0,
+  200actualPG,9XML,packageexit0. Main checks all21sources plus rawXMLcounts;
+  independent final reviewc62b42c6...d3ea reports noP0/P1/P2. Local06788a075
+  contains only two epoch paths;91db3db0f contains eleven handoff/fixture paths.
+  No push/CI/image/live/customer write yet; remote/live still063.
+- Confucius runs combined68suite gate, exact86e4+21overlay, all369 prior cases.
+  /private/tmp/01044-final-combined-backend-critical-gate-20261020/attempts/r1.
+  Do not treat RUNNING as qualified. Main candidate-wrapper preparation will
+  compare all tested Git blobs/modes and reports after final commit, separately
+  from any CI/image/rollout. Frozen backend paths must stay unchanged.
+- Old owner session expired; normal original-owner login/readback succeeds
+  13:15:57UTC. NEW private ref /private/tmp/01044-main-resumed-20261020-1205/
+  owner-session-renewed-1316.private.json. Old file untouched; no reset/invite/
+  contact substitution/admin fallback. Sartre prepares only a NEW offline
+  guarded normal owner plan/settle helper; no live operations by sidecar.
+- Faraday now qualifies private SELECT-only cold-state collector against exact
+  runtime artifact and isolated localPG. Main17 synthetic tests PASS against
+  fresh-extracted jarSHAfbe2d9c1...dd; NOT actual SQL/hosted/P5 acceptance.
+  /private/tmp/01044-main-cold-restore-probe-20261020/HANDOFF.md. No runtime
+  release required. UI extraction LAST, hosted/P5/P7 incomplete; no user inputs
+  currently missing. Platform-Updates notified14:11London; next by14:41.
+
+## 2026-10-20 12:59 UTC Final Qualification Pending Configuration-Epoch Fix
+
+- Parallel agents remain active: Sartre owns the legitimate nonzero AVAILABLE
+  gate-epoch settlement correction; Faraday owns explicit known-settlement
+  V202 binding transition and exclusive shared backend Maven target; Confucius
+  prepares the isolated final critical gate. Preserve all prior369 exact cases,
+  new real-PG cases, unchanged V205 assertions and the shared HTTP fixture fix.
+  Do not run the prepared historical18-overlay manifest as final qualification;
+  final scope is10 settlement plus11 handoff/fixture paths, subject to freezes.
+- Actual read-only R7 gate evidence12:50UTC:AVAILABLE/epoch6/operation-null,
+  rowVersion6; no managed graphs/retirement/provider allocations. Configuration
+  mutations legitimately advance epochs. Fix the source guard, never zero the
+  live/fixture epoch. Focused R5 remains206PASS/1error; R6 interrupted, notgreen.
+  New R4 settlement and final V202 freezes are pending. Independent main
+  rollout-v2 rerun94/94PASS; no signed live plan/intent/customer write.
+- Existing-fleet five-minute baselines61samples each completed: staging
+  p95CPU729m/8cores,minRAM10671611904B,minDockerFS99443163136B;
+  production378m/4cores,RAM12538273792B,FS134287970304B. Private outputs
+  /private/tmp/01044-postsettlement-preparation-{staging,production}-host-baseline-20261020.json.
+  These are not candidate/admission/recovery approval. Refresh if stale.
+- Local HEADbf8c329ef, remote063; no push/CI/deploy this cycle. No framework
+  release/model call. Same-customer newPG path, hosted P5/P7 and independently
+  reversible UI extraction LAST remain incomplete; no user material pending.
+
 ## 2026-10-20 12:21 UTC Settlement And PG Tooling Committed Locally
 
 - Settlement commit558d3b54d066dfa30342e1ec21733630d3e859c4 contains only its

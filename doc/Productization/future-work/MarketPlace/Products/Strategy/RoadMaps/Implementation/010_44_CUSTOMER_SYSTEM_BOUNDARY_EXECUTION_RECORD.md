@@ -1,5 +1,99 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 13:23 UTC Final Combined Critical Gate Passes
+
+- Actual isolated combined run passes1618 tests in68 suites,608 actualPG,
+  zero failures/errors/skips. All369 prior case identities are retained. The
+  exact86e4 baseline plus21 overlays stays byte-identical through tests and
+  package; packaging exits0. Jar SHA256
+  5a81acc6975e689d0135ed2ef023a8f398c2340d491e42d5bf0388c27e55f65b.
+  Original raw XML, logs, source snapshots and failed historical runs remain.
+- The four explicit scopes cover worker authority, Inbox persistence, settlement
+  and binding handoff. Private combined proof6abbe0bf...f37c9 is under
+  /private/tmp/01044-final-combined-backend-critical-gate-20261020/attempts/r1.
+  Main next independently binds every tested Git blob/mode and raw report to
+  the final committed candidate, rather than treating an isolated archive as
+  already-published source. Remote is still063 at13:20UTC.
+- One affected-only backend publication and stage-then-production source
+  rollout follow after that acceptance. There has been no native rollout,
+  customer settlement/binding change, new offer/candidate, or model call here.
+  NewPG hosted acceptance, normal customer lifecycle, P5/P7 and final reversible
+  UI extraction remain open. Framework/runtime/schema/host access unchanged.
+
+## 2026-10-20 13:16 UTC Corrected Focused Gate Green; Combined Gate Running
+
+- Exact new settlement/V202 freeze passes308 cases across nine archived XMLs,
+  including200 actualPG cases, zero failures/errors/skips. Test and package
+  both exit0; all21 source hashes stay fixed. Main independently checks source,
+  report hashes and XML counts. Independent review finds noP0/P1/P2. R5 failure
+  and interruptedR6 remain historical, not relabelled or deleted.
+- Local06788a075 commits only the two configuration-epoch correction paths;
+  separate91db3db0f commits only eleven V202/fixture paths. Backend working tree
+  is clean. Remote/live remain063; no source push, customer settlement, binding
+  handoff, new native template/offer or hosted candidate has occurred.
+- Confucius runs the full prepared68-suite critical gate from86e4 plus the
+  exact21 overlays, retaining all369 prior case IDs and explicit PG/HTTP cases.
+  That run, later Git/blob/image/CI proofs and attended rollout are separate
+  acceptance steps. No framework/global release matrix or UI deployment.
+- The expired old customer session is retained. A normal original-owner login
+  succeeds13:15:57UTC and its fresh SESSION/CUSTOMER_ADMIN/customer readback
+  passes; no account creation, password reset, contact-account substitution or
+  admin fallback. Private fresh-session reference is handed to the upcoming
+  normal settlement helper; it must recheck authorization before submission.
+- A private exact-runtime-jar recovery prototype compiles and passes17 pure
+  offline checks. It does not open a database, prove physical restore or grant
+  resume/P5 acceptance. Isolated actual read-only SQL qualification proceeds
+  separately. Full hosted/newPG/P5/P7 and reversible UI extraction LAST remain.
+
+## 2026-10-20 12:59 UTC Configuration Epoch And Final Gate Scope
+
+- The focused V202 run retains206 passing cases and one genuine settlement
+  error, not a green qualification. Normal configuration/binding operations
+  advance the target gate epoch. Read-only live evidence confirms the original
+  R7 gate is AVAILABLE/epoch6/operation-null, with zero managed graphs,
+  retirement operations and provider allocations. An epoch-zero requirement
+  was therefore incorrect. Sartre corrects the predicate and adds actual JPA/
+  PostgreSQL gate-owner, negative-effect and evidence-drift rollback tests.
+  No live epoch, reservation or failed history is normalized or rewritten.
+- Final qualification must use the new settlement freeze plus Faraday's
+  explicit binding-transition freeze. The legacy HTTP mock fixture also needs
+  its newly required injected dependencies; this is test setup only and keeps
+  every denial assertion. Earlier freezes/runs remain historical. The isolated
+  combined gate retains all369 prior case identities and the expanded V202/
+  V205/HTTP coverage. Main independently reran the four-scope guarded rollout
+  helper:94PASS, zero failures/skips. No deployment intent was dispatched.
+- Fresh read-only existing-fleet baselines each contain61 samples over five
+  minutes: staging12:25-12:30UTC,8cores,p95CPU729m,minimum available RAM
+  10671611904B,Docker filesystem99443163136B; production12:31-12:36UTC,
+  4cores,p95CPU378m,RAM12538273792B,filesystem134287970304B. Swap is not
+  counted as capacity. These measurements are not new-candidate load,
+  admission approval or recovery evidence, and must satisfy freshness before
+  any later policy publication. No current customer/runtime mutation occurred.
+- Remote remains063; local source fixes, final qualification, one affected-only
+  backend publication/rollout, normal settlement/new PG composition, hosted
+  acceptance and P5/P7 remain open. UI extraction remains LAST.
+
+## 2026-10-20 12:34 UTC Explicit Binding Lifecycle Correction
+
+- Review identified the V192 unique index allowing only one ACTIVE external
+  binding per cluster. The earlier proposal to preserve old ACTIVE status and
+  append another ACTIVE binding is impossible and is superseded here.
+- The normal V202 handoff must atomically advance the old current binding
+  ACTIVE -> RETAINED_UNUSED, create the new binding, and append an authenticated
+  before/after row transition in its receipt/audit. This is an explicit owning
+  product operation, not a manual SQL repair. Keep old identity, namespace,
+  metadata, failed releases, settlement and funding history unchanged. Keep
+  the unique index; do not delete provider resources or copy vector records.
+- Subsequent replay/carry-forward must prove the retained row through that
+  authenticated transition and its original settlement hash, never status
+  alone. Initial handoff still requires live empty/full-visibility/no-writer
+  evidence; exact replay must not demand an empty store after destination
+  indexing. Add rollback, uniqueness, replay/carry-forward and forged-transition
+  regressions. Also reject unresolved same-grant financial events while
+  preserving proven legitimate other-deployment spend.
+- Faraday implements; Sartre/main review. The prepared combined gate remains
+  stopped until the corrected freeze. No live handoff or source push occurred.
+
 ## 2026-10-20 12:21 UTC Settlement Correction Qualified And Local Commits
 
 - Post-review settlement R8 passes154 focused cases,87 actual PostgreSQL,
