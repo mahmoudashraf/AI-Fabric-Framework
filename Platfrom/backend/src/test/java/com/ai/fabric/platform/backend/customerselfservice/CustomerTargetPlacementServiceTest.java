@@ -158,6 +158,61 @@ class CustomerTargetPlacementServiceTest {
         verifyNoInteractions(resolver, client);
     }
 
+    @Test void historicalPlacementIdentityRequiresGenuineFreshProbeForTheSameTrustedPhysicalProfile() {
+        var old = proof("profile-hash", "stage-server", "46.224.145.148", "destination",
+            Instant.now().minusSeconds(900), Instant.now().minusSeconds(840));
+        var fresh = service.probeAndRecord(profile, TargetIntent.CUSTOMER_STAGING);
+        when(evidenceRepository.findById("evidence")).thenReturn(Optional.of(old));
+        when(evidenceRepository.findById(fresh.getId())).thenReturn(Optional.of(fresh));
+
+        assertThat(service.requireEvidenceIdentity(profile, TargetIntent.CUSTOMER_STAGING, "evidence", fresh.getId())).isSameAs(old);
+        assertThat(old.getCheckedAt()).isBefore(Instant.now().minusSeconds(600));
+        assertThat(old.getExpiresAt()).isBefore(Instant.now());
+        verify(resolver).preflight(profile);
+        verify(client).getServer(connection, "stage-server");
+        verify(evidenceRepository).saveAndFlush(fresh);
+        assertThatThrownBy(() -> service.requireEvidenceById(profile, TargetIntent.CUSTOMER_STAGING, "evidence"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class, ex -> assertThat(ex.code()).isEqualTo(PLACEMENT_EVIDENCE_STALE));
+    }
+
+    @Test void historicalIdentityNeverSubstitutesForMissingStaleOrForeignCurrentEvidence() {
+        var old = proof("profile-hash", "stage-server", "46.224.145.148", "destination",
+            Instant.now().minusSeconds(900), Instant.now().minusSeconds(840));
+        when(evidenceRepository.findById("evidence")).thenReturn(Optional.of(old));
+        when(evidenceRepository.findById("fresh")).thenReturn(Optional.empty());
+        assertIdentityCode(PLACEMENT_EVIDENCE_REQUIRED);
+        when(evidenceRepository.findById("fresh")).thenReturn(Optional.of(old));
+        assertIdentityCode(PLACEMENT_EVIDENCE_STALE);
+        when(evidenceRepository.findById("fresh")).thenReturn(Optional.of(proof("profile-hash", "prod-server",
+            "46.224.145.148", "destination", Instant.now().minusSeconds(1), Instant.now().plusSeconds(59))));
+        assertIdentityCode(PLACEMENT_DENIED);
+        verifyNoInteractions(resolver, client);
+    }
+
+    @Test void freshProbeCannotAuthorizeForeignHistoricalProfileIntentOrPhysicalIdentity() {
+        when(evidenceRepository.findById("fresh")).thenReturn(Optional.of(proof("profile-hash", "stage-server",
+            "46.224.145.148", "destination", Instant.now().minusSeconds(1), Instant.now().plusSeconds(59))));
+        var oldTime = Instant.now().minusSeconds(900);
+        for (var old : List.of(
+            proof("old-profile", "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)),
+            proof("profile-hash", "other-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)),
+            proof("profile-hash", "stage-server", "foreign-address", "destination", oldTime, oldTime.plusSeconds(60)),
+            proof("profile-hash", "stage-server", "46.224.145.148", "foreign-destination", oldTime, oldTime.plusSeconds(60)),
+            new CustomerPlacementEvidenceEntity("evidence", "foreign-profile", TargetIntent.CUSTOMER_STAGING, "profile-hash",
+                "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)),
+            new CustomerPlacementEvidenceEntity("evidence", profile.getId(), TargetIntent.CUSTOMER_PRODUCTION, "profile-hash",
+                "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)))) {
+            when(evidenceRepository.findById("evidence")).thenReturn(Optional.of(old));
+            assertIdentityCode(PLACEMENT_DENIED);
+        }
+        verifyNoInteractions(resolver, client);
+    }
+
+    private void assertIdentityCode(CustomerSelfServiceException.Code code) {
+        assertThatThrownBy(() -> service.requireEvidenceIdentity(profile, TargetIntent.CUSTOMER_STAGING, "evidence", "fresh"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class, ex -> assertThat(ex.code()).isEqualTo(code));
+    }
+
     private void preflight(String status, Instant checkedAt) {
         when(resolver.preflight(profile)).thenReturn(new DeploymentProviderPreflightSummary(profile.getId(), DeploymentProviderType.COOLIFY,
             status, "not exposed", "https://provider.test", "4", List.of("destination_server_matches"), details, checkedAt));

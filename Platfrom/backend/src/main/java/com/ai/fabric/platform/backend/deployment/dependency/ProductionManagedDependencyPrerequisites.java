@@ -77,6 +77,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     }
 
     @Override
+    @Transactional(propagation = Propagation.NEVER)
     public Admission reserve(Scope scope, ManagedDependencySpec spec, ProvisioningPhase phase) {
         requireScope(scope);
         if (phase == null) fail("DEPENDENCY_PROVISIONING_PHASE_REQUIRED");
@@ -85,7 +86,7 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         validator.validate(spec);
         if (!scope.specFingerprint().equals(validator.fingerprint(spec))) fail("DEPENDENCY_SPEC_DRIFT");
         ownership.requireAllowed(spec);
-        var evidence = admission.require(requirement(scope, spec), null);
+        var evidence = admission.requireForExecution(requirement(scope, spec), null);
         if (evidence.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION) {
             validator.requireProductionInboxPersistence(spec);
         }
@@ -107,6 +108,16 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
         ManagedDependencySpec spec = graphs.spec(graph);
         ownership.requireAllowed(spec);
         admission.require(requirement(scope, spec), required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
+        authority(scope);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.NEVER)
+    public void validateExecutionReservation(Scope scope, String reservationRef) {
+        requireScope(scope);
+        var graph = graph(scope); var spec = graphs.spec(graph);
+        ownership.requireAllowed(spec);
+        admission.requireForExecution(requirement(scope, spec), required(reservationRef, "DEPENDENCY_RESERVATION_REQUIRED"));
         authority(scope);
     }
 

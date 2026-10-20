@@ -90,7 +90,30 @@ public class CustomerTargetPlacementService {
         return validateEvidence(profile, intent, composition.profileFingerprint(profile), evidence);
     }
 
+    /** Historical provenance is usable only alongside fresh evidence for the identical trusted placement. */
+    public CustomerPlacementEvidenceEntity requireEvidenceIdentity(DeploymentTargetProfileEntity profile, TargetIntent intent,
+        String id, String freshEvidenceId) {
+        var fresh = requireEvidenceById(profile, intent, freshEvidenceId);
+        if (blank(id)) throw conflict(PLACEMENT_EVIDENCE_REQUIRED);
+        var original = evidenceRepository.findById(id).orElseThrow(() -> conflict(PLACEMENT_EVIDENCE_REQUIRED));
+        validateIdentity(profile, intent, fresh.getProfileFingerprint(), original);
+        if (original.getCheckedAt() == null || original.getExpiresAt() == null
+            || original.getCheckedAt().isAfter(Instant.now()) || !original.getExpiresAt().isAfter(original.getCheckedAt()))
+            throw conflict(PLACEMENT_DENIED);
+        return original;
+    }
+
     private CustomerPlacementEvidenceEntity validateEvidence(DeploymentTargetProfileEntity profile, TargetIntent intent,
+        String fingerprint, CustomerPlacementEvidenceEntity evidence) {
+        validateIdentity(profile, intent, fingerprint, evidence);
+        Instant now = Instant.now();
+        if (evidence.getCheckedAt() == null || evidence.getExpiresAt() == null || evidence.getCheckedAt().isAfter(now)
+            || evidence.getCheckedAt().isBefore(now.minusSeconds(properties.evidenceMaxAgeSeconds()))
+            || !evidence.getExpiresAt().isAfter(now)) throw conflict(PLACEMENT_EVIDENCE_STALE);
+        return evidence;
+    }
+
+    private void validateIdentity(DeploymentTargetProfileEntity profile, TargetIntent intent,
         String fingerprint, CustomerPlacementEvidenceEntity evidence) {
         var trusted = trusted(intent);
         var config = codec.tree(profile.getProviderConfigJson());
@@ -101,11 +124,6 @@ public class CustomerTargetPlacementService {
             || blank(evidence.getDestinationUuid()) || !evidence.getDestinationUuid().equals(config.path("destinationUuid").asText())) {
             throw conflict(PLACEMENT_DENIED);
         }
-        Instant now = Instant.now();
-        if (evidence.getCheckedAt() == null || evidence.getExpiresAt() == null || evidence.getCheckedAt().isAfter(now)
-            || evidence.getCheckedAt().isBefore(now.minusSeconds(properties.evidenceMaxAgeSeconds()))
-            || !evidence.getExpiresAt().isAfter(now)) throw conflict(PLACEMENT_EVIDENCE_STALE);
-        return evidence;
     }
 
     private CustomerSelfServiceProperties.TrustedServer trusted(TargetIntent intent) {

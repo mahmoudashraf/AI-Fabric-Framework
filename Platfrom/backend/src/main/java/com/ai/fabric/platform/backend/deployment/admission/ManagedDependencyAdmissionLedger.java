@@ -8,8 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionRules.*;
@@ -21,7 +19,6 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
  * envelope and an exact dependency-spec evidence reference.
  */
 @Service
-@Transactional(propagation = Propagation.NOT_SUPPORTED)
 public class ManagedDependencyAdmissionLedger {
     public record Requirement(String customerId, String tenantId, String deploymentId,
                               String targetProfileId, String versionId, String bindingFingerprint,
@@ -34,21 +31,56 @@ public class ManagedDependencyAdmissionLedger {
 
     private final AdmissionStore store;
     private final AdmissionJson json;
+    private final AdmissionEvidenceSource prerequisites;
     private final Clock clock;
 
     @Autowired
-    public ManagedDependencyAdmissionLedger(AdmissionStore store, AdmissionJson json) {
-        this(store, json, Clock.systemUTC());
+    public ManagedDependencyAdmissionLedger(AdmissionStore store, AdmissionJson json, AdmissionEvidenceSource prerequisites) {
+        this(store, json, prerequisites, Clock.systemUTC());
     }
 
-    ManagedDependencyAdmissionLedger(AdmissionStore store, AdmissionJson json, Clock clock) {
+    ManagedDependencyAdmissionLedger(AdmissionStore store, AdmissionJson json, AdmissionEvidenceSource prerequisites, Clock clock) {
         this.store = store;
         this.json = json;
+        this.prerequisites = prerequisites;
         this.clock = clock;
     }
 
     public Evidence require(Requirement requirement, String expectedReservationId) {
+        return require(requirement, expectedReservationId, false);
+    }
+
+    /** Only an explicit worker boundary may obtain provider evidence; never suspend a caller's locks. */
+    @Transactional(propagation = Propagation.NEVER)
+    public Evidence requireForExecution(Requirement requirement, String expectedReservationId) {
+        return require(requirement, expectedReservationId, true);
+    }
+
+    private Evidence require(Requirement requirement, String expectedReservationId, boolean execution) {
         requireInput(requirement);
+        Reservation reservation = reservation(requirement, expectedReservationId);
+        AdmissionContext inspected = validate(requirement, reservation, clock.instant());
+        PrerequisiteReadback readback = execution ? prerequisites.readForExecution(inspected) : prerequisites.read(inspected);
+        Reservation current = reservation(requirement, expectedReservationId);
+        AdmissionContext context = validate(requirement, current, clock.instant());
+        if (!reservation.equals(current) || !inspected.equals(context))
+            throw unavailable("DEPENDENCY_ADMISSION_CHANGED_DURING_READBACK");
+        Instant now = clock.instant();
+        prerequisites(context, readback, now);
+        if (!context.manifest().prerequisiteReferences().equals(readback.verifiedPrerequisiteReferences()))
+            throw unavailable("DEPENDENCY_ADMISSION_FINGERPRINT_CHANGED");
+
+        Instant validUntil = minimum(current.expiresAt(), readback.validUntil(),
+            readback.observedAt().plusSeconds(context.policy().lifecycle().readbackMaxAgeSeconds()), context.grant().validUntil(),
+            context.policy().fleet().validUntil(), context.target().budget().validUntil());
+        if (!validUntil.isAfter(now)) throw unavailable("DEPENDENCY_ADMISSION_EXPIRED");
+        return new Evidence(current.id(), current.generation(), current.revision(),
+            current.intent(), current.manifestId(), current.manifestFingerprint(),
+            current.bindingFingerprint(), context.target().placement(),
+            "admission:" + current.id() + ":" + current.generation() + ":" + current.revision(), validUntil);
+    }
+
+    private Reservation reservation(Requirement requirement, String expectedReservationId) {
         var matches = store.held().stream()
             .filter(Reservation::occupiesActiveSlot)
             .filter(value -> requirement.customerId().equals(value.customerId()))
@@ -58,9 +90,10 @@ public class ManagedDependencyAdmissionLedger {
             .filter(value -> expectedReservationId == null || expectedReservationId.equals(value.id()))
             .toList();
         if (matches.size() != 1) throw unavailable("DEPENDENCY_ADMISSION_AMBIGUOUS_OR_MISSING");
+        return matches.getFirst();
+    }
 
-        Reservation reservation = matches.getFirst();
-        Instant now = clock.instant();
+    private AdmissionContext validate(Requirement requirement, Reservation reservation, Instant now) {
         if ((reservation.state() != State.RESERVED && reservation.state() != State.PROVISIONING
                 && reservation.state() != State.ACTIVE)
             || !reservation.consumesCapacity() || reservation.expiresAt() == null
@@ -73,7 +106,6 @@ public class ManagedDependencyAdmissionLedger {
         policy(current.policy(), now);
         grant(current.grant(), now);
         manifest(current.manifest());
-        prerequisites(current, reservation.prerequisiteReadback(), now);
 
         String specReference = "managed-dependency-spec:" + requirement.specFingerprint();
         if (!reservation.customerId().equals(current.customerId())
@@ -88,20 +120,16 @@ public class ManagedDependencyAdmissionLedger {
             || !current.manifest().versionId().equals(requirement.versionId())
             || !current.manifest().prerequisiteReferences().contains(specReference)
             || reservation.prerequisiteReadback() == null
-            || !reservation.prerequisiteReadback().verifiedPrerequisiteReferences().equals(
-                current.manifest().prerequisiteReferences())) {
+            || !current.target().placement().equals(reservation.prerequisiteReadback().placement())
+            || !current.target().profileFingerprint().equals(reservation.prerequisiteReadback().profileFingerprint())
+            || !current.manifestFingerprint().equals(reservation.prerequisiteReadback().manifestFingerprint())
+            || !current.manifest().bindingFingerprint().equals(reservation.prerequisiteReadback().bindingFingerprint())
+            || !current.manifest().prerequisiteReferences().equals(
+                reservation.prerequisiteReadback().verifiedPrerequisiteReferences())) {
             throw unavailable("DEPENDENCY_ADMISSION_FINGERPRINT_CHANGED");
         }
         requireEnvelope(current.manifest().demand(), requirement);
-
-        Instant validUntil = minimum(reservation.expiresAt(), reservation.prerequisiteReadback().validUntil(),
-            current.grant().validUntil(), current.policy().fleet().validUntil(), current.target().budget().validUntil());
-        if (!validUntil.isAfter(now)) throw unavailable("DEPENDENCY_ADMISSION_EXPIRED");
-        return new Evidence(reservation.id(), reservation.generation(), reservation.revision(),
-            reservation.intent(), reservation.manifestId(), reservation.manifestFingerprint(),
-            reservation.bindingFingerprint(), current.target().placement(),
-            "admission:" + reservation.id() + ":" + reservation.generation() + ":" + reservation.revision(),
-            validUntil);
+        return current;
     }
 
     private void requireEnvelope(Vector demand, Requirement requirement) {

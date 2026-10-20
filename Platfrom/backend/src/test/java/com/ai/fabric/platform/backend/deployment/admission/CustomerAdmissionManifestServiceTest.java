@@ -175,7 +175,7 @@ class CustomerAdmissionManifestServiceTest extends AdmissionFixture {
         var context = store.context("customer", "tenant", deployment.getId(), manifest.id());
         var reservation = store.reserve(context, new Reserve("apply", manifest.id()),
             evidence(context, NOW), "owner", NOW);
-        var ledger = new ManagedDependencyAdmissionLedger(store, json,
+        var ledger = new ManagedDependencyAdmissionLedger(store, json, current -> evidence(current, NOW),
             java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
 
         var result = ledger.require(new ManagedDependencyAdmissionLedger.Requirement(

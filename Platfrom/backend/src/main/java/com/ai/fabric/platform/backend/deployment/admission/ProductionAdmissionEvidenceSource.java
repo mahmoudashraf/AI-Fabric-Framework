@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -23,7 +25,7 @@ import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 
 /** Production evidence is derived from reviewed records plus fresh provider placement, never request flags. */
 @Component
-final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource {
+class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource {
     private final DeploymentTargetProfileRepository targets;
     private final DeploymentRepository deployments;
     private final DeploymentVersionRepository versions;
@@ -82,6 +84,16 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
 
     @Override
     public PrerequisiteReadback read(AdmissionContext context) {
+        return read(context, false);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.NEVER)
+    public PrerequisiteReadback readForExecution(AdmissionContext context) {
+        return read(context, true);
+    }
+
+    private PrerequisiteReadback read(AdmissionContext context, boolean execution) {
         if (context == null || context.manifest() == null || context.policy() == null || context.grant() == null
             || context.target() == null) throw unavailable("ADMISSION_CONTEXT_REQUIRED");
         requireNoticeTransport(context);
@@ -89,7 +101,14 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
 
         var profile = targets.findById(context.target().targetProfileId())
             .orElseThrow(() -> unavailable("TARGET_PLACEMENT_EVIDENCE_REQUIRED"));
-        var placementEvidence = placement.requireFreshEvidence(profile, intent(context.target().intent()));
+        var placementEvidence = execution
+            ? placement.probeAndRecord(profile, intent(context.target().intent()))
+            : placement.requireFreshEvidence(profile, intent(context.target().intent()));
+        if (execution) {
+            profile = targets.findById(context.target().targetProfileId())
+                .orElseThrow(() -> unavailable("TARGET_PLACEMENT_EVIDENCE_REQUIRED"));
+            placementEvidence = placement.requireEvidenceById(profile, intent(context.target().intent()), placementEvidence.getId());
+        }
         Placement observedPlacement = new Placement(placementEvidence.getServerUuid(), placementEvidence.getDestinationUuid(),
             placementEvidence.getServerAddress());
         if (!context.target().placement().equals(observedPlacement)
@@ -104,7 +123,13 @@ final class ProductionAdmissionEvidenceSource implements AdmissionEvidenceSource
             throw unavailable("IMMUTABLE_VERSION_EVIDENCE_CHANGED");
         }
 
-        Set<String> supported = supportedReferences(context, version, placementEvidence.getId());
+        Set<String> supported = new LinkedHashSet<>(supportedReferences(context, version, placementEvidence.getId()));
+        for (String reference : context.manifest().prerequisiteReferences()) {
+            if (!reference.startsWith("placement:") || supported.contains(reference)) continue;
+            placement.requireEvidenceIdentity(profile, intent(context.target().intent()),
+                reference.substring("placement:".length()), placementEvidence.getId());
+            supported.add(reference);
+        }
         if (!supported.containsAll(context.manifest().prerequisiteReferences())) {
             throw unavailable("TYPED_PREREQUISITE_EVIDENCE_REQUIRED");
         }

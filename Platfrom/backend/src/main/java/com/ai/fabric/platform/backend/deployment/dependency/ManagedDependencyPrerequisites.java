@@ -28,6 +28,8 @@ public interface ManagedDependencyPrerequisites {
     // Repeated graphId + fingerprint returns the same durable reservation; never manufacture capacity.
     Admission reserve(Scope scope, ManagedDependencySpec spec, ProvisioningPhase phase);
     void validateReservation(Scope scope, String reservationRef);
+    // Provider-effect checkpoints refresh real placement outside transactions; metadata projection stays read-only.
+    default void validateExecutionReservation(Scope scope, String reservationRef) { validateReservation(scope, reservationRef); }
     // Must verify reviewed artifact provenance, availability and exact digest, not only syntax.
     void validateArtifact(Scope scope, ManagedDependencySpec.Service service);
     // Idempotent, account/target-scoped seed (never fixture-wide reset), sync and canary readback.

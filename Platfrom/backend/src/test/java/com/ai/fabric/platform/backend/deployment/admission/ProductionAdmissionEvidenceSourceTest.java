@@ -219,6 +219,91 @@ class ProductionAdmissionEvidenceSourceTest extends AdmissionFixture {
             .hasMessageContaining("EXTERNAL_INTEGRATION_PREREQUISITE_CHANGED");
     }
 
+    @Test void executionProbesNewPlacementButRetainsTheReviewedPlacementIdentityReference() {
+        var fresh = executionPlacement();
+        var evidence = source(properties(true, true)).readForExecution(context);
+
+        assertThat(evidence.observedAt()).isEqualTo(fresh.getCheckedAt());
+        assertThat(evidence.validUntil()).isEqualTo(fresh.getExpiresAt());
+        assertThat(evidence.verifiedPrerequisiteReferences()).isEqualTo(context.manifest().prerequisiteReferences())
+            .contains("placement:placement-evidence").doesNotContain("placement:fresh-placement");
+        verify(placement).probeAndRecord(any(), eq(TargetIntent.CUSTOMER_STAGING));
+        verify(placement).requireEvidenceById(any(), eq(TargetIntent.CUSTOMER_STAGING), eq("fresh-placement"));
+        verify(placement).requireEvidenceIdentity(any(), eq(TargetIntent.CUSTOMER_STAGING), eq("placement-evidence"), eq("fresh-placement"));
+        verify(placement, never()).requireFreshEvidence(any(), any());
+    }
+
+    @Test void executionCannotFallBackToCachedEvidenceWhenProbeOrHistoricalIdentityFails() {
+        executionPlacement();
+        when(placement.probeAndRecord(any(), any())).thenThrow(new IllegalStateException("probe-unavailable"));
+        assertThatThrownBy(() -> source(properties(true, true)).readForExecution(context)).hasMessageContaining("probe-unavailable");
+        verify(placement, never()).requireFreshEvidence(any(), any());
+
+        executionPlacementAfterFailure();
+        when(placement.requireEvidenceIdentity(any(), any(), eq("placement-evidence"), eq("fresh-placement")))
+            .thenThrow(new IllegalStateException("historical-placement-mismatch"));
+        assertThatThrownBy(() -> source(properties(true, true)).readForExecution(context))
+            .hasMessageContaining("historical-placement-mismatch");
+    }
+
+    @Test void cachedNewEvidenceSupportsHistoricalPlacementIdentityWithoutProbing() {
+        var fresh = executionPlacement();
+        when(placement.requireFreshEvidence(any(), any())).thenReturn(fresh);
+        var result = source(properties(true, true)).read(context);
+        assertThat(result.observedAt()).isEqualTo(fresh.getCheckedAt());
+        assertThat(result.verifiedPrerequisiteReferences()).contains("placement:placement-evidence");
+        verify(placement).requireEvidenceIdentity(any(), eq(TargetIntent.CUSTOMER_STAGING), eq("placement-evidence"), eq("fresh-placement"));
+        verify(placement, never()).probeAndRecord(any(), any());
+    }
+
+    @Test void executionRejectsFreshForeignPlacementAndStillRequiresImmutableVersionAndDependencies() {
+        executionPlacement();
+        var foreign = new CustomerPlacementEvidenceEntity("fresh-placement", TARGET, TargetIntent.CUSTOMER_STAGING,
+            "profile-fingerprint", "foreign-server", STAGING.ip(), STAGING.destinationUuid(), NOW, NOW.plusSeconds(300));
+        when(placement.requireEvidenceById(any(), any(), eq("fresh-placement"))).thenReturn(foreign);
+        assertThatThrownBy(() -> source(properties(true, true)).readForExecution(context))
+            .hasMessageContaining("TARGET_PLACEMENT_EVIDENCE_CHANGED");
+
+        executionPlacement();
+        version.setConfigHash("changed-version");
+        assertThatThrownBy(() -> source(properties(true, true)).readForExecution(context))
+            .hasMessageContaining("IMMUTABLE_VERSION_EVIDENCE_CHANGED");
+        version.setConfigHash("config-hash");
+        when(dependencyEvidence.resolveForDeployment(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> source(properties(true, true)).readForExecution(context))
+            .hasMessageContaining("UNEXPECTED_REVIEWED_DEPENDENCY_PREREQUISITE");
+    }
+
+    @Test void executionProbeRejectsAmbientTransactionWhileCachedReadRemainsLocal() {
+        var factory = new org.springframework.aop.framework.ProxyFactory(source(properties(true, true)));
+        factory.setProxyTargetClass(true);
+        var manager = new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource);
+        factory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager,
+            new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+        var adapter = (AdmissionEvidenceSource) factory.getProxy();
+        new org.springframework.transaction.support.TransactionTemplate(manager).executeWithoutResult(status -> {
+            assertThat(adapter.read(context).placement()).isEqualTo(STAGING);
+            assertThatThrownBy(() -> adapter.readForExecution(context))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+        });
+        verify(placement, never()).probeAndRecord(any(), any());
+    }
+
+    private CustomerPlacementEvidenceEntity executionPlacement() {
+        var fresh = new CustomerPlacementEvidenceEntity("fresh-placement", TARGET, TargetIntent.CUSTOMER_STAGING,
+            "profile-fingerprint", STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(), NOW, NOW.plusSeconds(300));
+        when(placement.probeAndRecord(any(), any())).thenReturn(fresh);
+        when(placement.requireEvidenceById(any(), any(), eq("fresh-placement"))).thenReturn(fresh);
+        when(placement.requireEvidenceIdentity(any(), any(), eq("placement-evidence"), eq("fresh-placement"))).thenReturn(placementEvidence);
+        return fresh;
+    }
+
+    private void executionPlacementAfterFailure() {
+        doReturn(new CustomerPlacementEvidenceEntity("fresh-placement", TARGET, TargetIntent.CUSTOMER_STAGING,
+            "profile-fingerprint", STAGING.serverUuid(), STAGING.ip(), STAGING.destinationUuid(), NOW, NOW.plusSeconds(300)))
+            .when(placement).probeAndRecord(any(), any());
+    }
+
     private ProductionAdmissionEvidenceSource source(AdmissionLifecycleProperties properties) {
         var source = new ProductionAdmissionEvidenceSource(targets, deployments, versions, documentBindings,
             dependencyEvidence, placement, new AdmissionOwnerContactResolver(users), properties, mail, json,

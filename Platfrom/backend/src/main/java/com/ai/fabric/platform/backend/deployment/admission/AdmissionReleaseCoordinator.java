@@ -62,7 +62,7 @@ public class AdmissionReleaseCoordinator {
         Reservation reservation = store.require(binding.reservationId());
         requireGeneration(binding, reservation);
         AdmissionContext context = store.context(reservation);
-        PrerequisiteReadback readback = prerequisites.read(context);
+        PrerequisiteReadback readback = prerequisites.readForExecution(context);
         store.beginReleaseProvisioning(binding, context, readback, ACTOR, clock.instant());
     }
 

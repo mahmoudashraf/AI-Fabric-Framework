@@ -83,6 +83,27 @@ class AdmissionReleaseCoordinatorTest extends AdmissionFixture {
         assertThat(store.held().getFirst().state()).isEqualTo(State.ACTIVE);
     }
 
+    @Test void beginProvisioningRefreshesExecutionEvidenceAfterOriginalReadbackExpires() {
+        var original = store.held().getFirst();
+        var executionTime = NOW.plusSeconds(600);
+        var prerequisites = mock(AdmissionEvidenceSource.class);
+        when(prerequisites.readForExecution(any())).thenAnswer(call -> evidence(call.getArgument(0), executionTime));
+        coordinator = new AdmissionReleaseCoordinator(store, offers, releases, versions, prerequisites, readback,
+            java.time.Clock.fixed(executionTime, java.time.ZoneOffset.UTC));
+
+        coordinator.beginProvisioning("release");
+
+        var provisioning = store.require(original.id());
+        assertThat(provisioning.state()).isEqualTo(State.PROVISIONING);
+        assertThat(provisioning.generation()).isEqualTo(original.generation());
+        assertThat(provisioning.chargedDemand()).isEqualTo(original.chargedDemand());
+        assertThat(provisioning.prerequisiteReadback().observedAt()).isEqualTo(executionTime);
+        assertThat(original.prerequisiteReadback().validUntil()).isBefore(executionTime);
+        verify(prerequisites).readForExecution(any());
+        verify(prerequisites, never()).read(any());
+        verifyNoInteractions(readback);
+    }
+
     @Test
     void reviewedVersionDriftBlocksEffectsAndTerminalReadback() {
         version.setConfigHash("changed");

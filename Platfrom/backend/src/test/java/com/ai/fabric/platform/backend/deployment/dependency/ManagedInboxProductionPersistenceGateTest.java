@@ -266,9 +266,11 @@ class ManagedInboxProductionPersistenceGateTest {
             node.slot = spec.services().getFirst().slot(); node.serviceRef = "managed-inbox"; node.accountId = "account";
             node.bindingId = "binding"; node.applicationUuid = "application"; node.baseUrl = "https://inbox.example.test";
             node.status = "READY"; state.nodes.add(node);
-            when(admission.require(any(), any())).thenReturn(new ManagedDependencyAdmissionLedger.Evidence(
+            var evidence = new ManagedDependencyAdmissionLedger.Evidence(
                 "reservation", "generation", 2, intent, "manifest", "a".repeat(64), bindingFingerprint,
-                new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence", Instant.now().plusSeconds(300)));
+                new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence", Instant.now().plusSeconds(300));
+            when(admission.require(any(), any())).thenReturn(evidence);
+            when(admission.requireForExecution(any(), any())).thenReturn(evidence);
             var snapshot = new RuntimeAuthoritySnapshotEntity(); snapshot.setReleaseId("release");
             snapshot.setFingerprint(bindingFingerprint); snapshot.setBindingJson(bindingJson);
             when(snapshots.findByReleaseId("release")).thenReturn(Optional.of(snapshot));

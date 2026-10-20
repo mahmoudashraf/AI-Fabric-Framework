@@ -126,6 +126,7 @@ class ProductionManagedDependencyPrerequisitesTest {
             new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence",
             Instant.now().plusSeconds(300));
         when(admission.require(any(), any())).thenReturn(evidence);
+        when(admission.requireForExecution(any(), any())).thenReturn(evidence);
 
         var snapshot = new RuntimeAuthoritySnapshotEntity();
         snapshot.setId("snapshot"); snapshot.setDeploymentId("deployment"); snapshot.setTargetProfileId("target");
@@ -168,7 +169,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         assertThat(first.reservationRef()).isEqualTo("reservation");
         assertThat(first.origins()).containsExactly("https://customer.example.test");
         assertThat(first.callbacks()).isEmpty();
-        verify(admission, times(2)).require(any(), isNull());
+        verify(admission, times(2)).requireForExecution(any(), isNull());
     }
 
     @Test
@@ -259,6 +260,7 @@ class ProductionManagedDependencyPrerequisitesTest {
             new AdmissionContracts.Placement("server", "destination", "127.0.0.1"), "evidence",
             Instant.now().plusSeconds(300));
         when(admission.require(any(), any())).thenReturn(productionEvidence);
+        when(admission.requireForExecution(any(), any())).thenReturn(productionEvidence);
         assertThatThrownBy(() -> prerequisites.validateArtifact(scope, spec.services().getFirst()))
             .hasMessageContaining("DEPENDENCY_ARTIFACT_PROVENANCE_INVALID");
         artifact.setPromotionChannel("production");
@@ -329,6 +331,7 @@ class ProductionManagedDependencyPrerequisitesTest {
         when(verifiers.orderedStream()).thenReturn(Stream.of(verifier));
         clearInvocations(admission);
         when(admission.require(any(), any())).thenThrow(new IllegalStateException("expired admission"));
+        when(admission.requireForExecution(any(), any())).thenThrow(new IllegalStateException("expired admission"));
 
         prerequisites.verifyOperatorRevocation(scope, binding, List.of("RETIRED_KEY"), "revoke", false);
 
@@ -412,10 +415,12 @@ class ProductionManagedDependencyPrerequisitesTest {
         var snapshot = snapshots.findByReleaseId("release").orElseThrow();
         snapshot.setFingerprint(bindingFingerprint); snapshot.setBindingJson(bindingJson);
         releases.findById("release").orElseThrow().setRuntimeAuthorityFingerprint(bindingFingerprint);
-        when(admission.require(any(), any())).thenReturn(new ManagedDependencyAdmissionLedger.Evidence(
+        var evidence = new ManagedDependencyAdmissionLedger.Evidence(
             "reservation", "generation", 2, AdmissionContracts.Intent.CUSTOMER_STAGING, "manifest", "a".repeat(64),
             bindingFingerprint, new AdmissionContracts.Placement("server", "destination", "127.0.0.1"),
-            "evidence", Instant.now().plusSeconds(300)));
+            "evidence", Instant.now().plusSeconds(300));
+        when(admission.require(any(), any())).thenReturn(evidence);
+        when(admission.requireForExecution(any(), any())).thenReturn(evidence);
     }
 
     private void configureRetirement(String operationKey) {

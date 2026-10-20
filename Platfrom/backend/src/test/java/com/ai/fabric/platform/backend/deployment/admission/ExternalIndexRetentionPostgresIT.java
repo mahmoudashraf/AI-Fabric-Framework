@@ -433,7 +433,7 @@ class ExternalIndexRetentionPostgresIT {
         Reservation active = store.reserve(context, new Reserve("synthetic-next-apply", next.id()), prerequisite(context), "synthetic-owner", clock.instant());
         var requirement = new ManagedDependencyAdmissionLedger.Requirement(customer, tenant, deploymentId, targetId, version.getId(),
             manifest.bindingFingerprint(), spec, 1, 1, 1, 1, 1);
-        var ledger = new ManagedDependencyAdmissionLedger(store, json, clock);
+        var ledger = new ManagedDependencyAdmissionLedger(store, json, this::prerequisite, clock);
         assertThat(ledger.require(requirement, null).reservationId()).isEqualTo(active.id());
         assertThat(ledger.require(requirement, active.id()).reservationId()).isEqualTo(active.id());
         assertThatThrownBy(() -> ledger.require(requirement, retained.id())).hasMessageContaining("DEPENDENCY_ADMISSION_AMBIGUOUS_OR_MISSING");

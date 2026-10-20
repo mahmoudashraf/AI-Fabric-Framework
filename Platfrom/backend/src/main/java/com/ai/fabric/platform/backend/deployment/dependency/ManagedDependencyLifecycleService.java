@@ -634,7 +634,7 @@ public class ManagedDependencyLifecycleService {
             || deployment.getArchivedAt() != null) fail("DEPENDENCY_OWNER_DRIFT");
         var reviewed = specs.findById(graph.getSpecRef()).orElseThrow(() -> conflict("REVIEWED_DEPENDENCY_SPEC_MISSING"));
         if (!reviewed.isActive() || !graph.getSpecFingerprint().equals(reviewed.getFingerprint())) fail("DEPENDENCY_SPEC_REVIEW_REVOKED");
-        gate().validateReservation(scope(graph), graph.getReservationRef());
+        gate().validateExecutionReservation(scope(graph), graph.getReservationRef());
     }
     PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint checkpoint(String graphId, String token, String slot) {
         return new PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint() {
