@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.dependency;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts;
 import com.ai.fabric.platform.backend.deployment.admission.ManagedDependencyAdmissionLedger;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthoritySnapshotEntity;
 import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthoritySnapshotRepository;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
@@ -171,6 +172,69 @@ class ProductionManagedDependencyPrerequisitesTest {
     }
 
     @Test
+    void runtimeOnlyTargetSecretIsAvailableBeforeRuntimePlanningInBothPhases() throws Exception {
+        var reference = "conversation-handover-callback-signing";
+        var value = new ManagedDependencySpec.Value(ManagedDependencySpec.ValueKind.TARGET_SECRET, reference);
+        var bindings = List.of(
+            new ManagedDependencySpec.RuntimeEnvironmentBinding(ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", value),
+            new ManagedDependencySpec.RuntimeEnvironmentBinding(ManagedDependencySpec.RuntimeTarget.RUNTIME,
+                "CALLBACK_SIGNING_SECRET", value));
+        configureSpecAndSecrets(new ManagedDependencySpec(spec.schemaVersion(), spec.services(), bindings), Map.of(
+            RuntimeAuthorityPurpose.CONVERSATION_HANDOVER_CALLBACK_SIGNING,
+            new RuntimeAuthorityBinding.SecretRevision("FROZEN_TARGET_CALLBACK", "revision-1"),
+            RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY,
+            new RuntimeAuthorityBinding.SecretRevision("UNREQUESTED_TARGET_KEY", "revision-2")));
+
+        for (var phase : ManagedDependencyPrerequisites.ProvisioningPhase.values()) {
+            var result = prerequisites.reserve(scope, spec, phase);
+            assertThat(result.targetSecretReferences()).containsExactlyEntriesOf(
+                Map.of(reference, "FROZEN_TARGET_CALLBACK"));
+        }
+        verifyNoInteractions(provisioning);
+    }
+
+    @Test
+    void missingRuntimeOnlyTargetSecretFailsBeforeProviderEffects() throws Exception {
+        configureSpecAndSecrets(new ManagedDependencySpec(spec.schemaVersion(), spec.services(), List.of(
+            new ManagedDependencySpec.RuntimeEnvironmentBinding(ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", new ManagedDependencySpec.Value(
+                    ManagedDependencySpec.ValueKind.TARGET_SECRET, "conversation-handover-callback-signing")))), Map.of());
+
+        assertThatThrownBy(() -> prerequisites.reserve(scope, spec,
+            ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION))
+            .hasMessageContaining("DEPENDENCY_TARGET_SECRET_UNAVAILABLE");
+        verifyNoInteractions(provisioning);
+    }
+
+    @Test
+    void serviceAndRuntimeTargetSecretRequirementsAreBothPreserved() throws Exception {
+        var original = spec.services().getFirst();
+        var environment = new java.util.TreeMap<>(original.environment());
+        environment.put("TRUSTED_TARGET_KEY", new ManagedDependencySpec.Value(
+            ManagedDependencySpec.ValueKind.TARGET_SECRET, "trusted-backend-api-key"));
+        var service = new ManagedDependencySpec.Service(original.slot(), original.contract(), original.image(),
+            original.sourceArtifactId(), original.sourceCommit(), original.port(), original.healthPath(), original.capacity(),
+            original.secretPurposes(), environment, original.database(), original.volumes(), original.dependsOn(),
+            original.initializationContract());
+        configureSpecAndSecrets(new ManagedDependencySpec(spec.schemaVersion(), List.of(service), List.of(
+            new ManagedDependencySpec.RuntimeEnvironmentBinding(ManagedDependencySpec.RuntimeTarget.CONNECTOR,
+                "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", new ManagedDependencySpec.Value(
+                    ManagedDependencySpec.ValueKind.TARGET_SECRET, "conversation-handover-callback-signing")))), Map.of(
+            RuntimeAuthorityPurpose.CONVERSATION_HANDOVER_CALLBACK_SIGNING,
+            new RuntimeAuthorityBinding.SecretRevision("FROZEN_TARGET_CALLBACK", "revision-1"),
+            RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY,
+            new RuntimeAuthorityBinding.SecretRevision("FROZEN_TRUSTED_KEY", "revision-2")));
+
+        var result = prerequisites.reserve(scope, spec, ManagedDependencyPrerequisites.ProvisioningPhase.FOUNDATION);
+
+        assertThat(result.targetSecretReferences()).containsExactlyInAnyOrderEntriesOf(Map.of(
+            "conversation-handover-callback-signing", "FROZEN_TARGET_CALLBACK",
+            "trusted-backend-api-key", "FROZEN_TRUSTED_KEY"));
+        verifyNoInteractions(provisioning);
+    }
+
+    @Test
     void artifactMustMatchPromotedDigestCommitChannelAndManifestHash() throws Exception {
         DeploymentSourceArtifactEntity artifact = new DeploymentSourceArtifactEntity();
         artifact.setId("artifact-service"); artifact.setArtifactType("DOCKER_IMAGE");
@@ -328,6 +392,30 @@ class ProductionManagedDependencyPrerequisitesTest {
         prerequisites.requireUnused(scope, graph.getRevision(), "retire-1");
 
         verifyNoInteractions(verifier);
+    }
+
+    private void configureSpecAndSecrets(ManagedDependencySpec replacement,
+                                        Map<RuntimeAuthorityPurpose, RuntimeAuthorityBinding.SecretRevision> secrets) throws Exception {
+        spec = replacement;
+        authority = new RuntimeAuthorityBinding(authority.customerId(), authority.tenantId(), authority.deploymentId(),
+            authority.targetProfileId(), authority.versionId(), authority.versionConfigHash(), authority.generation(),
+            authority.privateIssuer(), authority.privateAudience(), authority.publicIssuer(), authority.publicAudience(),
+            authority.anonymousBootstrapEnabled(), authority.allowAnonymousSessions(), authority.allowedOrigins(), secrets);
+        String bindingJson = mapper.writeValueAsString(authority);
+        String bindingFingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            .digest(bindingJson.getBytes(StandardCharsets.UTF_8)));
+        String specFingerprint = validator.fingerprint(spec);
+        scope = new ManagedDependencyPrerequisites.Scope("graph", "customer", "tenant", "deployment", "target",
+            "version", "release", specFingerprint, bindingFingerprint);
+        graph.setSpecFingerprint(specFingerprint); graph.setBindingFingerprint(bindingFingerprint);
+        when(graphs.spec(graph)).thenReturn(spec);
+        var snapshot = snapshots.findByReleaseId("release").orElseThrow();
+        snapshot.setFingerprint(bindingFingerprint); snapshot.setBindingJson(bindingJson);
+        releases.findById("release").orElseThrow().setRuntimeAuthorityFingerprint(bindingFingerprint);
+        when(admission.require(any(), any())).thenReturn(new ManagedDependencyAdmissionLedger.Evidence(
+            "reservation", "generation", 2, AdmissionContracts.Intent.CUSTOMER_STAGING, "manifest", "a".repeat(64),
+            bindingFingerprint, new AdmissionContracts.Placement("server", "destination", "127.0.0.1"),
+            "evidence", Instant.now().plusSeconds(300)));
     }
 
     private void configureRetirement(String operationKey) {

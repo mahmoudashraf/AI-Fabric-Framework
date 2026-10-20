@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.ValueKind.*;
 import static com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator.fail;
@@ -352,7 +353,9 @@ public class ProductionManagedDependencyPrerequisites implements ManagedDependen
     }
 
     private Map<String, String> targetSecrets(ManagedDependencySpec spec, RuntimeAuthorityBinding authority) {
-        var requested = spec.services().stream().flatMap(value -> value.environment().values().stream())
+        var requested = Stream.concat(
+                spec.services().stream().flatMap(value -> value.environment().values().stream()),
+                spec.runtimeEnvironment().stream().map(ManagedDependencySpec.RuntimeEnvironmentBinding::value))
             .filter(value -> value.kind() == TARGET_SECRET).map(ManagedDependencySpec.Value::reference)
             .distinct().toList();
         if (requested.isEmpty()) return Map.of();
