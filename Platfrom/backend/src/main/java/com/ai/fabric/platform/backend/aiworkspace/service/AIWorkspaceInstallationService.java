@@ -349,6 +349,45 @@ public class AIWorkspaceInstallationService {
     }
 
     private void authorizeConfiguration(PlatformConsumerEntity consumer, ValidatedInput input, String operationKey) {
+        authorizeConfiguration(input, (operation, settings) ->
+            offerBoundary.requireConsumer(consumer, operation, operationKey, settings));
+    }
+
+    /** Read-only authorization of a locked, unbound draft before its destination assignment is committed. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void authorizeDraftConfigurationForDestination(AIWorkspaceInstallationEntity entity,
+            PlatformConsumerEntity consumer,
+            com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity destination,
+            String offerId, String targetProfileId, String operationKey) {
+        if (entity == null || consumer == null || destination == null
+            || !entity.getConsumerEntityId().equals(consumer.getId())
+            || !entity.getCustomerId().equals(consumer.getCustomerId())
+            || !entity.getCustomerId().equals(destination.getCustomerId())
+            || entity.getStatus() != AIWorkspaceInstallationStatus.DRAFT || entity.getActivatedAt() != null
+            || entity.getDisabledAt() != null || !"ACTIVE".equals(consumer.getStatus())
+            || consumer.getBoundDeploymentId() != null || consumer.getBoundReleaseId() != null
+            || consumer.getBoundTargetProfileId() != null) {
+            throw new ResponseStatusException(CONFLICT, "Draft workspace destination requires an owned unbound consumer.");
+        }
+        requireCustomerAccess(entity.getCustomerId());
+        authorizeConfiguration(storedInput(entity), (operation, settings) -> {
+            var approved = offerBoundary.require(destination, targetProfileId, null, operation, operationKey,
+                settings, null, null, null);
+            if (approved == null || !java.util.Objects.equals(offerId, approved.context().offerId())
+                || !destination.getId().equals(approved.context().deploymentId())
+                || !destination.getCustomerId().equals(approved.context().customerId())
+                || !destination.getTenantId().equals(approved.context().tenantId())
+                || !java.util.Objects.equals(targetProfileId, approved.context().targetProfileId())) {
+                throw com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.RESOURCE_SCOPE_MISMATCH);
+            }
+            return approved;
+        });
+    }
+
+    private void authorizeConfiguration(ValidatedInput input,
+            java.util.function.BiFunction<Operation, Map<Setting, JsonNode>,
+                com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Authorization> boundary) {
         var interaction = objectMapper.createObjectNode();
         interaction.put("packCode", input.packCode()).put("packVersion", input.packVersion())
             .put("connectionMode", input.mode().name()).put("connectionProfileCode", input.profileCode())
@@ -361,16 +400,16 @@ public class AIWorkspaceInstallationService {
         settings.put(Setting.APP_TITLE, objectMapper.getNodeFactory().textNode(input.displayName()));
         settings.put(Setting.INTERACTION_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("workspace", interaction)));
         settings.put(Setting.THEME_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("theme", theme)));
-        var approved = offerBoundary.requireConsumer(consumer, Operation.APP_CONFIGURE, operationKey, settings);
+        var approved = boundary.apply(Operation.APP_CONFIGURE, settings);
         if (approved == null) return;
         var authentication = objectMapper.createObjectNode();
         authentication.put("profileCode", input.authProfileCode()).put("profileVersion", input.authProfileVersion())
             .put("interactionPolicy", input.interactionPolicy().name());
         authentication.set("configuration", input.authConfiguration());
-        offerBoundary.requireConsumer(consumer, Operation.AUTH_CONFIGURE, operationKey,
+        boundary.apply(Operation.AUTH_CONFIGURE,
             Map.of(Setting.AUTH_PROFILE_ID, objectMapper.getNodeFactory().textNode(offerBoundary.profileId("auth", authentication))));
         for (String origin : input.origins()) {
-            offerBoundary.requireConsumer(consumer, Operation.DOMAIN_CONFIGURE, operationKey,
+            boundary.apply(Operation.DOMAIN_CONFIGURE,
                 Map.of(Setting.APP_DOMAIN, objectMapper.getNodeFactory().textNode(origin)));
         }
     }
