@@ -849,14 +849,24 @@ abstract class ProviderUsageAllowanceContract {
             "fixture-measurement", NOW.minusSeconds(1), NOW.plusSeconds(7200));
         var policy = new AdmissionContracts.FleetPolicy("fixture-policy", budget,
             Map.of("target", new AdmissionContracts.TargetBudget("target", AdmissionContracts.Intent.CUSTOMER_STAGING,
-                new AdmissionContracts.Placement("fixture-server", "fixture-destination", "fixture-ip"),
+                new AdmissionContracts.Placement("zf25hgk9694bt7q0zwb98ado", "xjhfu65nacrr30xax5cp0ry7", "46.224.145.148"),
                 DeploymentTargetProfileIdentity.fingerprint(mapper, profile), budget)),
             new AdmissionContracts.LifecyclePolicy(3600, 300, 3600, 1, 86400, 86400, 30, 3600, 30, 3, 120, 3600,
                 "fixture-operating-policy", "fixture-notices"), "fixture-restore", "fixture-privacy", "fixture-support");
         var physicalGrant = new AdmissionContracts.CustomerGrant("customer", manifest.demand(), Map.of("target", manifest.demand()),
             NOW.plusSeconds(7200), "fixture-owner", "fixture-payer", "fixture-keep");
-        jdbc.update("INSERT INTO deployment_admission_reviews(kind,record_key,payload_json) VALUES ('POLICY',?,?)", policy.id(), codec.write(policy));
+        jdbc.update("INSERT INTO deployment_admission_reviews(kind,record_key,fingerprint,payload_json) VALUES ('POLICY',?,?,?)",
+            policy.id(), new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper).fingerprint(policy), codec.write(policy));
         jdbc.update("UPDATE deployment_admission_mutex SET active_policy_ref=? WHERE id=1", policy.id());
+        changeR7("deployment", "policyId", policy.id());
+        var prerequisites = new java.util.HashSet<>(manifest.prerequisiteReferences());
+        prerequisites.add("policy:" + policy.id());
+        manifest = new AdmissionContracts.Manifest(manifest.id(), manifest.deploymentId(), manifest.versionId(),
+            manifest.versionConfigHash(), manifest.targetProfileId(), manifest.bindingFingerprint(), manifest.topologyReference(),
+            manifest.demand(), prerequisites, manifest.customerPrerequisiteReferences());
+        jdbc.update("UPDATE deployment_admission_reviews SET payload_json=?,fingerprint=? WHERE kind='MANIFEST' AND record_key=?",
+            codec.write(manifest), new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper).fingerprint(manifest), manifest.id());
+        bindReviewedManifest(manifest);
         jdbc.update("INSERT INTO deployment_admission_reviews(kind,record_key,payload_json) VALUES ('GRANT','fixture-physical-grant',?)", codec.write(physicalGrant));
         jdbc.update("INSERT INTO deployment_admission_grants VALUES ('customer','fixture-physical-grant')");
         var topology = new CustomerOfferContracts.ReviewedTopology(1, 3750, 5888, 16384, 2, 2, 4, 1);
@@ -897,6 +907,7 @@ abstract class ProviderUsageAllowanceContract {
             context.getBeanFactory().registerSingleton("externalIntegrations", external);
             context.registerBean(CustomerAdmissionManifestService.class);
             context.refresh();
+            org.springframework.test.util.ReflectionTestUtils.setField(context.getBean("admissionStore"), "clock", Clock.fixed(NOW, ZoneOffset.UTC));
             produced = context.getBean(CustomerAdmissionManifestService.class).prepare(deployment, version, authorization);
         }
         assertThat(produced.demand()).isEqualTo(manifest.demand());
