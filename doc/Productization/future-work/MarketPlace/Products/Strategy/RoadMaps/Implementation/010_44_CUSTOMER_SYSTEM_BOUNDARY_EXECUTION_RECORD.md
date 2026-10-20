@@ -2,7 +2,14 @@
 
 ## Current Pre-Extraction Milestones
 
-Authoritative short checklist, updated 2026-10-20 18:26 UTC. The detailed
+Execution policy agreed 2026-10-20: main owns sequential integration, mutation and
+acceptance. Parallel work is limited to independent deliverables. Reuse valid
+qualification, measure expiring evidence just before use, and do not reopen closed
+diagnostics or expand tooling without a concrete next-operation need. Security,
+isolation, financial and duplicate-write checks remain required; UI extraction
+stays last. Progress is measured by completed customer-visible milestones.
+
+Authoritative short checklist, updated 2026-10-20 19:33 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
@@ -16,19 +23,30 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   [Owner acceptance](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/customer-profile-assignment/main-accepted.actual.json),
   [version](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/customer-version/verified.actual.json),
   [DATA binding](/private/tmp/01044-pg-customer-data-stock-binding-20261020/bind.actual.json).
-- **M3 IN PROGRESS: External receiver and ACTION binding.** Acceptance: attested
+- **M3 COMPLETE: External receiver and ACTION binding.** Acceptance: attested
   source, exact new customer/tenant/deployment authority, old-scope denial,
-  preserved external business history, normal ACTION approval/bind. Receiver
-  PATCH has a permanent unknown intent; fresh read-only reconciliation finds
-  original configuration/native and no job. Existing-app conversion is not
-  supported by installed API/UI. Its window is explicitly abandoned/closed,
-  not passed. A supported replacement external-app plan must reuse the SAME
-  business database; no retry/adoption or direct database patch is authorized.
-  [Closure and caveat](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/receiver-window.closed.actual.json).
-- **M4 PENDING: Empty Free01 binding handoff.** Acceptance: native receipt,
+  preserved external business history, normal ACTION approval/bind. Supported
+  replacement appfwz81skf769lpuxli85szmq7 verifies19:27, pinned source1735a5f9,
+  image09f834f3/jobc70zrh7pfc5kbdo9ku64d4v1, same external business database.
+  Public readiness200/UP, new scope granted, old scope denied, old key401 and
+  old-scope action403. All6 vehicles/73 leads/schema and Platform history remain
+  exact. Old app is stopped/domainless, not deleted; original unknown PATCH
+  remains locked and was never retried. Normal staff approval
+  eia-2f40f7ec-59d7-4038-912c-54e5cc961007 and customer SESSION binding
+  eib-99c1b4b9-e864-4c1c-843a-bbcfbb02d376 succeed against exact published
+  version/profile/manifest/endpoint/account scope. CONFIGURED_LOCAL_CREDENTIALS
+  is not runtime-to-receiver business execution; that remains M5.
+  [Actual receiver proof](/private/tmp/01044-main-receiver-replacement-20261020/replacement.verified.actual.json).
+- **M4 COMPLETE: Empty Free01 binding handoff.** Acceptance: native receipt,
   current full unfiltered empty inventory and exact destination/version scope;
-  no vector records copied. Local helper25 tests pass, not hosted execution.
-  [Prepared procedure](/private/tmp/01044-attended-free01-handoff-20261020/HANDOFF.md).
+  no vector records copied. One actual POST200 at18:58 yields native receipt
+  uvh-aa46649e-41ea-4e39-8a40-b677f2534297 and destination binding
+  evb-a3db15b4-03fd-4dd9-a613-2996599c589e; raw receipt/source transition,
+  fresh full default empty inventory and financial/history preservation pass.
+  Old binding becomes RETAINED_UNUSED. All route authority/effect fields remain
+  fenced; only four source-justified worker timing/lease fields normalize, with
+  full raw evidence retained. Original pre-intent failures stay preserved and
+  were never POSTed. [Actual closure](/private/tmp/01044-attended-free01-handoff-20261020/operation-route-stable-r2/closure.actual.json).
 - **M5 PENDING: Hosted staging workload.** Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
   confirmed-action receipts, identity isolation and human handover. No customer
@@ -44,17 +62,68 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   [P5 requirements](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1011-implementation-phases-and-owning-files).
 - **M8 IN PROGRESS: Functional UI baseline, before extraction.** Acceptance:
   separately committed/deployed functional/security corrections and verified
-  compatible existing UI. Projected29-file candidate passes build/TypeScript,
- 74 tests and10 loopback scenarios, not hosted acceptance. Original staff
-  capability baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-commit-projection-20261020/HANDOFF.md).
+  compatible existing UI. Three P2 fixes are complete locally; projected33-file
+  candidate passes build/TypeScript,84 unit/API cases,8 boundary checks and16
+  loopback browser scenarios. Isolated functional commitb1073117e is pushed,
+  not deployed/hosted acceptance. Original staff capability
+  baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-three-p2-projection-20261020/HANDOFF.md).
 - **M9 PENDING, LAST: UI redesign/extraction and final certification.** Start
   only after required M1-M8 acceptance. Prove STAFF-001..039 parity, shared
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** resolve the receiver's supported deployment path without replaying its
-unknown PATCH, then close M3/M4 before first apply. **Required user input: none
+**Next:** fresh measured admission policy and first customer reservation/apply.
+One independent read-only capacity collector is relevant parallel work while
+main prepares admission offline; only main may publish/reserve/apply. No shared
+mutations occur during collection. **Required user input: none
 currently.** No new spending or deployment authority is implied by this list.
+
+## 2026-10-20 19:33 UTC Customer ACTION Binding Verified
+
+- Existing committed client1ac3bc40 is reused unchanged; no new framework test,
+  release matrix, integration retry or credential generation. Normal owner
+  placement metadata refresh precedes separately reviewed APPROVE/BIND plans.
+- APPROVE digestd8833b91fe5f56fe299c8789b2a01781bd4ce2546f3beb86a47c009b7fbdd024
+  succeeds with approvaleia-2f40f7ec-59d7-4038-912c-54e5cc961007. BIND digest
+  f5f784476eb618a6e49646dab4a1a5c9f23f8cad622d76fe598455bf2b1c76e0 succeeds
+  witheib-99c1b4b9-e864-4c1c-843a-bbcfbb02d376/rev0, scoped toC9fd/T2e8/D7438/
+  Vc8cb/staging/business-actions/dealership-external-engagement-v1. Native
+  approval checkpoint and credential commitment are retained; no replay.
+  [Actual binding](/private/tmp/01044-pg-customer-action-binding-20261020/bind.actual.json).
+- All shared mutations are closed before the single bounded61x5s read-only
+  capacity collection. Main owns subsequent policy publication/admission/apply;
+  the collecting agent may not mutate or publish. Old18:36 measurements stay
+  preserved/stale and are not relabeled. Customer runtime/index/activation,
+  business-action receipt flow, promotion, hosted recovery and UI rollout remain
+  pending. No model call or new provider allowance consumed.
+
+## 2026-10-20 19:27 UTC Supported External Receiver Replacement Verified
+
+- Main owns sequential execution; all agents are parked after bounded work.
+  UI functional/security commitb1073117e is pushed separately from uncommitted
+  P6 redesign/navigation. Its exact qualified33-file patch was staged, checked
+  and committed without unrelated changes. Hosted UI/P6 acceptance stays open.
+- Seven normal supported provider commands each dispatch once: create domainless
+  stopped image app, disable auto-deploy, install env, stop old, detach old domain,
+  attach new domain, start new once. Native job finishes19:22:29 with no checkout,
+  source build, forced rebuild or rollback. Actual new native/image source and
+ 47 normal env entries are exact. Coolify creates47 matching preview mirrors;
+  old48 normal/48 preview rows stay unchanged. Existing key file's single LF is
+  parsed exactly as the original loader; no key rotation or credential fallback.
+- Read-only reconciliation handles documented provider behavior: auto-deploy
+  flag is persisted but omitted by normal GET; domain removal empties generated
+  labels; image-only metadata is SOURCE_COMMIT=HEAD/empty branch, not source
+  authority; provider adds exact HOST=0.0.0.0. Full raw proofs remain private.
+  Source authority remains existing CI/attested immutable image1735a5f9.
+- Intermittent production SSH disconnects are diagnosed with a successful exact
+ 11.6MB SQL read in3.8s. Private per-host OpenSSH connection reuse reduces setup
+  overhead while preserving strict host checks/key/user. No firewall cycling,
+  global SSH config change, mutation retry or unrelated state waiver.
+- Final public readiness/new-scope/old-scope/old-key/old-action-denial checks pass;
+  all business schema/rows, other protected natives, old caller,139 Platform
+  tables/history/financial state pass. ProofSHAd5c831ffc95707f2a9567280f05b1099d97fd83041b6245b118978adc9a612be.
+  New customer ACTION binding, hosted runtime/index/chat/promotion/recovery and
+  final UI redesign remain pending. No source rebuild/new business DB/model use.
 
 ## 2026-10-20 18:21 UTC Customer Version And DATA Binding Verified
 

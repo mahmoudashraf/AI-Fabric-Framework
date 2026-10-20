@@ -8,6 +8,70 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 Execution Optimization Agreed With User
+
+- M3 COMPLETE19:33UTC: normal ACTION approvaleia-2f40f7ec-59d7-4038-912c-54e5cc961007
+  and owner SESSION BIND eib-99c1b4b9-e864-4c1c-843a-bbcfbb02d376/rev0 succeed
+  with unchanged committed external-bindings client1ac3bc40. Exact D7438/Vc8cb/
+  staging/business-actions profile and verified receiver endpoint/scope. Root
+  /private/tmp/01044-pg-customer-action-binding-20261020; do not repeat commands.
+  CONFIGURED_LOCAL_CREDENTIALS is not hosted runtime/action execution.
+- Only Sartre resumes for ONE relevant independent61x5s read-only capacity
+  measurement under /private/tmp/01044-post-receiver-capacity-20261020, expected
+  finish around19:39UTC. Main holds ALL shared writes during collection and
+  prepares policy/admission offline. All other agents parked. Main policy prep
+  /private/tmp/01044-post-receiver-admission-policy-20261020/policy.mjs is syntax
+  checked, not executed/published. Next: current measured policy, reserve, fund
+  exact newR from existing whole-task allowance, then first normal owner apply.
+
+- At19:27UTC, supported external receiver replacement verifies healthy:
+  appfwz81skf769lpuxli85szmq7/jobc70zrh7pfc5kbdo9ku64d4v1/image09f834f3,
+  source1735a5f9. SAME external DBs10ag41pp0ti4l93e5o0xq0f,6cars/73leads
+  and all schema/rows preserved. Old app stopped/domainless/not deleted; its
+  original unknown PATCH remains locked, not retried. New scope granted, old
+  scope denied, old key401, old-scope action403, public readinessUP. Proof
+  d5c831ffc95707f2a9567280f05b1099d97fd83041b6245b118978adc9a612be
+  in /private/tmp/01044-main-receiver-replacement-20261020. Window closed.
+  ACTION customer approval/bind is NEXT; no runtime/app activation/index yet.
+- Functional UI qualified patch is committed/pushedb1073117e,33files; P6 dirty
+  App/AppShell/navigation remains uncommitted. UI not deployed. No agent active.
+- Actual provider protocol differences are reconciled read-only, no replay:
+  auto-deploy flag omitted from GET;47 automatic preview mirrors; private key
+  file LF parsed to exact43-byte keySHA d954fdbe6e2fed66f87ed800939d48abee2fc6919d33573e724758bd34822186;
+  generated labels clear with domain; image-only HEAD/empty branch and exact
+  HOST=0.0.0.0 are NOT image source authority. All raw proofs preserved.
+  Private0700 SSH control sockets /private/tmp/loom01044-ssh reuse strict known
+  host/key/user connections (300s), no global config/firewall change. Previous
+  final SQL disconnects remain recorded; no API commands repeated.
+
+- At18:58:21UTC, actual empty Free01 handoff passes; receipt
+  uvh-aa46649e-41ea-4e39-8a40-b677f2534297, new binding
+  evb-a3db15b4-03fd-4dd9-a613-2996599c589e. Old becomes RETAINED_UNUSED;
+  no records copied, all financial/history preserved. Main explicitly closes
+  window; closureSHAe3e90427012030cff07caf8a3dceb6bf770d564f5a9c124491348152d6e5d7a7
+  in attended-free01/operation-route-stable-r2. Never replay actual POST.
+- Functional UI three P2 fixes finish locally:33-file/102-hunk projection,
+  SHAfeed711bf65ff78ffd8aa74ff08611e549643220fa3b67d6600f0d5a2a208050;
+ 84 unit/API,8 boundary,16 browser scenarios/build/TypeScript pass. Not yet
+  committed/deployed/P6. All four agents now parked; main integrates/sequences.
+
+- Main owns the sequential critical path and every shared infrastructure write.
+  Parallel agents are for bounded, independent deliverables only; park completed
+  or overlapping work. Current useful parallel work: functional UI corrections
+  and supported external-receiver replacement preparation, neither may deploy.
+- Reuse qualified tools/evidence while inputs remain valid. Collect expiring
+  evidence immediately before use, not during speculative preparation. Scope
+  operational guards to source-justified effects; retain isolation, credentials,
+  financial history and duplicate-write safety. No repeated broad release matrix
+  or new tooling unless the next actual operation requires it.
+- Free01 attempt stopped before token/intent/POST; original failure is retained.
+  Route-worker source rewrites its timestamp each tick. Two fresh read-only
+  samples differ only in updated_at, with IDLE generation/appliedGeneration1,
+  no attempt/error/lease. Any narrowed guard must still compare all route identity,
+  desired/managed/inflight domains, generations and effect state, not waive table.
+- Functional/security UI work continues independently; redesign/extraction LAST.
+
+
 ## 2026-10-20 18:21 UTC Customer Version And DATA Bound; Receiver Unknown Preserved
 
 - One authoritative linked M1-M9 checklist now heads010.44 execution record;

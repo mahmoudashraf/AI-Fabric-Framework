@@ -1,6 +1,24 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October19:33UTC, M3 external receiver/ACTION gate completes: normal staff
+  approval and owner SESSION binding succeed, exact reviewed profile and native
+  receipt/checkpoint. Runtime-to-receiver business proof remains M5. One bounded
+  read-only capacity collector now runs while main prepares admission offline;
+  no other agent or shared mutation. First customer reservation/apply is next.
+  At20October19:27UTC, supported external receiver replacement is live/healthy,
+  same external business DB, exact6cars/73historical leads/schema preserved.
+  New scope succeeds, old scope/key/action boundary is denied. Original unknown
+  PATCH stays locked; no new business DB or source rebuild. Customer ACTION
+  approval/bind is next before hosted apply. Functional UIb1073117e is pushed
+  separately from P6, not deployed. Full hosted journey/promotion/operations and
+  final redesign/extraction remain open; all agents parked, main sequences work.
+  At20October18:58UTC, empty Free01 binding handoff is hosted verified with no
+  vector records copied; newevb-a3db15b4-03fd-4dd9-a613-2996599c589e is ACTIVE,
+  old binding RETAINED_UNUSED. External receiver/ACTION, hosted apply, promotion,
+  operations and final UI extraction remain open. Main owns sequential flow;
+  agents only handle bounded independent deliverables. Three functional UI P2
+  fixes qualify locally and await separate functional integration/deployment.
   At20October18:21UTC, backend and customer configuration gates pass; immutable
   versionver-c8cb7261 and scoped DATA binding are verified through normal APIs.
   No runtime/index/model work yet. Receiver PATCH is unknown/locked, original
