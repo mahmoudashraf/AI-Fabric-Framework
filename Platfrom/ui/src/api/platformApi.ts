@@ -2074,6 +2074,12 @@ export type UpsertDocumentStorageBindingRequest = {
   mountedRoot?: string
 }
 
+export type DocumentStorageBindingCommandOptions = {
+  operationKey: string
+  bindingSlotId?: string
+  selectedProfileId?: string
+}
+
 export type DocumentConnectorStatus = {
   ready: boolean
   connectorType: string
@@ -4566,10 +4572,14 @@ let platformApiKey = ''
 
 export class PlatformApiError extends Error {
   status: number
+  errorCode: string | null
+  responseRejected: boolean
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, errorCode: string | null = null, responseRejected = false) {
     super(message)
     this.status = status
+    this.errorCode = errorCode
+    this.responseRejected = responseRejected
   }
 }
 
@@ -4605,11 +4615,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${apiBaseUrl}${path}`, {
       credentials: 'include',
+      ...init,
       headers: {
         ...baseHeaders,
         ...(init?.headers ?? {}),
       },
-      ...init,
       signal: timeoutController.signal,
     })
   } catch (error) {
@@ -4625,10 +4635,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const contentType = response.headers.get('content-type') ?? ''
 
     if (contentType.includes('application/json')) {
-      const payload = (await response.json()) as { message?: string; error?: string }
+      const payload = (await response.json()) as { message?: string; error?: string; errorCode?: unknown; success?: unknown }
       throw new PlatformApiError(
         response.status,
         payload.message ?? payload.error ?? `Request failed with status ${response.status}`,
+        typeof payload.errorCode === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(payload.errorCode) ? payload.errorCode : null,
+        payload.success === false,
       )
     }
 
@@ -5608,17 +5620,33 @@ export function fetchDocumentStorageBindings(deploymentId: string) {
 export function upsertDocumentStorageBinding(
   deploymentId: string,
   payload: UpsertDocumentStorageBindingRequest,
+  options?: DocumentStorageBindingCommandOptions,
 ) {
+  const params = new URLSearchParams()
+  if (options?.bindingSlotId) params.set('bindingSlotId', options.bindingSlotId)
+  if (options?.selectedProfileId) params.set('selectedProfileId', options.selectedProfileId)
+  const suffix = params.size ? `?${params.toString()}` : ''
   return request<DocumentStorageBindingSummary>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings`,
-    { method: 'POST', body: JSON.stringify(payload) },
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings${suffix}`,
+    {
+      method: 'POST',
+      headers: options ? { 'Idempotency-Key': options.operationKey } : undefined,
+      body: JSON.stringify(payload),
+    },
   )
 }
 
-export function deleteDocumentStorageBinding(deploymentId: string, bindingRef: string) {
+export function deleteDocumentStorageBinding(
+  deploymentId: string,
+  bindingRef: string,
+  options?: Omit<DocumentStorageBindingCommandOptions, 'selectedProfileId'>,
+) {
+  const params = new URLSearchParams()
+  if (options?.bindingSlotId) params.set('bindingSlotId', options.bindingSlotId)
+  const suffix = params.size ? `?${params.toString()}` : ''
   return request<void>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings/${encodeURIComponent(bindingRef)}`,
-    { method: 'DELETE' },
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings/${encodeURIComponent(bindingRef)}${suffix}`,
+    { method: 'DELETE', headers: options ? { 'Idempotency-Key': options.operationKey } : undefined },
   )
 }
 
@@ -5636,6 +5664,8 @@ export type DeploymentTargetContextSummary = DeploymentTargetReference & {
   runtimeBaseUrl: string
   connectorBaseUrl: string | null
   documentDatasetIds: string[]
+  externalIntegrationConfigured: boolean
+  conversationHandoverConfigured: boolean
 }
 
 export function fetchDeploymentTargetContext(target: DeploymentTargetReference) {
@@ -5644,7 +5674,7 @@ export function fetchDeploymentTargetContext(target: DeploymentTargetReference) 
 
 function targetReleasePath(target: DeploymentTargetReference) {
   if (!target.deploymentId || !target.targetProfileId || !target.releaseId) {
-    throw new Error('Select a target release before administering documents.')
+    throw new Error('Select a target release before administering this deployment.')
   }
   return `/api/deployments/${encodeURIComponent(target.deploymentId)}/targets/${encodeURIComponent(target.targetProfileId)}/releases/${encodeURIComponent(target.releaseId)}`
 }
@@ -5678,12 +5708,13 @@ export function fetchDocumentSources(target: DeploymentTargetReference) {
 export function registerDocumentSource(
   target: DeploymentTargetReference,
   payload: { datasetId: string; objectReference: string; visibility?: string; metadata?: Record<string, unknown> },
+  operationKey: string,
 ) {
   return request<DocumentSourceSummary>(
     `${documentOperationsPath(target)}/sources`,
     {
       method: 'POST',
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': operationKey },
       body: JSON.stringify(payload),
     },
   )
@@ -5705,33 +5736,34 @@ function documentCommand(
   target: DeploymentTargetReference,
   sourceId: string,
   operation: 'refresh' | 'index' | 'reconcile',
+  operationKey: string,
 ) {
   return request<DocumentOperationResult>(
     `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}/${operation}`,
     {
       method: 'POST',
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': operationKey },
       body: '{}',
     },
   )
 }
 
-export function refreshDocumentSource(target: DeploymentTargetReference, sourceId: string) {
-  return documentCommand(target, sourceId, 'refresh')
+export function refreshDocumentSource(target: DeploymentTargetReference, sourceId: string, operationKey: string) {
+  return documentCommand(target, sourceId, 'refresh', operationKey)
 }
 
-export function indexDocumentSource(target: DeploymentTargetReference, sourceId: string) {
-  return documentCommand(target, sourceId, 'index')
+export function indexDocumentSource(target: DeploymentTargetReference, sourceId: string, operationKey: string) {
+  return documentCommand(target, sourceId, 'index', operationKey)
 }
 
-export function reconcileDocumentSource(target: DeploymentTargetReference, sourceId: string) {
-  return documentCommand(target, sourceId, 'reconcile')
+export function reconcileDocumentSource(target: DeploymentTargetReference, sourceId: string, operationKey: string) {
+  return documentCommand(target, sourceId, 'reconcile', operationKey)
 }
 
-export function removeDocumentIndex(target: DeploymentTargetReference, sourceId: string) {
+export function removeDocumentIndex(target: DeploymentTargetReference, sourceId: string, operationKey: string) {
   return request<DocumentOperationResult>(
     `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}`,
-    { method: 'DELETE', headers: { 'Idempotency-Key': crypto.randomUUID() } },
+    { method: 'DELETE', headers: { 'Idempotency-Key': operationKey } },
   )
 }
 
@@ -5751,66 +5783,79 @@ export function fetchDocumentRetentionStatus(target: DeploymentTargetReference) 
   )
 }
 
-export function cleanupDocumentRetention(target: DeploymentTargetReference) {
+export function cleanupDocumentRetention(target: DeploymentTargetReference, operationKey: string) {
   return request<DocumentRetentionCleanupResult>(
     `${documentOperationsPath(target)}/retention/cleanup`,
-    { method: 'POST', body: '{}' },
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: '{}' },
   )
 }
 
-export function fetchDeploymentIntegrations(deploymentId: string) {
+export function fetchDeploymentIntegrations(target: DeploymentTargetReference) {
   return request<DeploymentIntegrationOverview>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations`,
+    `${targetReleasePath(target)}/integrations`,
   )
 }
 
-export function fetchDeploymentIntegrationSource(deploymentId: string, sourceId: string) {
+export function fetchDeploymentIntegrationSource(target: DeploymentTargetReference, sourceId: string) {
   return request<IntegrationSourceSummary>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/sources/${encodeURIComponent(sourceId)}`,
+    `${targetReleasePath(target)}/integrations/sources/${encodeURIComponent(sourceId)}`,
   )
 }
 
-export function reconcileDeploymentIntegrationSource(deploymentId: string, sourceId: string) {
+export function reconcileDeploymentIntegrationSource(
+  target: DeploymentTargetReference,
+  sourceId: string,
+  operationKey: string,
+) {
   return request<IntegrationSyncState>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/sources/${encodeURIComponent(sourceId)}/reconcile`,
-    { method: 'POST', body: '{}' },
+    `${targetReleasePath(target)}/integrations/sources/${encodeURIComponent(sourceId)}/reconcile`,
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: '{}' },
   )
 }
 
-export function fetchDeploymentIntegrationWebhookEvents(deploymentId: string, sourceId: string) {
+export function fetchDeploymentIntegrationWebhookEvents(target: DeploymentTargetReference, sourceId: string) {
   return request<IntegrationWebhookEvent[]>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events`,
+    `${targetReleasePath(target)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events`,
   )
 }
 
 export function replayDeploymentIntegrationWebhook(
-  deploymentId: string,
+  target: DeploymentTargetReference,
   sourceId: string,
   eventId: string,
+  operationKey: string,
 ) {
   return request<{ accepted: boolean; duplicate: boolean; status: string; eventId: string; errorClass: string | null }>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events/${encodeURIComponent(eventId)}/replay`,
-    { method: 'POST', body: '{}' },
+    `${targetReleasePath(target)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events/${encodeURIComponent(eventId)}/replay`,
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: '{}' },
   )
 }
 
-export function fetchConversationHandoverOperations(deploymentId: string) {
+export function fetchConversationHandoverOperations(target: DeploymentTargetReference) {
   return request<ConversationHandoverOperationsOverview>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/conversation-handover`,
+    `${targetReleasePath(target)}/integrations/conversation-handover`,
   )
 }
 
-export function retryConversationHandoverDispatch(deploymentId: string, dispatchId: string) {
+export function retryConversationHandoverDispatch(
+  target: DeploymentTargetReference,
+  dispatchId: string,
+  operationKey: string,
+) {
   return request<ConversationHandoverOperationsOverview>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/conversation-handover/dispatches/${encodeURIComponent(dispatchId)}/retry`,
-    { method: 'POST', body: '{}' },
+    `${targetReleasePath(target)}/integrations/conversation-handover/dispatches/${encodeURIComponent(dispatchId)}/retry`,
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: '{}' },
   )
 }
 
-export function expireConversationHandover(deploymentId: string, handoverId: string) {
+export function expireConversationHandover(
+  target: DeploymentTargetReference,
+  handoverId: string,
+  operationKey: string,
+) {
   return request<ConversationHandoverOperationsOverview>(
-    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/conversation-handover/handovers/${encodeURIComponent(handoverId)}/expire`,
-    { method: 'POST', body: '{}' },
+    `${targetReleasePath(target)}/integrations/conversation-handover/handovers/${encodeURIComponent(handoverId)}/expire`,
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: '{}' },
   )
 }
 
@@ -6296,10 +6341,14 @@ export function fetchAIWorkspaceInstallations(customerId: string) {
   )
 }
 
-export function createAIWorkspaceInstallation(customerId: string, payload: SaveAIWorkspaceInstallationRequest) {
+export function createAIWorkspaceInstallation(
+  customerId: string,
+  payload: SaveAIWorkspaceInstallationRequest,
+  operationKey: string,
+) {
   return request<AIWorkspaceInstallationSummary>(
     `/api/platform/customers/${customerId}/ai-workspace-installations`,
-    { method: 'POST', body: JSON.stringify(payload) },
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: JSON.stringify(payload) },
   )
 }
 
@@ -6307,31 +6356,32 @@ export function updateAIWorkspaceInstallation(
   customerId: string,
   installationId: string,
   payload: SaveAIWorkspaceInstallationRequest,
+  operationKey: string,
 ) {
   return request<AIWorkspaceInstallationSummary>(
     `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}`,
-    { method: 'PUT', body: JSON.stringify(payload) },
+    { method: 'PUT', headers: { 'Idempotency-Key': operationKey }, body: JSON.stringify(payload) },
   )
 }
 
-export function activateAIWorkspaceInstallation(customerId: string, installationId: string) {
+export function activateAIWorkspaceInstallation(customerId: string, installationId: string, operationKey: string) {
   return request<AIWorkspaceInstallationSummary>(
     `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/activate`,
-    { method: 'POST' },
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey } },
   )
 }
 
-export function disableAIWorkspaceInstallation(customerId: string, installationId: string) {
+export function disableAIWorkspaceInstallation(customerId: string, installationId: string, operationKey: string) {
   return request<AIWorkspaceInstallationSummary>(
     `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/disable`,
-    { method: 'POST' },
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey } },
   )
 }
 
-export function deleteAIWorkspaceInstallation(customerId: string, installationId: string) {
+export function deleteAIWorkspaceInstallation(customerId: string, installationId: string, operationKey: string) {
   return request<void>(
     `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', headers: { 'Idempotency-Key': operationKey } },
   )
 }
 
@@ -6341,10 +6391,15 @@ export function fetchAIWorkspaceReadiness(customerId: string, installationId: st
   )
 }
 
-export function verifyAIWorkspaceDomain(customerId: string, installationId: string, hostname: string) {
+export function verifyAIWorkspaceDomain(
+  customerId: string,
+  installationId: string,
+  hostname: string,
+  operationKey: string,
+) {
   return request<AIWorkspaceInstallationSummary['domains'][number]>(
     `/api/platform/customers/${customerId}/ai-workspace-installations/${encodeURIComponent(installationId)}/domains/${encodeURIComponent(hostname)}/verify`,
-    { method: 'POST' },
+    { method: 'POST', headers: { 'Idempotency-Key': operationKey } },
   )
 }
 
@@ -7060,6 +7115,7 @@ export function applyDeploymentVersion(
   versionId: string,
   targetProfileId?: string,
   sourceArtifactId?: string,
+  operationKey?: string,
 ) {
   const params = new URLSearchParams()
   if (targetProfileId) {
@@ -7071,6 +7127,7 @@ export function applyDeploymentVersion(
   const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
+    headers: operationKey ? { 'Idempotency-Key': operationKey } : undefined,
   })
 }
 
@@ -7080,6 +7137,7 @@ export function applyDeploymentVersionWithApproval(
   approvalId?: string,
   targetProfileId?: string,
   sourceArtifactId?: string,
+  operationKey?: string,
 ) {
   const params = new URLSearchParams()
   if (approvalId) {
@@ -7094,6 +7152,7 @@ export function applyDeploymentVersionWithApproval(
   const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
+    headers: operationKey ? { 'Idempotency-Key': operationKey } : undefined,
   })
 }
 
@@ -7409,4 +7468,981 @@ export function rotateVectorizationRunnerToken(
     method: 'POST',
     body: JSON.stringify(payload ?? {}),
   })
+}
+
+export type CustomerTargetIntent = 'CUSTOMER_STAGING' | 'CUSTOMER_PRODUCTION'
+export type CustomerOfferOperation =
+  | 'TEMPLATE_SELECT' | 'BOOTSTRAP_CONFIGURATION' | 'BOOTSTRAP' | 'READ' | 'DRAFT_EDIT' | 'VERSION_PUBLISH'
+  | 'BINDING_REPLACE' | 'BINDING_REVOKE'
+  | 'INBOX_OPERATOR_ENROLL' | 'INBOX_OPERATOR_ROTATE' | 'INBOX_OPERATOR_DELIVER' | 'INBOX_OPERATOR_REVOKE'
+  | 'SOURCE_DISCOVER' | 'SOURCE_PREVIEW' | 'SOURCE_INDEX' | 'SOURCE_REFRESH' | 'SOURCE_REMOVE'
+  | 'APP_CONFIGURE' | 'DOMAIN_CONFIGURE' | 'AUTH_CONFIGURE' | 'APPLY' | 'VERIFY'
+  | 'PROMOTION_PLAN' | 'PROMOTION_APPLY' | 'ACTIVATE' | 'ROLLBACK'
+  | 'STAGING_RETAIN' | 'STAGING_EXTEND' | 'TARGET_RETIRE'
+export type CustomerOfferSetting =
+  | 'DEPLOYMENT_NAME' | 'APP_TITLE' | 'LOGO_ASSET_ID' | 'THEME_PROFILE_ID' | 'INITIAL_VIEW'
+  | 'INTERACTION_PROFILE_ID' | 'AUTH_PROFILE_ID' | 'APP_DOMAIN' | 'DOCUMENT_AUDIENCE' | 'AI_STATE_STORAGE_MODE'
+export type AiStateStorageMode = 'MANAGED_POSTGRES' | 'CUSTOMER_POSTGRES'
+export type CustomerDocumentAudience = 'PUBLIC' | 'AUTHENTICATED'
+
+export type CustomerOfferEntitlementSummary = {
+  id: string
+  offerId: string
+  customerId: string
+  ownerUserId: string
+  status: 'INVITED' | 'ACTIVE' | 'REVOKED'
+  revision: number
+  expiresAt: string
+}
+
+export type CustomerEntitlementCommand = {
+  expectedRevision: number
+  operationKey: string
+  reason: string
+}
+
+export type CustomerOfferReviewedLimits = {
+  measuredPolicyRef: string
+  activeStagingTargets: number
+  replicas: number
+  cpuMillis: number
+  memoryMiB: number
+  diskMiB: number
+  databases: number
+  indexes: number
+  dependencies: number
+  concurrentApplies: number
+  stagingExpiryHours: number
+  maxExtensionHours: number
+  recoveryWindowHours: number
+}
+
+export type CustomerOfferTargetSummary = {
+  id: string
+  intent: CustomerTargetIntent
+  readiness: string
+  capabilities: CustomerOfferOperation[]
+  limits: CustomerOfferReviewedLimits
+  blockers: string[]
+}
+
+export type CustomerOfferBindingSlot = {
+  id: string
+  kind: 'CUSTOMER_S3' | 'CUSTOMER_IDENTITY' | 'CUSTOMER_AI_PROVIDER' | 'INBOX_OPERATOR' | 'CUSTOMER_AI_STATE' | 'EXTERNAL_SERVICE'
+  supportedProfileIds: string[]
+  pluginId: string | null
+  installConfigField: string | null
+}
+
+export type CustomerOfferWorkspaceProfile = {
+  id: string
+  label: string
+  interaction: Record<string, unknown>
+  theme: Record<string, unknown> | null
+  authentication: Record<string, unknown>
+}
+
+export type CustomerOfferSummary = {
+  id: string
+  name: string
+  templateId: string
+  templateVersionId: string
+  fingerprint: string
+  entitlement: CustomerOfferEntitlementSummary
+  targets: CustomerOfferTargetSummary[]
+  permissions: Array<{
+    operation: CustomerOfferOperation
+    staffAccess: 'VIEWER' | 'OPERATOR' | 'EDITOR' | 'ADMIN'
+    targetIntents: CustomerTargetIntent[]
+    settings: CustomerOfferSetting[]
+    ownedBindingRequired: boolean
+    admissionEvidenceRequired: boolean
+  }>
+  settings: Array<{
+    setting: CustomerOfferSetting
+    type: 'TEXT' | 'CHOICE'
+    maxLength: number
+    allowedValues: string[]
+  }>
+  bindingSlots: CustomerOfferBindingSlot[]
+  workspaceProfiles: CustomerOfferWorkspaceProfile[]
+  externalIntegrationProfiles: CustomerExternalIntegrationProfile[]
+  documentAudiences: CustomerDocumentAudience[]
+  blockers: string[]
+}
+
+export type CustomerDeploymentSummary = {
+  deploymentId: string
+  name: string
+  environmentName: string
+  status: string
+  tenantId: string
+  offerId: string
+  bootstrapTargetProfileId: string
+  offerFingerprint: string
+  authorizationEntitlementRevision: number
+  activeVersionId: string | null
+  createdAt: string
+}
+
+export type CustomerDeploymentBootstrapRequest = {
+  targetProfileId: string
+  name: string
+  expectedEntitlementRevision: number
+  operationKey: string
+  aiStateStorageMode?: AiStateStorageMode
+}
+
+export type CustomerDeploymentBootstrapResult = {
+  deploymentId: string
+  tenantId: string
+  offerId: string
+  offerFingerprint: string
+  targetProfileId: string
+  entitlementRevision: number
+  creationStatus: string
+  aiStateStorageMode?: AiStateStorageMode
+}
+
+export type CustomerExternalIntegrationProfile = {
+  schemaVersion: 'loomai-external-integration-profile/v1'
+  id: string
+  bindingSlotId: string
+  pluginId: string
+  pluginVersionId: string
+  manifestSha256: string
+  targetProfileIds: string[]
+  configFields: string[]
+  secretFields: string[]
+  endpointFields: string[]
+  accountScopeFields: string[]
+  allowedHosts: string[]
+}
+
+export type CustomerExternalIntegrationSummary = {
+  id: string
+  approvalId: string
+  deploymentId: string
+  versionId: string
+  targetProfileId: string
+  bindingSlotId: string
+  selectedProfileId: string
+  status: string
+  revision: number
+}
+
+export type CustomerExternalIntegrationScope = {
+  versionId: string
+  targetProfileId: string
+  bindingSlotId: string
+  selectedProfileId: string
+}
+
+export type CustomerExternalIntegrationBindRequest = CustomerExternalIntegrationScope & {
+  approvalId: string
+  expectedEntitlementRevision: number
+  operationKey: string
+  credentials: Record<string, string>
+}
+
+export type CustomerExternalIntegrationRevokeRequest = CustomerExternalIntegrationScope & {
+  bindingId: string
+  expectedBindingRevision: number
+  expectedEntitlementRevision: number
+  operationKey: string
+}
+
+export type CustomerAiStateStorageSummary = {
+  bindingId: string
+  customerId: string
+  tenantId: string
+  deploymentId: string
+  targetProfileId: string
+  versionId: string
+  configHash: string
+  mode: 'CUSTOMER_POSTGRES'
+  lifecycle: 'RETAIN_EXTERNAL'
+  migrationAuthorized: boolean
+  fingerprint: string
+  checkedAt: string
+}
+
+export type CustomerAiStateStorageBindRequest = {
+  expectedEntitlementRevision: number
+  operationKey: string
+  targetProfileId: string
+  bindingSlotId: string
+  connection: {
+    versionId: string
+    host: string
+    port: number
+    databaseName: string
+    runtimeSchema: string
+    connectorSchema: string
+    username: string
+    password: string
+    migrationAuthorized: boolean
+  }
+}
+
+export type CustomerAiStateStorageBindResult = {
+  offerId: string
+  deploymentId: string
+  targetProfileId: string
+  bindingSlotId: string
+  binding: CustomerAiStateStorageSummary
+}
+
+export type CustomerDeploymentApplyRequest = {
+  versionId: string
+  expectedEntitlementRevision: number
+  operationKey: string
+}
+
+export type CustomerStagingConsumerActivationRequest = {
+  consumerId: string
+  releaseId: string
+  expectedBindingRevision: number
+  expectedEntitlementRevision: number
+  operationKey: string
+}
+
+export type CustomerStagingConsumerCreateRequest = {
+  consumerId: string
+  displayName: string
+  description?: string
+  releaseId?: string
+  expectedEntitlementRevision: number
+  operationKey: string
+}
+
+export type CustomerDeploymentVersionPublishRequest = {
+  targetProfileId: string
+  expectedEntitlementRevision: number
+  operationKey: string
+}
+
+export type CustomerDeploymentVersionPublishResult = {
+  deploymentId: string
+  versionId: string
+  versionLabel: string
+  configHash: string
+  targetProfileId: string
+  entitlementRevision: number
+}
+
+export type CustomerGoLiveReadinessItem = {
+  code: string
+  category: string
+  label: string
+  phase: 'ACTIVATION' | 'POST_ACTIVATION'
+  status: 'PASSED' | 'BLOCKED' | 'PENDING' | 'NOT_APPLICABLE'
+  mandatory: boolean
+  owner: string
+  evidenceReference: string | null
+  checkedAt: string | null
+  expiresAt: string | null
+  blocker: string | null
+  nextAction: string | null
+}
+
+export type CustomerGoLiveReadinessSummary = {
+  deploymentId: string
+  offerId: string
+  versionId: string
+  releaseId: string
+  targetProfileId: string
+  candidateFingerprint: string | null
+  consumerId: string
+  expectedBindingRevision: number
+  activationReady: boolean
+  postActivationComplete: boolean
+  blockers: string[]
+  items: CustomerGoLiveReadinessItem[]
+  projectedAt: string
+}
+
+export type CustomerPlacementEvidenceSummary = {
+  id: string
+  targetProfileId: string
+  intent: CustomerTargetIntent
+  profileFingerprint: string
+  checkedAt: string
+  expiresAt: string
+}
+
+export type CustomerDocumentStorageBindRequest = {
+  expectedEntitlementRevision: number
+  operationKey: string
+  targetProfileId: string
+  bindingSlotId: string
+  selectedProfileId: string
+  endpoint: string
+  region: string
+  bucket: string
+  prefix?: string
+  accessKey: string
+  secretKey: string
+  sessionToken?: string
+  pathStyleAccess: boolean
+  objectVersioningAvailable: boolean
+}
+
+export type CustomerDocumentStorageRevokeRequest = {
+  expectedEntitlementRevision: number
+  operationKey: string
+  targetProfileId: string
+  bindingSlotId: string
+}
+
+export type CustomerDocumentStorageBindingResult = {
+  offerId: string
+  deploymentId: string
+  targetProfileId: string
+  bindingSlotId: string
+  selectedProfileId: string | null
+  status: string
+  binding: DocumentStorageBindingSummary | null
+}
+
+export type CustomerAdmissionReservationRequest = {
+  targetProfileId: string
+  versionId: string
+  releaseId?: string
+  operation: CustomerOfferOperation
+  operationKey: string
+  allocationId?: string
+}
+
+export type CustomerAdmissionReservationSummary = {
+  id: string
+  deploymentId: string
+  targetProfileId: string
+  intent: CustomerTargetIntent
+  operation: CustomerOfferOperation
+  state: 'RESERVED' | 'PROVISIONING' | 'ACTIVE' | 'OUTCOME_UNKNOWN' | 'CLEANUP_FAILED' | 'RELEASED'
+  revision: number
+  expiresAt: string | null
+  expiryState: 'CURRENT' | 'NOTICE_PENDING' | 'NOTICE_FAILED' | 'NOTIFIED' | 'CLAIMED' | 'BLOCKED' | 'HANDED_OFF' | 'RELEASED'
+  keepUntil: string | null
+}
+
+export type CustomerStagingExtensionRequest = {
+  targetProfileId: string
+  allocationId: string
+  expectedRevision: number
+  operationKey: string
+  reason: string
+  keepAfterPromotion: boolean
+}
+
+export type CustomerTargetRetirementPlanRequest = {
+  targetProfileId: string
+  releaseIds: string[]
+  drainDeadline: string
+  retention: TargetRetirementRetention
+  operationKey: string
+  reason: string
+}
+
+export type CustomerTargetRetirementCommand = { requestFingerprint: string }
+
+export type CustomerTargetRetirementSummary = {
+  id: string
+  deploymentId: string
+  targetProfileId: string
+  requestFingerprint: string
+  state: TargetRetirementState
+  step: TargetRetirementStep | null
+  drainDeadline: string
+  retention: TargetRetirementRetention
+  attempt: number
+  nextRetryAt: string | null
+  errorCode: string | null
+  blockers: string[]
+  consumesCapacity: boolean
+  customerCommandsAllowed: boolean
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type CustomerAdmissionNotice = {
+  deliveryKey: string
+  reservationId: string
+  noticeCycle: string
+  payload: {
+    deploymentId: string
+    targetProfileId: string
+    noticeCycle: string
+    channel: 'CONSOLE' | 'OWNER_EMAIL'
+    expiresAt: string
+  }
+  publishedAt: string
+  deliveredAt: string | null
+}
+
+export type TargetRetirementState =
+  | 'PLANNED' | 'QUEUED' | 'RUNNING' | 'WAITING' | 'RETAINED' | 'BLOCKED'
+  | 'RETRYABLE_FAILURE' | 'CANCEL_REQUESTED' | 'CANCELLED' | 'COMPLETE'
+export type TargetRetirementStep = 'DRAIN' | 'AUTHORITY' | 'INDEX' | 'RESOURCES' | 'DEPENDENCIES' | 'VERIFY' | 'CANCEL_DRAIN'
+export type TargetRetirementParticipant = 'RUNTIME_DRAIN' | 'AUTHORITY' | 'INDEX' | 'DEPENDENCIES'
+export type TargetRetirementConsumerExpectation = { consumerEntityId: string; expectedBindingRevision: number }
+export type TargetRetirementRetention = {
+  decision: 'RECLAIM' | 'RETAIN_UNTIL'
+  expiresAt: string | null
+  entitlementReference: string | null
+  backupDecisionReference: string | null
+}
+export type TargetRetirementPlanRequest = {
+  operationKey: string
+  releaseIds: string[]
+  consumers: TargetRetirementConsumerExpectation[]
+  drainDeadline: string
+  retention: TargetRetirementRetention
+  reason: string
+}
+export type TargetRetirementCommand = { requestFingerprint: string }
+export type TargetRetirementEvidence = {
+  requestFingerprint: string
+  fenceEpoch: number
+  observedAt: string
+  reference: string | null
+  complete: boolean
+  ingressBlocked: boolean
+  inventoryComplete: boolean
+  retentionApproved: boolean
+  conversations: number | null
+  confirmations: number | null
+  humanWork: number | null
+  backgroundWork: number | null
+  durable: boolean
+  blockers: string[]
+}
+export type TargetRetirementSummary = {
+  id: string
+  deploymentId: string
+  targetProfileId: string
+  customerId: string
+  operationKey: string
+  requestFingerprint: string
+  state: TargetRetirementState
+  step: TargetRetirementStep | null
+  snapshot: {
+    customerId: string
+    tenantId: string
+    deploymentId: string
+    targetProfileId: string
+    targetGeneration: string
+    targetEpoch: number
+    releases: Array<{ releaseId: string; versionId: string; generation: string }>
+    resources: Array<{
+      handleId: string
+      releaseId: string
+      providerType: DeploymentProviderType
+      resourceKind: string
+      providerResourceUuid: string
+      serverUuid: string | null
+      projectUuid: string | null
+      environmentUuid: string | null
+      destinationUuid: string | null
+      providerName: string | null
+      deploymentMarker: string | null
+      generation: string
+      providerIdentityFingerprint: string | null
+      volumes: Array<{
+        storageUuid: string
+        type: string
+        name: string
+        mountPath: string | null
+        hostPath: string | null
+        generation: string
+        preserved: boolean
+      }>
+      preserved: boolean
+    }>
+    consumers: TargetRetirementConsumerExpectation[]
+  }
+  drainDeadline: string
+  retention: TargetRetirementRetention
+  attempt: number
+  nextRetryAt: string | null
+  errorCode: string | null
+  result: {
+    effects: Record<string, { complete: boolean; evidenceReference: string; observedAt: string }>
+    evidence: Partial<Record<TargetRetirementParticipant, TargetRetirementEvidence>>
+    interlockEvidence: TargetRetirementEvidence | null
+    blockers: string[]
+  } | null
+  consumesCapacity: boolean
+  inFlightEffect: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type ManagedDependencySummary = {
+  graphId: string
+  deploymentId: string
+  targetProfileId: string
+  versionId: string
+  releaseId: string | null
+  specFingerprint: string
+  bindingFingerprint: string
+  revision: number
+  status: string
+  step: string
+  failureCode: string | null
+  attempt: number
+  configurationRevision: number
+  effectiveConfigurationRevision: number
+  services: Array<{ slot: string; status: string; baseUrl: string | null; accountId: string; bindingId: string }>
+  operators: Array<{
+    id: string
+    displayName: string
+    slot: string
+    status: string
+    credentialRevision: number
+    delivered: boolean
+    effectiveAt: string | null
+  }>
+}
+export type ManagedDependencyOperatorEnrollRequest = { slot: string; displayName: string; operationKey: string }
+export type ManagedDependencyOperatorMutation = { expectedCredentialRevision: number; operationKey: string }
+export type ManagedDependencyOperatorCredentialDelivery = {
+  operatorId: string
+  bindingId: string
+  credentialRevision: number
+  apiKey: string
+}
+
+function customerOfferPath(offerId: string) {
+  return `/api/customer-self-service/catalogue/${encodeURIComponent(offerId)}`
+}
+
+function customerOfferDeploymentPath(offerId: string, deploymentId: string) {
+  return `${customerOfferPath(offerId)}/deployments/${encodeURIComponent(deploymentId)}`
+}
+
+function deploymentTargetPath(deploymentId: string, targetProfileId: string) {
+  return `/api/deployments/${encodeURIComponent(deploymentId)}/targets/${encodeURIComponent(targetProfileId)}`
+}
+
+export function fetchCustomerSelfServiceCatalogue() {
+  return request<CustomerOfferSummary[]>('/api/customer-self-service/catalogue')
+}
+
+export function fetchCustomerSelfServiceOffer(offerId: string) {
+  return request<CustomerOfferSummary>(customerOfferPath(offerId))
+}
+
+export function fetchCustomerSelfServiceInvitations() {
+  return request<CustomerOfferEntitlementSummary[]>('/api/customer-self-service/invitations')
+}
+
+export function acceptCustomerSelfServiceInvitation(entitlementId: string, payload: CustomerEntitlementCommand) {
+  return request<CustomerOfferEntitlementSummary>(
+    `/api/customer-self-service/invitations/${encodeURIComponent(entitlementId)}/accept`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchCustomerDeploymentPortfolio() {
+  return request<CustomerDeploymentSummary[]>('/api/customer-self-service/deployments')
+}
+
+export function bootstrapCustomerDeployment(offerId: string, payload: CustomerDeploymentBootstrapRequest) {
+  return request<CustomerDeploymentBootstrapResult>(`${customerOfferPath(offerId)}/deployments`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+export function bindCustomerExternalIntegration(
+  offerId: string, deploymentId: string, payload: CustomerExternalIntegrationBindRequest,
+) {
+  return request<CustomerExternalIntegrationSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/external-integrations/bind`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function revokeCustomerExternalIntegration(
+  offerId: string, deploymentId: string, payload: CustomerExternalIntegrationRevokeRequest,
+) {
+  return request<CustomerExternalIntegrationSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/external-integrations/revoke`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchCustomerExternalIntegration(
+  offerId: string, deploymentId: string, scope: CustomerExternalIntegrationScope,
+) {
+  const params = new URLSearchParams(scope)
+  return request<CustomerExternalIntegrationSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/external-integrations?${params.toString()}`,
+  )
+}
+
+export function bindCustomerAiStateStorage(
+  offerId: string, deploymentId: string, payload: CustomerAiStateStorageBindRequest,
+) {
+  return request<CustomerAiStateStorageBindResult>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/ai-state-storage-binding`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchCustomerAiStateStorage(
+  offerId: string, deploymentId: string, scope: Omit<CustomerExternalIntegrationScope, 'selectedProfileId'>,
+) {
+  const params = new URLSearchParams(scope)
+  return request<CustomerAiStateStorageSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/ai-state-storage-binding?${params.toString()}`,
+  )
+}
+
+export function publishCustomerDeploymentVersion(
+  offerId: string, deploymentId: string, payload: CustomerDeploymentVersionPublishRequest,
+) {
+  return request<CustomerDeploymentVersionPublishResult>(`${customerOfferDeploymentPath(offerId, deploymentId)}/versions`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+export function applyCustomerDeploymentStagingVersion(
+  offerId: string, deploymentId: string, payload: CustomerDeploymentApplyRequest,
+) {
+  return request<DeploymentReleaseSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/staging-releases`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function activateCustomerDeploymentStagingConsumer(
+  offerId: string, deploymentId: string, payload: CustomerStagingConsumerActivationRequest,
+) {
+  return request<PlatformConsumerSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/staging-consumer-activations`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function createCustomerDeploymentStagingConsumer(
+  offerId: string, deploymentId: string, payload: CustomerStagingConsumerCreateRequest,
+) {
+  return request<PlatformConsumerSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/staging-consumer-assignments`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchCustomerDeploymentGoLiveReadiness(
+  offerId: string, deploymentId: string, releaseId: string, consumerId: string,
+) {
+  const params = new URLSearchParams({ releaseId, consumerId })
+  return request<CustomerGoLiveReadinessSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/go-live-readiness?${params.toString()}`,
+  )
+}
+
+export function probeCustomerOfferTargetPlacement(offerId: string, targetProfileId: string) {
+  return request<CustomerPlacementEvidenceSummary>(
+    `${customerOfferPath(offerId)}/targets/${encodeURIComponent(targetProfileId)}/placement-evidence`,
+    { method: 'POST' },
+  )
+}
+
+export function bindCustomerDocumentStorage(
+  offerId: string, deploymentId: string, payload: CustomerDocumentStorageBindRequest,
+) {
+  return request<CustomerDocumentStorageBindingResult>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/document-storage-binding`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function revokeCustomerDocumentStorage(
+  offerId: string, deploymentId: string, payload: CustomerDocumentStorageRevokeRequest,
+) {
+  return request<CustomerDocumentStorageBindingResult>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/document-storage-binding/revoke`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function reserveCustomerDeploymentAdmission(
+  offerId: string, deploymentId: string, payload: CustomerAdmissionReservationRequest,
+) {
+  return request<CustomerAdmissionReservationSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchCustomerDeploymentAdmission(offerId: string, deploymentId: string, reservationId: string) {
+  return request<CustomerAdmissionReservationSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}`,
+  )
+}
+
+export function fetchCustomerDeploymentAdmissions(
+  offerId: string, deploymentId: string, targetProfileId: string,
+) {
+  return request<CustomerAdmissionReservationSummary[]>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations?targetProfileId=${encodeURIComponent(targetProfileId)}`,
+  )
+}
+
+export function extendCustomerDeploymentStaging(
+  offerId: string, deploymentId: string, payload: CustomerStagingExtensionRequest,
+) {
+  return request<CustomerAdmissionReservationSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/staging-lifecycle/extensions`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchCustomerAdmissionNotices(limit = 50) {
+  return request<CustomerAdmissionNotice[]>(`/api/customer-self-service/admission/notices?limit=${encodeURIComponent(String(limit))}`)
+}
+
+function customerRetirementPath(offerId: string, deploymentId: string) {
+  return `${customerOfferDeploymentPath(offerId, deploymentId)}/retirements`
+}
+
+export function planCustomerTargetRetirement(
+  offerId: string, deploymentId: string, payload: CustomerTargetRetirementPlanRequest,
+) {
+  return request<CustomerTargetRetirementSummary>(`${customerRetirementPath(offerId, deploymentId)}/plan`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+export function fetchCustomerTargetRetirements(
+  offerId: string, deploymentId: string, targetProfileId: string,
+) {
+  return request<CustomerTargetRetirementSummary[]>(
+    `${customerRetirementPath(offerId, deploymentId)}?targetProfileId=${encodeURIComponent(targetProfileId)}`,
+  )
+}
+
+export function fetchCustomerTargetRetirement(offerId: string, deploymentId: string, operationId: string) {
+  return request<CustomerTargetRetirementSummary>(
+    `${customerRetirementPath(offerId, deploymentId)}/${encodeURIComponent(operationId)}`,
+  )
+}
+
+function customerTargetRetirementCommand(
+  offerId: string, deploymentId: string, operationId: string,
+  command: 'execute' | 'retry' | 'cancel', payload: CustomerTargetRetirementCommand,
+) {
+  return request<CustomerTargetRetirementSummary>(
+    `${customerRetirementPath(offerId, deploymentId)}/${encodeURIComponent(operationId)}/${command}`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function executeCustomerTargetRetirement(
+  offerId: string, deploymentId: string, operationId: string, payload: CustomerTargetRetirementCommand,
+) {
+  return customerTargetRetirementCommand(offerId, deploymentId, operationId, 'execute', payload)
+}
+
+export function retryCustomerTargetRetirement(
+  offerId: string, deploymentId: string, operationId: string, payload: CustomerTargetRetirementCommand,
+) {
+  return customerTargetRetirementCommand(offerId, deploymentId, operationId, 'retry', payload)
+}
+
+export function cancelCustomerTargetRetirement(
+  offerId: string, deploymentId: string, operationId: string, payload: CustomerTargetRetirementCommand,
+) {
+  return customerTargetRetirementCommand(offerId, deploymentId, operationId, 'cancel', payload)
+}
+
+export function planTargetRetirement(deploymentId: string, targetProfileId: string, payload: TargetRetirementPlanRequest) {
+  return request<TargetRetirementSummary>(`${deploymentTargetPath(deploymentId, targetProfileId)}/retirements/plan`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+export function fetchTargetRetirements(deploymentId: string, targetProfileId: string) {
+  return request<TargetRetirementSummary[]>(`${deploymentTargetPath(deploymentId, targetProfileId)}/retirements`)
+}
+
+export function fetchTargetRetirement(deploymentId: string, targetProfileId: string, operationId: string) {
+  return request<TargetRetirementSummary>(
+    `${deploymentTargetPath(deploymentId, targetProfileId)}/retirements/${encodeURIComponent(operationId)}`,
+  )
+}
+
+function targetRetirementCommand(
+  deploymentId: string, targetProfileId: string, operationId: string,
+  command: 'execute' | 'retry' | 'cancel', payload: TargetRetirementCommand,
+) {
+  return request<TargetRetirementSummary>(
+    `${deploymentTargetPath(deploymentId, targetProfileId)}/retirements/${encodeURIComponent(operationId)}/${command}`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function executeTargetRetirement(
+  deploymentId: string, targetProfileId: string, operationId: string, payload: TargetRetirementCommand,
+) {
+  return targetRetirementCommand(deploymentId, targetProfileId, operationId, 'execute', payload)
+}
+
+export function retryTargetRetirement(
+  deploymentId: string, targetProfileId: string, operationId: string, payload: TargetRetirementCommand,
+) {
+  return targetRetirementCommand(deploymentId, targetProfileId, operationId, 'retry', payload)
+}
+
+export function cancelTargetRetirement(
+  deploymentId: string, targetProfileId: string, operationId: string, payload: TargetRetirementCommand,
+) {
+  return targetRetirementCommand(deploymentId, targetProfileId, operationId, 'cancel', payload)
+}
+
+export function fetchManagedDependencies(deploymentId: string, targetProfileId: string) {
+  return request<ManagedDependencySummary>(`${deploymentTargetPath(deploymentId, targetProfileId)}/managed-dependencies`)
+}
+
+export function enrollManagedDependencyOperator(
+  deploymentId: string, targetProfileId: string, payload: ManagedDependencyOperatorEnrollRequest,
+) {
+  return request<ManagedDependencySummary>(`${deploymentTargetPath(deploymentId, targetProfileId)}/managed-dependencies/operators`, {
+    method: 'POST', body: JSON.stringify(payload),
+  })
+}
+
+function managedDependencyOperatorCommand<T>(
+  deploymentId: string, targetProfileId: string, operatorId: string,
+  command: 'rotate' | 'revoke' | 'credential-delivery', payload: ManagedDependencyOperatorMutation,
+) {
+  return request<T>(
+    `${deploymentTargetPath(deploymentId, targetProfileId)}/managed-dependencies/operators/${encodeURIComponent(operatorId)}/${command}`,
+    { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' },
+  )
+}
+
+export function rotateManagedDependencyOperator(
+  deploymentId: string, targetProfileId: string, operatorId: string, payload: ManagedDependencyOperatorMutation,
+) {
+  return managedDependencyOperatorCommand<ManagedDependencySummary>(deploymentId, targetProfileId, operatorId, 'rotate', payload)
+}
+
+export function revokeManagedDependencyOperator(
+  deploymentId: string, targetProfileId: string, operatorId: string, payload: ManagedDependencyOperatorMutation,
+) {
+  return managedDependencyOperatorCommand<ManagedDependencySummary>(deploymentId, targetProfileId, operatorId, 'revoke', payload)
+}
+
+/** One-time delivery: the caller keeps credentials out of persistent/query state and never retries automatically. */
+export function deliverManagedDependencyOperatorCredential(
+  deploymentId: string, targetProfileId: string, operatorId: string, payload: ManagedDependencyOperatorMutation,
+) {
+  return managedDependencyOperatorCommand<ManagedDependencyOperatorCredentialDelivery>(
+    deploymentId, targetProfileId, operatorId, 'credential-delivery', payload,
+  )
+}
+
+export type CustomerUnusedDraftWorkspaceExpectation = {
+  installationEntityId: string
+  expectedRowVersion: number
+}
+
+export type CustomerUnusedConsumerDetachment = {
+  consumerEntityId: string
+  expectedBindingRevision: number
+  draftWorkspaces: CustomerUnusedDraftWorkspaceExpectation[] | null
+}
+
+export type CustomerUnusedConsumerDetachmentReceipt = {
+  consumerEntityId: string
+  fromBindingRevision: number
+  toBindingRevision: number
+  historyId: string
+  operationKey: string
+  preservedDraftWorkspaces: CustomerUnusedDraftWorkspaceExpectation[]
+}
+
+export type CustomerKnownNoEffectSettlementPlanRequest = { operationKey: string; reason: string }
+
+export type CustomerKnownNoEffectSettlementCommand = {
+  fence: { reservationId: string; revision: number; generation: string }
+  operationKey: string
+  manifestFingerprint: string
+  versionId: string
+  versionConfigHash: string
+  bindingFingerprint: string
+  failedReleases: Array<{
+    releaseId: string
+    authorizationOperationKey: string
+    authorizationRequestFingerprint: string
+  }>
+  reason: string
+  consumerDetachments: CustomerUnusedConsumerDetachment[]
+}
+
+export type CustomerKnownNoEffectSettlementPlan = {
+  command: CustomerKnownNoEffectSettlementCommand
+  proofFingerprint: string
+}
+
+export type CustomerKnownNoEffectSettlementSummary = {
+  id: string
+  reservationId: string
+  generation: string
+  fromRevision: number
+  revision: number
+  deploymentId: string
+  targetProfileId: string
+  outcome: 'SETTLED_KNOWN_NO_EFFECT'
+  reclamationPerformed: boolean
+  settledAt: string
+  failedReleaseIds: string[]
+  consumerDetachments: CustomerUnusedConsumerDetachmentReceipt[]
+}
+
+export function planCustomerKnownNoEffectSettlement(
+  offerId: string, deploymentId: string, reservationId: string, payload: CustomerKnownNoEffectSettlementPlanRequest,
+) {
+  return request<CustomerKnownNoEffectSettlementPlan>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/known-no-effect-plan`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function settleCustomerKnownNoEffectReservation(
+  offerId: string, deploymentId: string, reservationId: string, command: CustomerKnownNoEffectSettlementCommand,
+) {
+  return request<CustomerKnownNoEffectSettlementSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/settle-known-no-effect`,
+    { method: 'POST', body: JSON.stringify(command) },
+  )
+}
+
+export type CustomerStagingConsumerDraftWorkspaceExpectation = CustomerUnusedDraftWorkspaceExpectation & {
+  selectedWorkspaceProfileId?: string | null
+}
+
+export type CustomerStagingConsumerConfigurationRequest = {
+  consumerId: string
+  expectedBindingRevision: number
+  expectedEntitlementRevision: number
+  operationKey: string
+  expectedDraftWorkspaces: CustomerStagingConsumerDraftWorkspaceExpectation[]
+}
+
+export function configureCustomerDeploymentStagingConsumer(
+  offerId: string, deploymentId: string, payload: CustomerStagingConsumerConfigurationRequest,
+) {
+  return request<PlatformConsumerSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/staging-consumer-configurations`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
 }

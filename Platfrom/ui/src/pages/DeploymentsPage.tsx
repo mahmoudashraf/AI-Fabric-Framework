@@ -80,6 +80,7 @@ import {
   type RailwayWorkspaceCleanupExecutionSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { CustomerDeploymentConsole } from '../components/customer/CustomerDeploymentConsole'
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
@@ -509,6 +510,13 @@ function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
 
 export function DeploymentsPage() {
   const auth = usePlatformAuth()
+  if (auth.session?.role === 'CUSTOMER_ADMIN') {
+    return <CustomerDeploymentConsole session={auth.session} />
+  }
+  return <DeploymentAdministrationPage auth={auth} />
+}
+
+function DeploymentAdministrationPage({ auth }: { auth: ReturnType<typeof usePlatformAuth> }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [showArchived, setShowArchived] = useState(false)

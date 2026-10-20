@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import {
@@ -31,10 +32,21 @@ const PlatformAuthContext = createContext<PlatformAuthContextValue | null>(null)
 
 export function PlatformAuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
-  const [apiKey, setApiKeyState] = useState(() => getStoredPlatformApiKey())
+  const [identity, setIdentity] = useState(() => ({ apiKey: getStoredPlatformApiKey(), generation: 0 }))
+  const transition = useRef(0)
+  const authGeneration = useRef(0)
+  const { apiKey, generation } = identity
+
+  const replacePrincipal = (key: string, session: PlatformAuthSessionSummary | null) => {
+    const nextGeneration = ++authGeneration.current
+    queryClient.clear()
+    if (session) queryClient.setQueryData(['platform-auth-session', key, nextGeneration], session)
+    // A new query identity reconnects the observer even when the API key remains empty.
+    setIdentity({ apiKey: key, generation: nextGeneration })
+  }
 
   const sessionQuery = useQuery({
-    queryKey: ['platform-auth-session', apiKey],
+    queryKey: ['platform-auth-session', apiKey, generation],
     queryFn: fetchPlatformAuthSession,
     retry: false,
   })
@@ -45,30 +57,28 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     isLoading: sessionQuery.isLoading,
     error: sessionQuery.error instanceof Error ? sessionQuery.error : null,
     signInWithPassword: async (email, password) => {
+      const command = ++transition.current
       const session = await loginToPlatform({ email, password })
+      if (command !== transition.current) return
       clearStoredPlatformApiKey()
-      setApiKeyState('')
-      queryClient.setQueryData(['platform-auth-session', ''], session)
-      await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+      replacePrincipal('', session)
     },
     setApiKey: (value) => {
+      transition.current++
       setStoredPlatformApiKey(value)
-      setApiKeyState(getStoredPlatformApiKey())
-      void queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+      replacePrincipal(getStoredPlatformApiKey(), null)
     },
     signOut: async () => {
+      const command = ++transition.current
       const session = await logoutFromPlatform().catch(() => null)
+      if (command !== transition.current) return
       clearStoredPlatformApiKey()
-      setApiKeyState('')
-      if (session) {
-        queryClient.setQueryData(['platform-auth-session', ''], session)
-      }
-      await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+      replacePrincipal('', session)
     },
     refreshSession: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+      await queryClient.invalidateQueries({ queryKey: ['platform-auth-session', apiKey, generation], exact: true })
     },
-  }), [apiKey, queryClient, sessionQuery.data, sessionQuery.error, sessionQuery.isLoading])
+  }), [apiKey, generation, queryClient, sessionQuery.data, sessionQuery.error, sessionQuery.isLoading])
 
   return <PlatformAuthContext.Provider value={value}>{children}</PlatformAuthContext.Provider>
 }

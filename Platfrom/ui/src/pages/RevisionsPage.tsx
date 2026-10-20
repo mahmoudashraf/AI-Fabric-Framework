@@ -749,12 +749,14 @@ export function RevisionsPage() {
       versionId,
       targetProfileId,
       sourceArtifactId,
+      operationKey,
     }: {
       deploymentId: string
       versionId: string
       targetProfileId?: string
       sourceArtifactId?: string
-    }) => applyDeploymentVersion(deploymentId, versionId, targetProfileId, sourceArtifactId),
+      operationKey: string
+    }) => applyDeploymentVersion(deploymentId, versionId, targetProfileId, sourceArtifactId, operationKey),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -1896,6 +1898,7 @@ export function RevisionsPage() {
                                   versionId: version.id,
                                   targetProfileId: applyTargetProfileId || undefined,
                                   sourceArtifactId: applySourceArtifactId || undefined,
+                                  operationKey: crypto.randomUUID(),
                                 })
                               }}
                             >

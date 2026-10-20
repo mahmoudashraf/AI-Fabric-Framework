@@ -34,7 +34,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   activateAIWorkspaceInstallation,
   createAIWorkspaceInstallation,
@@ -42,6 +42,8 @@ import {
   disableAIWorkspaceInstallation,
   fetchAIWorkspaceCatalog,
   fetchAIWorkspaceInstallations,
+  fetchCustomerDeploymentPortfolio,
+  fetchCustomerSelfServiceCatalogue,
   fetchPlatformCustomers,
   getPlatformApiBaseUrl,
   type AIWorkspaceInstallationSummary,
@@ -50,6 +52,8 @@ import {
   updateAIWorkspaceInstallation,
   verifyAIWorkspaceDomain,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { resolveReviewedWorkspaceProfiles, reviewedWorkspaceRequest } from './aiWorkspaceReviewedProfiles'
 
 type FormState = {
   packCode: string
@@ -124,12 +128,17 @@ function errorText(error: unknown) {
 }
 
 export function AIWorkspacesPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
-  const [customerId, setCustomerId] = useState('')
+  const customerScopeLocked = auth.session?.role === 'CUSTOMER_ADMIN'
+  const [customerId, setCustomerId] = useState(() => customerScopeLocked ? (auth.session?.customerId ?? '') : '')
   const [selected, setSelected] = useState<AIWorkspaceInstallationSummary | null>(null)
   const [editing, setEditing] = useState<AIWorkspaceInstallationSummary | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(defaultForm)
   const [notice, setNotice] = useState<string | null>(null)
+  const [reviewedProfileId, setReviewedProfileId] = useState('')
+  const [configurationError, setConfigurationError] = useState<string | null>(null)
+  const saveCommand = useRef<{ identity: string; key: string } | null>(null)
 
   const customersQuery = useQuery({ queryKey: ['platform-customers'], queryFn: fetchPlatformCustomers })
   const catalogQuery = useQuery({ queryKey: ['ai-workspace-catalog'], queryFn: fetchAIWorkspaceCatalog })
@@ -137,6 +146,16 @@ export function AIWorkspacesPage() {
     queryKey: ['ai-workspace-installations', customerId],
     queryFn: () => fetchAIWorkspaceInstallations(customerId),
     enabled: Boolean(customerId),
+  })
+  const offersQuery = useQuery({
+    queryKey: ['customer-self-service-catalogue', customerId],
+    queryFn: fetchCustomerSelfServiceCatalogue,
+    enabled: customerScopeLocked && Boolean(customerId) && editing != null,
+  })
+  const portfolioQuery = useQuery({
+    queryKey: ['customer-deployment-portfolio', customerId],
+    queryFn: fetchCustomerDeploymentPortfolio,
+    enabled: customerScopeLocked && Boolean(customerId) && editing != null,
   })
 
   const customers = customersQuery.data ?? []
@@ -148,10 +167,42 @@ export function AIWorkspacesPage() {
     [catalog?.connectionProfiles, form.connectionMode],
   )
   const detailSlugMappings = useMemo(() => parseMappings(form.detailSlugs), [form.detailSlugs])
+  const consumer = customer?.consumers.find((item) => item.consumerId === form.consumerId)
+  const reviewedDeployment = portfolioQuery.data?.find((item) => item.deploymentId === consumer?.boundDeploymentId)
+  const reviewedOffer = offersQuery.data?.find((item) => item.id === reviewedDeployment?.offerId
+    && item.fingerprint === reviewedDeployment.offerFingerprint
+    && item.entitlement.customerId === customerId && item.entitlement.status === 'ACTIVE')
+  const reviewedTarget = reviewedOffer?.targets.find((item) => item.id === consumer?.boundTargetProfileId)
+  const reviewedScopeReady = Boolean(consumer?.customerId === customerId && consumer.status === 'ACTIVE'
+    && reviewedTarget?.capabilities.includes('APP_CONFIGURE')
+    && reviewedTarget.capabilities.includes('AUTH_CONFIGURE') && reviewedTarget.capabilities.includes('DOMAIN_CONFIGURE'))
+  const reviewedProfilesQuery = useQuery({
+    queryKey: ['ai-workspace-reviewed-profiles', customerId, reviewedOffer?.id, reviewedOffer?.fingerprint,
+      reviewedOffer?.settings, reviewedOffer?.workspaceProfiles,
+      installations.map((item) => [item.installationId, item.rowVersion])],
+    queryFn: () => resolveReviewedWorkspaceProfiles(reviewedOffer!, customerId, installations),
+    enabled: customerScopeLocked && editing != null && reviewedScopeReady && Boolean(reviewedOffer)
+      && installationsQuery.isSuccess,
+    retry: false,
+  })
+  const reviewedProfiles = reviewedScopeReady ? (reviewedProfilesQuery.data ?? []) : []
+  const reviewedProfile = reviewedProfiles.find((item) => item.id === reviewedProfileId) ?? null
+  const effectiveDeliveryMode = customerScopeLocked ? reviewedProfile?.configuration.deliveryMode : form.deliveryMode
 
   useEffect(() => {
+    if (!customerScopeLocked || editing == null) return
+    setReviewedProfileId((current) => reviewedProfiles.some((item) => item.id === current) ? current
+      : editing === 'new' ? reviewedProfiles[0]?.id ?? ''
+        : reviewedProfiles.find((item) => item.id === editing.installationId)?.id ?? '')
+  }, [customerScopeLocked, editing, reviewedProfilesQuery.data, reviewedScopeReady])
+
+  useEffect(() => {
+    if (customerScopeLocked && auth.session?.customerId && customerId !== auth.session.customerId) {
+      setCustomerId(auth.session.customerId)
+      return
+    }
     if (!customerId && customers.length > 0) setCustomerId(customers[0].id)
-  }, [customerId, customers])
+  }, [auth.session?.customerId, customerId, customerScopeLocked, customers])
 
   useEffect(() => {
     if (selected) {
@@ -165,10 +216,11 @@ export function AIWorkspacesPage() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: (payload: SaveAIWorkspaceInstallationRequest) => editing === 'new'
-      ? createAIWorkspaceInstallation(customerId, payload)
-      : updateAIWorkspaceInstallation(customerId, editing!.installationId, payload),
+    mutationFn: ({ payload, operationKey }: { payload: SaveAIWorkspaceInstallationRequest; operationKey: string }) => editing === 'new'
+      ? createAIWorkspaceInstallation(customerId, payload, operationKey)
+      : updateAIWorkspaceInstallation(customerId, editing!.installationId, payload, operationKey),
     onSuccess: async (installation) => {
+      saveCommand.current = null
       setNotice(`AI Workspace ${installation.displayName} saved.`)
       setEditing(null)
       setSelected(installation)
@@ -177,8 +229,8 @@ export function AIWorkspacesPage() {
   })
 
   const activateMutation = useMutation({
-    mutationFn: (installation: AIWorkspaceInstallationSummary) =>
-      activateAIWorkspaceInstallation(customerId, installation.installationId),
+    mutationFn: ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) =>
+      activateAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey),
     onSuccess: async (installation) => {
       setNotice(`AI Workspace ${installation.displayName} activated.`)
       setSelected(installation)
@@ -187,8 +239,8 @@ export function AIWorkspacesPage() {
   })
 
   const disableMutation = useMutation({
-    mutationFn: (installation: AIWorkspaceInstallationSummary) =>
-      disableAIWorkspaceInstallation(customerId, installation.installationId),
+    mutationFn: ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) =>
+      disableAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey),
     onSuccess: async (installation) => {
       setNotice(`AI Workspace ${installation.displayName} disabled.`)
       setSelected(installation)
@@ -197,8 +249,8 @@ export function AIWorkspacesPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (installation: AIWorkspaceInstallationSummary) =>
-      deleteAIWorkspaceInstallation(customerId, installation.installationId),
+    mutationFn: ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) =>
+      deleteAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey),
     onSuccess: async () => {
       setNotice('Draft AI Workspace deleted.')
       setSelected(null)
@@ -207,6 +259,7 @@ export function AIWorkspacesPage() {
   })
 
   const openCreate = () => {
+    saveCommand.current = null
     const firstProfile = catalog?.connectionProfiles.find((profile) => profile.mode === defaultForm.connectionMode)
     setForm({
       ...defaultForm,
@@ -214,9 +267,12 @@ export function AIWorkspacesPage() {
       profileCode: firstProfile?.code ?? defaultForm.profileCode,
     })
     setEditing('new')
+    setReviewedProfileId('')
+    setConfigurationError(null)
   }
 
   const openEdit = (installation: AIWorkspaceInstallationSummary) => {
+    saveCommand.current = null
     const config = installation.configuration ?? {}
     const dealer = config.dealer ?? {}
     const page = config.page ?? {}
@@ -259,9 +315,38 @@ export function AIWorkspacesPage() {
       shopDomain: String(installation.connectionConfiguration.shopDomain ?? ''),
     })
     setEditing(installation)
+    setReviewedProfileId(installation.installationId)
+    setConfigurationError(null)
+  }
+
+  const saveWorkspace = (payload: SaveAIWorkspaceInstallationRequest) => {
+    const identity = JSON.stringify({ customerId, installationId: editing === 'new' ? null : editing?.installationId, payload })
+    if (saveCommand.current?.identity !== identity) saveCommand.current = { identity, key: crypto.randomUUID() }
+    saveMutation.mutate({ payload, operationKey: saveCommand.current.key })
   }
 
   const submit = () => {
+    setConfigurationError(null)
+    if (customerScopeLocked) {
+      if (!reviewedOffer || !reviewedScopeReady || !reviewedProfile) {
+        setConfigurationError('Select an available configuration from the current reviewed offer before saving.')
+        return
+      }
+      try {
+        const payload = reviewedWorkspaceRequest(reviewedOffer, reviewedProfile, {
+          consumerId: form.consumerId,
+          displayName: form.displayName,
+          appSlug: effectiveDeliveryMode === 'standalone' ? form.appSlug.trim() : undefined,
+          customDomains: effectiveDeliveryMode === 'standalone' ? lines(form.customDomains) : [],
+          allowedOrigins: lines(form.origins),
+          ...(editing !== 'new' && editing ? { rowVersion: editing.rowVersion } : {}),
+        })
+        saveWorkspace(payload)
+      } catch (error) {
+        setConfigurationError(errorText(error))
+      }
+      return
+    }
     const profile = catalog?.connectionProfiles.find((item) => item.code === form.profileCode)
     const pack = catalog?.experiencePacks.find((item) => item.code === form.packCode)
     const authProfile = catalog?.authenticationProfiles.find((item) => item.code === form.authProfileCode)
@@ -339,7 +424,7 @@ export function AIWorkspacesPage() {
       } : {},
       ...(editing !== 'new' && editing ? { rowVersion: editing.rowVersion } : {}),
     }
-    saveMutation.mutate(payload)
+    saveWorkspace(payload)
   }
 
   const operationError = saveMutation.error || activateMutation.error || disableMutation.error || deleteMutation.error
@@ -354,16 +439,20 @@ export function AIWorkspacesPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
-          <TextField
-            select
-            size="small"
-            label="Customer"
-            value={customerId}
-            onChange={(event) => { setCustomerId(event.target.value); setSelected(null) }}
-            sx={{ minWidth: 260 }}
-          >
-            {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
-          </TextField>
+          {customerScopeLocked ? (
+            <Chip label={auth.session?.customerName ?? customer?.name ?? 'My customer account'} variant="outlined" />
+          ) : (
+            <TextField
+              select
+              size="small"
+              label="Customer"
+              value={customerId}
+              onChange={(event) => { setCustomerId(event.target.value); setSelected(null) }}
+              sx={{ minWidth: 260 }}
+            >
+              {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
+            </TextField>
+          )}
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!customer || !catalog?.assetsReady}>
             Create AI App
           </Button>
@@ -426,12 +515,12 @@ export function AIWorkspacesPage() {
                 <TableCell align="right" onClick={(event) => event.stopPropagation()}>
                   <Tooltip title="Edit"><span><IconButton size="small" disabled={installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
                   {installation.status === 'ACTIVE' ? (
-                    <Tooltip title="Disable"><IconButton size="small" onClick={() => disableMutation.mutate(installation)}><PauseCircleOutlineRoundedIcon /></IconButton></Tooltip>
+                    <Tooltip title="Disable"><IconButton size="small" onClick={() => disableMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PauseCircleOutlineRoundedIcon /></IconButton></Tooltip>
                   ) : (
-                    <Tooltip title="Activate"><span><IconButton size="small" disabled={!installation.ready} onClick={() => activateMutation.mutate(installation)}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>
+                    <Tooltip title="Activate"><span><IconButton size="small" disabled={!installation.ready} onClick={() => activateMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>
                   )}
                   {installation.status === 'DRAFT' && (
-                    <Tooltip title="Delete draft"><IconButton size="small" color="error" onClick={() => deleteMutation.mutate(installation)}><DeleteOutlineRoundedIcon /></IconButton></Tooltip>
+                    <Tooltip title="Delete draft"><IconButton size="small" color="error" onClick={() => deleteMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><DeleteOutlineRoundedIcon /></IconButton></Tooltip>
                   )}
                 </TableCell>
               </TableRow>
@@ -460,118 +549,169 @@ export function AIWorkspacesPage() {
                 ))}
               </TextField>
             </Stack>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField select fullWidth label="Experience pack" value={form.packCode} onChange={(e) => setForm({ ...form, packCode: e.target.value })}>
-                {(catalog?.experiencePacks ?? []).map((pack) => <MenuItem key={pack.code} value={pack.code} disabled={!pack.enabled}>{pack.name}</MenuItem>)}
-              </TextField>
-              <TextField select fullWidth label="Delivery" value={form.deliveryMode} onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}>
-                <MenuItem value="standalone">Standalone AI app</MenuItem>
-                <MenuItem value="embedded">Embedded one-script workspace</MenuItem>
-              </TextField>
-            </Stack>
-            {form.deliveryMode === 'standalone' && (
+            {customerScopeLocked ? (
+              <Stack spacing={1.5}>
+                <TextField select fullWidth label="Reviewed app configuration" value={reviewedProfile?.id ?? ''}
+                  disabled={reviewedProfilesQuery.isFetching || reviewedProfiles.length === 0}
+                  onChange={(event) => { setReviewedProfileId(event.target.value); setConfigurationError(null) }}>
+                  {reviewedProfiles.map((profile) => (
+                    <MenuItem key={profile.id} value={profile.id}>
+                      {profile.label} · {profile.configuration.experiencePackCode}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                {offersQuery.isFetching || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching ? (
+                  <Typography variant="body2" color="text.secondary">Loading reviewed configurations...</Typography>
+                ) : offersQuery.error || portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error ? (
+                  <Alert severity="error">{errorText(offersQuery.error || portfolioQuery.error || reviewedProfilesQuery.error || installationsQuery.error)}</Alert>
+                ) : !reviewedScopeReady ? (
+                  <Alert severity="warning">The selected assignment needs a current reviewed offer and an entitled deployment target before configuring an app.</Alert>
+                ) : reviewedProfiles.length === 0 ? (
+                  <Alert severity="warning">
+                    No valid reviewed app configuration is available from this offer or your existing apps.
+                    LoomAI must publish a configuration matching the approved interaction, theme, and authentication profiles before you can save.
+                  </Alert>
+                ) : !reviewedProfile ? (
+                  <Alert severity="warning">The saved configuration is not included in this offer. Select a reviewed configuration explicitly before saving.</Alert>
+                ) : null}
+                {reviewedProfile ? (
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Tooltip title={reviewedProfile.interactionProfileId}><Chip label={reviewedProfile.configuration.experiencePackCode} variant="outlined" /></Tooltip>
+                    <Chip label={reviewedProfile.configuration.deliveryMode} variant="outlined" />
+                    <Tooltip title={reviewedProfile.authProfileId}><Chip label={reviewedProfile.configuration.interactionPolicy} variant="outlined" /></Tooltip>
+                    <Tooltip title={reviewedProfile.themeProfileId}><Chip label="Reviewed theme" variant="outlined" /></Tooltip>
+                  </Stack>
+                ) : null}
+              </Stack>
+            ) : null}
+            {!customerScopeLocked ? (
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                <TextField select fullWidth label="Experience pack" value={form.packCode} onChange={(e) => setForm({ ...form, packCode: e.target.value })}>
+                  {(catalog?.experiencePacks ?? []).map((pack) => <MenuItem key={pack.code} value={pack.code} disabled={!pack.enabled}>{pack.name}</MenuItem>)}
+                </TextField>
+                <TextField select fullWidth label="Delivery" value={form.deliveryMode} onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}>
+                  <MenuItem value="standalone">Standalone AI app</MenuItem>
+                  <MenuItem value="embedded">Embedded one-script workspace</MenuItem>
+                </TextField>
+              </Stack>
+            ) : null}
+            {effectiveDeliveryMode === 'standalone' && (
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <TextField fullWidth label="App slug" helperText="Creates <slug>.apps.loomai.pro" value={form.appSlug} onChange={(e) => setForm({ ...form, appSlug: e.target.value.toLowerCase() })} />
                 <TextField fullWidth multiline minRows={2} label="Custom domains" helperText="Optional exact hostnames, one per line" value={form.customDomains} onChange={(e) => setForm({ ...form, customDomains: e.target.value })} />
               </Stack>
             )}
-            <Divider />
-            <Typography variant="subtitle2">Interaction and identity</Typography>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                select fullWidth label="Interaction policy" value={form.interactionPolicy}
-                onChange={(e) => {
-                  const policy = e.target.value
-                  const authenticated = policy === 'login-required'
-                  const isPublic = policy === 'public'
-                  const mode = authenticated ? 'public-runtime-authenticated' : 'public-runtime-anonymous'
-                  const profile = catalog?.connectionProfiles.find((item) => item.mode === mode && item.enabled)
-                  setForm({ ...form, interactionPolicy: policy, authProfileCode: isPublic ? 'none' : 'supabase', connectionMode: mode, profileCode: profile?.code ?? '' })
-                }}
-              >
-                <MenuItem value="public-with-protected-capabilities">Public with protected capabilities</MenuItem>
-                <MenuItem value="login-required">Login required</MenuItem>
-                <MenuItem value="public">Public only</MenuItem>
-              </TextField>
-              <TextField select fullWidth label="Authentication profile" value={form.authProfileCode} disabled={form.interactionPolicy === 'public'} onChange={(e) => setForm({ ...form, authProfileCode: e.target.value })}>
-                {(catalog?.authenticationProfiles ?? []).map((profile) => <MenuItem key={profile.code} value={profile.code} disabled={!profile.enabled || (form.interactionPolicy !== 'public' && profile.code === 'none')}>{profile.name}</MenuItem>)}
-              </TextField>
-            </Stack>
-            {form.authProfileCode === 'supabase' && (
+            {(!customerScopeLocked || effectiveDeliveryMode === 'embedded') ? (
+              <TextField multiline minRows={2} label="Allowed website origins" helperText="One exact HTTPS origin per line" value={form.origins} onChange={(e) => setForm({ ...form, origins: e.target.value })} />
+            ) : null}
+            {!customerScopeLocked ? (
               <>
+                <Divider />
+                <Typography variant="subtitle2">Interaction and identity</Typography>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                  <TextField fullWidth label="Supabase project URL" value={form.supabaseProjectUrl} onChange={(e) => setForm({ ...form, supabaseProjectUrl: e.target.value })} />
-                  <TextField fullWidth label="Supabase publishable key" value={form.supabasePublishableKey} onChange={(e) => setForm({ ...form, supabasePublishableKey: e.target.value })} />
+                  <TextField
+                    select fullWidth label="Interaction policy" value={form.interactionPolicy}
+                    onChange={(e) => {
+                      const policy = e.target.value
+                      const authenticated = policy === 'login-required'
+                      const isPublic = policy === 'public'
+                      const mode = authenticated ? 'public-runtime-authenticated' : 'public-runtime-anonymous'
+                      const profile = catalog?.connectionProfiles.find((item) => item.mode === mode && item.enabled)
+                      setForm({ ...form, interactionPolicy: policy, authProfileCode: isPublic ? 'none' : 'supabase', connectionMode: mode, profileCode: profile?.code ?? '' })
+                    }}
+                  >
+                    <MenuItem value="public-with-protected-capabilities">Public with protected capabilities</MenuItem>
+                    <MenuItem value="login-required">Login required</MenuItem>
+                    <MenuItem value="public">Public only</MenuItem>
+                  </TextField>
+                  <TextField select fullWidth label="Authentication profile" value={form.authProfileCode} disabled={form.interactionPolicy === 'public'} onChange={(e) => setForm({ ...form, authProfileCode: e.target.value })}>
+                    {(catalog?.authenticationProfiles ?? []).map((profile) => <MenuItem key={profile.code} value={profile.code} disabled={!profile.enabled || (form.interactionPolicy !== 'public' && profile.code === 'none')}>{profile.name}</MenuItem>)}
+                  </TextField>
                 </Stack>
-                <Stack direction="row" spacing={2} flexWrap="wrap">
-                  <FormControlLabel control={<Checkbox checked={form.supabaseEmailPassword} onChange={(e) => setForm({ ...form, supabaseEmailPassword: e.target.checked })} />} label="Email and password" />
-                  <FormControlLabel control={<Checkbox checked={form.supabaseMagicLink} onChange={(e) => setForm({ ...form, supabaseMagicLink: e.target.checked })} />} label="Magic link" />
+                {form.authProfileCode === 'supabase' && (
+                  <>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                      <TextField fullWidth label="Supabase project URL" value={form.supabaseProjectUrl} onChange={(e) => setForm({ ...form, supabaseProjectUrl: e.target.value })} />
+                      <TextField fullWidth label="Supabase publishable key" value={form.supabasePublishableKey} onChange={(e) => setForm({ ...form, supabasePublishableKey: e.target.value })} />
+                    </Stack>
+                    <Stack direction="row" spacing={2} flexWrap="wrap">
+                      <FormControlLabel control={<Checkbox checked={form.supabaseEmailPassword} onChange={(e) => setForm({ ...form, supabaseEmailPassword: e.target.checked })} />} label="Email and password" />
+                      <FormControlLabel control={<Checkbox checked={form.supabaseMagicLink} onChange={(e) => setForm({ ...form, supabaseMagicLink: e.target.checked })} />} label="Magic link" />
+                    </Stack>
+                  </>
+                )}
+                <Divider />
+                <Typography variant="subtitle2">Connection</Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                  <TextField
+                    select fullWidth label="Connection mode" value={form.connectionMode}
+                    onChange={(e) => {
+                      const mode = e.target.value
+                      const profile = catalog?.connectionProfiles.find((item) => item.mode === mode && item.enabled)
+                      setForm({ ...form, connectionMode: mode, profileCode: profile?.code ?? '' })
+                    }}
+                  >
+                    <MenuItem value="public-runtime-anonymous">Public anonymous runtime</MenuItem>
+                    <MenuItem value="public-runtime-authenticated">Public authenticated runtime</MenuItem>
+                    <MenuItem value="backend-mediated-private-runtime">Backend-mediated private runtime</MenuItem>
+                  </TextField>
+                  <TextField select fullWidth label="Reviewed profile" value={form.profileCode} onChange={(e) => setForm({ ...form, profileCode: e.target.value })}>
+                    {compatibleProfiles.map((profile) => (
+                      <MenuItem key={profile.code} value={profile.code} disabled={!profile.enabled}>
+                        {profile.name}{profile.enabled ? '' : ` - ${profile.availabilityMessage}`}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Stack>
+                {form.connectionMode === 'backend-mediated-private-runtime' && (
+                  <TextField label="Shopify store domain" helperText="Reviewed Shopify Bridge profile only" value={form.shopDomain} onChange={(e) => setForm({ ...form, shopDomain: e.target.value })} />
+                )}
+                <Divider />
+                <Typography variant="subtitle2">{form.packCode === 'dealership' ? 'Dealership experience' : 'Generic experience'}</Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                  {form.packCode === 'dealership' && <TextField fullWidth label="Dealership ID" value={form.dealerId} onChange={(e) => setForm({ ...form, dealerId: e.target.value })} />}
+                  <TextField fullWidth label="Assistant label" value={form.assistantLabel} onChange={(e) => setForm({ ...form, assistantLabel: e.target.value })} />
+                  {form.packCode === 'dealership' && <TextField fullWidth label="Source mode" value={form.sourceMode} onChange={(e) => setForm({ ...form, sourceMode: e.target.value })} />}
+                </Stack>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                  <TextField fullWidth label="Page content selector" value={form.rootSelector} onChange={(e) => setForm({ ...form, rootSelector: e.target.value })} />
+                  <TextField fullWidth label="Default context label" value={form.contextLabel} onChange={(e) => setForm({ ...form, contextLabel: e.target.value })} />
+                  <TextField fullWidth type="color" label="Primary colour" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} InputLabelProps={{ shrink: true }} />
+                </Stack>
+                {form.packCode === 'dealership' && <Stack direction="row" spacing={2} flexWrap="wrap">
+                  <FormControlLabel control={<Checkbox checked={form.comparison} onChange={(e) => setForm({ ...form, comparison: e.target.checked })} />} label="Vehicle comparison" />
+                  <FormControlLabel control={<Checkbox checked={form.testDrive} onChange={(e) => setForm({ ...form, testDrive: e.target.checked })} />} label="Test-drive request" />
+                  <FormControlLabel control={<Checkbox checked={form.callback} onChange={(e) => setForm({ ...form, callback: e.target.checked })} />} label="Callback request" />
+                </Stack>}
+                {form.packCode === 'dealership' && <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                  <TextField fullWidth label="Vehicle detail path" value={form.detailBasePath} onChange={(e) => setForm({ ...form, detailBasePath: e.target.value })} />
+                  <TextField fullWidth multiline minRows={2} label="Approved image hosts" helperText="One hostname per line" value={form.imageHosts} onChange={(e) => setForm({ ...form, imageHosts: e.target.value })} />
+                </Stack>}
+                {form.packCode === 'dealership' && <TextField
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  label="Detail page mappings"
+                  helperText={detailSlugMappings.error || 'One source record ID=page slug per line. The source record stays provider-owned; the host owns its page route.'}
+                  error={Boolean(detailSlugMappings.error)}
+                  value={form.detailSlugs}
+                  onChange={(e) => setForm({ ...form, detailSlugs: e.target.value })}
+                />}
               </>
-            )}
-            <Divider />
-            <Typography variant="subtitle2">Connection</Typography>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                select fullWidth label="Connection mode" value={form.connectionMode}
-                onChange={(e) => {
-                  const mode = e.target.value
-                  const profile = catalog?.connectionProfiles.find((item) => item.mode === mode && item.enabled)
-                  setForm({ ...form, connectionMode: mode, profileCode: profile?.code ?? '' })
-                }}
-              >
-                <MenuItem value="public-runtime-anonymous">Public anonymous runtime</MenuItem>
-                <MenuItem value="public-runtime-authenticated">Public authenticated runtime</MenuItem>
-                <MenuItem value="backend-mediated-private-runtime">Backend-mediated private runtime</MenuItem>
-              </TextField>
-              <TextField select fullWidth label="Reviewed profile" value={form.profileCode} onChange={(e) => setForm({ ...form, profileCode: e.target.value })}>
-                {compatibleProfiles.map((profile) => (
-                  <MenuItem key={profile.code} value={profile.code} disabled={!profile.enabled}>
-                    {profile.name}{profile.enabled ? '' : ` - ${profile.availabilityMessage}`}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
-            {form.connectionMode === 'backend-mediated-private-runtime' && (
-              <TextField label="Shopify store domain" helperText="Reviewed Shopify Bridge profile only" value={form.shopDomain} onChange={(e) => setForm({ ...form, shopDomain: e.target.value })} />
-            )}
-            <TextField multiline minRows={2} label="Allowed website origins" helperText="One exact HTTPS origin per line" value={form.origins} onChange={(e) => setForm({ ...form, origins: e.target.value })} />
-            <Divider />
-            <Typography variant="subtitle2">{form.packCode === 'dealership' ? 'Dealership experience' : 'Generic experience'}</Typography>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              {form.packCode === 'dealership' && <TextField fullWidth label="Dealership ID" value={form.dealerId} onChange={(e) => setForm({ ...form, dealerId: e.target.value })} />}
-              <TextField fullWidth label="Assistant label" value={form.assistantLabel} onChange={(e) => setForm({ ...form, assistantLabel: e.target.value })} />
-              {form.packCode === 'dealership' && <TextField fullWidth label="Source mode" value={form.sourceMode} onChange={(e) => setForm({ ...form, sourceMode: e.target.value })} />}
-            </Stack>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField fullWidth label="Page content selector" value={form.rootSelector} onChange={(e) => setForm({ ...form, rootSelector: e.target.value })} />
-              <TextField fullWidth label="Default context label" value={form.contextLabel} onChange={(e) => setForm({ ...form, contextLabel: e.target.value })} />
-              <TextField fullWidth type="color" label="Primary colour" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} InputLabelProps={{ shrink: true }} />
-            </Stack>
-            {form.packCode === 'dealership' && <Stack direction="row" spacing={2} flexWrap="wrap">
-              <FormControlLabel control={<Checkbox checked={form.comparison} onChange={(e) => setForm({ ...form, comparison: e.target.checked })} />} label="Vehicle comparison" />
-              <FormControlLabel control={<Checkbox checked={form.testDrive} onChange={(e) => setForm({ ...form, testDrive: e.target.checked })} />} label="Test-drive request" />
-              <FormControlLabel control={<Checkbox checked={form.callback} onChange={(e) => setForm({ ...form, callback: e.target.checked })} />} label="Callback request" />
-            </Stack>}
-            {form.packCode === 'dealership' && <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField fullWidth label="Vehicle detail path" value={form.detailBasePath} onChange={(e) => setForm({ ...form, detailBasePath: e.target.value })} />
-              <TextField fullWidth multiline minRows={2} label="Approved image hosts" helperText="One hostname per line" value={form.imageHosts} onChange={(e) => setForm({ ...form, imageHosts: e.target.value })} />
-            </Stack>}
-            {form.packCode === 'dealership' && <TextField
-              fullWidth
-              multiline
-              minRows={3}
-              label="Detail page mappings"
-              helperText={detailSlugMappings.error || 'One source record ID=page slug per line. The source record stays provider-owned; the host owns its page route.'}
-              error={Boolean(detailSlugMappings.error)}
-              value={form.detailSlugs}
-              onChange={(e) => setForm({ ...form, detailSlugs: e.target.value })}
-            />}
+            ) : null}
+            {configurationError ? <Alert severity="error">{configurationError}</Alert> : null}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId || !form.profileCode || (form.deliveryMode === 'standalone' && !form.appSlug.trim()) || (form.packCode === 'dealership' && Boolean(detailSlugMappings.error)) || (form.authProfileCode === 'supabase' && (!form.supabaseProjectUrl.trim() || !form.supabasePublishableKey.trim() || (!form.supabaseEmailPassword && !form.supabaseMagicLink)))}>Save draft</Button>
+          <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId
+            || (effectiveDeliveryMode === 'standalone' && !form.appSlug.trim())
+            || (customerScopeLocked
+              ? !reviewedProfile || !reviewedScopeReady || offersQuery.isFetching || portfolioQuery.isFetching || reviewedProfilesQuery.isFetching
+                || offersQuery.isError || portfolioQuery.isError || reviewedProfilesQuery.isError || installationsQuery.isError
+              : !form.profileCode || (form.packCode === 'dealership' && Boolean(detailSlugMappings.error))
+                || (form.authProfileCode === 'supabase' && (!form.supabaseProjectUrl.trim() || !form.supabasePublishableKey.trim()
+                  || (!form.supabaseEmailPassword && !form.supabaseMagicLink))))}>Save draft</Button>
         </DialogActions>
       </Dialog>
     </Stack>
@@ -581,7 +721,8 @@ export function AIWorkspacesPage() {
 function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void> }) {
   const [copied, setCopied] = useState(false)
   const verifyMutation = useMutation({
-    mutationFn: (hostname: string) => verifyAIWorkspaceDomain(installation.customerId, installation.installationId, hostname),
+    mutationFn: ({ hostname, operationKey }: { hostname: string; operationKey: string }) =>
+      verifyAIWorkspaceDomain(installation.customerId, installation.installationId, hostname, operationKey),
     onSuccess: () => void refresh(),
   })
   const snippet = `<script\n  async\n  src="${getPlatformApiBaseUrl()}/api/public/ai-workspace/install.js"\n  data-installation-id="${installation.installationId}">\n</script>`
@@ -616,7 +757,7 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
                         <Typography variant="caption" color="text.secondary">{domain.type} · {domain.status}</Typography>
                       </Box>
                       {domain.status !== 'VERIFIED' && (
-                        <Button size="small" onClick={() => verifyMutation.mutate(domain.hostname)} disabled={verifyMutation.isPending}>
+                        <Button size="small" onClick={() => verifyMutation.mutate({ hostname: domain.hostname, operationKey: crypto.randomUUID() })} disabled={verifyMutation.isPending}>
                           {domain.type === 'CUSTOMER_CUSTOM' ? 'Verify domain' : 'Verify route'}
                         </Button>
                       )}

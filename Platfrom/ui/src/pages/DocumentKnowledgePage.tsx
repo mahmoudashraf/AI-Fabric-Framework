@@ -45,9 +45,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
+  bindCustomerDocumentStorage,
   deleteDocumentStorageBinding,
   cleanupDocumentRetention,
   discoverDocumentSources,
+  fetchCustomerDeploymentPortfolio,
+  fetchCustomerSelfServiceCatalogue,
+  fetchCustomerSelfServiceOffer,
+  fetchPlatformAuthSession,
   fetchDeploymentDraft,
   fetchDeploymentReleases,
   fetchDeploymentTargetContext,
@@ -64,6 +69,7 @@ import {
   refreshDocumentSource,
   registerDocumentSource,
   removeDocumentIndex,
+  revokeCustomerDocumentStorage,
   resolveDeploymentMarketplaceInstall,
   updateDeploymentMarketplaceInstall,
   upsertDocumentStorageBinding,
@@ -74,7 +80,10 @@ import {
   type DocumentSourceSummary,
   type UpsertDocumentStorageBindingRequest,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope,
+  type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
 
 const DOCUMENT_PLUGIN_IDS = new Set([
   'mkp-data-document-knowledge-s3',
@@ -180,9 +189,13 @@ function sameTarget(target: DeploymentTargetReference | undefined, current: Depl
 }
 
 export function DocumentKnowledgePage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
+  const customerSelfService = auth.session?.role === 'CUSTOMER_ADMIN'
+  const customerId = auth.session?.customerId ?? ''
   const [useTargetBindingSlot, setUseTargetBindingSlot] = useState(false)
+  const [customerStorageProfileId, setCustomerStorageProfileId] = useState('')
   const [bindingForm, setBindingForm] = useState<BindingForm>(emptyBindingForm)
   const [selectedSourceId, setSelectedSourceId] = useState('')
   const [selectedReleaseId, setSelectedReleaseId] = useState('')
@@ -241,12 +254,24 @@ export function DocumentKnowledgePage() {
   const profilesQuery = useQuery({
     queryKey: ['deployment-target-profiles'],
     queryFn: () => fetchDeploymentTargetProfiles(),
-    enabled: selectedDeploymentId.length > 0,
+    // Customer target authority comes from the reviewed offer. The provider
+    // catalogue remains a staff-only control-plane surface.
+    enabled: selectedDeploymentId.length > 0 && !customerSelfService,
   })
   const bindingsQuery = useQuery({
     queryKey: ['document-storage-bindings', selectedDeploymentId],
     queryFn: () => fetchDocumentStorageBindings(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
+  })
+  const customerPortfolioQuery = useQuery({
+    queryKey: ['customer-deployment-portfolio', customerId, auth.session?.actorId, auth.session?.authenticationMode],
+    queryFn: fetchCustomerDeploymentPortfolio,
+    enabled: customerSelfService && Boolean(customerId),
+  })
+  const customerCatalogueQuery = useQuery({
+    queryKey: ['customer-self-service-catalogue', customerId, auth.session?.actorId, auth.session?.authenticationMode],
+    queryFn: fetchCustomerSelfServiceCatalogue,
+    enabled: customerSelfService && Boolean(customerId),
   })
 
   const dataset = useMemo(
@@ -261,12 +286,43 @@ export function DocumentKnowledgePage() {
   )
   const publicAudiencePackage = install != null && PUBLIC_AUDIENCE_DOCUMENT_PLUGIN_IDS.has(install.pluginId)
   const configuredBindingRef = asRecord(install?.config).documentStorageBindingRef
+  const customerDeployment = (customerPortfolioQuery.data ?? [])
+    .find((deployment) => deployment.deploymentId === selectedDeploymentId) ?? null
+  const customerOffer = (customerCatalogueQuery.data ?? [])
+    .find((offer) => offer.id === customerDeployment?.offerId) ?? null
+  const customerStorageSlot = customerOffer?.bindingSlots.find((slot) => slot.kind === 'CUSTOMER_S3') ?? null
+  const bindingAuthorityKey = JSON.stringify([auth.session?.actorId, auth.session?.authenticationMode, customerId,
+    selectedDeploymentId, selectedDeploymentSummary?.binding, customerDeployment, customerOffer?.id,
+    customerOffer?.fingerprint, customerOffer?.entitlement, customerStorageSlot])
+  const bindingAuthority = useRef({ key: bindingAuthorityKey, target: bindingForm.targetProfileId })
+  bindingAuthority.current = { key: bindingAuthorityKey, target: bindingForm.targetProfileId }
+  const currentCustomerStorageScope = (targetProfileId: string, operation: CustomerDocumentStorageScope['operation'], selectedProfileId?: string) => {
+    if (!customerPortfolioQuery.isSuccess || !customerCatalogueQuery.isSuccess
+      || customerPortfolioQuery.isFetching || customerCatalogueQuery.isFetching) return null
+    try {
+      return customerDocumentStorageScope({ session: auth.session, deployment: customerDeployment, selectedDeployment: selectedDeploymentSummary,
+        selectedDeploymentId, offer: customerOffer, targetProfileId, bindingSlotId: customerStorageSlot?.id ?? '', operation, selectedProfileId })
+    } catch { return null }
+  }
+  const customerBindScope = currentCustomerStorageScope(bindingForm.targetProfileId, 'BINDING_REPLACE', customerStorageProfileId)
   useEffect(() => {
-    setUseTargetBindingSlot(configuredBindingRef === 'slot:document-storage')
-  }, [selectedDeploymentId, install?.id, configuredBindingRef])
-  const matchingProfiles = useMemo(() => (
-    (profilesQuery.data ?? []).filter((profile) => profile.active)
-  ), [profilesQuery.data])
+    setUseTargetBindingSlot(customerSelfService || configuredBindingRef === 'slot:document-storage')
+  }, [customerSelfService, selectedDeploymentId, install?.id, configuredBindingRef])
+  useEffect(() => {
+    if (!customerSelfService) return
+    const profiles = customerStorageSlot?.supportedProfileIds ?? []
+    if (!profiles.includes(customerStorageProfileId)) setCustomerStorageProfileId(profiles[0] ?? '')
+  }, [customerSelfService, customerStorageProfileId, customerStorageSlot])
+  const matchingProfiles = useMemo(() => {
+    if (customerSelfService) {
+      return (customerOffer?.targets ?? []).map((target) => ({
+        id: target.id,
+        name: target.intent === 'CUSTOMER_STAGING' ? 'Customer staging' : 'Customer production',
+        providerType: 'Reviewed offer',
+      }))
+    }
+    return (profilesQuery.data ?? []).filter((profile) => profile.active)
+  }, [customerOffer?.targets, customerSelfService, profilesQuery.data])
 
   const documentConfigured = workspace?.documentKnowledgeConfigured ?? dataset != null
   const documentLive = !!selectedRelease && !!targetQuery.data?.documentDatasetIds.length
@@ -316,8 +372,37 @@ export function DocumentKnowledgePage() {
     mutationFn: async (input: {
       deploymentId: string; form: BindingForm; useTargetBindingSlot: boolean
       install: DeploymentMarketplaceInstallSummary | null
+      operationKey: string; bindingSlotId?: string; selectedProfileId?: string
+      customerScope?: CustomerDocumentStorageScope; authorityKey: string
     }) => {
       const { deploymentId, form, install, useTargetBindingSlot } = input
+      if (input.customerScope || customerSelfService) {
+        const scope = input.customerScope
+        if (!scope) {
+          throw new Error('The reviewed customer document-storage profile is unavailable.')
+        }
+        await requireFreshCustomerDocumentStorageScope(scope, { session: fetchPlatformAuthSession,
+          offer: fetchCustomerSelfServiceOffer, deployments: fetchCustomerDeploymentPortfolio },
+        () => bindingAuthority.current.key === input.authorityKey && bindingAuthority.current.target === scope.targetProfileId)
+        const result = await bindCustomerDocumentStorage(scope.offerId, deploymentId, {
+          expectedEntitlementRevision: scope.entitlementRevision,
+          operationKey: input.operationKey,
+          targetProfileId: scope.targetProfileId,
+          bindingSlotId: scope.bindingSlotId,
+          selectedProfileId: scope.selectedProfileId!,
+          endpoint: form.endpoint,
+          region: form.region,
+          bucket: form.bucket,
+          prefix: form.prefix,
+          accessKey: form.accessKey,
+          secretKey: form.secretKey,
+          sessionToken: form.sessionToken || undefined,
+          pathStyleAccess: form.pathStyleAccess,
+          objectVersioningAvailable: form.objectVersioningAvailable,
+        })
+        if (!result.binding) throw new Error('The customer storage binding was not returned.')
+        return result.binding
+      }
       const payload: UpsertDocumentStorageBindingRequest = form.connectorType === 'MOUNTED_FOLDER'
         ? {
             targetProfileId: form.targetProfileId,
@@ -338,7 +423,11 @@ export function DocumentKnowledgePage() {
             objectVersioningAvailable: form.objectVersioningAvailable,
             allowInsecureEndpoint: form.allowInsecureEndpoint,
           }
-      const binding = await upsertDocumentStorageBinding(deploymentId, payload)
+      const binding = await upsertDocumentStorageBinding(deploymentId, payload, {
+        operationKey: input.operationKey,
+        bindingSlotId: input.bindingSlotId,
+        selectedProfileId: input.selectedProfileId,
+      })
       const compositionBindingRef = useTargetBindingSlot ? 'slot:document-storage' : binding.bindingRef
       if (install && asRecord(install.config).documentStorageBindingRef !== compositionBindingRef) {
         await updateDeploymentMarketplaceInstall(deploymentId, install.id, {
@@ -349,7 +438,7 @@ export function DocumentKnowledgePage() {
       return binding
     },
     onSuccess: async (_, input) => {
-      if (currentSelection.current.target.deploymentId === input.deploymentId) {
+      if (currentSelection.current.target.deploymentId === input.deploymentId && bindingAuthority.current.key === input.authorityKey) {
         setBindingForm((current) => current === input.form
           ? { ...current, accessKey: '', secretKey: '', sessionToken: '' }
           : current)
@@ -364,7 +453,34 @@ export function DocumentKnowledgePage() {
   })
 
   const deleteBindingMutation = useMutation({
-    mutationFn: (input: { deploymentId: string; bindingRef: string }) => deleteDocumentStorageBinding(input.deploymentId, input.bindingRef),
+    mutationFn: async (input: {
+      deploymentId: string
+      bindingRef: string
+      targetProfileId: string
+      operationKey: string
+      bindingSlotId?: string
+      customerScope?: CustomerDocumentStorageScope; authorityKey: string
+    }) => {
+      if (input.customerScope || customerSelfService) {
+        const scope = input.customerScope
+        if (!scope) {
+          throw new Error('The reviewed customer document-storage profile is unavailable.')
+        }
+        await requireFreshCustomerDocumentStorageScope(scope, { session: fetchPlatformAuthSession,
+          offer: fetchCustomerSelfServiceOffer, deployments: fetchCustomerDeploymentPortfolio },
+        () => bindingAuthority.current.key === input.authorityKey)
+        await revokeCustomerDocumentStorage(scope.offerId, input.deploymentId, {
+          expectedEntitlementRevision: scope.entitlementRevision,
+          operationKey: input.operationKey,
+          targetProfileId: input.targetProfileId,
+          bindingSlotId: scope.bindingSlotId,
+        })
+        return
+      }
+      await deleteDocumentStorageBinding(input.deploymentId, input.bindingRef, {
+        operationKey: input.operationKey, bindingSlotId: input.bindingSlotId,
+      })
+    },
     onSuccess: (_, input) => queryClient.invalidateQueries({ queryKey: ['document-storage-bindings', input.deploymentId] }),
   })
   const discoveryMutation = useMutation({
@@ -379,6 +495,7 @@ export function DocumentKnowledgePage() {
       target: DeploymentTargetReference; datasetId: string; publicAudiencePackage: boolean
       selection: NonNullable<typeof registrationSelection>
       objectReference: string; sourceCategory: string; visibility: string
+      operationKey: string
     }) => registerDocumentSource(input.target, {
       datasetId: input.datasetId,
       objectReference: input.objectReference,
@@ -387,7 +504,7 @@ export function DocumentKnowledgePage() {
         sourceCategory: input.sourceCategory,
         ...(input.publicAudiencePackage ? { publicationStatus: 'PUBLIC_APPROVED' } : {}),
       },
-    }),
+    }, input.operationKey),
     onSuccess: async (source, input) => {
       if (sameTarget(input.target, currentSelection.current.target)
         && currentSelection.current.registrationSelection === input.selection) {
@@ -404,15 +521,15 @@ export function DocumentKnowledgePage() {
     mutationFn: (input: { target: DeploymentTargetReference; sourceId: string }) => previewDocumentSource(input.target, input.sourceId),
   })
   const commandMutation = useMutation({
-    mutationFn: ({ target, sourceId, command }: { target: DeploymentTargetReference; sourceId: string; command: 'refresh' | 'index' | 'reconcile' }) => {
-      if (command === 'refresh') return refreshDocumentSource(target, sourceId)
-      if (command === 'index') return indexDocumentSource(target, sourceId)
-      return reconcileDocumentSource(target, sourceId)
+    mutationFn: ({ target, sourceId, command, operationKey }: { target: DeploymentTargetReference; sourceId: string; command: 'refresh' | 'index' | 'reconcile'; operationKey: string }) => {
+      if (command === 'refresh') return refreshDocumentSource(target, sourceId, operationKey)
+      if (command === 'index') return indexDocumentSource(target, sourceId, operationKey)
+      return reconcileDocumentSource(target, sourceId, operationKey)
     },
     onSuccess: (_, input) => invalidateDocumentState(input.target),
   })
   const removeMutation = useMutation({
-    mutationFn: (input: { target: DeploymentTargetReference; sourceId: string; selection: NonNullable<typeof removalSelection> }) => removeDocumentIndex(input.target, input.sourceId),
+    mutationFn: (input: { target: DeploymentTargetReference; sourceId: string; selection: NonNullable<typeof removalSelection>; operationKey: string }) => removeDocumentIndex(input.target, input.sourceId, input.operationKey),
     onSuccess: async (_, input) => {
       if (sameTarget(input.target, currentSelection.current.target)
         && currentSelection.current.removalSelection === input.selection) {
@@ -425,13 +542,14 @@ export function DocumentKnowledgePage() {
     mutationFn: (input: { target: DeploymentTargetReference; query: string }) => verifyDocumentRetrieval(input.target, { query: input.query, limit: 8 }),
   })
   const retentionMutation = useMutation({
-    mutationFn: (input: { target: DeploymentTargetReference }) => cleanupDocumentRetention(input.target),
+    mutationFn: (input: { target: DeploymentTargetReference; operationKey: string }) => cleanupDocumentRetention(input.target, input.operationKey),
     onSuccess: (_, input) => queryClient.invalidateQueries({
       queryKey: ['document-retention-status', input.target.deploymentId, input.target.targetProfileId, input.target.releaseId],
     }),
   })
 
   const bindingSaveCurrent = saveBindingMutation.variables?.deploymentId === selectedDeploymentId
+    && saveBindingMutation.variables.authorityKey === bindingAuthorityKey
     && saveBindingMutation.variables.form.targetProfileId === bindingForm.targetProfileId
   const discoveryCurrent = documentLive && sameTarget(discoveryMutation.variables?.target, targetReference)
   const discoveryCursor = discoveryCurrent ? discoveryMutation.data?.nextCursor : undefined
@@ -453,8 +571,8 @@ export function DocumentKnowledgePage() {
   if (!documentConfigured) {
     return (
       <Alert severity="info">
-        This deployment does not include the Document Knowledge DATA capability.{' '}
-        <Link component={RouterLink} to="/marketplace">Open Marketplace</Link>
+        This deployment does not include the Document Knowledge DATA capability.
+        {!customerSelfService ? <> <Link component={RouterLink} to="/marketplace">Open Marketplace</Link></> : null}
       </Alert>
     )
   }
@@ -507,22 +625,40 @@ export function DocumentKnowledgePage() {
               <Typography variant="h6" sx={{ fontWeight: 750 }}>Source binding</Typography>
               <Typography variant="body2" color="text.secondary">Customer-owned storage, read-only connector authority.</Typography>
             </Box>
-            <ToggleButtonGroup
-              exclusive
-              size="small"
-              value={bindingForm.connectorType}
-              onChange={(_, value) => value && setBindingForm((current) => ({ ...current, connectorType: value }))}
-              disabled={!canAdmin}
-            >
-              <ToggleButton value="S3_COMPATIBLE_OBJECT_STORAGE"><CloudOutlinedIcon sx={{ mr: 1 }} />S3 compatible</ToggleButton>
-              <ToggleButton value="MOUNTED_FOLDER"><FolderOpenRoundedIcon sx={{ mr: 1 }} />Mounted demo</ToggleButton>
-            </ToggleButtonGroup>
+            {customerSelfService ? (
+              <Chip icon={<CloudOutlinedIcon />} label="Customer-owned S3-compatible storage" color="primary" variant="outlined" />
+            ) : (
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={bindingForm.connectorType}
+                onChange={(_, value) => value && setBindingForm((current) => ({ ...current, connectorType: value }))}
+                disabled={!canAdmin}
+              >
+                <ToggleButton value="S3_COMPATIBLE_OBJECT_STORAGE"><CloudOutlinedIcon sx={{ mr: 1 }} />S3 compatible</ToggleButton>
+                <ToggleButton value="MOUNTED_FOLDER"><FolderOpenRoundedIcon sx={{ mr: 1 }} />Mounted demo</ToggleButton>
+              </ToggleButtonGroup>
+            )}
           </Stack>
-          <FormControlLabel
-            control={<Checkbox checked={useTargetBindingSlot} onChange={(event) => setUseTargetBindingSlot(event.target.checked)}
-              disabled={!canAdmin || saveBindingMutation.isPending} />}
-            label="Use target-scoped document storage slot"
-          />
+          {!customerSelfService ? (
+            <FormControlLabel
+              control={<Checkbox checked={useTargetBindingSlot} onChange={(event) => setUseTargetBindingSlot(event.target.checked)}
+                disabled={!canAdmin || saveBindingMutation.isPending} />}
+              label="Use target-scoped document storage slot"
+            />
+          ) : null}
+
+          {customerSelfService && customerStorageSlot ? (
+            <TextField select fullWidth size="small" label="Approved storage profile" value={customerStorageProfileId}
+              onChange={(event) => setCustomerStorageProfileId(event.target.value)}>
+              {customerStorageSlot.supportedProfileIds.map((profileId) => (
+                <MenuItem key={profileId} value={profileId}>{profileId}</MenuItem>
+              ))}
+            </TextField>
+          ) : null}
+          {customerSelfService && !customerStorageSlot && !customerCatalogueQuery.isLoading ? (
+            <Alert severity="error">This reviewed offer does not allow a customer-owned document-storage binding.</Alert>
+          ) : null}
 
           {bindingForm.connectorType === 'MOUNTED_FOLDER' ? (
             <Alert severity="warning">Demo / small data only. The read-only mount path is fixed at /app/document-sources.</Alert>
@@ -589,8 +725,14 @@ export function DocumentKnowledgePage() {
           <Stack direction="row" justifyContent="flex-end">
             <Button
               variant="contained" startIcon={<SaveRoundedIcon />}
-              disabled={!canAdmin || !bindingForm.targetProfileId || saveBindingMutation.isPending}
-              onClick={() => saveBindingMutation.mutate({ deploymentId: selectedDeploymentId, form: bindingForm, install, useTargetBindingSlot })}
+              disabled={!canAdmin || !bindingForm.targetProfileId || saveBindingMutation.isPending || (customerSelfService && !customerBindScope)}
+              onClick={() => saveBindingMutation.mutate({
+                deploymentId: selectedDeploymentId, form: bindingForm, install, useTargetBindingSlot,
+                operationKey: crypto.randomUUID(),
+                customerScope: customerBindScope ?? undefined, authorityKey: bindingAuthorityKey,
+                bindingSlotId: useTargetBindingSlot ? (customerStorageSlot?.id ?? 'document-storage') : undefined,
+                selectedProfileId: customerSelfService ? customerStorageProfileId : undefined,
+              })}
             >
               Save binding
             </Button>
@@ -609,10 +751,18 @@ export function DocumentKnowledgePage() {
                 <span>
                   <IconButton
                     aria-label="Remove document storage binding"
-                    disabled={!canAdmin || deleteBindingMutation.isPending}
+                    disabled={!canAdmin || deleteBindingMutation.isPending
+                      || (customerSelfService && !currentCustomerStorageScope(binding.targetProfileId, 'BINDING_REVOKE'))}
                     onClick={() => {
                       if (globalThis.confirm('Remove this binding and its managed credentials? Customer source objects will not be changed.')) {
-                        deleteBindingMutation.mutate({ deploymentId: selectedDeploymentId, bindingRef: binding.bindingRef })
+                        deleteBindingMutation.mutate({
+                          deploymentId: selectedDeploymentId, bindingRef: binding.bindingRef,
+                          targetProfileId: binding.targetProfileId,
+                          operationKey: crypto.randomUUID(),
+                          customerScope: currentCustomerStorageScope(binding.targetProfileId, 'BINDING_REVOKE') ?? undefined,
+                          authorityKey: bindingAuthorityKey,
+                          bindingSlotId: useTargetBindingSlot ? (customerStorageSlot?.id ?? 'document-storage') : undefined,
+                        })
                       }
                     }}
                   ><DeleteOutlineRoundedIcon /></IconButton>
@@ -734,9 +884,9 @@ export function DocumentKnowledgePage() {
                 </Box>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button size="small" variant="outlined" startIcon={<PreviewRoundedIcon />} disabled={!documentLive || previewMutation.isPending} onClick={() => previewMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId })}>Preview</Button>
-                  <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'index' })}>Index</Button>
-                  <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'refresh' })}>Refresh revision</Button>
-                  <Button size="small" variant="outlined" startIcon={<FactCheckRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'reconcile' })}>Reconcile</Button>
+                  <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'index', operationKey: crypto.randomUUID() })}>Index</Button>
+                  <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'refresh', operationKey: crypto.randomUUID() })}>Refresh revision</Button>
+                  <Button size="small" variant="outlined" startIcon={<FactCheckRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'reconcile', operationKey: crypto.randomUUID() })}>Reconcile</Button>
                   <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} disabled={!documentLive || !canOperate || removeMutation.isPending} onClick={() => setRemovalSelection({ target: targetReference, source: selectedSource })}>Remove index</Button>
                 </Stack>
               </Stack>
@@ -821,7 +971,7 @@ export function DocumentKnowledgePage() {
               variant="outlined"
               startIcon={<DeleteSweepRoundedIcon />}
               disabled={!documentLive || !canOperate || retentionMutation.isPending}
-              onClick={() => retentionMutation.mutate({ target: targetReference })}
+              onClick={() => retentionMutation.mutate({ target: targetReference, operationKey: crypto.randomUUID() })}
             >
               Run cleanup
             </Button>
@@ -923,6 +1073,7 @@ export function DocumentKnowledgePage() {
               objectReference: registrationSource.objectReference,
               sourceCategory: registrationCategory.trim(),
               visibility: registrationVisibility,
+              operationKey: crypto.randomUUID(),
             })}
           >
             Register source
@@ -939,7 +1090,7 @@ export function DocumentKnowledgePage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRemovalSelection(null)}>Cancel</Button>
-          <Button color="error" variant="contained" startIcon={<DeleteOutlineRoundedIcon />} disabled={removeMutation.isPending} onClick={() => removeSource && removalSelection && removeMutation.mutate({ target: removalSelection.target, sourceId: removeSource.sourceId, selection: removalSelection })}>Remove index</Button>
+          <Button color="error" variant="contained" startIcon={<DeleteOutlineRoundedIcon />} disabled={removeMutation.isPending} onClick={() => removeSource && removalSelection && removeMutation.mutate({ target: removalSelection.target, sourceId: removeSource.sourceId, selection: removalSelection, operationKey: crypto.randomUUID() })}>Remove index</Button>
         </DialogActions>
       </Dialog>
     </Stack>

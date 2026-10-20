@@ -12,6 +12,7 @@ import {
   CircularProgress,
   Divider,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -21,21 +22,33 @@ import {
   TableHead,
   TableRow,
   Tooltip,
+  TextField,
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
+  deliverManagedDependencyOperatorCredential,
+  enrollManagedDependencyOperator,
   expireConversationHandover,
   fetchConversationHandoverOperations,
   fetchDeploymentIntegrations,
+  fetchDeploymentReleases,
+  fetchDeploymentTargetContext,
+  fetchManagedDependencies,
   reconcileDeploymentIntegrationSource,
   replayDeploymentIntegrationWebhook,
+  revokeManagedDependencyOperator,
+  rotateManagedDependencyOperator,
   retryConversationHandoverDispatch,
   type ConversationHandoverOperationsOverview,
+  type DeploymentTargetReference,
   type IntegrationWebhookEvent,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useScopedOneTimeValue } from '../hooks/useScopedOneTimeValue'
 
 function statusColor(value: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
   const status = (value ?? '').toUpperCase()
@@ -56,59 +69,158 @@ function errorText(value: unknown): string {
 }
 
 export function IntegrationsPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
-  const dataConfigured = workspace?.externalIntegrationConfigured ?? false
-  const dataLive = workspace?.externalIntegrationLive ?? false
-  const handoverConfigured = workspace?.conversationHandoverConfigured ?? false
-  const handoverLive = workspace?.conversationHandoverLive ?? false
-  const configured = dataConfigured || handoverConfigured
-  const live = dataLive || handoverLive
+  const [selectedReleaseId, setSelectedReleaseId] = useState('')
+  const [operatorName, setOperatorName] = useState('')
+  const [operatorSlot, setOperatorSlot] = useState('')
+  const customerSelfService = auth.session?.role === 'CUSTOMER_ADMIN'
   const canOperate = workspace?.access.canOperate ?? false
+  const releasesQuery = useQuery({
+    queryKey: ['deployment-releases', selectedDeploymentId],
+    queryFn: () => fetchDeploymentReleases(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const availableReleases = useMemo(() => (releasesQuery.data ?? []).filter((release) =>
+    release.targetProfileId && release.provisioningStatus === 'ACTIVE'
+    && ['VERIFYING', 'APPLIED_VERIFIED', 'APPLIED_VERIFICATION_FAILED'].includes(release.status)),
+  [releasesQuery.data])
+  const selectedRelease = availableReleases.find((release) => release.id === selectedReleaseId)
+  const target: DeploymentTargetReference = {
+    deploymentId: selectedDeploymentId,
+    targetProfileId: selectedRelease?.targetProfileId ?? '',
+    releaseId: selectedRelease?.id ?? '',
+  }
+  const credential = useScopedOneTimeValue<string>(JSON.stringify({
+    actorId: auth.session?.actorId, customerId: auth.session?.customerId,
+    role: auth.session?.role, authenticationMode: auth.session?.authenticationMode,
+    ...target,
+  }))
+  const deliveredCredential = credential.value
+  const operatorScope = () => ({ ...target, token: credential.capture() })
+  useEffect(() => {
+    setSelectedReleaseId('')
+  }, [selectedDeploymentId])
+  useEffect(() => {
+    if (!selectedReleaseId && availableReleases.length === 1) {
+      setSelectedReleaseId(availableReleases[0].id)
+    }
+  }, [availableReleases, selectedReleaseId])
+
+  const targetQuery = useQuery({
+    queryKey: ['deployment-target-context', selectedDeploymentId, target.targetProfileId, target.releaseId],
+    queryFn: () => fetchDeploymentTargetContext(target),
+    enabled: !!selectedRelease,
+    retry: false,
+  })
+  const dataLive = targetQuery.data?.externalIntegrationConfigured ?? false
+  const handoverLive = targetQuery.data?.conversationHandoverConfigured ?? false
+  const live = dataLive || handoverLive
 
   const overview = useQuery({
-    queryKey: ['deployment-integrations', selectedDeploymentId],
-    queryFn: () => fetchDeploymentIntegrations(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0 && dataLive,
+    queryKey: ['deployment-integrations', selectedDeploymentId, target.targetProfileId, target.releaseId],
+    queryFn: () => fetchDeploymentIntegrations(target),
+    enabled: !!selectedRelease && dataLive,
     retry: false,
     refetchInterval: 10_000,
   })
   const handover = useQuery({
-    queryKey: ['conversation-handover-operations', selectedDeploymentId],
-    queryFn: () => fetchConversationHandoverOperations(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0 && handoverLive,
+    queryKey: ['conversation-handover-operations', selectedDeploymentId, target.targetProfileId, target.releaseId],
+    queryFn: () => fetchConversationHandoverOperations(target),
+    enabled: !!selectedRelease && handoverLive,
     retry: false,
     refetchInterval: 10_000,
   })
+  const dependencies = useQuery({
+    queryKey: ['managed-dependencies', selectedDeploymentId, target.targetProfileId],
+    queryFn: () => fetchManagedDependencies(selectedDeploymentId, target.targetProfileId),
+    enabled: customerSelfService && !!selectedRelease && handoverLive,
+    retry: false,
+    refetchInterval: 10_000,
+  })
+  const dependencySlots = dependencies.data?.services.map((service) => service.slot) ?? []
+  useEffect(() => {
+    if (!dependencySlots.includes(operatorSlot)) setOperatorSlot(dependencySlots[0] ?? '')
+  }, [dependencySlots, operatorSlot])
 
   const reconcile = useMutation({
-    mutationFn: (sourceId: string) => reconcileDeploymentIntegrationSource(selectedDeploymentId, sourceId),
+    mutationFn: ({ sourceId, operationKey }: { sourceId: string; operationKey: string }) => (
+      reconcileDeploymentIntegrationSource(target, sourceId, operationKey)
+    ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['deployment-integrations', selectedDeploymentId] })
+      await queryClient.invalidateQueries({ queryKey: ['deployment-integrations', selectedDeploymentId, target.targetProfileId, target.releaseId] })
     },
   })
   const replay = useMutation({
-    mutationFn: ({ sourceId, eventId }: { sourceId: string; eventId: string }) => (
-      replayDeploymentIntegrationWebhook(selectedDeploymentId, sourceId, eventId)
+    mutationFn: ({ sourceId, eventId, operationKey }: { sourceId: string; eventId: string; operationKey: string }) => (
+      replayDeploymentIntegrationWebhook(target, sourceId, eventId, operationKey)
     ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['deployment-integrations', selectedDeploymentId] })
+      await queryClient.invalidateQueries({ queryKey: ['deployment-integrations', selectedDeploymentId, target.targetProfileId, target.releaseId] })
     },
   })
   const retryDispatch = useMutation({
-    mutationFn: (dispatchId: string) => retryConversationHandoverDispatch(selectedDeploymentId, dispatchId),
+    mutationFn: ({ dispatchId, operationKey }: { dispatchId: string; operationKey: string }) => (
+      retryConversationHandoverDispatch(target, dispatchId, operationKey)
+    ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId] })
+      await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId, target.targetProfileId, target.releaseId] })
     },
   })
   const expireHandover = useMutation({
-    mutationFn: (handoverId: string) => expireConversationHandover(selectedDeploymentId, handoverId),
+    mutationFn: ({ handoverId, operationKey }: { handoverId: string; operationKey: string }) => (
+      expireConversationHandover(target, handoverId, operationKey)
+    ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId] })
+      await queryClient.invalidateQueries({ queryKey: ['conversation-handover-operations', selectedDeploymentId, target.targetProfileId, target.releaseId] })
+    },
+  })
+  const enrollOperator = useMutation({
+    mutationFn: (input: ReturnType<typeof operatorScope> & { slot: string; displayName: string }) =>
+      enrollManagedDependencyOperator(input.deploymentId, input.targetProfileId, {
+        slot: input.slot,
+        displayName: input.displayName,
+        operationKey: crypto.randomUUID(),
+      }),
+    onSuccess: async (_, input) => {
+      if (credential.publish(input.token, null)) setOperatorName('')
+      await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
+    },
+  })
+  const mutateOperator = useMutation({
+    mutationFn: ({ operatorId, revision, command, deploymentId, targetProfileId }: ReturnType<typeof operatorScope>
+      & { operatorId: string; revision: number; command: 'rotate' | 'revoke' }) => (
+      command === 'rotate'
+        ? rotateManagedDependencyOperator(deploymentId, targetProfileId, operatorId, {
+            expectedCredentialRevision: revision, operationKey: crypto.randomUUID(),
+          })
+        : revokeManagedDependencyOperator(deploymentId, targetProfileId, operatorId, {
+            expectedCredentialRevision: revision, operationKey: crypto.randomUUID(),
+          })
+    ),
+    onSuccess: async (_, input) => {
+      credential.publish(input.token, null)
+      await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
+    },
+  })
+  const deliverCredential = useMutation({
+    gcTime: 0,
+    mutationFn: ({ operatorId, revision, deploymentId, targetProfileId }: ReturnType<typeof operatorScope>
+      & { operatorId: string; revision: number }) =>
+      deliverManagedDependencyOperatorCredential(deploymentId, targetProfileId, operatorId, {
+        expectedCredentialRevision: revision,
+        operationKey: crypto.randomUUID(),
+      }),
+    retry: false,
+    onSuccess: async (delivery, input) => {
+      credential.publish(input.token, delivery.apiKey)
+      await queryClient.invalidateQueries({ queryKey: ['managed-dependencies', input.deploymentId, input.targetProfileId] })
     },
   })
 
-  if (!configured) {
+  if (!releasesQuery.isLoading && availableReleases.length === 0
+    && !(workspace?.externalIntegrationConfigured || workspace?.conversationHandoverConfigured)) {
     return (
       <Stack spacing={3}>
         <Box>
@@ -119,13 +231,13 @@ export function IntegrationsPage() {
         </Box>
         <Alert
           severity="info"
-          action={(
+          action={!customerSelfService ? (
             <Button component={RouterLink} to="/marketplace" color="inherit" startIcon={<StorefrontRoundedIcon />}>
               Marketplace
             </Button>
-          )}
+          ) : undefined}
         >
-          This deployment has no external DATA or conversation-channel integration in its draft. Install a reviewed Marketplace package first.
+          This deployment has no external DATA or conversation-channel integration in its reviewed configuration.
         </Alert>
       </Stack>
     )
@@ -141,7 +253,11 @@ export function IntegrationsPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
-          <Chip icon={<CableRoundedIcon />} label={live ? 'Applied live' : 'Draft configured'} color={live ? 'success' : 'warning'} />
+          <Chip
+            icon={<CableRoundedIcon />}
+            label={targetQuery.isLoading ? 'Reading selected release' : live ? 'Selected release live' : 'No live integration selected'}
+            color={live ? 'success' : 'warning'}
+          />
           <Tooltip title="Refresh integration state">
             <span>
               <IconButton
@@ -158,12 +274,41 @@ export function IntegrationsPage() {
         </Stack>
       </Stack>
 
-      {!live ? (
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+        <TextField
+          select
+          fullWidth
+          label="Target release"
+          value={selectedReleaseId}
+          onChange={(event) => setSelectedReleaseId(event.target.value)}
+          disabled={releasesQuery.isLoading}
+          helperText="Integration commands and status are scoped to this exact provisioned target and release."
+        >
+          <MenuItem value="">Select a provisioned target release</MenuItem>
+          {availableReleases.map((release) => (
+            <MenuItem key={release.id} value={release.id}>
+              {release.targetProfileId} · {release.id} · {release.status}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Paper>
+
+      {releasesQuery.error ? <Alert severity="error">{errorText(releasesQuery.error)}</Alert> : null}
+      {targetQuery.error ? <Alert severity="error">{errorText(targetQuery.error)}</Alert> : null}
+      {!releasesQuery.isLoading && availableReleases.length === 0 ? (
         <Alert severity="warning">
-          The integration exists in the draft but is not part of the active deployment version. Publish and apply the draft before operating it.
+          No provisioned target release is available for integration administration.
         </Alert>
       ) : null}
-      {overview.isLoading || handover.isLoading ? (
+      {availableReleases.length > 1 && !selectedRelease ? (
+        <Alert severity="info">Select the target release whose integration state you want to inspect or operate.</Alert>
+      ) : null}
+      {selectedRelease && targetQuery.isSuccess && !live ? (
+        <Alert severity="warning">
+          The selected release does not contain an external data or conversation-handover integration.
+        </Alert>
+      ) : null}
+      {targetQuery.isLoading || overview.isLoading || handover.isLoading ? (
         <Box sx={{ py: 8, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
       ) : null}
       {overview.error ? <Alert severity="error">{errorText(overview.error)}</Alert> : null}
@@ -173,13 +318,81 @@ export function IntegrationsPage() {
       {retryDispatch.error ? <Alert severity="error">{errorText(retryDispatch.error)}</Alert> : null}
       {expireHandover.error ? <Alert severity="error">{errorText(expireHandover.error)}</Alert> : null}
 
+      {customerSelfService && selectedRelease && handoverLive ? (
+        <Paper variant="outlined" sx={{ p: 2.5 }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 750 }}>Inbox operators</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Enrol named human operators for this deployment target. Credentials are delivered once and are not stored in the browser.
+              </Typography>
+            </Box>
+            {dependencies.isError ? (
+              <Alert severity="warning">{errorText(dependencies.error)} The reviewed release may not include a managed operator inbox.</Alert>
+            ) : null}
+            {dependencies.data ? (
+              <>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={dependencies.data.status} color={statusColor(dependencies.data.status)} />
+                  <Chip label={`Configuration ${dependencies.data.effectiveConfigurationRevision}/${dependencies.data.configurationRevision}`} variant="outlined" />
+                </Stack>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                  <TextField select label="Inbox slot" value={operatorSlot} sx={{ minWidth: 220 }}
+                    onChange={(event) => setOperatorSlot(event.target.value)}>
+                    {dependencySlots.map((slot) => <MenuItem key={slot} value={slot}>{slot}</MenuItem>)}
+                  </TextField>
+                  <TextField fullWidth label="Operator display name" value={operatorName}
+                    onChange={(event) => setOperatorName(event.target.value)} />
+                  <Button variant="contained" disabled={!operatorSlot || operatorName.trim().length < 2 || enrollOperator.isPending}
+                    onClick={() => enrollOperator.mutate({ ...operatorScope(), slot: operatorSlot, displayName: operatorName.trim() })}>Enrol operator</Button>
+                </Stack>
+                {enrollOperator.error || mutateOperator.error || deliverCredential.error ? (
+                  <Alert severity="error">{errorText(enrollOperator.error || mutateOperator.error || deliverCredential.error)}</Alert>
+                ) : null}
+                {deliveredCredential ? (
+                  <Alert severity="warning" onClose={() => credential.publish(credential.capture(), null)}>
+                    One-time operator credential: <Box component="code" sx={{ overflowWrap: 'anywhere' }}>{deliveredCredential}</Box>
+                    Store it now. It cannot be displayed again.
+                  </Alert>
+                ) : null}
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead><TableRow><TableCell>Operator</TableCell><TableCell>Slot</TableCell><TableCell>Status</TableCell><TableCell>Credential</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
+                    <TableBody>
+                      {dependencies.data.operators.map((operator) => (
+                        <TableRow key={operator.id}>
+                          <TableCell>{operator.displayName}</TableCell>
+                          <TableCell>{operator.slot}</TableCell>
+                          <TableCell><Chip size="small" label={operator.status} color={statusColor(operator.status)} /></TableCell>
+                          <TableCell>Revision {operator.credentialRevision} · {operator.delivered ? 'delivered' : 'not delivered'}</TableCell>
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                              <Button size="small" disabled={operator.status !== 'ENROLLED' || operator.delivered || deliverCredential.isPending}
+                                onClick={() => deliverCredential.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision })}>Deliver once</Button>
+                              <Button size="small" disabled={operator.status !== 'ENROLLED' || mutateOperator.isPending}
+                                onClick={() => mutateOperator.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision, command: 'rotate' })}>Rotate</Button>
+                              <Button size="small" color="error" disabled={operator.status !== 'ENROLLED' || mutateOperator.isPending}
+                                onClick={() => mutateOperator.mutate({ ...operatorScope(), operatorId: operator.id, revision: operator.credentialRevision, command: 'revoke' })}>Revoke</Button>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            ) : null}
+          </Stack>
+        </Paper>
+      ) : null}
+
       {handover.data ? (
         <ConversationHandoverOperations
           value={handover.data}
           canOperate={canOperate}
           busy={retryDispatch.isPending || expireHandover.isPending}
-          onRetry={(dispatchId) => retryDispatch.mutate(dispatchId)}
-          onExpire={(handoverId) => expireHandover.mutate(handoverId)}
+          onRetry={(dispatchId) => retryDispatch.mutate({ dispatchId, operationKey: crypto.randomUUID() })}
+          onExpire={(handoverId) => expireHandover.mutate({ handoverId, operationKey: crypto.randomUUID() })}
         />
       ) : null}
 
@@ -293,7 +506,7 @@ export function IntegrationsPage() {
                             <IconButton
                               size="small"
                               disabled={!canOperate || reconcile.isPending}
-                              onClick={() => reconcile.mutate(source.sourceId)}
+                              onClick={() => reconcile.mutate({ sourceId: source.sourceId, operationKey: crypto.randomUUID() })}
                             ><SyncRoundedIcon /></IconButton>
                           </span>
                         </Tooltip>
@@ -341,7 +554,11 @@ export function IntegrationsPage() {
                   canOperate={canOperate}
                   manualReplayEnabled={webhook.manualReplayEnabled}
                   replaying={replay.isPending}
-                  onReplay={(event) => replay.mutate({ sourceId: webhook.sourceId, eventId: event.eventId })}
+                  onReplay={(event) => replay.mutate({
+                    sourceId: webhook.sourceId,
+                    eventId: event.eventId,
+                    operationKey: crypto.randomUUID(),
+                  })}
                 />
               </Paper>
             ))}

@@ -1,4 +1,4 @@
-import { Alert, Box, CircularProgress, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
 import { usePlatformAuth } from './auth/PlatformAuthProvider'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
@@ -78,8 +78,19 @@ export default function App() {
     )
   }
 
+  if (auth.session?.role === 'CUSTOMER_ADMIN' && auth.session.authenticationMode !== 'SESSION') {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 3 }}>
+        <Stack spacing={2} sx={{ maxWidth: 620 }}>
+          <Alert severity="error">Customer self-service requires a password-backed session. API-key access cannot open the customer workspace.</Alert>
+          <Button variant="contained" onClick={() => { void auth.signOut() }}>Return to sign in</Button>
+        </Stack>
+      </Box>
+    )
+  }
+
   return (
-    <DeploymentWorkspaceProvider>
+    <DeploymentWorkspaceProvider key={auth.session?.actorId ?? auth.session?.customerId ?? 'platform-operator'}>
       <AppShell session={auth.session} onSignOut={auth.signOut}>
         <Routes>
           <Route path="/" element={<Navigate to="/deployments" replace />} />
