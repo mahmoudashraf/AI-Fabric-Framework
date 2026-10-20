@@ -229,6 +229,42 @@ retry. Repeated or ambiguous failures require their owning reconciliation path.
 Do not automatically fall back between recovery types, cancel the reservation
 as unused, or repeat an uncertain native operation.
 
+### Resume Unfinished Setup After Provisioning
+
+When runtime and connector provisioning, credential removal and allowance
+activation have completed, a later dependency-admission failure is not a reason
+to redeploy those services or initialize funding again. The normal owner can
+review the supported continuation:
+
+```text
+POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/post-provision-resume-plan
+{
+  "releaseId": "<failed-release>",
+  "operationKey": "<unique-key>",
+  "reason": "<reason>",
+  "acceptRemainingDependencyProvisioning": true
+}
+
+POST /api/customer-self-service/catalogue/{offerId}/deployments/{deploymentId}/admission-reservations/{reservationId}/resume-post-provisioning
+<the exact command returned by the plan>
+```
+
+The v1 boundary requires a failure at dependency admission with no dependency
+create intent or native identity, exact owned healthy runtime/connector/database
+resources, complete terminal job history and the same active allowance. The
+plan explicitly reports `runtimeRedeployRequired: false` and the remaining
+phases: managed dependencies, source sync and post-apply verification. It may
+create the reviewed AI-owned Inbox and its operational database. It does not
+provision customer inventory, CRM or other business systems.
+
+Every execution rechecks current placement, ownership, published configuration
+and the existing runtime wallet. No timestamps are copied forward to disguise
+stale evidence. Cached metadata reads remain separate from provider probes so
+an enclosing transaction never holds its locks during those probes. Failure
+history and financial counters remain intact; the receipt means queued, not
+finished. Other phases, ambiguous effects, stale plans or changed authority are
+rejected. Never automatically select this path after another recovery fails.
+
 ## 6. Release Verification
 
 Before activating a customer app, prove:

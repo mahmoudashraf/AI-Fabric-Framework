@@ -9,7 +9,7 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-20 21:46 UTC. The detailed
+Authoritative short checklist, updated 2026-10-20 22:22 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
@@ -57,8 +57,17 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   PLAN200 then one EXECUTE20021:42 queues SAME rel-b7206a67/Rc4d054ec,
   receipt69854756-db9f-46d5-bf75-c4b44ba574c1. Existing native identities,
   preparation and allowance remain; failed attempt is archived. At21:46 the
-  runtime gate passes, connector startup is pending, R is PROVISIONINGrev8 and
-  allocation remains UNINITIALIZED. No blind retry/reset/refund/new grant.
+  runtime gate passes. By21:52 connector startup and database credential scrub
+  also pass; both services are healthy, SAME allowance is ACTIVE. Release fails
+  subsequent Inbox admission with FRESH_READBACK_REQUIRED: the pre-startup
+  readback aged during10min native provisioning. R is OUTCOME_UNKNOWNrev9;
+  Inbox remains PLANNED with no native IDs/create intents. A proper fresh
+  execution readback and explicit post-provision continuation are under focused
+  qualification:295 cases/111 actual PostgreSQL, package and independent review
+  pass. Separate commits559556004/beab504fc await one combined backend build,
+  not yet deployed. Continuation must preserve healthy runtime/
+  connector and wallet, not replay provisioning or initialize another allowance.
+  No blind retry/reset/refund/new grant.
   Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
   confirmed-action receipts, identity isolation and human handover. No customer
@@ -86,12 +95,12 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** observe the consumed same-release retry through connector startup,
-credential scrub, dependency completion, source sync and normal verification;
-then hosted runtime/index/chat/action/identity/handover gates. Never replay the
-actual native retry POST. Main owns sequential flow and every mutation. Faraday
-alone handles the independent minimal functional retry UI against frozen APIs;
-no redesign/extraction/hosted work. The source review and diagnostics are closed.
+**Next:** qualify and deploy fresh execution-readback and bounded continuation
+corrections in one backend build; then explicitly resume remaining setup through
+the normal owner API and complete hosted runtime/index/chat/action/identity/
+handover gates. Never replay the consumed native retry POST or reset its wallet.
+Main owns sequential flow and every mutation. Faraday handles only the independent
+minimal functional retry/resume UI against frozen APIs; no extraction/hosted work.
 **Required user input: none
 currently.** No new spending or deployment authority is implied by this list.
 

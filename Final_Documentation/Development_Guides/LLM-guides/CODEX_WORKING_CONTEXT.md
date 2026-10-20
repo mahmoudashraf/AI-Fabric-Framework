@@ -10,6 +10,39 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At22:22UTC the two corrections qualify295 unique cases, including111 actual
+  PostgreSQL cases, zero failures/errors/skips; package6948150c4ee6368b21f9c4eb2baaecd859188c7403f69e59660fc656af4c6515
+  passes with48 changed classes byte-matched. R1's unchanged suites reconcile
+  with final R2 execution/coordinator and R3 manifest/retained-index checks.
+  R2-start through package input hashes are stable; no R1 prebuild snapshot claim.
+  Proof1e32cec4a176f812ca3bb02fdc9cbca90c5eb3c7071e94cc962764c9072b1266
+  in /private/tmp/01044-post-provision-resume-qualification-20261020.
+  Independent bounded review has no unresolved concrete P1/P2. Separate local
+  commits559556004 (fresh execution evidence) andbeab504fc (owner continuation)
+  are ready for ONE backend-only push/build. Not deployed; native retry POST
+  remains consumed, no resume POST yet. Both CPs still6e8f49882/schema206/UP.
+  Main prepares normal source-only rollout using existing139-table guards and
+  actual6e8/8cea baseline; relevant functional UI continues separately.
+
+- MAIN CONTINUES22:16UTC, not a stopping checkpoint. Same-release native retry
+  completes runtime/connector startup and privileged credential scrub21:52;
+  both apps are healthy and SAME allowancepua-9a083459 is ACTIVE. Release then
+  fails managed Inbox admission with FRESH_READBACK_REQUIRED: stored pre-startup
+  evidence aged during10min native provisioning. R is OUTCOME_UNKNOWNrev9;
+  Inbox graph BLOCKED/ADMISSION with no app/DB create intents or native IDs.
+- Local correction under focused qualification: real phase/provider-checkpoint
+  placement probes outside transactions; metadata projections remain cached-only.
+  Historical placement IDs retain provenance, never freshness. Explicit owner
+  post-provision resume proves both native services healthy and exact local
+  no-Inbox-effect phase; preserves funding/identities/history and queues only
+  dependency initialization/source sync/verification. It never calls runtime
+  provisioning or allowance initialization/activation. No actual resume POST yet.
+  Main owns this sequential fix; Chandra's isolated freshness work is paused/
+  integrated, Faraday handles minimal functional controls only. Extraction LAST.
+  First focused Maven session69256/log01044-post-provision-resume-r1-20261020
+  runs; one transaction-wrapper correction and coordinator test need final
+  targeted rerun. No framework/runtime change, no SQL repair or financial reset.
+
 - At21:46UTC, MAIN CONTINUES; do not stop after this checkpoint. Both control
   planes verify6e8f49882769cbab08f2c6f7c9f318c41406c08c/image8cea4eef/schema206/UP.
   CI39500986100 succeeds/backend only; source qualifies206 focused cases/98 real

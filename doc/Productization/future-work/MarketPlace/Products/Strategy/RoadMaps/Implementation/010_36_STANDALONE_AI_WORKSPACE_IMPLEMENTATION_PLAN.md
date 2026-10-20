@@ -1,6 +1,18 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October22:22UTC the fresh-readback and explicit continuation corrections
+  qualify295 cases/111 actual PostgreSQL, package and independent review.
+  Separate559556004/beab504fc commits are preparing ONE backend-only build;
+  not deployed and no resume command sent. Main continues rollout and hosted
+  acceptance; runtime/framework unchanged, functional UI separate, extraction LAST.
+  At20October22:16UTC, native runtime/connector startup and credential scrub pass,
+  SAME allowance is ACTIVE, but later Inbox setup fails because admission reused
+  pre-startup evidence after10min. Fresh real execution readbacks and explicit
+  owner continuation of remaining setup are under focused qualification. No
+  runtime redeploy/allowance reset is needed for this phase. Not deployed or
+  hosted green yet; main continues sequentially, functional UI only in parallel,
+  extraction LAST. M5-M9 remain open, with no missing user material.
   At20October21:46UTC, both CPs verify6e8f49882/image8cea4eef/schema206/UP,
  206 focused cases/98 actual PostgreSQL, package, review and backend-only CI pass.
   All139 tables/config/financial history are preserved; maintenance closes21:41.
