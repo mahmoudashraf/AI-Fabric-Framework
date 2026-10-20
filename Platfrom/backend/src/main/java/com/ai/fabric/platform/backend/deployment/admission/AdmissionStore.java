@@ -1017,6 +1017,182 @@ class AdmissionStore {
             "QUEUED", time(clock.instant()), time(clock.instant()));
     }
 
+    KnownNoEffectSettlementContracts.Plan planKnownNoEffect(String customerId, String deploymentId, String reservationId,
+        KnownNoEffectSettlementContracts.PlanRequest request, String actor,
+        java.util.function.BiConsumer<Reservation, KnownNoEffectSettlementContracts.Command> authorize,
+        com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationIntegrity integrationIntegrity) {
+        required(customerId, 64); required(deploymentId, 64); required(reservationId, 64); required(actor, 255);
+        if (request == null || authorize == null || integrationIntegrity == null)
+            throw new AdmissionFailure(BAD_REQUEST, "NO_EFFECT_SETTLEMENT_PLAN_REQUIRED");
+        required(request.operationKey(), 128); required(request.reason(), 1000);
+        return locked(() -> {
+            try {
+                if (jdbc.query("SELECT id FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", (rs, row) -> rs.getString(1), deploymentId).size() != 1)
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                var authorizations = jdbc.query("SELECT payload_json FROM deployment_admission_authorizations WHERE reservation_id=? ORDER BY operation_key FOR UPDATE NOWAIT",
+                    (rs, row) -> json.read(rs.getString(1), AuthorizationReceipt.class), reservationId);
+                if (jdbc.query("SELECT id FROM deployment_capacity_reservations WHERE id=? FOR UPDATE NOWAIT", (rs, row) -> rs.getString(1), reservationId).size() != 1)
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                Reservation r = require(reservationId);
+                if (!customerId.equals(r.customerId()) || !deploymentId.equals(r.deploymentId()))
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                var context = context(r);
+                var manifest = context.manifest();
+                var bindings = jdbc.query("SELECT release_id,authorization_key FROM deployment_admission_release_bindings WHERE reservation_id=? ORDER BY release_id",
+                    (rs, row) -> List.of(rs.getString(1), rs.getString(2)), reservationId);
+                var expected = bindings.stream().map(binding -> {
+                    var matches = authorizations.stream().filter(a -> a.command() != null && binding.get(1).equals(a.command().operationKey())).toList();
+                    if (matches.size() != 1) throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_AUTHORIZATION_CHANGED");
+                    return new KnownNoEffectSettlementContracts.FailedRelease(binding.get(0), binding.get(1), matches.getFirst().requestFingerprint());
+                }).toList();
+                var withoutConsumers = new KnownNoEffectSettlementContracts.Command(r.fence(), request.operationKey(), r.manifestFingerprint(),
+                    manifest.versionId(), manifest.versionConfigHash(), r.bindingFingerprint(), expected, request.reason(), List.of());
+                validateKnownNoEffect(withoutConsumers);
+                authorize.accept(r, withoutConsumers);
+                requireKnownNoEffectState(r);
+                requireEffectivePolicy(r, context);
+                for (var authorization : authorizations) requireCustomerAuthorization(r, effectiveCustomerContext(r, authorization));
+                var configuration = AdmissionUnusedConsumerDetachment.readForInitialEvidenceRenewal(jdbc, json, r,
+                    authorizations.getFirst().command().customerContext());
+                var command = new KnownNoEffectSettlementContracts.Command(r.fence(), request.operationKey(), r.manifestFingerprint(),
+                    manifest.versionId(), manifest.versionConfigHash(), r.bindingFingerprint(), expected, request.reason(), configuration.assignments());
+                var evidence = new KnownNoEffectSettlementEvidence(jdbc, json, integrationIntegrity).read(r, command, authorizations);
+                return new KnownNoEffectSettlementContracts.Plan(command,
+                    json.fingerprint(Map.of("effects", evidence, "configuration", configuration.fingerprint())));
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "NO_EFFECT_SETTLEMENT_BUSY");
+            }
+        });
+    }
+
+    private void requireKnownNoEffectState(Reservation r) {
+        if (r.state() != State.RESERVED || r.workerToken() != null || r.retirementOperationId() != null
+            || r.drainDeadline() != null || r.recoveryUntil() != null || r.failureCode() != null
+            || r.expiryState() != ExpiryState.CURRENT || r.attempts() != 0 || r.nextRetryAt() != null
+            || r.retentionEnvelope() != null || r.retentionSettlement() != null)
+            throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_CURRENT_PRE_PROVIDER_RESERVATION_REQUIRED");
+    }
+
+    KnownNoEffectSettlementContracts.Receipt settleKnownNoEffect(String customerId, String deploymentId,
+        String reservationId, KnownNoEffectSettlementContracts.Command command, String actor,
+        java.util.function.Consumer<Reservation> authorize, AdmissionUnusedConsumerDetachment detachment,
+        com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationIntegrity integrationIntegrity) {
+        validateKnownNoEffect(command);
+        required(customerId, 64); required(deploymentId, 64); required(reservationId, 64); required(actor, 255);
+        if (!reservationId.equals(command.fence().reservationId()) || authorize == null || integrationIntegrity == null)
+            throw new AdmissionFailure(BAD_REQUEST, "NO_EFFECT_SETTLEMENT_SCOPE_REQUIRED");
+        String fingerprint = json.fingerprint(Map.of("customerId", customerId, "deploymentId", deploymentId,
+            "reservationId", reservationId, "actorId", actor, "command", command));
+        return locked(() -> {
+            try {
+                // Apply may own these rows before entering the ledger. Never wait on that inverse lock order.
+                if (jdbc.query("SELECT id FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), deploymentId).size() != 1)
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                var authorizations = jdbc.query("SELECT payload_json FROM deployment_admission_authorizations WHERE reservation_id=? ORDER BY operation_key FOR UPDATE NOWAIT",
+                    (rs, row) -> json.read(rs.getString(1), AuthorizationReceipt.class), reservationId);
+                if (jdbc.query("SELECT id FROM deployment_capacity_reservations WHERE id=? FOR UPDATE NOWAIT",
+                    (rs, row) -> rs.getString(1), reservationId).size() != 1)
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                Reservation observed = require(reservationId);
+                if (!customerId.equals(observed.customerId()) || !deploymentId.equals(observed.deploymentId())
+                    || !command.fence().generation().equals(observed.generation()))
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                for (var row : Map.of("platform_customers", customerId, "platform_customer_tenants", observed.tenantId(),
+                    "platform_deployment_versions", command.versionId(), "deployment_target_profiles", observed.targetProfileId()).entrySet()) {
+                    if (jdbc.query("SELECT id FROM " + row.getKey() + " WHERE id=? FOR UPDATE NOWAIT",
+                        (rs, index) -> rs.getString(1), row.getValue()).size() != 1)
+                        throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_OWNERSHIP_CHANGED");
+                }
+                authorize.accept(observed);
+                String receiptKey = json.fingerprint(Map.of("reservation", reservationId, "generation", observed.generation()));
+                var existing = jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='NO_EFFECT_SETTLE' AND record_key=?", String.class, receiptKey);
+                if (!existing.isEmpty()) {
+                    var receipt = verifiedReview("NO_EFFECT_SETTLE", receiptKey, KnownNoEffectSettlementContracts.Receipt.class);
+                    if (!fingerprint.equals(receipt.commandFingerprint()) || !json.fingerprint(observed).equals(json.fingerprint(receipt.reservation()))
+                        || observed.state() != State.RELEASED || observed.expiryState() != ExpiryState.RELEASED)
+                        throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_REPLAY_CHANGED");
+                    return receipt;
+                }
+                Reservation r = fenced(command.fence());
+                requireKnownNoEffectState(r);
+                // Completed receipt recovery needs no continuity for a released allocation; new settlement still does.
+                AdmissionContext current = context(r);
+                requireEffectivePolicy(r, current);
+                Manifest manifest = current.manifest();
+                if (!command.manifestFingerprint().equals(r.manifestFingerprint())
+                    || !command.manifestFingerprint().equals(json.fingerprint(manifest))
+                    || !command.versionId().equals(manifest.versionId()) || !command.versionConfigHash().equals(manifest.versionConfigHash())
+                    || !command.bindingFingerprint().equals(r.bindingFingerprint())
+                    || !command.bindingFingerprint().equals(manifest.bindingFingerprint()))
+                    throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_MANIFEST_CHANGED");
+                String operationIndex = json.fingerprint(Map.of("customer", customerId, "deployment", deploymentId,
+                    "target", r.targetProfileId(), "operationKey", command.operationKey()));
+                if (!jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='NO_EFFECT_OP' AND record_key=?", String.class, operationIndex).isEmpty())
+                    throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_OPERATION_REUSED");
+                if (authorizations.isEmpty()) throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_AUTHORIZATION_REQUIRED");
+                for (var authorization : authorizations) {
+                    if (authorization.command() == null || authorization.command().customerContext() == null
+                        || !r.id().equals(authorization.reservationId()) || !r.generation().equals(authorization.generation())
+                        || !r.manifestFingerprint().equals(authorization.manifestFingerprint()))
+                        throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_AUTHORIZATION_CHANGED");
+                    requireCustomerAuthorization(r, effectiveCustomerContext(r, authorization));
+                }
+                var configuration = AdmissionUnusedConsumerDetachment.readForInitialEvidenceRenewal(jdbc, json, r,
+                    authorizations.getFirst().command().customerContext());
+                if (!configuration.assignments().equals(command.consumerDetachments()))
+                    throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_EXPLICIT_CONSUMER_EXPECTATIONS_REQUIRED");
+                var evidence = new KnownNoEffectSettlementEvidence(jdbc, json, integrationIntegrity);
+                var proof = evidence.read(r, command, authorizations);
+                List<UnusedConsumerDetachmentReceipt> detachments = List.of();
+                if (!command.consumerDetachments().isEmpty()) {
+                    if (detachment == null) throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_DETACHMENT_UNAVAILABLE");
+                    detachments = detachment.detachForKnownNoEffectSettlement(r, command.consumerDetachments(), fingerprint);
+                }
+                if (!proof.equals(evidence.read(r, command, authorizations)))
+                    throw new AdmissionFailure(CONFLICT, "NO_EFFECT_SETTLEMENT_EFFECT_EVIDENCE_CHANGED");
+                evidence.requireDetachedConsumers(r, command.consumerDetachments(), detachments);
+                var completeInventory = new java.util.TreeMap<>(proof.inventoryFingerprints());
+                completeInventory.put("explicitConfigurationBefore", configuration.fingerprint());
+                proof = new KnownNoEffectSettlementContracts.Proof(proof.executionBoundary(), proof.releases(), proof.authorizations(),
+                    proof.retainedExternalBindings(), completeInventory);
+                Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+                String id = uuid();
+                Mutation m = new Mutation(r); m.state = State.RELEASED; m.expiryState = ExpiryState.RELEASED;
+                m.evidence = "known-no-effect-settlement:" + id;
+                Reservation settled = save(r, m, "SETTLED_KNOWN_NO_EFFECT", actor, now);
+                var receipt = new KnownNoEffectSettlementContracts.Receipt(id, customerId, r.tenantId(), deploymentId,
+                    r.targetProfileId(), actor, fingerprint, command, proof, KnownNoEffectSettlementContracts.Outcome.SETTLED_KNOWN_NO_EFFECT,
+                    false, now, settled, detachments);
+                review("NO_EFFECT_SETTLE", receiptKey, receipt, actor, now);
+                review("NO_EFFECT_OP", operationIndex, receipt, actor, now);
+                return receipt;
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "NO_EFFECT_SETTLEMENT_BUSY");
+            }
+        });
+    }
+
+    private void validateKnownNoEffect(KnownNoEffectSettlementContracts.Command command) {
+        if (command == null || command.fence() == null || command.fence().revision() < 0
+            || command.failedReleases() == null || command.failedReleases().isEmpty() || command.failedReleases().size() > 32
+            || command.failedReleases().stream().map(KnownNoEffectSettlementContracts.FailedRelease::releaseId).distinct().count() != command.failedReleases().size()
+            || command.failedReleases().stream().map(KnownNoEffectSettlementContracts.FailedRelease::authorizationOperationKey).distinct().count() != command.failedReleases().size())
+            throw new AdmissionFailure(BAD_REQUEST, "NO_EFFECT_SETTLEMENT_COMMAND_REQUIRED");
+        for (String value : List.of(required(command.fence().reservationId(), 64), required(command.fence().generation(), 64),
+            required(command.operationKey(), 128), required(command.manifestFingerprint(), 64), required(command.versionId(), 64),
+            required(command.versionConfigHash(), 255), required(command.bindingFingerprint(), 64), required(command.reason(), 1000)))
+            if (value.chars().anyMatch(Character::isISOControl)) throw new AdmissionFailure(BAD_REQUEST, "NO_EFFECT_SETTLEMENT_COMMAND_INVALID");
+        for (var release : command.failedReleases()) {
+            required(release.releaseId(), 64); required(release.authorizationOperationKey(), 128);
+            required(release.authorizationRequestFingerprint(), 64);
+        }
+        // Share only the existing strict structural validation, not its unused-state/evidence behavior.
+        validateUnusedCancellation(new CancelUnusedReservation(command.fence(), command.operationKey(),
+            command.failedReleases().getFirst().authorizationOperationKey(), command.failedReleases().getFirst().authorizationRequestFingerprint(),
+            command.manifestFingerprint(), command.versionId(), command.versionConfigHash(), command.bindingFingerprint(), command.consumerDetachments()));
+    }
+
     UnusedReservationCancellationReceipt cancelUnused(String deploymentId, String targetId,
                                                        CancelUnusedReservation command, String actor) {
         return cancelUnused(deploymentId, targetId, command, actor, null);

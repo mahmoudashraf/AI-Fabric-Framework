@@ -55,6 +55,15 @@ class AdmissionUnusedReservationCancellationControllerTest {
     static class Config {
         final DeploymentAdmissionService service = mock(DeploymentAdmissionService.class);
         @Bean DeploymentAdmissionService admissions() { return service; }
+        @Bean InitialAdmissionRenewalAuthorizer initialRenewalAuthorizer() {
+            return mock(InitialAdmissionRenewalAuthorizer.class);
+        }
+        @Bean AdmissionPolicyPlacementVerifier policyPlacementVerifier() {
+            return mock(AdmissionPolicyPlacementVerifier.class);
+        }
+        @Bean jakarta.persistence.EntityManagerFactory entityManagerFactory() {
+            return mock(jakarta.persistence.EntityManagerFactory.class);
+        }
         @Bean AdmissionUnusedReservationCancellationController controller(DeploymentAdmissionService admissions) {
             return new AdmissionUnusedReservationCancellationController(admissions);
         }

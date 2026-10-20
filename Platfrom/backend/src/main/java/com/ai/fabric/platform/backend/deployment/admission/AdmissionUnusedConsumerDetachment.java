@@ -75,6 +75,29 @@ public class AdmissionUnusedConsumerDetachment {
         List<String> consumerIds() { return assignments.stream().map(UnusedConsumerDetachment::consumerEntityId).toList(); }
     }
 
+    /** Known-no-effect settlement has its own owner-authorized writer and operation namespace. */
+    List<UnusedConsumerDetachmentReceipt> detachForKnownNoEffectSettlement(Reservation reservation,
+            List<UnusedConsumerDetachment> requests, String settlementFingerprint) {
+        var scope = new Scope(reservation.customerId(), reservation.tenantId(), reservation.deploymentId(), reservation.targetProfileId());
+        var found = configurationOnly(jdbc, json, scope, requests, null, new ArrayList<>());
+        if (!found.equals(requests)) throw denied("UNUSED_CONSUMER_SET_CHANGED");
+        var receipts = new ArrayList<UnusedConsumerDetachmentReceipt>();
+        for (var request : found) {
+            String key = "no-effect-settle:" + json.fingerprint(Map.of("settlement", settlementFingerprint,
+                "reservation", reservation.id(), "generation", reservation.generation(), "consumer", request.consumerEntityId()));
+            var drafts = request.draftWorkspaces().stream().collect(Collectors.toMap(DraftWorkspaceExpectation::installationEntityId,
+                DraftWorkspaceExpectation::expectedRowVersion));
+            var result = consumers.detachNeverActivatedForKnownNoEffectSettlement(scope.customerId(), request.consumerEntityId(),
+                scope.deploymentId(), scope.targetProfileId(), request.expectedBindingRevision(), key, drafts);
+            if (!request.consumerEntityId().equals(result.consumerEntityId()) || result.fromBindingRevision() != request.expectedBindingRevision()
+                || result.toBindingRevision() != request.expectedBindingRevision() + 1 || !key.equals(result.operationKey())
+                || result.historyId() == null || result.historyId().isBlank()) throw denied("UNUSED_CONSUMER_DETACHMENT_UNPROVEN");
+            receipts.add(new UnusedConsumerDetachmentReceipt(result.consumerEntityId(), result.fromBindingRevision(),
+                result.toBindingRevision(), result.historyId(), key, request.draftWorkspaces()));
+        }
+        return List.copyOf(receipts);
+    }
+
     static ConfigurationOnlyConsumers readForInitialEvidenceRenewal(JdbcTemplate jdbc, AdmissionJson json,
         Reservation reservation, com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.AdmissionContext context) {
         var fingerprints = new ArrayList<String>();

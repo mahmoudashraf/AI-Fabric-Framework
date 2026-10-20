@@ -317,6 +317,23 @@ public class PlatformCustomerConsumerService {
             expectedBindingRevision, operationKey, expectedDraftWorkspaces, "Unused external vector release");
     }
 
+    /** Called only inside the owner-authorized, fenced admission known-no-effect settlement transaction. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('CUSTOMER_ADMIN')")
+    public UnusedCancellationDetachment detachNeverActivatedForKnownNoEffectSettlement(String customerId, String consumerEntityId,
+            String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
+            Map<String, Long> expectedDraftWorkspaces) {
+        var actor = PlatformSecurityContext.currentPrincipal();
+        if (!PlatformSecurityContext.isAuthenticated()
+            || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+            || actor == null || actor.role() != com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN
+            || !"SESSION".equals(actor.authenticationMode()))
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "NO_EFFECT_CONSUMER_OWNER_SESSION_REQUIRED");
+        platformCustomerAccessService.requireCustomerManagementAccess(customerId);
+        return detachNeverActivatedConfiguration(customerId, consumerEntityId, deploymentId, targetProfileId,
+            expectedBindingRevision, operationKey, expectedDraftWorkspaces, "Known-no-effect admission settlement");
+    }
+
     private UnusedCancellationDetachment detachNeverActivatedUnusedConfiguration(String customerId, String consumerEntityId,
             String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
             Map<String, Long> expectedDraftWorkspaces, String reason) {
@@ -326,6 +343,13 @@ public class PlatformCustomerConsumerService {
             || actor == null || (actor.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN
                 && actor.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_OPERATOR))
             throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "UNUSED_CONSUMER_CANCELLATION_AUTHORITY_REQUIRED");
+        return detachNeverActivatedConfiguration(customerId, consumerEntityId, deploymentId, targetProfileId,
+            expectedBindingRevision, operationKey, expectedDraftWorkspaces, reason);
+    }
+
+    private UnusedCancellationDetachment detachNeverActivatedConfiguration(String customerId, String consumerEntityId,
+            String deploymentId, String targetProfileId, long expectedBindingRevision, String operationKey,
+            Map<String, Long> expectedDraftWorkspaces, String reason) {
         requireActiveCustomer(customerId);
         unusedCancellationEntityManager.createNativeQuery("SELECT id FROM platform_consumers WHERE id=?1 FOR UPDATE NOWAIT")
             .setParameter(1, consumerEntityId).getResultList();
