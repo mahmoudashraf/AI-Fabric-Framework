@@ -1,5 +1,13 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October18:21UTC, backend and customer configuration gates pass; immutable
+  versionver-c8cb7261 and scoped DATA binding are verified through normal APIs.
+  No runtime/index/model work yet. Receiver PATCH is unknown/locked, original
+  config observed unchanged; supported path investigation precedes ACTION
+  binding/empty vector handoff/apply. Functional UI projection is locally
+  qualified, not deployed. Hosted promotion/operations and UI-LAST remain open.
+
 - Hosted checkpoint,20October17:40UTC: explicit reviewed-profile adoption
   backendb4d1cfe06/imagec7ed7bc0 is verified on BOTH control planes/schema206/UP,
  152 focused cases/65 actualPG pass, independent review clear, CI39465068990

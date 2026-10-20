@@ -1,5 +1,91 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## Current Pre-Extraction Milestones
+
+Authoritative short checklist, updated 2026-10-20 18:26 UTC. The detailed
+010.36 P0-P7 contract remains binding. Complete configuration is not a live
+workload or a customer-ready product; local checks are not hosted acceptance.
+
+- **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
+  healthy staging and production, preserved configuration/history. Both verify
+  b4d1cfe06/schema206. [Hosted closure](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/maintenance.completed.json).
+- **M2 COMPLETE: Customer configuration path.** Acceptance: normal owner app
+  reuse/profile choice, customer-owned S3, immutable version and approved DATA
+  binding without privileged repair. App stays DRAFT; versionver-c8cb7261,
+  DATAeib-abde288d-2a4e-4147-bcc1-268f72d128f9; no runtime/index yet.
+  [Owner acceptance](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/customer-profile-assignment/main-accepted.actual.json),
+  [version](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/customer-version/verified.actual.json),
+  [DATA binding](/private/tmp/01044-pg-customer-data-stock-binding-20261020/bind.actual.json).
+- **M3 IN PROGRESS: External receiver and ACTION binding.** Acceptance: attested
+  source, exact new customer/tenant/deployment authority, old-scope denial,
+  preserved external business history, normal ACTION approval/bind. Receiver
+  PATCH has a permanent unknown intent; fresh read-only reconciliation finds
+  original configuration/native and no job. Existing-app conversion is not
+  supported by installed API/UI. Its window is explicitly abandoned/closed,
+  not passed. A supported replacement external-app plan must reuse the SAME
+  business database; no retry/adoption or direct database patch is authorized.
+  [Closure and caveat](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/receiver-window.closed.actual.json).
+- **M4 PENDING: Empty Free01 binding handoff.** Acceptance: native receipt,
+  current full unfiltered empty inventory and exact destination/version scope;
+  no vector records copied. Local helper25 tests pass, not hosted execution.
+  [Prepared procedure](/private/tmp/01044-attended-free01-handoff-20261020/HANDOFF.md).
+- **M5 PENDING: Hosted staging workload.** Acceptance: normal customer admission/
+  apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
+  confirmed-action receipts, identity isolation and human handover. No customer
+  business database may be provisioned. [010.36 journey](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#103-complete-self-service-journey).
+- **M6 PENDING: Production promotion.** Acceptance: independently indexed
+  production sources, verified release and explicit app/consumer switch, then
+  bounded staging drain/retirement. No vector/conversation/business-data copy.
+  [Promotion contract](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#105-promotion-assignment-data-and-session-safety).
+- **M7 PENDING: Hosted operations.** Acceptance: startup/traffic capacity,
+  customer-visible limits and cleanup, actual scoped cold recovery and preserved
+  financial counters. Local restore proofs and idle host samples do not close
+  this gate. [Hosted recovery preparation](/private/tmp/01044-hosted-pg-cold-recovery-preparation-20261020/HANDOFF.md),
+  [P5 requirements](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1011-implementation-phases-and-owning-files).
+- **M8 IN PROGRESS: Functional UI baseline, before extraction.** Acceptance:
+  separately committed/deployed functional/security corrections and verified
+  compatible existing UI. Projected29-file candidate passes build/TypeScript,
+ 74 tests and10 loopback scenarios, not hosted acceptance. Original staff
+  capability baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-commit-projection-20261020/HANDOFF.md).
+- **M9 PENDING, LAST: UI redesign/extraction and final certification.** Start
+  only after required M1-M8 acceptance. Prove STAFF-001..039 parity, shared
+  editors, UI-only rollback, user visual review and fresh-customer full journey.
+  [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
+
+**Next:** resolve the receiver's supported deployment path without replaying its
+unknown PATCH, then close M3/M4 before first apply. **Required user input: none
+currently.** No new spending or deployment authority is implied by this list.
+
+## 2026-10-20 18:21 UTC Customer Version And DATA Binding Verified
+
+- Explicit profile assignment is accepted17:57:26 by the exact shipped enum
+  manifest mappings, every remaining original guard,10 owner GETs and normal
+  command receipt. Original private failure stays preserved; POST not repeated.
+- Normal owner publishesver-c8cb7261/v1 at18:00:49; framework0.8.36,
+  config62c019bd4d12d22fdadffb2891e2515377ff7155b2cac95a23dddfb5e9238165.
+  New editable draftdrf-59982a73/rev2, assignment/app/storage unchanged. A private
+  pre-write guard review catches the legitimate derived deployment-status
+  transition; correction passes9 focused tests and independent closure before
+  dispatch. No runtime, release, reservation, index or model usage exists yet.
+- Normal staff DATA approvaleia-e35151f8-2485-45e8-909e-e57dbca34bf0 and
+  customer BIND eib-abde288d-2a4e-4147-bcc1-268f72d128f9 succeed with exact
+  owner/version/target/manifest and memory-only simulator credentials. This
+  proves local configuration, not remote provider health/index convergence.
+- Receiver read-only baseline passes; mount order alone causes next read-only
+  guard stop. Qualified33-test continuation preserves original input/journal
+  and full mount objects. One app PATCH then lacks a response; permanent
+  unknown intent blocks retries. Fresh full read-only snapshot equals original
+  phase0, fields/native/business history unchanged,0 active jobs. Supported
+  provider path is being investigated; do not claim receiver cutover passed.
+- Fresh18:11 samples: staging load0.74/~10.1GiB available/root37%/24running,
+  production0.18/~11.7GiB/root14%/17running,0unhealthy both. Historical staging
+  swap is excluded from capacity. These samples do not renew admission policy.
+- Receiver window closes18:24:55 after a fresh full original phase0 preservation
+  pass, active jobs0, no env/delete/start steps dispatched. Original PATCH
+  response remains unknown/locked; closure explicitly does NOT claim cutover.
+  Installed validator excludesdockerimage and existing UI offers no conversion.
+  New external-app replacement planning is separate from that abandoned command.
+
 ## 2026-10-20 17:40 UTC Explicit Profile Adoption Qualified And Live
 
 - Generic five-file backendb4d1cfe065ba08aac4d579eb755925f6bb6e2a7d is

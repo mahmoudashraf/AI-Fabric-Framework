@@ -8,6 +8,39 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 18:21 UTC Customer Version And DATA Bound; Receiver Unknown Preserved
+
+- One authoritative linked M1-M9 checklist now heads010.44 execution record;
+  use it in Platform - Updates. M1/backend andM2/configuration complete, not
+  hosted workload/readiness. Required user input currently none. UI-LAST stands.
+- Profile command is MAIN accepted17:57:26 with exact shipped manifest-value
+  mappings for3 enum fields; original failure/helper untouched.10 fresh owner
+  GETs, literal remaining guards and native command receipt pass; no POST retry.
+  Main acceptance55a1e6b5...3f53 in private explicit-profile-adoption root.
+- Normal owner versionver-c8cb7261/v1 verifies18:00:49/framework0.8.36/config
+ 62c019bd4d12d22fdadffb2891e2515377ff7155b2cac95a23dddfb5e9238165.
+  NextDRAFTdrf-59982a73/rev2. Normal DATA approval/binding succeed, IDs in010.44.
+  NoR/reservation/runtime/index/model. Current receiver remains old scope/native.
+- Receiver first read-only stop is exact mount-object permutation;33-test
+  r2-journal-bound continuation fixes only ordering, no rebaseline. One actual
+  app PATCH has permanent intent18:13:22, no response, unknown marker18:13:23.
+  Full read-only reconciliation18:15 passes originalphase0/all3fields/native/
+  businessdata unchanged,0jobs. NEVER retry/adopt originalPATCH. Installed
+  BuildPackTypes excludesdockerimage; actual supported alternative under review.
+- Functional UI projection29files/93hunks passes build/tsc/74tests/10 loopback
+  scenarios; source still private, original dirty UI unchanged, no P6/extraction.
+  Free01 helper25 localtests pass; no serving material read/POST/provider call.
+  Do not handoff old binding until actual receiver window closure is reviewed.
+  Latest operational samples18:11 show no pressure; not policy renewal. Financial
+  history and no-record-transfer boundary remain; firewall OPEN.
+- Actual old receiver window closes18:24:55 after fresh complete phase0 guard
+  pass/0jobs/no subsequent steps. Proofd7f8c9e2...072e at private
+  explicit-profile-adoption/receiver-window.closed.actual.json. OriginalPATCH
+  remains UNKNOWN/no retry; this is not receiver cutover. Installed API enum
+  excludesdockerimage, existing UI also offers no conversion. A separately
+  reviewed replacement external-app plan must reuse SAME business DB. Free01
+  handoff preparation may resume; no actual handoff or serving-token read yet.
+
 ## 2026-10-20 17:40 UTC Explicit Profile Adoption Backend Verified On Both Control Planes
 
 - Backend-only b4d1cfe065ba08aac4d579eb755925f6bb6e2a7d is committed,
