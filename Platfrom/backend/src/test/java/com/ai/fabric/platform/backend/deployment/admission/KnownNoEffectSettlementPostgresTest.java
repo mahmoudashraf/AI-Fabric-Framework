@@ -229,7 +229,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         var api = customerApi("customer");
         Plan plan = api.plan("offer", "deployment", original.id(), new PlanRequest("planned", "Explicit cleanup"));
         if (change.equals("revision")) store.activity(original.fence(), Activity.CONFIGURATION_WRITE, "new-config", "owner", NOW);
-        else store.releaseBindingState("failed-release", "OUTCOME_UNKNOWN");
+        else jdbc.update("UPDATE deployment_admission_release_bindings SET state='OUTCOME_UNKNOWN' WHERE release_id='failed-release'");
         var before = allRelevant();
         assertThatThrownBy(() -> api.settle("offer", "deployment", original.id(), plan.command())).isInstanceOf(AdmissionFailure.class);
         assertThat(allRelevant()).isEqualTo(before); assertHeld();
@@ -375,7 +375,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
 
     @ParameterizedTest @ValueSource(strings = {"QUEUED", "PROVISIONING", "OUTCOME_UNKNOWN", "ACTIVE", "SUPERSEDED"})
     void onlyExactNoEffectBindingCanSettle(String binding) {
-        store.releaseBindingState("failed-release", binding); var before = allRelevant();
+        jdbc.update("UPDATE deployment_admission_release_bindings SET state=? WHERE release_id='failed-release'", binding); var before = allRelevant();
         assertThatThrownBy(this::settle).isInstanceOf(AdmissionFailure.class);
         assertThat(allRelevant()).isEqualTo(before); assertHeld();
     }
@@ -499,6 +499,185 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(count("deployment_admission_authorizations")).isEqualTo(1);
     }
 
+    @Test void preparedFailureRecoveryRetainsFundingGraphConfigurationAndFailedHistoryThenAllowsFreshApply() {
+        preparedFailure();
+        var before = preparedPreserved(); var r = store.require(original.id());
+        var draft = preparedDraft(r.fence());
+        var plan = store.planPreparedFailureRecovery("customer", "deployment", r.id(), draft, value -> { });
+        assertThat(preparedPreserved()).isEqualTo(before);
+        var recovered = store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { });
+        assertThat(recovered.state()).isEqualTo(State.RESERVED);
+        assertThat(recovered.fromRevision()).isEqualTo(r.revision());
+        assertThat(recovered.revision()).isEqualTo(r.revision() + 1);
+        assertThat(recovered.retainedAllocationIds()).containsExactly("retained-allocation");
+        assertThat(recovered.providerRetryPerformed()).isFalse(); assertThat(recovered.financialMutationPerformed()).isFalse();
+        assertThat(store.require(r.id()).expiresAt()).isEqualTo(r.expiresAt());
+        assertThat(store.require(r.id()).demand()).isEqualTo(r.demand());
+        assertThat(store.require(r.id()).generation()).isEqualTo(r.generation());
+        assertThat(store.held()).hasSize(1); assertThat(preparedPreserved()).isEqualTo(before);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("NO_EFFECT");
+        assertThat(store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).isEqualTo(recovered);
+        assertThat(count("provider_usage_allowance_events")).isEqualTo(2);
+        assertThat(count("provider_usage_allocations")).isEqualTo(1);
+        assertThat(count("deployment_admission_reviews") - beforePreparedReviewCount).isEqualTo(1);
+        assertThatThrownBy(() -> coordinator().beginProvisioning("failed-release")).hasMessageContaining("FENCED");
+        var c = context("manifest");
+        store.reserve(c, new Reserve("explicit-fresh-apply", "manifest", scope("explicit-fresh-apply"), r.id()), evidence(c, NOW), "owner", NOW);
+        bind("fresh-release");
+        assertThat(store.currentReleaseId(store.require(r.id()))).isEqualTo("fresh-release");
+        assertThat(count("provider_usage_allocations")).isEqualTo(1);
+    }
+
+    @Test void preparedRecoveryUsesNormalCustomerBoundaryAndDoesNotExposeInternalProofOrSecrets() {
+        preparedFailure(); var api = preparedApi("customer");
+        var plan = api.plan("offer", "deployment", original.id(),
+            new PreparedFailureRecoveryContracts.PlanRequest("failed-release", "prepared-recovery", "Repair explicit pre-native failure"));
+        assertThat(json.write(plan)).doesNotContain("secret", "payload_json", "inventory", "initialAdmission");
+        assertThat(api.recover("offer", "deployment", original.id(), plan.command()).state()).isEqualTo(State.RESERVED);
+    }
+
+    @Test void preparedRecoveryRejectsForeignOwnerAndChangedEntitlementWithoutWrites() {
+        preparedFailure(); var before = allRelevant();
+        assertThatThrownBy(() -> preparedApi("foreign").plan("offer", "deployment", original.id(),
+            new PreparedFailureRecoveryContracts.PlanRequest("failed-release", "prepared-recovery", "Repair"))).isInstanceOf(AdmissionFailure.class);
+        assertThatThrownBy(() -> store.planPreparedFailureRecovery("customer", "deployment", original.id(),
+            preparedDraft(store.require(original.id()).fence()), r -> { throw new AdmissionFailure(org.springframework.http.HttpStatus.FORBIDDEN, "ENTITLEMENT_REVOKED"); }))
+            .hasMessageContaining("ENTITLEMENT_REVOKED");
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"native-intent", "native-id", "graph-worker", "initialized-node", "delivered-operator",
+        "native-handle", "unrecognized-step", "wrong-order", "nonterminal", "wrong-graph-release", "wrong-allocation-generation",
+        "active-allocation", "extra-allocation-event", "activity", "retirement", "changed-scope"})
+    void preparedRecoveryRejectsEveryNativeOrAmbiguousEffectHistory(String change) {
+        preparedFailure();
+        var state = mapper.valueToTree(preparedGraphState);
+        switch (change) {
+            case "native-intent" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("applicationCreateIntent", true);
+            case "native-id" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("databaseUuid", "native-db");
+            case "graph-worker" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET worker_token='live-worker' WHERE id='prepared-graph'");
+            case "initialized-node" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("initialized", true);
+            case "delivered-operator" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("operators").get(0)).put("delivered", true);
+            case "native-handle" -> jdbc.update("UPDATE deployment_provider_resource_handles SET resource_kind='APPLICATION' WHERE id='EXTERNAL_DOCUMENT_STORAGE_BINDING'");
+            case "unrecognized-step", "wrong-order" -> {
+                var p = mapper.valueToTree(preparedProgress());
+                ((com.fasterxml.jackson.databind.node.ObjectNode) p.path("progress").path("steps").get(3)).put("key",
+                    "unrecognized-step".equals(change) ? "reconcile_coolify_runtime_application" : "prepare_apply");
+                jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(p));
+            }
+            case "nonterminal" -> jdbc.update("UPDATE platform_deployment_releases SET status='PROVISIONING' WHERE id='failed-release'");
+            case "wrong-graph-release" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET release_id='other' WHERE id='prepared-graph'");
+            case "wrong-allocation-generation" -> jdbc.update("UPDATE provider_usage_allocations SET payload_json=? WHERE approval_id='retained-allocation'",
+                json.write(Map.of("initialAdmission", Map.of("reservationId", original.id(), "generation", "other", "versionId", "version"))));
+            case "active-allocation" -> jdbc.update("UPDATE provider_usage_allocations SET initialization_state='ACTIVE',store_uuid='00000000-0000-0000-0000-000000000001',initialization_fingerprint=runtime_allocation_fingerprint,initialized_at=?,activated_at=? WHERE approval_id='retained-allocation'", Timestamp.from(NOW), Timestamp.from(NOW));
+            case "extra-allocation-event" -> fundingEvent("unexpected", "retained-allocation", "grant", "ALLOWANCE_INITIALIZED");
+            case "activity" -> jdbc.update("INSERT INTO deployment_admission_activity_watermarks VALUES (?,'failed-release','ACCEPTED_SESSION',1,?)", original.id(), Timestamp.from(NOW));
+            case "retirement" -> jdbc.update("INSERT INTO platform_target_retirement_operations(id,customer_id,deployment_id,target_profile_id,operation_key,request_fingerprint,requested_by_actor_id,requested_by_role,request_json,snapshot_json,result_json,state,step,drain_deadline,created_at,updated_at) VALUES ('retirement','customer','deployment',?,'retire','x','owner','CUSTOMER_ADMIN','{}','{}','{}','PLANNED','DRAIN',?,?,?)", TARGET, Timestamp.from(NOW), Timestamp.from(NOW), Timestamp.from(NOW));
+            case "changed-scope" -> {
+                jdbc.update("INSERT INTO platform_customers(id,name,slug,status,created_at,updated_at) VALUES ('other','Other','other','ACTIVE',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+                jdbc.update("UPDATE platform_deployments SET customer_id='other' WHERE id='deployment'");
+            }
+        }
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET state_json=? WHERE id='prepared-graph'", json.write(state));
+        var before = allRelevant();
+        assertThatThrownBy(() -> store.planPreparedFailureRecovery("customer", "deployment", original.id(),
+            preparedDraft(store.require(original.id()).fence()), r -> { })).isInstanceOf(RuntimeException.class);
+        assertThat(allRelevant()).isEqualTo(before);
+        assertThat(store.require(original.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+    }
+
+    @Test void preparedRecoveryRejectsStaleProofAndStaleFenceButAllowsOnlyReconciliationClockChanges() {
+        preparedFailure(); var r = store.require(original.id());
+        var plan = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
+        jdbc.update("UPDATE deployment_admission_release_bindings SET updated_at=? WHERE release_id='failed-release'", Timestamp.from(NOW.plusSeconds(20)));
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET revision=revision+1 WHERE id='prepared-graph'");
+        var before = allRelevant();
+        assertThatThrownBy(() -> store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { }))
+            .hasMessageContaining("PROOF_CHANGED");
+        assertThat(allRelevant()).isEqualTo(before);
+        var refreshed = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
+        jdbc.update("UPDATE deployment_admission_release_bindings SET updated_at=? WHERE release_id='failed-release'", Timestamp.from(NOW.plusSeconds(40)));
+        assertThat(store.recoverPreparedFailure("customer", "deployment", r.id(), refreshed.command(), "owner", value -> { }).state()).isEqualTo(State.RESERVED);
+        assertThatThrownBy(() -> store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { }))
+            .hasMessageContaining("STALE_RESERVATION_FENCE");
+    }
+
+    private com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState preparedGraphState;
+    private long beforePreparedReviewCount;
+    @Test void staleObserverPausedAfterChecksCannotResurrectRecoveredBindingOrReservation() throws Exception {
+        preparedFailure(); var r = store.require(original.id());
+        var plan = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
+        var checked = new CountDownLatch(1); var resume = new CountDownLatch(1);
+        var lateJdbc = new JdbcTemplate(dataSource) {
+            @Override public int update(String sql, Object... args) {
+                if (sql.startsWith("UPDATE deployment_admission_release_bindings SET state=") && "OUTCOME_UNKNOWN".equals(args[0])) {
+                    checked.countDown(); await(resume);
+                }
+                return super.update(sql, args);
+            }
+        };
+        var lateStore = new AdmissionStore(lateJdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(NOW, ZoneOffset.UTC));
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var observer = pool.submit(() -> coordinator(lateStore).observe("failed-release"));
+            assertThat(checked.await(10, TimeUnit.SECONDS)).isTrue();
+            try { store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { }); }
+            finally { resume.countDown(); }
+            observer.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("NO_EFFECT");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+        coordinator().observe("failed-release");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+    }
+    private void preparedFailure() {
+        jdbc.update("UPDATE deployment_admission_release_bindings SET state='QUEUED' WHERE release_id='failed-release'");
+        coordinator().beginProvisioning("failed-release");
+        jdbc.update("UPDATE platform_deployment_releases SET verification_status='SKIPPED',provisioning_details_json=?,runtime_authority_fingerprint=? WHERE id='failed-release'",
+            json.write(preparedProgress()), "c".repeat(64));
+        coordinator().observe("failed-release");
+        assertThat(store.require(original.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+        var state = new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState();
+        var node = new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState.Node(); node.slot = "inbox"; state.nodes.add(node);
+        var operator = new com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState.Operator(); operator.id = "operator"; state.operators.add(operator);
+        preparedGraphState = state;
+        jdbc.update("INSERT INTO deployment_managed_dependency_specs(id,spec_json,fingerprint,reviewed_by,reviewed_at,active,review_reference) VALUES ('prepared-spec','{}',?,'staff',?,true,'synthetic-offline-review')",
+            "d".repeat(64), Timestamp.from(NOW));
+        jdbc.update("INSERT INTO deployment_managed_dependency_graphs(id,deployment_id,target_profile_id,customer_id,tenant_id,version_id,release_id,spec_ref,spec_fingerprint,binding_fingerprint,status,step,reservation_ref,spec_json,state_json,created_at,updated_at) VALUES ('prepared-graph','deployment',?,'customer','tenant','version','failed-release','prepared-spec',?,?,'PROVISIONED','RUNTIME_INITIALIZATION_REQUIRED',?,'{}',?,?,?)",
+            TARGET, "d".repeat(64), "c".repeat(64), original.id(), json.write(state), Timestamp.from(NOW), Timestamp.from(NOW));
+        allocation("retained-allocation", "deployment", original.id());
+        jdbc.update("UPDATE provider_usage_allocations SET payload_json=? WHERE approval_id='retained-allocation'", json.write(Map.of(
+            "initialAdmission", Map.of("reservationId", original.id(), "generation", original.generation(), "versionId", "version"))));
+        jdbc.update("UPDATE provider_usage_grants SET allocated_chat_attempts=25,allocated_total_tokens=200000,allocated_cost_nano_usd=6000000000 WHERE id='grant'");
+        fundingEvent("allocation-event", "retained-allocation", "grant", "ALLOWANCE_ALLOCATED");
+        beforePreparedReviewCount = count("deployment_admission_reviews");
+    }
+    private Map<String, Object> preparedProgress() {
+        var statuses = Map.of("queue_release", "QUEUED", "preflight_verification", "COMPLETED", "prepare_apply", "RUNNING",
+            "coolify_preflight", "COMPLETED", "ensure_deployment_execution_secrets", "COMPLETED", "resolve_coolify_source", "FAILED", "apply_failed", "FAILED");
+        var steps = List.of("queue_release", "preflight_verification", "prepare_apply", "coolify_preflight", "ensure_deployment_execution_secrets", "resolve_coolify_source", "apply_failed")
+            .stream().map(key -> Map.of("key", key, "status", statuses.get(key))).toList();
+        return Map.of("progress", Map.of("currentStepKey", "apply_failed", "currentStepStatus", "FAILED", "steps", steps));
+    }
+    private PreparedFailureRecoveryContracts.Command preparedDraft(Fence fence) {
+        return new PreparedFailureRecoveryContracts.Command(fence, "failed-release", "prepared-recovery", "Repair pre-native prepared failure", null);
+    }
+    private Map<String, String> preparedPreserved() {
+        var result = new TreeMap<>(preserved()); result.remove("deployment_admission_release_bindings");
+        for (String table : List.of("deployment_managed_dependency_graphs", "platform_deployments", "platform_consumers", "ai_workspace_installations")) result.put(table, rows(table));
+        return result;
+    }
+    private PreparedFailureRecoveryController preparedApi(String customerId) {
+        var entitlements = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.class);
+        when(entitlements.requireCustomerActor()).thenReturn(new com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.CustomerActor(customerId, "owner"));
+        var boundary = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+        when(boundary.prepareAdmission(any(), eq(TARGET), eq(CustomerOfferContracts.Operation.APPLY), anyString()))
+            .thenAnswer(call -> new CustomerOfferContracts.Authorization(scope(call.getArgument(3)), null));
+        var deployments = mock(DeploymentRepository.class); when(deployments.findById("deployment")).thenReturn(Optional.of(deployment()));
+        var versions = mock(DeploymentVersionRepository.class); when(versions.findById("version")).thenReturn(Optional.of(version()));
+        return new PreparedFailureRecoveryController(new PreparedFailureRecoveryService(store, entitlements, boundary, deployments, versions));
+    }
+
     private Receipt settle() { return store.settleKnownNoEffect("customer", "deployment", original.id(), command, "owner", r -> { }, detachment, integrity); }
     private KnownNoEffectSettlementController customerApi(String customerId) {
         var entitlements = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.class);
@@ -561,11 +740,14 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         }, id).getFirst();
     }
     private AdmissionReleaseCoordinator coordinator() {
+        return coordinator(store);
+    }
+    private AdmissionReleaseCoordinator coordinator(AdmissionStore ledger) {
         var associations = mock(com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferDeploymentRepository.class);
         var releases = mock(DeploymentReleaseRepository.class); var versions = mock(DeploymentVersionRepository.class);
         when(associations.existsById("deployment")).thenReturn(true); when(releases.findById(anyString())).thenAnswer(call -> Optional.of(release(call.getArgument(0))));
         when(versions.findById("version")).thenReturn(Optional.of(version()));
-        return new AdmissionReleaseCoordinator(store, associations, releases, versions, c -> evidence(c, NOW),
+        return new AdmissionReleaseCoordinator(ledger, associations, releases, versions, c -> evidence(c, NOW),
             mock(AdmissionResourceReadbackSource.class), Clock.fixed(NOW, ZoneOffset.UTC));
     }
     private void bind(String id) {

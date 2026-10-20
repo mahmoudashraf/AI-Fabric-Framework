@@ -1373,12 +1373,14 @@ class AdmissionStore {
     public void releaseBindingState(String releaseId, String state) {
         ReleaseBinding binding = releaseBinding(releaseId);
         if (binding == null) throw new AdmissionFailure(PRECONDITION_FAILED, "RELEASE_ALLOCATION_REQUIRED");
+        // A terminal effect boundary cannot be resurrected by an observer that read before recovery committed.
+        int changed = jdbc.update("UPDATE deployment_admission_release_bindings SET state=?,updated_at=? WHERE release_id=? AND state NOT IN ('NO_EFFECT','SUPERSEDED')",
+            state, time(clock.instant()), releaseId);
+        if (changed != 1) return;
         if ("ACTIVE".equals(state)) jdbc.update("""
             UPDATE deployment_admission_release_bindings SET state='SUPERSEDED'
              WHERE reservation_id=? AND generation=? AND release_id<>? AND state='ACTIVE'
             """, binding.reservationId(), binding.generation(), releaseId);
-        jdbc.update("UPDATE deployment_admission_release_bindings SET state=?,updated_at=? WHERE release_id=?",
-            state, time(clock.instant()), releaseId);
     }
 
     Reservation acceptActivity(Fence fence, ReleaseBinding binding, ActivityReadback readback) {
@@ -1834,6 +1836,100 @@ class AdmissionStore {
             return save(r, m, "RETIREMENT_HANDOFF", actor, now);
         });
     }
+    PreparedFailureRecoveryContracts.Plan planPreparedFailureRecovery(String customerId, String deploymentId,
+        String reservationId, PreparedFailureRecoveryContracts.Command draft,
+        java.util.function.Consumer<Reservation> authorize) {
+        validatePreparedRecovery(draft, false);
+        return locked(() -> {
+            try {
+            Reservation r = preparedRecoveryReservation(customerId, deploymentId, reservationId, draft, authorize);
+            var proof = new PreparedFailureRecoveryEvidence(jdbc, json).read(r, draft.releaseId(), context(r).manifest());
+            return new PreparedFailureRecoveryContracts.Plan(new PreparedFailureRecoveryContracts.Command(r.fence(),
+                draft.releaseId(), draft.operationKey(), draft.reason(), json.fingerprint(proof)), proof.boundary());
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "PREPARED_RECOVERY_BUSY");
+            }
+        });
+    }
+
+    PreparedFailureRecoveryContracts.Summary recoverPreparedFailure(String customerId, String deploymentId,
+        String reservationId, PreparedFailureRecoveryContracts.Command command, String actor,
+        java.util.function.Consumer<Reservation> authorize) {
+        validatePreparedRecovery(command, true); required(actor, 255);
+        String fingerprint = json.fingerprint(Map.of("customer", customerId, "deployment", deploymentId,
+            "reservation", reservationId, "actor", actor, "command", command));
+        String key = json.fingerprint(Map.of("reservation", reservationId, "generation", command.fence().generation(),
+            "operation", command.operationKey()));
+        return locked(() -> {
+            try {
+            if (jdbc.query("SELECT id FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", (rs, row) -> rs.getString(1), deploymentId).size() != 1)
+                throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+            Reservation observed = require(reservationId);
+            if (!customerId.equals(observed.customerId()) || !deploymentId.equals(observed.deploymentId())
+                || !reservationId.equals(command.fence().reservationId())) throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+            authorize.accept(observed);
+            if (!jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='PREPARED_REPAIR' AND record_key=?",
+                String.class, key).isEmpty()) {
+                var receipt = verifiedReview("PREPARED_REPAIR", key, PreparedFailureRecoveryContracts.Receipt.class);
+                if (!fingerprint.equals(receipt.commandFingerprint())) throw new AdmissionFailure(CONFLICT, "PREPARED_RECOVERY_OPERATION_REUSED");
+                return receipt.summary();
+            }
+            Reservation r = preparedRecoveryReservation(customerId, deploymentId, reservationId, command, authorize);
+            var proof = new PreparedFailureRecoveryEvidence(jdbc, json).read(r, command.releaseId(), context(r).manifest());
+            if (!json.fingerprint(proof).equals(command.proofFingerprint())) throw new AdmissionFailure(CONFLICT, "PREPARED_RECOVERY_PROOF_CHANGED");
+            Instant now = clock.instant();
+            Mutation mutation = new Mutation(r); mutation.state = State.RESERVED;
+            mutation.evidence = "prepared-recovery:" + command.proofFingerprint();
+            Reservation recovered = save(r, mutation, "PREPARED_FAILURE_RECOVERED_BEFORE_NATIVE_EFFECTS", actor, now);
+            if (jdbc.update("UPDATE deployment_admission_release_bindings SET state='NO_EFFECT',updated_at=? WHERE release_id=? AND state='OUTCOME_UNKNOWN'",
+                time(now), command.releaseId()) != 1) throw new AdmissionFailure(CONFLICT, "PREPARED_RECOVERY_BINDING_CHANGED");
+            var summary = new PreparedFailureRecoveryContracts.Summary(uuid(), r.id(), r.generation(), r.revision(),
+                recovered.revision(), command.releaseId(), recovered.state(), proof.retainedAllocationIds(), false, false, now);
+            review("PREPARED_REPAIR", key, new PreparedFailureRecoveryContracts.Receipt(actor, fingerprint, command,
+                proof, recovered, summary), actor, now);
+            return summary;
+            } catch (org.springframework.dao.DataAccessException busy) {
+                throw unusedCancellationLockFailure(busy, "PREPARED_RECOVERY_BUSY");
+            }
+        });
+    }
+
+    private Reservation preparedRecoveryReservation(String customerId, String deploymentId, String reservationId,
+        PreparedFailureRecoveryContracts.Command command, java.util.function.Consumer<Reservation> authorize) {
+        required(customerId, 64); required(deploymentId, 64); required(reservationId, 64);
+        if (authorize == null || !reservationId.equals(command.fence().reservationId()))
+            throw new AdmissionFailure(BAD_REQUEST, "PREPARED_RECOVERY_SCOPE_REQUIRED");
+        if (jdbc.query("SELECT id FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", (rs, row) -> rs.getString(1), deploymentId).size() != 1)
+            throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+        Reservation r = fenced(command.fence());
+        if (!customerId.equals(r.customerId()) || !deploymentId.equals(r.deploymentId()))
+            throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+        var current = context(r);
+        for (var row : Map.of("platform_customers", r.customerId(), "platform_customer_tenants", r.tenantId(),
+            "platform_deployment_versions", current.manifest().versionId(), "deployment_target_profiles", r.targetProfileId()).entrySet()) {
+            if (jdbc.query("SELECT id FROM " + row.getKey() + " WHERE id=? FOR UPDATE NOWAIT", (rs, index) -> rs.getString(1), row.getValue()).size() != 1)
+                throw new AdmissionFailure(CONFLICT, "PREPARED_RECOVERY_OWNERSHIP_CHANGED");
+        }
+        authorize.accept(r);
+        requireEffectivePolicy(r, current);
+        policy(current.policy(), clock.instant()); grant(current.grant(), clock.instant());
+        if (r.state() != State.OUTCOME_UNKNOWN || r.expiryState() != ExpiryState.CURRENT || !r.expiresAt().isAfter(clock.instant())
+            || r.workerToken() != null || r.retirementOperationId() != null || r.retentionEnvelope() != null || r.retentionSettlement() != null
+            || r.drainDeadline() != null || r.recoveryUntil() != null || r.nextRetryAt() != null || r.failureCode() != null
+            || r.attempts() != 0 || !command.releaseId().equals(currentReleaseId(r)))
+            throw new AdmissionFailure(CONFLICT, "PREPARED_RECOVERY_CURRENT_FAILED_ALLOCATION_REQUIRED");
+        return r;
+    }
+
+    private void validatePreparedRecovery(PreparedFailureRecoveryContracts.Command command, boolean execute) {
+        if (command == null || command.fence() == null || command.fence().revision() < 0)
+            throw new AdmissionFailure(BAD_REQUEST, "PREPARED_RECOVERY_COMMAND_REQUIRED");
+        required(command.fence().reservationId(), 64); required(command.fence().generation(), 64);
+        required(command.releaseId(), 64); required(command.operationKey(), 128); required(command.reason(), 255);
+        if (execute && (command.proofFingerprint() == null || !command.proofFingerprint().matches("[a-f0-9]{64}")))
+            throw new AdmissionFailure(BAD_REQUEST, "PREPARED_RECOVERY_PROOF_REQUIRED");
+    }
+
     private Reservation save(Reservation r, Mutation m, String type, String actor, Instant now) {
         Reservation next = m.build(r, now);
         int changed = jdbc.update("""
