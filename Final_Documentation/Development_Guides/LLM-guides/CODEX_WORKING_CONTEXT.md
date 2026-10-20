@@ -8,6 +8,63 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 15:30 UTC Settlement Accepted; PG Policy And Quota Published
+
+- Successful owner settlement is accepted by explicit main read-only contract
+  reconciliation: /private/tmp/01044-main-resumed-20261020-1205/
+  ownerff203-summary.settlement.main-accepted.actual.json SHA19866f61...aa4e.
+  Original private whole-guard failure stays preserved, NOT relabeled PASS.
+  Exact15-member Set equality and consumer JPA @Version1->2 are the only two
+  verifier-contract gaps. Remaining literal original guard tail and all old
+  raw27835 audit/history rows, funding, external bindings and DRAFTapp pass.
+  No settlement replay, SQL repair, native reclamation or financial reset.
+- Normal staff PG policy publishes/verifies15:28:30UTC: id
+  01036-postff203-pg-inbox-fleet-20261020, nativeFP397a93c6...ba53. Physical
+  customer quota publishes/verifies15:28:59, nativeFP68a62841...d9a3, expiry
+  Oct24T00:00Z. Physical server ceilings/baseline/headroom unchanged; only
+  logical DB/dependency counts double. Customer target CPU2250m/RAM4096MiB,
+  fleet4500m/8192MiB. All previous review rows/funding/customer state preserved,
+  zero charged reservations. No provider financial grant or workload created.
+  Policy validity17:04:07, main operational admission cutoff17:03:37; report
+  publication cutoff15:34:07 is a separate earlier constraint, not an admission
+  time. Actual measurements are never redated. Complete proofs in main root.
+- New PG offer plan uses actual template/spec/runtime and typed nativeFP
+  77a86671...0aff. First execution stops BEFORE ANY POST: its source verifier
+  compares selected2 profiles with the7-row API list. Both selected full records
+  are unchanged. Preserve pg-offer-publication root; generic selected-profile
+  readback correction and new exact-source plan are pending. No offer published
+  or customer workload yet. Four agents continue scoped functional work; UI
+  extraction LAST and hosted recovery/promotion/P7 remain open.
+
+## 2026-10-20 15:16 UTC Fixed Source Live; Settlement Returned Success
+
+- Sourceff203a74e/imagea3501941/schema206/UP is verified on BOTH control
+  planes. CI39440086269 passes, affected backend only; no framework/runtime/UI
+  rebuild. Stage jobymrcju8w1xtbwgdodigjdnu8 verifies14:51:08UTC, production
+  csuns7j5xclzienxxfyakmbi verifies14:56:51. Source maintenance closes14:57:21;
+  all139 tables/configuration/audits/R7/funding are preserved. Rollout root
+  /private/tmp/01044-canonical-queued-backend-rollout-20261020 is COMPLETE,
+  never replay its jobs. Hetzner access remains OPEN per user request.
+- Normal owner plan succeeds15:13:12, then one separately reviewed settlement
+  returns200 at15:13:45: receipt00479393-4972-4e2d-8c1e-e0aa546bcd19, sameR7
+  generation, RELEASEDrev2, reclamationPerformed=false. Configuration-only
+  consumercon13 moves bindingrev1->2; DRAFTapp identity is preserved. DO NOT
+  retry settlement. Original private after-guard stops on Java Set ordering in
+  prerequisiteReadback.verifiedPrerequisiteReferences; independent read-only
+  exact-contract reconciliation is pending. Actual response/after state are in
+  /private/tmp/01044-owner-canonical-queued-summary-contract-20261020.
+- PG template1.1.0/mkv-174ac578 and specmds-dealership-ai-postgres-inbox-v1-1
+  are published normally, native spec fingerprint7da688ab...71c9. No new offer
+  or customer workload yet. Fresh61x5s host measurements finish15:04:07/09UTC,
+  stage peak911mCPU/5.26GiB usedRAM, prod782m/3.65GiB, swap excluded; report
+  freshness cutoff15:34:07. Next are current zero-charge/quota/placement proof,
+  separately reviewed PG policy/quota/newoffer, then fresh same-customer AI-only
+  deployment. No managed customer business DB or vector-record copy.
+- Four agents resumed. Functional explicit AI-state storage selection in the
+  existing customer console is assigned separately from UI extraction. Existing
+  staff capabilities/dirty drafts remain preserved; hosted P5/promotion/P7 and
+  reversible UI extraction LAST remain open. No user material missing.
+
 ## 2026-10-20 14:39 UTC Canonical Queue Fix Pushed; Hosted Settlement Not Complete
 
 - Both control planes remain606/eb1/schema206/UP. Fresh61x5s measurements

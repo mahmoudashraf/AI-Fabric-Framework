@@ -1,5 +1,68 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 15:30 UTC Settlement Accepted And PG Admission Records Verified
+
+- Independent saved-state review finds two exact private-verifier contract
+  gaps, not unexpected product changes: prerequisite references are Set<String>
+  with15 identical unique members, and normal consumer saveAndFlush increments
+  JPA @Version1->2. All other consumer fields match the reviewed detachment.
+  Remaining literal original guard tail passes; all27835 prior audit rows and
+  every old financial/release/authorization/external/DRAFTapp row are preserved.
+  Main acceptance SHA19866f61...aa4e retains the original failed whole-guard
+  result rather than manufacturing PASS. Settlement remains one dispatch only.
+- Normal staff publishes PG fleet policy15:28:30 and customer physical quota
+  15:28:59UTC, verified against the exact qualified JAR and native stored hashes:
+  policy397a93c6e451060ca1b57b38c18fcbd133f975292b9b191be2c0472d86d8ba53,
+  quota68a62841870e827e5c0671dd28d5ff0467883b3f5bf559baa22f3c9cdb7fd9a3.
+  Physical server ceilings/baseline/headroom remain unchanged. Logical DB/deps
+  become2 per target/4 fleet; customer CPU/RAM becomes2250m/4096MiB target,
+  4500m/8192MiB fleet. Quota expiresOct24T00:00Z and covers the reviewed72h15m
+  maximum horizon. No provider financial allowance is extended or reset.
+- Policy validity17:04:07 and operational admission cutoff17:03:37 are distinct
+  from the15:34:07 publication freshness cutoff. Actual report timestamps are
+  preserved. Fresh pre/post snapshots prove0 charged reservations and unchanged
+  unrelated state/old reviews/funding. No customer workload is created yet.
+- The separately reviewed new PG offer attempt stops before its POST. Tooling
+  compared its2 selected target profiles with the full7-profile normal API
+  response; both selected full records are unchanged. Raw responses and failed
+  pre-write root are preserved. A generic exact selected-profile readback fix,
+  focused tests and fresh source-bound plan precede any actual offer write.
+  No backend/framework/runtime release is required for that support-tool fix.
+  Hosted customer/P5/promotion/P7 and final reversible UI extraction stay open.
+
+## 2026-10-20 15:16 UTC Fixed Backend Live And Normal Settlement Succeeds
+
+- Both control planes verifyff203a74ec5997f87bb7a4235749c78e7c558a50,
+  imagea35019412730a35105b791fe2096e8ae65d611510410fc3accf14f968edcab72,
+  schema206/UP. Stage and production normal jobs verify14:51:08 and14:56:51UTC;
+  maintenance closes14:57:21. All139 raw tables/audits/config/runtime environment
+  and original reservation/funding/history are preserved. Fresh Platform-only
+  database backups precede rollout. No framework/runtime/UI rebuild; firewall
+  remains OPEN. Completed rollout receipts must never be replayed.
+- The normal owner read-only plan succeeds15:13:12 after exact prior409
+  reconciliation and explicit main review. A separately reviewed exact server
+  command is dispatched ONCE. HTTP200 at15:13:45 returns settlement receipt
+  00479393-4972-4e2d-8c1e-e0aa546bcd19, original R7 generation and revision1->2,
+  outcomeSETTLED_KNOWN_NO_EFFECT, reclamationPerformed=false. Consumercon13
+  is explicitly detached at bindingrev2, preserving the original DRAFTworkspace.
+- The private after-guard stops on reordered verifiedPrerequisiteReferences:
+  source declares Set<String>, but JSON arrays were compared in order. Preserve
+  failed verifier output and actual successful response; independent read-only
+  reconciliation must prove exact membership and every other original invariant.
+  No SQL repair, replay, new operation key, provider cleanup or financial reset.
+- New immutable PG template1.1.0/mkv-174ac578 and specification
+  mds-dealership-ai-postgres-inbox-v1-1 are published via separately reviewed
+  normal catalogue APIs. Specification fingerprint7da688abcf8f275f7c651c67cece02338ce0a56ef13c02dbc8cbb5857f6e71c9.
+  Publication does not prove live template readiness. Current fresh61x5s host
+  reports end15:04:07/09UTC and support retained physical floors/headroom; new
+  PG policy/customer quota/newoffer and hosted deployment remain pending.
+- Four agents are active: independent receipt reconciliation, PG policy/offer,
+  same-customer fresh-deployment preparation, and functional AI-state storage
+  controls. No customer inventory/business system enters the managed graph.
+  Existing customer/app are reused, but target-scoped credentials/bindings and
+  production indexing require independent authority. No vector records copy.
+  Hosted P5/promotion/P7 and final reversible UI extraction remain open.
+
 ## 2026-10-20 14:39 UTC Normal Customer Path Finds Canonical Queue Mismatch
 
 - Actual post-rollout measurements collect61 observations at5s on each host,

@@ -1,5 +1,30 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Checkpoint,20October15:30UTC: normal owner no-effect settlement is accepted
+  with explicit read-only reconciliation of two verifier-contract gaps only:
+  unchanged Set membership and expected JPA row-version increment. Original
+  failed verifier stays preserved; no command replay. Normal PG fleet policy
+  and physical customer quota are published/verified15:28:30/59, zero charged
+  reservations and unchanged funding/history. New immutable offer execution
+  stops before any POST on a tooling comparison of2 selected profiles with the
+ 7-row API list; selected records are unchanged. Correct targeted comparison,
+  fresh exact-source offer plan and hosted customer workflow remain next.
+  Backendff203 remains healthy on both control planes; no runtime/framework
+  release, customer workload or paid usage this cycle. UI extraction LAST.
+
+- Hosted checkpoint,20October15:16UTC: canonical queue fixff203a74e is live
+  and healthy on both control planes, exactimagea3501941/schema206. Source-only
+  rollout closes14:57:21, preserving configuration/history/funding. Normal owner
+  settlement returns200 at15:13:45: originalR7 RELEASEDrev2, no reclamation,
+  explicit configuration-consumer detach and preserved DRAFTapp. Its private
+  after-verifier encounters Java Set serialization order; independent exact-
+  contract read-only reconciliation is pending, never repeat the settlement.
+  PG template1.1.0/mkv-174ac578 and its new PG specification are published.
+  No new PG offer/customer workload yet. Fresh measured PG policy/quota and
+  same-customer fresh deployment follow; hosted recovery/promotion/P7 and final
+  reversible UI extraction remain OPEN. No framework/runtime release or vector
+  data transfer. Functional storage controls precede presentation extraction.
+
 - Customer-path checkpoint,20October14:39UTC: fresh five-minute measurements
   and normal policy continuation pass, preserving R7/funding/history. The real
   owner settlement-plan API exposes an actual canonical QUEUED progress-state
