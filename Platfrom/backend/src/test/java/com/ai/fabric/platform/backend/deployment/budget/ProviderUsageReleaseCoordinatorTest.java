@@ -106,6 +106,29 @@ class ProviderUsageReleaseCoordinatorTest {
         verifyNoInteractions(runtime, authority);
     }
 
+    @Test void continuationReadsTheSameActiveWalletWithoutAnyFinancialMutation() {
+        var old = allocation(InitializationState.ACTIVE, store); var until = Instant.now().plusSeconds(3600);
+        var active = new SafeAllowanceProjection(old.approvalId(), old.scope(), old.caps(), until, old.pricingReference(),
+            old.binding(), old.credentialSha256(), old.approvalFingerprint(), old.runtimeAllocationFingerprint(), old.state(), old.storeUuid(), old.initializationFingerprint());
+        when(allowances.findForAuthorizedRelease("rel-1")).thenReturn(Optional.of(active));
+        when(authority.issueReleaseVerificationHeaders(deployment, release, false)).thenReturn(headers);
+        when(runtime.read(deployment.getRuntimeBaseUrl(), headers)).thenReturn(new Readback("ACTIVE", store,
+            active.approvalId(), active.runtimeAllocationFingerprint(), "customer-1", "dep-1", "target-1", "staging",
+            RATE_CARD, active.caps(), until, 7L, 11L, new Usage(12000, 3000, 123456), false));
+        coordinator.verifyActive(deployment, version, release);
+        verify(runtime, never()).initialize(any(), any(), any()); verify(runtime, never()).activate(any(), any(), any());
+        verify(allowances, never()).prepareForAuthorizedRelease(any());
+        verify(allowances, never()).markInitializedForAuthorizedRelease(any(), any(), any());
+        verify(allowances, never()).markActiveForAuthorizedRelease(any(), any(), any());
+        verify(authority, never()).issueProviderBudgetProvisioningHeaders(any(), any(), any());
+    }
+
+    @Test void continuationDoesNotResurrectAnExpiredAllowance() {
+        when(allowances.findForAuthorizedRelease("rel-1")).thenReturn(Optional.of(allocation(InitializationState.ACTIVE, store)));
+        assertThatThrownBy(() -> coordinator.verifyActive(deployment, version, release)).isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(runtime, authority);
+    }
+
     @Test void anOldArtifactIsRejectedBeforeAnyFinancialAllocationOrRuntimeRequest() {
         doThrow(new IllegalStateException("PROVIDER_USAGE_GUARDED_RUNTIME_ARTIFACT_REQUIRED")).when(artifacts).require(release);
         assertThatThrownBy(() -> coordinator.prepare(deployment, release))

@@ -2050,6 +2050,122 @@ class AdmissionStore {
         });
     }
 
+    PostProvisionResumeContracts.Candidate postProvisionResumeCandidate(String customerId, String deploymentId, String reservationId,
+        PostProvisionResumeContracts.Command command, java.util.function.Consumer<Reservation> authorize) {
+        validatePostProvisionResume(command, false);
+        return locked(() -> postProvisionResumeCandidateLocked(customerId, deploymentId, reservationId, command, authorize));
+    }
+
+    private PostProvisionResumeContracts.Candidate postProvisionResumeCandidateLocked(String customerId, String deploymentId,
+        String reservationId, PostProvisionResumeContracts.Command command, java.util.function.Consumer<Reservation> authorize) {
+        try {
+            var adapter = new PreparedFailureRecoveryContracts.Command(command.fence(), command.releaseId(), command.operationKey(), command.reason(), command.proofFingerprint());
+            var r = preparedRecoveryReservation(customerId, deploymentId, reservationId, adapter, authorize);
+            return new PostProvisionResumeEvidence(jdbc, json).read(r, command.releaseId(), context(r).manifest());
+        } catch (org.springframework.dao.DataAccessException busy) {
+            throw unusedCancellationLockFailure(busy, "POST_PROVISION_RESUME_BUSY");
+        }
+    }
+
+    PostProvisionResumeContracts.Plan planPostProvisionResume(String customerId, String deploymentId, String reservationId,
+        PostProvisionResumeContracts.Command command, PostProvisionResumeContracts.Candidate inspected,
+        FailedApplyRetryContracts.NativeReadback readback, java.util.function.Consumer<Reservation> authorize) {
+        validatePostProvisionResume(command, false);
+        return locked(() -> {
+            var current = postProvisionResumeCandidateLocked(customerId, deploymentId, reservationId, command, authorize);
+            if (!json.fingerprint(current).equals(json.fingerprint(inspected))) throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_LOCAL_STATE_CHANGED");
+            var proof = postProvisionResumeFingerprint(current, readback);
+            return new PostProvisionResumeContracts.Plan(new PostProvisionResumeContracts.Command(current.reservation().fence(),
+                command.releaseId(), command.operationKey(), command.reason(), true, proof), PostProvisionResumeContracts.BOUNDARY,
+                List.of("managed_dependencies", "source_sync", "post_apply_verification"), false, current.retainedAllocationIds());
+        });
+    }
+
+    PostProvisionResumeContracts.Summary recordedPostProvisionResume(String customerId, String deploymentId, String reservationId,
+        PostProvisionResumeContracts.Command command, String actor, java.util.function.Consumer<Reservation> authorize) {
+        validatePostProvisionResume(command, true);
+        return locked(() -> recordedPostProvisionResumeLocked(customerId, deploymentId, reservationId, command, actor, authorize));
+    }
+
+    private PostProvisionResumeContracts.Summary recordedPostProvisionResumeLocked(String customerId, String deploymentId,
+        String reservationId, PostProvisionResumeContracts.Command command, String actor, java.util.function.Consumer<Reservation> authorize) {
+        var reservation = require(reservationId);
+        if (!customerId.equals(reservation.customerId()) || !deploymentId.equals(reservation.deploymentId())
+            || !reservationId.equals(command.fence().reservationId())) throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+        authorize.accept(reservation);
+        String key = postProvisionResumeKey(reservationId, command);
+        if (jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='POST_RESUME' AND record_key=?", String.class, key).isEmpty()) return null;
+        var receipt = verifiedReview("POST_RESUME", key, PostProvisionResumeContracts.Receipt.class);
+        if (!receipt.commandFingerprint().equals(postProvisionResumeCommandFingerprint(customerId, deploymentId, reservationId, actor, command)))
+            throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_OPERATION_REUSED");
+        return receipt.summary();
+    }
+
+    PostProvisionResumeContracts.Summary queuePostProvisionResume(String customerId, String deploymentId, String reservationId,
+        PostProvisionResumeContracts.Command command, PostProvisionResumeContracts.Candidate inspected,
+        FailedApplyRetryContracts.NativeReadback readback, String actor, java.util.function.Consumer<Reservation> authorize) {
+        validatePostProvisionResume(command, true); required(actor, 255);
+        return locked(() -> {
+            var prior = recordedPostProvisionResumeLocked(customerId, deploymentId, reservationId, command, actor, authorize);
+            if (prior != null) return prior;
+            var current = postProvisionResumeCandidateLocked(customerId, deploymentId, reservationId, command, authorize);
+            if (!json.fingerprint(current).equals(json.fingerprint(inspected))) throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_LOCAL_STATE_CHANGED");
+            if (!command.proofFingerprint().equals(postProvisionResumeFingerprint(current, readback)))
+                throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_PROOF_CHANGED");
+            Instant now = clock.instant(); var r = current.reservation();
+            Mutation mutation = new Mutation(r); mutation.state = State.RESERVED;
+            mutation.evidence = "post-provision-resume:" + command.proofFingerprint();
+            var reserved = save(r, mutation, "POST_PROVISION_RESUME_AUTHORIZED", actor, now);
+            if (jdbc.update("UPDATE deployment_admission_release_bindings SET state='RETRY_QUEUED',updated_at=? WHERE release_id=? AND state='OUTCOME_UNKNOWN'",
+                time(now), command.releaseId()) != 1) throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_BINDING_CHANGED");
+            var failed = json.read(current.failedReleaseJson(), com.fasterxml.jackson.databind.JsonNode.class);
+            var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(failed.path("provisioning_details_json").asText(), com.fasterxml.jackson.databind.JsonNode.class);
+            details.withArray("retryHistory").addObject().put("boundary", PostProvisionResumeContracts.BOUNDARY)
+                .put("authorizedAt", now.toString()).put("actorId", actor).put("failedAt", current.failedAt().toString())
+                .put("errorMessage", failed.path("error_message").asText()).set("progress", details.path("progress").deepCopy());
+            details.putObject("postProvisionResume").put("boundary", PostProvisionResumeContracts.BOUNDARY)
+                .put("operationKey", command.operationKey()).put("proofFingerprint", command.proofFingerprint())
+                .put("failedAt", current.failedAt().toString());
+            var progress = details.putObject("progress");
+            progress.put("currentStepKey", "queue_release").put("currentStepStatus", "QUEUED")
+                .put("currentStepDescription", "Explicit continuation after completed native provisioning authorized.");
+            progress.putArray("steps").addObject().put("key", "queue_release").put("status", "QUEUED").put("startedAt", now.toString());
+            if (jdbc.update("""
+                UPDATE platform_deployment_releases SET status='APPLY_REQUESTED',provisioning_status='QUEUED',verification_status='PENDING',
+                  current_step_key='queue_release',current_step_description='Post-provisioning continuation authorized.',
+                  error_message=NULL,provisioning_details_json=?,updated_at=? WHERE id=? AND status='FAILED' AND current_step_key='apply_failed'
+                """, json.write(details), time(now), command.releaseId()) != 1)
+                throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_RELEASE_CHANGED");
+            jdbc.update("UPDATE platform_deployments SET status='APPLY_REQUESTED',updated_at=? WHERE id=?", time(now), deploymentId);
+            var summary = new PostProvisionResumeContracts.Summary(uuid(), r.id(), r.generation(), r.revision(), reserved.revision(),
+                command.releaseId(), "APPLY_REQUESTED", false, false, current.retainedAllocationIds(), now);
+            review("POST_RESUME", postProvisionResumeKey(reservationId, command), new PostProvisionResumeContracts.Receipt(actor,
+                postProvisionResumeCommandFingerprint(customerId, deploymentId, reservationId, actor, command), command, current, readback, summary), actor, now);
+            return summary;
+        });
+    }
+
+    private String postProvisionResumeFingerprint(PostProvisionResumeContracts.Candidate candidate, FailedApplyRetryContracts.NativeReadback readback) {
+        if (readback == null || readback.observedAt() == null || readback.inventory() == null
+            || !json.read(candidate.inventory().get("nativeKinds"), List.class).equals(readback.inventory().keySet().stream().sorted().toList()))
+            throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_NATIVE_INVENTORY_REQUIRED");
+        fresh(readback.observedAt(), clock.instant(), 60);
+        return json.fingerprint(Map.of("boundary", PostProvisionResumeContracts.BOUNDARY, "local", candidate.inventory(), "native", readback.inventory()));
+    }
+    private String postProvisionResumeKey(String reservationId, PostProvisionResumeContracts.Command command) {
+        return json.fingerprint(Map.of("reservation", reservationId, "generation", command.fence().generation(), "operation", command.operationKey()));
+    }
+    private String postProvisionResumeCommandFingerprint(String customerId, String deploymentId, String reservationId,
+        String actor, PostProvisionResumeContracts.Command command) {
+        return json.fingerprint(Map.of("customer", customerId, "deployment", deploymentId, "reservation", reservationId, "actor", actor, "command", command));
+    }
+    private void validatePostProvisionResume(PostProvisionResumeContracts.Command command, boolean execute) {
+        if (command == null || !command.acceptRemainingDependencyProvisioning())
+            throw new AdmissionFailure(BAD_REQUEST, "POST_PROVISION_RESUME_ACCEPTANCE_REQUIRED");
+        validatePreparedRecovery(new PreparedFailureRecoveryContracts.Command(command.fence(), command.releaseId(),
+            command.operationKey(), command.reason(), command.proofFingerprint()), execute);
+    }
+
     private String failedApplyRetryFingerprint(FailedApplyRetryContracts.Candidate candidate, FailedApplyRetryContracts.NativeReadback readback) {
         if (readback == null || readback.observedAt() == null || readback.inventory() == null
             || !json.read(candidate.inventory().get("nativeKinds"), List.class).equals(readback.inventory().keySet().stream().sorted().toList()))

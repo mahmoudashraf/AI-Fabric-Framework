@@ -699,6 +699,113 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(store.releaseBinding("failed-release").state()).isEqualTo("OUTCOME_UNKNOWN");
     }
 
+    @Test void postProvisionResumeRetainsNativeStateActiveFundingAndBothFailedHistories() {
+        postProvisionFailure(); var r = store.require(original.id()); var before = nativePreserved();
+        var draft = resumeDraft(r.fence()); var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        assertThat(plan.runtimeRedeployRequired()).isFalse(); assertThat(plan.retainedAllocationIds()).containsExactly("retained-allocation");
+        assertThat(plan.remainingPhases()).containsExactly("managed_dependencies", "source_sync", "post_apply_verification");
+        var result = store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        assertThat(result.financialMutationPerformed()).isFalse(); assertThat(result.runtimeRedeployRequired()).isFalse();
+        assertThat(nativePreserved()).isEqualTo(before); assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+        assertThat(store.require(r.id()).generation()).isEqualTo(r.generation()); assertThat(store.require(r.id()).demand()).isEqualTo(r.demand());
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("RETRY_QUEUED");
+        var details = json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(details.path("retryHistory")).hasSize(2);
+        assertThat(details.path("retryHistory").get(0).path("preservedEarlierFailure").asBoolean()).isTrue();
+        assertThat(details.path("retryHistory").get(1).path("progress").path("steps").findValuesAsText("key")).contains("wait_for_coolify_connector_after_database_credential_scrub");
+        assertThat(details.path("postProvisionResume").path("proofFingerprint").asText()).isEqualTo(plan.command().proofFingerprint());
+        assertThat(store.recordedPostProvisionResume("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).isEqualTo(result);
+        coordinator().observe("failed-release"); assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+    }
+
+    @Test void postProvisionResumeUsesCurrentOwnerAuthorityAndDispatchesOnlyTheFirstReceipt() {
+        postProvisionFailure(); var api = resumeApi("customer"); var before = allRelevant();
+        var plan = api.plan("offer", "deployment", original.id(), new PostProvisionResumeContracts.PlanRequest("failed-release", "resume-setup", "Continue remaining setup", true));
+        assertThat(allRelevant()).isEqualTo(before);
+        assertThat(json.write(plan)).doesNotContain("secret", "inventory", "payload_json", "failedReleaseJson");
+        var first = api.resume("offer", "deployment", original.id(), plan.command());
+        assertThat(api.resume("offer", "deployment", original.id(), plan.command())).isEqualTo(first);
+        verify(retryExecution, times(1)).executeApply("deployment", "version", "failed-release");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"graph-native", "graph-worker", "graph-phase", "operator", "allocation", "endpoint", "native-id", "progress", "other-release", "foreign", "acceptance"})
+    void postProvisionResumeRejectsUnprovenOrForeignContinuationWithoutChanges(String change) {
+        postProvisionFailure(); var state = mapper.valueToTree(preparedGraphState);
+        switch (change) {
+            case "graph-native" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("applicationCreateIntent", true);
+            case "graph-worker" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET worker_token='live' WHERE id='prepared-graph'");
+            case "graph-phase" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET failure_code='OTHER_FAILURE' WHERE id='prepared-graph'");
+            case "operator" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("operators").get(0)).put("delivered", true);
+            case "allocation" -> jdbc.update("UPDATE provider_usage_allocations SET initialization_state='UNINITIALIZED',store_uuid=NULL,initialization_fingerprint=NULL,initialized_at=NULL,activated_at=NULL WHERE approval_id='retained-allocation'");
+            case "endpoint" -> jdbc.update("UPDATE platform_deployments SET runtime_base_url='https://foreign.example' WHERE id='deployment'");
+            case "native-id" -> jdbc.update("UPDATE deployment_provider_resource_handles SET provider_resource_uuid='foreign' WHERE resource_kind='CONNECTOR_APPLICATION'");
+            case "progress" -> jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json='{}' WHERE id='failed-release'");
+            case "other-release" -> jdbc.update("UPDATE deployment_admission_release_bindings SET state='ACTIVE' WHERE release_id='failed-release'");
+            case "foreign", "acceptance" -> { }
+            default -> throw new AssertionError(change);
+        }
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET state_json=? WHERE id='prepared-graph'", json.write(state));
+        var before = allRelevant(); var r = store.require(original.id()); var draft = resumeDraft(r.fence());
+        if ("acceptance".equals(change)) draft = new PostProvisionResumeContracts.Command(draft.fence(), draft.releaseId(), draft.operationKey(), draft.reason(), false, null);
+        var requested = draft;
+        assertThatThrownBy(() -> store.postProvisionResumeCandidate("foreign".equals(change) ? "foreign" : "customer", "deployment", r.id(), requested, value -> { })).isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"native-proof", "native-expired", "local-graph", "fence", "owner"})
+    void postProvisionResumePlanCannotAuthorizeChangedState(String change) {
+        postProvisionFailure(); var r = store.require(original.id()); var draft = resumeDraft(r.fence());
+        var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        var command = plan.command(); var readback = nativeReadback(NOW);
+        switch (change) {
+            case "native-proof" -> readback = new FailedApplyRetryContracts.NativeReadback(NOW, Map.of("APPLICATION", "other", "CONNECTOR_APPLICATION", "connector", "RUNTIME_POSTGRES_DATABASE", "postgres"));
+            case "native-expired" -> readback = nativeReadback(NOW.minusSeconds(61));
+            case "local-graph" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET revision=revision+1 WHERE id='prepared-graph'");
+            case "fence" -> command = new PostProvisionResumeContracts.Command(new Fence(r.id(), r.revision() - 1, r.generation()), command.releaseId(), command.operationKey(), command.reason(), true, command.proofFingerprint());
+            case "owner" -> { }
+            default -> throw new AssertionError(change);
+        }
+        var checkedCommand = command; var checkedReadback = readback; var before = allRelevant();
+        assertThatThrownBy(() -> store.queuePostProvisionResume("customer", "deployment", r.id(), checkedCommand, inspected, checkedReadback, "owner",
+            value -> { if ("owner".equals(change)) throw new AdmissionFailure(org.springframework.http.HttpStatus.FORBIDDEN, "ENTITLEMENT_REVOKED"); })).isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
+    private PostProvisionResumeContracts.Command resumeDraft(Fence fence) {
+        return new PostProvisionResumeContracts.Command(fence, "failed-release", "resume-setup", "Continue remaining setup", true, null);
+    }
+    private void postProvisionFailure() {
+        nativeFailure();
+        var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        var steps = (com.fasterxml.jackson.databind.node.ArrayNode) details.path("progress").path("steps"); steps.remove(steps.size() - 1);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) steps.get(steps.size() - 1)).put("status", "COMPLETED");
+        for (String key : List.of("remove_coolify_connector_database_bootstrap_credentials", "redeploy_coolify_connector_without_database_bootstrap_credentials",
+            "wait_for_coolify_connector_after_database_credential_scrub", "record_coolify_connector_handle", "record_coolify_runtime_handle", "record_coolify_runtime_database_handle", "run_verification", "apply_failed"))
+            steps.addObject().put("key", key).put("status", "run_verification".equals(key) ? "RUNNING" : "apply_failed".equals(key) ? "FAILED" : "COMPLETED");
+        details.put("runtimeBaseUrl", "https://runtime.example").put("connectorBaseUrl", "https://connector.example")
+            .put("runtimeApplicationUuid", "uuid-APPLICATION").put("connectorApplicationUuid", "uuid-CONNECTOR_APPLICATION").put("runtimeDatabaseUuid", "uuid-RUNTIME_POSTGRES_DATABASE");
+        details.putArray("retryHistory").addObject().put("preservedEarlierFailure", true);
+        jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=?,provider_resource_handle_id='native-APPLICATION' WHERE id='failed-release'", json.write(details));
+        jdbc.update("UPDATE platform_deployments SET status='APPLY_FAILED',active_version_id='version',runtime_base_url='https://runtime.example',connector_base_url='https://connector.example' WHERE id='deployment'");
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET status='BLOCKED',step='ADMISSION',failure_code='FRESH_READBACK_REQUIRED' WHERE id='prepared-graph'");
+        jdbc.update("UPDATE provider_usage_allocations SET initialization_state='ACTIVE',store_uuid='synthetic-store',initialization_fingerprint=runtime_allocation_fingerprint,initialized_at=?,activated_at=? WHERE approval_id='retained-allocation'", Timestamp.from(NOW), Timestamp.from(NOW));
+    }
+    private PostProvisionResumeController resumeApi(String customerId) {
+        var entitlements = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.class);
+        when(entitlements.requireCustomerActor()).thenReturn(new com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferEntitlementService.CustomerActor(customerId, "owner"));
+        var boundary = mock(com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary.class);
+        when(boundary.prepareAdmission(any(), eq(TARGET), eq(CustomerOfferContracts.Operation.APPLY), anyString()))
+            .thenAnswer(call -> new CustomerOfferContracts.Authorization(scope(call.getArgument(3)), null));
+        var deployments = mock(DeploymentRepository.class); when(deployments.findById("deployment")).thenReturn(Optional.of(deployment()));
+        var versions = mock(DeploymentVersionRepository.class); when(versions.findById("version")).thenReturn(Optional.of(version()));
+        var provider = mock(com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider.class);
+        when(provider.postProvisionResumeReadback(anyString(), anyString(), anyString(), any(), any())).thenReturn(nativeReadback(NOW));
+        retryExecution = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseExecutionService.class);
+        return new PostProvisionResumeController(new PostProvisionResumeService(store, entitlements, boundary, deployments, versions, provider, retryExecution));
+    }
+
     private void nativeFailure() {
         preparedFailure();
         var keys = List.of("queue_release", "preflight_verification", "prepare_apply", "coolify_preflight", "ensure_deployment_execution_secrets",

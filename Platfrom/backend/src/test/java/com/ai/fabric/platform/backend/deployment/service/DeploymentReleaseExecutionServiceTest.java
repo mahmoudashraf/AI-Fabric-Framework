@@ -47,6 +47,44 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
 
+    @Test void explicitPostProvisionContinuationSkipsProvisioningAndFundingAndFinishesOnlyOnce() {
+        var fixture = new BindingApplyFixture(); var nativeProvider = fixture.prepareContinuation();
+        fixture.service.runApply("dep-123", "ver-123", "rel-123");
+        verify(nativeProvider).postProvisionResumeReadback(eq("dep-123"), eq("target-stage"), eq("rel-123"), any(), any());
+        verify(fixture.admission).beginProvisioning("rel-123");
+        verify(fixture.budget).verifyActive(fixture.deployment, fixture.version, fixture.release);
+        verify(fixture.budget, never()).prepare(any(), any()); verify(fixture.budget, never()).initializeAndActivate(any(), any(), any());
+        verify(fixture.dependencies, never()).prepareFoundation(any(), any(), any());
+        verify(fixture.dependencies).resumeRuntimeBound(fixture.deployment, fixture.version, fixture.release, "a".repeat(64));
+        verifyNoInteractions(fixture.provisioning);
+        verify(fixture.datasets).syncReleaseDatasets(fixture.deployment, fixture.version, fixture.release);
+        assertThat(fixture.release.getStatus()).isEqualTo("APPLIED_VERIFIED");
+        fixture.service.runApply("dep-123", "ver-123", "rel-123");
+        verify(fixture.dependencies, org.mockito.Mockito.times(1)).resumeRuntimeBound(any(), any(), any(), any());
+    }
+
+    @Test void continuationRechecksNativeStateBeforeAnyDependencyOrFinancialWork() {
+        var fixture = new BindingApplyFixture(); var nativeProvider = fixture.prepareContinuation();
+        org.mockito.Mockito.doThrow(new IllegalStateException("NATIVE_DRIFT")).when(nativeProvider)
+            .postProvisionResumeReadback(any(), any(), any(), any(), any());
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).hasMessage("NATIVE_DRIFT");
+        fixture.assertNoProviderEffects();
+    }
+
+    @Test void continuationCannotCreateDependenciesWhenTheExistingWalletIsLost() {
+        var fixture = new BindingApplyFixture(); fixture.prepareContinuation();
+        org.mockito.Mockito.doThrow(new IllegalStateException("WALLET_LOST")).when(fixture.budget).verifyActive(any(), any(), any());
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).hasMessage("WALLET_LOST");
+        verifyNoInteractions(fixture.provisioning, fixture.dependencies, fixture.datasets);
+        verify(fixture.budget, never()).initializeAndActivate(any(), any(), any());
+    }
+
+    @Test void malformedContinuationCannotFallBackToFullNativeApply() {
+        var fixture = new BindingApplyFixture(); fixture.prepareContinuation(); fixture.release.setProvisioningDetailsJson("{\"postProvisionResume\":{}}");
+        assertThatThrownBy(() -> fixture.service.runApply("dep-123", "ver-123", "rel-123")).hasMessage("POST_PROVISION_RESUME_AUTHORITY_REQUIRED");
+        fixture.assertNoProviderEffects();
+    }
+
     @Test void externalIntegrationWorkerUsesTypedAuthorityBeforeAdmissionBudgetAndProviderEffects() {
         var fixture = new BindingApplyFixture();
         fixture.version.setCompositionProvenanceJson("{\"externalIntegrationProfiles\":[{\"profileId\":\"reviewed\"}]}");
@@ -813,6 +851,23 @@ class DeploymentReleaseExecutionServiceTest {
             ReflectionTestUtils.setField(service, "admissionReleaseCoordinator", admission);
             ReflectionTestUtils.setField(service, "providerUsageReleaseCoordinator", budget);
             ReflectionTestUtils.setField(service, "managedDependencyReleaseCoordinator", dependencies);
+        }
+
+        CoolifyDeploymentProvider prepareContinuation() {
+            deployment.setActiveVersionId(version.getId()); deployment.setRuntimeBaseUrl("https://runtime.example");
+            release.setProviderType(DeploymentProviderType.COOLIFY); release.setCreatedAt(Instant.parse("2026-10-20T21:00:00Z"));
+            var continuation = mapper.createObjectNode()
+                .put("boundary", com.ai.fabric.platform.backend.deployment.admission.PostProvisionResumeContracts.BOUNDARY)
+                .put("operationKey", "explicit-resume").put("proofFingerprint", "a".repeat(64)).put("failedAt", "2026-10-20T21:20:00Z");
+            release.setProvisioningDetailsJson(mapper.createObjectNode().set("postProvisionResume", continuation).toString());
+            var provider = mock(CoolifyDeploymentProvider.class); when(providers.require(DeploymentProviderType.COOLIFY)).thenReturn(provider);
+            ReflectionTestUtils.setField(service, "aiStateStorageBindings", mock(DeploymentAiStateStorageBindingService.class));
+            ReflectionTestUtils.setField(service, "externalIntegrations", mock(com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver.class));
+            ReflectionTestUtils.setField(service, "documentBindingResolver", mock(DeploymentDocumentBindingResolver.class));
+            when(datasets.syncReleaseDatasets(deployment, version, release)).thenReturn(new MarketplaceDatasetSyncService.DatasetSyncSummary(0, 0, 0, List.of()));
+            var passed = new DeploymentVerificationRunEntity(); passed.setId("post-verify"); passed.setStatus("PASSED");
+            when(verification.verify(deployment, version, release, "POST_APPLY")).thenReturn(passed);
+            return provider;
         }
 
         void assertNoProviderEffects() {

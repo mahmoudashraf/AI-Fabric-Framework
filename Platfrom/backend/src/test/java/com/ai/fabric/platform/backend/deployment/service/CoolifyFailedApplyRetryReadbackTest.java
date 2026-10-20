@@ -94,6 +94,28 @@ class CoolifyFailedApplyRetryReadbackTest {
         assertThatThrownBy(this::read).isInstanceOf(RuntimeException.class);
         verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean()); verify(handles, never()).save(any());
     }
+    @Test void postProvisionContinuationRequiresBothApplicationsHealthyAndFinishedWithoutRedeploy() {
+        applications.put("CONNECTOR_APPLICATION", application("CONNECTOR_APPLICATION", "running:healthy"));
+        jobs.put("CONNECTOR_APPLICATION", job("CONNECTOR_APPLICATION", "finished"));
+        assertThat(provider.postProvisionResumeReadback("deployment", "target", "release", start, failure).inventory()).hasSize(3);
+        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean()); verify(handles, never()).save(any());
+        assertThatThrownBy(this::read).isInstanceOf(RuntimeException.class);
+    }
+    @ParameterizedTest @ValueSource(strings = {"unhealthy", "failed", "pending", "old", "foreign"})
+    void postProvisionContinuationDoesNotReuseTheStartupFailureAcceptance(String change) {
+        applications.put("CONNECTOR_APPLICATION", application("CONNECTOR_APPLICATION", "running:healthy"));
+        jobs.put("CONNECTOR_APPLICATION", job("CONNECTOR_APPLICATION", "finished"));
+        switch (change) {
+            case "unhealthy" -> applications.put("CONNECTOR_APPLICATION", application("CONNECTOR_APPLICATION", "exited:unhealthy"));
+            case "failed" -> jobs.put("CONNECTOR_APPLICATION", job("CONNECTOR_APPLICATION", "failed"));
+            case "pending" -> jobs.put("CONNECTOR_APPLICATION", job("CONNECTOR_APPLICATION", "queued"));
+            case "old" -> assertThatThrownBy(() -> provider.postProvisionResumeReadback("deployment", "target", "release", failure.plusSeconds(1), failure.plusSeconds(2))).isInstanceOf(RuntimeException.class);
+            case "foreign" -> inventory.getFirst().setReleaseId("other");
+            default -> throw new AssertionError(change);
+        }
+        if (!"old".equals(change)) assertThatThrownBy(() -> provider.postProvisionResumeReadback("deployment", "target", "release", start, failure)).isInstanceOf(RuntimeException.class);
+        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean()); verify(handles, never()).save(any());
+    }
     private CoolifyApplicationSummary application(String uuid, String status) {
         return new CoolifyApplicationSummary(uuid, "name", "https://owned.example", status, "image", "digest", json.createObjectNode());
     }

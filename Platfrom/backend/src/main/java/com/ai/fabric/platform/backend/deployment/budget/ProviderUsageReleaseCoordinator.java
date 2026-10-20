@@ -83,6 +83,21 @@ public class ProviderUsageReleaseCoordinator {
             || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())) fail();
     }
 
+    /** Continuation may inspect the existing wallet, but must never initialize, activate or top it up. */
+    public void verifyActive(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
+        exactRelease(deployment, release);
+        if (!offers.existsById(deployment.getId()) || !version.getId().equals(release.getDeploymentVersionId())
+            || !deployment.getId().equals(version.getDeploymentId())) fail();
+        artifactGate.require(release);
+        var allocation = required(release);
+        if (allocation.state() != InitializationState.ACTIVE || allocation.storeUuid() == null
+            || !allocation.expiresAt().isAfter(java.time.Instant.now())) fail();
+        var observed = runtime.read(deployment.getRuntimeBaseUrl(), authority.issueReleaseVerificationHeaders(deployment, release, false));
+        verifyScope(observed, allocation); verifyReceipt(observed.receipt(), allocation, allocation.storeUuid());
+        if (!"ACTIVE".equals(observed.state()) || !Boolean.FALSE.equals(observed.stopped())
+            || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())) fail();
+    }
+
     private SafeAllowanceProjection required(DeploymentReleaseEntity release) {
         return supported(allowances.findForAuthorizedRelease(release.getId())
             .orElseThrow(() -> new IllegalStateException("PROVIDER_USAGE_PREPARED_ALLOCATION_REQUIRED")));

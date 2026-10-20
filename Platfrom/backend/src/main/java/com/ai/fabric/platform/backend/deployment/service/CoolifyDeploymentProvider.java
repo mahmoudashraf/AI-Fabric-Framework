@@ -1640,6 +1640,17 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback failedApplyRetryReadback(
         String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt) {
+        return failedApplyReadback(deploymentId, targetProfileId, releaseId, releaseCreatedAt, failedAt, false);
+    }
+
+    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback postProvisionResumeReadback(
+        String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt) {
+        return failedApplyReadback(deploymentId, targetProfileId, releaseId, releaseCreatedAt, failedAt, true);
+    }
+
+    private com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback failedApplyReadback(
+        String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt,
+        boolean completedNativePhase) {
         Instant observedAt = Instant.now();
         var handles = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(deploymentId, targetProfileId)
             .stream().filter(h -> !PreservedExternalBindingKinds.isPreserved(h.getResourceKind())).toList();
@@ -1663,7 +1674,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             } else {
                 var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
                 boolean connector = RESOURCE_KIND_CONNECTOR_APPLICATION.equals(kind);
-                if (connector ? !Set.of("exited:unhealthy", "exited", "stopped").contains(app.status())
+                if (connector && !completedNativePhase ? !Set.of("exited:unhealthy", "exited", "stopped").contains(app.status())
                     : !"running:healthy".equalsIgnoreCase(app.status())) throw failedApplyRetryUnproven();
                 var jobs = coolifyApiClient.applicationDeploymentHistory(connection, app.uuid());
                 if (jobs.isEmpty() || jobs.stream().anyMatch(job -> !Set.of("finished", "failed", "cancelled").contains(job.status())
@@ -1674,7 +1685,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Instant created = Instant.parse(exact.createdAt());
                 if (!app.uuid().equals(exact.applicationUuid()) || !latest.status().equals(exact.status())
                     || created.isBefore(releaseCreatedAt) || created.isAfter(failedAt)
-                    || !(connector ? "failed".equals(exact.status()) : "finished".equals(exact.status())))
+                    || !(connector && !completedNativePhase ? "failed".equals(exact.status()) : "finished".equals(exact.status())))
                     throw failedApplyRetryUnproven();
                 identity.put("status", app.status()).put("image", app.imageRepository())
                     .put("tag", app.imageTag());

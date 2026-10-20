@@ -254,6 +254,12 @@ public class DeploymentReleaseExecutionService {
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
 
+        JsonNode continuation = readJson(release.getProvisioningDetailsJson()).path("postProvisionResume");
+        if (!continuation.isMissingNode()) {
+            runPostProvisionResume(deploymentId, versionId, releaseId, continuation);
+            return;
+        }
+
         JsonNode publishedProviderConfig = readJson(version.getProviderConfigJson());
         if (DeploymentAiStateStorageSelection.selected(publishedProviderConfig) != null) {
             if (aiStateStorageBindings == null) throw new IllegalStateException("AI_STATE_STORAGE_BINDING_SERVICE_REQUIRED");
@@ -315,6 +321,42 @@ public class DeploymentReleaseExecutionService {
             managedDependencyReleaseCoordinator.completeRuntimeBound(deployment, version, release);
         }
         syncMarketplaceDatasets(deploymentId, versionId, releaseId);
+        runVerification(deploymentId, versionId, releaseId);
+    }
+
+    private void runPostProvisionResume(String deploymentId, String versionId, String releaseId, JsonNode continuation) {
+        String proof = continuation.path("proofFingerprint").asText();
+        if (!com.ai.fabric.platform.backend.deployment.admission.PostProvisionResumeContracts.BOUNDARY.equals(continuation.path("boundary").asText())
+            || !proof.matches("[a-f0-9]{64}") || continuation.path("operationKey").asText().isBlank()
+            || continuation.path("failedAt").asText().isBlank()) throw new IllegalStateException("POST_PROVISION_RESUME_AUTHORITY_REQUIRED");
+        var deployment = getDeployment(deploymentId); var version = getVersion(versionId); var release = getRelease(releaseId);
+        if (!versionId.equals(deployment.getActiveVersionId()) || !deploymentId.equals(version.getDeploymentId())
+            || !versionId.equals(release.getDeploymentVersionId()) || release.getProviderType() != DeploymentProviderType.COOLIFY
+            || providerRegistry == null || !(providerRegistry.require(DeploymentProviderType.COOLIFY) instanceof CoolifyDeploymentProvider coolify))
+            throw new IllegalStateException("POST_PROVISION_RESUME_SCOPE_CHANGED");
+        coolify.postProvisionResumeReadback(deploymentId, release.getTargetProfileId(), releaseId,
+            release.getCreatedAt(), Instant.parse(continuation.path("failedAt").asText()));
+        if (aiStateStorageBindings == null || externalIntegrations == null || documentBindingResolver == null
+            || admissionReleaseCoordinator == null || providerUsageReleaseCoordinator == null || managedDependencyReleaseCoordinator == null)
+            throw new IllegalStateException("POST_PROVISION_RESUME_ADAPTER_REQUIRED");
+        aiStateStorageBindings.requireUnchanged(deployment, version, release);
+        transactionOperations.executeWithoutResult(status -> externalIntegrations.requireForRecovery(deployment, release));
+        documentBindingResolver.requireUnchanged(deployment, version, release);
+        JsonNode config = readJson(version.getProviderConfigJson());
+        if (DeploymentExistingVectorBindingService.required(config)) {
+            if (existingVectorBindings == null) throw new IllegalStateException("EXTERNAL_VECTOR_BINDING_SERVICE_REQUIRED");
+            existingVectorBindings.resolve(deployment, version, config, release.getTargetProfileId());
+        }
+        admissionReleaseCoordinator.beginProvisioning(releaseId);
+        transactionOperations.executeWithoutResult(status -> deploymentReleaseProgressService.transition(releaseId,
+            "VERIFYING", "ACTIVE", "PENDING", "resume_managed_dependencies",
+            "Continue dependency setup using the existing healthy runtime and active allowance.", null));
+        providerUsageReleaseCoordinator.verifyActive(deployment, version, getRelease(releaseId));
+        managedDependencyReleaseCoordinator.resumeRuntimeBound(deployment, version, release, proof);
+        deploymentReleaseProgressService.stepCompleted(releaseId, "resume_managed_dependencies", "Managed dependencies initialized without redeploying runtime services.");
+        syncMarketplaceDatasets(deploymentId, versionId, releaseId);
+        deploymentReleaseProgressService.transition(releaseId, "VERIFYING", "ACTIVE", "RUNNING",
+            "run_verification", "Run post-deploy verification after explicit setup continuation.", null);
         runVerification(deploymentId, versionId, releaseId);
     }
 
