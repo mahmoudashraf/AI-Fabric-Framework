@@ -1,5 +1,16 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- Customer-path checkpoint,20October14:39UTC: fresh five-minute measurements
+  and normal policy continuation pass, preserving R7/funding/history. The real
+  owner settlement-plan API exposes an actual canonical QUEUED progress-state
+  mismatch. Narrow fixff203a74e is pushed,98 focused cases/60 actualPG pass,
+  package passes, CI39440086269 backend succeeds/UI skipped; hosted rollout is
+  still pending. Original409 is reconciled read-only, never blindly retried or
+  repaired through SQL. Immutable PG template1.1.0 submit/validation pass with
+  actualmkv-174ac578; further publication remains separately reviewed. Local
+  physical AI-state recovery passes but does not close hosted P5. New customer
+  deployment, independent production reindex/promotion/P7 and UI-LAST remain.
+
 - Hosted source checkpoint,20October13:58UTC: exact606309133/imageeb1acede is
   healthy on staging and production, schema206. Both source rollouts preserve
   all139 tables/raw audits/configuration/runtime environment and originalR7/

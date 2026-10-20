@@ -1,5 +1,60 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-20 14:39 UTC Normal Customer Path Finds Canonical Queue Mismatch
+
+- Actual post-rollout measurements collect61 observations at5s on each host,
+  ending14:05:09UTC. Stage maximum797mCPU/5.11GiB used physicalRAM, production
+  519m/3.51GiB; swap is excluded. Actual normal owner SESSION and both placement
+  probes pass. Staff publishes one immutable measured-policy continuation at
+  14:21:33, preserving original R7rev1, failed release, grant and all financial
+  history. Its typed fingerprint is155314c325a8962b83030a6a717ca995311c7a06f1d32d7d7c48c702da4e3037.
+  Raw Instant string formatting initially fails the private after-guard; an
+  explicit read-only exact-JAR comparison proves only six equivalent timestamp
+  encodings differ. Original failures/intent remain, publication is not replayed.
+- The full13MB audit snapshot also reveals a private verifier boundary bug:
+  its4MiB HTTP parser was reused for local DB evidence. Append-only v2 preserves
+  the4MiB HTTP/command limit and strict duplicate/depth checks, with a distinct
+  32MiB local DB parser. All147 original cases plus14 added cases pass. No audit
+  row is omitted, no Platform/framework rule changes for that adaptation.
+- Normal owner read-only known-no-effect-plan then returns409 at14:23:59.
+  The actual queue writer leaves queue_release statusQUEUED; the terminal
+  pre-provider evidence validator accepted onlyPENDING/RUNNING/COMPLETED/FAILED.
+  The stored failure is not rewritten. A real PostgreSQL regression uses the
+  actual initial/progress writers and reproduces the identical409 before fixing.
+- Commitff203a74ec5997f87bb7a4235749c78e7c558a50 acceptsQUEUED ONLY for
+  queue_release and adds the actual-emitter owner plan/settle/replay plus denial
+  regressions. All step, terminal-release, exactNO_EFFECT, native-effect,
+  ownership, authorization and financial fences remain enforced. Independent
+  review finds noP1/P2. Focused98 cases/5 suites/60 actualPG/zero failures/errors/
+  skips and packaging pass. Prior1618-case qualification is inherited unchanged,
+  not rerun or added to this count. No framework/schema/runtime/UI release.
+- Main binds all1923 Git blobs/modes/actual byte lengths and the exact two-file
+  backend delta to the candidate; qualification.actual-r2.json SHA0e00564d...620cc
+  and jar4b7bf9dd...ee8f are private under the canonical-queued-settlement-fix
+  root. R1's descriptive source-byte-length metadata error remains preserved;
+  r2 corrects only that metadata without altering actual tests/source/package.
+  CI39440086269 publishes the backend successfully and skips UI. Both hosted
+  control planes remain verified606/eb1/schema206/UP pending the new rollout.
+- Main reconciles the original409 using the normal owner SESSION:3GETs,
+  one read-only state survey, zeroPOST/admin requests. R7 remains RESERVEDrev1;
+  original customer/funding/failed history/external handles/consumer/DRAFT and
+  zero effects/settlement records are preserved. No blind retry or receipt
+  adoption. A separately reviewed new plan follows actual fixed-source rollout.
+- Independent catalogue work progresses without waiting on the failed customer
+  reservation: native PG template1.1.0 is submitted and validated once each as
+  mkv-174ac578. Publication/spec/offer/customer readiness remain separate gates.
+  Existing browser-public Supabase key is verified against real Auth settings;
+  actual dealer identity and external demo provider/receiver hosts are reviewed.
+  No customer-system database is provisioned and no new user material is needed.
+- Local exact-artifact physical cold PGDATA restore passes complete strict
+  schema/rows/sequences/budget checks after emptying the owned volume; cleanup
+  removes every owned local resource. The image contains the connector JAR and
+  role entrypoint; a separate connector artifact is not required. Logical dump
+  CHECK-expression drift remains a failed/unqualified path. These are local
+  proofs, not hosted P5 or general disaster-recovery/financial resume acceptance.
+  Hosted customer/promotion/recovery/P7 and final reversible UI extraction stay
+  open. Hetzner access remains OPEN as requested, with no deployment data copy.
+
 ## 2026-10-20 13:58 UTC Verified Source On Both Control Planes
 
 - Final606309133719830e69d305422552b65c349914c3 is committed/pushed. Main

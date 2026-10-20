@@ -8,6 +8,52 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-20 14:39 UTC Canonical Queue Fix Pushed; Hosted Settlement Not Complete
+
+- Both control planes remain606/eb1/schema206/UP. Fresh61x5s measurements
+  finish14:05:09UTC: stage peak797mCPU/5.11GiB usedRAM, prod519m/3.51GiB;
+  swap excluded. Normal measured policy01036-post606-measured-canary-20261020
+  is accepted14:21:33, typed fingerprint155314c3...4e3037, valid16:05:09UTC.
+  Original R7rev1/failed release/funding remain unchanged. Raw Java Instant
+  formatting stopped the original private after-guard; exact-JAR typed hashes,
+  six exact timestamp paths and all other raw state reconcile read-only. Never
+  replay that publication. Proofs: /private/tmp/01044-main-resumed-20261020-1205.
+- Normal owner known-no-effect-plan returns409 at14:23:59: real queue writer
+  emits queue_release=QUEUED, but the evidence guard omitted that status.
+  A real-emitter PostgreSQL regression reproduces the same error before the
+  fix. Commitff203a74ec5997f87bb7a4235749c78e7c558a50 changes only the guard
+  and its regression class: QUEUED is accepted ONLY for queue_release; all
+  provider/effect/ownership/financial gates remain. No SQL repair or LLM/text
+  workaround. Focused98 tests/5 suites/60 actualPG/zero skips and package pass.
+  CI39440086269 backend succeeds/UI skipped. New source is NOT yet deployed.
+- Main qualification /private/tmp/01044-canonical-queued-settlement-fix-20261020/
+  qualification.actual-r2.json SHA0e00564d...620cc binds1923 actual Git blobs/
+  modes/byte lengths, exact2 backend deltas and package4b7bf9dd...ee8f. Earlier
+  r1 inherited descriptive byte lengths incorrectly; it remains preserved and
+  unaccepted. The prior1618-case gate is inherited unchanged, NOT claimed rerun.
+- Prior409 journal stays intact. Main normal-owner read-only reconciliation
+  completes14:38:56 with3GET/1SELECT/zeroPOST/admin and unchanged customer
+  reservation/financial/history/consumer/DRAFT state, zero effects/settlements.
+  owner606.prior409.reconciled.actual.json SHA5483c5e1...91ea7. A future
+  separately reviewed plan follows the fixed source rollout, not blind replay.
+- New immutable PG template1.1.0 has actual native IDmkv-174ac578; submit and
+  validation succeed normally. Publication is separately authorized, not yet
+  evidenced here. Existing real public Supabase key/settings200, dealer identity
+  and external simulator/receiver hosts are proven; no user material missing.
+  No customer inventory/business DB is added. Package root:
+  /private/tmp/01044-post606-pg-package-preparation-20261020/HANDOFF-R3.md.
+- Local actual-artifact cold PGDATA archive/empty-volume restore now passes
+  unchanged strict table/schema/sequence/budget comparison; all local resources
+  removed. Embedded connector JAR in the runtime image is proven; no separate
+  connector artifact is required. Logical dump CHECK rewriting remains a
+  preserved failed, unqualified path. Hosted recovery/P5 is NOT proved.
+- Original three agents remain active; Chandrasekhar additionally prepares
+  the new guarded owner helper. UI parity preparation maps all39 staff controls
+  and passes34 mocked/unit plus6 structural checks, no repo UI edit. Actual
+  staff parity, new customer PG lifecycle, promotion/recovery/P7 and UI extraction
+  LAST remain open. Hetzner access stays OPEN; no framework/runtime release.
+  Platform-Updates notified15:30London; next by16:00 or a significant cycle.
+
 ## 2026-10-20 13:58 UTC Source606 Live; Customer Work Still Pending
 
 - Source606309133719830e69d305422552b65c349914c3 is pushed/live on BOTHCPs,
