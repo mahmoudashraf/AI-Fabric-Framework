@@ -6,17 +6,34 @@ import { createServer } from 'vite'
 import { chromium } from 'playwright'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
+const resumeMode = process.env.POST_PROVISION_RESUME_SMOKE === '1'
+const scenarioFilter = process.env.FAILED_APPLY_RETRY_SMOKE_SCENARIO ?? ''
+const workflow = resumeMode ? {
+  plan: 'post-provision-resume-plan', execute: 'resume-post-provisioning', family: 'PostProvisionResume',
+  preview: 'Preview setup continuation', action: 'Resume setup', title: 'Resume setup', reason: 'Setup continuation reason',
+  consent: 'I accept the remaining dependency provisioning work.', confirmation: 'I confirm this setup plan and its remaining provisioning work.',
+  boundary: 'COOLIFY_DEPENDENCY_ADMISSION_FAILED_AFTER_PROVISIONING_V1', error: 'POST_PROVISION_RESUME_LOCAL_STATE_CHANGED',
+  ineligible: 'Setup continuation is not eligible', notice: 'Setup continuation authorized',
+  held: 'A setup continuation intent is recorded. Reconcile the original command before any further resume.', acceptance: 'acceptRemainingDependencyProvisioning',
+} : {
+  plan: 'failed-apply-retry-plan', execute: 'retry-failed-apply', family: 'FailedApplyRetry',
+  preview: 'Preview owned-service retry', action: 'Authorize owned-service redeploy', title: 'Retry failed owned services', reason: 'Redeploy reason',
+  consent: 'I accept redeployment of both owned runtime and connector services.', confirmation: 'I confirm this plan authorizes real runtime and connector redeploys.',
+  boundary: 'INITIAL_COOLIFY_CONNECTOR_STARTUP_FAILURE_V1', error: 'FAILED_APPLY_RETRY_LOCAL_STATE_CHANGED',
+  ineligible: 'Redeploy retry is not eligible', notice: 'Owned-service redeploy authorized',
+  held: 'A redeploy intent is recorded. Reconcile the original command before any further retry.', acceptance: 'acceptOwnedServiceRedeploy',
+}
 const output = process.env.FAILED_APPLY_RETRY_SMOKE_OUTPUT
-  ?? '/private/tmp/01044-failed-apply-retry-functional-ui-20261020/browser-r1'
-assert.match(output, /^\/private\/tmp\/01044-failed-apply-retry-functional-ui-[a-zA-Z0-9-]+\/browser-r[0-9]+$/)
+  ?? `/private/tmp/01044-${resumeMode ? 'post-provision-resume' : 'failed-apply-retry'}-functional-ui-20261020/browser-r1`
+assert.match(output, /^\/private\/tmp\/01044-(post-provision-resume|failed-apply-retry)-functional-ui-[a-zA-Z0-9-]+\/browser-r[0-9]+$/)
 await mkdir(output)
 const save = (name, value) => writeFile(`${output}/${name}`, JSON.stringify(value, null, 2) + '\n', { flag: 'wx' })
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const paths = ['src/api/platformApi.ts', 'src/components/customer/CustomerDeploymentConsole.tsx',
   'src/components/customer/durableCommandHolds.ts', 'src/hooks/useScopedOneTimeValue.ts',
   'scripts/customer-failed-apply-retry-ui-smoke.mjs',
-  '../backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/FailedApplyRetryContracts.java',
-  '../backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/FailedApplyRetryController.java']
+  `../backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/${workflow.family}Contracts.java`,
+  `../backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/${workflow.family}Controller.java`]
 const pins = await Promise.all(paths.map(async path => ({ path, sha256: hash(await readFile(`${root}/${path}`)) })))
 await save('source.before.json', pins)
 const startedAt = new Date().toISOString(), results = [], journals = []
@@ -32,10 +49,10 @@ const reservation = id => ({ id: `reservation-${id}`, deploymentId: `dep-${id}`,
   intent: 'CUSTOMER_STAGING', operation: 'APPLY', expiryState: 'CURRENT', expiresAt: '2026-10-21T20:00:00Z', keepUntil: null })
 const release = id => ({ id: `failed-${id}`, deploymentId: `dep-${id}`, deploymentVersionId: `version-${id}`, targetProfileId: `stage-${id}`,
   status: 'FAILED', provisioningStatus: 'FAILED', verificationStatus: 'SKIPPED', currentStepDescription: 'Synthetic retained preparation failure', createdAt: time })
-const preview = page => page.getByRole('button', { name: 'Preview owned-service retry', exact: true })
-const recover = page => page.getByRole('button', { name: 'Authorize owned-service redeploy', exact: true })
-const consent = 'I accept redeployment of both owned runtime and connector services.'
-const confirmation = 'I confirm this plan authorizes real runtime and connector redeploys.'
+const preview = page => page.getByRole('button', { name: workflow.preview, exact: true })
+const recover = page => page.getByRole('button', { name: workflow.action, exact: true })
+const consent = workflow.consent
+const confirmation = workflow.confirmation
 async function until(check, label) {
   const end = Date.now() + 10_000
   while (!(await check())) {
@@ -44,12 +61,13 @@ async function until(check, label) {
   }
 }
 async function prepare(page) {
-  await page.getByRole('textbox', { name: 'Redeploy reason', exact: true }).fill('Explicit owned service redeploy review')
+  await page.getByRole('textbox', { name: workflow.reason, exact: true }).fill('Explicit reviewed continuation or retry')
   assert.equal(await preview(page).isDisabled(), true)
   await page.getByRole('checkbox', { name: consent, exact: true }).check()
   await preview(page).click(); await recover(page).waitFor()
 }
 async function scenario(name, action) {
+  if (scenarioFilter && name !== scenarioFilter) return
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 }, serviceWorkers: 'block' }); contexts++
   const page = await context.newPage(); page.setDefaultTimeout(10_000)
   const state = { calls: [], errors: [], escaped: [], pendingPlans: [], pendingRecoveries: [], plans: {}, denyPlan: false,
@@ -77,17 +95,19 @@ async function scenario(name, action) {
       const admission = /^\/api\/customer-self-service\/catalogue\/offer\/deployments\/dep-([ab])\/admission-reservations$/.exec(path)
       if (admission) return json([{ ...reservation(admission[1]), ...(state.recovered.includes(admission[1]) ? { state: 'RESERVED', revision: 4 } : {}) }])
       if (path.endsWith('/retirements')) return json([])
-      const command = /^\/api\/customer-self-service\/catalogue\/offer\/deployments\/dep-([ab])\/admission-reservations\/reservation-([ab])\/(failed-apply-retry-plan|retry-failed-apply)$/.exec(path)
+      const command = new RegExp(`^/api/customer-self-service/catalogue/offer/deployments/dep-([ab])/admission-reservations/reservation-([ab])/(${workflow.plan}|${workflow.execute})$`).exec(path)
       if (command) {
         assert.equal(command[1], command[2]); assert.equal(method, 'POST')
         const id = command[1]
-        if (command[3] === 'failed-apply-retry-plan') {
-          assert.deepEqual(Object.keys(body).sort(), ['acceptOwnedServiceRedeploy', 'operationKey', 'reason', 'releaseId'])
-          assert.equal(body.acceptOwnedServiceRedeploy, true)
+        if (command[3] === workflow.plan) {
+          assert.deepEqual(Object.keys(body).sort(), [workflow.acceptance, 'operationKey', 'reason', 'releaseId'].sort())
+          assert.equal(body[workflow.acceptance], true)
           assert.equal(body.releaseId, `failed-${id}`)
-          if (state.denyPlan) return json({ success: false, errorCode: 'FAILED_APPLY_RETRY_LOCAL_STATE_CHANGED', message: 'FAILED_APPLY_RETRY_LOCAL_STATE_CHANGED' }, 409)
+          if (state.denyPlan) return json({ success: false, errorCode: workflow.error, message: workflow.error }, 409)
           const response = { command: { fence: { reservationId: `reservation-${id}`, revision: 3, generation: `server-generation-${id}` },
-            ...body, proofFingerprint: hash(`server-proof-${id}`) }, boundary: 'INITIAL_COOLIFY_CONNECTOR_STARTUP_FAILURE_V1', redeployedServiceRoles: ['runtime', 'connector'] }
+            ...body, proofFingerprint: hash(`server-proof-${id}`) }, boundary: workflow.boundary,
+            ...(resumeMode ? { remainingPhases: ['managed_dependencies', 'source_sync', 'post_apply_verification'], runtimeRedeployRequired: false,
+              retainedAllocationIds: ['retained-allocation'] } : { redeployedServiceRoles: ['runtime', 'connector'] }) }
           state.plans[id] = response
           const reply = () => json(response)
           if (state.holdPlan) { state.pendingPlans.push(reply); return }
@@ -100,7 +120,7 @@ async function scenario(name, action) {
           state.recovered.push(id)
           return json({ receiptId: `receipt-${id}`, reservationId: `reservation-${id}`, generation: `server-generation-${id}`, fromRevision: 3,
             revision: 4, releaseId: `failed-${id}`, status: 'APPLY_REQUESTED', retainedAllocationIds: ['retained-allocation'],
-            financialMutationPerformed: false, authorizedAt: time })
+            financialMutationPerformed: false, authorizedAt: time, ...(resumeMode ? { runtimeRedeployRequired: false } : {}) })
         }
         if (state.holdRecovery) { state.pendingRecoveries.push(reply); return }
         return reply(false)
@@ -108,15 +128,15 @@ async function scenario(name, action) {
       state.errors.push(`Unhandled ${method} ${path}`); return json({ message: 'Unmocked route; never forwarded' }, 500)
     } catch (error) { state.errors.push(error.stack); await route.abort().catch(() => {}) }
   })
-  const plans = () => state.calls.filter(call => call.path.endsWith('/failed-apply-retry-plan'))
-  const recoveries = () => state.calls.filter(call => call.path.endsWith('/retry-failed-apply'))
+  const plans = () => state.calls.filter(call => call.path.endsWith(`/${workflow.plan}`))
+  const recoveries = () => state.calls.filter(call => call.path.endsWith(`/${workflow.execute}`))
   try {
     await page.goto(`${base}prepared-recovery-fixture`, { waitUntil: 'networkidle' }); await preview(page).waitFor()
     assert.equal(plans().length, 0); assert.equal(recoveries().length, 0)
     await action({ page, state, plans, recoveries })
     assert.deepEqual(state.errors, []); assert.deepEqual(state.escaped, [])
-    assert.equal(state.calls.some(call => call.method !== 'GET' && !call.path.endsWith('/failed-apply-retry-plan')
-      && !call.path.endsWith('/retry-failed-apply') && call.path !== '/api/platform/preferences'), false, 'no recovery fallback, separate apply, funding, settlement or privileged write')
+    assert.equal(state.calls.some(call => call.method !== 'GET' && !call.path.endsWith(`/${workflow.plan}`)
+      && !call.path.endsWith(`/${workflow.execute}`) && call.path !== '/api/platform/preferences'), false, 'no other recovery/resume/retry fallback, separate apply, funding, settlement or privileged write')
     results.push({ name, status: 'PASS', plans: plans().length, recoveries: recoveries().length }); console.log(`PASS ${name}`)
   } catch (error) {
     await page.screenshot({ path: `${output}/${name}.failure.png`, fullPage: true }).catch(() => {})
@@ -128,7 +148,7 @@ async function scenario(name, action) {
 }
 try {
   server = await createServer({ root, configFile: false, envFile: false, cacheDir: `${output}/vite-cache`, esbuild: { jsx: 'automatic' },
-    server: { host: '127.0.0.1', port: 41805, strictPort: true }, plugins: [{ name: 'failed-apply-retry-console-fixture', enforce: 'pre',
+    server: { host: '127.0.0.1', port: resumeMode ? 41807 : 41805, strictPort: true }, plugins: [{ name: 'failed-apply-retry-console-fixture', enforce: 'pre',
       resolveId(id, importer) {
         if (id === '/prepared-recovery-entry.jsx') return '\0prepared-recovery-entry.jsx'
         if (id.endsWith('/workspace/DeploymentWorkspaceContext') && importer?.endsWith('/CustomerDeploymentConsole.tsx')) return '\0prepared-recovery-workspace.js'
@@ -151,21 +171,21 @@ try {
   browser = await chromium.launch({ headless: true })
   await scenario('explicit-preview-confirm-exact-command-receipt-no-apply', async ({ page, plans, recoveries }) => {
     await prepare(page); assert.equal(plans().length, 1); assert.equal(recoveries().length, 0); assert.equal(await recover(page).isDisabled(), true)
-    const panel = page.getByText('Retry failed owned services', { exact: true }).locator('..')
-    await page.getByText('Redeployed roles: runtime, connector', { exact: true }).waitFor()
+    const panel = page.getByRole('heading', { name: workflow.title, level: 6, exact: true }).locator('..')
+    await page.getByText(resumeMode ? 'Remaining phases: managed_dependencies, source_sync, post_apply_verification' : 'Redeployed roles: runtime, connector', { exact: true }).waitFor()
     await panel.scrollIntoViewIfNeeded(); await panel.screenshot({ path: `${output}/desktop.png`, animations: 'disabled' })
     await page.setViewportSize({ width: 390, height: 844 }); await panel.scrollIntoViewIfNeeded()
     await panel.screenshot({ path: `${output}/mobile.png`, animations: 'disabled' })
     assert.equal(await panel.evaluate(element => element.scrollWidth > element.clientWidth + 1), false)
     await page.getByRole('checkbox', { name: confirmation, exact: true }).check(); await recover(page).click()
-    await page.getByText(/Owned-service redeploy authorized\. Receipt receipt-a\./).waitFor()
+    await page.getByText(new RegExp(`${workflow.notice}\\. Receipt receipt-a\\.`)).waitFor()
     assert.equal(recoveries().length, 1); assert.equal(plans().length, 1)
   })
   await scenario('ineligible-plan-shown-without-execution-or-retry', async ({ page, state, plans, recoveries }) => {
     state.denyPlan = true
-    await page.getByRole('textbox', { name: 'Redeploy reason', exact: true }).fill('Explicit review')
+    await page.getByRole('textbox', { name: workflow.reason, exact: true }).fill('Explicit review')
     await page.getByRole('checkbox', { name: consent, exact: true }).check()
-    await preview(page).click(); await page.getByText('Redeploy retry is not eligible: FAILED_APPLY_RETRY_LOCAL_STATE_CHANGED', { exact: true }).waitFor()
+    await preview(page).click(); await page.getByText(`${workflow.ineligible}: ${workflow.error}`, { exact: true }).waitFor()
     assert.equal(plans().length, 1); assert.equal(recoveries().length, 0); assert.equal(await recover(page).count(), 0)
   })
   await scenario('unknown-loss-doubleclick-remount-actor-and-target-hold', async ({ page, state, plans, recoveries }) => {
@@ -173,7 +193,7 @@ try {
     state.holdRecovery = true; await recover(page).dblclick({ delay: 30 })
     await until(() => state.pendingRecoveries.length === 1, 'one dispatched recovery')
     await state.pendingRecoveries.shift()(true)
-    await page.getByText('A redeploy intent is recorded. Reconcile the original command before any further retry.', { exact: true }).waitFor()
+    await page.getByText(workflow.held, { exact: true }).waitFor()
     await page.evaluate(() => window.__remount()); await preview(page).waitFor(); assert.equal(await preview(page).isDisabled(), true)
     await page.evaluate(() => window.__actor('other-owner')); assert.equal(await preview(page).isDisabled(), true)
     await page.getByRole('button', { name: 'Manage deployment', exact: true }).nth(1).click()
@@ -185,7 +205,7 @@ try {
   })
   await scenario('late-plan-after-actor-roundtrip-is-not-confirmable', async ({ page, state, recoveries }) => {
     state.holdPlan = true
-    await page.getByRole('textbox', { name: 'Redeploy reason', exact: true }).fill('Explicit review')
+    await page.getByRole('textbox', { name: workflow.reason, exact: true }).fill('Explicit review')
     await page.getByRole('checkbox', { name: consent, exact: true }).check(); await preview(page).click()
     await until(() => state.pendingPlans.length === 1, 'held plan')
     await page.evaluate(() => window.__actor('other-owner'))
@@ -202,15 +222,15 @@ try {
     await page.getByRole('heading', { name: 'dep-b', level: 5, exact: true }).waitFor(); await page.evaluate(() => { window.__invalidations = [] })
     await state.pendingRecoveries.shift()(false)
     await until(async () => (await page.evaluate(() => window.__invalidations)).some(item => item.queryKey?.[0] === 'customer-admission-reservations' && item.queryKey[2] === 'dep-a'), 'captured invalidation')
-    assert.equal(await page.getByText(/Owned-service redeploy authorized/).count(), 0)
+    assert.equal(await page.getByText(workflow.notice, { exact: false }).count(), 0)
     assert.equal(recoveries().length, 1)
     assert.equal((await page.evaluate(() => window.__invalidations)).some(item => item.queryKey?.[0] === 'customer-admission-reservations' && item.queryKey[2] === 'dep-b'), false)
   })
   await scenario('http200-without-receipt-is-unknown-and-held', async ({ page, state, recoveries }) => {
     await prepare(page); state.malformedReceipt = true
     await page.getByRole('checkbox', { name: confirmation, exact: true }).check(); await recover(page).click()
-    await page.getByText('A redeploy intent is recorded. Reconcile the original command before any further retry.', { exact: true }).waitFor()
-    assert.equal(await page.getByText(/Owned-service redeploy authorized/).count(), 0); assert.equal(recoveries().length, 1)
+    await page.getByText(workflow.held, { exact: true }).waitFor()
+    assert.equal(await page.getByText(workflow.notice, { exact: false }).count(), 0); assert.equal(recoveries().length, 1)
     assert.equal(await preview(page).isDisabled(), true)
   })
   for (const pin of pins) assert.equal(hash(await readFile(`${root}/${pin.path}`)), pin.sha256, `Source drift: ${pin.path}`)
@@ -219,8 +239,8 @@ finally {
   if (browser) { await browser.close(); cleanup.browserClosed = !browser.isConnected() }
   if (server) { await server.close(); cleanup.serverClosed = !server.httpServer?.listening }
   cleanup.contexts = contexts
-  const proof = { phase: 'ACTUAL_CONSOLE_FAILED_APPLY_RETRY_LOOPBACK_SMOKE', status: failure ? 'FAIL' : 'PASS', startedAt,
-    finishedAt: new Date().toISOString(), plannedScenarios: 6, results, failure, sourcePins: pins, cleanup,
+  const proof = { phase: resumeMode ? 'ACTUAL_CONSOLE_POST_PROVISION_RESUME_LOOPBACK_SMOKE' : 'ACTUAL_CONSOLE_FAILED_APPLY_RETRY_LOOPBACK_SMOKE', status: failure ? 'FAIL' : 'PASS', startedAt,
+    finishedAt: new Date().toISOString(), plannedScenarios: scenarioFilter ? 1 : 6, scenarioFilter, results, failure, sourcePins: pins, cleanup,
     nonLoopbackAttempts: journals.flatMap(item => item.escaped), allApiRequestsIntercepted: true,
     limits: 'Actual Console/API, synthetic normal owner endpoint fixtures; no hosted/backend/provider/funding/P5/P6 acceptance.' }
   if (!cleanup.browserClosed || !cleanup.serverClosed || contexts !== 0) { proof.status = 'FAIL'; process.exitCode = 1 }

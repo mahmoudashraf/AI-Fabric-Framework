@@ -66,6 +66,8 @@ import {
   recoverCustomerPreparedFailure,
   planCustomerFailedApplyRetry,
   retryCustomerFailedApply,
+  planCustomerPostProvisionResume,
+  resumeCustomerPostProvisioning,
   requestDeploymentPracticalProductionApply,
   reserveCustomerDeploymentAdmission,
   rollbackDeploymentPracticalProductionConsumer,
@@ -83,6 +85,9 @@ import {
   type CustomerFailedApplyRetryPlanRequest,
   type CustomerFailedApplyRetryPlan,
   type CustomerFailedApplyRetrySummary,
+  type CustomerPostProvisionResumePlanRequest,
+  type CustomerPostProvisionResumePlan,
+  type CustomerPostProvisionResumeSummary,
   type DeploymentPracticalPromotionSummary,
   type DeploymentReleaseSummary,
   type DeploymentVersionSummary,
@@ -408,6 +413,10 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
     selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id,
   ]))
   const failedRetryResult = useScopedOneTimeValue<CustomerFailedApplyRetrySummary>(JSON.stringify([
+    session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
+    selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id, stagingRelease?.id,
+  ]))
+  const setupResumeResult = useScopedOneTimeValue<CustomerPostProvisionResumeSummary>(JSON.stringify([
     session.actorId, session.authenticationMode, customerId, selectedOffer?.id, selectedOffer?.fingerprint,
     selectedDeploymentId, stagingTargetProfileId, activeAdmission?.id, stagingRelease?.id,
   ]))
@@ -1164,6 +1173,22 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
                   {failedRetryResult.value ? <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>
                     Owned-service redeploy authorized. Receipt {failedRetryResult.value.receiptId}. Runtime and connector redeploy on the same release and reservation, retaining resources and allowance. Deployment completion is not yet verified.
                   </Alert> : null}
+                  <PostProvisionResumePanel session={session} offer={selectedOffer} deploymentId={selectedDeploymentId}
+                    targetProfileId={stagingTargetProfileId} reservation={activeAdmission} release={stagingRelease}
+                    available={!stagingApply.isPending && !retirementStarted && admissionsQuery.isSuccess && !admissionsQuery.isFetching
+                      && releasesQuery.isSuccess && !releasesQuery.isFetching && catalogueQuery.isSuccess && !catalogueQuery.isFetching}
+                    onAuthorized={async (receipt, scope) => {
+                      setupResumeResult.publish(setupResumeResult.capture(), receipt)
+                      setAdmission(current => current?.id === scope.reservationId ? null : current)
+                      await Promise.all([
+                        queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
+                          scope.deploymentId, scope.targetProfileId], exact: true }),
+                        queryClient.invalidateQueries({ queryKey: ['deployment-releases', scope.deploymentId], exact: true }),
+                      ])
+                    }} />
+                  {setupResumeResult.value ? <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>
+                    Setup continuation authorized. Receipt {setupResumeResult.value.receiptId}. Remaining dependency provisioning, source sync and post-apply verification continue on the same release and reservation. No runtime redeploy is required; resources and allowance are retained. Setup completion is not yet verified.
+                  </Alert> : null}
                   <KnownNoEffectSettlementPanel
                     key={JSON.stringify([session.actorId, session.authenticationMode, customerId])}
                     authority={{ actorId: session.actorId ?? '', customerId, authenticationMode: session.authenticationMode }}
@@ -1709,6 +1734,132 @@ function FailedApplyRetryReview({ scope, onAuthorized }: { scope: PreparedFailur
         disabled={pending !== null || held || Boolean(protectionError)} onChange={event => setConfirmed(event.target.checked)} />} />
       <Button variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
         disabled={!confirmed || pending !== null || held || Boolean(protectionError)} onClick={() => void retry()}>Authorize owned-service redeploy</Button>
+    </> : null}
+  </Stack>
+}
+
+type PostProvisionResumeReview = { scope: PreparedFailureRecoveryScope; plan: CustomerPostProvisionResumePlan; commandBody: string }
+export const postProvisionResumeHoldScope = (scope: PreparedFailureRecoveryScope) => JSON.stringify(['POST_PROVISION_RESUME', scope.customerId, scope.reservationId])
+
+export function prepareCustomerPostProvisionResume(scope: PreparedFailureRecoveryScope,
+  request: CustomerPostProvisionResumePlanRequest, response: CustomerPostProvisionResumePlan): PostProvisionResumeReview {
+  if (response?.boundary !== 'COOLIFY_DEPENDENCY_ADMISSION_FAILED_AFTER_PROVISIONING_V1'
+    || request.acceptRemainingDependencyProvisioning !== true || response?.command?.acceptRemainingDependencyProvisioning !== true
+    || response.runtimeRedeployRequired !== false
+    || JSON.stringify(response.remainingPhases) !== '["managed_dependencies","source_sync","post_apply_verification"]'
+    || !Array.isArray(response.retainedAllocationIds) || response.retainedAllocationIds.length !== 1 || !response.retainedAllocationIds.every(recoveryText)) {
+    throw new Error('The setup plan must preserve one allocation, require no runtime redeploy and include all remaining phases for the supported boundary.')
+  }
+  const reviewed = prepareCustomerFailureRecovery(scope, request, response)
+  return { ...reviewed, plan: structuredClone(response) }
+}
+
+export function confirmedCustomerPostProvisionResume(scope: PreparedFailureRecoveryScope, prepared: PostProvisionResumeReview, confirmed: boolean) {
+  confirmedCustomerFailureRecovery(scope, prepared, confirmed)
+  return prepared.plan.command
+}
+
+export function checkedCustomerPostProvisionResumeReceipt(prepared: PostProvisionResumeReview,
+  receipt: CustomerPostProvisionResumeSummary): CustomerPostProvisionResumeSummary {
+  if (!receipt || !recoveryText(receipt.receiptId) || receipt.reservationId !== prepared.scope.reservationId
+    || receipt.generation !== prepared.plan.command.fence.generation || receipt.fromRevision !== prepared.scope.revision
+    || receipt.revision !== prepared.scope.revision + 1 || receipt.releaseId !== prepared.scope.releaseId
+    || receipt.status !== 'APPLY_REQUESTED' || receipt.financialMutationPerformed !== false || receipt.runtimeRedeployRequired !== false
+    || JSON.stringify(receipt.retainedAllocationIds) !== JSON.stringify(prepared.plan.retainedAllocationIds)
+    || !recoveryText(receipt.authorizedAt) || !Number.isFinite(Date.parse(receipt.authorizedAt))) {
+    throw new Error('Setup continuation response is unconfirmed. Do not resubmit; reconcile the original command.')
+  }
+  return receipt
+}
+
+type PostProvisionResumePanelProps = Omit<PreparedFailurePanelProps, 'onRecovered'> & {
+  onAuthorized: (receipt: CustomerPostProvisionResumeSummary, scope: PreparedFailureRecoveryScope) => void | Promise<void>
+}
+export function PostProvisionResumePanel(props: PostProvisionResumePanelProps) {
+  const { session, offer, deploymentId, targetProfileId, reservation, release } = props
+  if (!props.available || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+    || !recoveryText(session.actorId) || !recoveryText(session.customerId) || offer.entitlement.customerId !== session.customerId
+    || offer.entitlement.status !== 'ACTIVE' || !offer.targets.some(target => target.id === targetProfileId && target.capabilities.includes('APPLY'))
+    || !reservation || reservation.deploymentId !== deploymentId || reservation.targetProfileId !== targetProfileId
+    || reservation.state !== 'OUTCOME_UNKNOWN' || reservation.expiryState !== 'CURRENT' || !release
+    || release.deploymentId !== deploymentId || release.targetProfileId !== targetProfileId || release.status !== 'FAILED') return null
+  const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
+    offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
+    deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
+  return <PostProvisionResumeReview key={JSON.stringify(scope)} scope={scope} onAuthorized={props.onAuthorized} />
+}
+
+function PostProvisionResumeReview({ scope, onAuthorized }: { scope: PreparedFailureRecoveryScope; onAuthorized: PostProvisionResumePanelProps['onAuthorized'] }) {
+  const queryClient = useQueryClient()
+  const guard = useScopedOneTimeValue<boolean>(JSON.stringify(scope)), token = guard.capture()
+  const current = () => guard.publish(token, true)
+  const holds = useRef(createDurableCommandHolds()), request = useRef<CustomerPostProvisionResumePlanRequest | null>(null), busy = useRef(false)
+  const [reason, setReason] = useState(''), [accepted, setAccepted] = useState(false), [confirmed, setConfirmed] = useState(false)
+  const [prepared, setPrepared] = useState<PostProvisionResumeReview | null>(null)
+  const [pending, setPending] = useState<'plan' | 'resume' | null>(null), [error, setError] = useState<string | null>(null)
+  let held = false, protectionError: string | null = null
+  try { held = Boolean(holds.current.read(postProvisionResumeHoldScope(scope))) }
+  catch (failure) { protectionError = errorText(failure) }
+  const ownerStillCurrent = async () => {
+    const session = await fetchPlatformAuthSession()
+    if (!current() || !session.authenticated || session.role !== 'CUSTOMER_ADMIN' || session.authenticationMode !== 'SESSION'
+      || session.actorId !== scope.actorId || session.customerId !== scope.customerId) throw new Error('Setup authority changed. Review current state.')
+  }
+  async function plan() {
+    if (busy.current || held || protectionError || !accepted || !reason.trim() || !current()) return
+    busy.current = true; setPending('plan'); setError(null); setPrepared(null); setConfirmed(false)
+    request.current ??= { releaseId: scope.releaseId, operationKey: crypto.randomUUID(), reason: reason.trim(), acceptRemainingDependencyProvisioning: true }
+    try {
+      await ownerStillCurrent()
+      const review = prepareCustomerPostProvisionResume(scope, request.current,
+        await planCustomerPostProvisionResume(scope.offerId, scope.deploymentId, scope.reservationId, request.current))
+      if (current()) setPrepared(review)
+    } catch (failure) {
+      if (current()) setError(failure instanceof Error && 'status' in failure && [403, 409].includes(Number(failure.status))
+        ? `Setup continuation is not eligible: ${errorText(failure)}` : errorText(failure))
+    } finally { busy.current = false; if (current()) setPending(null) }
+  }
+  async function resume() {
+    if (busy.current || held || protectionError || !prepared || !confirmed || !current()) return
+    busy.current = true; setPending('resume'); setError(null)
+    let dispatched = false, receipt: CustomerPostProvisionResumeSummary | null = null
+    try {
+      const command = confirmedCustomerPostProvisionResume(scope, prepared, confirmed)
+      await ownerStillCurrent()
+      await holds.current.claim(postProvisionResumeHoldScope(scope), command.operationKey, prepared.commandBody, current)
+      if (!current()) return
+      dispatched = true
+      receipt = checkedCustomerPostProvisionResumeReceipt(prepared,
+        await resumeCustomerPostProvisioning(scope.offerId, scope.deploymentId, scope.reservationId, command))
+    } catch (failure) {
+      if (current()) setError(dispatched ? 'Setup continuation response is unconfirmed. Do not resubmit; reconcile the original command.' : errorText(failure))
+    } finally {
+      busy.current = false
+      if (current()) setPending(null)
+      if (dispatched) void queryClient.invalidateQueries({ queryKey: ['customer-admission-reservations', scope.offerId,
+        scope.deploymentId, scope.targetProfileId], exact: true }).catch(() => undefined)
+    }
+    if (receipt) await onAuthorized(receipt, structuredClone(scope))
+  }
+  return <Stack spacing={1} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+    <Typography variant="subtitle2">Resume setup</Typography>
+    <Alert severity="info">Continue remaining dependency provisioning, source sync and post-apply verification. No runtime redeploy is required. Existing resources and allowance are retained; setup may perform remaining provisioning work.</Alert>
+    <TextField label="Setup continuation reason" size="small" fullWidth value={reason} inputProps={{ maxLength: 255 }}
+      disabled={Boolean(request.current) || pending !== null || held || Boolean(protectionError)} onChange={event => setReason(event.target.value)} />
+    <FormControlLabel label="I accept the remaining dependency provisioning work." control={<Checkbox checked={accepted}
+      disabled={Boolean(request.current) || pending !== null || held || Boolean(protectionError)} onChange={event => setAccepted(event.target.checked)} />} />
+    {error || protectionError ? <Alert severity="warning">{error ?? protectionError}</Alert> : null}
+    {held ? <Alert severity="warning">A setup continuation intent is recorded. Reconcile the original command before any further resume.</Alert> : null}
+    <Button variant="outlined" startIcon={<FactCheckOutlinedIcon />} sx={{ alignSelf: 'flex-start' }}
+      disabled={!accepted || !reason.trim() || pending !== null || held || Boolean(protectionError)} onClick={() => void plan()}>Preview setup continuation</Button>
+    {prepared ? <>
+      <Typography variant="body2">Release {scope.releaseId} &middot; reservation {scope.reservationId} &middot; revision {prepared.plan.command.fence.revision}</Typography>
+      <Typography variant="body2">Remaining phases: {prepared.plan.remainingPhases.join(', ')}</Typography>
+      <Typography variant="caption">Boundary: {prepared.plan.boundary}</Typography>
+      <FormControlLabel label="I confirm this setup plan and its remaining provisioning work." control={<Checkbox checked={confirmed}
+        disabled={pending !== null || held || Boolean(protectionError)} onChange={event => setConfirmed(event.target.checked)} />} />
+      <Button variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ alignSelf: 'flex-start' }}
+        disabled={!confirmed || pending !== null || held || Boolean(protectionError)} onClick={() => void resume()}>Resume setup</Button>
     </> : null}
   </Stack>
 }

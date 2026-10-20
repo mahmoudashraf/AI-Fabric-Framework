@@ -8525,3 +8525,32 @@ export function retryCustomerFailedApply(
     { method: 'POST', body: JSON.stringify(command) },
   )
 }
+
+export type CustomerPostProvisionResumePlanRequest = CustomerPreparedFailureRecoveryPlanRequest & { acceptRemainingDependencyProvisioning: true }
+export type CustomerPostProvisionResumeCommand = CustomerPreparedFailureRecoveryCommand & { acceptRemainingDependencyProvisioning: true }
+export type CustomerPostProvisionResumePlan = {
+  command: CustomerPostProvisionResumeCommand
+  boundary: string
+  remainingPhases: string[]
+  runtimeRedeployRequired: boolean
+  retainedAllocationIds: string[]
+}
+export type CustomerPostProvisionResumeSummary = CustomerFailedApplyRetrySummary & { runtimeRedeployRequired: boolean }
+
+export function planCustomerPostProvisionResume(
+  offerId: string, deploymentId: string, reservationId: string, payload: CustomerPostProvisionResumePlanRequest,
+) {
+  return request<CustomerPostProvisionResumePlan>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/post-provision-resume-plan`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function resumeCustomerPostProvisioning(
+  offerId: string, deploymentId: string, reservationId: string, command: CustomerPostProvisionResumeCommand,
+) {
+  return request<CustomerPostProvisionResumeSummary>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/admission-reservations/${encodeURIComponent(reservationId)}/resume-post-provisioning`,
+    { method: 'POST', body: JSON.stringify(command) },
+  )
+}
