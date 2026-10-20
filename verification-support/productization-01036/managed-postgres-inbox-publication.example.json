@@ -1,0 +1,45 @@
+{
+  "platformBaseUrl": "https://PENDING_REVIEWED_PLATFORM_ORIGIN",
+  "selection": {
+    "publisherId": "PENDING_EXISTING_VERIFIED_PUBLISHER_ID",
+    "pluginSlug": "dealership-external-systems-managed-inbox-v1",
+    "templateVersion": "1.1.0",
+    "specId": "PENDING_NEW_REQUESTED_SPEC_ID",
+    "offerId": "PENDING_NEW_REQUESTED_OFFER_ID"
+  },
+  "review": {
+    "name": "Dealership AI - PostgreSQL Inbox",
+    "reviewReference": "PENDING_REVIEW_REFERENCE",
+    "approvedPolicyRef": "PENDING_APPROVED_POLICY",
+    "measuredPolicyRef": "PENDING_MEASURED_POLICY",
+    "operatingPolicyRef": "PENDING_OPERATING_POLICY",
+    "identityPolicyRef": "PENDING_IDENTITY_POLICY",
+    "storagePolicyRef": "PENDING_STORAGE_POLICY",
+    "stagingExpiryHours": 24,
+    "maxExtensionHours": 24,
+    "recoveryWindowHours": 24
+  },
+  "configuration": {
+    "aiStateStorageMode": "MANAGED_POSTGRES",
+    "auth": {
+      "projectUrl": "PENDING_PUBLIC_WORKSPACE_PROJECT_URL",
+      "publishableKey": "PENDING_PUBLIC_WORKSPACE_PUBLISHABLE_KEY",
+      "dealerId": "PENDING_REVIEWED_DEALER_ID",
+      "imageHostAllowlist": []
+    },
+    "externalIntegrationAllowedHosts": {"vehicle-stock": [], "business-actions": []}
+  },
+  "contracts": {
+    "publisherDetail": null,
+    "templateDetail": null,
+    "sourceTemplate": null,
+    "inboxArtifacts": [],
+    "publishedTemplate": null,
+    "inboxPublication": null,
+    "pluginVersions": [],
+    "targets": [],
+    "runtimeArtifacts": [],
+    "behaviorCatalog": [],
+    "executionExtensionCatalog": []
+  }
+}
