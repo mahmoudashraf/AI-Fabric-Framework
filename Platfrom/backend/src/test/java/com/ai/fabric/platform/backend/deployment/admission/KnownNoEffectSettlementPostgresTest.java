@@ -13,6 +13,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.*;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseProgressService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateEntity;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
@@ -158,6 +160,37 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         Summary result = api.settle("offer", "deployment", original.id(), plan.command());
         assertThat(result.outcome()).isEqualTo(Outcome.SETTLED_KNOWN_NO_EFFECT);
         assertThat(api.settle("offer", "deployment", original.id(), plan.command())).isEqualTo(result);
+    }
+
+    @Test void ownerCanSettleCanonicalQueuedProgressAfterFailureBeforeProvisioning() throws Exception {
+        canonicalFailedProgress();
+        configuration(); var api = customerApi("customer"); var before = allRelevant();
+        var history = preserved();
+        var details = mapper.readTree(jdbc.queryForObject(
+            "SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class));
+        assertThat(details.path("progress").path("steps").get(0).path("status").asText()).isEqualTo("QUEUED");
+        Plan plan = api.plan("offer", "deployment", original.id(),
+            new PlanRequest("canonical-queued-settlement", "Abandon a canonical pre-provider failure"));
+        assertThat(allRelevant()).isEqualTo(before);
+        Summary result = api.settle("offer", "deployment", original.id(), plan.command());
+        assertThat(result.outcome()).isEqualTo(Outcome.SETTLED_KNOWN_NO_EFFECT);
+        assertThat(result.reclamationPerformed()).isFalse();
+        assertThat(store.require(original.id()).state()).isEqualTo(State.RELEASED);
+        assertThat(preserved()).isEqualTo(history);
+        assertThat(api.settle("offer", "deployment", original.id(), plan.command())).isEqualTo(result);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"QUEUED", "UNKNOWN", "PROVISIONING", "ACTIVE", "OUTCOME_UNKNOWN"})
+    void nonCanonicalPreflightStatusRemainsRejectedAlongsideCanonicalQueuedHistory(String status) throws Exception {
+        canonicalFailedProgress();
+        var details = mapper.readTree(jdbc.queryForObject(
+            "SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) details.path("progress").path("steps").get(1)).put("status", status);
+        jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+        var before = allRelevant();
+        assertThatThrownBy(this::settle).isInstanceOf(AdmissionFailure.class)
+            .hasMessageContaining("PRE_PROVIDER_PROGRESS_REQUIRED");
+        assertThat(allRelevant()).isEqualTo(before); assertHeld();
     }
 
     @Test void completedSettlementReplaysAfterNormalPolicyRolloverWithoutReleasedReservationContinuity() {
@@ -502,6 +535,23 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
             new CustomerOfferContracts.ReviewedTopology(1, 1, 1, 1, 1, 1, 1, 1));
     }
     private String progress() { return "{\"progress\":{\"currentStepKey\":\"apply_failed\",\"steps\":[{\"key\":\"queue_release\",\"status\":\"COMPLETED\"},{\"key\":\"preflight_verification\",\"status\":\"COMPLETED\"},{\"key\":\"apply_failed\",\"status\":\"FAILED\"}]}}"; }
+    private void canonicalFailedProgress() {
+        var deploymentService = mock(DeploymentService.class);
+        ReflectionTestUtils.setField(deploymentService, "objectMapper", mapper);
+        String initial = ReflectionTestUtils.invokeMethod(deploymentService, "initialReleaseDetails",
+            "queue_release", "Apply request accepted and queued.");
+        var failed = release("failed-release"); failed.setProvisioningDetailsJson(initial);
+        var releases = mock(DeploymentReleaseRepository.class);
+        when(releases.findById("failed-release")).thenReturn(Optional.of(failed));
+        var progress = new DeploymentReleaseProgressService(releases, mapper);
+        progress.transition("failed-release", "PRE_APPLY_VERIFYING", "QUEUED", "RUNNING",
+            "preflight_verification", "Running pre-apply verification gate.", null);
+        progress.stepCompleted("failed-release", "preflight_verification", "Pre-apply verification gate passed.");
+        progress.transition("failed-release", "FAILED", "FAILED", "FAILED", "apply_failed",
+            "Apply failed before completion.", "Failure before provisioning");
+        jdbc.update("UPDATE platform_deployment_releases SET status=?,provisioning_status=?,current_step_key=?,provisioning_details_json=? WHERE id='failed-release'",
+            failed.getStatus(), failed.getProvisioningStatus(), failed.getCurrentStepKey(), failed.getProvisioningDetailsJson());
+    }
     private DeploymentEntity deployment() { var d = new DeploymentEntity(); d.setId("deployment"); d.setCustomerId("customer"); d.setTenantId("tenant"); return d; }
     private DeploymentVersionEntity version() { var v = new DeploymentVersionEntity(); v.setId("version"); v.setDeploymentId("deployment"); v.setStatus("PUBLISHED"); v.setConfigHash("config-hash"); return v; }
     private DeploymentReleaseEntity release(String id) {

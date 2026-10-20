@@ -240,8 +240,10 @@ final class KnownNoEffectSettlementEvidence {
         var seen = new java.util.HashSet<String>();
         for (JsonNode step : steps) {
             String key = step.path("key").asText();
+            String status = step.path("status").asText();
+            boolean queued = "queue_release".equals(key) && "QUEUED".equals(status);
             if (!PRE_PROVIDER_STEPS.contains(key) || !seen.add(key)
-                || !Set.of("PENDING", "RUNNING", "COMPLETED", "FAILED").contains(step.path("status").asText()))
+                || !queued && !Set.of("PENDING", "RUNNING", "COMPLETED", "FAILED").contains(status))
                 throw denied("PRE_PROVIDER_PROGRESS_REQUIRED");
         }
         if (!seen.contains("queue_release") || !seen.contains("preflight_verification")
