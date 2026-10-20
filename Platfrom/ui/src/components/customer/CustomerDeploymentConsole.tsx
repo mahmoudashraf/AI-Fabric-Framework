@@ -97,6 +97,7 @@ import {
 import { canApplyReviewedVersion, CustomerAdmissionCommands } from './customerAdmissionCommands'
 import { KnownNoEffectSettlementPanel } from './KnownNoEffectSettlementPanel'
 import { createDurableCommandHolds } from './durableCommandHolds'
+import { createPostProvisionResumeHolds } from './postProvisionResumeHolds'
 import { selectableCustomerAssignments, canReviewCustomerAssignment, canConfigureExistingCustomerAssignment, customerAssignmentDraftExpectations,
   customerAssignmentConfigurationRequest, configureExistingCustomerAssignment, assignmentConfigurationSnapshot,
   prepareKnownAssignmentReconciliation, confirmKnownAssignmentReconciliation,
@@ -1786,19 +1787,20 @@ export function PostProvisionResumePanel(props: PostProvisionResumePanelProps) {
   const scope: PreparedFailureRecoveryScope = { actorId: session.actorId, customerId: session.customerId, authenticationMode: 'SESSION',
     offerId: offer.id, offerFingerprint: offer.fingerprint, entitlementRevision: offer.entitlement.revision,
     deploymentId, targetProfileId, reservationId: reservation.id, revision: reservation.revision, releaseId: release.id }
-  return <PostProvisionResumeReview key={JSON.stringify(scope)} scope={scope} onAuthorized={props.onAuthorized} />
+  return <PostProvisionResumeReview key={JSON.stringify(scope)} scope={scope} releaseStatus={release.status} onAuthorized={props.onAuthorized} />
 }
 
-function PostProvisionResumeReview({ scope, onAuthorized }: { scope: PreparedFailureRecoveryScope; onAuthorized: PostProvisionResumePanelProps['onAuthorized'] }) {
+function PostProvisionResumeReview({ scope, releaseStatus, onAuthorized }: { scope: PreparedFailureRecoveryScope; releaseStatus: string; onAuthorized: PostProvisionResumePanelProps['onAuthorized'] }) {
   const queryClient = useQueryClient()
   const guard = useScopedOneTimeValue<boolean>(JSON.stringify(scope)), token = guard.capture()
   const current = () => guard.publish(token, true)
-  const holds = useRef(createDurableCommandHolds()), request = useRef<CustomerPostProvisionResumePlanRequest | null>(null), busy = useRef(false)
+  const holds = useRef(createPostProvisionResumeHolds()), request = useRef<CustomerPostProvisionResumePlanRequest | null>(null), busy = useRef(false)
+  const holdContext = { ...scope, releaseStatus }
   const [reason, setReason] = useState(''), [accepted, setAccepted] = useState(false), [confirmed, setConfirmed] = useState(false)
   const [prepared, setPrepared] = useState<PostProvisionResumeReview | null>(null)
   const [pending, setPending] = useState<'plan' | 'resume' | null>(null), [error, setError] = useState<string | null>(null)
   let held = false, protectionError: string | null = null
-  try { held = Boolean(holds.current.read(postProvisionResumeHoldScope(scope))) }
+  try { held = holds.current.read(holdContext).held }
   catch (failure) { protectionError = errorText(failure) }
   const ownerStillCurrent = async () => {
     const session = await fetchPlatformAuthSession()
@@ -1811,8 +1813,10 @@ function PostProvisionResumeReview({ scope, onAuthorized }: { scope: PreparedFai
     request.current ??= { releaseId: scope.releaseId, operationKey: crypto.randomUUID(), reason: reason.trim(), acceptRemainingDependencyProvisioning: true }
     try {
       await ownerStillCurrent()
+      if (holds.current.read(holdContext).held) throw new Error('The original setup intent remains held. Reconcile its outcome before a new review.')
       const review = prepareCustomerPostProvisionResume(scope, request.current,
         await planCustomerPostProvisionResume(scope.offerId, scope.deploymentId, scope.reservationId, request.current))
+      holds.current.review(holdContext, review.plan.command, review.plan.retainedAllocationIds[0])
       if (current()) setPrepared(review)
     } catch (failure) {
       if (current()) setError(failure instanceof Error && 'status' in failure && [403, 409].includes(Number(failure.status))
@@ -1826,11 +1830,13 @@ function PostProvisionResumeReview({ scope, onAuthorized }: { scope: PreparedFai
     try {
       const command = confirmedCustomerPostProvisionResume(scope, prepared, confirmed)
       await ownerStillCurrent()
-      await holds.current.claim(postProvisionResumeHoldScope(scope), command.operationKey, prepared.commandBody, current)
+      await holds.current.claim(holdContext, command, prepared.plan.retainedAllocationIds[0], current)
       if (!current()) return
       dispatched = true
-      receipt = checkedCustomerPostProvisionResumeReceipt(prepared,
+      const acceptedReceipt = checkedCustomerPostProvisionResumeReceipt(prepared,
         await resumeCustomerPostProvisioning(scope.offerId, scope.deploymentId, scope.reservationId, command))
+      await holds.current.acknowledge(holdContext, command, acceptedReceipt)
+      receipt = acceptedReceipt
     } catch (failure) {
       if (current()) setError(dispatched ? 'Setup continuation response is unconfirmed. Do not resubmit; reconcile the original command.' : errorText(failure))
     } finally {

@@ -31,6 +31,7 @@ const save = (name, value) => writeFile(`${output}/${name}`, JSON.stringify(valu
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const paths = ['src/api/platformApi.ts', 'src/components/customer/CustomerDeploymentConsole.tsx',
   'src/components/customer/durableCommandHolds.ts', 'src/hooks/useScopedOneTimeValue.ts',
+  'src/components/customer/postProvisionResumeHolds.ts',
   'scripts/customer-failed-apply-retry-ui-smoke.mjs',
   `../backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/${workflow.family}Contracts.java`,
   `../backend/src/main/java/com/ai/fabric/platform/backend/deployment/admission/${workflow.family}Controller.java`]
@@ -67,11 +68,11 @@ async function prepare(page) {
   await preview(page).click(); await recover(page).waitFor()
 }
 async function scenario(name, action) {
-  if (scenarioFilter && name !== scenarioFilter) return
+  if (scenarioFilter && !scenarioFilter.split(',').includes(name)) return
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 }, serviceWorkers: 'block' }); contexts++
   const page = await context.newPage(); page.setDefaultTimeout(10_000)
   const state = { calls: [], errors: [], escaped: [], pendingPlans: [], pendingRecoveries: [], plans: {}, denyPlan: false,
-    holdPlan: false, holdRecovery: false, malformedReceipt: false, recovered: [] }
+    holdPlan: false, holdRecovery: false, malformedReceipt: false, recovered: [], revisions: {}, releaseStatuses: {}, authorizationCounts: {} }
   journals.push(state)
   page.on('pageerror', error => state.errors.push(error.stack))
   await context.route('**/*', async route => {
@@ -91,9 +92,11 @@ async function scenario(name, action) {
       if (path === '/api/platform/preferences') return json(body ?? {})
       const records = /^\/api\/deployments\/dep-([ab])\/(versions|releases)$/.exec(path)
       if (records) return json(records[2] === 'versions' ? [{ id: `version-${records[1]}`, deploymentId: `dep-${records[1]}`, versionLabel: 'v1', status: 'PUBLISHED' }]
-        : [{ ...release(records[1]), ...(state.recovered.includes(records[1]) ? { status: 'APPLY_REQUESTED', provisioningStatus: 'QUEUED', verificationStatus: 'PENDING' } : {}) }])
+        : [{ ...release(records[1]), ...(state.recovered.includes(records[1]) ? { status: 'APPLY_REQUESTED', provisioningStatus: 'QUEUED', verificationStatus: 'PENDING' } : {}),
+          ...(state.releaseStatuses[records[1]] ? { status: state.releaseStatuses[records[1]] } : {}) }])
       const admission = /^\/api\/customer-self-service\/catalogue\/offer\/deployments\/dep-([ab])\/admission-reservations$/.exec(path)
-      if (admission) return json([{ ...reservation(admission[1]), ...(state.recovered.includes(admission[1]) ? { state: 'RESERVED', revision: 4 } : {}) }])
+      if (admission) return json([{ ...reservation(admission[1]), revision: state.revisions[admission[1]] ?? 3,
+        ...(state.recovered.includes(admission[1]) ? { state: 'RESERVED', revision: (state.revisions[admission[1]] ?? 3) + 1 } : {}) }])
       if (path.endsWith('/retirements')) return json([])
       const command = new RegExp(`^/api/customer-self-service/catalogue/offer/deployments/dep-([ab])/admission-reservations/reservation-([ab])/(${workflow.plan}|${workflow.execute})$`).exec(path)
       if (command) {
@@ -104,7 +107,7 @@ async function scenario(name, action) {
           assert.equal(body[workflow.acceptance], true)
           assert.equal(body.releaseId, `failed-${id}`)
           if (state.denyPlan) return json({ success: false, errorCode: workflow.error, message: workflow.error }, 409)
-          const response = { command: { fence: { reservationId: `reservation-${id}`, revision: 3, generation: `server-generation-${id}` },
+          const response = { command: { fence: { reservationId: `reservation-${id}`, revision: state.revisions[id] ?? 3, generation: `server-generation-${id}` },
             ...body, proofFingerprint: hash(`server-proof-${id}`) }, boundary: workflow.boundary,
             ...(resumeMode ? { remainingPhases: ['managed_dependencies', 'source_sync', 'post_apply_verification'], runtimeRedeployRequired: false,
               retainedAllocationIds: ['retained-allocation'] } : { redeployedServiceRoles: ['runtime', 'connector'] }) }
@@ -118,8 +121,10 @@ async function scenario(name, action) {
           if (lost) return route.abort('connectionreset')
           if (state.malformedReceipt) return json({ accepted: true })
           state.recovered.push(id)
-          return json({ receiptId: `receipt-${id}`, reservationId: `reservation-${id}`, generation: `server-generation-${id}`, fromRevision: 3,
-            revision: 4, releaseId: `failed-${id}`, status: 'APPLY_REQUESTED', retainedAllocationIds: ['retained-allocation'],
+          state.authorizationCounts[id] = (state.authorizationCounts[id] ?? 0) + 1
+          return json({ receiptId: `receipt-${id}${state.authorizationCounts[id] === 1 ? '' : `-${state.authorizationCounts[id]}`}`,
+            reservationId: `reservation-${id}`, generation: `server-generation-${id}`, fromRevision: body.fence.revision,
+            revision: body.fence.revision + 1, releaseId: `failed-${id}`, status: 'APPLY_REQUESTED', retainedAllocationIds: ['retained-allocation'],
             financialMutationPerformed: false, authorizedAt: time, ...(resumeMode ? { runtimeRedeployRequired: false } : {}) })
         }
         if (state.holdRecovery) { state.pendingRecoveries.push(reply); return }
@@ -233,6 +238,47 @@ try {
     assert.equal(await page.getByText(workflow.notice, { exact: false }).count(), 0); assert.equal(recoveries().length, 1)
     assert.equal(await preview(page).isDisabled(), true)
   })
+  if (resumeMode) await scenario('known-receipt-later-terminal-failure-new-explicit-intent-after-reload', async ({ page, state, plans, recoveries }) => {
+    await prepare(page); await page.getByRole('checkbox', { name: confirmation, exact: true }).check(); await recover(page).click()
+    await page.getByText(/Setup continuation authorized\. Receipt receipt-a\./).waitFor()
+    assert.equal(recoveries().length, 1)
+    state.recovered = []; state.revisions.a = 4
+    await page.reload({ waitUntil: 'networkidle' }); await preview(page).waitFor()
+    assert.equal(await page.getByRole('textbox', { name: workflow.reason, exact: true }).isDisabled(), true, 'ACK revision itself is not a fresh terminal-failure fence')
+    state.revisions.a = 5; state.releaseStatuses.a = 'APPLY_REQUESTED'
+    await page.reload({ waitUntil: 'networkidle' }); assert.equal(await preview(page).count(), 0, 'same release must be terminal FAILED')
+    state.releaseStatuses.a = 'FAILED'
+    await page.reload({ waitUntil: 'networkidle' }); await preview(page).waitFor()
+    assert.equal(await page.getByRole('textbox', { name: workflow.reason, exact: true }).isEnabled(), true)
+    assert.equal(plans().length, 1); assert.equal(recoveries().length, 1, 'new fence does not auto-dispatch')
+    await prepare(page)
+    assert.equal(plans().length, 2); assert.equal(recoveries().length, 1)
+    assert.notEqual(plans()[0].body.operationKey, plans()[1].body.operationKey)
+    assert.equal(state.plans.a.command.fence.revision, 5)
+    await page.getByRole('checkbox', { name: confirmation, exact: true }).check(); await recover(page).click()
+    await page.getByText(/Setup continuation authorized\. Receipt receipt-a-2\./).waitFor()
+    assert.equal(recoveries().length, 2)
+    const journals = await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('platform.post-resume-receipts.v1:'))
+      .map(key => JSON.parse(localStorage.getItem(key))))
+    assert.equal(journals.length, 1)
+    assert.deepEqual(journals[0].events.map(event => event.kind), ['CLAIM', 'ACK', 'CLAIM', 'ACK'])
+  })
+  if (resumeMode) await scenario('unknown-response-later-failed-fence-remount-stays-held', async ({ page, state, plans, recoveries }) => {
+    await prepare(page); await page.getByRole('checkbox', { name: confirmation, exact: true }).check()
+    state.holdRecovery = true; await recover(page).click(); await until(() => state.pendingRecoveries.length === 1, 'one ambiguous resume')
+    await state.pendingRecoveries.shift()(true)
+    await page.getByText(workflow.held, { exact: true }).waitFor()
+    state.revisions.a = 50
+    await page.reload({ waitUntil: 'networkidle' }); await preview(page).waitFor()
+    assert.equal(await preview(page).isDisabled(), true)
+    await page.evaluate(() => window.__actor('other-owner'))
+    await until(async () => await page.evaluate(() => window.__actorValue) === 'other-owner', 'new actor mounted')
+    assert.equal(await preview(page).isDisabled(), true)
+    assert.equal(plans().length, 1); assert.equal(recoveries().length, 1)
+    const events = await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('platform.post-resume-receipts.v1:'))
+      .flatMap(key => JSON.parse(localStorage.getItem(key)).events))
+    assert.deepEqual(events.map(event => event.kind), ['CLAIM'])
+  })
   for (const pin of pins) assert.equal(hash(await readFile(`${root}/${pin.path}`)), pin.sha256, `Source drift: ${pin.path}`)
 } catch (error) { failure = { message: error.message, stack: error.stack }; process.exitCode = 1; console.error(error.stack) }
 finally {
@@ -240,7 +286,7 @@ finally {
   if (server) { await server.close(); cleanup.serverClosed = !server.httpServer?.listening }
   cleanup.contexts = contexts
   const proof = { phase: resumeMode ? 'ACTUAL_CONSOLE_POST_PROVISION_RESUME_LOOPBACK_SMOKE' : 'ACTUAL_CONSOLE_FAILED_APPLY_RETRY_LOOPBACK_SMOKE', status: failure ? 'FAIL' : 'PASS', startedAt,
-    finishedAt: new Date().toISOString(), plannedScenarios: scenarioFilter ? 1 : 6, scenarioFilter, results, failure, sourcePins: pins, cleanup,
+    finishedAt: new Date().toISOString(), plannedScenarios: scenarioFilter ? scenarioFilter.split(',').length : resumeMode ? 8 : 6, scenarioFilter, results, failure, sourcePins: pins, cleanup,
     nonLoopbackAttempts: journals.flatMap(item => item.escaped), allApiRequestsIntercepted: true,
     limits: 'Actual Console/API, synthetic normal owner endpoint fixtures; no hosted/backend/provider/funding/P5/P6 acceptance.' }
   if (!cleanup.browserClosed || !cleanup.serverClosed || contexts !== 0) { proof.status = 'FAIL'; process.exitCode = 1 }

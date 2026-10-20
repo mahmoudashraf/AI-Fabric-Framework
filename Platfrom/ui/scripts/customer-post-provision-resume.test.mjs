@@ -96,3 +96,119 @@ test('lost response performs one resume dispatch and no retry or recovery fallba
   try { await assert.rejects(api.resumeCustomerPostProvisioning(scope.offerId, scope.deploymentId, scope.reservationId, plan.command)); assert.equal(calls.length, 1); assert.ok(calls[0].endsWith('/resume-post-provisioning')) }
   finally { globalThis.fetch = oldFetch }
 })
+
+const holdSource = await readFile(new URL('../src/components/customer/durableCommandHolds.ts', import.meta.url), 'utf8')
+const holdModule = await import(`data:text/javascript;base64,${Buffer.from(transpile(holdSource)).toString('base64')}`)
+const journalSource = await readFile(new URL('../src/components/customer/postProvisionResumeHolds.ts', import.meta.url), 'utf8')
+const compiledJournal = ts.transpileModule(journalSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
+const journalModule = { exports: {} }
+new Function('exports', 'require', compiledJournal)(journalModule.exports, name => { assert.equal(name, './durableCommandHolds'); return holdModule })
+function journalFixture() {
+  const records = new Map(), port = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) }
+  let queue = Promise.resolve()
+  const exclusive = (_, work) => { const next = queue.then(work); queue = next.catch(() => {}); return next }
+  const mount = (storage = () => port) => journalModule.exports.createPostProvisionResumeHolds({ storage, exclusive })
+  const context = { ...scope, releaseStatus: 'FAILED' }, command = structuredClone(plan.command)
+  const journal = () => JSON.parse([...records.entries()].find(([key]) => key.startsWith('platform.post-resume-receipts.v1:'))[1])
+  return { records, port, mount, context, command, holds: mount(), journal }
+}
+
+test('validated acknowledgement survives remount and permits only a later FAILED same-release fence with a new key', async () => {
+  const f = journalFixture(), before = structuredClone(f.command)
+  await f.holds.claim(f.context, f.command, 'retained-allocation', () => true)
+  await f.holds.acknowledge(f.context, f.command, receipt)
+  assert.equal(f.mount().read({ ...f.context, revision: receipt.revision }).held, true)
+  assert.equal(f.mount().read({ ...f.context, revision: receipt.revision + 1, releaseStatus: 'APPLY_REQUESTED' }).held, true)
+  const later = { ...f.context, revision: receipt.revision + 1 }
+  assert.equal(f.mount().read(later).held, false)
+  assert.equal(f.mount().read({ ...later, releaseId: 'different-release' }).held, true)
+  const command = { ...f.command, operationKey: 'new-reviewed-key', fence: { ...f.command.fence, revision: later.revision } }
+  f.mount().review(later, command, 'retained-allocation')
+  await f.mount().claim(later, command, 'retained-allocation', () => true)
+  assert.equal(f.mount().read({ ...later, revision: later.revision + 10 }).held, true, 'a new UNKNOWN is never bypassed by revision')
+  assert.deepEqual(f.command, before)
+  assert.equal(f.journal().events.length, 3, 'first claim and acknowledgement remain in history')
+})
+
+test('UNKNOWN, malformed receipt and missing acknowledgement remain held across all revisions and remounted tabs', async () => {
+  const f = journalFixture()
+  await f.holds.claim(f.context, f.command, 'retained-allocation', () => true)
+  for (const wrong of [{ ...receipt, receiptId: '' }, { ...receipt, revision: receipt.revision + 1 }, { ...receipt, generation: 'other' },
+    { ...receipt, releaseId: 'other' }, { ...receipt, runtimeRedeployRequired: true }, { ...receipt, retainedAllocationIds: ['other'] }]) {
+    await assert.rejects(f.holds.acknowledge(f.context, f.command, wrong))
+  }
+  for (const patch of [{ revision: 500 }, { revision: 500, actorId: 'other' }, { revision: 500, offerId: 'other', targetProfileId: 'other' }]) {
+    const later = { ...f.context, ...patch }
+    assert.equal(f.mount().read(later).held, true)
+    await assert.rejects(f.mount().claim(later, { ...f.command, operationKey: 'cannot-escape', fence: { ...f.command.fence, revision: later.revision } }, 'retained-allocation', () => true))
+  }
+  assert.equal(f.journal().events.length, 1)
+})
+
+test('acknowledgement cannot be attached to a changed command, generation, allocation or reused operation key', async () => {
+  const f = journalFixture()
+  await f.holds.claim(f.context, f.command, 'retained-allocation', () => true)
+  await assert.rejects(f.holds.acknowledge(f.context, { ...f.command, reason: 'changed' }, receipt))
+  await f.holds.acknowledge(f.context, f.command, receipt)
+  await f.holds.acknowledge(f.context, f.command, receipt)
+  assert.equal(f.journal().events.length, 2, 'exact ACK replay is read-only')
+  const later = { ...f.context, revision: receipt.revision + 1 }
+  for (const [generation, allocationId, operationKey] of [['other-generation', 'retained-allocation', 'new'], ['server-generation', 'other', 'new'], ['server-generation', 'retained-allocation', f.command.operationKey]]) {
+    assert.throws(() => f.mount().review(later, { ...f.command, operationKey, fence: { ...f.command.fence, revision: later.revision, generation } }, allocationId))
+  }
+})
+
+test('legacy digest-only holds and corrupt receipt journals fail closed without clearing or fallback', async () => {
+  const f = journalFixture()
+  const legacy = holdModule.createDurableCommandHolds({ storage: () => f.port, exclusive: async (_, work) => work() })
+  await legacy.claim(pure.postProvisionResumeHoldScope(scope), f.command.operationKey, JSON.stringify(f.command), () => true)
+  const saved = new Map(f.records)
+  assert.throws(() => f.mount().read({ ...f.context, revision: 500 }))
+  assert.deepEqual(f.records, saved)
+  const g = journalFixture(); await g.holds.claim(g.context, g.command, 'retained-allocation', () => true)
+  const key = [...g.records.keys()].find(key => key.startsWith('platform.post-resume-receipts.v1:'))
+  g.records.set(key, '{corrupt')
+  assert.throws(() => g.mount().read({ ...g.context, revision: 500 }))
+  assert.equal(g.records.get(key), '{corrupt')
+})
+
+test('competing tabs can claim a later fence only once; stale authority and unavailable persistence never allow dispatch', async () => {
+  const f = journalFixture()
+  await f.holds.claim(f.context, f.command, 'retained-allocation', () => true)
+  await f.holds.acknowledge(f.context, f.command, receipt)
+  const later = { ...f.context, revision: receipt.revision + 1 }
+  const command = key => ({ ...f.command, operationKey: key, fence: { ...f.command.fence, revision: later.revision } })
+  const results = await Promise.allSettled([f.mount().claim(later, command('tab-one'), 'retained-allocation', () => true), f.mount().claim(later, command('tab-two'), 'retained-allocation', () => true)])
+  assert.deepEqual(results.map(result => result.status).sort(), ['fulfilled', 'rejected'])
+  const g = journalFixture()
+  await assert.rejects(g.holds.claim(g.context, g.command, 'retained-allocation', () => false))
+  assert.equal(g.records.size, 0)
+  const denied = g.mount(() => ({ getItem: () => null, setItem: () => { throw new Error('Synthetic storage denied') } }))
+  await assert.rejects(denied.claim(g.context, g.command, 'retained-allocation', () => true))
+})
+
+test('original whole-reservation marker stays immutable and blocks older clients after acknowledgement', async () => {
+  const f = journalFixture()
+  await f.holds.claim(f.context, f.command, 'retained-allocation', () => true)
+  const legacy = holdModule.createDurableCommandHolds({ storage: () => f.port, exclusive: async (_, work) => work() })
+  const original = legacy.read(pure.postProvisionResumeHoldScope(scope))
+  await f.holds.acknowledge(f.context, f.command, receipt)
+  assert.deepEqual(legacy.read(pure.postProvisionResumeHoldScope(scope)), original)
+  await assert.rejects(legacy.claim(pure.postProvisionResumeHoldScope(scope), 'old-tab-new-key', 'body', () => true))
+  const markerKey = [...f.records.keys()].find(key => key.startsWith('platform.command-hold.v1:'))
+  f.records.set(markerKey, JSON.stringify({ ...original, operationKey: 'rekeyed-marker' }))
+  assert.throws(() => f.mount().read({ ...f.context, revision: receipt.revision + 1 }), 'changed marker is not a fallback to ACK')
+  f.records.delete(markerKey)
+  assert.throws(() => f.mount().read({ ...f.context, revision: receipt.revision + 1 }), 'missing marker is not a fallback to ACK')
+})
+
+test('valid response without durably written acknowledgement remains UNKNOWN at every later fence', async () => {
+  const f = journalFixture()
+  await f.holds.claim(f.context, f.command, 'retained-allocation', () => true)
+  const original = new Map(f.records)
+  const failing = f.mount(() => ({ getItem: f.port.getItem, setItem: () => { throw new Error('Synthetic ACK persistence failure') } }))
+  await assert.rejects(failing.acknowledge(f.context, f.command, receipt))
+  assert.deepEqual(f.records, original)
+  assert.equal(f.mount().read({ ...f.context, revision: 500 }).held, true)
+  assert.deepEqual(f.journal().events.map(event => event.kind), ['CLAIM'])
+})
