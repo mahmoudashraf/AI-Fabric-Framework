@@ -2061,7 +2061,9 @@ class AdmissionStore {
         try {
             var adapter = new PreparedFailureRecoveryContracts.Command(command.fence(), command.releaseId(), command.operationKey(), command.reason(), command.proofFingerprint());
             var r = preparedRecoveryReservation(customerId, deploymentId, reservationId, adapter, authorize);
-            return new PostProvisionResumeEvidence(jdbc, json).read(r, command.releaseId(), context(r).manifest());
+            return new PostProvisionResumeEvidence(jdbc, json,
+                key -> verifiedReview("POST_RESUME", key, PostProvisionResumeContracts.Receipt.class))
+                .read(r, command.releaseId(), context(r).manifest());
         } catch (org.springframework.dao.DataAccessException busy) {
             throw unusedCancellationLockFailure(busy, "POST_PROVISION_RESUME_BUSY");
         }

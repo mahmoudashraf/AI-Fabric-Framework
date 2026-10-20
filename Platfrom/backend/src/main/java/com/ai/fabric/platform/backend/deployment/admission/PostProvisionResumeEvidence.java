@@ -12,11 +12,15 @@ import java.util.TreeMap;
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-/** Positive phase proof: provisioning completed, but dependency admission made no native effects. */
+/** Proves completed runtime provisioning and a checkpointed, uninitialized dependency graph. */
 final class PostProvisionResumeEvidence {
     private final JdbcTemplate jdbc;
     private final AdmissionJson json;
-    PostProvisionResumeEvidence(JdbcTemplate jdbc, AdmissionJson json) { this.jdbc = jdbc; this.json = json; }
+    private final java.util.function.Function<String, PostProvisionResumeContracts.Receipt> receipts;
+    PostProvisionResumeEvidence(JdbcTemplate jdbc, AdmissionJson json,
+        java.util.function.Function<String, PostProvisionResumeContracts.Receipt> receipts) {
+        this.jdbc = jdbc; this.json = json; this.receipts = receipts;
+    }
 
     PostProvisionResumeContracts.Candidate read(Reservation r, String releaseId, Manifest manifest) {
         var inventory = new TreeMap<String, String>();
@@ -30,8 +34,7 @@ final class PostProvisionResumeEvidence {
             || !"FAILED".equals(release.get("status")) || !"FAILED".equals(release.get("provisioning_status"))
             || !"SKIPPED".equals(release.get("verification_status")) || !"apply_failed".equals(release.get("current_step_key"))) fail("RELEASE_PHASE_CHANGED");
         var details = tree(release.get("provisioning_details_json"));
-        if (details.has("postProvisionResume") || !details.path("progress").path("steps").isArray()) fail("CONTROL_FLOW_UNPROVEN");
-        requireCompletedNativePhase(details.path("progress").path("steps"));
+        requireCompletedNativePhase(nativePhase(details, r, releaseId).path("progress").path("steps"));
         if (!Objects.equals(deployment.get("runtime_base_url"), details.path("runtimeBaseUrl").asText())
             || !Objects.equals(deployment.get("connector_base_url"), details.path("connectorBaseUrl").asText())
             || details.path("runtimeBaseUrl").asText().isBlank() || details.path("connectorBaseUrl").asText().isBlank()) fail("ENDPOINT_CHANGED");
@@ -68,18 +71,29 @@ final class PostProvisionResumeEvidence {
             || !releaseId.equals(graph.get("release_id")) || !manifest.versionId().equals(graph.get("version_id"))
             || !Objects.equals(release.get("runtime_authority_fingerprint"), graph.get("binding_fingerprint"))
             || !r.id().equals(graph.get("reservation_ref")) || graph.get("worker_token") != null
-            || !"BLOCKED".equals(graph.get("status")) || !"ADMISSION".equals(graph.get("step"))
-            || !"FRESH_READBACK_REQUIRED".equals(graph.get("failure_code"))) fail("DEPENDENCY_PHASE_CHANGED");
+            || !"BLOCKED".equals(graph.get("status")) || graph.get("failure_code") == null) fail("DEPENDENCY_PHASE_CHANGED");
         var state = json.read((String) graph.get("state_json"), ManagedDependencyState.class);
-        if (state.nodes.isEmpty() || !state.callbacks.isEmpty() || state.effectiveConfigurationRevision != -1
+        if (state.nodes.isEmpty() || state.nodes.stream().noneMatch(node ->
+                "ADMISSION".equals(graph.get("step")) || ("PROVISION:" + node.slot).equals(graph.get("step")))
+            || state.effectiveConfigurationRevision != -1
             || state.retirementFingerprint != null || state.runtimeGenerationOperationKey != null || state.runtimeGenerationState != null
             || !state.runtimeGenerationStoppedSlots.isEmpty() || state.operatorRevocationOperationKey != null
             || state.operatorRevocationOperatorId != null || state.operatorRevocationLifecycleKey != null
             || !state.retiredOperatorSecretNames.isEmpty()) fail("DEPENDENCY_EFFECTS_PRESENT");
-        for (var node : state.nodes) if (node.applicationUuid != null || node.databaseUuid != null || node.baseUrl != null
-            || node.applicationCreateIntent || node.databaseCreateIntent || node.initialized || node.disabled
-            || !"PLANNED".equals(node.status) || node.provisionedConfigurationRevision != -1 || !node.volumes.isEmpty()
-            || node.retirementOperationKey != null || !node.volumeReclamationPlan.isEmpty() || !node.reclaimedVolumeUuids.isEmpty()) fail("DEPENDENCY_EFFECTS_PRESENT");
+        var identities = new java.util.HashSet<String>();
+        var ownership = rows("SELECT * FROM platform_managed_resource_ownership WHERE deployment_id=? AND target_profile_id=? ORDER BY id FOR UPDATE NOWAIT",
+            r.deploymentId(), r.targetProfileId());
+        for (var node : state.nodes) {
+            if (node.baseUrl != null || node.initialized || node.disabled
+                || !"PLANNED".equals(node.status) || node.provisionedConfigurationRevision != -1
+                || node.applicationCreateIntent != (node.applicationUuid != null)
+                || node.databaseCreateIntent != (node.databaseUuid != null)
+                || node.retirementOperationKey != null || !node.volumeReclamationPlan.isEmpty()
+                || !node.reclaimedVolumeUuids.isEmpty()) fail("DEPENDENCY_EFFECTS_PRESENT");
+            requireOwnedCheckpoint(r, node.applicationUuid, "DEPENDENCY_APPLICATION", node.serviceRef, ownership, identities);
+            requireOwnedCheckpoint(r, node.databaseUuid, "RUNTIME_POSTGRES_DATABASE", node.serviceRef + "-db", ownership, identities);
+        }
+        inventory.put("dependencyOwnership", json.fingerprint(ownership));
         for (var operator : state.operators) if (operator.delivered || operator.effectiveAt != null || !"ENROLLED".equals(operator.status)) fail("OPERATOR_EFFECTS_PRESENT");
         inventory.put("graph", json.fingerprint(graph));
         jdbc.queryForObject("SELECT id FROM provider_usage_grant_mutex WHERE id=1 FOR UPDATE NOWAIT", Integer.class);
@@ -96,6 +110,51 @@ final class PostProvisionResumeEvidence {
         inventory.put("financialEvents", json.fingerprint(rows("SELECT * FROM provider_usage_allowance_events WHERE subject_id=? ORDER BY id FOR UPDATE NOWAIT", allocation.get("approval_id"))));
         return new PostProvisionResumeContracts.Candidate(r, Map.copyOf(inventory), json.write(release),
             ((Timestamp) release.get("created_at")).toInstant(), ((Timestamp) release.get("updated_at")).toInstant(), List.of((String) allocation.get("approval_id")));
+    }
+
+    private void requireOwnedCheckpoint(Reservation r, String uuid, String kind, String name,
+        List<Map<String, Object>> ownership, java.util.Set<String> identities) {
+        if (uuid == null) return;
+        if (uuid.isBlank() || !identities.add(uuid)) fail("DEPENDENCY_IDENTITY_CHANGED");
+        var matches = ownership.stream().filter(row -> uuid.equals(row.get("resource_identity"))).toList();
+        if (matches.size() != 1) fail("DEPENDENCY_OWNERSHIP_UNPROVEN");
+        var receipt = matches.getFirst();
+        if (!"OWNED".equals(receipt.get("state")) || !"coolify".equals(receipt.get("provider"))
+            || !kind.equals(receipt.get("resource_kind")) || !name.equals(receipt.get("resource_name"))
+            || !r.customerId().equals(receipt.get("customer_id")) || !r.tenantId().equals(receipt.get("tenant_id")))
+            fail("DEPENDENCY_OWNERSHIP_UNPROVEN");
+    }
+
+    private JsonNode nativePhase(JsonNode current, Reservation reservation, String releaseId) {
+        long revision = reservation.revision();
+        // Repeated continuation follows verified immutable receipts, never an editable history entry.
+        while (current.has("postProvisionResume")) {
+            var marker = current.path("postProvisionResume");
+            if (!PostProvisionResumeContracts.BOUNDARY.equals(marker.path("boundary").asText())) fail("CONTROL_FLOW_UNPROVEN");
+            requireSteps(current.path("progress").path("steps"), List.of("queue_release", "preflight_verification", "resume_managed_dependencies", "apply_failed"),
+                List.of("QUEUED", "COMPLETED", "RUNNING", "FAILED"));
+            String key = json.fingerprint(Map.of("reservation", reservation.id(), "generation", reservation.generation(),
+                "operation", marker.path("operationKey").asText()));
+            var receipt = receipts.apply(key); var command = receipt.command(); var prior = receipt.failedAttempt();
+            if (!reservation.id().equals(command.fence().reservationId()) || !reservation.generation().equals(command.fence().generation())
+                || !releaseId.equals(command.releaseId()) || !command.proofFingerprint().equals(marker.path("proofFingerprint").asText())
+                || !command.acceptRemainingDependencyProvisioning() || command.fence().revision() >= revision
+                || !command.fence().equals(prior.reservation().fence())
+                || !reservation.id().equals(receipt.summary().reservationId()) || !reservation.generation().equals(receipt.summary().generation())
+                || !releaseId.equals(receipt.summary().releaseId()) || receipt.summary().fromRevision() != command.fence().revision()
+                || receipt.summary().revision() != command.fence().revision() + 1
+                || receipt.summary().financialMutationPerformed() || receipt.summary().runtimeRedeployRequired()
+                || !prior.failedAt().toString().equals(marker.path("failedAt").asText())
+                || !reservation.id().equals(prior.reservation().id())
+                || !reservation.generation().equals(prior.reservation().generation())
+                || !reservation.customerId().equals(prior.reservation().customerId())
+                || !reservation.tenantId().equals(prior.reservation().tenantId())
+                || !reservation.deploymentId().equals(prior.reservation().deploymentId())
+                || !reservation.targetProfileId().equals(prior.reservation().targetProfileId())) fail("CONTROL_FLOW_UNPROVEN");
+            revision = command.fence().revision();
+            current = tree(tree(prior.failedReleaseJson()).path("provisioning_details_json").asText());
+        }
+        return current;
     }
 
     private void requireCompletedNativePhase(JsonNode steps) {
@@ -118,6 +177,11 @@ final class PostProvisionResumeEvidence {
             };
             if (!key.equals(steps.get(i).path("key").asText()) || !expected.equals(steps.get(i).path("status").asText())) fail("CONTROL_FLOW_UNPROVEN");
         }
+    }
+    private void requireSteps(JsonNode steps, List<String> keys, List<String> statuses) {
+        if (!steps.isArray() || steps.size() != keys.size()) fail("CONTROL_FLOW_UNPROVEN");
+        for (int i = 0; i < keys.size(); i++) if (!keys.get(i).equals(steps.get(i).path("key").asText())
+            || !statuses.get(i).equals(steps.get(i).path("status").asText())) fail("CONTROL_FLOW_UNPROVEN");
     }
     private List<Map<String, Object>> rows(String sql, Object... args) { return jdbc.queryForList(sql, args); }
     private Map<String, Object> one(String sql, Object... args) { var values = rows(sql, args); if (values.size() != 1) fail("EXACT_SCOPE_REQUIRED"); return values.getFirst(); }

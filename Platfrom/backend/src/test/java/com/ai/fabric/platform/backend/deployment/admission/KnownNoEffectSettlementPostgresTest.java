@@ -735,7 +735,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         switch (change) {
             case "graph-native" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("applicationCreateIntent", true);
             case "graph-worker" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET worker_token='live' WHERE id='prepared-graph'");
-            case "graph-phase" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET failure_code='OTHER_FAILURE' WHERE id='prepared-graph'");
+            case "graph-phase" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET step='INITIALIZE:inbox' WHERE id='prepared-graph'");
             case "operator" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("operators").get(0)).put("delivered", true);
             case "allocation" -> jdbc.update("UPDATE provider_usage_allocations SET initialization_state='UNINITIALIZED',store_uuid=NULL,initialization_fingerprint=NULL,initialized_at=NULL,activated_at=NULL WHERE approval_id='retained-allocation'");
             case "endpoint" -> jdbc.update("UPDATE platform_deployments SET runtime_base_url='https://foreign.example' WHERE id='deployment'");
@@ -775,6 +775,74 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
 
     private PostProvisionResumeContracts.Command resumeDraft(Fence fence) {
         return new PostProvisionResumeContracts.Command(fence, "failed-release", "resume-setup", "Continue remaining setup", true, null);
+    }
+
+    @Test void repeatedSetupContinuationRetainsCheckpointedResourcesFundingAndVerifiedNativeHistory() {
+        failedSetupContinuation();
+        var before = nativePreserved(); var ownershipBefore = rows("platform_managed_resource_ownership");
+        var r = store.require(original.id()); var draft = resumeDraft(r.fence());
+        draft = new PostProvisionResumeContracts.Command(draft.fence(), draft.releaseId(), "resume-checkpointed-setup", draft.reason(), true, null);
+        var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        var result = store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        assertThat(result.financialMutationPerformed()).isFalse(); assertThat(result.runtimeRedeployRequired()).isFalse();
+        assertThat(nativePreserved()).isEqualTo(before);
+        assertThat(rows("platform_managed_resource_ownership")).isEqualTo(ownershipBefore);
+        var details = json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(details.path("retryHistory")).hasSize(3);
+        assertThat(store.require(r.id()).generation()).isEqualTo(r.generation());
+        assertThat(store.recordedPostProvisionResume("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).isEqualTo(result);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing-receipt", "tampered-receipt", "marker-proof", "uncertain-create", "missing-ownership", "pending-ownership", "foreign-ownership", "wrong-kind", "wrong-resource", "initialized", "phase"})
+    void repeatedSetupContinuationRejectsUnprovenCheckpointsWithoutMutation(String change) {
+        failedSetupContinuation(); var state = mapper.valueToTree(preparedGraphState);
+        switch (change) {
+            case "missing-receipt" -> jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POST_RESUME'");
+            case "tampered-receipt" -> jdbc.update("UPDATE deployment_admission_reviews SET fingerprint=? WHERE kind='POST_RESUME'", "0".repeat(64));
+            case "marker-proof" -> {
+                var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+                ((com.fasterxml.jackson.databind.node.ObjectNode) details.path("postProvisionResume")).put("proofFingerprint", "0".repeat(64));
+                jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+            }
+            case "uncertain-create" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).putNull("applicationUuid");
+            case "missing-ownership" -> jdbc.update("DELETE FROM platform_managed_resource_ownership WHERE resource_identity='inbox-app'");
+            case "pending-ownership" -> jdbc.update("UPDATE platform_managed_resource_ownership SET state='DELETE_PENDING' WHERE resource_identity='inbox-app'");
+            case "foreign-ownership" -> jdbc.update("UPDATE platform_managed_resource_ownership SET customer_id='foreign' WHERE resource_identity='inbox-app'");
+            case "wrong-kind" -> jdbc.update("UPDATE platform_managed_resource_ownership SET resource_kind='RUNTIME_POSTGRES_DATABASE' WHERE resource_identity='inbox-app'");
+            case "wrong-resource" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("applicationUuid", "foreign-app");
+            case "initialized" -> ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("nodes").get(0)).put("initialized", true);
+            case "phase" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET step='INITIALIZE:inbox' WHERE id='prepared-graph'");
+            default -> throw new AssertionError(change);
+        }
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET state_json=? WHERE id='prepared-graph'", json.write(state));
+        var before = allRelevant(); var r = store.require(original.id());
+        assertThatThrownBy(() -> store.postProvisionResumeCandidate("customer", "deployment", r.id(), resumeDraft(r.fence()), value -> { })).isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
+    private void failedSetupContinuation() {
+        postProvisionFailure(); var r = store.require(original.id()); var draft = resumeDraft(r.fence());
+        var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        coordinator().beginProvisioning("failed-release");
+        var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        var steps = details.putObject("progress").putArray("steps");
+        for (var pair : List.of(List.of("queue_release", "QUEUED"), List.of("preflight_verification", "COMPLETED"), List.of("resume_managed_dependencies", "RUNNING"), List.of("apply_failed", "FAILED")))
+            steps.addObject().put("key", pair.getFirst()).put("status", pair.getLast());
+        jdbc.update("UPDATE platform_deployment_releases SET status='FAILED',provisioning_status='FAILED',verification_status='SKIPPED',current_step_key='apply_failed',provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+        jdbc.update("UPDATE platform_deployments SET status='APPLY_FAILED' WHERE id='deployment'");
+        var node = preparedGraphState.nodes.getFirst(); node.serviceRef = "inbox-service";
+        node.applicationUuid = "inbox-app"; node.applicationCreateIntent = true;
+        node.databaseUuid = "inbox-db"; node.databaseCreateIntent = true;
+        preparedGraphState.callbacks = Map.of("inbox", "https://connector.example/callback");
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET step='PROVISION:inbox',failure_code='DEPENDENCY_DATABASE_ADDRESS_UNVERIFIED',state_json=? WHERE id='prepared-graph'", json.write(preparedGraphState));
+        for (var pair : List.of(List.of("inbox-app", "DEPENDENCY_APPLICATION", "inbox-service"), List.of("inbox-db", "RUNTIME_POSTGRES_DATABASE", "inbox-service-db")))
+            jdbc.update("INSERT INTO platform_managed_resource_ownership(id,location_key,provider,resource_kind,parent_identity,resource_name,customer_id,tenant_id,deployment_id,target_profile_id,state,resource_identity,endpoint,created_at,updated_at) VALUES (?,?,'coolify',?,'synthetic-parent',?,'customer','tenant','deployment',?,'OWNED',?,'https://coolify.example',?,?)",
+                pair.getFirst(), pair.getFirst(), pair.get(1), pair.get(2), TARGET, pair.getFirst(), Timestamp.from(NOW), Timestamp.from(NOW));
+        coordinator().observe("failed-release");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
     }
     private void postProvisionFailure() {
         nativeFailure();

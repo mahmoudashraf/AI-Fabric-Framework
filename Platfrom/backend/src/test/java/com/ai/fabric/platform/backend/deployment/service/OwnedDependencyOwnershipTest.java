@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -318,7 +319,7 @@ class OwnedDependencyOwnershipTest {
             assertThat(fixture.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).hasSize(2).containsOnly("CREATE_PENDING");
             var raw = fixture.raw("db", "state-service-db", "ManagedDependency:graph:state").put("image", spec.database().image())
                 .put("is_public", false).put("limits_memory", "512M").put("limits_cpus", "0.250")
-                .put("internal_db_url", "postgresql://dependency:private@state-db:5432/dependency");
+                .put("internal_db_url", "postgresql://dependency:private@db:5432/dependency");
             fixture.databases.put("db", new CoolifyDatabaseSummary("db", "state-service-db", "running:healthy", "postgresql", "dependency", "dependency", raw));
             fixture.dbStorages.put("db", List.of(fixture.storage("db-volume", "db-ai-state", "/var/lib/postgresql/data")));
             return "db";
@@ -327,9 +328,73 @@ class OwnedDependencyOwnershipTest {
             fixture.applications.put("app", app("app", "state-service", "state")); return "app";
         });
         reconcile(spec, "state-service");
-        assertThat(service.ownedDependencyDatabaseJdbc(connection, "db")).isEqualTo("jdbc:postgresql://state-db:5432/dependency");
+        assertThat(service.ownedDependencyDatabaseJdbc(connection, "db")).isEqualTo("jdbc:postgresql://db:5432/dependency");
         verify(api).startDatabase(connection, "db");
         assertThat(fixture.jdbc.queryForList("SELECT state FROM platform_managed_resource_ownership", String.class)).hasSize(3).containsOnly("OWNED");
+    }
+
+    private static final String DATABASE_UUID = "mhjvz7fg41apfvw34ta5nifk";
+
+    private void existingDatabase(String url, boolean receipts) {
+        var spec = ManagedDependencyFixtures.http("state", true);
+        fixture.graph(spec, "state-service", new PlatformManagedProductProvisioningService.OwnedDependencyResources(
+            null, DATABASE_UUID, false, true, Map.of()));
+        var raw = fixture.raw(DATABASE_UUID, "state-service-db", "ManagedDependency:graph:state")
+            .put("image", spec.database().image()).put("is_public", false).put("internal_db_url", url);
+        fixture.databases.put(DATABASE_UUID, new CoolifyDatabaseSummary(DATABASE_UUID, "state-service-db", "running:healthy",
+            "postgresql", "dependency", "dependency", raw));
+        fixture.dbStorages.put(DATABASE_UUID, List.of(fixture.storage("db-volume", "db-ai-state", "/var/lib/postgresql/data")));
+        if (receipts) fixture.receipts();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"postgres", "postgresql"})
+    void ownedDatabaseJdbcAcceptsBothObservedPostgresSchemesWithoutProjectingCredentials(String scheme) {
+        existingDatabase(scheme + "://dependency:synthetic-password@" + DATABASE_UUID + ":5432/dependency", true);
+        var before = fixture.jdbc.queryForList("SELECT * FROM platform_managed_resource_ownership ORDER BY id");
+
+        assertThat(service.ownedDependencyDatabaseJdbc(connection, DATABASE_UUID))
+            .isEqualTo("jdbc:postgresql://" + DATABASE_UUID + ":5432/dependency")
+            .doesNotContain("synthetic-password", "dependency@");
+
+        assertThat(fixture.jdbc.queryForList("SELECT * FROM platform_managed_resource_ownership ORDER BY id")).isEqualTo(before);
+        verify(api).getDatabase(connection, DATABASE_UUID);
+        noMutations();
+    }
+
+    @ParameterizedTest
+    @MethodSource("unverifiedDatabaseUrls")
+    void ownedDatabaseJdbcRejectsUnverifiedAddressRatherThanGuessingOrStrippingUnsafeParts(String url) {
+        existingDatabase(url, true);
+        assertThatThrownBy(() -> service.ownedDependencyDatabaseJdbc(connection, DATABASE_UUID))
+            .hasMessageContaining("DEPENDENCY_DATABASE_ADDRESS_UNVERIFIED");
+        noMutations();
+    }
+
+    private static java.util.stream.Stream<String> unverifiedDatabaseUrls() {
+        String address = "dependency:synthetic-password@" + DATABASE_UUID;
+        String url = "postgres://" + address + ":5432/dependency";
+        return java.util.stream.Stream.of(
+            "mysql://" + address + ":5432/dependency", "jdbc:postgresql://" + address + ":5432/dependency",
+            "postgres:dependency", "postgres://", "postgres://" + address + ":invalid/dependency",
+            "postgres://dependency:synthetic-password@foreign-db:5432/dependency",
+            "postgres://dependency:synthetic-password@127.0.0.1:5432/dependency",
+            "postgres://dependency:synthetic-password@[::1]:5432/dependency",
+            "postgres://" + address + "/dependency", "postgres://" + address + ":5433/dependency",
+            "postgres://" + address + ":65536/dependency", "postgres://" + address + ":5432/other",
+            "postgres://" + address + ":5432/%64ependency", url + "/", url + "?sslmode=disable", url + "#fragment");
+    }
+
+    @Test void validPostgresUrlCannotBypassMissingOrForeignOwnershipReceipts() {
+        existingDatabase("postgres://dependency:synthetic-password@" + DATABASE_UUID + ":5432/dependency", false);
+        assertThatThrownBy(() -> service.ownedDependencyDatabaseJdbc(connection, DATABASE_UUID))
+            .hasMessageContaining("MANAGED_RESOURCE_OWNERSHIP_REQUIRED");
+        fixture.receipts();
+        fixture.jdbc.update("UPDATE platform_managed_resource_ownership SET customer_id='foreign-customer'");
+        assertThatThrownBy(() -> service.ownedDependencyDatabaseJdbc(connection, DATABASE_UUID))
+            .hasMessageContaining("OWNERSHIP_CONFLICT");
+        verify(api, never()).getDatabase(any(), anyString());
+        noMutations();
     }
 
     @Test void authorityIsRecheckedAfterTheLifecycleGuardBeforeMutation() {

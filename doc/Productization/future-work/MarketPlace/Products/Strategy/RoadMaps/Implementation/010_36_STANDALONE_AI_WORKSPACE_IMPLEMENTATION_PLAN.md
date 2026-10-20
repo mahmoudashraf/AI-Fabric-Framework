@@ -1,6 +1,13 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
+  At20October22:45UTC both CPs verify2a6340d71/schema206/UP and functional
+  UIb0db95097 is verified on both hosts. Owner continuation20022:34 keeps the
+  healthy runtime/connector and ACTIVE wallet, but Inbox setup fails on a valid
+  postgres:// URL rejected by our parser. Inbox app/DB now exist with ownership
+  checkpoints; same R is OUTCOME_UNKNOWNrev12. Focused parser and repeated
+  pre-initialization continuation fixes are under actual PostgreSQL qualification.
+  No financial reset or framework/runtime release; main continues, extraction LAST.
   At20October22:22UTC the fresh-readback and explicit continuation corrections
   qualify295 cases/111 actual PostgreSQL, package and independent review.
   Separate559556004/beab504fc commits are preparing ONE backend-only build;

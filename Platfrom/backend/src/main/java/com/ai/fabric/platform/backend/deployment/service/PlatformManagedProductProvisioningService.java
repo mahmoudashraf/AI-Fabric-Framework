@@ -1953,8 +1953,10 @@ public class PlatformManagedProductProvisioningService {
         var database = authority.database(owner, databaseUuid);
         try {
             java.net.URI uri = java.net.URI.create(database.raw().path("internal_db_url").asText());
-            if (!"postgresql".equals(uri.getScheme()) || !hasText(uri.getHost()) || uri.getPort() < 1
-                || !"/dependency".equals(uri.getPath())) throw new IllegalArgumentException();
+            if (!("postgres".equals(uri.getScheme()) || "postgresql".equals(uri.getScheme()))
+                || !databaseUuid.equals(uri.getHost()) || uri.getPort() != 5432
+                || !"/dependency".equals(uri.getRawPath()) || uri.getRawQuery() != null || uri.getRawFragment() != null)
+                throw new IllegalArgumentException();
             return "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + "/dependency";
         } catch (RuntimeException error) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DATABASE_ADDRESS_UNVERIFIED");

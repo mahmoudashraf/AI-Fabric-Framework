@@ -9,16 +9,16 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-20 22:22 UTC. The detailed
+Authoritative short checklist, updated 2026-10-20 22:45 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
 - **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
   healthy staging and production, preserved configuration/history. Both verify
- 6e8f49882/image8cea4eef/schema206 after206 focused cases/98 actual PostgreSQL,
-  package, independent review and backend-only CI39500986100. Source-only
-  maintenance closes21:41 with all139-table/config/financial preservation.
-  [Hosted closure](/private/tmp/01044-native-retry-backend-rollout-20261020/maintenance.completed.json).
+ 2a6340d71/image85811bd2/schema206 after295 focused cases/111 actual PostgreSQL,
+  package, independent review and backend-only CI39507690807. Source-only
+  maintenance closes22:32 with all139-table/config/financial preservation.
+  [Hosted closure](/private/tmp/01044-post-provision-backend-rollout-20261020/maintenance.completed.json).
 - **M2 COMPLETE: Customer configuration path.** Acceptance: normal owner app
   reuse/profile choice, customer-owned S3, immutable version and approved DATA
   binding without privileged repair. App stays DRAFT; versionver-c8cb7261,
@@ -64,9 +64,15 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   Inbox remains PLANNED with no native IDs/create intents. A proper fresh
   execution readback and explicit post-provision continuation are under focused
   qualification:295 cases/111 actual PostgreSQL, package and independent review
-  pass. Separate commits559556004/beab504fc await one combined backend build,
-  not yet deployed. Continuation must preserve healthy runtime/
-  connector and wallet, not replay provisioning or initialize another allowance.
+  pass and are deployed in2a6340d71. Normal owner PLAN200 and one EXECUTE200
+ 22:34 continue the SAME release/reservation without replacing the healthy
+  runtime/connector or ACTIVE wallet. Inbox provisioning then exposes a separate
+  parser bug: valid Coolify postgres:// is rejected as ADDRESS_UNVERIFIED.
+  Inbox now has durably owned applicationaqiar0d2 and databasemhjvz7fg;
+  R is OUTCOME_UNKNOWNrev12. Narrow parser correction and explicit checkpointed
+  pre-initialization continuation are being tested. This must retain confirmed
+  owned resources and immutable failed-attempt receipts, not pretend they are
+  absent or replay native runtime provisioning.
   No blind retry/reset/refund/new grant.
   Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
@@ -88,14 +94,17 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   loopback browser scenarios. Functional commitb1073117e and recovery UI0a7c6053d
   are pushed; latest UI-only CI39494817690 succeeds. Recovery UI additionally
   passes12 unit/hold cases,6 loopback browser scenarios, TypeScript and build.
-  Neither is deployed/hosted acceptance. Original staff capability
+  Functional controls includingab24b1056/b0db95097 are now deployed and
+  source/image/config/health verified on BOTH hosts, UI-only CI39508149934,
+  image56ca7b46. Actual complete customer UI journey remains open; these controls
+  do not constitute extraction or full hosted acceptance. Original staff capability
   baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-three-p2-projection-20261020/HANDOFF.md).
 - **M9 PENDING, LAST: UI redesign/extraction and final certification.** Start
   only after required M1-M8 acceptance. Prove STAFF-001..039 parity, shared
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** qualify and deploy fresh execution-readback and bounded continuation
+**Next:** qualify and deploy the database-address and checkpointed-continuation
 corrections in one backend build; then explicitly resume remaining setup through
 the normal owner API and complete hosted runtime/index/chat/action/identity/
 handover gates. Never replay the consumed native retry POST or reset its wallet.

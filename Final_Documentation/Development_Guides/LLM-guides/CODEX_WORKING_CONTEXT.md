@@ -10,6 +10,32 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At22:48UTC checkpointed-setup correction is qualified:196 focused cases,
+  including30 actual PostgreSQL, zero failures/errors/skips; stable full backend
+  inputs through test/package. JARc82166d87001c270e60c69cc1dc39c2e1669ede22d731cea0f1ce9105e74467e
+  passes with compiled changed classes byte-matched. Bounded independent review
+  reports no concrete P1/P2. Both agents are parked. Main publishes one combined
+  backend build; no new continuation POST yet. Proofd91116c31520b17e67b56f0612592198cb5b3bc445e017f6f8fb461637099f38
+  at /private/tmp/01044-checkpointed-setup-qualification-20261020. Native resources,
+  allowance and failed history remain intact; no framework/schema change.
+
+- At22:45UTC MAIN CONTINUES. Both control planes are verified on2a6340d71 /
+  image85811bd2/schema206/UP; source-only maintenance closed22:32 with all139
+  tables/config/financial history preserved. Functional UIb0db95097/image56ca7b46
+  is verified on BOTH hosts; extraction remains LAST. Normal owner continuation
+  PLAN200/EXECUTE20022:34 retains SAME rel-b7206a67/Rc4d054ec and ACTIVE wallet,
+  then fails PROVISION:inbox on DEPENDENCY_DATABASE_ADDRESS_UNVERIFIED. Actual
+  private Coolify readback proves valid postgres://UUID:5432/dependency while
+  parser accepted only postgresql://. Inbox now HAS durable owned appaqiar0d2
+  and DBmhjvz7fg; never claim no native effects. R OUTCOME_UNKNOWNrev12. Runtime/
+  connector remain healthy and unchanged. Narrow parser correction and explicit
+  repeated pre-initialization continuation are under qualification; verified
+  immutable resume receipts prove original completed native phase, checkpointed
+  ownership is retained, uncertain creates/initialization/retirement stay blocked.
+  Initial test attempt could not access Docker sandbox; r2 with actual local PG
+  runs under authorized Docker access. No financial reset, framework/runtime/
+  schema change or blind POST replay. Helpers under checkpointed-setup-*20261020.
+
 - At22:22UTC the two corrections qualify295 unique cases, including111 actual
   PostgreSQL cases, zero failures/errors/skips; package6948150c4ee6368b21f9c4eb2baaecd859188c7403f69e59660fc656af4c6515
   passes with48 changed classes byte-matched. R1's unchanged suites reconcile
