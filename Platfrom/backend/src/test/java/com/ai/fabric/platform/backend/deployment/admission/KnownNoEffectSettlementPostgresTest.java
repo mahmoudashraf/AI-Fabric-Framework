@@ -14,6 +14,10 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.*;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateEntity;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateRepository;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationEntity;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
 import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationIntegrity;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.*;
@@ -65,6 +69,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
     private EntityManagerFactory emf;
     private JpaTransactionManager jpaTransactions;
     private PlatformCustomerConsumerService consumerOwner;
+    private TargetRetirementGateService targetGateOwner;
     private String databaseName;
 
     @BeforeAll static void migratedDatabaseTemplate() {
@@ -224,6 +229,56 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         frozenMetadata(); var before = preserved();
         assertThat(settle().reservation().state()).isEqualTo(State.RELEASED);
         assertThat(preserved()).isEqualTo(before);
+    }
+
+    @Test void normalConfigurationMutationsReachEpochSixAndSettlementPreservesTheEntireAvailableGate() {
+        configuration();
+        for (long epoch = 1; epoch <= 6; epoch++) assertThat(advanceTargetGate()).isEqualTo(epoch);
+        var gate = rows("platform_target_retirement_gates"); var before = preserved();
+        assertThat(count("platform_target_retirement_operations")).isZero();
+        var receipt = settle();
+        assertThat(receipt.reservation().state()).isEqualTo(State.RELEASED);
+        assertThat(receipt.proof().inventoryFingerprints().get("targetGate")).isEqualTo(json.fingerprint(
+            jdbc.queryForList("SELECT * FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=?", "deployment", TARGET)));
+        assertThat(rows("platform_target_retirement_gates")).isEqualTo(gate);
+        assertThat(preserved()).isEqualTo(before);
+        assertThat(settle()).isEqualTo(receipt);
+        assertThat(rows("platform_target_retirement_gates")).isEqualTo(gate);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"RETIRING", "RETIRED", "operation", "negative-epoch", "provider-allocation", "activity"})
+    void positiveConfigurationEpochDoesNotWaiveRetirementOrEffectChecks(String variant) {
+        configuration(); assertThat(advanceTargetGate()).isEqualTo(1);
+        switch (variant) {
+            case "RETIRING", "RETIRED" -> jdbc.update("UPDATE platform_target_retirement_gates SET state=?", variant);
+            case "operation" -> jdbc.update("UPDATE platform_target_retirement_gates SET operation_id='retirement-in-flight'");
+            case "negative-epoch" -> jdbc.update("UPDATE platform_target_retirement_gates SET epoch=-1");
+            case "provider-allocation" -> allocation("effect-after-config", "deployment", original.id());
+            case "activity" -> jdbc.update("INSERT INTO deployment_admission_activity_watermarks VALUES (?,'failed-release','ACCEPTED_SESSION',1,?)", original.id(), Timestamp.from(NOW));
+            default -> throw new AssertionError(variant);
+        }
+        var before = allRelevant();
+        assertThatThrownBy(this::settle).isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before); assertHeld();
+    }
+
+    @Test void anotherRealConfigurationEpochBetweenEvidenceReadsRollsBackSettlementAndDetachment() {
+        configuration(); assertThat(advanceTargetGate()).isEqualTo(1);
+        var before = allRelevant(); var gateReads = new java.util.concurrent.atomic.AtomicInteger();
+        var driftingJdbc = new JdbcTemplate(dataSource) {
+            @Override public List<Map<String, Object>> queryForList(String sql, Object... args) {
+                if (sql.equals("SELECT * FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=? FOR UPDATE NOWAIT")
+                    && gateReads.incrementAndGet() == 2) {
+                    assertThat(targetGateOwner.requireAvailableForMutation("deployment", TARGET)).isEqualTo(2);
+                    SharedEntityManagerCreator.createSharedEntityManager(emf).flush();
+                }
+                return super.queryForList(sql, args);
+            }
+        };
+        store = new AdmissionStore(driftingJdbc, json, jpaTransactions, Clock.fixed(NOW, ZoneOffset.UTC));
+        assertThatThrownBy(this::settle).hasMessageContaining("NO_EFFECT_SETTLEMENT_EFFECT_EVIDENCE_CHANGED");
+        assertThat(gateReads.get()).isEqualTo(2);
+        assertThat(allRelevant()).isEqualTo(before); assertHeld();
     }
 
     @Test void configurationOnlyConsumerDetachesThroughActualJpaOwnerAndKeepsDraftAppIdentityUnchanged() {
@@ -437,7 +492,8 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
             "platform_runtime_authority_snapshots", "deployment_external_integration_snapshots", "platform_customer_entitlement_commands")) result.put(table, rows(table));
         return result;
     }
-    private Map<String, String> allRelevant() { var result = new TreeMap<>(preserved()); for (String table : List.of("deployment_capacity_reservations", "deployment_admission_reviews", "deployment_admission_events", "platform_consumers", "platform_consumer_binding_history", "ai_workspace_installations", "platform_audit_events")) result.put(table, rows(table)); return result; }
+    private Map<String, String> allRelevant() { var result = new TreeMap<>(preserved()); for (String table : List.of("deployment_capacity_reservations", "deployment_admission_reviews", "deployment_admission_events", "platform_consumers", "platform_consumer_binding_history", "ai_workspace_installations", "platform_audit_events", "platform_target_retirement_gates", "platform_target_retirement_operations")) result.put(table, rows(table)); return result; }
+    private long advanceTargetGate() { return new TransactionTemplate(jpaTransactions).execute(tx -> targetGateOwner.requireAvailableForMutation("deployment", TARGET)); }
 
     private CustomerOfferContracts.AdmissionContext scope(String key) {
         return new CustomerOfferContracts.AdmissionContext("customer", "tenant", "deployment", null, TARGET,
@@ -508,10 +564,12 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         jdbc.update("INSERT INTO platform_customer_offer_entitlements(id,customer_id,offer_id,owner_user_id,invitation_reference,status,revision,expires_at,created_at,updated_at) VALUES ('entitlement','customer','offer','owner','invite','ACTIVE',1,?,?,?)", Timestamp.from(NOW.plusSeconds(100000)), now, now);
         jdbc.update("INSERT INTO platform_customer_offer_deployments(deployment_id,customer_id,tenant_id,offer_id,offer_fingerprint,authorization_entitlement_revision,operation_key,created_at,bootstrap_target_profile_id) VALUES ('deployment','customer','tenant','offer','offer-fingerprint',1,'bootstrap',?,?)", now, TARGET);
         var factory = new LocalContainerEntityManagerFactoryBean(); factory.setDataSource(dataSource); factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        factory.setManagedTypes(PersistenceManagedTypes.of(PlatformConsumerEntity.class.getName(), PlatformConsumerBindingHistoryEntity.class.getName(), AIWorkspaceInstallationEntity.class.getName(), PlatformAuditEventEntity.class.getName()));
+        factory.setManagedTypes(PersistenceManagedTypes.of(PlatformConsumerEntity.class.getName(), PlatformConsumerBindingHistoryEntity.class.getName(), AIWorkspaceInstallationEntity.class.getName(), PlatformAuditEventEntity.class.getName(), DeploymentEntity.class.getName(), TargetRetirementGateEntity.class.getName(), TargetRetirementOperationEntity.class.getName()));
         factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "none", "hibernate.physical_naming_strategy", "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy"));
         factory.afterPropertiesSet(); emf = factory.getObject(); var entities = SharedEntityManagerCreator.createSharedEntityManager(emf);
         jpaTransactions = new JpaTransactionManager(emf); var repositories = new JpaRepositoryFactory(entities);
+        targetGateOwner = new TargetRetirementGateService(repositories.getRepository(DeploymentRepository.class),
+            repositories.getRepository(TargetRetirementGateRepository.class), repositories.getRepository(TargetRetirementOperationRepository.class));
         var consumers = repositories.getRepository(PlatformConsumerRepository.class); var histories = repositories.getRepository(PlatformConsumerBindingHistoryRepository.class);
         var apps = repositories.getRepository(AIWorkspaceInstallationRepository.class); var customers = mock(PlatformCustomerRepository.class);
         var customer = new PlatformCustomerEntity(); customer.setId("customer"); customer.setStatus("ACTIVE"); when(customers.findById("customer")).thenReturn(Optional.of(customer));

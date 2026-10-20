@@ -91,8 +91,9 @@ final class KnownNoEffectSettlementEvidence {
         absent(inventory, "managedVectors", "SELECT * FROM platform_deployment_managed_vector_resources WHERE deployment_id=?", d);
         absent(inventory, "targetIndexes", "SELECT * FROM platform_tenant_scoped_vector_resources WHERE deployment_id=? AND (target_profile_id=? OR target_profile_id IS NULL)", d, t);
         var gates = rows("SELECT * FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=? FOR UPDATE NOWAIT", d, t);
+        // Configuration mutations also advance this fence; retirement/effect evidence is checked separately.
         if (gates.size() > 1 || gates.stream().anyMatch(row -> !"AVAILABLE".equals(row.get("state"))
-            || ((Number) row.get("epoch")).longValue() != 0 || row.get("operation_id") != null)) throw denied("RETIREMENT_GATE_CHANGED");
+            || ((Number) row.get("epoch")).longValue() < 0 || row.get("operation_id") != null)) throw denied("RETIREMENT_GATE_CHANGED");
         inventory.put("targetGate", json.fingerprint(gates));
 
         jdbc.queryForObject("SELECT id FROM provider_usage_grant_mutex WHERE id=1 FOR UPDATE NOWAIT", Integer.class);
