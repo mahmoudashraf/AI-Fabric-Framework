@@ -6,6 +6,46 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Fresh Customer Journey, 21 October 14:29 UTC
+
+- Normal customer bootstrap, immutable version, consumer assignment, draft Engage
+  app and customer-owned S3 binding are created: `dep-d498f2f3`, tenant
+  `ten-57b2f751`, version `ver-2e8ca801`, offer
+  `offer-engage-dealership-qdrant-pilot-v2-20261021`, app
+  `https://northfield-pilot.apps.loomai.pro`. No old data migration is required.
+- Both external integrations are approved and bound using normal owner/staff
+  APIs. Stock remains in the external simulator; business effects remain in the
+  existing external receiver/database. Receiver same-image restart
+  `r4k0hx53akymi7fhykoww4z8` finished. Actual probes accept the fresh scope,
+  reject the previous scope, and reject the old credential. The final receiver
+  key was rotated after an intermediate local diagnostic exposed a superseded
+  key; no final key was printed. Normal and preview environment rows are exact.
+- Two local helper assertions misread successful integration response contracts
+  (flat summary and `CONFIGURED_LOCAL_CREDENTIALS`). Saved HTTP200 receipts were
+  reconciled; successful approval/binding mutations were not replayed.
+- Original whole-task allowance remains $12/400k tokens/50 ingress. Both control
+  planes were read: $6/200k/25 remains historically allocated; the other old $6
+  grant is VOID_UNUSED. Fresh staging tranche `pug-01036-fresh-qdrant-stage-20261021`
+  is $3/150k/20. Unissued production remainder is $3/50k/5; no usage reset/refund.
+- Normal placement and capacity reservation succeeded, reservation
+  `25dea632-66b6-48c5-897c-bfcabb112894`, full 4GiB/2250m/2DB demand charged.
+  First apply409 was a local caller operation-key mismatch; native release list
+  confirmed zero releases. Corrected submission uses the original reservation
+  key. Read the saved `fresh-customer-release-r2` result before any further apply.
+- Private evidence/helpers: `/private/tmp/01044-fresh-qdrant-pilot-v2-20261021`,
+  `/private/tmp/01044-fresh-pilot-launch-20261021.mjs`. Real hosted stock/document,
+  auth, Inbox, production journey and final UI extraction remain open. All
+  nonessential edge work is deferred, not silently counted as complete.
+- 14:35UTC: corrected same-key customer apply returned200, fresh release
+  `rel-1fe0f5b8`, runtime artifact `dsa-6776d0bf`. Preflight passed; runtime
+  native deployment finished and its container is healthy. Connector deployment
+  is in progress under its existing180-second startup health period. Inbox
+  owner was automatically enrolled; no duplicate operator is needed. Domain
+  `northfield-pilot.apps.loomai.pro` verified through the normal owner API.
+  Document administration correctly remains409 until provisioning finishes.
+  Current stage load~0.6/8cores, runtime~519MiB/1GiB; this wait is not overload.
+  No new five-minute capacity sample or duplicate deployment was triggered.
+
 ### Fresh Free-Only Pilot Decision, 21 October 13:08 UTC
 
 14:11 UTC latest checkpoint: both control planes are verified healthy on

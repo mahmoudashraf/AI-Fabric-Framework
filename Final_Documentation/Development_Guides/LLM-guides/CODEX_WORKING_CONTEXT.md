@@ -8,6 +8,33 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-21 Hosted Customer Journey, 14:29 UTC
+
+- Fresh normal customer config exists: dep-d498f2f3/ten-57b2f751/ver-2e8ca801,
+  offer-engage-dealership-qdrant-pilot-v2-20261021, draft app
+  northfield-pilot.apps.loomai.pro. S3 and both external integrations bound.
+  Receiver job r4k0hx53akymi7fhykoww4z8 finished; actual fresh-scope grant,
+  old-scope denial and old-key401 PASS. No per-deployment business DB created.
+- Existing task allowance: old $6/200k/25 fully charged; new staging grant
+  pug-01036-fresh-qdrant-stage-20261021 = $3/150k/20; production unissued
+  remainder $3/50k/5. No accounting reset. Fresh reservation
+  25dea632-66b6-48c5-897c-bfcabb112894 RESERVED/full4GiB2250m2DB demand.
+- First apply409 was helper key mismatch, no release created. Corrected apply
+  uses reservation key, process session10261 pending at checkpoint. Read actual
+  fresh-customer-release-r2 response before any retry. Evidence root
+  /private/tmp/01044-fresh-qdrant-pilot-v2-20261021; launch helper same prefix.
+  Local flat-summary/status assertion failures after successful integration
+  operations were reconciled without replay. Full details in recovery tracker.
+- User says all discussed cluster data unimportant, plan top priority. Fresh
+  data accepted; no indiscriminate deletion needed. Prioritize hosted basic
+  customer journey; UI extraction last; no new framework release this cycle.
+- 14:35UTC: session10261 completed200, release rel-1fe0f5b8 provisioning.
+  Exact runtime deployment finished/healthy; connector startup health period
+  continues. Inbox auto-enrolled owner operator; app domain verified normally.
+  No duplicate apply/enrollment or new capacity sample. Current stage load~0.6
+  on8cores, runtime519MiB/1GiB. Admin documents409 until provisioned, expected.
+  Browserhelpers prepared, notrun; local ingressceiling tightened20 togrant.
+
 ## 2026-10-21 Fresh Free Pilot, 13:53 UTC
 
 - 14:11UTC superseding status: BOTH CPs verified on3c6a3604a/imageb59bff38,
