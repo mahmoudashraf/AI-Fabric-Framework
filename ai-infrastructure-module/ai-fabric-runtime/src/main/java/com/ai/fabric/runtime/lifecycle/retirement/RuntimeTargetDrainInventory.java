@@ -123,7 +123,7 @@ public class RuntimeTargetDrainInventory {
         background.add(count(SMART_BRAIN, "loomai_smart_brain_operation", "status", "status NOT IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED') OR status IS NULL"));
         background.add(count(SMART_BRAIN, "loomai_smart_brain_delivery", "status", "status <> 'DELIVERED' OR status IS NULL"));
         background.add(count(ACTION_WEBHOOK, "runtime_action_webhook_delivery", "status", "status <> 'DELIVERED' OR status IS NULL"));
-        background.add(count(INDEXING, "ai_indexing_queue", "status", "status NOT IN ('COMPLETED','SUPERSEDED') OR status IS NULL"));
+        background.add(count(INDEXING, "ai_indexing_queue", "status", "status NOT IN ('COMPLETED','SUPERSEDED','DEAD_LETTER') OR status IS NULL"));
         background.add(count(DOCUMENTS, "loomai_document_work", "terminal", "terminal = FALSE OR terminal IS NULL"));
         background.add(count(DOCUMENTS, "loomai_document_manifest", "lifecycle_state",
             "lifecycle_state NOT IN ('ACTIVE','SUPERSEDED','DELETED') OR lifecycle_state IS NULL"));

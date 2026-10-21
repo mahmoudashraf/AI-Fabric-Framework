@@ -11,6 +11,29 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 
 class RuntimeTargetDrainInventoryTest {
     @Test
+    void retainedDeadLettersAreNotActiveWorkButPendingAndUnknownStatesStillBlock() {
+        var f = new RuntimeRetirementTestFixture(true, true, List.of());
+        f.jdbc.execute("CREATE TABLE ai_indexing_queue (status VARCHAR(40))");
+        f.jdbc.update("INSERT INTO ai_indexing_queue VALUES ('COMPLETED'),('SUPERSEDED'),('DEAD_LETTER')");
+        f.service.command(f.command(1, 0, CommandType.BEGIN_DRAIN));
+
+        Snapshot idle = f.service.snapshot(f.binding(1));
+        assertThat(observed(idle.backgroundWork(), "ai_indexing_queue")).isZero();
+        assertThat(idle.localDrainComplete()).isTrue();
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM ai_indexing_queue WHERE status='DEAD_LETTER'", Long.class)).isOne();
+
+        for (String status : List.of("COMMIT_PENDING", "PENDING", "PROCESSING", "UNKNOWN")) {
+            f.jdbc.update("INSERT INTO ai_indexing_queue VALUES (?)", status);
+            Snapshot busy = f.service.snapshot(f.binding(1));
+            assertThat(observed(busy.backgroundWork(), "ai_indexing_queue")).isOne();
+            assertThat(busy.localDrainComplete()).isFalse();
+            f.jdbc.update("DELETE FROM ai_indexing_queue WHERE status=?", status);
+        }
+        f.jdbc.update("INSERT INTO ai_indexing_queue VALUES (NULL)");
+        assertThat(f.service.snapshot(f.binding(1)).localDrainComplete()).isFalse();
+    }
+
+    @Test
     void countsOpenConversationUnionAndEveryConfirmationIncludingClosedSessions() {
         var f = new RuntimeRetirementTestFixture(true, true,
             List.of(RuntimeRetirementTopology.Dependency.CONNECTOR, RuntimeRetirementTopology.Dependency.HUMAN_INBOX), true);

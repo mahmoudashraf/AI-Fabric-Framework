@@ -17,6 +17,7 @@ import com.ai.fabric.runtime.webhook.ActionWebhookDeliveryRepository;
 import org.quartz.Scheduler;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.stereotype.Component;
 
@@ -46,8 +47,12 @@ public class RuntimeRetirementStoreVerification {
             || !canonical && provider(ActionDraftStore.class, ChatSessionActionDraftStore.class);
     }
     private boolean provider(Class<?> type, Class<?> supportedType) {
-        String[] names = beans.getBeanNamesForType(type);
-        return names.length == 1 && AopUtils.getTargetClass(beans.getBean(names[0])).equals(supportedType);
+        try {
+            Object provider = beans.getBeanProvider(type).getIfAvailable();
+            return provider != null && AopUtils.getTargetClass(provider).equals(supportedType);
+        } catch (NoUniqueBeanDefinitionException ambiguous) {
+            return false;
+        }
     }
     private boolean persistentScheduler() {
         String[] names = beans.getBeanNamesForType(Scheduler.class);
