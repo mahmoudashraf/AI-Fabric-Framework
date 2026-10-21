@@ -134,13 +134,31 @@ class OwnedDependencyOwnershipTest {
 
     @Test void nativeHistoryApplicationIdIsVerifiedAgainstTheOwnedAppAndDetailedJob() {
         checkpointReady();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.applications.get("app").raw()).put("id", 277);
         var exact = api.applicationDeploymentHistory(connection, "app").getFirst();
+        assertThat(fixture.applications.get("app").raw().has("id")).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) exact.raw()).putObject("application").put("id", 277).put("uuid", "app");
         var listed = new CoolifyDeploymentSummary(exact.deploymentUuid(), exact.applicationName(), null, exact.status(),
             null, null, exact.createdAt(), exact.updatedAt(), exact.finishedAt(), mapper.createObjectNode().put("application_id", "277"));
         when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(listed));
         assertThatCode(this::verifyCheckpoint).doesNotThrowAnyException();
         ((com.fasterxml.jackson.databind.node.ObjectNode) listed.raw()).put("application_id", "278");
+        assertThatThrownBy(this::verifyCheckpoint).hasMessageContaining("DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) listed.raw()).put("application_id", "277");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) exact.raw().path("application")).remove("id");
+        assertThatThrownBy(this::verifyCheckpoint).hasMessageContaining("DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        noMutations();
+    }
+
+    @Test void detailedNativeIdCannotAuthorizeADeploymentForAnotherApplication() {
+        checkpointReady();
+        var job = api.applicationDeploymentHistory(connection, "app").getFirst();
+        var listed = new CoolifyDeploymentSummary(job.deploymentUuid(), job.applicationName(), null, job.status(),
+            null, null, job.createdAt(), job.updatedAt(), job.finishedAt(), mapper.createObjectNode().put("application_id", "277"));
+        var raw = mapper.createObjectNode(); raw.putObject("application").put("id", 277).put("uuid", "foreign");
+        var foreign = new CoolifyDeploymentSummary(job.deploymentUuid(), job.applicationName(), "foreign", job.status(),
+            null, null, job.createdAt(), job.updatedAt(), job.finishedAt(), raw);
+        when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(listed));
+        when(api.getDeployment(connection, job.deploymentUuid())).thenReturn(Optional.of(foreign));
         assertThatThrownBy(this::verifyCheckpoint).hasMessageContaining("DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
         noMutations();
     }

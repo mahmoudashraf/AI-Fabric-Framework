@@ -1849,9 +1849,6 @@ public class PlatformManagedProductProvisioningService {
         var jobs = coolifyApiClient.applicationDeploymentHistory(connection, resources.applicationUuid());
         var ids = new java.util.HashSet<String>();
         if (jobs.isEmpty() || jobs.stream().anyMatch(job -> !hasText(job.deploymentUuid()) || !ids.add(job.deploymentUuid())
-            || (job.applicationUuid() != null ? !resources.applicationUuid().equals(job.applicationUuid())
-                : job.raw() == null || !hasText(app.raw().path("id").asText(null))
-                    || !app.raw().path("id").asText().equals(job.raw().path("application_id").asText()))
             || !Set.of("finished", "failed", "cancelled").contains(job.status())
             || !hasText(job.createdAt()) || !hasText(job.finishedAt()))) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
@@ -1859,8 +1856,14 @@ public class PlatformManagedProductProvisioningService {
         try {
             var latest = jobs.stream().max(java.util.Comparator.comparing(job -> Instant.parse(job.createdAt()))).orElseThrow();
             var exact = coolifyApiClient.getDeployment(connection, latest.deploymentUuid()).orElseThrow();
+            // Coolify exposes the native ID/UUID pair on the detailed job, not the application endpoint.
+            String applicationId = exact.raw() == null ? null : exact.raw().path("application").path("id").asText(null);
             if (!latest.deploymentUuid().equals(exact.deploymentUuid())
                 || !resources.applicationUuid().equals(exact.applicationUuid()) || !"finished".equals(exact.status())
+                || jobs.stream().anyMatch(job -> job.applicationUuid() != null
+                    ? !resources.applicationUuid().equals(job.applicationUuid())
+                    : job.raw() == null || !hasText(applicationId)
+                        || !applicationId.equals(job.raw().path("application_id").asText()))
                 || !latest.createdAt().equals(exact.createdAt()) || !latest.finishedAt().equals(exact.finishedAt())
                 || Instant.parse(exact.finishedAt()).isBefore(Instant.parse(exact.createdAt()))
                 || Instant.parse(exact.finishedAt()).isAfter(Instant.now())) {

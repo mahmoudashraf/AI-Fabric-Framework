@@ -1,5 +1,22 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 08:06 UTC Native Dependency Identity Correction
+
+Fresh policy01036-reviewed-preflight-fleet-20261021 is verified until09:56:13UTC,
+with unchanged capacity/quota/funding. The new normal customer continuation passed
+preflight, then stopped in existing Inbox checkpoint readback. Reservation is
+revision25/OUTCOME_UNKNOWN; graph35/BLOCKED/PROVISION:inbox remains uninitialized.
+No new Inbox job or resource was created; both recorded jobs are finished/healthy.
+
+Actual Coolify responses identify the issue: applicationGET omits numeric `id`,
+history uses numeric `application_id`, and deployment detail supplies the nested
+application{id,uuid} pair. The verifier looked in the wrong response. A narrow
+generic correction anchors history IDs to the detailed job's verified owned UUID;
+foreign and missing identities remain denied.85 focused tests include4 actual
+PostgreSQL cases. Package/backend-only rollout is next, not yet deployed. Reuse
+the still-valid07:56 measurement rather than repeat it. No framework or schema
+change, credential fallback, native restart, or domain-specific workaround.
+
 ## 2026-10-21 07:37 UTC Same-Wallet Renewal And Basic Retry Correction
 
 Both live control planes verify19d0ba004/image05986044/schema207/UP. Same-wallet

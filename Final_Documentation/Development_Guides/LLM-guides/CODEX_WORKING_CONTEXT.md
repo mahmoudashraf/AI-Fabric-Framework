@@ -10,6 +10,34 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 08:06UTC policy01036-reviewed-preflight-fleet-20261021 VERIFIED,
+  SHA654e6b9cfe081de954db55e15fe4ffcf2d12767b0dedb0d5f06d1758070b0af6,
+  until09:56:13; actualhostsample07:56peakstage940/prod543millicores. Normalowner
+  retry56b0d82c acceptedR23; preflightPASSED, dependencyreusefailedreadonly
+  DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED. NowR25OUTCOME_UNKNOWN, graph35BLOCKED
+  PROVISION:inbox, sameuninitializednode, NONEWnativeeffects/jobs. ActualCoolify
+  appGETnoid, listjobsnumericapplication_id277, detailedjobnestedapplication
+  id277/UUIDaqiar0... matchesowned. Oldverifier incorrectlylookedforappGET.id.
+  Main narrowfixanchorshistorynumericIDtodetailedjobownedUUID;85scopedchecks/
+  4actualPG PASS, packageat01044-native-dependency-id-20261021; rollouthelper
+  01044-native-id-rollout-20261021preparedNOTexecuted. CPs2996b5fc0/schema207UP.
+  Reuse07:56measurementwhilefresh<=08:26:13publicationdeadline; newpolicy
+  continuationneedsR25, predecessorcurrentreviewed-preflighthead, no funding
+  change. Newownerretry mustusenewroot/intents, priorcommandconsumed. Noapp
+  activation/livequeryyet; currenthardpromotioncaseandUI-LASTremain.
+
+- Oct21 07:51UTC BOTH CPs2996b5fc0/image08b0b0a6/schema207/UP verified;
+  closuree13a6c337373b4166f482dbb712e7ef20f342b5b24ab7145f0492dfcb9a158ea
+  at01044-preflight-continuation-rollout-20261021. Sourcequalificationc94170ad...
+  f50c2,195distinct/48PG, finaljar3216c46d; criticalqualifiedclassbytesmatch.
+  Backend-onlyCI39563535763PASS, original139+nonemptyvalidityaudittables/history/
+  config preserved. Fresh61x5 hostsample RUNNING from07:51 root01044-post-
+  preflight-capacity-20261021; initialpolicyexpired07:49:57DONOTreuseforwrite.
+  Thenpolicy.mjs atpost-preflight-policy prepare/publishR22 unchangedfunding;
+  owner-preflight-retry/main.mjs placement/plan/execute/observe/verify. Owner
+  sessionvalid200CUSTOMER_ADMIN checked07:50. Acceptancehelperverifiedproofpath
+  nowpointsowner-preflight-retry. Nonewretry/activationyet. Agentparked.
+
 - Oct21 07:37UTC: main vector typed-failure diagnostics126checksPASS. Agent's
   bounded preflight continuation69distinct/48actualPG PASS, oneforeignTenant
   fixture corrected+affected9rerun, rawfailedreportretained. Proof1352ba0e1eb01f614d76a31b758c47912f6a3efd4b4aefc653c11887864adeca

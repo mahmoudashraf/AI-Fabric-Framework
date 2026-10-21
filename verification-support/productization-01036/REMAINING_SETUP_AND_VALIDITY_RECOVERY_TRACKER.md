@@ -8,6 +8,37 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Latest Scope Decision And Basic Recovery
 
+- 08:06UTC: fresh policy01036-reviewed-preflight-fleet-20261021 is VERIFIED,
+  unchanged limits/funding, valid until09:56:13UTC. Owner retry receipt56b0d82c
+  advanced R23; preflight PASSED. Dependency reuse then stopped read-only with
+  DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED. Same R is now25/OUTCOME_UNKNOWN,
+  graph35/BLOCKED/PROVISION:inbox, same INITIALIZING/uninitialized node. No new
+  Inbox job/resource was created: history still has the two prior finished jobs.
+- Exact cause: Coolify applicationGET omits numeric `id`; history lists only
+  numeric `application_id`; detailed deployment includes the authoritative nested
+  application{id,uuid}. The verifier incorrectly required applicationGET.id.
+  Main now anchors numeric history IDs to the detailed job whose UUID is first
+  checked against the owned application. Foreign/missing IDs still fail closed.
+  Focused85 cases (4 actual PostgreSQL) pass; package/backend-only rollout is next.
+  Current CPs remain2996b5fc0/image08b0b0a6/schema207/UP. Reuse the07:56 sample
+  within its existing freshness window; do not collect another by default.
+
+- 07:51UTC deployed boundary: BOTH control planes verify2996b5fc0/image08b0b0a6,
+  schema207/healthUP. Exact package qualification covers195 distinct cases,
+  including48 PostgreSQL, with reused diagnostic/admission class bytes checked
+  against the packaged artifact. Backend-only CI39563535763 and sequential
+  staging/production rollout pass; no framework/runtime/UI build or schema change.
+  Original139 tables plus existing nonempty validity audit tables/history and
+  saved/effective configuration are preserved. Maintenance closure:
+  `/private/tmp/01044-preflight-continuation-rollout-20261021/maintenance.completed.json`,
+  SHA e13a6c337373b4166f482dbb712e7ef20f342b5b24ab7145f0492dfcb9a158ea.
+- One fresh61-by5-second read-only sample per host started after closure, under
+  01044-post-preflight-capacity-20261021. Earlier policy expired07:49:57UTC;
+  do not use it for another setup effect. New reviewed continuity and normal
+  owner retry helpers are prepared, not dispatched. Original CUSTOMER_ADMIN
+  session was rechecked200/authenticated at07:50UTC. Same R22/release/preflight
+  failure, repaired runtime, acknowledged same-wallet renewal and DRAFTapp remain.
+
 - 07:37UTC source qualification: safe vector failure-code projection passes126
   focused tests. The receipt-proven no-effect preflight continuation correction
   qualifies69 distinct cases, including48 real PostgreSQL. One synthetic
