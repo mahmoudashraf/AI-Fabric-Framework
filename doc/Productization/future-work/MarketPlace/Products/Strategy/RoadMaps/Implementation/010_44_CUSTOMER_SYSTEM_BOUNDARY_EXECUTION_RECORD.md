@@ -2,6 +2,28 @@
 
 ## 2026-10-21 Hosted Customer Journey Focus
 
+Latest actual checkpoint, 09:58 UTC: normal customer password sign-in, owned
+deployment management, UI placement refresh, and the selected release's three
+ACTIVE document rows pass on `console.loomai.pro`. The delivered operator key
+opens the real Inbox and identifies the expected operator/one binding. The
+DRAFT public app denies bootstrap and sends no runtime request. This is partial
+hosted evidence, not public chat, action-time login or human-reply acceptance.
+
+Runtime fix `d8743ee3b` / CI `39577394416` / image `a32574d4` is qualified and
+registered as `dsa-6776d0bf`, STAGING channel only, not deployed. Its 21 targeted
+checks pass; nine image class files match the qualified package and all 20 public
+framework JARs are unchanged. The one-off repair cannot upgrade the old immutable
+offer again. Required for production holds a conditional fresh-pilot decision;
+no second free cluster, new offer/headroom or native deployment is assumed.
+
+Separately, external-vector exclusivity currently prevents basic same-owner
+staging/production namespaces in one cluster despite SHARED configuration.
+Registration, V192's unique active-cluster index and serving inventory all enforce
+that limitation. It is a recorded generic gap, not an invitation to bypass one
+guard, copy vectors or mislabel Free01 unused. Detailed actual reports, hashes,
+failed browser-harness attempts and deferred return points are in the tracker's
+**Actual Hosted Acceptance, 21 October 09:58 UTC** section. UI extraction is last.
+
 At 08:46 UTC the normal continuation initialized the existing Inbox and reached
 post-apply verification. Stock indexing reports six vehicles; document indexing
 is not yet established. The retained gate has 25 passes, two stale expectation
@@ -172,22 +194,24 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-21 01:46 UTC. The detailed
+Authoritative short checklist, updated 2026-10-21 09:58 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
 - **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
   healthy staging and production, preserved configuration/history. Both verify
-  ea8294d2d/image637b3b79/schema207 after48 focused cases/14 actual PostgreSQL
-  for the narrow deadline correction, package and backend-only CI39527864916.
-  The preceding integrated repair proof passed566 cases/116 actual PostgreSQL.
+  `684d8982f` / image `b096ef6d` / schema207, healthUP. Latest scoped package
+  passes97 checks including4 actual PostgreSQL cases; backendCI39573339382 passes.
+  Earlier deadline/repair qualifications remain retained as historical evidence.
   Both current hosts verify healthy with existing tables/configuration/financial
-  history preserved. Latest source-only maintenance closes01:40UTC.
-  [Hosted closure](/private/tmp/01044-deadline-precision-backend-rollout-20261021/maintenance.completed.json).
+  history preserved. No framework/runtime/UI redeploy is implied by this gate.
+  [Hosted closure](/private/tmp/01044-hosted-verifier-rollout-20261021/maintenance.completed.json).
 - **M2 COMPLETE: Customer configuration path.** Acceptance: normal owner app
   reuse/profile choice, customer-owned S3, immutable version and approved DATA
   binding without privileged repair. App stays DRAFT; versionver-c8cb7261,
-  DATAeib-abde288d-2a4e-4147-bcc1-268f72d128f9; no runtime/index yet.
+  DATAeib-abde288d-2a4e-4147-bcc1-268f72d128f9. Latest real owner UI proof also
+  verifies password-backed access, normal placement refresh and three ACTIVE
+  policies in the provisioned staging release; workload acceptance is still M5.
   [Owner acceptance](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/customer-profile-assignment/main-accepted.actual.json),
   [version](/private/tmp/01044-explicit-workspace-profile-adoption-20261020/customer-version/verified.actual.json),
   [DATA binding](/private/tmp/01044-pg-customer-data-stock-binding-20261020/bind.actual.json).
@@ -211,12 +235,14 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   uvh-aa46649e-41ea-4e39-8a40-b677f2534297 and destination binding
   evb-a3db15b4-03fd-4dd9-a613-2996599c589e; raw receipt/source transition,
   fresh full default empty inventory and financial/history preservation pass.
+  This was the18:58 handoff observation, not current emptiness: Free01 now has
+  six indexed vehicles and three policies and cannot be handed off as unused.
   Old binding becomes RETAINED_UNUSED. All route authority/effect fields remain
   fenced; only four source-justified worker timing/lease fields normalize, with
   full raw evidence retained. Original pre-intent failures stay preserved and
   were never POSTed. [Actual closure](/private/tmp/01044-attended-free01-handoff-20261020/operation-route-stable-r2/closure.actual.json).
 - **M5 IN PROGRESS: Hosted staging workload.** Historical startup/continuation
-  attempts follow; the current01:46UTC boundary is stated at the end. Source6e8f49882 was live on both
+  attempts follow; the superseding09:58UTC boundary is stated at the end. Source6e8f49882 was live on both
   control planes, including the startup policy and explicit owner-fenced initial
   partial-native retry. Fresh measured policy continuity verifies21:34 with
   unchanged R/physical budgets/quota/funding, valid23:31:42UTC. Normal owner
@@ -248,7 +274,17 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   with original history and financial limits preserved. Repair execution deadline
   is01:53UTC; no effects are authorized after it. Installing the new runtime alone
   cannot close this inventory gap because its retirement implementation is unchanged.
-  No blind retry/reset/refund/new grant. Full current evidence and limitations:
+  This 01:46 boundary is historical, not the current state. At09:58, the prior
+  repair is fully VERIFIED; the runtime runs `f927b3ec` and is healthy. Inbox
+  initialization is READY; stock6 and document3 are indexed. Release
+  `rel-b7206a67` remains APPLIED_VERIFICATION_FAILED, reservationR28/OUTCOME_UNKNOWN
+  without a worker. The remaining real failure is the unscoped embedding call in
+  document retrieval proof. Its minimal fix `d8743ee3b` passes21 tests/runtimeCI
+  and exact image inspection; catalogue artifact `dsa-6776d0bf` is STAGING-only,
+  not deployed. No second repair, native-image bypass, old offer rewrite or
+  financial reset was attempted. A conditional latest-offer fresh-pilot owner
+  decision is pending. Public query/action/auth/handover and app activation are
+  not passed. Full current evidence and limitations:
   [recovery tracker](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md).
   Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
@@ -257,6 +293,8 @@ workload or a customer-ready product; local checks are not hosted acceptance.
 - **M6 PENDING: Production promotion.** Acceptance: independently indexed
   production sources, verified release and explicit app/consumer switch, then
   bounded staging drain/retirement. No vector/conversation/business-data copy.
+  Current old-offer artifact adoption and exclusive external-cluster binding are
+  explicit constraints; a successful staging-only pilot would not remove them.
   [Promotion contract](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#105-promotion-assignment-data-and-session-safety).
 - **M7 PENDING: Hosted operations.** Acceptance: startup/traffic capacity,
   customer-visible limits and cleanup, actual scoped cold recovery and preserved
@@ -275,17 +313,24 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   UI592a9f9de/imageb270da72 is also verified on both hosts, UI-only CI39514177760.
   Actual complete customer UI journey remains open; these controls
   do not constitute extraction or full hosted acceptance. Original staff capability
-  baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-three-p2-projection-20261020/HANDOFF.md).
+  baseline remains preserved. Real hosted owner login, normal placement refresh,
+  correct deployment/release management and three ACTIVE document rows now pass;
+  actual Inbox operator login passes independently. See
+  `/private/tmp/01044-hosted-image-and-owner-20261021`; these partial passes do
+  not establish public chat, protected-action authentication or human reply.
+  [Projection evidence](/private/tmp/01044-functional-ui-three-p2-projection-20261020/HANDOFF.md).
 - **M9 PENDING, LAST: UI redesign/extraction and final certification.** Start
   only after required M1-M8 acceptance. Prove STAFF-001..039 parity, shared
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** establish a genuinely supported idle-inventory/preflight contract before
-another recovery effect. Main's recommended scope boundary distinguishes a
-staff-assisted early-adopter release from fully autonomous lifecycle certification;
-that narrowing has not been agreed, and mandatory gates remain open. Do not expand
-generic recovery exceptions silently or repeat the consumed drain/native commands.
+**Next:** resolve the pending normal latest-runtime pilot adoption decision, then
+pass real retrieval verification, activate through normal customer APIs, and run
+the prepared hosted chat/auth/handover gates. Main owns this sequential path.
+The user explicitly prioritized basic supported customer cases over extending
+recovery machinery; hard unsupported cases are recorded with return points in
+the tracker. No guard is waived and no whole-product readiness is claimed.
+Production promotion and independently reversible UI extraction remain open.
 Main owns sequential flow and every mutation; no UI extraction starts yet.
 **Required user input: none
 currently.** No new spending or deployment authority is implied by this list.

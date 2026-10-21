@@ -1,5 +1,22 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- **Current hosted checkpoint, 21 October 09:58 UTC:** real customer password
+  sign-in, owned deployment management, normal UI placement refresh and all three
+  ACTIVE policy rows pass at `console.loomai.pro`. The once-delivered operator
+  key opens the actual Inbox. The unactivated public app denies bootstrap and
+  sends no runtime request; this is not a chat/handover acceptance pass.
+  The narrow runtime retrieval-proof fix `d8743ee3b` passes focused tests, CI and
+  exact image inspection; `dsa-6776d0bf` is registered/STAGING-approved, not
+  deployed. The old offer cannot adopt another one-off repair. A conditional
+  fresh-pilot decision is pending in Required for production; no verified second
+  free vector option, new offer/headroom or deployment is assumed. A separate
+  generic gap is recorded: current external-vector exclusivity also blocks one
+  customer-provided cluster serving independent staging/production namespaces.
+  Detailed evidence, failed harness attempts, blocked gates and deferred return
+  points are in the [hosted progress tracker](../../../../../../../../verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md).
+  Full hosted acceptance, production promotion and reversible UI extraction are
+  still OPEN; no framework release or unrelated recovery expansion was added.
+
 - Current linked milestone checklist: [010.44 pre-extraction milestones](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md#current-pre-extraction-milestones).
   At20October22:45UTC both CPs verify2a6340d71/schema206/UP and functional
   UIb0db95097 is verified on both hosts. Owner continuation20022:34 keeps the

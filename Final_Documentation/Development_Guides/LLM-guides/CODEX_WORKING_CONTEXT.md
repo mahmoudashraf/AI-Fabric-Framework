@@ -10,6 +10,36 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 10:04UTC readonlyhostedguardcheck: ownerSESSION/listown2/workspace200,
+  realforeignworkspace404/stafftarget403/noauthworkspace401 PASS6. Combined
+  authorization-boundaries/report.json FAILretained:missingoperatorkeyreturns400
+  viarequiredSpringheader(notexpected401); separatelyinvalidkey401AUTH_INVALID.
+  Bothdenyaccess; uniform401contract smallInboxfollowup deferred/notreleased.
+  PublichealthbothCPs/runtime/sharedapp/health all200UP. Nonew5minsample.
+
+- Oct21 09:58UTC hosted focus: exact runtime d8743ee3b CI39577394416 PASS,
+  image a32574d4 locally inspected:9changedclasses byte-match qualifiedpackage,
+  all20framework0.8.36JARs unchanged. Normal prodCP artifactdsa-6776d0bf
+  registered/STAGING-only; no runtime deploy/oldpin rewrite. Proofs at
+  /private/tmp/01044-hosted-image-and-owner-20261021 (imageSHA8f7eeacc...3048).
+  Actualconsole=console.loomai.pro, NOT unconfiguredplatform.loomai.pro.
+  RealpasswordCUSTOMER_ADMINlogin PASS; normalManage/releaseGET verifies
+  relb7206a67stillAPPLIED_VERIFICATION_FAILED. ActualUI correctPGoffer placement
+  refresh200 thenKnowledge/explicitrelease showsall3policiesACTIVEv1;
+  r4reportSHA54196441...8170. Placementuntil10:07:53. OperatorUIrealkeylogin200,
+  exactoperator/onebinding/emptyqueue. DRAFTapp no composer/runtimequeries;
+  bootstrapOrigin403InvalidCORS/noalloworigin. OriginalbrowsercombinedFAIL
+  retained; separate negative-boundary proof isONLYoperator+draftdenial.
+  PublicAIqueries/authaction/handoverreply/activation/promotionstillOPEN.
+  Currentoldofferconsumedrepair hasNOsupportedimmediateupgrade. Requiredforprod
+  ONEconditionalownerdecision pending: freshlatestoffer+reviewedextraheadroom+
+  distinctverifiedfreevectorbinding (noneconfirmed; Zilliz1Free/org), orfixsharing
+  first/pause. No newoffer/headroom/provider/nativework. Genericgap recorded:
+  SHAREDtemplate prefixesexist butbinding:163 +V192uniquecluster+serving:635
+  enforceexclusivecluster, blocking sameownerstage/prodindependentindexes.
+  DoNOTcallusedFree01unused/copyvectors/removeoneguard. Allhardcases/returnpoints
+  detailedintracker. UIextractionLAST/unrelateddirtyfilespreserved/firewallopen.
+
 - Oct21 09:26UTC BOTH CPs684d8982f/b096ef6d/schema207/UP; closure4aeff662...4a40.
   Customer placement refreshed09:11 expires09:26:55. NormalthirdInboxdelivery200,
   keyprivate attempt-003 (earlier409TLS then409STALE retained/no replay). All3S3

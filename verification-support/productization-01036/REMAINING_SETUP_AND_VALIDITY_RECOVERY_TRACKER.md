@@ -8,6 +8,159 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
+### Actual Hosted Acceptance, 21 October 09:58 UTC
+
+The user repeated the instruction to prioritize the open hosted stream and
+record everything else for later. No recovery framework, UI extraction, paid
+vector allocation, or production promotion was added in this cycle.
+
+- **PASS, actual customer sign-in:** the real owner used the password form at
+  `https://console.loomai.pro`, resolving to SESSION / CUSTOMER_ADMIN for the
+  original customer. No staff key was substituted. Browser report
+  `01044-hosted-image-and-owner-20261021/owner-browser-console/report.json`, SHA
+  `21c5f4566516076ed1375705e000d41e2a48103ead7fa86b1f8594f6d6108977`.
+- **PASS, actual customer management:** Manage deployment selected the expected
+  scope; the actual releases response still identifies `rel-b7206a67` as
+  APPLIED_VERIFICATION_FAILED. The owner selected the PostgreSQL offer and
+  refreshed placement using its normal UI button, then opened Knowledge and
+  explicitly selected the provisioned target release. All three files are
+  visibly ACTIVE, version 1, matching the real sources response. No source
+  registration/index/deletion, apply, reservation or activation was triggered.
+  Report `01044-hosted-image-and-owner-20261021/owner-managed-screens-r4/report.json`,
+  SHA `5419644130e8d7f5999ac6f952488dee6e7e7afe62528dc1cf0fa74bcb868170`.
+  Placement is valid until 10:07:53 UTC; do not assume it stays current later.
+- **PASS, actual operator sign-in:** the existing once-delivered key opens the
+  hosted Inbox UI. `/api/operator/me` returns the expected operator
+  `operator-a73a64cb1d8f4c5698be574592c397e1` and exactly one binding. Queue is
+  empty. No new key delivery, claim, reply or return-to-AI was performed.
+- **PASS, DRAFT denial only:** the public app displays unavailable, has no
+  composer, and sends no request to the customer runtime. Direct bootstrap with
+  its Origin returns 403 / `Invalid CORS request`, without allow-origin. This
+  is consistent with the existing ACTIVE-only origin rule. The combined browser
+  harness initially failed its expectation of an observable HTTP error because
+  CORS hides that response from page JavaScript. Its original FAIL report is
+  retained byte-for-byte; a separate actual-boundary report records only the
+  proven operator login and public denial, not a full handover pass:
+  `01044-hosted-image-and-owner-20261021/negative-boundary.actual.json`.
+- **PASS, latest runtime catalogue preparation only:** image inspection proof SHA
+  `8f7eeacc6bd5ba77678eb4ba6dbb4aabc2487f1fe63be1a8c07bd5bec05f3048`
+  checks the exact CI image, nine changed class files, all 20 unchanged framework
+  JARs, manifest and existing migration. Normal production-control-plane API
+  registered `dsa-6776d0bf` and approved the STAGING channel only. Registration
+  response SHA `a916bb7d3b3ceafabc73ec1a8f590509eeab04a722df2694fc0409ca8693f788`;
+  staging-promotion response SHA
+  `2f5907c00f6eca98da864f84fc1812fb9dd26254849c9951c2a2b54a87860a17`.
+  No existing runtime, release, offer pin, app or production channel was changed.
+- **OPEN:** adopt the latest runtime through an authorized normal pilot path,
+  pass the real retrieval gate, activate the consumer/app, then run stock plus
+  policy chat, iterative context, protected-action sign-in/cancel/isolation and
+  the customer-plus-operator handover/reply/return flow. All these public
+  acceptance scripts remain unexecuted. Production promotion and UI extraction
+  remain open. Do not report the whole hosted customer journey green.
+
+All evidence paths above are under `/private/tmp/`; raw credentials and policies
+are not included in tracked documentation. The first management-browser attempts
+are retained: wrong assumed hostname, internal release ID not displayed by the
+UI, premature loading snapshot, and an overly exact Material UI selector. The
+corrected run waits for actual data and accessible controls. These harness
+corrections do not establish a product defect or excuse a failed product check.
+
+10:04 UTC additional hosted boundaries: the real CUSTOMER_ADMIN session sees
+exactly its two owned deployments; own workspace200, actual foreign workspace404,
+staff target inventory403, and unauthenticated own workspace401. These six
+checks pass using real routes, with no writes or model invocation. The additional
+Inbox missing-key assertion expected401 but actually returns400 because the
+controller declares a required request header. The raw FAIL is retained in
+`01044-hosted-image-and-owner-20261021/authorization-boundaries/report.json`;
+it does not erase the six passing control-plane checks. A separate direct
+invalid-key read returns401 / OPERATOR_AUTH_INVALID. Neither response grants
+operator access. Do not report the strict eight-case assertion bundle green.
+Public health checks at10:04 return200/UP for both control planes, the existing
+runtime and the shared workspace `/health`. No new five-minute sample was run.
+
+### Additional Deferred Return Points From This Hosted Cycle
+
+- **Shared external-vector contract, actual generic gap:** current template
+  `vectorStoragePosture=SHARED` does not permit sharing one physical external
+  cluster across two deployment/target bindings. Three independent guards enforce
+  exclusivity: `DeploymentExistingVectorBindingService` registration around line
+  163, unique active-cluster index in V192, and serving inventory around line 635
+  rejecting collections outside the current prefix. `TenantScopedVectorHandleResolver`
+  already derives distinct customer/tenant/deployment/target prefixes, but this
+  is application partitioning, not provider ACL isolation. Even basic same-owner
+  staging-to-production independent indexing against Free01 is unsupported today.
+  Do not remove one guard or call a populated cluster unused as a shortcut.
+  Return to all three boundaries together if the owner selects this work. No
+  change was implemented here; no vectors were copied or removed.
+- **Fresh-pilot adoption decision:** Required for production has one pending
+  conditional owner decision: one latest-offer pilot, explicitly reviewed
+  temporary staging headroom, and a distinct compatible NO-COST vector binding
+  verified before launch. No second Free cluster is confirmed. Zilliz's recorded
+  one-Free-per-organization limit means another Free in the same organization
+  cannot be presumed. Owner may instead prefer to fix the generic sharing gap
+  first or pause the new pilot. No consent is inferred; no new offer/headroom,
+  provider allocation or native deployment was dispatched. Old scope, allocation,
+  audit history, customer S3 and business sources remain intact. Decision record:
+  `/private/tmp/01036-fresh-latest-offer-pilot-adoption-decision-20261021.json`.
+- **Unavailable-app UX:** DRAFT bootstrap is correctly blocked, but the frontend
+  displays a generic `Failed to fetch` underneath unavailable when CORS hides
+  the denied response. Improve the message during the final shared UI phase;
+  never expose inactive configuration or broaden origin authority to silence it.
+- **Operator missing-key HTTP consistency:** `InboxOperatorController` requires
+  `X-LoomAI-Operator-Key` during Spring argument binding, so omission produces400
+  before `InboxSecurityService` can return401. Invalid supplied keys produce401
+  and valid keys open only the reviewed binding. Access is denied in both bad
+  cases; reconcile the published HTTP contract and controller/tests in a separate
+  small Inbox change if uniform401 is required. No error-code waiver, auth bypass
+  or Inbox release was made in this cycle.
+- **Final customer extraction:** current shared screens still contain staff
+  navigation and technical status language. That is not an external-customer UI
+  acceptance claim. Preserve STAFF-001..039 and the independent UI rollback
+  boundary; complete extraction only after the required hosted basic flows.
+
+09:40 UTC scope checkpoint: the user repeated the hosted/end-to-end priority.
+Continue this stream only; do not expand repair machinery or the deferred UI
+extraction. Runtime fix `d8743ee3b66307b4bb26645023b11f0dec64127f` is now committed
+and pushed. Runtime CI `39577394416` passed. The immutable registry index is
+`sha256:a32574d477a1330550d3bb8da3fb4a1a5edddcf13117538736bcbc9c0dace677`
+(amd64 manifest `9972a087b6c1cc16ba846e9f32aa40fddbaa852d1c2a59ec72631d788d0dc086`).
+Local qualification is `01044-document-retrieval-budget-scope-20261021/qualification.actual.json`,
+SHA `15ad509c76df5efc07b5ba4afcc163a2b34e47379caaadc05fd2b87b150bb2a4`:
+21 targeted tests/package pass and all 20 public framework JARs are unchanged.
+This is not a hosted deployment or a successful retrieval proof.
+
+The current canary's immutable offer and already-verified one-off repair do not
+authorize this second image. Normal fresh deployment feasibility is being
+checked before dispatch: its current admission still occupies a staging slot,
+and Free01 now contains six vehicle vectors and three document vectors. It is
+not eligible for an unused-vector handoff. Do not delete customer S3 objects,
+copy vectors, reset financial history, patch release/offer rows, or silently
+change the native image. A bounded read-only second review is assessing the
+existing supported adoption contracts. Normal hosted customer management-screen
+checks can proceed independently; public query/auth/handover acceptance remains
+open until the release can be verified and the app activated normally.
+
+09:42 UTC bounded adoption review confirms no supported immediate upgrade under
+the current constraints. Owner decision was sent to **Required for production**:
+a fresh latest-offer pilot needs explicitly reviewed temporary admission
+headroom and a distinct vector binding; use/create a no-cost option only if
+available and approved. Preserve the old reservation/allocation/audit history,
+customer S3 and business sources. No paid capacity, vector copy, Free01 deletion,
+old-canary retirement or new deployment was dispatched. Otherwise wait for the
+existing expiry lifecycle and separately resolve used-vector ownership; do not
+call it an unused transfer. This is a recorded adoption limitation, not more
+recovery scope or a funding shortage.
+
+The exact built runtime image is inspected without starting a container: nine
+changed packaged classes byte-match the qualified package, all 20 framework
+JARs match, packaged manifest and existing V20 migration match source. Proof:
+`/private/tmp/01044-hosted-image-and-owner-20261021/image-proof.actual.json`.
+The first hosted management-browser attempt failed before login because the
+assumed `platform.loomai.pro` hostname has no DNS resolution. Actual production
+Coolify readback identifies `https://console.loomai.pro` as the configured console;
+the corrected attempt is separate and retains the initial failure. No DNS
+configuration change is needed or claimed for the erroneous assumed hostname.
+
 09:26 UTC actual customer checkpoint: both control planes verify `684d8982f`,
 schema 207, health UP. Maintenance closure is
 `/private/tmp/01044-hosted-verifier-rollout-20261021/maintenance.completed.json`,
