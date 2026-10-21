@@ -1,5 +1,17 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 22:17 UTC Recovery Verified, Live Apply Race Found
+
+Cold maintenance is VERIFIED on the same allocation and framework0.8.36. The
+normal owner retry provisioned healthy runtime/connector services. A status read
+then recovered verification while Inbox initialization was still running:27
+checks passed, current-release document activation failed, admission became
+OUTCOME_UNKNOWN, and the original worker failed its next admission guard.
+This product lifecycle race is being corrected, not bypassed. The app remains
+DRAFT; no browser query or business write has run. Exact phase, consumed document
+commands and continuation work are recorded in the bounded recovery tracker.
+Production promotion and final reversible UI extraction remain open.
+
 ## 2026-10-21 19:40 UTC Bounded Cold Path Locally Integrated
 
 The owner-approved downtime/disposable-pilot path now extends the existing repair

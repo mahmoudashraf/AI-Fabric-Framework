@@ -33,6 +33,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import org.springframework.util.StringUtils;
@@ -61,6 +63,7 @@ public class DeploymentReleaseExecutionService {
     private final Executor releaseExecutionExecutor;
     private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
+    private final Set<String> activeApplyReleases = ConcurrentHashMap.newKeySet();
 
     @Autowired
     private DeploymentDocumentBindingResolver documentBindingResolver;
@@ -211,6 +214,7 @@ public class DeploymentReleaseExecutionService {
     }
 
     void executeApplyInline(String deploymentId, String versionId, String releaseId) {
+        if (!activeApplyReleases.add(releaseId)) return;
         try {
             runApply(deploymentId, versionId, releaseId);
         } catch (RailwayActivationUnconfirmedException ex) {
@@ -226,8 +230,16 @@ public class DeploymentReleaseExecutionService {
             log.error("Async apply failed: deploymentId={}, versionId={}, releaseId={}", deploymentId, versionId, releaseId, ex);
             transactionOperations.executeWithoutResult(status -> markFailed(releaseId, deploymentId, ex));
         } finally {
-            observeAdmissionAfterCommit(releaseId);
+            try {
+                observeAdmissionAfterCommit(releaseId);
+            } finally {
+                activeApplyReleases.remove(releaseId);
+            }
         }
+    }
+
+    boolean isApplyExecuting(String releaseId) {
+        return activeApplyReleases.contains(releaseId);
     }
 
     protected void runApply(String deploymentId, String versionId, String releaseId) {
@@ -349,14 +361,12 @@ public class DeploymentReleaseExecutionService {
         }
         admissionReleaseCoordinator.beginProvisioning(releaseId);
         transactionOperations.executeWithoutResult(status -> deploymentReleaseProgressService.transition(releaseId,
-            "VERIFYING", "ACTIVE", "PENDING", "resume_managed_dependencies",
+            "PROVISIONING", "ACTIVE", "PENDING", "resume_managed_dependencies",
             "Continue dependency setup using the existing healthy runtime and active allowance.", null));
         providerUsageReleaseCoordinator.verifyActive(deployment, version, getRelease(releaseId));
         managedDependencyReleaseCoordinator.resumeRuntimeBound(deployment, version, release, proof);
         deploymentReleaseProgressService.stepCompleted(releaseId, "resume_managed_dependencies", "Managed dependencies initialized without redeploying runtime services.");
         syncMarketplaceDatasets(deploymentId, versionId, releaseId);
-        deploymentReleaseProgressService.transition(releaseId, "VERIFYING", "ACTIVE", "RUNNING",
-            "run_verification", "Run post-deploy verification after explicit setup continuation.", null);
         runVerification(deploymentId, versionId, releaseId);
     }
 
@@ -515,23 +525,32 @@ public class DeploymentReleaseExecutionService {
         deploymentReleaseProgressService.mergeProvisioningDetails(releaseId, endpointEvidence.toString());
         deploymentReleaseProgressService.transition(
             releaseId,
-            "VERIFYING",
+            "PROVISIONING",
             provisioningResult.status(),
-            "RUNNING",
-            "run_verification",
-            "Running post-deploy verification.",
+            "PENDING",
+            "finalize_runtime",
+            "Finalizing runtime dependencies and data sources.",
             null
         );
 
         deployment.setActiveVersionId(versionId);
         deployment.setRuntimeBaseUrl(provisioningResult.runtimeBaseUrl());
         deployment.setConnectorBaseUrl(provisioningResult.connectorBaseUrl());
-        deployment.setStatus("VERIFYING");
+        deployment.setStatus("PROVISIONING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
     }
 
     protected void runVerification(String deploymentId, String versionId, String releaseId) {
+        transactionOperations.executeWithoutResult(status -> {
+            deploymentReleaseProgressService.transition(releaseId, "VERIFYING",
+                getRelease(releaseId).getProvisioningStatus(), "RUNNING", "run_verification",
+                "Running post-deploy verification.", null);
+            DeploymentEntity current = getDeployment(deploymentId);
+            current.setStatus("VERIFYING");
+            current.setUpdatedAt(Instant.now());
+            deploymentRepository.save(current);
+        });
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);

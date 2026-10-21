@@ -47,6 +47,68 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseExecutionServiceTest {
 
+    @Test
+    void liveApplyCannotBeRecoveredOrDuplicatedWhileRuntimeDependenciesInitialize() {
+        var fixture = new BindingApplyFixture();
+        fixture.prepareContinuation();
+        fixture.release.setProvisioningDetailsJson("{}");
+        var progress = new DeploymentReleaseProgressService(fixture.releases, fixture.mapper);
+        ReflectionTestUtils.setField(fixture.service, "deploymentReleaseProgressService", progress);
+        when(fixture.provisioning.provision(any(), any(), any(), any())).thenReturn(
+            new ProvisioningResult("ACTIVE", "COOLIFY", "https://runtime.example", "https://connector.example", "{}"));
+        when(fixture.verification.verify(fixture.deployment, fixture.version, fixture.release, "POST_APPLY"))
+            .thenAnswer(invocation -> {
+                assertThat(fixture.deployment.getStatus()).isEqualTo("VERIFYING");
+                assertThat(fixture.release.getStatus()).isEqualTo("VERIFYING");
+                var passed = new DeploymentVerificationRunEntity();
+                passed.setId("post-verify"); passed.setStatus("PASSED");
+                return passed;
+            });
+        when(fixture.deployments.findByIdForUpdate("dep-123")).thenReturn(Optional.of(fixture.deployment));
+        when(fixture.releases.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+            .thenReturn(Optional.of(fixture.release));
+        var recovery = new DeploymentReleaseRecoveryService(fixture.deployments, fixture.releases,
+            fixture.service, fixture.verifications, mock(RailwayGraphqlClient.class),
+            mock(com.ai.fabric.platform.backend.config.PlatformProvisioningProperties.class), fixture.mapper);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(fixture.release.getStatus()).isEqualTo("PROVISIONING");
+            assertThat(fixture.release.getCurrentStepKey()).isEqualTo("finalize_runtime");
+            assertThat(fixture.release.getVerificationStatus()).isEqualTo("PENDING");
+            assertThat(fixture.service.isApplyExecuting("rel-123")).isTrue();
+            fixture.release.setUpdatedAt(Instant.now().minusSeconds(600));
+            assertThat(recovery.reconcileLatestInProgressRelease("dep-123")).isFalse();
+            assertThat(recovery.reconcileLatestInProgressRelease("dep-123", true)).isFalse();
+            fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
+            verify(fixture.verification, never()).verify(any(), any(), any(), eq("POST_APPLY"));
+            return null;
+        }).when(fixture.dependencies).completeRuntimeBound(any(), any(), any());
+
+        fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
+
+        assertThat(fixture.service.isApplyExecuting("rel-123")).isFalse();
+        assertThat(fixture.release.getStatus()).isEqualTo("APPLIED_VERIFIED");
+        var order = inOrder(fixture.dependencies, fixture.datasets, fixture.verification);
+        order.verify(fixture.dependencies).completeRuntimeBound(any(), any(), any());
+        order.verify(fixture.datasets).syncReleaseDatasets(any(), any(), any());
+        order.verify(fixture.verification).verify(any(), any(), any(), eq("POST_APPLY"));
+        verify(fixture.provisioning).provision(any(), any(), any(), any());
+    }
+
+    @Test
+    void failedApplyReleasesItsLocalExecutionGuardWithoutHidingTheFailure() {
+        var fixture = new BindingApplyFixture();
+        ReflectionTestUtils.setField(fixture.service, "deploymentReleaseProgressService",
+            new DeploymentReleaseProgressService(fixture.releases, fixture.mapper));
+        org.mockito.Mockito.doThrow(new IllegalStateException("EXPECTED_BINDING_FAILURE"))
+            .when(fixture.bindings).resolve(any(), any(), any(), any());
+        fixture.service.executeApplyInline("dep-123", "ver-123", "rel-123");
+        assertThat(fixture.service.isApplyExecuting("rel-123")).isFalse();
+        assertThat(fixture.release.getStatus()).isEqualTo("FAILED");
+        assertThat(fixture.release.getErrorMessage()).contains("EXPECTED_BINDING_FAILURE");
+        verify(fixture.admission, org.mockito.Mockito.times(2)).observe("rel-123");
+        verifyNoInteractions(fixture.dependencies, fixture.provisioning, fixture.datasets);
+    }
+
     @Test void explicitPostProvisionContinuationSkipsProvisioningAndFundingAndFinishesOnlyOnce() {
         var fixture = new BindingApplyFixture(); var nativeProvider = fixture.prepareContinuation();
         fixture.service.runApply("dep-123", "ver-123", "rel-123");

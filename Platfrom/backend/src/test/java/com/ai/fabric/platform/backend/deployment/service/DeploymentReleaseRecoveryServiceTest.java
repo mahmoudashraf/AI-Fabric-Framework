@@ -35,6 +35,33 @@ class DeploymentReleaseRecoveryServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @ParameterizedTest
+    @CsvSource({"false,VERIFYING,run_verification", "true,VERIFYING,run_verification",
+        "true,PROVISIONING,finalize_runtime", "false,APPLIED_VERIFICATION_FAILED,verification_complete"})
+    void elapsedTimeAndForceNeverTakeOverALiveApply(boolean force, String status, String step) {
+        var deployments = mock(DeploymentRepository.class);
+        var releases = mock(DeploymentReleaseRepository.class);
+        var execution = mock(DeploymentReleaseExecutionService.class);
+        var runs = mock(DeploymentVerificationRunRepository.class);
+        var railway = mock(RailwayGraphqlClient.class);
+        var service = new DeploymentReleaseRecoveryService(deployments, releases, execution,
+            runs, railway, provisioningProperties(), objectMapper);
+        var deployment = deployment(); var release = staleProvisioningRelease();
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setStatus(status); release.setCurrentStepKey(step);
+        when(deployments.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releases.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        when(execution.isApplyExecuting(release.getId())).thenReturn(true);
+
+        assertThat(service.reconcileLatestInProgressRelease(deployment.getId(), force)).isFalse();
+
+        verify(execution, never()).runVerification(any(), any(), any());
+        verify(execution, never()).markFailed(any(), any(), any());
+        verify(execution, never()).syncMarketplaceDatasets(any(), any(), any());
+        org.mockito.Mockito.verifyNoInteractions(runs, railway);
+        verify(releases, never()).save(any());
+    }
+
+    @ParameterizedTest
     @CsvSource({
         "APPLY_REQUESTED,queue_release",
         "VERIFYING,run_verification",

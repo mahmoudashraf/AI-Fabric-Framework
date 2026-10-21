@@ -7,6 +7,47 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+Checkpoint22:17UTC: cold maintenance VERIFIED and ordinary retry consumed;
+runtime/connector healthy. A status read recovered `run_verification` while the
+real apply worker was still initializing Inbox. Early verification failed the
+current-release document-source check (27 other checks passed), admission became
+OUTCOME_UNKNOWNrev15, and the still-running worker then correctly failed its
+admission guard. Release rel-efc001ac is FAILED, graph BLOCKED/INITIALIZE:inbox.
+This is a product lifecycle race, not a framework defect or missing user material.
+Fix in progress: truthful finalization phase before verification, exclude live
+apply workers from recovery/duplicate execution, reject competing manual checks.
+No SQL repair, capacity release, funding reset, app activation or browser query.
+Document0 index202 consumed; document1 registered but index409; document2 unrun.
+Preserve receipts and resume only through reviewed normal workflow after rollout.
+
+22:38UTC supporting checks: production61x5s baseline passed (peak443mCPU,
+12.43GB minimum available RAM, no swap). Fresh staging61x5s also passes with
+all10 owned containers stable; full8GiB/4500m reservations and2GiB/2000m
+headroom retained. Normal policy `01036-pilot-post-provision-r2-fleet-20261021`
+is approved through22October00:24:41UTC with unchanged reservations/funding.
+The first refresh attempt412 is preserved: unchanged older staging observation
+cannot satisfy the policy's newer-per-target measurement rule.
+Read-only real owner browser bootstrap succeeds as CUSTOMER_ADMIN, zero mutation
+attempts. It captures the current self-service page and honest failed-release
+states. Two GET `/api/platform/preferences` calls return403: the current shell
+still asks for staff-only preferences. Record this for the final customer-UI
+functional/extraction pass; do not weaken staff authorization or claim clean UI
+acceptance. Screenshot/report: new private race root. No AI ingress has run.
+
+22:42UTC qualification:151 focused tests PASS, including35 real PostgreSQL
+cases, zero failures/errors/skips, package PASS. A disposable local PostgreSQL
+copy of41 actual scoped rows also accepts the exact live failed checkpoint;
+no hosted mutation was used for that probe. Prior red test/fixture reports are
+retained under the sidecar's private handoff root. The continuation remains the
+existing explicit owner plan/queue operation: healthy native runtime is reused,
+no provider allowance initialization/debit is replayed, and prior operator,
+bindings, usage, financial terms and failed history stay intact. First-time
+dependency guards are unchanged. Scope is one retained Basic Inbox after the
+verified cold reapply; broader dependency topologies remain deferred. The live
+apply exclusion is local to the current single-process control plane; startup
+continues to fail interrupted applies honestly, not infer distributed ownership.
+Publication/rollout is next; this is not yet hosted customer acceptance.
+
 At18:55UTC Main answered the user's question candidly: zero-loss live upgrade
 and broad lifecycle recovery have become premature blockers for this disposable
 pilot. The owner permits downtime and fresh AI data. Do not make a new framework

@@ -2151,6 +2151,10 @@ public class DeploymentService {
                 NOT_FOUND,
                 "No applied release found for active version: " + version.getVersionLabel()
             ));
+        if (DeploymentReleaseRecoveryService.ACTIVE_RELEASE_STATUSES.contains(release.getStatus())
+            || deploymentReleaseExecutionService.isApplyExecuting(release.getId())) {
+            throw new ResponseStatusException(CONFLICT, "RELEASE_APPLY_IN_PROGRESS");
+        }
 
         DeploymentVerificationRunEntity verificationRun = runVerification(
             deployment,

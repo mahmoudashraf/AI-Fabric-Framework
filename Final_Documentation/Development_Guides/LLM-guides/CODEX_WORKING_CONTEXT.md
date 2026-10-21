@@ -10,6 +10,28 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 22:42UTC race + existing retained-Inbox continuation correction qualifies:
+  151focused/35REALPG PASS/package/zero skips. Actual41-row scoped snapshot
+  accepted offline. No framework/runtime/UI/schema change. New root
+  `/private/tmp/01044-post-provision-race-20261021` contains qualification,
+  rollout/resume helpers and read-only owner portal baseline. Policy r2 normal
+  publicationPASS through22Oct00:24:41, sameR15/gen/fullholds/headroom/funding.
+  Source publication and CP rollout NEXT; appDRAFT/noAI ingress/businesswrite.
+  Sidecar root `/private/tmp/01044-retained-inbox-post-resume.ieCcsZmc` retains
+  prior fixture failures, actual replay and reports. UI staff-preferences403
+  calls recorded for final UI pass, not hidden or solved by weakening auth.
+
+- 22:17UTC ordinary retry consumed, runtime/connector healthy; status GET recovered
+  `run_verification` prematurely during live Inbox init. vrf-a264f221:27pass,
+  only current-release document activation failed. R25dea/gen8bf1 now
+  OUTCOME_UNKNOWNrev15; rel-efc FAILED, graph BLOCKED/INITIALIZE:inbox. No app
+  activation/browser query/business write. Main correcting truthful phase and
+  recovery/manual-check exclusion for active apply; bounded sidecar owns only
+  existing post-provision continuation evidence/tests for retained Inbox.
+  Docs0 registered/index202 consumed; docs1 registered/index409; docs2 unrun.
+  Preserve history/funding/usage/allocation. New receipts root
+  `/private/tmp/01044-post-provision-race-20261021`; UI extraction stays LAST.
+
 - 21:41UTC COLDRECOVERY VERIFIED! Sameplanef7ff595.../commandhashabe69d29...;
   verify-r3HTTP200, all9effectsconfirmed/no pending; receipt3412d807d408522f4ae82632c6c25bf08d5091bc3b1639ed9d739328cf140dd0.
   SAME R25dea632/gen8bf1bb40 nowOUTCOME_UNKNOWNrev12/workerNULL/fullholds;

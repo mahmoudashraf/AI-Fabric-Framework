@@ -129,6 +129,10 @@ public class DeploymentReleaseRecoveryService {
             else if (latestRelease.getRuntimeAuthorityFingerprint() != null)
                 throw new IllegalStateException("EXTERNAL_INTEGRATION_RESOLVER_REQUIRED");
         }
+        // Startup handles interrupted workers; elapsed step time cannot take over a live apply.
+        if (latestRelease != null && deploymentReleaseExecutionService.isApplyExecuting(latestRelease.getId())) {
+            return false;
+        }
         if (latestRelease != null && reconcilePassedVerificationForFailedRelease(deployment, latestRelease)) {
             return true;
         }
@@ -213,6 +217,7 @@ public class DeploymentReleaseRecoveryService {
         if (externalIntegrations != null) externalIntegrations.requireForRecovery(deployment, latestRelease);
         else if (latestRelease.getRuntimeAuthorityFingerprint() != null)
             throw new IllegalStateException("EXTERNAL_INTEGRATION_RESOLVER_REQUIRED");
+        if (deploymentReleaseExecutionService.isApplyExecuting(latestRelease.getId())) return false;
         return reconcileQueuedApply(deployment, latestRelease);
     }
 

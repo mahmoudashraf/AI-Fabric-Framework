@@ -186,6 +186,26 @@ class DeploymentServiceApplyGuardTest {
         verifyNoInteractions(deploymentReleaseExecutionService);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING", "APPLIED_VERIFICATION_FAILED"})
+    void manualVerificationCannotCompeteWithApply(String status) {
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+        var release = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123").orElseThrow();
+        release.setStatus(status);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc("dep-123", "ver-123"))
+            .thenReturn(Optional.of(release));
+        when(deploymentReleaseExecutionService.isApplyExecuting("rel-123"))
+            .thenReturn("APPLIED_VERIFICATION_FAILED".equals(status));
+
+        assertThatThrownBy(() -> service.rerunVerification("dep-123"))
+            .isInstanceOfSatisfying(ResponseStatusException.class, error -> {
+                assertThat(error.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(error.getReason()).isEqualTo("RELEASE_APPLY_IN_PROGRESS");
+            });
+        verify(platformAuditService, never()).record(any(), any(), any(), any());
+    }
+
     @Test
     void scopedSecretUsageRequiresOperatorBeforeVersionOrTargetLookup() {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
