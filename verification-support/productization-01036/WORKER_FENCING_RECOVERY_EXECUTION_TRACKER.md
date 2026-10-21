@@ -7,6 +7,24 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+23:07UTC latest boundary: both CPs verify ee7622a12/image78ef36d9/schema207/UP,
+25 protected tables and configuration unchanged. Closure SHA256
+2d179718c50cb2c5a58b23f7724dca109ae9a8e2d2ea35c6239967fc0c43aca6.
+Normal owner continuation PLAN200/EXECUTE200 (R16) then failed before dependency
+work: the PROVISIONING phase introduced by Main's race correction violates the
+existing runtime-authority contract. R is now OUTCOME_UNKNOWN18, graph unchanged,
+no runtime redeploy/financial mutation/public AI query/business write.
+Correct minimal follow-up: preserve VERIFYING for an actually provisioned runtime,
+PENDING verification and distinct finalize/resume steps until real verification.
+Keep the live-worker/manual-check exclusion. Do NOT add an authority exception
+or weaken runtime-access guards; a local budget-token alternative was abandoned
+without publication. Three production lines change, with real authority-contract
+tests.127 focused cases/2 real PostgreSQL cases and package pass; exact current
+42-row scoped snapshot accepts R18 offline through the existing receipt chain.
+Root `/private/tmp/01044-provisioned-budget-authority-20261022`; publish/rollout
+then use its NEW resume helper/intents, not the consumed first continuation.
+Source/runtime/framework/schema/UI and financial boundaries otherwise unchanged.
+
 Checkpoint22:17UTC: cold maintenance VERIFIED and ordinary retry consumed;
 runtime/connector healthy. A status read recovered `run_verification` while the
 real apply worker was still initializing Inbox. Early verification failed the

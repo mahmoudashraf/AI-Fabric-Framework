@@ -361,6 +361,37 @@ class DeploymentRuntimeAuthorityServiceTest {
         assertThatThrownBy(() -> service.issueReleaseVerificationHeaders(deployment, release, false)).hasMessageContaining("not provisioned");
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"finalize_runtime", "resume_managed_dependencies"})
+    void provisionedSetupPhasePreservesExistingWorkerAuthorityWithoutStartingVerification(String step) throws Exception {
+        var frozen = release("staging", "release-setup");
+        var current = releases.findById(frozen.releaseId()).orElseThrow();
+        current.setStatus("VERIFYING"); current.setVerificationStatus("PENDING"); current.setCurrentStepKey(step);
+        clearInvocations(access);
+        var read = service.issueReleaseVerificationHeaders(deployment, current, false);
+        var readClaims = payload(read.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(readClaims.path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
+        assertThat(readClaims.path("sub").asText()).isEqualTo("platform-release-verification");
+        var readScopes = new ArrayList<String>(); readClaims.path("scopes").forEach(scope -> readScopes.add(scope.asText()));
+        assertThat(readScopes).containsExactlyInAnyOrderElementsOf(RuntimePrivateAccessSupport.adminReadScopes());
+        assertThat(readScopes).noneMatch(scope -> scope.endsWith(":write"));
+        var provision = service.issueProviderBudgetProvisioningHeaders(deployment, version, current);
+        var provisionClaims = payload(provision.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(provisionClaims.path("scopes")).hasSize(2);
+        assertThat(provisionClaims.path("scopes").toString()).contains("runtime:admin:provider-budget:write");
+        assertThat(current.getVerificationStatus()).isEqualTo("PENDING");
+        assertThat(current.getCurrentStepKey()).isEqualTo(step);
+        verifyNoInteractions(access);
+        current.setStatus("PROVISIONING"); current.setCurrentStepKey(step);
+        assertThatThrownBy(() -> service.issueReleaseVerificationHeaders(deployment, current, false)).hasMessageContaining("not provisioned");
+        assertThatThrownBy(() -> service.issueProviderBudgetProvisioningHeaders(deployment, version, current)).hasMessageContaining("not provisioned");
+        current.setStatus("VERIFYING");
+        current.setProvisioningStatus("RUNNING");
+        assertThatThrownBy(() -> service.issueReleaseVerificationHeaders(deployment, current, false)).hasMessageContaining("not provisioned");
+        current.setProvisioningStatus("ACTIVE"); current.setRuntimeAuthorityFingerprint("0".repeat(64));
+        assertThatThrownBy(() -> service.issueReleaseVerificationHeaders(deployment, current, false)).hasMessageContaining("does not match");
+    }
+
     @Test void generationWorkerRequiresBothExactFrozenReleasesAndIssuesNoArbitraryScopes() throws Exception {
         var previous = release("staging", "release-old");
         var next = release("staging", "release-next");

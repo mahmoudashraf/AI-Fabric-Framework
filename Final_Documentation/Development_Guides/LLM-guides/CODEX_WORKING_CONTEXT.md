@@ -10,6 +10,19 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 23:07UTC BOTHCPee7622a12/image78ef36d9/schema207/UP/25tables+configunchanged,
+  stgjobrtgx742ydwk1q7s1d6oh2z52/prodqeo0xf9tmznl0ie1nif5g4yq;
+  closure2d179718...c43aca6. Owner post-provision PLAN200/EXECUTE200R16
+  failed before deps: Main's PROVISIONING phase is incompatible with existing
+  provisioned-runtime authority. R18OUTCOME_UNKNOWN/graphunchanged/no redeploy/
+  financialreset/query/write. Minimalfollowup restores VERIFYING+PENDING with
+  distinct finalize/resume steps and live-worker exclusion; authority guards
+  remainbyteunchanged, no exception/alternativebudgettokenpublished.127focused/
+  2REALPG/packagePASS; exact42-rowR18 snapshotacceptsoffline. Root
+  `/private/tmp/01044-provisioned-budget-authority-20261022` has NEW qualify/
+  rollout/close/resume helpers. Publish/rolloutthenNEWownerresume; don't replay
+  consumed post-provision-race commands. UI extraction LAST, no user blocker.
+
 - 22:42UTC race + existing retained-Inbox continuation correction qualifies:
   151focused/35REALPG PASS/package/zero skips. Actual41-row scoped snapshot
   accepted offline. No framework/runtime/UI/schema change. New root

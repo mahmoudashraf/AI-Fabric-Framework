@@ -71,7 +71,8 @@ class DeploymentReleaseExecutionServiceTest {
             fixture.service, fixture.verifications, mock(RailwayGraphqlClient.class),
             mock(com.ai.fabric.platform.backend.config.PlatformProvisioningProperties.class), fixture.mapper);
         org.mockito.Mockito.doAnswer(invocation -> {
-            assertThat(fixture.release.getStatus()).isEqualTo("PROVISIONING");
+            assertThat(fixture.deployment.getStatus()).isEqualTo("VERIFYING");
+            assertThat(fixture.release.getStatus()).isEqualTo("VERIFYING");
             assertThat(fixture.release.getCurrentStepKey()).isEqualTo("finalize_runtime");
             assertThat(fixture.release.getVerificationStatus()).isEqualTo("PENDING");
             assertThat(fixture.service.isApplyExecuting("rel-123")).isTrue();

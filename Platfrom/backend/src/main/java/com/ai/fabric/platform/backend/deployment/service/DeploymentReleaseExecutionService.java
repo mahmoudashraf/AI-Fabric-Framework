@@ -361,7 +361,7 @@ public class DeploymentReleaseExecutionService {
         }
         admissionReleaseCoordinator.beginProvisioning(releaseId);
         transactionOperations.executeWithoutResult(status -> deploymentReleaseProgressService.transition(releaseId,
-            "PROVISIONING", "ACTIVE", "PENDING", "resume_managed_dependencies",
+            "VERIFYING", "ACTIVE", "PENDING", "resume_managed_dependencies",
             "Continue dependency setup using the existing healthy runtime and active allowance.", null));
         providerUsageReleaseCoordinator.verifyActive(deployment, version, getRelease(releaseId));
         managedDependencyReleaseCoordinator.resumeRuntimeBound(deployment, version, release, proof);
@@ -525,7 +525,7 @@ public class DeploymentReleaseExecutionService {
         deploymentReleaseProgressService.mergeProvisioningDetails(releaseId, endpointEvidence.toString());
         deploymentReleaseProgressService.transition(
             releaseId,
-            "PROVISIONING",
+            "VERIFYING",
             provisioningResult.status(),
             "PENDING",
             "finalize_runtime",
@@ -536,7 +536,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setActiveVersionId(versionId);
         deployment.setRuntimeBaseUrl(provisioningResult.runtimeBaseUrl());
         deployment.setConnectorBaseUrl(provisioningResult.connectorBaseUrl());
-        deployment.setStatus("PROVISIONING");
+        deployment.setStatus("VERIFYING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
     }
