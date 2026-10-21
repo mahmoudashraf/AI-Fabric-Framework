@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.EnumMap;
+import java.util.stream.Stream;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,8 +81,9 @@ class ProductionAdmissionResourceReadbackSourceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING"})
-    void activeReadbackRequiresFreshExactCoolifyResourceEvidence(String retainedKind) throws Exception {
+    @MethodSource("activeResourceShapes")
+    void activeReadbackRequiresFreshExactCoolifyResourceEvidence(String retainedKind, String resourceKind,
+                                                                boolean nestedPlacement) throws Exception {
         AdmissionStore admissions = mock(AdmissionStore.class);
         DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
         DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
@@ -114,7 +118,7 @@ class ProductionAdmissionResourceReadbackSourceTest {
         var handle = new DeploymentProviderResourceHandleEntity();
         handle.setId("runtime-handle"); handle.setDeploymentId("deployment"); handle.setTargetProfileId(AdmissionFixture.TARGET);
         handle.setReleaseId("release"); handle.setProviderType(DeploymentProviderType.COOLIFY);
-        handle.setResourceKind("APPLICATION"); handle.setProviderResourceUuid("runtime-app");
+        handle.setResourceKind(resourceKind); handle.setProviderResourceUuid("runtime-app");
         handle.setProviderServerUuid(AdmissionFixture.STAGING.serverUuid()); handle.setStatus("ACTIVE");
         var retained = new DeploymentProviderResourceHandleEntity();
         retained.setId("retained-binding"); retained.setResourceKind(retainedKind);
@@ -129,10 +133,15 @@ class ProductionAdmissionResourceReadbackSourceTest {
         when(client.getServer(connection, AdmissionFixture.STAGING.serverUuid())).thenReturn(new ObjectMapper().readTree(
             "{\"uuid\":\"" + AdmissionFixture.STAGING.serverUuid() + "\",\"ip\":\"host.docker.internal\"}"
         ));
+        var raw = new ObjectMapper().createObjectNode().put("uuid", "runtime-app");
+        if (nestedPlacement) {
+            raw.putObject("destination").put("uuid", AdmissionFixture.STAGING.destinationUuid())
+                .putObject("server").put("uuid", AdmissionFixture.STAGING.serverUuid());
+        } else raw.put("server_uuid", AdmissionFixture.STAGING.serverUuid());
         when(client.getApplication(connection, "runtime-app")).thenReturn(Optional.of(new CoolifyApplicationSummary(
-            "runtime-app", "runtime", null, "running:healthy", null, null,
-            new ObjectMapper().readTree("{\"uuid\":\"runtime-app\",\"server_uuid\":\"" + AdmissionFixture.STAGING.serverUuid() + "\"}")
-        )));
+            "runtime-app", "runtime", null, "running:healthy", null, null, raw)));
+        when(client.getDatabase(connection, "runtime-app")).thenReturn(Optional.of(new CoolifyDatabaseSummary(
+            "runtime-app", "runtime", "running:healthy", "postgresql", null, null, raw)));
         when(consumers.findAll()).thenReturn(List.of());
 
         var readback = source.read(new ReadbackContext(reservation, policy(), "worker-1"));
@@ -141,6 +150,23 @@ class ProductionAdmissionResourceReadbackSourceTest {
         assertThat(readback.resourcesAbsent()).isFalse();
         verify(client, never()).getApplication(connection, "external-resource");
         verify(client, never()).getDatabase(connection, "external-resource");
+
+        for (String invalid : List.of("missing-placement", "wrong-resource", "wrong-destination",
+                "wrong-nested-server", "conflicting-direct-server")) {
+            raw.remove(List.of("server_uuid", "destination"));
+            raw.put("uuid", "wrong-resource".equals(invalid) ? "other-resource" : "runtime-app");
+            if (!"missing-placement".equals(invalid)) {
+                raw.putObject("destination").put("uuid", "wrong-destination".equals(invalid)
+                        ? "other-destination" : AdmissionFixture.STAGING.destinationUuid())
+                    .putObject("server").put("uuid", "wrong-nested-server".equals(invalid)
+                        ? "other-server" : AdmissionFixture.STAGING.serverUuid());
+                if ("conflicting-direct-server".equals(invalid)) raw.put("server_uuid", "other-server");
+            }
+            assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
+                .isInstanceOf(AdmissionFailure.class).hasMessageContaining("ACTIVE_PROVIDER_RESOURCE_CHANGED");
+        }
+        raw.remove(List.of("server_uuid", "destination"));
+        raw.put("uuid", "runtime-app").put("server_uuid", AdmissionFixture.STAGING.serverUuid());
 
         when(handles.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc("deployment", AdmissionFixture.TARGET))
             .thenReturn(List.of(retained));
@@ -157,9 +183,16 @@ class ProductionAdmissionResourceReadbackSourceTest {
         retained.setResourceKind(retainedKind);
 
         when(client.getApplication(connection, "runtime-app")).thenReturn(Optional.empty());
+        when(client.getDatabase(connection, "runtime-app")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> source.read(new ReadbackContext(reservation, policy(), "worker-1")))
             .isInstanceOf(AdmissionFailure.class)
             .hasMessageContaining("ACTIVE_PROVIDER_RESOURCE_ABSENT");
+    }
+
+    private static Stream<Arguments> activeResourceShapes() {
+        return Stream.of("EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING")
+            .flatMap(retained -> Stream.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE")
+                .flatMap(resource -> Stream.of(false, true).map(nested -> Arguments.of(retained, resource, nested))));
     }
 
     @ParameterizedTest

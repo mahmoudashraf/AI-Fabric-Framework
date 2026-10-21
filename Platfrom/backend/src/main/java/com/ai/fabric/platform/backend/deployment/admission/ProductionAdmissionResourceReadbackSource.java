@@ -368,8 +368,18 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         } else {
             throw failure(PRECONDITION_FAILED, "ACTIVE_PROVIDER_RESOURCE_UNSUPPORTED");
         }
-        if (raw == null || !handle.getProviderResourceUuid().equals(raw.path("uuid").asText())
-            || !serverUuid.equals(raw.path("server_uuid").asText())) {
+        if (raw == null || !handle.getProviderResourceUuid().equals(raw.path("uuid").asText())) {
+            throw failure(CONFLICT, "ACTIVE_PROVIDER_RESOURCE_CHANGED");
+        }
+        var destination = raw.path("destination");
+        boolean directServer = raw.hasNonNull("server_uuid");
+        boolean destinationServer = destination.path("server").hasNonNull("uuid");
+        // Coolify resource GETs may identify placement through the destination relation.
+        if ((!directServer && !destinationServer)
+            || (directServer && !serverUuid.equals(raw.path("server_uuid").asText()))
+            || (destinationServer && !serverUuid.equals(destination.path("server").path("uuid").asText()))
+            || (!destination.isMissingNode() && !destination.isNull()
+                && !connection.config().destinationUuid().equals(destination.path("uuid").asText()))) {
             throw failure(CONFLICT, "ACTIVE_PROVIDER_RESOURCE_CHANGED");
         }
         Map<String, Object> value = new TreeMap<>();
