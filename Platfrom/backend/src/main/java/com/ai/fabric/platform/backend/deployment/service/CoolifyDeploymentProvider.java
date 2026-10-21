@@ -1760,6 +1760,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 var item = kind.equals(RESOURCE_KIND_APPLICATION) ? app : connectorApp;
                 var config = RuntimeArtifactRepairApplicationProjection.project(item.raw(), kind.equals(RESOURCE_KIND_APPLICATION));
                 fingerprints.put(kind + ":configuration", codec.fingerprint(config));
+                fingerprints.put(kind + ":configuration:base64", codec.fingerprint(
+                    RuntimeArtifactRepairApplicationProjection.base64Labels(item.raw(), kind.equals(RESOURCE_KIND_APPLICATION))));
                 var environment = coolifyApiClient.runtimeRepairEnvironmentInventory(handleConnection, handle.getProviderResourceUuid());
                 if (kind.equals(RESOURCE_KIND_APPLICATION)) {
                     var provenance = RuntimeArtifactRepairProvenance.inspect(environment);

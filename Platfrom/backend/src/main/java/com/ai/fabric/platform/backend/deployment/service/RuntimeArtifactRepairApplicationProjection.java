@@ -6,7 +6,11 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
 /** Reviewed Coolify application configuration; provider clocks, derived hashes and status are not configuration. */
@@ -69,6 +73,31 @@ public final class RuntimeArtifactRepairApplicationProjection {
                 && decoded.lines().anyMatch(line -> line.indexOf('=') > 0)) return TextNode.valueOf(decoded);
         } catch (IllegalArgumentException notBase64) { /* Plain label configuration stays exact. */ }
         return value.deepCopy();
+    }
+    /** Second exact wire representation, for already-sealed provider receipts. */
+    public static ObjectNode base64Labels(JsonNode raw, boolean imageMayChange) {
+        var result = project(raw, imageMayChange);
+        var label = result.path("custom_labels");
+        if (label.isTextual() && label.textValue().lines().anyMatch(line -> line.indexOf('=') > 0))
+            result.put("custom_labels", Base64.getEncoder().encodeToString(label.textValue().getBytes(StandardCharsets.UTF_8)));
+        return result;
+    }
+    public static boolean equivalent(Map<String, String> expected, Map<String, String> observed, List<String> configurationKeys) {
+        var before = new TreeMap<>(expected); var after = new TreeMap<>(observed);
+        for (String key : configurationKeys) {
+            String beforeEncoded = before.remove(key + ":base64");
+            String afterEncoded = after.remove(key + ":base64");
+            if (before.get(key) == null || after.get(key) == null) {
+                if (before.get(key) != null || after.get(key) != null || beforeEncoded != null || afterEncoded != null) return false;
+                continue;
+            }
+            if (beforeEncoded != null && !Objects.equals(beforeEncoded, afterEncoded)) return false;
+            if (!Objects.equals(before.get(key), after.get(key))) {
+                if (beforeEncoded != null || before.get(key) == null || !before.get(key).equals(afterEncoded)) return false;
+                after.put(key, before.get(key));
+            }
+        }
+        return before.equals(after);
     }
     private static void fail() {
         throw new org.springframework.web.server.ResponseStatusException(CONFLICT, "RUNTIME_ARTIFACT_REPAIR_NATIVE_CONFIGURATION_UNREVIEWED");

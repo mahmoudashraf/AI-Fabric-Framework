@@ -10,6 +10,18 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 20:40UTC labelcorrectionfollowup107focusedPASS/provider41/package/no skips.
+  OldInboxsealedhashencoded, runtime+connectorplain: newobservationsrecordboth
+  exactWHOLEconfigurationrepresentations, oldsealedmustmatchone/newmustmatchboth;
+  allotherfieldsstrict, missingprimarynegativecaughtandfixedbeforepublication.
+  Source6b8ab54d4publishedNEVERdeployed; supersedewithfullfollowupONErolloutFROMfa.
+  Root01044-cold-maintenance-label-equivalence-20261021 qual/rollout/closure ready;
+  CIcollectorrootnextimage-r50 (49contains6b8unused). Stilloriginalr2repairUNKNOWN
+  DEPLOY; reconcileexactjobe1o551... AFTERbackendrollout, NOrepeatdeploymutation.
+  Runtimehealthy0.8.36/oldgenerationDRAINING1, connector+Inboxstopped, appDRAFT.
+  Prod5minsamplePASSended20:34:10Z(~0.5coremax/12.5GBavailable/no swap), stage
+  sampleunrununtilcoldVERIFIED. NoAIqueries/businesswrites/activation. UIlast.
+
 - 20:34UTC r2coldPLAN200/CLAIMED, 5effectsCONFIRMED throughPATCH_PROVENANCE.
   DEPLOY_RUNTIME DIDdispatch jobe1o551qremhlni5ck7ebmnt5 then409nativeconfigguard;
   resultUNKNOWN, ONLYreadonlyreconcile next, NOrepeatPOSTeffect. Runtimehealthy.

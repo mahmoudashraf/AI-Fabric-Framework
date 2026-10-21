@@ -7,6 +7,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class RuntimeArtifactRepairApplicationProjectionTest {
@@ -51,6 +53,31 @@ class RuntimeArtifactRepairApplicationProjectionTest {
             assertThat(RuntimeArtifactRepairApplicationProjection.project(app().put("custom_labels", labels), true)
                 .path("custom_labels").textValue()).isEqualTo(labels);
         }
+    }
+    @Test void existingSealedPlainOrEncodedReceiptsAcceptOnlyTheirExactWholeConfigurationHash() {
+        for (String previous : List.of("plain-hash", "encoded-hash")) {
+            assertThat(RuntimeArtifactRepairApplicationProjection.equivalent(
+                Map.of("configuration", previous, "environment", "unchanged"),
+                Map.of("configuration", "plain-hash", "configuration:base64", "encoded-hash", "environment", "unchanged"),
+                List.of("configuration"))).isTrue();
+        }
+    }
+    @Test void representationEvidenceDoesNotMaskChangedOrMissingConfigurationOrOtherFields() {
+        var previous = Map.of("configuration", "encoded-hash", "environment", "unchanged");
+        for (var observed : List.of(
+            Map.of("configuration", "different", "configuration:base64", "also-different", "environment", "unchanged"),
+            Map.of("configuration", "plain-hash", "configuration:base64", "encoded-hash", "environment", "changed"),
+            Map.of("configuration", "plain-hash", "environment", "unchanged"),
+            Map.of("configuration:base64", "encoded-hash", "environment", "unchanged"),
+            Map.of("configuration", "plain-hash", "configuration:base64", "encoded-hash", "environment", "unchanged", "unexpected", "value"))) {
+            assertThat(RuntimeArtifactRepairApplicationProjection.equivalent(previous, observed, List.of("configuration"))).isFalse();
+        }
+    }
+    @Test void newReceiptsRequireBothRepresentationHashesWithoutDroppingAnyEvidence() {
+        var before = Map.of("configuration", "plain-hash", "configuration:base64", "encoded-hash");
+        assertThat(RuntimeArtifactRepairApplicationProjection.equivalent(before, before, List.of("configuration"))).isTrue();
+        assertThat(RuntimeArtifactRepairApplicationProjection.equivalent(before,
+            Map.of("configuration", "plain-hash", "configuration:base64", "changed"), List.of("configuration"))).isFalse();
     }
     private static String encoded(String labels) {
         return Base64.getEncoder().encodeToString(labels.getBytes(StandardCharsets.UTF_8));

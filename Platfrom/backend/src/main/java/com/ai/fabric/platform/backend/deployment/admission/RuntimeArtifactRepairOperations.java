@@ -327,17 +327,19 @@ public class RuntimeArtifactRepairOperations {
         var before = json.read(plan.nativeEvidence().identities().get("inventory"), NativeInventory.class);
         var beforeStable = new TreeMap<>(before.fingerprints()); var afterStable = new TreeMap<>(inventory.fingerprints());
         beforeStable.remove("runtimeSourceCommit"); afterStable.remove("runtimeSourceCommit");
-        if (!beforeStable.equals(afterStable)) fail("NATIVE_CONFIGURATION_OR_STORAGE_CHANGED");
+        if (!com.ai.fabric.platform.backend.deployment.service.RuntimeArtifactRepairApplicationProjection.equivalent(
+            beforeStable, afterStable, List.of("APPLICATION:configuration", "CONNECTOR_APPLICATION:configuration")))
+            fail("NATIVE_CONFIGURATION_OR_STORAGE_CHANGED");
         String commit = inventory.fingerprints().get("runtimeSourceCommit");
         if (!plan.local().original().gitCommit().equals(commit) && !plan.local().replacement().gitCommit().equals(commit))
             fail("UNREVIEWED_SOURCE_PROVENANCE");
         requireJobs(before.runtimeJobs(), inventory.runtimeJobs(), journal.dispatch(plan, Effect.DEPLOY_RUNTIME));
         requireJobs(before.connectorJobs(), inventory.connectorJobs(), journal.dispatch(plan, Effect.RESUME_CONNECTOR));
-        var originalInbox = json.read(plan.nativeEvidence().identities().get("inbox"), com.fasterxml.jackson.databind.JsonNode.class).deepCopy();
-        var currentInbox = json.read(json.write(inbox.observe(plan.local())), com.fasterxml.jackson.databind.JsonNode.class);
-        ((com.fasterxml.jackson.databind.node.ObjectNode) originalInbox).remove("applicationStatus");
-        ((com.fasterxml.jackson.databind.node.ObjectNode) currentInbox).remove("applicationStatus");
-        if (!originalInbox.equals(currentInbox)) fail("INBOX_CONFIGURATION_OR_STORAGE_CHANGED");
+        var originalInbox = new TreeMap<String, String>(json.read(plan.nativeEvidence().identities().get("inbox"), Map.class));
+        var currentInbox = new TreeMap<>(inbox.observe(plan.local()));
+        originalInbox.remove("applicationStatus"); currentInbox.remove("applicationStatus");
+        if (!com.ai.fabric.platform.backend.deployment.service.RuntimeArtifactRepairApplicationProjection.equivalent(
+            originalInbox, currentInbox, List.of("configuration"))) fail("INBOX_CONFIGURATION_OR_STORAGE_CHANGED");
         requireJobs(List.of(json.read(plan.nativeEvidence().identities().get("inboxJobs"), NativeJob[].class)),
             inbox.jobs(plan.local()), journal.dispatch(plan, Effect.RESUME_INBOX));
         if (!replacement(plan, inventory) && !(plan.local().original().repository().equals(inventory.runtimeRepository())

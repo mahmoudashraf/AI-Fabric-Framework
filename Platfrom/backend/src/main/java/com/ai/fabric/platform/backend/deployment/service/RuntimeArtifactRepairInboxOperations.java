@@ -40,6 +40,7 @@ public class RuntimeArtifactRepairInboxOperations {
         var config = RuntimeArtifactRepairApplicationProjection.project(app.raw(), false);
         return Map.of("applicationUuid", app.uuid(), "databaseUuid", database.uuid(), "applicationStatus", app.status(),
             "databaseStatus", database.status(), "configuration", json.fingerprint(config),
+            "configuration:base64", json.fingerprint(RuntimeArtifactRepairApplicationProjection.base64Labels(app.raw(), false)),
             "environment", json.fingerprint(api.runtimeRepairEnvironmentInventory(context.connection(), app.uuid())),
             "appStorage", json.fingerprint(api.listApplicationStorages(context.connection(), app.uuid())),
             "dbStorage", json.fingerprint(api.listDatabaseStorages(context.connection(), database.uuid())));

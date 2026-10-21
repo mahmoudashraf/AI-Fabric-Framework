@@ -223,6 +223,21 @@ Fresh capacity preparation is under
 read-only sample is running. Staging sampling starts only after the runtime,
 connector and Inbox are stable. Keep both full reservations and headroom.
 
+The retained Inbox's older sealed configuration hash used the encoded form,
+while runtime/connector receipts used plain labels. The bounded follow-up records
+both exact whole-configuration representation hashes for new observations and
+requires an old sealed hash to match one of those exact forms. New receipts
+require both hashes. Every nonrepresentation field remains strictly equal;
+missing primary configuration, changed labels/environment, extra fields and
+changed secondary evidence reject. No sealed receipt is rewritten. The first
+local missing-primary negative test caught an implementation omission before
+publication; its failed XML remains retained. Final107 focused checks pass,
+including41 actual provider-class tests, with zero failures/errors/skips and a
+successful package. No additional PostgreSQL test claim is made for this pure
+projection change. Source `6b8ab54d4` was published but never deployed; the full
+follow-up supersedes it before the next control-plane rollout. New private root:
+`/private/tmp/01044-cold-maintenance-label-equivalence-20261021`.
+
 - [x] Preserve the failed attempt and actual native/runtime observations. Do not
   replay retry intents, reset counters, repair SQL state or weaken drain gates.
 - [x] Resolve the effective primary store; missing/ambiguous/unsupported stores
