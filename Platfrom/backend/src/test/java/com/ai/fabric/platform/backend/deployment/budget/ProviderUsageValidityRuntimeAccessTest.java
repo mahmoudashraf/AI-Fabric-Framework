@@ -16,6 +16,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -92,6 +94,24 @@ class ProviderUsageValidityRuntimeAccessTest {
     @Test void replacedExactSecretRevisionIsDeniedRatherThanResolvedByEnvironment() {
         secrets.findById("target-signing").orElseThrow().setUpdatedAt(revision.plusSeconds(1));
         assertThatThrownBy(() -> adapter.resolve(scope, "release", true)).hasMessageContaining("AUTHORITY_CHANGED");
+        verifyNoInteractions(signer);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CREATED", "ACTIVE", "RUNNING_HEALTHY"})
+    void normalOwnedRuntimeHandleCanResolveReadAndWriteAuthority(String status) {
+        handle.setStatus(status);
+        assertThat(adapter.resolve(scope, "release", false).baseUrl()).isEqualTo("https://exact.synthetic.invalid");
+        assertThat(adapter.resolve(scope, "release", true).baseUrl()).isEqualTo("https://exact.synthetic.invalid");
+        verify(signer, times(2)).issueAssertionWithSigningKey(any(), eq("synthetic-target-signing"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"STOPPED", "RUNNING_UNHEALTHY", "UNKNOWN", "RETIRING", "DELETED"})
+    void unavailableOrRetiredRuntimeHandleCannotResolveAuthority(String status) {
+        handle.setStatus(status);
+        assertThatThrownBy(() -> adapter.resolve(scope, "release", false)).hasMessageContaining("HANDLE_CHANGED");
+        assertThatThrownBy(() -> adapter.resolve(scope, "release", true)).hasMessageContaining("HANDLE_CHANGED");
         verifyNoInteractions(signer);
     }
 }

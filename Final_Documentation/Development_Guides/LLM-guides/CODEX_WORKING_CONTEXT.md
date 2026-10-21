@@ -10,6 +10,26 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 06:22UTC: BOTH CPs verified d507380ea/schema207/UP; closure under
+  01044-append-window-rollout-20261021. Same-release repair487f7a46 now VERIFIED,
+  all ten effects confirmed; receipt fa3e1d31da0d86df80fb51c6b0a9a650b2bcca5db833ab2a6f51a901694ba042.
+  Runtime t10b61aaiushqjgg18t69ro5 runs exact c266a428 immutable image/sourcef927,
+  ACTIVE epoch2; connector and Inbox healthy, same resources/wallet/history.
+  DEPLOY_RUNTIME/RESUME_INBOX hit Coolify429 after dispatch; exact native jobs
+  finished and were explicitly read-only reconciled, NEVER replayed. Follow-up:
+  reduce heavy2s inventory polling; not part of current critical path.
+  Measured policy01036-reviewed-recovery-fleet-20261021 VERIFIED; same quota/
+  funding/ceilings, staging baselineCPU3000 conservatively remeasured. Proof in
+  01044-post-empty-recovery-policy-20261021/verified.actual.json.
+  First validity-plan409 PROVIDER_USAGE_EXTENSION_RUNTIME_HANDLE_CHANGED:
+  actual owned handle RUNNING_HEALTHY excluded by access guard. Narrow fix adds
+  that normal status; ownership/release/authority and unavailable-state denials
+  unchanged. Focused tests/package/backend-only rollout pending. Original failed
+  plan intent/response preserved in attended-runtime-validity-recovery-20261021;
+  do NOT replay it. No validity review/effect exists yet. App stillDRAFT;
+  owner resume/indexing/browser/promotion/UI extraction remain. Framework0.8.36
+  unchanged. User reiterates basic supported fullselfservice, defer hard cases.
+
 - Oct21 05:29UTC Main resumed after directhuman Approved inRequiredforproduction,
   actualuserID01a15ce9-2618-7af1-9283-52cdf6cd2270 verifiedviaread_thread.
   Approvedexistingstagingadapterinstalledb79d4816->fa6e4997, backupretained,

@@ -56,7 +56,7 @@ public class ProviderUsageValidityRuntimeAccess {
             .orElseThrow(() -> conflict("PROVIDER_USAGE_EXTENSION_RUNTIME_HANDLE_REQUIRED"));
         if (!scope.deploymentId().equals(handle.getDeploymentId()) || !scope.targetProfileId().equals(handle.getTargetProfileId())
             || !releaseId.equals(handle.getReleaseId()) || !"APPLICATION".equals(handle.getResourceKind())
-            || !Set.of("ACTIVE", "CREATED").contains(handle.getStatus()) || handle.getProviderType() != release.getProviderType())
+            || !Set.of("ACTIVE", "CREATED", "RUNNING_HEALTHY").contains(handle.getStatus()) || handle.getProviderType() != release.getProviderType())
             throw conflict("PROVIDER_USAGE_EXTENSION_RUNTIME_HANDLE_CHANGED");
         String trusted = secret(binding, RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY);
         String signing = secret(binding, RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY);

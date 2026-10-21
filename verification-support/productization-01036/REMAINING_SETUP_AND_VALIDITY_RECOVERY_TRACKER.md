@@ -8,6 +8,27 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Latest Scope Decision And Basic Recovery
 
+- 06:22 UTC supersedes the intermediate checkpoints below. Both control planes
+  verify `d507380ea`, schema207, healthUP. Same-release repair487f7a46 is VERIFIED:
+  all ten effects confirmed, final receipt
+  `fa3e1d31da0d86df80fb51c6b0a9a650b2bcca5db833ab2a6f51a901694ba042`.
+  Runtime, connector and Inbox are healthy; runtime is ACTIVE epoch2 on the exact
+  reviewed c266a428 image. Same native resources, wallet and failed history remain.
+- Measured policy continuity is published and verified under
+  `01036-reviewed-recovery-fleet-20261021`. Capacity ceilings/headroom, quota,
+  reservation identity and funding are unchanged. Staging baseline CPU is
+  conservatively3000 millicores; production remains1000. The policy's finite
+  validity ends07:49:57UTC; do not represent expired samples as fresh.
+- First same-wallet validity plan returned409 before any durable review/effect:
+  the runtime-access guard rejects normal owned handle `RUNNING_HEALTHY`.
+  Main is qualifying that narrow status correction. Original failed intent and
+  response are retained, not replayed. No wallet reset/replacement or new grant.
+- Coolify429 after runtime/Inbox native dispatch was settled by exact-job
+  read-only reconciliation, not redispatch. Heavy two-second full-inventory
+  polling is a documented operational follow-up, not a reason to expand this
+  release's scope. Full owner resume, indexing, app activation, browser acceptance,
+  production promotion and UI extraction remain incomplete.
+
 - 05:29 UTC update supersedes the pending approval below: the owner approved
   the fixed count capability in **Required for production**. The exact tested
   adapter is installed, old backup retained, and protected host settings remain
@@ -107,7 +128,7 @@ extraction stays last. This is an execution tracker, not a new product direction
   database reconciliation; qualify critical tests and verify both control planes.
 - [x] Collect a real five-minute current-fleet baseline. It is not a workload
   capacity certification and must satisfy the next policy's freshness boundary.
-- [ ] Publish measured policy continuity through the existing reviewed API with
+- [x] Publish measured policy continuity through the existing reviewed API with
   unchanged capacity, quotas, reservation identity and financial history.
 - [x] Implement and locally qualify explicit continuation from a provisioned, uninitialized dependency
   checkpoint. Verify exact live ownership, image, environment, health and terminal

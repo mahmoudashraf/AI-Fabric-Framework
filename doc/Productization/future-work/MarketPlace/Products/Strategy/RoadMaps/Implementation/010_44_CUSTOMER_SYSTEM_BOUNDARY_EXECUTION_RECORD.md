@@ -1,5 +1,28 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 06:22 UTC Repair Verified And Policy Published
+
+Both control planes verify d507380ea/schema207/healthUP. The original same-release
+runtime repair is VERIFIED, all ten effects confirmed; final receipt fingerprint
+`fa3e1d31da0d86df80fb51c6b0a9a650b2bcca5db833ab2a6f51a901694ba042`.
+Runtime runs the exact reviewed c266a428 image and is ACTIVE epoch2; connector and
+Inbox are healthy. No replacement resources, wallet reset or framework release.
+Original failed/UNKNOWN results remain; Coolify429 after dispatch was resolved by
+explicit read-only reconciliation of the existing successful native jobs.
+
+Measured admission continuation01036-reviewed-recovery-fleet-20261021 is VERIFIED,
+with unchanged ceilings/headroom/quota/funding and a conservative measured CPU
+baseline. Its current validity ends07:49:57UTC. The first wallet-validity plan
+failed409 because its access guard excludes the normal owned RUNNING_HEALTHY
+handle status. Main is qualifying the narrow status correction; no review/effect
+was created, and the failed plan is not replayed. Customer app remains DRAFT.
+
+Basic supported full self-service remains the goal. Indexing, live workspace
+acceptance, promotion and finally reversible UI extraction remain. Harder recovery
+cases remain documented/deferred. More efficient Coolify polling is a follow-up,
+not additional current-path scope. Evidence is retained under the attended
+runtime-validity recovery and post-empty-recovery-policy directories in /private/tmp.
+
 ## 2026-10-21 05:29 UTC Approval And Readback
 
 Direct owner approval for the exact fixed four-table count capability was
