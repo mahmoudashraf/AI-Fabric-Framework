@@ -1,5 +1,42 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 17:42 UTC Reapply Recovery Qualified, CI Running
+
+`3a1eccfce` is committed/pushed; backend-only CI39645965490 is running. The
+prepared-Inbox state correction and owner-authorized pre-runtime-stop retry keep
+the same failed release/reservation/native resources, old verified runtime and
+consumer, and complete financial history. Read-only old-generation authority,
+native ownership, immutable proof/fence/replay and atomic single dispatch are
+verified; ordinary drain/fence/adoption still applies. Unsupported failure phases
+are explicitly deferred rather than generalized or marked no-effect.
+
+117 focused checks and140 completed additional PostgreSQL checks pass,152 actual
+PG cases total, zero failures/errors/skips. The interrupted broader outer process
+is recorded as interrupted, not passed; the final focused run and packaging
+passed independently. Independent review found no concrete P1/P2 issue. Fresh
+capacity policy remains fully charged and valid through19:32:24Z without lowered
+baselines/headroom/limits or financial changes. Main proceeds with guarded
+backend rollout then the same-release owner retry and hosted customer journey.
+Both control planes currently remain on8619; app DRAFT, no browser query or lead
+write, promotion and UI extraction still open. UI extraction remains last.
+
+## 2026-10-21 17:10 UTC Identity Live, Basic Reapply State Fix
+
+Both control planes now run qualified identity projection `8619d15c4` with
+unchanged schema207, critical configuration and financial history. The normal
+customer published `ver-0ad586a8` with the required broker/scopes and rebound
+external integrations. Reapply `rel-efc001ac` failed because generation quiesce
+rejects the legitimate prepared-foundation state of an existing Inbox.
+
+A narrow generic state correction and full release-update sequence regression
+pass66 focused checks/package, retaining resources/operator identities and
+ownership/concurrency fences. Live recovery is not yet complete: the existing
+failed-apply retry contract is initial-deployment-only. Main is resolving the
+supported recovery path without SQL repairs or hiding the failure. No browser
+gate or business write has run; the app remains DRAFT. Production promotion and
+UI extraction remain open, with UI extraction last. Exact receipts and return
+points remain in the recovery tracker.
+
 ## 2026-10-21 16:38 UTC Consumer Activated, App Identity Gate Open
 
 The null-consumer fix settled the fresh allocation normally; scoped generation

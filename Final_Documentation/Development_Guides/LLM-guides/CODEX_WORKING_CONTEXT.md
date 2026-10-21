@@ -10,6 +10,38 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 17:42UTC source3a1eccfce committed/pushed; CI39645965490 backendonlybuilding.
+  Combinedqualification257cases/152realPG/zero failures/errors/skips +package.
+  Composition117focusedPASS+140completedPGsuite; broadouterrun12941 intentionally
+  stoppedexit143after140suitecompleted, NOTafullMavenpass. RawXML+interruption
+  retainedin01044-prepared-inbox-reapply-20261021; jar0540c397...444870.
+  IndependentreviewnoP1/P2. Narrowownerretry foralreadyactivepre-runtime-stop
+  reapply retainsoldrelease/consumer/fullR/financialhistory; authenticatedold
+  generationreadONLY usesissueSystemHeaders (notprovisioning-onlywriterheaders).
+  AtomicSubmissionpreventsdoubleexecute. No genericafterstop/repeatedretryclaim.
+  Fresh61x5read-onlybaselinesPASS;9runningledgercgroups+separatelyverifiedstopped
+  connector, BOTHfullholdskept. Policy01036-pilot-reapply-fleet-20261021 valid
+  through19:32:24Z, native/financialhistoryunchanged; baselinesnotlowered, actual
+  diskgrowthincluded. BOTHCPstill861 untilguardedrollout. Helpersprepared:
+  01044-prepared-inbox-reapply-20261021/rollout.mjs +qualify.mjs;
+  01044-fresh-pilot-prepared-inbox-retry-20261021.mjs (NOTRUN), expectednormalretry
+  ofSAMErel-efc001ac/R25dea632/generation8bf1bb40. CurrentR7OUTCOME_UNKNOWN.
+  NoSQLrepair/publicbrowserquery/leadwrite; appDRAFT; UIextractionLAST. Needclose
+  bothCPmaintenance beforeownerretry/activation. No missingusermaterial.
+
+- 17:10UTC:8619identity/image3382c241 verifiedBOTHCP/schema207/critical25tables
+  unchanged; stagejobn10cb12u21jnf1ftdvv9n63a/prodeuxcr28ow26g44wxz5fcghxp.
+  Normalnewver0ad586a8 actualbroker+7scopes; bothnewexternalbindingsapproved.
+  SAMEallocation reapplyrel-efc001ac FAILED DEPENDENCY_GENERATION_GRAPH_NOT_READY.
+  Rootcause:foundationrebindleavesPROVISIONED/RUNTIME_INITIALIZATION_REQUIRED,
+  generationquiescerequiresREADY. Narrowpredicatefix+actualrebind/foundation/
+  quiesce/resume/reconcile regression66checksPASS/zero skips/packagePASS;
+  sevenproviderchecks running. Originalfixturehardcodedoldfingerprintfailure
+  correctedtoreturnactualscopefingerprint. Maincheckingnormalreapplyrecovery:
+  existingFailedApplyRetry onlyinitialconnectorfailure, notactive-deployment
+  reapply. Do NOTreplayconsumedhelperpublish/reserve/apply. NoSQLrepair/browser
+  ingress/leadwrite; appDRAFT. NativeIDs/operator/fullholds retained. UIlast.
+
 - 16:38UTC: allocationautoACTIVE2 proven/samefullscope+envelope. Normalfresh
   policy01036-pilot-activation-fleet-20261021 until17:58:44Z; CPUcgroupqualified
   1104mnonledger+4500mholds+2000mhead=7604/8000, memoryfitsunchangedheadroom.

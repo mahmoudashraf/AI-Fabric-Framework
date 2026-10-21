@@ -6,6 +6,78 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Qualified Reapply Recovery, 21 October 17:42 UTC
+
+- Generic correction `3a1eccfce5b90a2b4d779cbd3dc6128240d22975` is committed
+  and pushed. Backend-only CI39645965490 is running; the live control planes
+  still run `8619d15c4` until the normal guarded rollout completes. No framework,
+  runtime artifact, schema or UI change. The external delivery guide documents
+  the supported owner retry and its intentionally narrow topology/phase limits.
+- Qualification comprises117 focused passing cases plus140 completed PostgreSQL
+  settlement cases, all with zero failures/errors/skips;152 cases use actual
+  PostgreSQL. The first broad Maven process was intentionally interrupted after
+  that140-case suite completed; the remaining focused run passed separately.
+  The interrupted outer process is NOT represented as a full Maven pass. Raw
+  reports and the interruption record are retained. Package passes; qualified
+  jar SHA256 `0540c397a98998376826afd836a12f790fa8c8a416a98577b962e4180d444870`.
+  Independent read-only review found no concrete P1/P2 issue.
+- The same owner retry-plan/execute API now supports the exact pre-runtime-stop
+  reapply boundary. It proves the old verified generation is still ACTIVE using
+  existing owner-authorized read-only private authority, exact native ownership
+  and terminal jobs, unchanged candidate/scope, managed Inbox ownership,
+  consumer assignment and full financial history. Only the transaction that
+  actually queues dispatches apply; replay/concurrent callers cannot duplicate
+  dispatch. The ordinary drain/fence/single-writer transition still runs.
+  Repeated failures, other topologies and after-stop/adoption recovery are not
+  claimed; no no-effect relabeling or manual SQL repair.
+- Fresh61x5-second measurements passed on both hosts. The stopped connector
+  has no Docker container; the remaining nine exact running ledger cgroups are
+  measured before/after, and BOTH full reservations remain charged. Existing
+  CPU/memory baselines are never lowered; disk baseline now includes actual
+  observed growth. Normal policy `01036-pilot-reapply-fleet-20261021` is published
+  through19:32:24Z, with full reservations/headroom/quotas/financial history
+  preserved. Earlier preparation failures were local assertions before any
+  policy POST and are not represented as successful measurements/publications.
+- Next, main owns one combined backend rollout on both control planes, closes
+  maintenance, normally plans/retries SAME `rel-efc001ac`/allocation/generation,
+  verifies retained resources/documents, then activates consumer/app and runs
+  the prepared hosted browser journey. No public browser query or lead write
+  has run. App DRAFT; production promotion and final reversible UI extraction
+  remain open. Private root `01044-prepared-inbox-reapply-20261021`, retry helper
+  `01044-fresh-pilot-prepared-inbox-retry-20261021.mjs` (NOT RUN); capacity root
+  `01044-reapply-capacity-refresh-20261021`. No missing user material.
+
+### Reapply State Correction, 21 October 17:10 UTC
+
+- Identity source `8619d15c4` is deployed and verified on both control planes:
+  staging job `n10cb12u21jnf1ftdvv9n63a`, production job
+  `euxcr28ow26g44wxz5fcghxp`, immutable image `3382c241...25f5c`. Schema207,
+  environment and25 critical authority/configuration/financial tables preserved.
+  Maintenance closure is recorded privately. Normal customer publication created
+  `ver-0ad586a8`, with the actual reviewed Supabase broker and all seven required
+  conversation/handover scopes. Both external integrations were normally bound
+  to the new version; same allocation and full demand retained.
+- Normal reapply `rel-efc001ac` failed with
+  `DEPENDENCY_GENERATION_GRAPH_NOT_READY`. Preparing a new release intentionally
+  leaves the existing Inbox graph PROVISIONED/RUNTIME_INITIALIZATION_REQUIRED;
+  quiesce incorrectly required READY. The narrow correction accepts this exact
+  prepared state, not arbitrary incomplete/failed/busy graphs. Native ownership,
+  exact candidate, worker and operation checks remain; resource creation during
+  generation transition remains prohibited.
+- The full READY -> version/release rebind -> foundation -> quiesce -> resume ->
+  runtime-bound initialization regression now passes, retaining native resource
+  and operator identities. Focused lifecycle/coordinator/generation/native
+  provisioning checks pass66 cases, zero skips. Package passes; additional seven
+  provider-generation checks are running. An original fixture failure was caused
+  by a hardcoded old admission fingerprint; the fixture now returns the actual
+  requested binding fingerprint. Original failure is not counted as a pass.
+- The failed reapply remains FAILED; no public browser query or lead write has
+  been issued and the app remains DRAFT. Main is checking the normal recovery
+  route before retrying: the existing failed-apply retry contract is explicitly
+  limited to an initial connector startup failure, not an already-active
+  deployment. No SQL state repair, hidden success or duplicate allocation.
+  Production promotion and UI extraction remain open; UI extraction is last.
+
 ### Identity Projection And Hosted Activation, 21 October 16:38 UTC
 
 - Normal reconciliation settled reservation `25dea632-66b6-48c5-897c-bfcabb112894`
