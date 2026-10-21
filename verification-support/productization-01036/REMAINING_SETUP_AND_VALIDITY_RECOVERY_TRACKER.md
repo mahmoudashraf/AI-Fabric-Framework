@@ -6,6 +6,30 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Settlement Diagnosis, 21 October 15:52 UTC
+
+- Both control planes completed the `826f090ac` rollout: staging job
+  `i78mxhp6ro6wa5giwp3ep4r7`, production job `kzjyz3kr7xfe4xfn9c4zek4q`.
+  Schema207, healthUP, exact image and 25 critical authority/configuration/
+  financial table snapshots verified. The deployed readback class SHA matches
+  the qualified package. Maintenance is closed before customer operations.
+- The native-placement correction is necessary but has not resolved settlement:
+  `rel-1fe0f5b8` remains verified while reservation
+  `25dea632-66b6-48c5-897c-bfcabb112894` remains PROVISIONING revision1.
+  Local replay of the complete resource readback using actual saved metadata
+  passes, including the immutable manifest fingerprint. Do not infer ACTIVE.
+- Narrow observability commit `a87b90f00` exposes only the failure reason code
+  or exception class, never provider messages, stack traces or SQL parameters.
+  Seven focused coordinator checks and package pass; original Mockito
+  restubbing test failure was corrected in the test, not worked around in code.
+  Backend-only CI39629533529 is pending. One bounded offline ledger replay is
+  delegated; live operations stay with Main. No framework/runtime/schema/UI change.
+- The earlier capacity policy expired at15:15:53Z. It is not fresh authorization
+  for activation; refresh normally if required after diagnosing settlement.
+  No SQL ledger repair, duplicate customer apply, allowance reset or browser
+  acceptance claim. All three document indexes remain ACTIVE; public browser,
+  protected sign-in, handover, production and UI-last gates remain open.
+
 ### Fresh Customer Journey, 21 October 14:29 UTC
 
 - 14:52UTC superseding status: release `rel-1fe0f5b8` is APPLIED_VERIFIED /

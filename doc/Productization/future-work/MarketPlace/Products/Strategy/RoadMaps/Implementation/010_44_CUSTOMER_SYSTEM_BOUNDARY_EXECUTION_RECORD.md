@@ -1,5 +1,18 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 15:52 UTC Verified Release, Settlement Still Open
+
+Both control planes now run qualified `826f090ac`, schema207, with unchanged
+critical customer configuration and financial history. Fresh pilot release
+`rel-1fe0f5b8` is APPLIED_VERIFIED/PASSED; Inbox is READY and all three
+customer-owned S3 policies are ACTIVE with real scoped retrieval proven.
+
+Admission remains PROVISIONING, so the consumer and public app have not been
+activated. Actual resource-response replay passes the corrected verifier;
+safe reason-code logging `a87b90f00` is qualified and building to expose the
+remaining settlement failure. No ledger bypass, duplicate deployment, framework
+release or UI extraction. See the recovery tracker for exact receipts and gates.
+
 ## 2026-10-21 14:37 UTC Fresh Hosted Pilot
 
 This checkpoint supersedes the older pending-route and not-deployed wording

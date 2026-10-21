@@ -10,6 +10,17 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 15:52UTC: BOTH CP826f090/image1d2ead27/schema207/UP verified; maintenance
+  closed before furtherownercommands. Actualdeployedclass matchesqualifiedSHA.
+  Release rel1fe0f5b8 VERIFIED butreservation25dea632 PROVISIONINGr1 persists.
+  Actualfixture fullresource-source replayPASS; remainingcause notyetproven.
+  Safe reason-only logging a87b90f00 pushed,7checks/packagePASS,
+  CI39629533529pending; noframework/runtime/schema/UIchanges. Privatequalifier/
+  guardedrollout:01044-admission-settlement-diagnostic-20261021. Chandrasekhar
+  doesboundedofflineledgerreplay,nohostedmutations. Policyexpired15:15:53Z;
+  refreshnormalcapacity/placementforactivationasneeded. NoSQLwrites,browser
+  gatesnotrun,appDRAFT. Fulluseraccessnowenabled; NEVERsetsandbox_permissions.
+
 - 14:52UTC: fresh release rel-1fe0f5b8 APPLIED_VERIFIED/PASSED; Inbox READY,
   ownerkeydeliveredonce overHTTPS/private. ThreeS3policies ACTIVEv1; real
   embeddingretrievalproof returnsall3 correctscope/provider scores. Consumer/app
