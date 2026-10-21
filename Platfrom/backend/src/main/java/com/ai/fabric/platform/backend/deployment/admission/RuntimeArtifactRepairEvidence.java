@@ -30,6 +30,11 @@ public class RuntimeArtifactRepairEvidence {
     private final DeploymentSourceArtifactService artifacts;
     private final RuntimeArtifactRepairCompatibility compatibility;
     private final Clock clock;
+    private RuntimeArtifactRepairColdMaintenanceEligibility coldMaintenance;
+    @Autowired
+    void setColdMaintenance(RuntimeArtifactRepairColdMaintenanceEligibility coldMaintenance) {
+        this.coldMaintenance = coldMaintenance;
+    }
     @Autowired
     public RuntimeArtifactRepairEvidence(JdbcTemplate jdbc, AdmissionJson json, AdmissionStore store,
         CustomerOfferEntitlementService entitlements, CustomerReviewedCompositionService composition,
@@ -48,6 +53,11 @@ public class RuntimeArtifactRepairEvidence {
             || request.operationKey() == null || request.operationKey().isBlank() || request.operationKey().length() > 128
             || request.reason() == null || request.reason().isBlank() || request.reason().length() > 1000)
             throw new AdmissionFailure(BAD_REQUEST, "RUNTIME_ARTIFACT_REPAIR_CONSENT_REQUIRED");
+        boolean cold = request.mode() == Mode.COLD_MAINTENANCE_REAPPLY;
+        if (cold && (coldMaintenance == null || request.coldMaintenance() == null
+            || !request.coldMaintenance().acceptInMemoryStateLoss())
+            || !cold && request.coldMaintenance() != null)
+            throw new AdmissionFailure(BAD_REQUEST, "RUNTIME_ARTIFACT_REPAIR_COLD_CONSENT_REQUIRED");
         var deployment = one("SELECT * FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", deploymentId);
         var r = store.require(request.fence().reservationId());
         var expectedFence = claim == null ? request.fence() : claim.reservationFence();
@@ -68,13 +78,15 @@ public class RuntimeArtifactRepairEvidence {
         if (definition.targets().stream().noneMatch(t -> r.targetProfileId().equals(t.targetProfileId())
             && r.intent().name().equals(t.intent().name()))) fail("TARGET_NOT_REVIEWED");
         var context = store.context(r); var manifest = context.manifest();
+        var result = new TreeMap<String, String>();
         var release = one("SELECT * FROM platform_deployment_releases WHERE id=? FOR UPDATE NOWAIT", releaseId);
         if (!deploymentId.equals(release.get("deployment_id")) || !r.targetProfileId().equals(release.get("target_profile_id"))
             || !manifest.versionId().equals(release.get("deployment_version_id"))
-            || !manifest.versionId().equals(deployment.get("active_version_id"))
+            || !cold && !manifest.versionId().equals(deployment.get("active_version_id"))
             || !"FAILED".equals(release.get("status")) || !"FAILED".equals(release.get("provisioning_status"))
             || !"SKIPPED".equals(release.get("verification_status")) || !"apply_failed".equals(release.get("current_step_key"))
             || !"COOLIFY".equals(release.get("provider_type")) || release.get("runtime_authority_fingerprint") == null) fail("RELEASE_CHANGED");
+        ColdPriorRuntime prior = cold ? coldMaintenance.prior(r, deployment, release, request, result) : null;
         var version = one("SELECT * FROM platform_deployment_versions WHERE id=? FOR UPDATE NOWAIT", manifest.versionId());
         if (!deploymentId.equals(version.get("deployment_id")) || !"PUBLISHED".equals(version.get("status"))
             || !manifest.versionConfigHash().equals(version.get("config_hash"))) fail("VERSION_CHANGED");
@@ -98,7 +110,8 @@ public class RuntimeArtifactRepairEvidence {
             || !r.id().equals(graph.get("reservation_ref")) || graph.get("worker_token") != null
             || !Objects.equals(release.get("runtime_authority_fingerprint"), graph.get("binding_fingerprint"))) fail("DEPENDENCY_SCOPE_CHANGED");
         var graphState = json.read((String) graph.get("state_json"), ManagedDependencyState.class);
-        RuntimeArtifactRepairDependencyEligibility.require((String) graph.get("status"), (String) graph.get("step"),
+        if (cold) coldMaintenance.graph(graph, graphState, prior, releaseId);
+        else RuntimeArtifactRepairDependencyEligibility.require((String) graph.get("status"), (String) graph.get("step"),
             (String) graph.get("failure_code"), graphState);
         var handles = rows("SELECT * FROM deployment_provider_resource_handles WHERE deployment_id=? ORDER BY id FOR UPDATE NOWAIT", deploymentId);
         var nativeHandles = handles.stream().filter(v -> !PreservedExternalBindingKinds.isPreserved((String) v.get("resource_kind"))).toList();
@@ -106,13 +119,13 @@ public class RuntimeArtifactRepairEvidence {
             .equals(List.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE"))) fail("OWNED_PG_REQUIRED");
         for (var handle : handles) if (!r.targetProfileId().equals(handle.get("target_profile_id"))
             || !PreservedExternalBindingKinds.isPreserved((String) handle.get("resource_kind"))
-                && (!releaseId.equals(handle.get("release_id")) || !"COOLIFY".equals(handle.get("provider_type"))
+                && (!(cold && "APPLICATION".equals(handle.get("resource_kind")) ? prior.releaseId() : releaseId).equals(handle.get("release_id")) || !"COOLIFY".equals(handle.get("provider_type"))
                     || handle.get("provider_resource_uuid") == null)) fail("HANDLE_SCOPE_CHANGED");
         var original = artifacts.require(composition.runtimeArtifactId(definition));
         if (!original.getId().equals(release.get("source_artifact_id"))) fail("ORIGINAL_ARTIFACT_CHANGED");
         var replacement = artifacts.require(request.replacementArtifactId()); compatibility.requireCompatible(original, replacement);
         compatibility.requireTargetChannel(replacement, r.intent());
-        var result = new TreeMap<String, String>();
+        if (cold) compatibility.requireColdMaintenance(replacement);
         if (request.mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART) {
             if (!"BLOCKED".equals(graph.get("status")) || graphState.nodes.stream().anyMatch(node -> node.initialized))
                 fail("COLD_RESTART_PREINITIALIZATION_REQUIRED");
@@ -148,7 +161,7 @@ public class RuntimeArtifactRepairEvidence {
         if (!"ACTIVE".equals(allocation.get("initialization_state")) || allocation.get("store_uuid") == null
             || !r.customerId().equals(allocation.get("customer_id")) || !r.id().equals(terms.path("initialAdmission").path("reservationId").asText())
             || !r.generation().equals(terms.path("initialAdmission").path("generation").asText())
-            || !manifest.versionId().equals(terms.path("initialAdmission").path("versionId").asText())) fail("ACTIVE_SAME_ALLOWANCE_REQUIRED");
+            || !(cold ? prior.versionId() : manifest.versionId()).equals(terms.path("initialAdmission").path("versionId").asText())) fail("ACTIVE_SAME_ALLOWANCE_REQUIRED");
         result.put("allocation", json.fingerprint(allocation));
         result.put("walletApprovalId", (String) allocation.get("approval_id"));
         result.put("walletStoreUuid", (String) allocation.get("store_uuid"));
@@ -159,7 +172,8 @@ public class RuntimeArtifactRepairEvidence {
         result.put("validityEvents", json.fingerprint(rows("SELECT e.* FROM provider_usage_validity_events e JOIN provider_usage_validity_reviews r ON r.extension_id=e.extension_id WHERE r.approval_id=? ORDER BY e.extension_id,e.event_type FOR UPDATE OF e NOWAIT", allocation.get("approval_id"))));
         var scope = new Scope(r.customerId(), r.tenantId(), deploymentId, r.targetProfileId(), releaseId, manifest.versionId(),
             manifest.versionConfigHash(), (String) release.get("runtime_authority_fingerprint"), r.id(), r.generation(),
-            (String) deployment.get("runtime_base_url"), uuid(nativeHandles, "APPLICATION"), uuid(nativeHandles, "CONNECTOR_APPLICATION"), uuid(nativeHandles, "RUNTIME_POSTGRES_DATABASE"));
+            (String) deployment.get("runtime_base_url"), uuid(nativeHandles, "APPLICATION"), uuid(nativeHandles, "CONNECTOR_APPLICATION"), uuid(nativeHandles, "RUNTIME_POSTGRES_DATABASE"),
+            cold ? prior.releaseId() : null);
         if (scope.runtimeBaseUrl() == null || !scope.runtimeBaseUrl().startsWith("https://")) fail("PRIVATE_RUNTIME_ENDPOINT_REQUIRED");
         Instant executionDeadline = clock.instant().plusSeconds(1800).isBefore(r.expiresAt())
             ? clock.instant().plusSeconds(1800) : r.expiresAt();

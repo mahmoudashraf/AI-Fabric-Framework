@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferE
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyState;
+import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpecValidator;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -104,6 +105,156 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         assertThatThrownBy(() -> api.retry("offer", "deployment", failed.id(), new FailedApplyRetryContracts.Command(
             plan.command().fence(), "failed-release", plan.command().operationKey(), "changed", true, plan.command().proofFingerprint())))
             .hasMessageContaining("OPERATION_REUSED");
+    }
+
+    @Test void coldMaintenanceEligibilityPinsPriorRuntimeAndPreservesFundingWithoutPretendingItDrained() {
+        prepareColdMaintenance();
+        var before = allState();
+        var fingerprints = new TreeMap<String, String>();
+        var prior = coldEligibility(fingerprints, coldRequest(true));
+        assertThat(prior.releaseId()).isEqualTo("prior-release");
+        assertThat(prior.versionId()).isEqualTo("prior-version");
+        assertThat(fingerprints).containsKeys("coldPriorRuntime", "coldPriorAuthority", "coldConsumers", "coldInstallations");
+        assertThat(json.read(fingerprints.get("coldPriorRuntime"), RuntimeArtifactRepairContracts.ColdPriorRuntime.class)).isEqualTo(prior);
+        assertThat(allState()).isEqualTo(before);
+        assertThat(store.require(failed.id()).chargedDemand()).isEqualTo(failed.chargedDemand());
+        assertThat(jdbc.queryForObject("SELECT payload_json FROM provider_usage_allocations WHERE approval_id='wallet'", String.class))
+            .contains("prior-version");
+        verifyNoInteractions(provider, generations, execution);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"activatedApp", "foreignConsumer", "wrongGraphOperation", "missingConsent"})
+    void coldMaintenanceEligibilityRejectsLiveOrUnprovenScopeWithoutChangingHistory(String change) {
+        prepareColdMaintenance();
+        switch (change) {
+            case "activatedApp" -> jdbc.update("UPDATE ai_workspace_installations SET status='ACTIVE',activated_at=? WHERE id='workspace'", Timestamp.from(NOW));
+            case "foreignConsumer" -> jdbc.update("UPDATE platform_consumers SET bound_target_profile_id='foreign-target' WHERE id='consumer'");
+            case "wrongGraphOperation" -> changeGraph(state -> state.runtimeGenerationOperationKey = "foreign-operation");
+            case "missingConsent" -> { }
+            default -> throw new AssertionError(change);
+        }
+        var before = allState();
+        assertThatThrownBy(() -> coldEligibility(new TreeMap<>(), coldRequest(!"missingConsent".equals(change))))
+            .isInstanceOf(AdmissionFailure.class);
+        assertThat(allState()).isEqualTo(before);
+        verifyNoInteractions(provider, generations, execution);
+    }
+
+    private RuntimeArtifactRepairContracts.ColdPriorRuntime coldEligibility(Map<String, String> fingerprints,
+        RuntimeArtifactRepairContracts.Request request) {
+        return new TransactionTemplate(new DataSourceTransactionManager(dataSource)).execute(tx -> {
+            var eligibility = new RuntimeArtifactRepairColdMaintenanceEligibility(jdbc, json, new ManagedDependencySpecValidator(mapper));
+            var prior = eligibility.prior(failed,
+                jdbc.queryForMap("SELECT * FROM platform_deployments WHERE id='deployment'"),
+                jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id='failed-release'"), request, fingerprints);
+            var graph = jdbc.queryForMap("SELECT * FROM deployment_managed_dependency_graphs WHERE id='graph'");
+            eligibility.graph(graph, json.read((String) graph.get("state_json"), ManagedDependencyState.class), prior, "failed-release");
+            return prior;
+        });
+    }
+
+    @Test void verifiedColdMaintenanceContinuesExactCandidateWithoutRequiringOldGenerationToBeActive() {
+        var proof = prepareVerifiedColdMaintenance();
+        var before = preserved();
+        var plan = plan();
+        assertThat(plan.boundary()).isEqualTo(FailedApplyRetryContracts.COLD_MAINTENANCE_BOUNDARY);
+        var receipt = api.retry("offer", "deployment", failed.id(), plan.command());
+        assertThat(receipt.financialMutationPerformed()).isFalse();
+        assertThat(preserved()).isEqualTo(before);
+        assertThat(api.retry("offer", "deployment", failed.id(), plan.command())).isEqualTo(receipt);
+        verify(provider, times(2)).coldMaintenanceReapplyReadback(proof);
+        verify(provider, never()).reapplyBeforeRuntimeStopReadback(anyString(), anyString(), anyString(), anyString(), any(), any(), any());
+        verify(generations, never()).requireActiveForReapply(any(), any(), anyString(), anyString());
+        verify(generations, times(2)).requireActiveAfterColdMaintenance(any(), any(), eq("https://runtime.example"));
+        verify(execution, times(1)).executeApply("deployment", "version", "failed-release");
+        assertThat(store.require(failed.id()).generation()).isEqualTo(failed.generation());
+        assertThat(store.require(failed.id()).chargedDemand()).isEqualTo(failed.chargedDemand());
+        var details = json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class),
+            com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(details.path("retryHistory")).hasSize(2);
+        assertThat(details.path("retryHistory").get(0).path("errorMessage").asText()).isEqualTo("original-first-attempt");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"epoch", "checkpointReceipt", "dependencyDrift"})
+    void coldContinuationRejectsChangedProofOrGenerationWithoutDispatch(String change) {
+        prepareVerifiedColdMaintenance();
+        if (change.equals("epoch")) {
+            when(generations.requireActiveAfterColdMaintenance(any(), any(), anyString())).thenReturn(
+                new RuntimeGenerationTransitionContracts.Readback(new RuntimeGenerationTransitionContracts.Target("deployment", TARGET, "failed-release"),
+                    "tenant", RuntimeGenerationTransitionContracts.State.ACTIVE, 9, null, null, null, false, false, NOW));
+        } else if (change.equals("checkpointReceipt")) {
+            jdbc.update("UPDATE platform_deployment_releases SET source_artifact_id='different' WHERE id='failed-release'");
+        } else changeGraph(state -> state.runtimeGenerationState = "RESUMED");
+        var before = allState();
+        assertThatThrownBy(this::plan).isInstanceOf(AdmissionFailure.class);
+        assertThat(allState()).isEqualTo(before);
+        verifyNoInteractions(execution);
+    }
+
+    private RuntimeArtifactRepairContracts.VerifiedRepair prepareVerifiedColdMaintenance() {
+        prepareColdMaintenance();
+        var failedDetails = progress(); failedDetails.putArray("retryHistory").addObject().put("errorMessage", "original-first-attempt");
+        jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(failedDetails));
+        var previous = new RuntimeGenerationTransitionContracts.Readback(
+            new RuntimeGenerationTransitionContracts.Target("deployment", TARGET, "prior-release"), "tenant",
+            RuntimeGenerationTransitionContracts.State.DRAINING, 1, "replace:failed-release", "f".repeat(64), NOW, false, false, NOW);
+        var active = new RuntimeGenerationTransitionContracts.Readback(
+            new RuntimeGenerationTransitionContracts.Target("deployment", TARGET, "failed-release"), "tenant",
+            RuntimeGenerationTransitionContracts.State.ACTIVE, 2, null, null, null, false, false, NOW);
+        var zero = new RuntimeGenerationTransitionContracts.Metric(0L, true, List.of());
+        var snapshot = new RuntimeGenerationTransitionContracts.Snapshot("actual", "actual-inventory", previous, NOW,
+            zero, zero, zero, zero, 0, false, false, false, false, false, "e".repeat(64), List.of(), List.of("UNSUPPORTED_FENCE"));
+        var cold = new RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult(
+            new RuntimeGenerationTransitionContracts.GenerationTransitionResult(previous, active, "physical-stop", NOW, false), snapshot,
+            "PHYSICAL_STOP_COLD_MAINTENANCE_V1", "owner-approved", true);
+        var scope = new RuntimeArtifactRepairContracts.Scope("customer", "tenant", "deployment", TARGET, "failed-release", "version", "version-hash",
+            "c".repeat(64), failed.id(), failed.generation(), "https://runtime.example", "native-APPLICATION", "native-CONNECTOR_APPLICATION",
+            "native-RUNTIME_POSTGRES_DATABASE", "prior-release");
+        var original = new RuntimeArtifactRepairContracts.ArtifactPin("original-artifact", "original", "runtime", "sha256:" + "a".repeat(64), "a".repeat(40), "old-build", "staging", "manifest");
+        var replacement = new RuntimeArtifactRepairContracts.ArtifactPin("replacement", "new", "runtime", "sha256:" + "b".repeat(64), "b".repeat(40), "new-build", "staging", "manifest2");
+        var graph = jdbc.queryForMap("SELECT * FROM deployment_managed_dependency_graphs WHERE id='graph'");
+        var proof = new RuntimeArtifactRepairContracts.VerifiedRepair("cold-plan", "plan-hash", scope, original, replacement,
+            "native-APPLICATION", "cold-runtime-job", NOW, NOW, null, null, Map.of(),
+            Map.of("coldMaintenanceReceipt", json.write(cold), "dependencyGraph", json.fingerprint(graph)), NOW);
+        var checkpoint = new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Checkpoint(
+            com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED,
+            new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.PriorRuntime("prior-release", "native-APPLICATION", "https://runtime.example"),
+            null, "e".repeat(64), "physical-stop", NOW, cold);
+        jdbc.update("UPDATE platform_deployment_releases SET runtime_generation_transition_state='COLD_ADOPTED',runtime_generation_transition_json=?,runtime_generation_transition_fingerprint=? WHERE id='failed-release'",
+            json.write(checkpoint), "e".repeat(64));
+        var repairs = mock(RuntimeArtifactRepairJournal.class);
+        when(repairs.verifiedRepair("failed-release")).thenReturn(proof);
+        var checkpoints = mock(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class);
+        when(checkpoints.read("failed-release")).thenReturn(Optional.of(checkpoint));
+        store.setColdMaintenanceEvidence(repairs, checkpoints);
+        when(provider.coldMaintenanceReapplyReadback(proof)).thenReturn(nativeReadback(NOW));
+        when(generations.requireActiveAfterColdMaintenance(any(), any(), anyString())).thenReturn(active);
+        return proof;
+    }
+
+    private RuntimeArtifactRepairContracts.Request coldRequest(boolean consent) {
+        return new RuntimeArtifactRepairContracts.Request(failed.fence(), "replacement", "offer", 1,
+            "cold-maintenance", "Reviewed downtime for never-activated staging workspace", true,
+            RuntimeArtifactRepairContracts.Mode.COLD_MAINTENANCE_REAPPLY,
+            new RuntimeArtifactRepairContracts.ColdMaintenanceAcknowledgement("prior-release", "owner-downtime-approval", consent));
+    }
+
+    private void prepareColdMaintenance() {
+        jdbc.update("UPDATE platform_deployment_releases SET source_artifact_id='original-artifact',runtime_authority_fingerprint=? WHERE id='prior-release'", "a".repeat(64));
+        jdbc.update("UPDATE platform_deployment_releases SET source_artifact_id='original-artifact',error_message='RUNTIME_GENERATION_DRAIN_INCOMPLETE' WHERE id='failed-release'");
+        jdbc.update("UPDATE platform_deployment_versions SET behavior_config_json='{\"type\":\"CONVERSATIONAL\"}' WHERE deployment_id='deployment'");
+        jdbc.update("INSERT INTO platform_runtime_authority_snapshots(id,deployment_id,target_profile_id,version_id,release_id,fingerprint,binding_json,created_at) VALUES ('prior-authority','deployment',?,'prior-version','prior-release',?,'{}',?)",
+            TARGET, "a".repeat(64), Timestamp.from(NOW));
+        jdbc.update("INSERT INTO ai_workspace_installations(id,installation_id,customer_id,consumer_entity_id,display_name,status,experience_pack_code,experience_pack_version,connection_mode,connection_profile_code,connection_profile_version,connection_configuration_json,allowed_origins_json,configuration_json,created_at,updated_at) VALUES ('workspace','workspace-public','customer','consumer','Fixture','DRAFT','generic','1','PUBLIC_RUNTIME_ANONYMOUS','public','1','{}','[]','{}',?,?)",
+            Timestamp.from(NOW), Timestamp.from(NOW));
+        changeGraph(state -> {
+            state.nodes.getFirst().provisionedConfigurationRevision = state.configurationRevision;
+            state.nodes.getFirst().status = "PROVISIONED";
+            state.runtimeGenerationState = "QUIESCED";
+            state.runtimeGenerationStoppedSlots.add("inbox");
+            state.runtimeGenerationOperationKey = new ManagedDependencySpecValidator(mapper).fingerprint(List.of(
+                "RUNTIME_GENERATION", "graph", TARGET, "prior-release", "failed-release", "d".repeat(64), "c".repeat(64)));
+        });
     }
 
     @ParameterizedTest @ValueSource(strings = {"checkpoint", "inboxGeneration", "ownership", "consumer", "allowance", "laterStep", "busyGraph"})

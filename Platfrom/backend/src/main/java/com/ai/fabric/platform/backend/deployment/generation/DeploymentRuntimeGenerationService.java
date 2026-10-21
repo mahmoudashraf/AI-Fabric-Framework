@@ -68,6 +68,18 @@ public class DeploymentRuntimeGenerationService {
         return current;
     }
 
+    public Readback requireActiveAfterColdMaintenance(DeploymentEntity deployment, DeploymentReleaseEntity release,
+        String runtimeBaseUrl) {
+        if (deployment == null || release == null || !deployment.getId().equals(release.getDeploymentId())
+            || release.getTargetProfileId() == null) throw failure("RUNTIME_GENERATION_SCOPE_INVALID");
+        var target = new Target(deployment.getId(), release.getTargetProfileId(), release.getId());
+        var current = client.status(runtimeBaseUrl, target, authority.issueVerifiedColdMaintenanceReadHeaders(release.getId()));
+        validate(current, target, deployment.getTenantId());
+        if (current.state() != State.ACTIVE || current.authorityRevoked() || current.reclaimStarted())
+            throw failure("RUNTIME_GENERATION_COLD_ADOPTION_NOT_ACTIVE");
+        return current;
+    }
+
     public DrainReceipt drainAndFence(DeploymentEntity deployment, DeploymentReleaseEntity nextRelease,
                                       String previousReleaseId, String previousRuntimeBaseUrl,
                                       Duration timeout, Duration pollInterval,

@@ -311,6 +311,37 @@ public class DeploymentRuntimeAuthorityService {
     /** Dedicated, journal-fenced repair authority. Never initializes, activates or extends an allowance. */
     @Transactional
     public Map<String, String> issueRuntimeArtifactRepairHeaders(String planId, boolean write) {
+        return runtimeArtifactRepairHeaders(planId, write, false);
+    }
+
+    /** Read the exact prior generation pinned by the attended cold-maintenance plan. */
+    @Transactional
+    public Map<String, String> issueRuntimeArtifactRepairPriorReadHeaders(String planId) {
+        return runtimeArtifactRepairHeaders(planId, false, true);
+    }
+
+    /** This scope cannot be issued by ordinary repair, provisioning or customer-session paths. */
+    @Transactional
+    public Map<String, String> issueRuntimeArtifactRepairColdMaintenanceHeaders(String planId) {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN
+            || artifactRepairs == null || artifactRepairs.getIfAvailable() == null) throw conflict("Reviewed cold maintenance authority is required.");
+        var local = artifactRepairs.getObject().authorityEvidence(required(planId), principal.actorId(), true);
+        if (local.request().mode() != com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Mode.COLD_MAINTENANCE_REAPPLY
+            || local.request().coldMaintenance() == null || !local.request().coldMaintenance().acceptInMemoryStateLoss()) {
+            throw conflict("Explicit cold maintenance acknowledgement is required.");
+        }
+        // Recheck the failed candidate and frozen snapshot using the ordinary repair boundary.
+        runtimeArtifactRepairHeaders(planId, true, false);
+        var scope = local.scope();
+        var deployment = deployments.findById(scope.deploymentId()).orElseThrow();
+        var snapshot = snapshots.findByReleaseId(scope.releaseId()).orElseThrow();
+        var checked = checkedSnapshot(deployment, authority(deployment, scope.targetProfileId()), snapshot, scope.authorityFingerprint());
+        return headers(checked.binding(), "platform-runtime-cold-maintenance", "SYSTEM_PROCESS", planId, false,
+            List.of("runtime:target-retirement:cold-maintenance:write"), Duration.ofMinutes(2));
+    }
+
+    private Map<String, String> runtimeArtifactRepairHeaders(String planId, boolean write, boolean previous) {
         var principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN
             || artifactRepairs == null || artifactRepairs.getIfAvailable() == null) throw conflict("Reviewed runtime artifact repair authority is required.");
@@ -327,9 +358,53 @@ public class DeploymentRuntimeAuthorityService {
             || !local.original().artifactId().equals(release.getSourceArtifactId())
             || !scope.versionId().equals(snapshot.getVersionId())) throw conflict("Repair release authority changed.");
         var checked = checkedSnapshot(deployment, authority(deployment, scope.targetProfileId()), snapshot, scope.authorityFingerprint());
+        if (previous) {
+            if (write || local.request().mode() != com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Mode.COLD_MAINTENANCE_REAPPLY)
+                throw conflict("Read-only prior cold-maintenance authority is required.");
+            com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdPriorRuntime prior;
+            try {
+                prior = mapper.readValue(local.fingerprints().get("coldPriorRuntime"),
+                    com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdPriorRuntime.class);
+            } catch (Exception exception) { throw conflict("Prior cold-maintenance authority is unavailable."); }
+            var priorRelease = workerRelease(prior.releaseId());
+            var priorSnapshot = snapshots.findByReleaseId(prior.releaseId()).orElseThrow();
+            if (!"APPLIED_VERIFIED".equals(priorRelease.getStatus()) || !"ACTIVE".equals(priorRelease.getProvisioningStatus())
+                || !"PASSED".equals(priorRelease.getVerificationStatus())
+                || !scope.deploymentId().equals(priorRelease.getDeploymentId())
+                || !scope.targetProfileId().equals(priorRelease.getTargetProfileId())
+                || !prior.versionId().equals(priorRelease.getDeploymentVersionId())
+                || !prior.versionId().equals(priorSnapshot.getVersionId())
+                || !prior.authorityFingerprint().equals(priorRelease.getRuntimeAuthorityFingerprint()))
+                throw conflict("Prior cold-maintenance authority changed.");
+            checked = checkedSnapshot(deployment, authority(deployment, scope.targetProfileId()), priorSnapshot, prior.authorityFingerprint());
+        }
         return headers(checked.binding(), "platform-runtime-artifact-repair", "SYSTEM_PROCESS", planId, false,
             write ? List.of("runtime:admin:overview", "runtime:index:overview", "runtime:target-retirement:read", "runtime:target-retirement:write")
                 : List.of("runtime:admin:overview", "runtime:index:overview", "runtime:target-retirement:read"), Duration.ofMinutes(2));
+    }
+
+    /** Customer retry can observe an already adopted generation, but cannot perform maintenance. */
+    @Transactional
+    public Map<String, String> issueVerifiedColdMaintenanceReadHeaders(String releaseId) {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || (principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN
+            && principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN)
+            || artifactRepairs == null || artifactRepairs.getIfAvailable() == null) throw conflict("Verified cold maintenance is required.");
+        var proof = artifactRepairs.getObject().verifiedRepair(required(releaseId));
+        if (proof == null || !proof.finalNativeInventory().containsKey("coldMaintenanceReceipt")) throw conflict("Verified cold maintenance is required.");
+        var scope = proof.scope();
+        var deployment = deployments.findById(scope.deploymentId()).orElseThrow();
+        access.requireDeploymentAdminAccess(deployment);
+        var release = workerRelease(releaseId);
+        var snapshot = snapshots.findByReleaseId(releaseId).orElseThrow();
+        if (!"FAILED".equals(release.getStatus()) || !"FAILED".equals(release.getProvisioningStatus())
+            || !scope.deploymentId().equals(release.getDeploymentId()) || !scope.targetProfileId().equals(release.getTargetProfileId())
+            || !scope.versionId().equals(release.getDeploymentVersionId()) || !scope.versionId().equals(snapshot.getVersionId())
+            || !scope.authorityFingerprint().equals(release.getRuntimeAuthorityFingerprint())
+            || !proof.original().artifactId().equals(release.getSourceArtifactId())) throw conflict("Cold maintenance release authority changed.");
+        var checked = checkedSnapshot(deployment, authority(deployment, scope.targetProfileId()), snapshot, scope.authorityFingerprint());
+        return headers(checked.binding(), "platform-cold-maintenance-readback", "SYSTEM_PROCESS", proof.planId(), false,
+            List.of("runtime:target-retirement:read"), Duration.ofMinutes(2));
     }
 
     /** Exact previous/next frozen releases, with only the generation-transition worker scopes. */

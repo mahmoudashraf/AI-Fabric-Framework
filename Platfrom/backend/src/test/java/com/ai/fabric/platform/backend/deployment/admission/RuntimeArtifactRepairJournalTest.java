@@ -139,6 +139,45 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         prepare(); claim(); journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {});
         assertThatThrownBy(() -> journal.intent(plan, Effect.QUIESCE_INBOX, "admin", () -> {})).hasMessageContaining("PRIOR_EFFECT_UNCONFIRMED");
     }
+    @Test void explicitColdMaintenanceHasItsOwnOrderedAdoptionAndCannotClaimDrainCommands() {
+        prepare();
+        plan = plan("cold-maintenance", NOW.plusSeconds(1800), Mode.COLD_MAINTENANCE_REAPPLY);
+        claim();
+        for (Effect effect : java.util.List.of(Effect.QUIESCE_CONNECTOR, Effect.QUIESCE_INBOX)) {
+            var intent = journal.intent(plan, effect, "admin", () -> {});
+            journal.outcome(plan, intent, Outcome.CONFIRMED, Map.of("observed", "stopped"), "admin");
+        }
+        assertThatThrownBy(() -> journal.intent(plan, Effect.BEGIN_DRAIN, "admin", () -> {}))
+            .hasMessageContaining("EFFECT_NOT_APPROVED");
+        assertThatThrownBy(() -> journal.intent(plan, Effect.CANCEL_DRAIN, "admin", () -> {}))
+            .hasMessageContaining("EFFECT_NOT_APPROVED");
+        assertThatThrownBy(() -> journal.intent(plan, Effect.ADOPT_COLD_GENERATION, "admin", () -> {}))
+            .hasMessageContaining("PRIOR_EFFECT_UNCONFIRMED");
+        assertThatCode(() -> journal.intent(plan, Effect.STOP_RUNTIME, "admin", () -> {})).doesNotThrowAnyException();
+        assertThat(effects(plan.local().request().mode())).containsSubsequence(
+            Effect.STOP_RUNTIME, Effect.PATCH_IMAGE, Effect.PATCH_PROVENANCE, Effect.DEPLOY_RUNTIME,
+            Effect.ADOPT_COLD_GENERATION, Effect.RESUME_INBOX, Effect.RESUME_CONNECTOR);
+    }
+    @Test void absentColdConsentFieldDoesNotChangeExistingSealedRequestFingerprints() {
+        var fields = new java.util.LinkedHashMap<String, Object>();
+        fields.put("fence", new AdmissionContracts.Fence("reservation", 7, "generation"));
+        fields.put("replacementArtifactId", "replacement");
+        fields.put("expectedOfferFingerprint", "offer");
+        fields.put("expectedEntitlementRevision", 2);
+        fields.put("operationKey", "legacy-repair");
+        fields.put("reason", "reviewed fix");
+        fields.put("acceptRuntimeRestart", true);
+        fields.put("mode", "FULL_DRAIN");
+        var parsed = json.read(json.write(fields), Request.class);
+        assertThat(parsed.coldMaintenance()).isNull();
+        assertThat(json.fingerprint(parsed)).isEqualTo(json.fingerprint(fields));
+        assertThat(json.write(parsed)).doesNotContain("coldMaintenance");
+        var acknowledged = new Request(parsed.fence(), parsed.replacementArtifactId(), parsed.expectedOfferFingerprint(),
+            parsed.expectedEntitlementRevision(), parsed.operationKey(), parsed.reason(), true,
+            Mode.COLD_MAINTENANCE_REAPPLY, new ColdMaintenanceAcknowledgement("prior-release", "owner-approval", true));
+        assertThat(json.fingerprint(acknowledged)).isNotEqualTo(json.fingerprint(parsed));
+        assertThat(json.read(json.write(acknowledged), Request.class)).isEqualTo(acknowledged);
+    }
     @Test void reconciledFirstEffectAllowsOnlyNewSecondEffect() {
         prepare(); claim(); journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {});
         journal.reconciled(plan, Effect.QUIESCE_CONNECTOR, Map.of("CONNECTOR", "observed"), "admin");
@@ -184,7 +223,7 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         assertThat(journal.verifiedRepair("release")).isEqualTo(proof); assertThat(journal.summary(command()).status()).isEqualTo("VERIFIED");
     }
     void completeEffects() {
-        for (Effect effect : Effect.values()) {
+        for (Effect effect : effects(plan.local().request().mode())) {
             var intent = journal.intent(plan, effect, "admin", () -> {});
             Map<String, String> result = switch (effect) {
                 case DEPLOY_RUNTIME -> Map.of("jobUuid", "runtime-job", "applicationUuid", "runtime-app", "repository", "reviewed/runtime", "tag", "sha256-" + "b".repeat(64));

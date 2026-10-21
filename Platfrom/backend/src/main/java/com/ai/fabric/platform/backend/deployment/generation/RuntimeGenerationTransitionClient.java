@@ -49,6 +49,12 @@ public class RuntimeGenerationTransitionClient {
             transition, headers, GenerationTransitionResult.class);
     }
 
+    public ColdMaintenanceTransitionResult coldMaintenanceTransition(String baseUrl,
+        ColdMaintenanceTransition transition, Map<String, String> headers) {
+        return post(baseUrl, "/api/private/runtime-target-retirement/cold-maintenance-generation-transitions",
+            transition, headers, ColdMaintenanceTransitionResult.class);
+    }
+
     private <T> T post(String baseUrl, String path, Object body, Map<String, String> headers, Class<T> type) {
         URI uri = endpoint(baseUrl, path);
         try {

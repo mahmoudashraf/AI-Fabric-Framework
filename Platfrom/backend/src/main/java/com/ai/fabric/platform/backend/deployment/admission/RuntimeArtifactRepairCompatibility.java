@@ -16,6 +16,7 @@ public final class RuntimeArtifactRepairCompatibility {
     public static final String VALIDITY_CAPABILITY = "deployment-local-provider-budget-validity-extension-v1";
     public static final String VALIDITY_MIGRATION = "provider-budget-validity-extensions-v1";
     public static final String VALIDITY_VERIFICATION = "provider-budget-validity-extension-v1";
+    public static final String COLD_MAINTENANCE_CAPABILITY = "runtime-cold-maintenance-generation-adoption-v1";
     private static final List<String> ARRAYS = List.of("supportedBehaviorTypes", "supportedActivationSources",
         "supportedChannelBindings", "supportedExecutionExtensions", "capabilities", "endpointClasses",
         "migrationIds", "verificationPackIds", "specialistBundles");
@@ -40,6 +41,12 @@ public final class RuntimeArtifactRepairCompatibility {
     public void requireTargetChannel(DeploymentSourceArtifactEntity replacement, AdmissionContracts.Intent intent) {
         String channel = intent == AdmissionContracts.Intent.CUSTOMER_PRODUCTION ? "production" : "staging";
         if (!channel.equals(replacement.getPromotionChannel())) fail("TARGET_PROMOTION_CHANNEL_REQUIRED");
+    }
+    public void requireColdMaintenance(DeploymentSourceArtifactEntity replacement) {
+        for (JsonNode capability : manifests.read(replacement.getCapabilityManifestJson()).path("capabilities")) {
+            if (capability.isTextual() && COLD_MAINTENANCE_CAPABILITY.equals(capability.textValue())) return;
+        }
+        fail("COLD_MAINTENANCE_CONTRACT_REQUIRED");
     }
     public void requireCompatible(DeploymentSourceArtifactEntity original, DeploymentSourceArtifactEntity replacement) {
         var beforePin = pin(original); var afterPin = pin(replacement);

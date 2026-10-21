@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.generation;
 
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Service;
@@ -8,14 +9,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Optional;
+
+import static com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult;
+import static com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.State;
 
 /** Durable control-plane checkpoint for the stop/start gap of an in-place runtime replacement. */
 @Service
 public class RuntimeGenerationCheckpointService {
-    public enum Phase { FENCED, STOP_CONFIRMED, ADOPTED }
+    public enum Phase { FENCED, STOP_CONFIRMED, ADOPTED, COLD_ADOPTED }
 
     public record PriorRuntime(String releaseId, String providerResourceUuid, String baseUrl) { }
 
@@ -24,7 +30,15 @@ public class RuntimeGenerationCheckpointService {
                              DeploymentRuntimeGenerationService.DrainReceipt drainReceipt,
                              String nextTopologyFingerprint,
                              String providerStopEvidenceReference,
-                             Instant adoptedAt) { }
+                             Instant adoptedAt,
+                             @JsonInclude(JsonInclude.Include.NON_NULL)
+                             ColdMaintenanceTransitionResult coldMaintenanceReceipt) {
+        public Checkpoint(Phase phase, PriorRuntime priorRuntime,
+                          DeploymentRuntimeGenerationService.DrainReceipt drainReceipt,
+                          String nextTopologyFingerprint, String providerStopEvidenceReference, Instant adoptedAt) {
+            this(phase, priorRuntime, drainReceipt, nextTopologyFingerprint, providerStopEvidenceReference, adoptedAt, null);
+        }
+    }
 
     private final DeploymentReleaseRepository releases;
     private final ObjectMapper mapper;
@@ -52,6 +66,7 @@ public class RuntimeGenerationCheckpointService {
             throw failure("RUNTIME_GENERATION_CHECKPOINT_DRIFT");
         }
         validate(releaseId, checkpoint);
+        validateColdScope(release.getDeploymentId(), release.getTargetProfileId(), checkpoint);
         return Optional.of(checkpoint);
     }
 
@@ -94,6 +109,30 @@ public class RuntimeGenerationCheckpointService {
         return save(releaseId, current, proposed);
     }
 
+    @Transactional
+    public Checkpoint recordColdAdopted(String releaseId, PriorRuntime prior,
+                                        ColdMaintenanceTransitionResult receipt) {
+        if (receipt == null || receipt.observedInventory() == null) {
+            throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
+        }
+        return recordColdAdopted(releaseId, prior, receipt, receipt.observedInventory().topologyFingerprint());
+    }
+
+    @Transactional
+    public Checkpoint recordColdAdopted(String releaseId, PriorRuntime prior,
+                                        ColdMaintenanceTransitionResult receipt, String nextTopologyFingerprint) {
+        if (receipt == null || receipt.transition() == null) {
+            throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
+        }
+        Instant adoptedAt = receipt.transition().transitionedAt();
+        if (adoptedAt == null || adoptedAt.isAfter(Instant.now().plusSeconds(5))) {
+            throw failure("RUNTIME_GENERATION_ADOPTION_TIME_INVALID");
+        }
+        return save(releaseId, null, new Checkpoint(Phase.COLD_ADOPTED, prior, null,
+            sha256(nextTopologyFingerprint), reference(receipt.transition().providerStopEvidenceReference()),
+            adoptedAt, receipt));
+    }
+
     public String fingerprint(Checkpoint checkpoint) { return digest(write(checkpoint)); }
 
     private Checkpoint require(String releaseId, String fingerprint, Phase phase) {
@@ -109,6 +148,12 @@ public class RuntimeGenerationCheckpointService {
             .orElseThrow(() -> failure("RUNTIME_GENERATION_RELEASE_MISSING"));
         Optional<Checkpoint> persisted = persisted(release.getRuntimeGenerationTransitionState(),
             release.getRuntimeGenerationTransitionFingerprint(), release.getRuntimeGenerationTransitionJson(), releaseId);
+        if (proposed.phase() == Phase.COLD_ADOPTED) {
+            validate(releaseId, proposed);
+            validateColdScope(release.getDeploymentId(), release.getTargetProfileId(), proposed);
+        }
+        persisted.ifPresent(checkpoint ->
+            validateColdScope(release.getDeploymentId(), release.getTargetProfileId(), checkpoint));
         if (expected == null && persisted.isPresent()) {
             if (persisted.get().equals(proposed)) return persisted.get();
             throw failure("RUNTIME_GENERATION_CHECKPOINT_ALREADY_EXISTS");
@@ -139,11 +184,19 @@ public class RuntimeGenerationCheckpointService {
 
     private void validate(String releaseId, Checkpoint checkpoint) {
         if (checkpoint == null || checkpoint.phase() == null || checkpoint.priorRuntime() == null
-            || checkpoint.drainReceipt() == null || checkpoint.priorRuntime().releaseId() == null
+            || checkpoint.priorRuntime().releaseId() == null
             || checkpoint.priorRuntime().providerResourceUuid() == null || checkpoint.priorRuntime().baseUrl() == null
-            || !releaseId.equals(checkpoint.drainReceipt().nextTarget().releaseId())
-            || !checkpoint.priorRuntime().releaseId().equals(checkpoint.drainReceipt().previousTarget().releaseId())
             || !isSha256(checkpoint.nextTopologyFingerprint())) {
+            throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
+        }
+        if (checkpoint.phase() == Phase.COLD_ADOPTED) {
+            validateCold(releaseId, checkpoint);
+            return;
+        }
+        if (checkpoint.coldMaintenanceReceipt() != null || checkpoint.drainReceipt() == null
+            || checkpoint.drainReceipt().nextTarget() == null || checkpoint.drainReceipt().previousTarget() == null
+            || !releaseId.equals(checkpoint.drainReceipt().nextTarget().releaseId())
+            || !checkpoint.priorRuntime().releaseId().equals(checkpoint.drainReceipt().previousTarget().releaseId())) {
             throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
         }
         if (checkpoint.phase() == Phase.FENCED
@@ -158,6 +211,70 @@ public class RuntimeGenerationCheckpointService {
             && (checkpoint.providerStopEvidenceReference() == null || checkpoint.adoptedAt() == null)) {
             throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
         }
+    }
+
+    private void validateCold(String releaseId, Checkpoint checkpoint) {
+        var receipt = checkpoint.coldMaintenanceReceipt();
+        if (checkpoint.drainReceipt() != null || receipt == null || receipt.transition() == null
+            || receipt.observedInventory() == null || !receipt.inMemoryStateLossAcknowledged()
+            || !"PHYSICAL_STOP_COLD_MAINTENANCE_V1".equals(receipt.evidenceKind())
+            || !validReference(receipt.approvalReference())
+            || !validReference(checkpoint.priorRuntime().releaseId())
+            || !validReference(checkpoint.priorRuntime().providerResourceUuid())
+            || !validReference(checkpoint.priorRuntime().baseUrl())) {
+            throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
+        }
+        var transition = receipt.transition();
+        var previous = transition.previous();
+        var current = transition.current();
+        var observed = receipt.observedInventory();
+        if (previous == null || current == null || previous.target() == null || current.target() == null
+            || !validReference(previous.target().deploymentId()) || !validReference(previous.target().targetProfileId())
+            || !validReference(previous.tenantId()) || !previous.tenantId().equals(current.tenantId())
+            || !previous.target().deploymentId().equals(current.target().deploymentId())
+            || !previous.target().targetProfileId().equals(current.target().targetProfileId())
+            || !checkpoint.priorRuntime().releaseId().equals(previous.target().releaseId())
+            || !releaseId.equals(current.target().releaseId()) || releaseId.equals(previous.target().releaseId())
+            || previous.state() != State.DRAINING || previous.authorityRevoked() || previous.reclaimStarted()
+            || current.state() != State.ACTIVE || current.authorityRevoked() || current.reclaimStarted()
+            || previous.fenceEpoch() < 0 || previous.fenceEpoch() == Long.MAX_VALUE
+            || current.fenceEpoch() != previous.fenceEpoch() + 1
+            || !validReference(previous.operationId()) || !isSha256(previous.requestFingerprint())
+            || current.operationId() != null || current.requestFingerprint() != null || current.drainDeadline() != null
+            || !validReference(transition.providerStopEvidenceReference())
+            || !transition.providerStopEvidenceReference().equals(checkpoint.providerStopEvidenceReference())
+            || transition.transitionedAt() == null || !transition.transitionedAt().equals(checkpoint.adoptedAt())
+            || !sameStoredInstant(current.updatedAt(), transition.transitionedAt())
+            || !previous.equals(observed.target()) || observed.observedAt() == null
+            || observed.observedAt().isAfter(transition.transitionedAt())
+            || !validReference(observed.snapshotId()) || !validReference(observed.evidenceReference())
+            || !checkpoint.nextTopologyFingerprint().equals(observed.topologyFingerprint())) {
+            throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
+        }
+    }
+
+    private boolean sameStoredInstant(Instant stored, Instant original) {
+        if (stored == null || original == null) return false;
+        if (stored.equals(original) || stored.equals(original.truncatedTo(ChronoUnit.MICROS))) return true;
+        try {
+            return stored.equals(original.plusNanos(500).truncatedTo(ChronoUnit.MICROS));
+        } catch (DateTimeException exception) {
+            return false;
+        }
+    }
+
+    private void validateColdScope(String deploymentId, String targetProfileId, Checkpoint checkpoint) {
+        if (checkpoint.phase() == Phase.COLD_ADOPTED) {
+            var target = checkpoint.coldMaintenanceReceipt().transition().current().target();
+            if (!target.deploymentId().equals(deploymentId) || !target.targetProfileId().equals(targetProfileId)) {
+                throw failure("RUNTIME_GENERATION_CHECKPOINT_INVALID");
+            }
+        }
+    }
+
+    private boolean validReference(String value) {
+        return value != null && !value.isBlank() && value.equals(value.trim()) && value.length() <= 1000
+            && value.chars().noneMatch(Character::isISOControl);
     }
 
     private String reference(String value) {

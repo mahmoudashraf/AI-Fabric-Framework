@@ -31,7 +31,7 @@ import static org.mockito.Mockito.*;
 
 @Timeout(10)
 class RuntimeArtifactRepairOperationsTest {
-    @ParameterizedTest @EnumSource(Effect.class)
+    @ParameterizedTest @EnumSource(value = Effect.class, names = "ADOPT_COLD_GENERATION", mode = EnumSource.Mode.EXCLUDE)
     void eachCommandDispatchesExactlyOneNativeMutationAndReconciliationDispatchesNone(Effect effect) {
         var h = new Harness(effect);
         assertThatCode(() -> h.ops.perform(h.plan, effect, "admin")).doesNotThrowAnyException();

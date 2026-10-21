@@ -578,6 +578,24 @@ class CoolifyDeploymentProviderTest {
         verifyNoInteractions(checkpoints);
     }
 
+    @Test void verifiedColdCheckpointIsReusedWithoutClaimingOrRepeatingAFullDrain() {
+        var checkpoints = mock(RuntimeGenerationCheckpointService.class);
+        var provider = provider(); provider.setRuntimeGenerationCheckpointService(checkpoints);
+        var prior = new RuntimeGenerationCheckpointService.PriorRuntime("release-old", "runtime-uuid", "https://runtime.example");
+        var checkpoint = new RuntimeGenerationCheckpointService.Checkpoint(RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED,
+            prior, null, "c".repeat(64), "physical-stop", Instant.now(),
+            mock(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult.class));
+        when(checkpoints.read("rel-123")).thenReturn(Optional.of(checkpoint));
+        var environments = List.of(new CoolifyEnvVar("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", "c".repeat(64), false, true, false, false));
+        assertThat(provider.prepareRuntimeGenerationReplacement(deployment(), release(), prior, application("runtime-uuid", "running:healthy"),
+            "https://runtime.example", environments, objectMapper.createObjectNode(), null)).isSameAs(checkpoint);
+        var changed = List.of(new CoolifyEnvVar("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256", "d".repeat(64), false, true, false, false));
+        assertThatThrownBy(() -> provider.prepareRuntimeGenerationReplacement(deployment(), release(), prior,
+            application("runtime-uuid", "running:healthy"), "https://runtime.example", changed, objectMapper.createObjectNode(), null))
+            .hasMessage("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
+        verify(checkpoints, never()).recordFenced(anyString(), any(), any(), anyString());
+    }
+
     @Test
     void refusesToHideMissingPriorGenerationWhenRemoteDependenciesExist() {
         RuntimeGenerationRemoteEvidenceProvider remote = mock(RuntimeGenerationRemoteEvidenceProvider.class);

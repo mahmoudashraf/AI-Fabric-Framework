@@ -31,6 +31,13 @@ final class ReapplyBeforeRuntimeStopEvidence {
     ReapplyBeforeRuntimeStopEvidence(JdbcTemplate jdbc, AdmissionJson json) { this.jdbc = jdbc; this.json = json; }
 
     FailedApplyRetryContracts.Candidate read(Reservation r, String releaseId, Manifest manifest) {
+        return read(r, releaseId, manifest, null, null);
+    }
+
+    FailedApplyRetryContracts.Candidate read(Reservation r, String releaseId, Manifest manifest,
+        RuntimeArtifactRepairContracts.VerifiedRepair repair,
+        com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Checkpoint checkpoint) {
+        boolean cold = repair != null;
         var inventory = new TreeMap<String, String>();
         var deployment = one("SELECT * FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", r.deploymentId());
         String priorVersionId = (String) deployment.get("active_version_id");
@@ -45,9 +52,25 @@ final class ReapplyBeforeRuntimeStopEvidence {
             || !"FAILED".equals(release.get("status")) || !"FAILED".equals(release.get("provisioning_status"))
             || !"SKIPPED".equals(release.get("verification_status")) || !"apply_failed".equals(release.get("current_step_key"))
             || release.get("provider_resource_handle_id") != null
-            || release.get("runtime_generation_transition_state") != null || release.get("runtime_generation_transition_json") != null
-            || release.get("runtime_generation_transition_fingerprint") != null) fail("FAILED_PRE_STOP_RELEASE_REQUIRED");
-        requireProgress(tree(release.get("provisioning_details_json")));
+            || !cold && (release.get("runtime_generation_transition_state") != null || release.get("runtime_generation_transition_json") != null
+                || release.get("runtime_generation_transition_fingerprint") != null)) fail("FAILED_PRE_STOP_RELEASE_REQUIRED");
+        if (cold) {
+            var scope = repair.scope();
+            if (checkpoint == null || checkpoint.phase() != com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED
+                || checkpoint.coldMaintenanceReceipt() == null || !releaseId.equals(scope.releaseId())
+                || !r.deploymentId().equals(scope.deploymentId()) || !r.targetProfileId().equals(scope.targetProfileId())
+                || !r.customerId().equals(scope.customerId()) || !r.tenantId().equals(scope.tenantId())
+                || !r.id().equals(scope.reservationId()) || !r.generation().equals(scope.generation())
+                || !manifest.versionId().equals(scope.versionId()) || !manifest.versionConfigHash().equals(scope.versionConfigHash())
+                || !Objects.equals(release.get("runtime_authority_fingerprint"), scope.authorityFingerprint())
+                || !Objects.equals(release.get("source_artifact_id"), repair.original().artifactId())
+                || !"RUNTIME_GENERATION_DRAIN_INCOMPLETE".equals(release.get("error_message"))
+                || !json.write(checkpoint.coldMaintenanceReceipt()).equals(repair.finalNativeInventory().get("coldMaintenanceReceipt")))
+                fail("VERIFIED_COLD_MAINTENANCE_REQUIRED");
+            inventory.put("coldMaintenanceRepair", json.write(repair));
+            inventory.put("coldMaintenanceCheckpoint", json.fingerprint(checkpoint));
+        }
+        requireProgress(tree(release.get("provisioning_details_json")), cold);
         inventory.put("release", json.fingerprint(release));
 
         var bindings = rows("SELECT * FROM deployment_admission_release_bindings WHERE deployment_id=? AND target_profile_id=? ORDER BY release_id FOR UPDATE NOWAIT",
@@ -58,6 +81,8 @@ final class ReapplyBeforeRuntimeStopEvidence {
         if (active.size() != 1) fail("PRIOR_ACTIVE_RELEASE_REQUIRED");
         var priorBinding = active.getFirst();
         String priorId = (String) priorBinding.get("release_id");
+        if (cold && (!priorId.equals(checkpoint.priorRuntime().releaseId())
+            || !priorId.equals(repair.scope().priorRuntimeReleaseId()))) fail("COLD_PRIOR_BINDING_CHANGED");
         var priorVersion = one("SELECT * FROM platform_deployment_versions WHERE id=? FOR UPDATE NOWAIT", priorVersionId);
         if (!r.deploymentId().equals(priorVersion.get("deployment_id")) || !"PUBLISHED".equals(priorVersion.get("status"))) fail("PRIOR_VERSION_CHANGED");
         requireBinding(priorBinding, r, priorVersionId, (String) priorVersion.get("config_hash"), "ACTIVE");
@@ -112,7 +137,7 @@ final class ReapplyBeforeRuntimeStopEvidence {
         inventory.put("consumers", json.fingerprint(consumers));
         inventory.put("consumerHistory", json.fingerprint(rows("SELECT * FROM platform_consumer_binding_history WHERE to_deployment_id=? OR from_deployment_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId(), r.deploymentId())));
         inventory.put("installations", json.fingerprint(rows("SELECT i.* FROM ai_workspace_installations i JOIN platform_consumers c ON c.id=i.consumer_entity_id WHERE c.bound_deployment_id=? ORDER BY i.id FOR UPDATE OF i NOWAIT", r.deploymentId())));
-        requireInbox(inventory, r, release, manifest);
+        requireInbox(inventory, r, release, manifest, cold);
 
         jdbc.queryForObject("SELECT id FROM provider_usage_grant_mutex WHERE id=1 FOR UPDATE NOWAIT", Integer.class);
         var allocation = one("SELECT * FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=? FOR UPDATE NOWAIT", r.deploymentId(), r.targetProfileId());
@@ -137,7 +162,7 @@ final class ReapplyBeforeRuntimeStopEvidence {
             instant(release.get("created_at")), instant(release.get("updated_at")), List.of((String) allocation.get("approval_id")));
     }
 
-    private void requireInbox(Map<String, String> inventory, Reservation r, Map<String, Object> release, Manifest manifest) {
+    private void requireInbox(Map<String, String> inventory, Reservation r, Map<String, Object> release, Manifest manifest, boolean cold) {
         var graph = one("SELECT * FROM deployment_managed_dependency_graphs WHERE deployment_id=? AND target_profile_id=? FOR UPDATE NOWAIT", r.deploymentId(), r.targetProfileId());
         if (!r.customerId().equals(graph.get("customer_id")) || !r.tenantId().equals(graph.get("tenant_id"))
             || !release.get("id").equals(graph.get("release_id")) || !manifest.versionId().equals(graph.get("version_id"))
@@ -153,14 +178,15 @@ final class ReapplyBeforeRuntimeStopEvidence {
         if (spec.services() == null || spec.services().size() != 1 || state.nodes.size() != 1
             || spec.services().getFirst().contract() != ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
             || spec.services().getFirst().database() == null || state.configurationRevision < 1 || state.effectiveConfigurationRevision != -1
-            || state.runtimeGenerationOperationKey != null || state.runtimeGenerationState != null || !state.runtimeGenerationStoppedSlots.isEmpty()
+            || !cold && (state.runtimeGenerationOperationKey != null || state.runtimeGenerationState != null || !state.runtimeGenerationStoppedSlots.isEmpty())
             || state.retirementFingerprint != null || state.operatorRevocationOperationKey != null || state.operatorRevocationOperatorId != null
             || state.operatorRevocationLifecycleKey != null || !state.retiredOperatorSecretNames.isEmpty()) fail("INBOX_GENERATION_ALREADY_STARTED");
         var inbox = state.nodes.getFirst();
         if (!spec.services().getFirst().slot().equals(inbox.slot) || !text(inbox.serviceRef) || !text(inbox.accountId) || !text(inbox.bindingId)
-            || !"PLANNED".equals(inbox.status) || inbox.initialized || inbox.disabled || !text(inbox.applicationUuid) || !text(inbox.databaseUuid)
+            || !(cold ? "PROVISIONED" : "PLANNED").equals(inbox.status) || inbox.initialized || inbox.disabled || !text(inbox.applicationUuid) || !text(inbox.databaseUuid)
             || !text(inbox.baseUrl) || !inbox.applicationCreateIntent || !inbox.databaseCreateIntent
-            || inbox.provisionedConfigurationRevision < 0 || inbox.provisionedConfigurationRevision >= state.configurationRevision
+            || inbox.provisionedConfigurationRevision < 0 || (cold ? inbox.provisionedConfigurationRevision != state.configurationRevision
+                : inbox.provisionedConfigurationRevision >= state.configurationRevision)
             || inbox.retirementOperationKey != null || !inbox.volumeReclamationPlan.isEmpty() || !inbox.reclaimedVolumeUuids.isEmpty()) fail("RETAINED_INBOX_REQUIRED");
         if (state.operators.isEmpty() || state.operators.stream().anyMatch(o -> !inbox.slot.equals(o.slot)
             || !"ENROLLED".equals(o.status) || o.effectiveAt == null || !text(o.id) || !text(o.secretName) || o.credentialRevision < 1)) fail("RETAINED_OPERATOR_REQUIRED");
@@ -169,6 +195,12 @@ final class ReapplyBeforeRuntimeStopEvidence {
         owned(ownership, r, inbox.databaseUuid, "RUNTIME_POSTGRES_DATABASE", inbox.serviceRef + "-db");
         if (ownership.stream().anyMatch(o -> !"OWNED".equals(o.get("state")))) fail("DEPENDENCY_OWNERSHIP_UNPROVEN");
         inventory.put("graph", json.fingerprint(graph)); inventory.put("spec", json.fingerprint(reviewed));
+        if (cold) {
+            var repair = json.read(inventory.get("coldMaintenanceRepair"), RuntimeArtifactRepairContracts.VerifiedRepair.class);
+            if (!Objects.equals(repair.finalNativeInventory().get("dependencyGraph"), inventory.get("graph"))
+                || !"QUIESCED".equals(state.runtimeGenerationState)
+                || !state.runtimeGenerationStoppedSlots.equals(List.of(inbox.slot))) fail("COLD_GRAPH_CHANGED");
+        }
         inventory.put("dependencyOwnership", json.fingerprint(ownership));
     }
 
@@ -194,9 +226,11 @@ final class ReapplyBeforeRuntimeStopEvidence {
             if (!expected.getValue().equals(binding.get(expected.getKey()))) fail("BINDING_CHANGED");
         }
     }
-    private void requireProgress(JsonNode details) {
+    private void requireProgress(JsonNode details, boolean cold) {
         var progress = details.path("progress"); var steps = progress.path("steps");
-        if (!details.isObject() || details.size() != 1 || !"apply_failed".equals(progress.path("currentStepKey").asText())
+        var fields = new java.util.HashSet<String>(); details.fieldNames().forEachRemaining(fields::add);
+        if (!details.isObject() || !(cold ? java.util.Set.of("progress", "retryHistory").containsAll(fields) : details.size() == 1)
+            || !"apply_failed".equals(progress.path("currentStepKey").asText())
             || !"FAILED".equals(progress.path("currentStepStatus").asText()) || !steps.isArray() || steps.size() != STEPS.size()) fail("CONTROL_FLOW_UNPROVEN");
         for (int i = 0; i < STEPS.size(); i++) {
             String key = STEPS.get(i), status = switch (key) {

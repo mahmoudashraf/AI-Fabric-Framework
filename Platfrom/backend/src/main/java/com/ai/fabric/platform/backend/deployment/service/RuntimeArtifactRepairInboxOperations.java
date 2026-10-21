@@ -83,7 +83,9 @@ public class RuntimeArtifactRepairInboxOperations {
         if (graph.getWorkerToken() != null || !scope.releaseId().equals(graph.getReleaseId()) || !scope.versionId().equals(graph.getVersionId())
             || !scope.customerId().equals(graph.getCustomerId()) || !scope.tenantId().equals(graph.getTenantId())
             || !scope.authorityFingerprint().equals(graph.getBindingFingerprint())) fail();
-        RuntimeArtifactRepairDependencyEligibility.require(graph.getStatus(), graph.getStep(), graph.getFailureCode(), state);
+        if (local.request().mode() == Mode.COLD_MAINTENANCE_REAPPLY)
+            RuntimeArtifactRepairDependencyEligibility.requireColdPrepared(graph.getStatus(), graph.getStep(), graph.getFailureCode(), state);
+        else RuntimeArtifactRepairDependencyEligibility.require(graph.getStatus(), graph.getStep(), graph.getFailureCode(), state);
         var spec = graphs.spec(graph);
         if (spec.services().size() != 1 || spec.services().getFirst().contract() != ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
             || !spec.services().getFirst().slot().equals(state.nodes.getFirst().slot)) fail();

@@ -88,6 +88,74 @@ class DeploymentRuntimeAuthorityServiceTest {
         order.verify(secrets, atLeastOnce()).save(any());
     }
 
+    @org.junit.jupiter.api.AfterEach void clearPrincipal() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    @Test void onlyClaimedStaffColdPlanCanMintTheDedicatedSystemScope() throws Exception {
+        var local = coldRepairAuthority(true);
+        var ordinary = service.issueRuntimeArtifactRepairHeaders("cold-plan", true);
+        var cold = service.issueRuntimeArtifactRepairColdMaintenanceHeaders("cold-plan");
+        var coldPayload = payload(cold.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        var ordinaryPayload = payload(ordinary.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(coldPayload.path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
+        assertThat(coldPayload.path("scopes")).hasSize(1);
+        assertThat(coldPayload.path("scopes").get(0).asText()).isEqualTo("runtime:target-retirement:cold-maintenance:write");
+        assertThat(ordinaryPayload.path("scopes").toString()).doesNotContain("cold-maintenance");
+        var prior = service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan");
+        var priorPayload = payload(prior.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(priorPayload.path("scopes").toString()).doesNotContain(":write");
+        assertThat(local.scope().releaseId()).isEqualTo("cold-candidate");
+    }
+
+    @Test void customerAndUnacknowledgedPlansCannotMintColdMaintenanceAuthority() {
+        coldRepairAuthority(false);
+        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairColdMaintenanceHeaders("cold-plan"))
+            .hasMessageContaining("acknowledgement");
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN);
+        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairColdMaintenanceHeaders("cold-plan"))
+            .hasMessageContaining("authority is required");
+        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan"))
+            .hasMessageContaining("authority is required");
+    }
+
+    private com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence coldRepairAuthority(boolean consent) {
+        principal(com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN);
+        var prior = release("staging", "cold-prior");
+        var priorRelease = releases.findById("cold-prior").orElseThrow();
+        priorRelease.setStatus("APPLIED_VERIFIED"); priorRelease.setVerificationStatus("PASSED");
+        var frozen = release("staging", "cold-candidate");
+        var failed = releases.findById("cold-candidate").orElseThrow();
+        failed.setStatus("FAILED"); failed.setProvisioningStatus("FAILED"); failed.setSourceArtifactId("original");
+        var scope = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope(
+            "customer-1", "tenant-1", "dep-1", "staging", "cold-candidate", "version-1", "config", frozen.fingerprint(),
+            "reservation", "generation", "https://runtime.example", "runtime-app", "connector-app", "runtime-db", "cold-prior");
+        var original = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ArtifactPin(
+            "original", "pin", "runtime", "sha256:" + "a".repeat(64), "a".repeat(40), "ci", "staging", "manifest");
+        var request = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Request(
+            new com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.Fence("reservation", 1, "generation"), "replacement", "offer", 1,
+            "repair", "attended staging", true, com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Mode.COLD_MAINTENANCE_REAPPLY,
+            new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdMaintenanceAcknowledgement("cold-prior", "owner-approved", consent));
+        var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper);
+        var local = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence(scope, request, original, original,
+            Map.of("coldPriorRuntime", codec.write(new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdPriorRuntime(
+                "cold-prior", "version-1", prior.fingerprint()))), Instant.now().plusSeconds(300), Instant.now().plusSeconds(1800));
+        var journal = mock(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class);
+        when(journal.authorityEvidence(eq("cold-plan"), eq("staff"), anyBoolean())).thenReturn(local);
+        var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory(); beans.registerSingleton("repairs", journal);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "artifactRepairs",
+            beans.getBeanProvider(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class));
+        when(deployments.findById("dep-1")).thenReturn(Optional.of(deployment));
+        return local;
+    }
+
+    private void principal(com.ai.fabric.platform.backend.security.PlatformRole role) {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                new com.ai.fabric.platform.backend.security.PlatformPrincipal("staff", role, "fixture", "SESSION"), null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role.name()))));
+    }
+
     @Test void authorizedApplyFreezeDoesNotDependOnAmbientBrowserAuthority() {
         var candidate = service.freezeCandidateForAuthorizedApply(
             "dep-1", "staging", "version-1", List.of("https://workspace.example.com")

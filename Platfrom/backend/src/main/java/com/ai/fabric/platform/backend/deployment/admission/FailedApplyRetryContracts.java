@@ -13,6 +13,7 @@ public final class FailedApplyRetryContracts {
     private FailedApplyRetryContracts() { }
     public static final String BOUNDARY = "INITIAL_COOLIFY_CONNECTOR_STARTUP_FAILURE_V1";
     public static final String REAPPLY_BOUNDARY = "COOLIFY_REAPPLY_BEFORE_RUNTIME_STOP_V1";
+    public static final String COLD_MAINTENANCE_BOUNDARY = "COOLIFY_REAPPLY_AFTER_VERIFIED_COLD_MAINTENANCE_V1";
 
     record ReapplyScope(String priorReleaseId, Instant priorReleaseCreatedAt, String priorRuntimeBaseUrl) { }
     record Submission(Summary summary, boolean queued) { }

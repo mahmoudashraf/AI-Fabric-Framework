@@ -51,26 +51,43 @@ public class RuntimeArtifactRepairOperations {
     NativeEvidence observe(String previewId, LocalEvidence local) {
         outsideTransaction();
         var inventory = provider.runtimeArtifactRepairInventory(local.scope());
-        if (!healthy(inventory.runtimeStatus()) || !healthy(inventory.connectorStatus())
+        boolean cold = local.request().mode() == Mode.COLD_MAINTENANCE_REAPPLY;
+        if (!healthy(inventory.runtimeStatus()) || !(cold ? stopped(inventory.connectorStatus()) : healthy(inventory.connectorStatus()))
             || !local.original().repository().equals(inventory.runtimeRepository())
             || !local.original().gitCommit().equals(inventory.fingerprints().get("runtimeSourceCommit"))
             || !tag(local.original()).equals(inventory.runtimeTag()) || inventory.runtimeJobs().isEmpty()
             || inventory.connectorJobs().isEmpty() || !terminal(inventory.runtimeJobs()) || !terminal(inventory.connectorJobs())) fail("INITIAL_NATIVE_STATE_UNPROVEN");
-        var headers = authority.issueRuntimeArtifactRepairHeaders(previewId, false);
+        var headers = cold ? authority.issueRuntimeArtifactRepairPriorReadHeaders(previewId)
+            : authority.issueRuntimeArtifactRepairHeaders(previewId, false);
         var wallet = budgets.read(local.scope().runtimeBaseUrl(), headers);
         requireWalletScope(local.scope(), wallet);
         if (!Objects.equals(local.fingerprints().get("walletApprovalId"), wallet.approvalId())
             || !Objects.equals(local.fingerprints().get("walletStoreUuid"), wallet.storeUuid() == null ? null : wallet.storeUuid().toString())
             || !Objects.equals(local.fingerprints().get("walletRuntimeFingerprint"), wallet.runtimeFingerprint())) fail("ALLOCATED_WALLET_CHANGED");
         RuntimeArtifactRepairWallet.requireUnchanged(wallet, wallet);
-        var target = runtime.status(local.scope().runtimeBaseUrl(), target(local.scope()), headers);
-        validateTarget(local.scope(), target);
-        if (target.state() != RuntimeGenerationTransitionContracts.State.ACTIVE || target.authorityRevoked() || target.reclaimStarted()) fail("INITIAL_RUNTIME_NOT_ACTIVE");
+        var expectedTarget = cold ? priorTarget(local) : target(local.scope());
+        var target = runtime.status(local.scope().runtimeBaseUrl(), expectedTarget, headers);
+        if (target == null || !expectedTarget.equals(target.target()) || !local.scope().tenantId().equals(target.tenantId())
+            || target.fenceEpoch() < 0 || target.updatedAt() == null || target.authorityRevoked() || target.reclaimStarted()
+            || target.state() != (cold ? RuntimeGenerationTransitionContracts.State.DRAINING : RuntimeGenerationTransitionContracts.State.ACTIVE))
+            fail("INITIAL_RUNTIME_NOT_ACTIVE");
         var inboxInventory = inbox.observe(local); var inboxJobs = inbox.jobs(local);
-        if (!healthy(inboxInventory.get("applicationStatus")) || !terminal(inboxJobs) || inboxJobs.isEmpty()) fail("INITIAL_INBOX_STATE_UNPROVEN");
+        if (!(cold ? stopped(inboxInventory.get("applicationStatus")) : healthy(inboxInventory.get("applicationStatus")))
+            || !terminal(inboxJobs) || inboxJobs.isEmpty()) fail("INITIAL_INBOX_STATE_UNPROVEN");
         var identities = new TreeMap<String, String>();
         identities.put("inventory", json.write(inventory)); identities.put("inbox", json.write(inboxInventory));
         identities.put("inboxJobs", json.write(inboxJobs));
+        if (cold) {
+            if (!Objects.equals("replace:" + local.scope().releaseId(), target.operationId())
+                || target.requestFingerprint() == null || !target.requestFingerprint().matches("[a-f0-9]{64}"))
+                fail("COLD_PRIOR_DRAIN_CHANGED");
+            var snapshot = runtime.snapshot(local.scope().runtimeBaseUrl(), new RuntimeGenerationTransitionContracts.Binding(
+                expectedTarget, target.fenceEpoch(), target.operationId(), target.requestFingerprint()), headers);
+            requireColdZeroForeground(snapshot);
+            if (!target.equals(snapshot.target())) fail("COLD_PRIOR_DRAIN_CHANGED");
+            identities.put("coldPriorSnapshot", json.write(snapshot));
+            identities.put("coldNextTopology", provider.runtimeArtifactRepairTopology(local.scope()));
+        }
         if (local.request().mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART) {
             if (coldStores == null) fail("EMPTY_JDBC_READBACK_UNAVAILABLE");
             var owned = provider.runtimeArtifactRepairDatabase(local.scope());
@@ -81,18 +98,23 @@ public class RuntimeArtifactRepairOperations {
     }
     Map<String, String> perform(Plan plan, Effect effect, String actor) {
         outsideTransaction(); journal.requireEffectAuthority(plan, effect, actor);
+        if (!effects(plan.local().request().mode()).contains(effect)) fail("EFFECT_NOT_APPROVED");
         var scope = plan.local().scope();
         var current = provider.runtimeArtifactRepairInventory(scope);
         requireStable(plan, current); requireColdWritersStopped(plan, effect, current);
         journal.requireEffectAuthority(plan, effect, actor);
         switch (effect) {
             case QUIESCE_CONNECTOR -> {
-                provider.stopRuntimeArtifactRepairApplication(scope, true);
-                journal.dispatched(plan, effect, Map.of("applicationUuid", scope.connectorApplicationUuid()), actor);
+                boolean alreadyStopped = cold(plan) && stopped(current.connectorStatus());
+                if (!alreadyStopped) provider.stopRuntimeArtifactRepairApplication(scope, true);
+                journal.dispatched(plan, effect, Map.of("applicationUuid", scope.connectorApplicationUuid(),
+                    "nativeCommandDispatched", Boolean.toString(!alreadyStopped)), actor);
             }
             case QUIESCE_INBOX -> {
-                inbox.stop(plan, actor);
-                journal.dispatched(plan, effect, Map.of("applicationUuid", inboxApplication(plan)), actor);
+                boolean alreadyStopped = cold(plan) && stopped(inbox.observe(plan.local()).get("applicationStatus"));
+                if (!alreadyStopped) inbox.stop(plan, actor);
+                journal.dispatched(plan, effect, Map.of("applicationUuid", inboxApplication(plan),
+                    "nativeCommandDispatched", Boolean.toString(!alreadyStopped)), actor);
             }
             case BEGIN_DRAIN -> {
                 var binding = drainBinding(plan);
@@ -102,7 +124,8 @@ public class RuntimeArtifactRepairOperations {
                 journal.dispatched(plan, effect, Map.of("response", json.write(response)), actor);
             }
             case STOP_RUNTIME -> {
-                requireDrained(plan);
+                if (!cold(plan)) requireDrained(plan);
+                else requirePriorColdDrain(plan);
                 provider.stopRuntimeArtifactRepairApplication(scope, false);
                 journal.dispatched(plan, effect, Map.of("applicationUuid", scope.runtimeApplicationUuid()), actor);
             }
@@ -142,6 +165,16 @@ public class RuntimeArtifactRepairOperations {
                 var response = runtime.command(scope.runtimeBaseUrl(), command, authority.issueRuntimeArtifactRepairHeaders(plan.id(), true));
                 journal.dispatched(plan, effect, Map.of("response", json.write(response)), actor);
             }
+            case ADOPT_COLD_GENERATION -> {
+                requireCompletedDeploy(plan, current);
+                var headers = authority.issueRuntimeArtifactRepairHeaders(plan.id(), false);
+                RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), budgets.read(scope.runtimeBaseUrl(), headers));
+                var command = coldCommand(plan);
+                var response = runtime.coldMaintenanceTransition(scope.runtimeBaseUrl(), command,
+                    authority.issueRuntimeArtifactRepairColdMaintenanceHeaders(plan.id()));
+                requireColdReceipt(plan, response);
+                journal.dispatched(plan, effect, Map.of("command", json.write(command), "response", json.write(response)), actor);
+            }
             case RESUME_INBOX -> {
                 String job = inbox.start(plan, actor);
                 journal.dispatched(plan, effect, Map.of("applicationUuid", inboxApplication(plan), "jobUuid", job), actor);
@@ -168,6 +201,7 @@ public class RuntimeArtifactRepairOperations {
         fail("EXECUTION_DEADLINE_ELAPSED"); return Map.of();
     }
     private Map<String, String> check(Plan plan, Effect effect, NativeInventory inventory) {
+        if (!effects(plan.local().request().mode()).contains(effect)) fail("EFFECT_NOT_APPROVED");
         requireStable(plan, inventory); requireColdWritersStopped(plan, effect, inventory); var scope = plan.local().scope();
         var result = new TreeMap<String, String>();
         result.put("inventory", json.write(inventory));
@@ -196,10 +230,10 @@ public class RuntimeArtifactRepairOperations {
             case DEPLOY_RUNTIME -> {
                 var job = requireCompletedDeploy(plan, inventory);
                 var headers = authority.issueRuntimeArtifactRepairHeaders(plan.id(), false);
-                requireDraining(plan, runtime.status(scope.runtimeBaseUrl(), target(scope), headers));
+                if (!cold(plan)) requireDraining(plan, runtime.status(scope.runtimeBaseUrl(), target(scope), headers));
                 var wallet = budgets.read(scope.runtimeBaseUrl(), headers);
                 RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), wallet);
-                requireDrained(plan);
+                if (!cold(plan)) requireDrained(plan);
                 result.put("applicationUuid", scope.runtimeApplicationUuid()); result.put("jobUuid", job.uuid());
                 result.put("createdAt", job.createdAt().toString()); result.put("finishedAt", job.finishedAt().toString());
                 result.put("repository", inventory.runtimeRepository()); result.put("tag", inventory.runtimeTag());
@@ -212,6 +246,15 @@ public class RuntimeArtifactRepairOperations {
                     || !operation(plan).equals(readback.operationId()) || !journal.fingerprint(plan).equals(readback.requestFingerprint())
                     || readback.fenceEpoch() != plan.nativeEvidence().runtime().fenceEpoch() + 2) fail("CANCEL_DRAIN_UNPROVEN");
                 result.put("readback", json.write(readback));
+            }
+            case ADOPT_COLD_GENERATION -> {
+                var dispatched = journal.dispatch(plan, effect);
+                if (dispatched == null || dispatched.get("response") == null) fail("COLD_TRANSITION_RECEIPT_REQUIRED");
+                var receipt = json.read(dispatched.get("response"), RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult.class);
+                requireColdReceipt(plan, receipt);
+                var readback = runtime.status(scope.runtimeBaseUrl(), target(scope), authority.issueRuntimeArtifactRepairHeaders(plan.id(), false));
+                if (!receipt.transition().current().equals(readback)) fail("COLD_ADOPTED_TARGET_CHANGED");
+                result.put("coldMaintenanceReceipt", json.write(receipt));
             }
             case RESUME_INBOX -> {
                 var observed = inbox.observe(plan.local());
@@ -230,6 +273,11 @@ public class RuntimeArtifactRepairOperations {
         return Map.copyOf(result);
     }
     private void requireColdWritersStopped(Plan plan, Effect effect, NativeInventory inventory) {
+        if (cold(plan) && List.of(Effect.STOP_RUNTIME, Effect.PATCH_IMAGE, Effect.PATCH_PROVENANCE,
+            Effect.DEPLOY_RUNTIME, Effect.ADOPT_COLD_GENERATION).contains(effect)
+            && journal.confirmed(plan, Effect.ADOPT_COLD_GENERATION) == null
+            && (!stopped(inventory.connectorStatus()) || !stopped(inbox.observe(plan.local()).get("applicationStatus"))))
+            fail("COLD_REMOTE_WRITERS_NOT_STOPPED");
         if (plan.local().request().mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART
             && effect.ordinal() >= Effect.BEGIN_DRAIN.ordinal() && effect.ordinal() <= Effect.CANCEL_DRAIN.ordinal()
             && journal.confirmed(plan, Effect.CANCEL_DRAIN) == null
@@ -239,16 +287,21 @@ public class RuntimeArtifactRepairOperations {
     VerifiedRepair finalProof(Plan plan, LocalEvidence finalLocal) {
         var scope = plan.local().scope(); var inventory = provider.runtimeArtifactRepairInventory(scope);
         requireStable(plan, inventory); var job = requireCompletedDeploy(plan, inventory);
-        check(plan, Effect.CANCEL_DRAIN, inventory); check(plan, Effect.RESUME_INBOX, inventory); check(plan, Effect.RESUME_CONNECTOR, inventory);
+        check(plan, cold(plan) ? Effect.ADOPT_COLD_GENERATION : Effect.CANCEL_DRAIN, inventory);
+        check(plan, Effect.RESUME_INBOX, inventory); check(plan, Effect.RESUME_CONNECTOR, inventory);
         var wallet = budgets.read(scope.runtimeBaseUrl(), authority.issueRuntimeArtifactRepairHeaders(plan.id(), false));
         RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), wallet);
+        var finalInventory = new TreeMap<String, String>();
+        finalInventory.put("inventory", json.write(inventory));
+        finalInventory.put("dependencyGraph", plan.local().fingerprints().get("graph"));
+        finalInventory.put("inbox", journal.confirmed(plan, Effect.RESUME_INBOX).evidence().get("inbox"));
+        finalInventory.put("inboxJob", journal.confirmed(plan, Effect.RESUME_INBOX).evidence().get("inboxJob"));
+        if (cold(plan)) finalInventory.put("coldMaintenanceReceipt",
+            journal.confirmed(plan, Effect.ADOPT_COLD_GENERATION).evidence().get("coldMaintenanceReceipt"));
         return new VerifiedRepair(plan.id(), journal.fingerprint(plan), scope, plan.local().original(), plan.local().replacement(),
             scope.runtimeApplicationUuid(), job.uuid(), job.createdAt(), job.finishedAt(),
             json.read(journal.confirmed(plan, Effect.RESUME_CONNECTOR).evidence().get("connectorJob"), NativeJob.class), wallet,
-            finalLocal.fingerprints(), Map.of("inventory", json.write(inventory),
-                "dependencyGraph", plan.local().fingerprints().get("graph"),
-                "inbox", journal.confirmed(plan, Effect.RESUME_INBOX).evidence().get("inbox"),
-                "inboxJob", journal.confirmed(plan, Effect.RESUME_INBOX).evidence().get("inboxJob")), clock.instant());
+            finalLocal.fingerprints(), finalInventory, clock.instant());
     }
     private NativeJob requireCompletedDeploy(Plan plan, NativeInventory inventory) {
         if (!healthy(inventory.runtimeStatus())) throw new ObservationPending();
@@ -352,6 +405,73 @@ public class RuntimeArtifactRepairOperations {
     private static void requireWalletScope(Scope scope, ProviderUsageRuntimeClient.Readback wallet) {
         if (wallet == null || !scope.customerId().equals(wallet.customerId()) || !scope.deploymentId().equals(wallet.deploymentId())
             || !scope.targetProfileId().equals(wallet.targetProfileId())) fail("WALLET_SCOPE_CHANGED");
+    }
+    private static boolean cold(Plan plan) { return plan.local().request().mode() == Mode.COLD_MAINTENANCE_REAPPLY; }
+    private RuntimeGenerationTransitionContracts.Target priorTarget(LocalEvidence local) {
+        var prior = json.read(local.fingerprints().get("coldPriorRuntime"), ColdPriorRuntime.class);
+        return new RuntimeGenerationTransitionContracts.Target(local.scope().deploymentId(), local.scope().targetProfileId(), prior.releaseId());
+    }
+    private void requirePriorColdDrain(Plan plan) {
+        var prior = plan.nativeEvidence().runtime();
+        var headers = authority.issueRuntimeArtifactRepairPriorReadHeaders(plan.id());
+        var current = runtime.status(plan.local().scope().runtimeBaseUrl(), prior.target(), headers);
+        if (!prior.equals(current)) fail("COLD_PRIOR_DRAIN_CHANGED");
+        var snapshot = runtime.snapshot(plan.local().scope().runtimeBaseUrl(), new RuntimeGenerationTransitionContracts.Binding(
+            prior.target(), prior.fenceEpoch(), prior.operationId(), prior.requestFingerprint()), headers);
+        requireColdZeroForeground(snapshot);
+        var initial = json.read(plan.nativeEvidence().identities().get("coldPriorSnapshot"), RuntimeGenerationTransitionContracts.Snapshot.class);
+        if (!prior.equals(snapshot.target()) || !initial.topologyFingerprint().equals(snapshot.topologyFingerprint()))
+            fail("COLD_PRIOR_DRAIN_CHANGED");
+    }
+    private RuntimeGenerationTransitionContracts.ColdMaintenanceTransition coldCommand(Plan plan) {
+        var scope = plan.local().scope(); var prior = plan.nativeEvidence().runtime();
+        var snapshot = json.read(plan.nativeEvidence().identities().get("coldPriorSnapshot"), RuntimeGenerationTransitionContracts.Snapshot.class);
+        String topology = provider.runtimeArtifactRepairTopology(scope);
+        if (!Objects.equals(topology, plan.nativeEvidence().identities().get("coldNextTopology"))) fail("COLD_TOPOLOGY_CHANGED");
+        var stop = journal.confirmed(plan, Effect.STOP_RUNTIME);
+        if (stop == null || stop.outcome() != Outcome.CONFIRMED || stop.evidence().get("inventory") == null) fail("COLD_PROVIDER_STOP_REQUIRED");
+        var stoppedRuntime = json.read(stop.evidence().get("inventory"), NativeInventory.class);
+        if (!stopped(stoppedRuntime.runtimeStatus()) || !stopped(stoppedRuntime.connectorStatus())) fail("COLD_PROVIDER_STOP_REQUIRED");
+        var transition = new RuntimeGenerationTransitionContracts.GenerationTransition(prior.target(), target(scope), scope.tenantId(),
+            prior.fenceEpoch(), snapshot.topologyFingerprint(), topology, operation(plan), journal.fingerprint(plan),
+            "artifact-repair-stop:" + json.fingerprint(stop));
+        return new RuntimeGenerationTransitionContracts.ColdMaintenanceTransition(transition, prior.operationId(), prior.requestFingerprint(),
+            plan.local().request().coldMaintenance().approvalReference(), true);
+    }
+    private void requireColdReceipt(Plan plan, RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult receipt) {
+        var expected = coldCommand(plan); var transition = receipt == null ? null : receipt.transition();
+        var current = transition == null ? null : transition.current();
+        if (transition == null || !plan.nativeEvidence().runtime().equals(transition.previous()) || current == null
+            || !target(plan.local().scope()).equals(current.target()) || !plan.local().scope().tenantId().equals(current.tenantId())
+            || current.state() != RuntimeGenerationTransitionContracts.State.ACTIVE || current.authorityRevoked() || current.reclaimStarted()
+            || current.fenceEpoch() != Math.addExact(transition.previous().fenceEpoch(), 1L)
+            || current.operationId() != null || current.requestFingerprint() != null || current.drainDeadline() != null
+            || !expected.transition().providerStopEvidenceReference().equals(transition.providerStopEvidenceReference())
+            || !"PHYSICAL_STOP_COLD_MAINTENANCE_V1".equals(receipt.evidenceKind())
+            || !expected.approvalReference().equals(receipt.approvalReference()) || !receipt.inMemoryStateLossAcknowledged()
+            || transition.transitionedAt() == null || transition.transitionedAt().isBefore(plan.createdAt())
+            || transition.transitionedAt().isAfter(clock.instant()) || current.updatedAt() == null
+            || !samePersistedDeadline(transition.transitionedAt(), current.updatedAt()))
+            fail("COLD_TRANSITION_RECEIPT_INVALID");
+        requireColdZeroForeground(receipt.observedInventory(), transition.transitionedAt());
+        if (!transition.previous().equals(receipt.observedInventory().target())
+            || !expected.transition().nextTopologyFingerprint().equals(receipt.observedInventory().topologyFingerprint()))
+            fail("COLD_TRANSITION_RECEIPT_INVALID");
+    }
+    private void requireColdZeroForeground(RuntimeGenerationTransitionContracts.Snapshot snapshot) {
+        requireColdZeroForeground(snapshot, clock.instant());
+    }
+    private void requireColdZeroForeground(RuntimeGenerationTransitionContracts.Snapshot snapshot, Instant reference) {
+        if (snapshot == null || snapshot.observedAt() == null || snapshot.observedAt().isAfter(reference)
+            || snapshot.observedAt().isBefore(reference.minusSeconds(60)) || snapshot.inFlightRequests() != 0
+            || snapshot.topologyFingerprint() == null || !snapshot.topologyFingerprint().matches("[a-f0-9]{64}")
+            || snapshot.evidenceReference() == null || snapshot.evidenceReference().isBlank()) fail("COLD_INVENTORY_UNPROVEN");
+        for (var metric : java.util.Arrays.asList(snapshot.openConversations(), snapshot.pendingConfirmations(), snapshot.humanWork())) {
+            if (metric == null || !metric.complete() || !Long.valueOf(0).equals(metric.count()) || metric.observations() == null
+                || metric.observations().isEmpty() || metric.observations().stream().anyMatch(o -> o == null || !o.complete()
+                    || !Long.valueOf(0).equals(o.observedCount()) || o.blockers() == null || !o.blockers().isEmpty()))
+                fail("COLD_FOREGROUND_WORK_REMAINS");
+        }
     }
     private static boolean replacement(Plan plan, NativeInventory inventory) {
         return plan.local().replacement().repository().equals(inventory.runtimeRepository()) && tag(plan.local().replacement()).equals(inventory.runtimeTag());

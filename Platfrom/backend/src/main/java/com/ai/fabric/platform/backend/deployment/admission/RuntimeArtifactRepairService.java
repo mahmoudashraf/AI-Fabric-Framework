@@ -21,6 +21,11 @@ public class RuntimeArtifactRepairService {
     private final AdmissionStore store;
     private final AdmissionJson json;
     private final CustomerOfferEntitlementService entitlements;
+    private com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService generationCheckpoints;
+    @org.springframework.beans.factory.annotation.Autowired
+    void setGenerationCheckpoints(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService value) {
+        this.generationCheckpoints = value;
+    }
     public RuntimeArtifactRepairService(RuntimeArtifactRepairJournal journal, RuntimeArtifactRepairEvidence evidence,
         RuntimeArtifactRepairOperations operations, AdmissionStore store, AdmissionJson json, CustomerOfferEntitlementService entitlements) {
         this.journal = journal; this.evidence = evidence; this.operations = operations; this.store = store;
@@ -77,6 +82,15 @@ public class RuntimeArtifactRepairService {
         var proof = operations.finalProof(plan, local);
         journal.finish(plan, proof, actor, () -> {
             revalidate(plan, claim);
+            if (plan.local().request().mode() == Mode.COLD_MAINTENANCE_REAPPLY) {
+                if (generationCheckpoints == null) throw new AdmissionFailure(CONFLICT, "COLD_GENERATION_CHECKPOINT_UNAVAILABLE");
+                var scope = plan.local().scope();
+                var receipt = json.read(proof.finalNativeInventory().get("coldMaintenanceReceipt"),
+                    com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult.class);
+                generationCheckpoints.recordColdAdopted(scope.releaseId(),
+                    new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.PriorRuntime(
+                        plan.local().request().coldMaintenance().previousReleaseId(), scope.runtimeApplicationUuid(), scope.runtimeBaseUrl()), receipt);
+            }
             store.finishRuntimeArtifactRepair(claim, actor, json.fingerprint(proof));
         });
         return journal.summary(command);

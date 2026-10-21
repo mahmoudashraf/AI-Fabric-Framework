@@ -103,6 +103,40 @@ class RuntimeGenerationTransitionClientTest {
             .hasMessageNotContaining("do-not-leak");
     }
 
+    @Test void coldMaintenanceUsesSeparateRouteAndPreservesTheIncompleteDrainTruth() throws Exception {
+        AtomicReference<String> body = new AtomicReference<>();
+        var previous = readback("release-old", State.DRAINING, 1);
+        Metric zero = new Metric(0L, true, List.of());
+        var incomplete = new Snapshot("snapshot-cold", "runtime-target-drain:snapshot-cold", previous,
+            Instant.now(), zero, zero, zero, new Metric(null, false, List.of()), 0,
+            false, false, false, false, true, "c".repeat(64), List.of(),
+            List.of("FRAMEWORK_INDEXING_PROCESSOR_TARGET_EPOCH_FENCE_UNSUPPORTED"));
+        var response = new ColdMaintenanceTransitionResult(new GenerationTransitionResult(previous,
+            readback("release-new", State.ACTIVE, 2), "coolify-stop:runtime-1", Instant.now(), false),
+            incomplete, "PHYSICAL_STOP_COLD_MAINTENANCE_V1", "owner-approved-downtime", true);
+        server = server("/api/private/runtime-target-retirement/cold-maintenance-generation-transitions", exchange -> {
+            body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, mapper.writeValueAsString(response));
+        });
+        var command = new ColdMaintenanceTransition(new GenerationTransition(previous.target(),
+            response.transition().current().target(), "tenant-1", 1, "b".repeat(64), "c".repeat(64),
+            "cold-maintenance-1", "d".repeat(64), "coolify-stop:runtime-1"),
+            previous.operationId(), previous.requestFingerprint(), "owner-approved-downtime", true);
+
+        var actual = client().coldMaintenanceTransition(baseUrl(), command,
+            Map.of("Authorization", "AI-Fabric-Private assertion"));
+
+        assertThat(mapper.readValue(body.get(), ColdMaintenanceTransition.class)).isEqualTo(command);
+        assertThat(actual.evidenceKind()).isEqualTo("PHYSICAL_STOP_COLD_MAINTENANCE_V1");
+        assertThat(actual.inMemoryStateLossAcknowledged()).isTrue();
+        assertThat(actual.transition().previous().state()).isEqualTo(State.DRAINING);
+        assertThat(actual.transition().previous().authorityRevoked()).isFalse();
+        assertThat(actual.transition().current().fenceEpoch()).isEqualTo(2);
+        assertThat(actual.observedInventory().inventoryComplete()).isFalse();
+        assertThat(actual.observedInventory().workerFencingComplete()).isFalse();
+        assertThat(actual.observedInventory().localDrainComplete()).isFalse();
+    }
+
     @Test void rejectsInvalidEndpointAndOversizedResponse() throws Exception {
         var target = new Target("dep-1", "staging", "release-old");
         assertThatThrownBy(() -> client().status("file:///tmp/runtime", target, Map.of("Authorization", "private")))

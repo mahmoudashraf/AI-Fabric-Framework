@@ -78,11 +78,16 @@ public class FailedApplyRetryService {
         if (reapply != null) {
             var deployment = deployments.findById(r.deploymentId()).orElseThrow(this::denied);
             var release = releases.findById(releaseId).orElseThrow(this::denied);
-            var nativeReadback = provider.reapplyBeforeRuntimeStopReadback(r.deploymentId(), r.targetProfileId(), releaseId,
-                reapply.priorReleaseId(), reapply.priorReleaseCreatedAt(), candidate.releaseCreatedAt(), candidate.failedAt());
+            var coldRepair = store.coldMaintenanceRetryRepair(candidate);
+            var nativeReadback = coldRepair == null
+                ? provider.reapplyBeforeRuntimeStopReadback(r.deploymentId(), r.targetProfileId(), releaseId,
+                    reapply.priorReleaseId(), reapply.priorReleaseCreatedAt(), candidate.releaseCreatedAt(), candidate.failedAt())
+                : provider.coldMaintenanceReapplyReadback(coldRepair);
             Readback generation;
             try {
-                generation = generations.requireActiveForReapply(deployment, release, reapply.priorReleaseId(), reapply.priorRuntimeBaseUrl());
+                generation = coldRepair == null
+                    ? generations.requireActiveForReapply(deployment, release, reapply.priorReleaseId(), reapply.priorRuntimeBaseUrl())
+                    : generations.requireActiveAfterColdMaintenance(deployment, release, reapply.priorRuntimeBaseUrl());
             } catch (IllegalStateException unproven) {
                 throw new ResponseStatusException(CONFLICT,
                     "FAILED_APPLY_RETRY_GENERATION_READBACK_UNPROVEN", unproven);

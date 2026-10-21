@@ -850,6 +850,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 resourceDefaults,
                 progressTracker
             );
+        } else if (generationCheckpoint != null
+            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED) {
+            tracked(progressTracker, "stop_coolify_runtime_after_verified_cold_maintenance",
+                "Stop the already adopted staging runtime before continuing its exact repaired release.",
+                () -> stopApplicationBeforeSingleWriterReplacement(connection, runtimeApplication, resourceDefaults, progressTracker));
         } else if (localLuceneRuntime && generationCheckpoint == null) {
             tracked(
                 progressTracker,
@@ -906,7 +911,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
         if (generationCheckpoint != null
-            && generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.ADOPTED) {
+            && (generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.ADOPTED
+                || generationCheckpoint.phase() == RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED)) {
             RuntimeGenerationCheckpointService.PriorRuntime persistedPriorRuntime =
                 generationCheckpoint.priorRuntime();
             tracked(
@@ -1274,10 +1280,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             if (persisted.isPresent()) {
                 var checkpoint = persisted.get();
                 if (!runtimeApplication.uuid().equals(checkpoint.priorRuntime().providerResourceUuid())
-                    || !runtimeBaseUrl.equals(checkpoint.priorRuntime().baseUrl())) {
+                    || !runtimeBaseUrl.equals(checkpoint.priorRuntime().baseUrl())
+                    || !nextTopologyFingerprint.equals(checkpoint.nextTopologyFingerprint())) {
                     throw new IllegalStateException("RUNTIME_GENERATION_PROVIDER_RESOURCE_CHANGED");
                 }
                 if (checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.ADOPTED
+                    && checkpoint.phase() != RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED
                     && deploymentRuntimeGenerationService == null) {
                     throw new IllegalStateException("RUNTIME_GENERATION_COORDINATOR_REQUIRED");
                 }
@@ -1650,6 +1658,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return failedApplyReadback(deploymentId, targetProfileId, releaseId, releaseCreatedAt, failedAt, true);
     }
 
+    public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback coldMaintenanceReapplyReadback(
+        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.VerifiedRepair proof) {
+        if (proof == null || effectiveRuntimeArtifacts == null || effectiveRuntimeArtifacts.getIfAvailable() == null
+            || !proof.equals(effectiveRuntimeArtifacts.getObject().verifiedRepair(proof.scope().releaseId()))
+            || !proof.finalNativeInventory().containsKey("coldMaintenanceReceipt")) throw failedApplyRetryUnproven();
+        var current = runtimeArtifactRepairInventory(proof.scope());
+        var expected = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(objectMapper).read(
+            proof.finalNativeInventory().get("inventory"), com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeInventory.class);
+        var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(objectMapper);
+        var observed = objectMapper.valueToTree(current).deepCopy();
+        var original = objectMapper.valueToTree(expected).deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) observed).remove("observedAt");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) original).remove("observedAt");
+        if (!observed.equals(original) || !"running:healthy".equalsIgnoreCase(current.runtimeStatus())
+            || !"running:healthy".equalsIgnoreCase(current.connectorStatus())) throw failedApplyRetryUnproven();
+        var inventory = new java.util.TreeMap<String, String>();
+        inventory.put(RESOURCE_KIND_APPLICATION, codec.fingerprint(observed));
+        inventory.put(RESOURCE_KIND_CONNECTOR_APPLICATION, codec.fingerprint(current.connectorJobs()));
+        inventory.put(RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, proof.scope().databaseUuid());
+        return new com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback(current.observedAt(), Map.copyOf(inventory));
+    }
+
     /** Retry an in-place reapply only while the prior runtime still owns the running generation. */
     public com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback reapplyBeforeRuntimeStopReadback(
         String deploymentId, String targetProfileId, String failedReleaseId, String priorReleaseId,
@@ -1751,6 +1781,22 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         coolifyApiClient.stop(connectionForHandle(handle), handle.getProviderResourceUuid(), false);
     }
 
+    public String runtimeArtifactRepairTopology(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope) {
+        var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
+        var environment = coolifyApiClient.runtimeRepairEnvironmentInventory(connectionForHandle(handle), handle.getProviderResourceUuid());
+        if (environment == null || !environment.isArray()) throw failedApplyRetryUnproven();
+        String topology = null; var previews = new java.util.HashSet<Boolean>();
+        for (var row : environment) if ("LOOMAI_RUNTIME_RETIREMENT_TOPOLOGY_SHA256".equals(row.path("key").asText())) {
+            String value = row.path("value").asText();
+            if (!value.matches("[a-f0-9]{64}") || !row.path("is_runtime").asBoolean()
+                || !row.path("is_preview").isBoolean() || !previews.add(row.path("is_preview").booleanValue())
+                || topology != null && !topology.equals(value)) throw failedApplyRetryUnproven();
+            topology = value;
+        }
+        if (topology == null || !previews.equals(Set.of(false, true))) throw failedApplyRetryUnproven();
+        return topology;
+    }
+
     public record OwnedRepairDatabase(CoolifyConnection connection,
         com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent intent, String databaseUuid) { }
 
@@ -1801,7 +1847,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             .stream().filter(h -> kind.equals(h.getResourceKind())).toList();
         if (matches.size() != 1) throw failedApplyRetryUnproven();
         var handle = matches.getFirst();
-        if (!scope.releaseId().equals(handle.getReleaseId()) || !uuid.equals(handle.getProviderResourceUuid())
+        String expectedRelease = RESOURCE_KIND_APPLICATION.equals(kind) && scope.priorRuntimeReleaseId() != null
+            ? scope.priorRuntimeReleaseId() : scope.releaseId();
+        if (!expectedRelease.equals(handle.getReleaseId()) || !uuid.equals(handle.getProviderResourceUuid())
             || handle.getProviderType() != DeploymentProviderType.COOLIFY) throw failedApplyRetryUnproven();
         requireOwnedHandle(connectionForHandle(handle), handle, false);
         return handle;

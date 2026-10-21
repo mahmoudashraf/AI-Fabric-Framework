@@ -42,4 +42,14 @@ public final class RuntimeGenerationTransitionContracts {
     public record GenerationTransitionResult(Readback previous, Readback current,
                                              String providerStopEvidenceReference,
                                              Instant transitionedAt, boolean replay) { }
+    public record ColdMaintenanceTransition(GenerationTransition transition,
+                                             String previousOperationId,
+                                             String previousRequestFingerprint,
+                                             String approvalReference,
+                                             boolean acceptInMemoryStateLoss) { }
+    public record ColdMaintenanceTransitionResult(GenerationTransitionResult transition,
+                                                   Snapshot observedInventory,
+                                                   String evidenceKind,
+                                                   String approvalReference,
+                                                   boolean inMemoryStateLossAcknowledged) { }
 }

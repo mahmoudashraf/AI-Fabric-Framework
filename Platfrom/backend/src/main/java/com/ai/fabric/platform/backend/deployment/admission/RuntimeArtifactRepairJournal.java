@@ -190,7 +190,8 @@ public class RuntimeArtifactRepairJournal {
             if (!claim.actorId().equals(actor)) fail("ACTOR_CHANGED");
             if (verifiedRepair(plan.local().scope().releaseId()) != null) fail("ALREADY_VERIFIED");
             requireFresh(executionDeadline(plan));
-            for (Effect previous : Effect.values()) {
+            if (!effects(plan.local().request().mode()).contains(effect)) fail("EFFECT_NOT_APPROVED");
+            for (Effect previous : effects(plan.local().request().mode())) {
                 if (previous == effect) break;
                 if (confirmed(plan, previous) == null) fail("PRIOR_EFFECT_UNCONFIRMED");
             }
@@ -248,7 +249,7 @@ public class RuntimeArtifactRepairJournal {
     VerifiedRepair finish(Plan plan, VerifiedRepair proof, String actor, Runnable releaseWorker) {
         return locked(() -> {
             requireClaim(plan);
-            for (Effect effect : Effect.values()) if (confirmed(plan, effect) == null) fail("EFFECTS_INCOMPLETE");
+            for (Effect effect : effects(plan.local().request().mode())) if (confirmed(plan, effect) == null) fail("EFFECTS_INCOMPLETE");
             if (!proof.planId().equals(plan.id()) || !proof.planFingerprint().equals(json.fingerprint(plan))
                 || !proof.scope().equals(plan.local().scope()) || !proof.original().equals(plan.local().original())
                 || !proof.replacement().equals(plan.local().replacement())
@@ -269,6 +270,7 @@ public class RuntimeArtifactRepairJournal {
                 || !"finished".equals(proof.connectorJob().status())
                 || !plan.local().fingerprints().equals(proof.finalLocalFingerprints())) fail("FINAL_INVENTORY_CHANGED");
             RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), proof.wallet());
+            requireColdProof(plan, proof);
             append(VERIFIED, proof.scope().releaseId(), proof, actor);
             releaseWorker.run();
             return proof;
@@ -281,8 +283,25 @@ public class RuntimeArtifactRepairJournal {
         if (!json.fingerprint(plan).equals(proof.planFingerprint()) || !plan.local().scope().equals(proof.scope())
             || !plan.local().original().equals(proof.original()) || !plan.local().replacement().equals(proof.replacement())) fail("VERIFIED_RECEIPT_CHANGED");
         requireClaim(plan);
-        for (Effect effect : Effect.values()) if (confirmed(plan, effect) == null) fail("VERIFIED_RECEIPT_INCOMPLETE");
+        for (Effect effect : effects(plan.local().request().mode())) if (confirmed(plan, effect) == null) fail("VERIFIED_RECEIPT_INCOMPLETE");
+        requireColdProof(plan, proof);
         return proof;
+    }
+    private void requireColdProof(Plan plan, VerifiedRepair proof) {
+        if (plan.local().request().mode() != Mode.COLD_MAINTENANCE_REAPPLY) return;
+        var adoption = confirmed(plan, Effect.ADOPT_COLD_GENERATION);
+        String payload = proof.finalNativeInventory().get("coldMaintenanceReceipt");
+        if (payload == null || adoption == null || !payload.equals(adoption.evidence().get("coldMaintenanceReceipt")))
+            fail("COLD_ADOPTION_PROOF_REQUIRED");
+        var receipt = json.read(payload, com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult.class);
+        var result = receipt.transition();
+        var acknowledgement = plan.local().request().coldMaintenance();
+        if (result == null || result.previous() == null || result.current() == null || acknowledgement == null
+            || !acknowledgement.previousReleaseId().equals(result.previous().target().releaseId())
+            || !proof.scope().releaseId().equals(result.current().target().releaseId())
+            || !acknowledgement.approvalReference().equals(receipt.approvalReference())
+            || !"PHYSICAL_STOP_COLD_MAINTENANCE_V1".equals(receipt.evidenceKind())
+            || !receipt.inMemoryStateLossAcknowledged()) fail("COLD_ADOPTION_PROOF_CHANGED");
     }
     public boolean hasClaim(String releaseId) { return optional(CLAIM, releaseId, Claim.class) != null; }
     public void requireNoActiveRepair(String deploymentId, String targetProfileId) {
@@ -295,7 +314,7 @@ public class RuntimeArtifactRepairJournal {
     public Summary summary(Command command) {
         var plan = requirePlan(command); var proof = verifiedRepair(plan.local().scope().releaseId());
         var confirmed = new ArrayList<Effect>(); Effect pending = null;
-        for (Effect effect : Effect.values()) {
+        for (Effect effect : effects(plan.local().request().mode())) {
             if (confirmed(plan, effect) != null) confirmed.add(effect);
             else if (pending == null && optional(INTENT, key(plan.id(), effect), EffectReceipt.class) != null) pending = effect;
         }

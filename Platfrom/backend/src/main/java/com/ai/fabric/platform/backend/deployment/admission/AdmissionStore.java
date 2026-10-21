@@ -36,6 +36,13 @@ class AdmissionStore {
     private final AdmissionJson json;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private RuntimeArtifactRepairJournal artifactRepairs;
+    private com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService generationCheckpoints;
+    @Autowired
+    void setColdMaintenanceEvidence(RuntimeArtifactRepairJournal repairs,
+        com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService checkpoints) {
+        artifactRepairs = repairs; generationCheckpoints = checkpoints;
+    }
 
     @Autowired
     AdmissionStore(JdbcTemplate jdbc, AdmissionJson json, PlatformTransactionManager transactions) {
@@ -1967,6 +1974,16 @@ class AdmissionStore {
             var r = preparedRecoveryReservation(customerId, deploymentId, reservationId, adapter, authorize);
             String activeVersion = jdbc.queryForObject("SELECT active_version_id FROM platform_deployments WHERE id=?", String.class, deploymentId);
             if (activeVersion != null) {
+                String generationState = jdbc.queryForObject("SELECT runtime_generation_transition_state FROM platform_deployment_releases WHERE id=?",
+                    String.class, command.releaseId());
+                if ("COLD_ADOPTED".equals(generationState)) {
+                    if (artifactRepairs == null || generationCheckpoints == null)
+                        throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_COLD_MAINTENANCE_EVIDENCE_UNAVAILABLE");
+                    var repair = artifactRepairs.verifiedRepair(command.releaseId());
+                    if (repair == null) throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_COLD_MAINTENANCE_NOT_VERIFIED");
+                    return new ReapplyBeforeRuntimeStopEvidence(jdbc, json).read(r, command.releaseId(), context(r).manifest(), repair,
+                        generationCheckpoints.read(command.releaseId()).orElseThrow());
+                }
                 return new ReapplyBeforeRuntimeStopEvidence(jdbc, json).read(r, command.releaseId(), context(r).manifest());
             }
             var proof = new PreparedFailureRecoveryEvidence(jdbc, json, true).read(r, command.releaseId(), context(r).manifest());
@@ -2038,7 +2055,7 @@ class AdmissionStore {
                 time(now), command.releaseId()) != 1) throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_BINDING_CHANGED");
             var failed = json.read(current.failedReleaseJson(), com.fasterxml.jackson.databind.JsonNode.class);
             var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(failed.path("provisioning_details_json").asText(), com.fasterxml.jackson.databind.JsonNode.class);
-            details.putArray("retryHistory").addObject().put("authorizedAt", now.toString()).put("actorId", actor)
+            details.withArray("retryHistory").addObject().put("authorizedAt", now.toString()).put("actorId", actor)
                 .put("failedAt", current.failedAt().toString()).put("errorMessage", failed.path("error_message").asText())
                 .set("progress", details.path("progress").deepCopy());
             var progress = details.putObject("progress");
@@ -2194,7 +2211,12 @@ class AdmissionStore {
         return scope == null ? null : json.read(scope, FailedApplyRetryContracts.ReapplyScope.class);
     }
     private String failedApplyRetryBoundary(FailedApplyRetryContracts.Candidate candidate) {
+        if (coldMaintenanceRetryRepair(candidate) != null) return FailedApplyRetryContracts.COLD_MAINTENANCE_BOUNDARY;
         return reapplyRetryScope(candidate) == null ? FailedApplyRetryContracts.BOUNDARY : FailedApplyRetryContracts.REAPPLY_BOUNDARY;
+    }
+    RuntimeArtifactRepairContracts.VerifiedRepair coldMaintenanceRetryRepair(FailedApplyRetryContracts.Candidate candidate) {
+        String value = candidate.inventory().get("coldMaintenanceRepair");
+        return value == null ? null : json.read(value, RuntimeArtifactRepairContracts.VerifiedRepair.class);
     }
     FailedApplyRetryContracts.NativeReadback reapplyRetryReadback(FailedApplyRetryContracts.Candidate candidate,
         FailedApplyRetryContracts.NativeReadback nativeReadback,
@@ -2202,11 +2224,16 @@ class AdmissionStore {
         var scope = reapplyRetryScope(candidate); var r = candidate.reservation();
         if (scope == null || generation == null || generation.target() == null || nativeReadback == null
             || nativeReadback.inventory() == null || !r.deploymentId().equals(generation.target().deploymentId())
-            || !r.targetProfileId().equals(generation.target().targetProfileId()) || !scope.priorReleaseId().equals(generation.target().releaseId())
+            || !r.targetProfileId().equals(generation.target().targetProfileId())
+            || !(coldMaintenanceRetryRepair(candidate) == null ? scope.priorReleaseId() : coldMaintenanceRetryRepair(candidate).scope().releaseId()).equals(generation.target().releaseId())
             || !r.tenantId().equals(generation.tenantId())
             || generation.state() != com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.State.ACTIVE
             || generation.authorityRevoked() || generation.reclaimStarted())
             throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_PREVIOUS_GENERATION_REQUIRED");
+        var repair = coldMaintenanceRetryRepair(candidate);
+        if (repair != null && !generation.equals(json.read(repair.finalNativeInventory().get("coldMaintenanceReceipt"),
+            com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult.class).transition().current()))
+            throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_COLD_GENERATION_CHANGED");
         var inventory = new java.util.TreeMap<>(nativeReadback.inventory());
         if (inventory.putIfAbsent("RUNTIME_GENERATION", json.fingerprint(generation)) != null)
             throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_NATIVE_INVENTORY_REQUIRED");
