@@ -8,6 +8,51 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-21 Fresh Free Pilot, 13:53 UTC
+
+- 14:11UTC superseding status: BOTH CPs verified on3c6a3604a/imageb59bff38,
+  maintenanceclosed SHA09db17d2...3cd23 beforecustomermutations. Policy/grant
+  normalpublication permitsoneextraSTAGINGslot, oldR28/financialhistoryexact.
+  Offer1.2published/invited/accepted butbootstrap409: requiredplugins support
+  neutralcustombase/Milvus, NOTQdrantbase. Transactionrollbackconfirmed:
+  customerdeployments2/originalreservations2/newofferassociations0. Unusednew
+  entitlementcse08045f13 revokedrev3 viaAPI. Correct1.3template helper uses
+  custom-start-from-scratch +exactexternalQdrantbaseline, declaresLuceneseed
+  andfinalQdrantcompatibility, validatesallrequiredplugintargets.26checksPASS.
+  Noadditionalbackend/frameworkrelease. Preparingnewimmutablev2package.
+  No newpilotruntime/activation/publicquery acceptedyet. StagingonlypilotisNOT
+  productionpromotionproof; separateprodServerlessbindingstillrequired.
+
+- Supersedes pending-route wording below: owner explicitly approved the free-only
+  staging pilot in Required for production, human message
+  `01a15e7a-ad39-76a0-9638-2300ce8e3bd1`. Main then received the owner's statement
+  that data in all discussed clusters is unimportant and plan completion is the
+  priority. No old-vector preservation/migration blocker; no deletion required.
+- Existing healthy free Qdrant is selected for the new staging-only pilot, via
+  EXTERNAL_EXISTING/SHARED, new scoped prefix, managed collections disabled.
+  Production remains separate on its approved Serverless cluster. No paid/new
+  account or provider resource. Published template `mkv-6c662c54` (1.2.0), spec
+  `mds-dealership-qdrant-pg-inbox-20261021`; latest runtime `dsa-6776d0bf` remains
+  staging-promoted. No new pilot workload/activation has occurred yet.
+- Two narrow Platform corrections: reviewed logical slot increases without
+  enlarging physical/funding/headroom limits; staging-only offers require no
+  invented production permission. Commits `2a59b92dd`, `3c6a3604a`; 297 focused
+  checks PASS, 111 actual PostgreSQL, zero skips; package/CI39610161942 PASS.
+  Final backend image `b59bff387ab19005f1ffb9a5197f18165f7aee81676e0dc5ae48ce34f8513d07`.
+  Staging rollout verified. Production preflight detected a changing database
+  snapshot before any patch/deploy intent; nothing dispatched there yet. Read
+  the actual delta before rebaselining. No schema/framework/runtime/UI change.
+- Staging Shopify bridge temporarily stopped with prior explicit permission;
+  resume is required after temporary capacity review. Data/config not deleted.
+  Post-pause five-minute ledger-aware sample gives 5 GiB non-ledger baseline;
+  full old 4 GiB reservation plus new 4 GiB demand and existing 2 GiB headroom
+  fit the actual 15.24 GiB host. No old reservation/accounting reset.
+- New offer's first publication rejected400 because old validator required both
+  target intents; no row created. Reattempt only after the final backend rollout
+  is verified, with new intent and actual absence check. Full evidence/remaining
+  work is in REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md. Hosted public
+  query/auth/handover acceptance and production promotion remain OPEN. UI last.
+
 ## 2026-10-20 Execution Optimization Agreed With User
 
 - Oct21 clarification supersedes earliercrossenvironmentsharingblocker wording:

@@ -8,6 +8,35 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Fresh Free-Only Pilot Decision, 21 October 13:08 UTC
 
+14:11 UTC latest checkpoint: both control planes are verified healthy on
+`3c6a3604a`, schema207, exact backend image `b59bff38...8513d07`. Maintenance
+closed before customer commands; proof
+`01044-fresh-pilot-backend-rollout-20261021/maintenance.completed.json`, SHA256
+`09db17d214f98f30c9ed95c9b1fb307ae8cb77b4cf17676622b01da07aa3cd23`.
+Normal admission publication approved one extra staging slot; original charged
+reservation, grants and allocations remain exact. New policy fingerprint
+`cd726c24952333085865214143dbf074a242d19026e28e1376e93f3777df4a90`.
+
+The first new offer was published, invited and accepted through the real owner
+session. Bootstrap correctly rejected its required plugins' incompatible base
+before provisioning. Actual readback still shows two original deployments,
+zero associations for the rejected new offer, and two original reservation
+rows. Its unused entitlement was normally revoked (revision3), not SQL-edited.
+Immutable template1.2.0 remains historical. Corrected1.3.0 uses the neutral
+starter already supported by all six plugin versions, with the exact Qdrant
+provider baseline. Its compatibility declares both the starter's Lucene seed
+and final Qdrant mode; no runtime fallback is enabled. New preparation checks
+required-plugin target compatibility; 26 focused helper/regression checks pass.
+No additional backend or framework change is needed for this package correction.
+
+New pilot workload, public queries, auth/handover acceptance and production
+promotion remain open. The staging-only Qdrant pilot does not authorize the
+separately approved production Serverless cluster or prove cross-provider
+promotion. Verify the appropriate production offer/binding path explicitly;
+do not copy vectors or silently reuse the staging cluster. UI extraction stays
+last. Remaining unissued task funding is planned as a bounded staging tranche
+plus a reserved production tranche, never another independent task allowance.
+
 The owner explicitly approved "Proceed with the free-only staging pilot" in
 Required for production (human message `01a15e7a-ad39-76a0-9638-2300ce8e3bd1`),
 then clarified in the main task that data in all discussed clusters is not

@@ -7,8 +7,8 @@ Main owns fresh reads, policy/accounting, publication and the sequential hosted 
 ## Frozen Scope
 
 - Derive the original published managed-Inbox template `1.0.0` into a new immutable
-  **`1.2.0` version of the existing publisher-owned family**, not an update of `1.0.0`/`1.1.0`.
-- Family `mkp-template-dealership-external-systems-managed-inbox-v1`, base `dev-openai-qdrant`.
+  **`1.3.0` version of the existing publisher-owned family**, not an update of `1.0.0`/`1.1.0`/`1.2.0`.
+- Family `mkp-template-dealership-external-systems-managed-inbox-v1`, base `custom-start-from-scratch`.
 - Preserve required plugin refs/defaults, behavior, public-document policy and managed PG/Inbox contract.
 - Qdrant is `EXTERNAL_EXISTING` / `SHARED`, `qdrantManagedCollectionsEnabled=false`, REST only.
   Host and ports are reviewed public template configuration; no raw key or prefix is published.
@@ -44,7 +44,7 @@ planFreshQdrantTemplatePublication({sourceTemplate, reviewedVector, publisher,
 
 planFreshQdrantStagingSpec({sourceTemplate, reviewedVector, template,
   inboxArtifact, specId, reviewReference})
-// template: actual PUBLISHED 1.2.0 version with native mkv-ID and publishedAt.
+// template: actual PUBLISHED 1.3.0 version with native mkv-ID and publishedAt.
 // specId: new reviewed identifier, not the old immutable spec ID.
 
 buildFreshQdrantStagingOffer(offerInput)
@@ -73,7 +73,9 @@ inboxSpec = {publication: {templateVersionId, specId, fingerprint, reviewReferen
 `artifact` is the latest native runtime artifact above, with capability manifest/hash,
 promotion/build metadata. `target` is the full staging profile, including resource defaults,
 credential reference, provider/network config. `pluginVersions` contains the six exact
-existing published plugin pins. Catalog inputs are actual `/api/deployment-behaviors` and
+existing published plugin pins, including native `manifest.compatibility`. Each present,
+nonempty `supportedDeploymentTargets` must contain `custom-start-from-scratch`; absent/empty
+lists remain unrestricted. Wrong structured types are rejected. Catalog inputs are actual `/api/deployment-behaviors` and
 `/api/deployment-execution-extensions` readbacks. `inboxSpec` must be read back after normal
 publication against the **actual new template ID**; no backend fingerprint is fabricated.
 
@@ -88,9 +90,18 @@ The revised owner-approved solution is the immutable template endpoint pin, not 
 `MarketplaceManifestService` allows all emitted provider fields; the ordinary runtime plan
 uses `QDRANT_API_KEY` without serializing a secret reference/value into the manifest.
 Customer bootstrap uses `bootstrapConfiguration`, then `createDeploymentConfiguration(...false)`
-which does not seed a managed vectorization plan. The template baseline overrides the base
-Qdrant managed defaults before publication/apply. EXTERNAL_EXISTING/false makes the managed
+which does not seed a managed vectorization plan. Neutral base seeds OpenAI/OpenAI/Lucene;
+template compatibility declares both `vector:lucene` for that pre-baseline check
+and `vector:qdrant` for the installed composition's later compatibility check.
+The provider baseline explicitly selects external Qdrant; this is not a fallback.
+EXTERNAL_EXISTING/false makes the managed
 provisioner inert, avoiding the separately identified targetless managed-provisioning blocker.
+
+Main reported the actual native `1.2.0` customer bootstrap failed HTTP 409 before provisioning:
+required plugins supported the neutral/Milvus bases, not `dev-openai-qdrant`. Main confirmed
+known no-side-effects, not a full hosted pass. Keep native `1.2.0` and its evidence immutable.
+`1.3.0` changes the base, not the six required plugin versions; normal missing-input deferral
+remains unchanged. No backend compatibility bypass is added by these helpers.
 
 Target prefix remains server-derived from customer/tenant/deployment/target by
 `TenantScopedVectorHandleResolver`; the template cannot choose it. Old Milvus/dual-target

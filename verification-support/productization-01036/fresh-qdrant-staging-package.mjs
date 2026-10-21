@@ -8,8 +8,8 @@ import {buildPostgresInboxSpec, requireConcreteIdentifier, requireNewInboxIdenti
 
 export const QDRANT_TEMPLATE_PLUGIN_ID = MANAGED_INBOX_TEMPLATE_PLUGIN_ID;
 export const QDRANT_TEMPLATE_SLUG = "dealership-external-systems-managed-inbox-v1";
-export const QDRANT_TEMPLATE_VERSION = "1.2.0";
-export const QDRANT_BASE_TEMPLATE_ID = "dev-openai-qdrant";
+export const QDRANT_TEMPLATE_VERSION = "1.3.0";
+export const QDRANT_BASE_TEMPLATE_ID = "custom-start-from-scratch";
 export const QDRANT_INBOX_ARTIFACT_ID = "dsa-1dc83268";
 export const QDRANT_RUNTIME = Object.freeze({id: "dsa-6776d0bf", frameworkVersion: "0.8.36",
   imageDigest: "sha256:a32574d477a1330550d3bb8da3fb4a1a5edddcf13117538736bcbc9c0dace677",
@@ -76,8 +76,9 @@ export function buildFreshQdrantStagingTemplateManifest(sourceTemplate, reviewed
   const compatibility = manifest.compatibility ?? {};
   const modes = compatibility.supportedProviderModes ?? [];
   check(Array.isArray(modes) && modes.every(mode => typeof mode === "string"), "SOURCE_PROVIDER_COMPATIBILITY_INVALID");
+  // Bootstrap checks the neutral base's seeded providers before applying this template's Qdrant baseline.
   manifest.compatibility = {...compatibility, supportedDeploymentTargets: [QDRANT_BASE_TEMPLATE_ID],
-    supportedProviderModes: [...modes.filter(mode => !mode.startsWith("vector:")), "vector:qdrant"]};
+    supportedProviderModes: [...modes.filter(mode => !mode.startsWith("vector:")), "vector:lucene", "vector:qdrant"]};
   return manifest;
 }
 
@@ -188,7 +189,14 @@ export function buildFreshQdrantStagingOffer(input) {
     const [id, version] = reference.split("@");
     const matches = input.pluginVersions.filter(row => row.pluginId === id && row.version === version);
     check(matches.length === 1 && matches[0].id === CUSTOMER_PLUGIN_VERSION_IDS[id], "EXACT_PLUGIN_PINS_REQUIRED");
-    return requirePublishedVersion(matches[0]);
+    const published = requirePublishedVersion(matches[0]);
+    const supportedTargets = published.manifest.compatibility?.supportedDeploymentTargets;
+    check(supportedTargets === undefined || (Array.isArray(supportedTargets)
+      && supportedTargets.every(value => typeof value === "string" && value.trim() === value && value.length > 0)),
+    "REQUIRED_PLUGIN_TARGET_COMPATIBILITY_INVALID");
+    check(!supportedTargets?.length || supportedTargets.includes(QDRANT_BASE_TEMPLATE_ID),
+      "REQUIRED_PLUGIN_BASE_TEMPLATE_UNSUPPORTED");
+    return published;
   });
   const external = buildExternalIntegrationBindings({pluginVersions: plugins, targetProfileIds: [target.id],
     allowedHosts: configuration.externalIntegrationAllowedHosts});
