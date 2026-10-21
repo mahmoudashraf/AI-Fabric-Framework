@@ -9,6 +9,8 @@ import com.ai.fabric.budget.ProviderBudgetLedger;
 import com.ai.fabric.budget.ProviderBudgetLedger.Approval;
 import com.ai.fabric.budget.ProviderBudgetLedger.ChatReceipt;
 import com.ai.fabric.budget.ProviderBudgetLedger.Snapshot;
+import com.ai.fabric.budget.ProviderBudgetLedger.ValidityExtensionCommand;
+import com.ai.fabric.budget.ProviderBudgetLedger.ValidityExtensionReceipt;
 import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import java.sql.Connection;
@@ -16,6 +18,7 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Optional;
 import javax.sql.DataSource;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.http.HttpStatus;
@@ -133,6 +136,34 @@ public final class RuntimeBudgetBindingService {
     public Approval approval() { return requireActive().approval(); }
     public ProviderBudgetLedger.Scope scope() { requireEnabled(); return configuration.scope(); }
 
+    public java.time.Instant effectiveExpiresAt() {
+        var snapshot = readCurrent();
+        return ledger.effectiveExpiresAt(snapshot.approval().id(), configuration.scope());
+    }
+
+    /** ACTIVE is a store identity fence, not a demand that the original validity is still current. */
+    public ValidityExtensionReceipt extendValidity(ValidityExtensionCommand command) {
+        requireEnabled();
+        if (command == null) throw new BudgetException(BudgetException.Code.INVALID_REQUEST);
+        StoreReceipt current = transaction(connection -> binding(connection, false));
+        if (current.state() != State.ACTIVE) throw failure(NOT_ACTIVE);
+        requireMatch(current, command.approvalId(), command.storeUuid(), command.runtimeFingerprint());
+        Snapshot original = readExact(current);
+        // ACTIVE bindings are immutable after activation; no nested binding/ledger connection is held.
+        return ledger.extendValidity(original.approval(), command);
+    }
+
+    public Optional<ValidityExtensionReceipt> readValidityExtension(String extensionId) {
+        requireEnabled();
+        ProviderBudgetLedger.text(extensionId, 128);
+        StoreReceipt current = transaction(connection -> binding(connection, false));
+        if (current.state() == State.UNINITIALIZED || current.state() == State.INITIALIZING) return Optional.empty();
+        readExact(current);
+        var receipt = ledger.readValidityExtension(current.approvalId(), configuration.scope(), extensionId);
+        receipt.ifPresent(value -> requireMatch(current, value.approvalId(), value.storeUuid(), value.runtimeFingerprint()));
+        return receipt;
+    }
+
     /** Host must resolve verified auth first. Every HTTP retry receives a fresh server attempt. */
     public ChatReceipt recordVerifiedChatIngress(RuntimeResolvedIdentity identity) {
         return recordVerifiedInteractiveIngress(identity, "chat:query");
@@ -177,7 +208,7 @@ public final class RuntimeBudgetBindingService {
 
     private Snapshot active(Snapshot snapshot) {
         if (snapshot.stopped()) throw new BudgetException(STOPPED);
-        if (!clock.instant().isBefore(snapshot.approval().expiresAt())) throw new BudgetException(EXPIRED);
+        if (!clock.instant().isBefore(ledger.effectiveExpiresAt(snapshot.approval().id(), configuration.scope()))) throw new BudgetException(EXPIRED);
         return snapshot;
     }
 

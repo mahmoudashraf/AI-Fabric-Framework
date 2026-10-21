@@ -100,3 +100,15 @@ extraction stays last. This is an execution tracker, not a new product direction
   SHA256 `2904de2f0bf0ca5eb364d36675c29b737ff2fe0a81e70db0259ea26a675df2a3`.
 - That PostgreSQL run used schema206. The combined schema207 migration/regression
   and final backend package/CI are still required; this is not a hosted pass.
+
+## Runtime Validity Source Qualification
+
+- Product ledger/runtime: 112 passing checks, including 38 actual PostgreSQL
+  cases. V19-to-V20 migration preserves the existing ACTIVE binding, approval,
+  usage and outstanding holds. Package passes; public framework dependencies
+  remain exactly 0.8.36. No public framework build or release was performed.
+- Proof: `/private/tmp/01044-product-budget-validity-extension-manifest-20261021/qualification.actual.json`,
+  SHA256 `7de6ac70e709b20c1d7335f1a06ad40a0b081200eb3984021dba141bf3067e0d`.
+  Main verified all 15 frozen code/test/manifest files against the worktree.
+- This is not a live renewal. Image publication, reviewed artifact adoption,
+  control-plane integration and exact hosted receipt verification remain pending.

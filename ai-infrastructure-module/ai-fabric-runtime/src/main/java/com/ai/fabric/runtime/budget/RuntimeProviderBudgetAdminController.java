@@ -1,6 +1,8 @@
 package com.ai.fabric.runtime.budget;
 
 import com.ai.fabric.budget.BudgetException;
+import com.ai.fabric.budget.ProviderBudgetLedger.ValidityExtensionCommand;
+import com.ai.fabric.budget.ProviderBudgetLedger.ValidityExtensionReceipt;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -41,6 +44,20 @@ public final class RuntimeProviderBudgetAdminController {
         return budgets.activate(activation);
     }
 
+    @PostMapping("/validity-extensions")
+    public ValidityExtensionReceipt extendValidity(HttpServletRequest request, @RequestBody ValidityExtensionCommand command) {
+        administration.authorize(request, request.getRequestURI(), WRITE_SCOPE);
+        return budgets.extendValidity(command);
+    }
+
+    @GetMapping("/validity-extensions/{extensionId}")
+    public ValidityExtensionReceipt readValidityExtension(HttpServletRequest request, @PathVariable String extensionId) {
+        administration.authorize(request, request.getRequestURI(),
+            com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW);
+        return budgets.readValidityExtension(extensionId)
+            .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "RUNTIME_BUDGET_VALIDITY_EXTENSION_NOT_FOUND"));
+    }
+
     @ExceptionHandler(RuntimeBudgetBindingException.class)
     public ResponseEntity<Map<String, String>> bindingFailure(RuntimeBudgetBindingException failure) {
         HttpStatus status = switch (failure.code()) {
@@ -54,7 +71,8 @@ public final class RuntimeProviderBudgetAdminController {
 
     @ExceptionHandler(BudgetException.class)
     public ResponseEntity<Map<String, String>> ledgerFailure(BudgetException failure) {
-        return ResponseEntity.status(failure.code() == BudgetException.Code.STORAGE_UNAVAILABLE
-            ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.CONFLICT).body(Map.of("code", "PROVIDER_BUDGET_" + failure.code().name()));
+        HttpStatus status = failure.code() == BudgetException.Code.STORAGE_UNAVAILABLE ? HttpStatus.SERVICE_UNAVAILABLE
+            : failure.code() == BudgetException.Code.INVALID_REQUEST ? HttpStatus.BAD_REQUEST : HttpStatus.CONFLICT;
+        return ResponseEntity.status(status).body(Map.of("code", "PROVIDER_BUDGET_" + failure.code().name()));
     }
 }

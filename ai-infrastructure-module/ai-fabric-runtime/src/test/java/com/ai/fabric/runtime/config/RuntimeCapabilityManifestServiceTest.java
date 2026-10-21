@@ -33,6 +33,7 @@ class RuntimeCapabilityManifestServiceTest {
             "conversation-channel-outbox",
             "conversation-event-stream"
             ,"deployment-local-provider-budget-v1"
+            ,"deployment-local-provider-budget-validity-extension-v1"
         );
         assertThat(strings(manifest.path("migrationIds"))).contains(
             "ai-specialist-chain-execution-v1",
@@ -43,6 +44,7 @@ class RuntimeCapabilityManifestServiceTest {
             "loomai-conversation-handover-v1",
             "loomai-conversation-orchestration-state-v1"
             ,"provider-budget-accounting-v1"
+            ,"provider-budget-validity-extensions-v1"
         );
         assertThat(strings(manifest.path("verificationPackIds"))).contains(
             "agentic-specialist-team-v1",
@@ -50,10 +52,12 @@ class RuntimeCapabilityManifestServiceTest {
             "human-review-action-proposal-v1",
             "conversation-handover-v1"
             ,"provider-budget-hard-limit-v1"
+            ,"provider-budget-validity-extension-v1"
         );
         assertThat(strings(manifest.path("endpointClasses"))).contains("provider-budget-administration");
         Map<String, Object> projection = service.manifestProjection();
         assertThat(projection).containsEntry("schemaVersion", "loomai-runtime-capabilities-v1");
+        assertThat(projection).containsEntry("aiFabricVersion", "0.8.36");
         assertThat(projection.get("supportedBehaviorTypes")).isEqualTo(List.of(
             "AGENTIC_SPECIALIST_TEAM",
             "CONVERSATIONAL",

@@ -41,6 +41,7 @@
     "deployment-result-store",
     "deployment-local-provider-sync",
     "deployment-local-provider-budget-v1",
+    "deployment-local-provider-budget-validity-extension-v1",
     "milvus-token-authentication-v1",
     "document-ingestion-core",
     "document-source-connectors",
@@ -105,6 +106,7 @@
     ,"loomai-document-ingestion-v1"
     ,"integration-connector-state-v1"
     ,"provider-budget-accounting-v1"
+    ,"provider-budget-validity-extensions-v1"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",
@@ -115,6 +117,7 @@
     ,"document-knowledge-operations-v1"
     ,"external-http-integration-v1"
     ,"provider-budget-hard-limit-v1"
+    ,"provider-budget-validity-extension-v1"
   ],
   "specialistBundles": [
     {

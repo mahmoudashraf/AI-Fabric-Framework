@@ -104,7 +104,7 @@ class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.
     }
 
     @Test
-    void realSpringAndFlywayV19BootUninitializedWithLiveAdministrationButReadinessDown() {
+    void realSpringAndFlywayV20BootUninitializedWithLiveAdministrationButReadinessDown() {
         var source = new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID()
             + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1", "sa", "");
         enabled(source).withConfiguration(AutoConfigurations.of(FlywayAutoConfiguration.class,
@@ -116,7 +116,7 @@ class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.
                 "management.endpoint.health.group.readiness.include=readinessState")
             .run(context -> {
                 assertThat(context).hasNotFailed().hasSingleBean(RuntimeProviderBudgetAdminController.class);
-                assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("19");
+                assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("20");
                 AvailabilityChangeEvent.publish(context, LivenessState.CORRECT);
                 AvailabilityChangeEvent.publish(context, ReadinessState.ACCEPTING_TRAFFIC);
                 var health = context.getBean(HealthEndpoint.class);

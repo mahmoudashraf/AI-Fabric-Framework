@@ -224,6 +224,7 @@ class RuntimeBudgetBindingServiceTest extends RuntimeBudgetFixture.TestScope {
         when(ledger.approve(APPROVAL)).thenThrow(new BudgetException(BudgetException.Code.STORAGE_UNAVAILABLE))
             .thenAnswer(invocation -> fixture.ledger.approve(APPROVAL));
         when(ledger.read(APPROVAL.id(), SCOPE)).thenAnswer(invocation -> fixture.ledger.read(APPROVAL.id(), SCOPE));
+        when(ledger.effectiveExpiresAt(APPROVAL.id(), SCOPE)).thenReturn(APPROVAL.expiresAt());
         var service = new RuntimeBudgetBindingService(new RuntimeBudgetConfiguration(true, SCOPE, "tenant"), ledger, fixture.dataSource, CLOCK);
         assertBudget(BudgetException.Code.STORAGE_UNAVAILABLE, () -> service.initialize(ALLOCATION));
         var pending = service.readStore().binding();

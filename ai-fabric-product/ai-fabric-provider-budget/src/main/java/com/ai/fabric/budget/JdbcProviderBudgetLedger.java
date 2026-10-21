@@ -8,6 +8,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Optional;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 import static com.ai.fabric.budget.BudgetException.Code.*;
 import static com.ai.fabric.budget.ProviderBudgetLedger.*;
@@ -72,7 +77,7 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
                     if (rows.next()) return Decision.value(new ChatReceipt(serverAttemptId, rows.getLong(1), false));
                 }
             }
-            active(snapshot);
+            active(connection, snapshot);
             if (snapshot.chatAttempts() >= snapshot.approval().limits().chatAttempts())
                 return capacityDenied("CHAT_LIMIT");
             long ordinal = checkedAdd(snapshot.chatAttempts(), 1);
@@ -93,7 +98,7 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
                 if (!previous.upperBound().equals(upperBound)) throw new BudgetException(ATTEMPT_CONFLICT);
                 return Decision.value(new ReservationReceipt(previous, false));
             }
-            active(snapshot);
+            active(connection, snapshot);
             Usage next;
             try {
                 next = new Usage(checkedAdd(snapshot.accountedUsage().inputTokens(), upperBound.inputTokens()),
@@ -195,9 +200,103 @@ public final class JdbcProviderBudgetLedger implements ProviderBudgetLedger {
         return transaction(connection -> require(connection, approvalId, scope));
     }
 
-    private void active(Snapshot snapshot) {
+    @Override public Instant effectiveExpiresAt(String approvalId, Scope scope) {
+        check(approvalId, scope, new UUID(0, 0));
+        return transaction(connection -> effectiveExpiry(connection, require(connection, approvalId, scope)));
+    }
+
+    @Override public Optional<ValidityExtensionReceipt> readValidityExtension(String approvalId, Scope scope, String extensionId) {
+        check(approvalId, scope, new UUID(0, 0)); text(extensionId, 128);
+        return transaction(connection -> {
+            Snapshot snapshot = require(connection, approvalId, scope);
+            try (var query = connection.prepareStatement("SELECT extension_id FROM provider_budget_validity_extension WHERE extension_id=? AND approval_id=?")) {
+                bind(query, extensionId, approvalId);
+                try (var rows = query.executeQuery()) { if (!rows.next()) return Optional.empty(); }
+            }
+            return Optional.ofNullable(extension(connection, extensionId, snapshot));
+        });
+    }
+
+    @Override public ValidityExtensionReceipt extendValidity(Approval original, ValidityExtensionCommand command) {
+        if (original == null || command == null || !original.id().equals(command.approvalId())) throw new BudgetException(INVALID_REQUEST);
+        return transaction(connection -> {
+            Snapshot snapshot = require(connection, original.id(), original.scope());
+            sameApproval(snapshot, original);
+            String reason = reasonDigest(command.reason());
+            var previous = extension(connection, command.extensionId(), snapshot);
+            if (previous != null) {
+                if (!previous.storeUuid().equals(command.storeUuid()) || !previous.runtimeFingerprint().equals(command.runtimeFingerprint())
+                    || !previous.previousEffectiveExpiresAt().equals(command.expectedEffectiveExpiresAt())
+                    || !previous.expiresAt().equals(command.expiresAt()) || !previous.reasonSha256().equals(reason))
+                    throw new BudgetException(VALIDITY_EXTENSION_CONFLICT);
+                // A historical receipt is not another extension or a new authorization to spend.
+                return previous;
+            }
+            if (snapshot.stopped()) throw new BudgetException(STOPPED);
+            Instant effective = effectiveExpiry(connection, snapshot);
+            if (!effective.equals(command.expectedEffectiveExpiresAt())) throw new BudgetException(VALIDITY_EXTENSION_EXPIRY_CHANGED);
+            Instant now = clock.instant();
+            if (!command.expiresAt().isAfter(effective) || !command.expiresAt().isAfter(now)
+                || command.expiresAt().isAfter(now.plusSeconds(86_400))) throw new BudgetException(INVALID_REQUEST);
+            try (var query = connection.prepareStatement("SELECT store_uuid,runtime_fingerprint FROM provider_budget_validity_extension WHERE approval_id=?")) {
+                bind(query, original.id());
+                try (var rows = query.executeQuery()) {
+                    while (rows.next()) if (!command.storeUuid().toString().equals(rows.getString(1))
+                        || !command.runtimeFingerprint().equals(rows.getString(2))) throw new BudgetException(VALIDITY_EXTENSION_CONFLICT);
+                }
+            }
+            try {
+                execute(connection, """
+                    INSERT INTO provider_budget_validity_extension
+                    (extension_id,approval_id,store_uuid,runtime_fingerprint,previous_second,previous_nano,
+                     expires_second,expires_nano,reason_sha256,authorized_second,authorized_nano)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """, command.extensionId(), original.id(), command.storeUuid().toString(), command.runtimeFingerprint(),
+                    effective.getEpochSecond(), effective.getNano(), command.expiresAt().getEpochSecond(), command.expiresAt().getNano(),
+                    reason, now.getEpochSecond(), now.getNano());
+            } catch (SQLException collision) {
+                if ("23505".equals(collision.getSQLState())) throw new BudgetException(VALIDITY_EXTENSION_CONFLICT);
+                throw collision;
+            }
+            return extension(connection, command.extensionId(), snapshot);
+        });
+    }
+
+    private static Instant effectiveExpiry(Connection connection, Snapshot snapshot) throws SQLException {
+        try (var query = connection.prepareStatement("""
+            SELECT expires_second,expires_nano FROM provider_budget_validity_extension WHERE approval_id=?
+             ORDER BY expires_second DESC,expires_nano DESC LIMIT 1
+            """)) {
+            bind(query, snapshot.approval().id());
+            try (var rows = query.executeQuery()) {
+                return rows.next() ? Instant.ofEpochSecond(rows.getLong(1), rows.getInt(2)) : snapshot.approval().expiresAt();
+            }
+        }
+    }
+
+    private static ValidityExtensionReceipt extension(Connection connection, String id, Snapshot snapshot) throws SQLException {
+        try (var query = connection.prepareStatement("SELECT * FROM provider_budget_validity_extension WHERE extension_id=?")) {
+            bind(query, id);
+            try (var rows = query.executeQuery()) {
+                if (!rows.next()) return null;
+                if (!snapshot.approval().id().equals(rows.getString("approval_id"))) throw new BudgetException(VALIDITY_EXTENSION_CONFLICT);
+                return new ValidityExtensionReceipt(1, id, snapshot.approval().id(), snapshot.approval().scope(),
+                    UUID.fromString(rows.getString("store_uuid")), rows.getString("runtime_fingerprint"),
+                    Instant.ofEpochSecond(rows.getLong("previous_second"), rows.getInt("previous_nano")),
+                    Instant.ofEpochSecond(rows.getLong("expires_second"), rows.getInt("expires_nano")), rows.getString("reason_sha256"),
+                    Instant.ofEpochSecond(rows.getLong("authorized_second"), rows.getInt("authorized_nano")));
+            }
+        }
+    }
+
+    private static String reasonDigest(String reason) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(reason.getBytes(StandardCharsets.UTF_8))); }
+        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+
+    private void active(Connection connection, Snapshot snapshot) throws SQLException {
         if (snapshot.stopped()) throw new BudgetException(STOPPED);
-        if (!clock.instant().isBefore(snapshot.approval().expiresAt())) throw new BudgetException(EXPIRED);
+        if (!clock.instant().isBefore(effectiveExpiry(connection, snapshot))) throw new BudgetException(EXPIRED);
     }
 
     private static Snapshot sameApproval(Snapshot existing, Approval approval) {

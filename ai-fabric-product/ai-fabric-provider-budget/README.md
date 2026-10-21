@@ -21,6 +21,9 @@ Attempt settle(String approvalId, Scope scope, UUID attemptId, Usage settledUsag
 Attempt markAmbiguous(String approvalId, Scope scope, UUID attemptId, String reason)
 Snapshot stop(String approvalId, Scope scope, String reason)
 Snapshot read(String approvalId, Scope scope)
+Instant effectiveExpiresAt(String approvalId, Scope scope)
+ValidityExtensionReceipt extendValidity(Approval original, ValidityExtensionCommand command)
+Optional<ValidityExtensionReceipt> readValidityExtension(String approvalId, Scope scope, String extensionId)
 ```
 
 `BudgetException.code()` and `.reason()` are typed/sanitized failures, not fallback instructions. The parent can combine a current capacity denial with scoped `read()` for a safe usage/native-event response without treating the entire approval as stopped. Approval creation and all ledger methods are trusted-server operations: the owning application must authorize them. Never bind approval/scope/ceilings from an anonymous caller. Scope includes a first-class required `targetProfileId`, persisted as `target_profile_id`, separately from deployment/environment/credential identity. Approval replay requires exact scope, all limits, and expiration; it cannot transfer an approval to a different target, reset counters or increase caps. A newly minted approval ID is a new authorization, not an automatic retry/restart mechanism.
@@ -37,6 +40,36 @@ Snapshot read(String approvalId, Scope scope)
 - Before each new applicable operation, expiry is checked with exact `Instant` precision. Replays/readback/reconciliation are allowed after expiry but provide no new send capacity. Explicit stop is irreversible. Ordinary non-fit returns `LIMIT_EXCEEDED` with `CHAT_LIMIT`, `TOKEN_LIMIT`, or `COST_LIMIT`, and commits no new attempt, counter change, or stop state. Existing holds remain; trustworthy settlement may make a later **fresh** attempt fit. There is no automatic retry, refund or cap increase. An operation that would exceed a ceiling is never inserted. Reaching the ingress count cap prevents another ingress, not completion of an already admitted turn. Arithmetic integrity overflow and over-bound trusted usage durably stop before throwing; scope conflicts deny without mutating another scope's authority.
 
 ## Transaction And Schema Contract
+
+### Explicit Validity Extensions
+
+An authorized host may extend an existing approval's effective expiry without
+changing its immutable original approval, fingerprint, limits, counters, stop
+state or outstanding holds. This is not a top-up, replacement approval, refund
+or retry mechanism. The host must first verify its ACTIVE store binding and the
+exact approval, scope, store UUID and runtime fingerprint.
+
+The command carries `schemaVersion=1`, `extensionId`, `approvalId`, `storeUuid`,
+`runtimeFingerprint`, `expectedEffectiveExpiresAt`, `expiresAt` and `reason`.
+The ledger locks the original approval, compares the expected effective expiry,
+and inserts a separate extension receipt. The new expiry must advance the current
+expiry, be in the future, and be no more than 24 hours from authorization. A
+stopped approval cannot receive a new extension. Only a digest of the reason is
+stored in the ledger receipt.
+
+An exact duplicate returns the historical receipt without extending again;
+changed duplicates or stale expected expiry fail. After a lost response, read
+the same receipt ID. Absence is not permission for an automatic retransmission.
+Original `Snapshot.approval().expiresAt()` remains unchanged; effective expiry is
+queried separately and enforced for new ingress/provider reservations.
+
+The LoomAI runtime owns Flyway V20 and exposes these operations only through
+private `/api/admin/provider-budget/validity-extensions` administration. POST
+requires `runtime:admin:provider-budget:write`; receipt GET requires
+`runtime:admin:overview`. Anonymous chat cannot authorize an extension. The
+library still executes no DDL and makes no provider calls.
+
+### Independent Transactions
 
 Every method obtains its own connection, uses `SELECT ... FOR UPDATE` on the approval row, and commits before returning. No network work occurs inside these transactions. Approval-row-first ordering serializes ingress, reservations, settlement and stop across runtime/worker instances. Approval insertion races are resolved by uniqueness plus exact-request comparison, not an overwrite.
 

@@ -366,6 +366,189 @@ abstract class LedgerContract {
         denied(INVALID_REQUEST, () -> ledger.settle("approval", scope, UUID.randomUUID(), usage(0, 0, 0), " "));
     }
 
+    @Test void extensionPreservesEveryOriginalAccountingRowIncludingUnknownHolds() throws Exception {
+        approve();
+        UUID attempt = UUID.randomUUID();
+        ledger.recordChatIngress("approval", scope, UUID.randomUUID());
+        ledger.reserveAttempt("approval", scope, attempt, usage(20, 10, 80));
+        ledger.markAmbiguous("approval", scope, attempt, "UNKNOWN_TRANSPORT");
+        Snapshot before = ledger.read("approval", scope);
+        var raw = accountingRows();
+        clock.now = before.approval().expiresAt().plusSeconds(60);
+        denied(EXPIRED, () -> ledger.reserveAttempt("approval", scope, UUID.randomUUID(), usage(1, 0, 1)));
+        var command = extension("extension", before.approval().expiresAt(), clock.instant().plusSeconds(3600));
+        var receipt = ledger.extendValidity(before.approval(), command);
+        assertEquals(1, receipt.schemaVersion()); assertEquals(scope, receipt.scope());
+        assertEquals(command.storeUuid(), receipt.storeUuid()); assertEquals(command.runtimeFingerprint(), receipt.runtimeFingerprint());
+        assertEquals(command.expectedEffectiveExpiresAt(), receipt.previousEffectiveExpiresAt());
+        assertEquals(command.expiresAt(), receipt.expiresAt()); assertEquals(clock.instant(), receipt.authorizedAt());
+        assertTrue(receipt.reasonSha256().matches("[a-f0-9]{64}"));
+        assertFalse(receipt.toString().contains(command.reason()));
+        assertEquals(before, ledger.read("approval", scope)); assertEquals(raw, accountingRows());
+        assertEquals(command.expiresAt(), ledger.effectiveExpiresAt("approval", scope));
+        assertEquals(before, ledger.approve(before.approval()));
+        assertEquals(AttemptState.AMBIGUOUS, ledger.reserveAttempt("approval", scope, attempt, usage(20, 10, 80)).attempt().state());
+        assertTrue(ledger.reserveAttempt("approval", scope, UUID.randomUUID(), usage(1, 0, 1)).newlyReserved());
+        assertTrue(ledger.recordChatIngress("approval", scope, UUID.randomUUID()).newlyCounted());
+    }
+
+    @Test void extensionExpiryIsExactAndDoesNotIncreaseAnyLimit() {
+        Approval original = approval(new Limits(1, 2, 3)); ledger.approve(original);
+        ledger.recordChatIngress("approval", scope, UUID.randomUUID());
+        ledger.reserveAttempt("approval", scope, UUID.randomUUID(), usage(2, 0, 3));
+        var command = extension("extension", original.expiresAt(), original.expiresAt().plusNanos(1));
+        ledger.extendValidity(original, command);
+        clock.now = original.expiresAt();
+        denied(LIMIT_EXCEEDED, () -> ledger.recordChatIngress("approval", scope, UUID.randomUUID()));
+        denied(LIMIT_EXCEEDED, () -> ledger.reserveAttempt("approval", scope, UUID.randomUUID(), usage(1, 0, 0)));
+        clock.now = command.expiresAt();
+        denied(EXPIRED, () -> ledger.reserveAttempt("approval", scope, UUID.randomUUID(), usage(0, 0, 0)));
+        assertEquals(original, ledger.read("approval", scope).approval());
+    }
+
+    @Test void exactExtensionReplayAndGetSurviveRestartExpiryAndStopWithoutRevival() {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        var command = extension("extension", original.expiresAt(), original.expiresAt().plusSeconds(60));
+        var receipt = ledger.extendValidity(original, command);
+        var restarted = new JdbcProviderBudgetLedger(dataSource, clock);
+        assertEquals(receipt, restarted.readValidityExtension("approval", scope, "extension").orElseThrow());
+        clock.now = command.expiresAt().plusSeconds(1);
+        assertEquals(receipt, restarted.extendValidity(original, command));
+        Snapshot stopped = restarted.stop("approval", scope, "OWNER_STOP");
+        assertEquals(receipt, restarted.extendValidity(original, command));
+        assertEquals(receipt, restarted.readValidityExtension("approval", scope, "extension").orElseThrow());
+        denied(STOPPED, () -> restarted.extendValidity(original, extension("another", command.expiresAt(), clock.instant().plusSeconds(60))));
+        denied(STOPPED, () -> restarted.reserveAttempt("approval", scope, UUID.randomUUID(), usage(0, 0, 0)));
+        assertEquals(stopped, restarted.read("approval", scope));
+        assertTrue(restarted.readValidityExtension("approval", scope, "unknown").isEmpty());
+    }
+
+    @Test void changedDuplicateAndForeignApprovalCannotReuseAnExtensionId() {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        var command = extension("extension", original.expiresAt(), original.expiresAt().plusSeconds(60));
+        ledger.extendValidity(original, command);
+        for (var changed : List.of(
+            new ValidityExtensionCommand(1, command.extensionId(), command.approvalId(), UUID.randomUUID(), command.runtimeFingerprint(), command.expectedEffectiveExpiresAt(), command.expiresAt(), command.reason()),
+            new ValidityExtensionCommand(1, command.extensionId(), command.approvalId(), command.storeUuid(), "b".repeat(64), command.expectedEffectiveExpiresAt(), command.expiresAt(), command.reason()),
+            new ValidityExtensionCommand(1, command.extensionId(), command.approvalId(), command.storeUuid(), command.runtimeFingerprint(), command.expectedEffectiveExpiresAt().plusNanos(1), command.expiresAt(), command.reason()),
+            new ValidityExtensionCommand(1, command.extensionId(), command.approvalId(), command.storeUuid(), command.runtimeFingerprint(), command.expectedEffectiveExpiresAt(), command.expiresAt().plusNanos(1), command.reason()),
+            new ValidityExtensionCommand(1, command.extensionId(), command.approvalId(), command.storeUuid(), command.runtimeFingerprint(), command.expectedEffectiveExpiresAt(), command.expiresAt(), "different reason")))
+            denied(VALIDITY_EXTENSION_CONFLICT, () -> ledger.extendValidity(original, changed));
+        var other = new Approval("other", scope, original.limits(), original.expiresAt()); ledger.approve(other);
+        var foreign = new ValidityExtensionCommand(1, command.extensionId(), other.id(), command.storeUuid(), command.runtimeFingerprint(), other.expiresAt(), command.expiresAt(), command.reason());
+        denied(VALIDITY_EXTENSION_CONFLICT, () -> ledger.extendValidity(other, foreign));
+        assertTrue(ledger.readValidityExtension(other.id(), scope, command.extensionId()).isEmpty());
+    }
+
+    @Test void extensionRequiresExactScopeOriginalTermsAndStableStoreLineage() {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        var first = extension("first", original.expiresAt(), original.expiresAt().plusSeconds(60));
+        for (Scope changed : changedScopes()) {
+            denied(SCOPE_MISMATCH, () -> ledger.extendValidity(new Approval(original.id(), changed, original.limits(), original.expiresAt()), first));
+            denied(SCOPE_MISMATCH, () -> ledger.effectiveExpiresAt(original.id(), changed));
+            denied(SCOPE_MISMATCH, () -> ledger.readValidityExtension(original.id(), changed, first.extensionId()));
+        }
+        denied(APPROVAL_CONFLICT, () -> ledger.extendValidity(new Approval(original.id(), scope, new Limits(9, 100, 1_000), original.expiresAt()), first));
+        denied(APPROVAL_CONFLICT, () -> ledger.extendValidity(new Approval(original.id(), scope, original.limits(), original.expiresAt().plusNanos(1)), first));
+        ledger.extendValidity(original, first);
+        for (var changed : List.of(
+            new ValidityExtensionCommand(1, "second", original.id(), UUID.randomUUID(), first.runtimeFingerprint(), first.expiresAt(), first.expiresAt().plusSeconds(60), first.reason()),
+            new ValidityExtensionCommand(1, "second", original.id(), first.storeUuid(), "b".repeat(64), first.expiresAt(), first.expiresAt().plusSeconds(60), first.reason())))
+            denied(VALIDITY_EXTENSION_CONFLICT, () -> ledger.extendValidity(original, changed));
+        var second = extension("second", first.expiresAt(), first.expiresAt().plusSeconds(60));
+        ledger.extendValidity(original, second);
+        assertEquals(second.expiresAt(), ledger.effectiveExpiresAt(original.id(), scope));
+        assertEquals(first.expiresAt(), ledger.readValidityExtension(original.id(), scope, first.extensionId()).orElseThrow().expiresAt());
+    }
+
+    @Test void extensionHasFiniteNowBoundAndExpectedExpiryCas() {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        for (Instant expiry : List.of(original.expiresAt(), original.expiresAt().minusNanos(1), clock.instant().plusSeconds(86_400).plusNanos(1)))
+            denied(INVALID_REQUEST, () -> ledger.extendValidity(original, extension("invalid", original.expiresAt(), expiry)));
+        clock.now = original.expiresAt().plusSeconds(100);
+        denied(INVALID_REQUEST, () -> ledger.extendValidity(original, extension("past", original.expiresAt(), clock.instant())));
+        denied(VALIDITY_EXTENSION_EXPIRY_CHANGED, () -> ledger.extendValidity(original, extension("wrong", original.expiresAt().plusNanos(1), clock.instant().plusSeconds(1))));
+        var maximum = extension("max", original.expiresAt(), clock.instant().plusSeconds(86_400));
+        ledger.extendValidity(original, maximum);
+        assertEquals(maximum.expiresAt(), ledger.effectiveExpiresAt(original.id(), scope));
+    }
+
+    @Test void concurrentExtensionsCasOnlyOneWinnerAndExactDuplicatesOnlyOneReceipt() throws Exception {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        var same = extension("same", original.expiresAt(), original.expiresAt().plusSeconds(60));
+        var duplicates = race(6, i -> () -> new JdbcProviderBudgetLedger(dataSource, clock).extendValidity(original, same));
+        assertTrue(duplicates.stream().allMatch(duplicates.getFirst()::equals));
+        var results = race(6, i -> () -> {
+            try { new JdbcProviderBudgetLedger(dataSource, clock).extendValidity(original, extension("race-" + i, same.expiresAt(), same.expiresAt().plusSeconds(60))); return true; }
+            catch (BudgetException error) { assertEquals(VALIDITY_EXTENSION_EXPIRY_CHANGED, error.code()); return false; }
+        });
+        assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
+        assertEquals(2, extensionCount());
+    }
+
+    @Test void stopAndExtensionSerializeWithoutClearingStoppedState() throws Exception {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        race(2, i -> () -> {
+            if (i == 0) ledger.stop(original.id(), scope, "OWNER_STOP");
+            else try { new JdbcProviderBudgetLedger(dataSource, clock).extendValidity(original, extension("race", original.expiresAt(), original.expiresAt().plusSeconds(60))); }
+            catch (BudgetException error) { assertEquals(STOPPED, error.code()); }
+            return true;
+        });
+        assertTrue(ledger.read(original.id(), scope).stopped());
+        denied(STOPPED, () -> ledger.recordChatIngress(original.id(), scope, UUID.randomUUID()));
+    }
+
+    @Test void lostExtensionCommitResponseReconcilesByReadWithoutAutomaticRetry() throws Exception {
+        approve(); Approval original = ledger.read("approval", scope).approval();
+        var command = extension("unknown-transport", original.expiresAt(), original.expiresAt().plusSeconds(60));
+        var before = accountingRows(); AtomicBoolean lose = new AtomicBoolean(true);
+        DataSource uncertain = wrapped(connection -> proxy(connection, (method, arguments) -> {
+            Object result = invoke(connection, method, arguments);
+            if (method.getName().equals("commit") && lose.getAndSet(false)) throw new SQLException("fixture response lost after commit");
+            return result;
+        }));
+        denied(STORAGE_UNAVAILABLE, () -> new JdbcProviderBudgetLedger(uncertain, clock).extendValidity(original, command));
+        var receipt = new JdbcProviderBudgetLedger(dataSource, clock).readValidityExtension(original.id(), scope, command.extensionId()).orElseThrow();
+        assertEquals(command.expiresAt(), receipt.expiresAt()); assertEquals(1, extensionCount());
+        assertEquals(before, accountingRows());
+    }
+
+    @Test void extensionCommandRejectsMissingWrongVersionAndOversizedInput() {
+        for (int version : List.of(0, 2)) denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(version, "id", "approval", EXTENSION_STORE, "a".repeat(64), clock.instant(), clock.instant(), "reason"));
+        for (String id : new String[]{null, "", " ", "x".repeat(129)}) denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(1, id, "approval", EXTENSION_STORE, "a".repeat(64), clock.instant(), clock.instant(), "reason"));
+        for (String reason : new String[]{null, "", " ", "x".repeat(513)}) denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(1, "id", "approval", EXTENSION_STORE, "a".repeat(64), clock.instant(), clock.instant(), reason));
+        denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(1, "id", "approval", null, "a".repeat(64), clock.instant(), clock.instant(), "reason"));
+        denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(1, "id", "approval", EXTENSION_STORE, "invalid", clock.instant(), clock.instant(), "reason"));
+        denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(1, "id", "approval", EXTENSION_STORE, "a".repeat(64), null, clock.instant(), "reason"));
+        denied(INVALID_REQUEST, () -> new ValidityExtensionCommand(1, "id", "approval", EXTENSION_STORE, "a".repeat(64), clock.instant(), null, "reason"));
+    }
+
+    static final UUID EXTENSION_STORE = UUID.fromString("00000000-0000-0000-0000-000000000123");
+
+    ValidityExtensionCommand extension(String id, Instant expected, Instant expiry) {
+        return new ValidityExtensionCommand(1, id, "approval", EXTENSION_STORE, "a".repeat(64), expected, expiry, "reviewed finite continuation");
+    }
+
+    int extensionCount() throws SQLException {
+        try (var connection = dataSource.getConnection(); var query = connection.createStatement();
+             var rows = query.executeQuery("SELECT COUNT(*) FROM provider_budget_validity_extension")) { rows.next(); return rows.getInt(1); }
+    }
+
+    List<List<String>> accountingRows() throws SQLException {
+        var result = new ArrayList<List<String>>();
+        for (String table : List.of("provider_budget_approval", "provider_budget_chat_ingress", "provider_budget_attempt")) {
+            try (var connection = dataSource.getConnection(); var statement = connection.createStatement();
+                 var rows = statement.executeQuery("SELECT * FROM " + table + " ORDER BY 1,2")) {
+                while (rows.next()) {
+                    var row = new ArrayList<String>(); row.add(table);
+                    for (int i = 1; i <= rows.getMetaData().getColumnCount(); i++) row.add(rows.getString(i));
+                    result.add(row);
+                }
+            }
+        }
+        return result;
+    }
+
     List<Scope> changedScopes() {
         return List.of(new Scope("other", "deployment", "target-a", "staging", "credential-identity", "rate-card-v1"),
             new Scope("customer", "other", "target-a", "staging", "credential-identity", "rate-card-v1"),

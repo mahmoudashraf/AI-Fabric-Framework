@@ -2,6 +2,7 @@ package com.ai.fabric.budget;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Optional;
 
 /** Trusted server API. A receipt establishes accounting, not transport or billing correctness. */
 public interface ProviderBudgetLedger {
@@ -21,6 +22,34 @@ public interface ProviderBudgetLedger {
     Snapshot stop(String approvalId, Scope scope, String reason);
 
     Snapshot read(String approvalId, Scope scope);
+
+    /** Separate from the immutable original approval; unsupported adapters remain conservative. */
+    default Instant effectiveExpiresAt(String approvalId, Scope scope) { return read(approvalId, scope).approval().expiresAt(); }
+
+    /** Trusted host must fence its ACTIVE store binding before calling this accounting-only mutation. */
+    default ValidityExtensionReceipt extendValidity(Approval original, ValidityExtensionCommand command) {
+        throw new BudgetException(BudgetException.Code.STORAGE_UNAVAILABLE);
+    }
+
+    default Optional<ValidityExtensionReceipt> readValidityExtension(String approvalId, Scope scope, String extensionId) {
+        throw new BudgetException(BudgetException.Code.STORAGE_UNAVAILABLE);
+    }
+
+    record ValidityExtensionCommand(int schemaVersion, String extensionId, String approvalId, UUID storeUuid,
+                                    String runtimeFingerprint, Instant expectedEffectiveExpiresAt, Instant expiresAt, String reason) {
+        public ValidityExtensionCommand {
+            if (schemaVersion != 1 || storeUuid == null || expectedEffectiveExpiresAt == null || expiresAt == null
+                || runtimeFingerprint == null || !runtimeFingerprint.matches("[a-f0-9]{64}")) throw invalid();
+            extensionId = text(extensionId, 128); approvalId = text(approvalId, 128); reason = text(reason, 512);
+        }
+        @Override public String toString() {
+            return "ValidityExtensionCommand[extensionId=" + extensionId + ", approvalId=" + approvalId + ", reason=REDACTED]";
+        }
+    }
+
+    record ValidityExtensionReceipt(int schemaVersion, String extensionId, String approvalId, Scope scope,
+                                    UUID storeUuid, String runtimeFingerprint, Instant previousEffectiveExpiresAt,
+                                    Instant expiresAt, String reasonSha256, Instant authorizedAt) { }
 
     record Scope(String customerId, String deploymentId, String targetProfileId, String environment,
                  String credentialIdentity, String rateCardReference) {
