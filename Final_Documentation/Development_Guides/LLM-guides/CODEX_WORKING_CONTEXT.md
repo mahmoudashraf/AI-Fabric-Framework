@@ -10,6 +10,24 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 14:52UTC: fresh release rel-1fe0f5b8 APPLIED_VERIFIED/PASSED; Inbox READY,
+  ownerkeydeliveredonce overHTTPS/private. ThreeS3policies ACTIVEv1; real
+  embeddingretrievalproof returnsall3 correctscope/provider scores. Consumer/app
+  notactivated: allocation stillPROVISIONING. Rootcause nativeCoolify app+PG
+  GETs use destination.server.uuid, verifier wronglyrequiresflatserver_uuid.
+  Narrowfix826f090ac pushed;70checks/42realPG/zero skips +packagePASS, independent
+  reviewclean; CI39620470067backendonly building. No framework/runtime/schema/UI
+  change. Privatequalification/rollout helper:
+  /private/tmp/01044-native-resource-placement-20261021. MainmustcompletebothCP
+  rollout/criticalfinancial+customerconfigurationpreservation then activate.
+  Originalmetadata-bearingrawresponsesremainprivate; don'tprintnestedserver.
+  Browserhelpersstillunrun; UIextractionLAST. NoSQLwriteorallowancereset.
+- 14:56UTC CI39620470067PASS/UI skipped; image1d2ead27...49cffd29 verified.
+  Stagebackup+25critical-table/configsnapshotPASS; nativeCPjob
+  i78mxhp6ro6wa5giwp3ep4r7 dispatched. Newrollout helper permitsintendednative
+  admissionstate settlement only outside preservedcriticaltables; production
+  followsstageverification. Do notclaimallDBrowsunchanged. API/UIgates stillopen.
+
 - Fresh normal customer config exists: dep-d498f2f3/ten-57b2f751/ver-2e8ca801,
   offer-engage-dealership-qdrant-pilot-v2-20261021, draft app
   northfield-pilot.apps.loomai.pro. S3 and both external integrations bound.

@@ -1,5 +1,41 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 14:37 UTC Fresh Hosted Pilot
+
+This checkpoint supersedes the older pending-route and not-deployed wording
+below. The owner approved a fresh free-only staging pilot and confirmed that
+data in all discussed vector clusters is disposable. No vector migration is
+required. Production retains its separate approved Zilliz Serverless cluster.
+
+Both control planes are verified on `3c6a3604a`/schema207. The normal owner flow
+created `dep-d498f2f3`, tenant `ten-57b2f751`, version `ver-2e8ca801`, and
+staging-only offer `offer-engage-dealership-qdrant-pilot-v2-20261021`. Customer S3,
+external simulator stock and external business-action receiver are normally
+bound. Receiver isolation probes pass; no deployment-owned business database
+was introduced. The $12 whole-task limit and all historical allocations remain.
+
+Fresh release `rel-1fe0f5b8` uses latest runtime artifact `dsa-6776d0bf` and is
+PROVISIONING, not accepted. Runtime startup and first connector startup passed;
+the connector is restarting after privileged bootstrap credentials were removed.
+Its native health start periods account for the wait; measured staging load is
+low. Inbox owner is automatically enrolled. App
+`https://northfield-pilot.apps.loomai.pro` has a verified domain but remains DRAFT
+until verified release assignment. Browser, indexing, auth and handover gates
+remain open. No repeated deployment or five-minute measurement was triggered.
+
+Production return point: existing promotion reuses the published version and
+source artifact; vector provider is version-wide, while target scoping changes
+only namespaces. A new offer does not replace an existing deployment's immutable
+offer association. Consequently this staging-only Qdrant pilot is not proof of
+Qdrant-to-Zilliz promotion. Do not copy vectors, silently change provider, or call
+the production gate complete. Resolve a separately reviewed compatible production
+composition/path after the basic hosted journey; a cross-provider promotion
+feature is not silently added to this cycle. UI extraction remains last.
+
+Detailed receipts, caller-check failures and return points are in
+`verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md`
+and private evidence `/private/tmp/01044-fresh-qdrant-pilot-v2-20261021`.
+
 ## 2026-10-21 Hosted Customer Journey Focus
 
 Environment clarification: the chosen design intentionally separates vector

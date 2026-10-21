@@ -8,6 +8,37 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Fresh Customer Journey, 21 October 14:29 UTC
 
+- 14:52UTC superseding status: release `rel-1fe0f5b8` is APPLIED_VERIFIED /
+  PASSED. Inbox graph `dpg-b738105e6bf14920a2feea0508f4004d` is READY with
+  effective owner configuration; one-time HTTPS key delivery succeeded and is
+  private. All three S3 policies are ACTIVEv1. Actual retrieval proof returns
+  all three with correct new tenant/deployment/target scope and provider scores;
+  the earlier runtime budget-context fix is now proven live.
+- Consumer/app activation exposed the next real integration blocker before any
+  activation command: the admission reservation remains PROVISIONING although
+  the release is verified. Native app/connector/PostgreSQL responses contain
+  `destination.server.uuid` and `destination.uuid`, not flat `server_uuid`.
+  `ProductionAdmissionResourceReadbackSource` required the absent flat field.
+  Actual native metadata proves all three resources healthy on the correct
+  recorded server/destination. No SQL ledger repair or extra apply occurred.
+- Narrow correction `826f090ac` validates either explicit protocol shape and
+  rejects conflicting server evidence, wrong destination/resource UUID, and
+  missing placement. Focused70 tests pass, including42 real PostgreSQL, no
+  failures/skips; package passes. Independent static review found no P1/P2
+  issues. Original sandbox JVM-attachment failures retained separately.
+  CI39620470067 is building backend only. Framework/runtime/schema/UI unchanged.
+  Qualification: `/private/tmp/01044-native-resource-placement-20261021`.
+  Main continues backend-only rollout then original customer activation/browser
+  journey. No extra framework release, recovery API or broad test matrix.
+- 14:56UTC: CI39620470067 completed successfully, UI skipped. Immutable backend
+  image `1d2ead2756e27b6128855c96c63a6b5119f1ddebf8a83aa032f9ef3649cffd29`
+  is source-bound and verified. Stage backup and25 critical-table snapshots
+  completed; normal native job `i78mxhp6ro6wa5giwp3ep4r7` dispatched. The
+  scoped rollout explicitly permits the intended automatic admission settlement,
+  but requires unchanged customer configuration, grants/allocations/history,
+  schema and saved/effective environment. It does not falsely claim every
+  admission observer row is immutable. Production follows actual stage proof.
+
 - Normal customer bootstrap, immutable version, consumer assignment, draft Engage
   app and customer-owned S3 binding are created: `dep-d498f2f3`, tenant
   `ten-57b2f751`, version `ver-2e8ca801`, offer
@@ -45,6 +76,17 @@ extraction stays last. This is an execution tracker, not a new product direction
   Document administration correctly remains409 until provisioning finishes.
   Current stage load~0.6/8cores, runtime~519MiB/1GiB; this wait is not overload.
   No new five-minute capacity sample or duplicate deployment was triggered.
+- Production return point, read-only code assessment: the current association
+  pins this staging-only offer ID/fingerprint; a new offer cannot replace it.
+  Practical promotion reuses the same version/artifact, whose vector provider
+  is version-wide. Target scoping changes namespaces, not Qdrant into Zilliz.
+  No normal cross-provider promotion is claimed. After basic staging acceptance,
+  resolve a separately reviewed compatible production composition/path. Avoid
+  broadening this cycle into an unapproved cross-provider migration feature.
+  Exact code: `CustomerSelfServicePromotionBoundary`,
+  `DeploymentPracticalPromotionService`, `RailwayProvisioningPlanService`, and
+  `TenantScopedVectorHandleResolver`. Private findings:
+  `production-cross-provider-return-point.json` in the fresh-pilot evidence root.
 
 ### Fresh Free-Only Pilot Decision, 21 October 13:08 UTC
 
