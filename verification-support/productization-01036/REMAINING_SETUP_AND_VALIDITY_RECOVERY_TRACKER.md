@@ -6,6 +6,29 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Fresh Free-Only Pilot Decision, 21 October 13:08 UTC
+
+The owner explicitly approved "Proceed with the free-only staging pilot" in
+Required for production (human message `01a15e7a-ad39-76a0-9638-2300ce8e3bd1`),
+then clarified in the main task that data in all discussed clusters is not
+important and plan completion is the priority. This supersedes the pending
+decision wording below. Old test-vector migration or preservation must not
+block the fresh pilot; it does not require indiscriminate deletion.
+
+Read-only provider checks found an existing healthy Qdrant free cluster. Use
+the existing EXTERNAL_EXISTING / SHARED path, managed collection provisioning
+disabled, with a fresh deployment/target-scoped prefix. Do not adopt the cloud
+cluster as a newly provisioned managed resource. Production retains its
+separate approved Serverless cluster; no production-to-staging reuse, new paid
+provider, additional account, or vector transfer is part of this decision.
+
+Prepare a new reviewed staging-only template version, managed PostgreSQL Inbox
+specification and offer pinned to `dsa-6776d0bf`. Preserve financial history and
+count all use and outstanding holds against the existing whole-task allowance.
+Fresh capacity, normal customer authorization and actual indexing/retrieval
+still precede activation. At this checkpoint no new pilot was created or
+deployed, and no provider data was removed. UI extraction remains last.
+
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
 ### Environment Separation Clarification, 21 October
