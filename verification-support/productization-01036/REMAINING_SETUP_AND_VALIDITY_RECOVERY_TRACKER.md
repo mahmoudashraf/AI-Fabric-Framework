@@ -6,6 +6,44 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Identity Projection And Hosted Activation, 21 October 16:38 UTC
+
+- Normal reconciliation settled reservation `25dea632-66b6-48c5-897c-bfcabb112894`
+  ACTIVE revision2. Read-only evidence verifies the same generation, manifest,
+  binding and full demand. Refreshed policy
+  `01036-pilot-activation-fleet-20261021` was normally published, valid until
+  17:58:44Z. Both full reservations, original quotas and financial history remain.
+  The cgroup-qualified current-fleet sample yields1104m non-ledger staging CPU;
+  full holds+headroom=7604/8000m. Memory fits with the unchanged2GiB headroom.
+  No synthetic zero load, allowance reset or extra provider capacity.
+- Real owner consumer activation passed for `northfield-pilot-20261021`, binding
+  revision2, `rel-1fe0f5b8`. The app's activation returned409, retained in
+  `fresh-app-activation.response.private.json`; it remains DRAFT. Readiness
+  correctly reports missing external identity broker/issuer/scopes despite its
+  reviewed Supabase profile. All assignment, assets, pack, route, domain,
+  anonymous-token and CORS checks pass. Browser gates have not run.
+- Root cause: workspace configuration projected CORS only, never the reviewed
+  authentication profile into deployment security. Generic fix `8619d15c4`
+  projects normalized provider identity and least-privilege conversation scopes,
+  rejects conflicting shared-deployment providers/manual drift, preserves manual
+  brokers/private auth/email policy, and restores only owned fields on removal.
+  Central publication resynchronizes against current behavior before freezing
+  a version; deployments without workspaces/projection metadata are unchanged.
+- Combined62 checks pass, including6 real PostgreSQL publication/rollback/
+  concurrency cases. The old concurrency expectation omitted an already-present
+  app origin; the stronger corrected test proves a waiting app edit affects only
+  the next draft. Original failed report and compile-only helper correction are
+  retained privately; no failure was relabeled as a pass. Package passes.
+  Backend-only CI39635992345 is building; no framework/runtime/schema/UI change.
+- Next: verify both control-plane rollouts, normally publish/reapply a new
+  version to this SAME deployment/allocation, verify runtime/connector/AI-state
+  resource UUID reuse and document retention, reactivate the consumer/app, then
+  run the prepared real browser gates. No native environment patch, new offer,
+  business database, vector transfer or anonymous-only downgrade. Private
+  qualification/rollout: `01044-workspace-identity-projection-20261021`;
+  continuation: `01044-fresh-pilot-identity-reapply-20261021.mjs` (not run).
+  Production promotion and UI extraction remain open; UI stays last.
+
 ### Settlement Diagnosis, 21 October 15:52 UTC
 
 - 16:08UTC: the second cause is confirmed: `references()` called immutable

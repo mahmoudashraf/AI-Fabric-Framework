@@ -1,5 +1,22 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 16:38 UTC Consumer Activated, App Identity Gate Open
+
+The null-consumer fix settled the fresh allocation normally; scoped generation
+and full demand are unchanged. Fresh capacity continuity was normally published,
+then the real owner activated the consumer (revision2). App activation correctly
+returned409: its reviewed Supabase profile was not projected into runtime broker
+settings. The app remains DRAFT; no public browser gate is counted as passed.
+
+Generic identity projection/publication correction `8619d15c4` passes62 checks,
+including6 real PostgreSQL publication, rollback and concurrency cases. Package
+passes; backend-only CI39635992345 is pending. Main will roll out both control
+planes and normally reapply a new immutable version to the same deployment and
+allocation, retaining AI-state resources and indexed sources. No framework or
+runtime artifact change, native environment patch, new business database or
+vector transfer. Detailed receipts and remaining gates are in the recovery
+tracker. Production promotion and final isolated UI extraction remain open.
+
 ## 2026-10-21 15:52 UTC Verified Release, Settlement Still Open
 
 16:08UTC update: independent reproduction found a null-release-ID crash while

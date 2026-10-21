@@ -10,6 +10,22 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 16:38UTC: allocationautoACTIVE2 proven/samefullscope+envelope. Normalfresh
+  policy01036-pilot-activation-fleet-20261021 until17:58:44Z; CPUcgroupqualified
+  1104mnonledger+4500mholds+2000mhead=7604/8000, memoryfitsunchangedheadroom.
+  Consumeractivation200/rev2. Appactivation409 retained/DRAFT: reviewedSupabase
+  profile neverprojectedinto runtimebroker (CORSonly). Genericfix8619d15c4
+  projectsidentity+leastscopes andrefreshesbeforeimmutablepublication, preserves
+  manual/privateauth, rejectsdrift/conflictingissuers.62checks/6realPG/package
+  PASS; originalstaleconcurrencyexpectationfailure+compile-onlyr2log retained.
+  CI39635992345buildingbackendonly/UI skipped. Privatequal/rolloutroot
+  01044-workspace-identity-projection-20261021; intendednormalSAMEallocation
+  reapplyhelper01044-fresh-pilot-identity-reapply-20261021.mjs NOTRUN. Mustclose
+  bothCPmaintenance beforepublish/reapply. Thenactivateconsumer/appagain with
+  actualnewversion/release, updatebrowser11fieldscope BEFOREfirstpin/ingress.
+  Originalappactivationintentconsumed409; useexplicitnewkey, noreplay. No public
+  browserqueriesyet/UIextractionlast. No nativeenv/SQLwrite/frameworkchange.
+
 - 16:08UTC secondrootcause confirmed: immutableSet.contains(null) inresource
   assignmentcount,2unrelatednullconsumerrows; independentJava21reproNPEbefore
   ledger. Fix660974ee8 preserves3legitassignmentcases;29checks/packagePASS,
