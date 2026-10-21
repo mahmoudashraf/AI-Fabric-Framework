@@ -174,7 +174,54 @@ Actual private evidence is under
 `initial-fence-live-progress-*`/snapshot receipts. The app is still DRAFT. No
 public browser AI query or business-action write has been issued.
 
+## 2026-10-21 20:24 UTC Hosted Follow-Up
+
+- The prepared-Inbox correction `fa047963d` is deployed and verified on both
+  control planes. Staging job `su32vvyoto7xmbwhn965dags`; production job
+  `kjiu6drkc2nq7whvdlcun2ld`. Both report health UP and schema207. Configuration
+  and all25 protected authority/financial tables are unchanged.
+- Backend image `sha256:17c34deb268f0f52f0799a274728163ee8630a61fd4048da296c4525a953b16d`;
+  closure SHA256 `0c0365b45b84e443b93799a5e88bf865799ed80bee1443fc36af7c769daa61dd`.
+  Private evidence: `/private/tmp/01044-cold-maintenance-prepared-inbox-20261021`.
+- Runtime artifact `dsa-6678c16b` remains the already-qualified `a2df03d48`
+  product image with unchanged released AI Fabric0.8.36 jars. No additional
+  runtime rebuild, framework release, schema migration or UI deployment.
+- A fresh attended cold-maintenance plan is being requested with the explicit
+  downtime/volatile-state-loss acknowledgement. This is not yet proof of runtime
+  recovery, consumer/app activation or browser acceptance. The original rejected
+  plan and all failed attempts remain retained; no SQL state repair is used.
+- Next: recover the same candidate/allocation through reviewed effects, refresh
+  capacity only for its consuming owner retry, then run hosted browser journeys.
+  Production promotion and final UI extraction remain outstanding; UI stays last.
+
 ## Execution
+
+### 20:34 UTC Provider Representation Correction
+
+The fresh cold plan was accepted and claimed. Connector, Inbox and runtime stop,
+image patch and provenance patch all confirmed. The runtime deployment was
+actually dispatched as native job `e1o551qremhlni5ck7ebmnt5`; its response guard
+reported `NATIVE_CONFIGURATION_OR_STORAGE_CHANGED`. The durable result remains
+UNKNOWN and must be reconciled read-only, never dispatched again.
+
+Private native diagnosis proves the complete environment hash is unchanged.
+Coolify encoded `custom_labels` as Base64 during startup. Replacing that encoded
+field with its exact decoded bytes reproduces the entire original configuration
+hash (`d4c0e78d...48a5c8d`), without excluding a configuration field or changing a
+label. The runtime is running/healthy; generation adoption has NOT occurred.
+
+The projection now canonicalizes this provider representation only. Label
+content, order, whitespace and all other settings remain guarded.63 focused
+projection/provenance/ordinary-repair/cold-repair checks pass, zero failures,
+errors or skips; packaging passes. This is a protocol-format correction, not
+semantic text matching or an LLM fallback. Backend-only publication/rollout is
+next, then reconcile the exact recorded native job and continue the same plan.
+No runtime rebuild, framework release, state-row repair or business write.
+
+Fresh capacity preparation is under
+`/private/tmp/01044-cold-maintenance-capacity-refresh-20261021`; production's
+read-only sample is running. Staging sampling starts only after the runtime,
+connector and Inbox are stable. Keep both full reservations and headroom.
 
 - [x] Preserve the failed attempt and actual native/runtime observations. Do not
   replay retry intents, reset counters, repair SQL state or weaken drain gates.

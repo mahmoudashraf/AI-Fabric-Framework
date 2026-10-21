@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import static org.assertj.core.api.Assertions.*;
 
 class RuntimeArtifactRepairApplicationProjectionTest {
@@ -26,6 +28,32 @@ class RuntimeArtifactRepairApplicationProjectionTest {
     }
     @Test void unknownTopLevelSettingRequiresReviewInsteadOfBeingSilentlyDropped() {
         assertThatThrownBy(() -> RuntimeArtifactRepairApplicationProjection.project(app().put("new_execution_override", "unexpected"), true)).hasMessageContaining("CONFIGURATION_UNREVIEWED");
+    }
+    @Test void providerBase64RepresentationPreservesTheEntireReviewedLabelConfiguration() {
+        String labels = "traefik.enable=true\ntraefik.http.routers.owned.rule=Host(`example.test`)\n";
+        var before = app().put("custom_labels", labels);
+        var after = app().put("custom_labels", encoded(labels));
+        for (boolean imageMayChange : new boolean[] {true, false}) {
+            assertThat(RuntimeArtifactRepairApplicationProjection.project(after, imageMayChange))
+                .isEqualTo(RuntimeArtifactRepairApplicationProjection.project(before, imageMayChange));
+        }
+    }
+    @ParameterizedTest @ValueSource(strings = {
+        "traefik.enable=false", "traefik.enable=true\nextra=value", "traefik.enable=true\n", "traefik.enable=true "
+    })
+    void encodedLabelChangesCannotBeHiddenByRepresentationNormalization(String labels) {
+        var before = app().put("custom_labels", "traefik.enable=true");
+        assertThat(RuntimeArtifactRepairApplicationProjection.project(app().put("custom_labels", encoded(labels)), true))
+            .isNotEqualTo(RuntimeArtifactRepairApplicationProjection.project(before, true));
+    }
+    @Test void nonLabelBase64AndInvalidUtf8RemainExactRatherThanBeingGuessed() {
+        for (String labels : new String[] {"YWJj", "not base64", "/z12YWx1ZQ=="}) {
+            assertThat(RuntimeArtifactRepairApplicationProjection.project(app().put("custom_labels", labels), true)
+                .path("custom_labels").textValue()).isEqualTo(labels);
+        }
+    }
+    private static String encoded(String labels) {
+        return Base64.getEncoder().encodeToString(labels.getBytes(StandardCharsets.UTF_8));
     }
     static ObjectNode app() {
         var app = new ObjectMapper().createObjectNode().put("uuid", "owned-app").put("name", "owned-runtime")

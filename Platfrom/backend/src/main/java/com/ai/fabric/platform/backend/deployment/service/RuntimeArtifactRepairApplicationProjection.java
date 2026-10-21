@@ -2,6 +2,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Set;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
@@ -38,7 +42,8 @@ public final class RuntimeArtifactRepairApplicationProjection {
         var result = ((ObjectNode) raw).objectNode();
         raw.fields().forEachRemaining(entry -> {
             String name = entry.getKey();
-            if (CONFIGURATION.contains(name)) result.set(name, entry.getValue().deepCopy());
+            if (CONFIGURATION.contains(name)) result.set(name, "custom_labels".equals(name)
+                ? labels(entry.getValue()) : entry.getValue().deepCopy());
             else if ("destination".equals(name) || OBSERVATIONS.contains(name)) { /* Projected separately or observed metadata. */ }
             else if (Set.of("docker_registry_image_name", "docker_registry_image_tag").contains(name)) {
                 if (!imageMayChange) result.set(name, entry.getValue().deepCopy());
@@ -50,6 +55,20 @@ public final class RuntimeArtifactRepairApplicationProjection {
         SERVER.forEach(field -> { if (raw.path("destination").path("server").has(field)) server.set(field, raw.path("destination").path("server").get(field).deepCopy()); });
         if (destination.path("uuid").asText().isBlank() || server.path("uuid").asText().isBlank()) fail();
         return result;
+    }
+    private static JsonNode labels(JsonNode value) {
+        if (!value.isTextual()) return value.deepCopy();
+        String encoded = value.textValue();
+        try {
+            byte[] bytes = Base64.getDecoder().decode(encoded);
+            String decoded = new String(bytes, StandardCharsets.UTF_8);
+            // Coolify persists the same Docker labels as plain text or canonical Base64.
+            // Preserve every label byte; do not normalize whitespace, order, or values.
+            if (Base64.getEncoder().encodeToString(bytes).equals(encoded)
+                && Arrays.equals(bytes, decoded.getBytes(StandardCharsets.UTF_8))
+                && decoded.lines().anyMatch(line -> line.indexOf('=') > 0)) return TextNode.valueOf(decoded);
+        } catch (IllegalArgumentException notBase64) { /* Plain label configuration stays exact. */ }
+        return value.deepCopy();
     }
     private static void fail() {
         throw new org.springframework.web.server.ResponseStatusException(CONFLICT, "RUNTIME_ARTIFACT_REPAIR_NATIVE_CONFIGURATION_UNREVIEWED");
