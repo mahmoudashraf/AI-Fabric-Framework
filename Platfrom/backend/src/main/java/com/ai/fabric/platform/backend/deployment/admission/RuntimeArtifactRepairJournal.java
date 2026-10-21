@@ -269,7 +269,8 @@ public class RuntimeArtifactRepairJournal {
                 || !proof.scope().connectorApplicationUuid().equals(proof.connectorJob().applicationUuid())
                 || !"finished".equals(proof.connectorJob().status())
                 || !plan.local().fingerprints().equals(proof.finalLocalFingerprints())) fail("FINAL_INVENTORY_CHANGED");
-            RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), proof.wallet());
+            if (plan.local().request().mode() != Mode.COLD_MAINTENANCE_REAPPLY)
+                RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), proof.wallet());
             requireColdProof(plan, proof);
             append(VERIFIED, proof.scope().releaseId(), proof, actor);
             releaseWorker.run();
@@ -289,6 +290,11 @@ public class RuntimeArtifactRepairJournal {
     }
     private void requireColdProof(Plan plan, VerifiedRepair proof) {
         if (plan.local().request().mode() != Mode.COLD_MAINTENANCE_REAPPLY) return;
+        var accounting = RuntimeArtifactRepairWallet.requireResumedNonChatUsage(plan.nativeEvidence().wallet(), proof.wallet());
+        String accountingPayload = proof.finalNativeInventory().get("resumedUsageAccounting");
+        if (accountingPayload == null) fail("RESUMED_USAGE_RECEIPT_REQUIRED");
+        if (!accounting.equals(json.read(accountingPayload, RuntimeArtifactRepairWallet.ResumedUsage.class)))
+            fail("RESUMED_USAGE_RECEIPT_CHANGED");
         var adoption = confirmed(plan, Effect.ADOPT_COLD_GENERATION);
         String payload = proof.finalNativeInventory().get("coldMaintenanceReceipt");
         if (payload == null || adoption == null || !payload.equals(adoption.evidence().get("coldMaintenanceReceipt")))

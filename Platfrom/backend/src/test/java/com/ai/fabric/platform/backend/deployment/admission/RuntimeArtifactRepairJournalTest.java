@@ -9,6 +9,10 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import com.ai.fabric.platform.backend.deployment.budget.ProviderUsageRuntimeClient.Readback;
+import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import static com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.*;
 import static org.assertj.core.api.Assertions.*;
@@ -31,7 +35,8 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
     Plan plan(String operation, Instant deadline, Mode mode) {
         var scope = new Scope("customer", "tenant", "deployment1", TARGET, "release", "version", "config-hash", "authority",
             reservation.id(), reservation.generation(), "https://runtime.example.test", "runtime-app", "connector-app", "runtime-pg");
-        var request = new Request(reservation.fence(), "replacement", "offer-fingerprint", 2, operation, "reviewed fix", true, mode);
+        var request = new Request(reservation.fence(), "replacement", "offer-fingerprint", 2, operation, "reviewed fix", true, mode,
+            mode == Mode.COLD_MAINTENANCE_REAPPLY ? new ColdMaintenanceAcknowledgement("prior-release", "owner-approval", true) : null);
         var original = new ArtifactPin("original", "original-pin", "reviewed/runtime", "sha256:" + "a".repeat(64), "a".repeat(40), "ci-old", "staging", "old-manifest");
         var replacement = new ArtifactPin("replacement", "replacement-pin", "reviewed/runtime", "sha256:" + "b".repeat(64), "b".repeat(40), "ci-new", "staging", "new-manifest");
         var local = new LocalEvidence(scope, request, original, replacement, Map.of("graph", "unchanged"), NOW.plusSeconds(300), deadline);
@@ -222,12 +227,54 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         assertThat(json.write(jdbc.queryForList("SELECT * FROM deployment_admission_reviews WHERE kind IN ('POLICY','MANIFEST','GRANT') ORDER BY kind,record_key"))).isEqualTo(reviewsBefore);
         assertThat(journal.verifiedRepair("release")).isEqualTo(proof); assertThat(journal.summary(command()).status()).isEqualTo("VERIFIED");
     }
+    @Test void coldFinalizationRecordsResumedUsageAndReleasesOnlyTheExistingWorker() {
+        prepare(); plan = plan("cold-final-accounting", NOW.plusSeconds(1800), Mode.COLD_MAINTENANCE_REAPPLY);
+        var claim = claim(); completeEffects(); var before = store.require(reservation.id());
+        var wallet = resumedWallet(); var proof = proof(wallet);
+        String immutable = json.write(jdbc.queryForList("SELECT * FROM deployment_admission_reviews WHERE kind IN ('POLICY','MANIFEST','GRANT') ORDER BY kind,record_key"));
+        journal.finish(plan, proof, "admin", () -> store.finishRuntimeArtifactRepair(claim, "admin", json.fingerprint(proof)));
+        assertThat(journal.verifiedRepair("release")).isEqualTo(proof);
+        var current = store.require(reservation.id());
+        assertThat(current.workerToken()).isNull(); assertThat(current.state()).isEqualTo(AdmissionContracts.State.OUTCOME_UNKNOWN);
+        assertThat(current.generation()).isEqualTo(before.generation()); assertThat(current.demand()).isEqualTo(before.demand());
+        assertThat(current.expiresAt()).isEqualTo(before.expiresAt()); assertThat(proof.wallet()).isEqualTo(wallet);
+        assertThat(json.write(jdbc.queryForList("SELECT * FROM deployment_admission_reviews WHERE kind IN ('POLICY','MANIFEST','GRANT') ORDER BY kind,record_key"))).isEqualTo(immutable);
+    }
+    @ParameterizedTest @ValueSource(strings = {"missing", "changed"})
+    void coldFinalizationRejectsMissingOrTamperedUsageProofAtomically(String mutation) {
+        prepare(); plan = plan("cold-invalid-accounting", NOW.plusSeconds(1800), Mode.COLD_MAINTENANCE_REAPPLY);
+        var claim = claim(); completeEffects(); var original = proof(resumedWallet());
+        var inventory = new java.util.HashMap<>(original.finalNativeInventory());
+        if (mutation.equals("missing")) inventory.remove("resumedUsageAccounting");
+        else inventory.put("resumedUsageAccounting", json.write(RuntimeArtifactRepairWallet.requireResumedNonChatUsage(
+            plan.nativeEvidence().wallet(), plan.nativeEvidence().wallet())));
+        var changed = new VerifiedRepair(original.planId(), original.planFingerprint(), original.scope(), original.original(), original.replacement(),
+            original.applicationUuid(), original.deploymentJobUuid(), original.jobCreatedAt(), original.jobFinishedAt(), original.connectorJob(),
+            original.wallet(), original.finalLocalFingerprints(), inventory, original.verifiedAt());
+        assertThatThrownBy(() -> journal.finish(plan, changed, "admin", () -> { throw new AssertionError("worker must stay claimed"); }))
+            .hasMessageContaining("RESUMED_USAGE_RECEIPT");
+        assertThat(journal.verifiedRepair("release")).isNull();
+        assertThat(store.require(reservation.id()).workerToken()).isEqualTo(claim.workerToken());
+    }
+    @Test void ordinaryFinalizationStillRequiresExactlyUnchangedAccounting() {
+        prepare(); var claim = claim(); completeEffects(); var changed = proof(resumedWallet());
+        assertThatThrownBy(() -> journal.finish(plan, changed, "admin", () -> { throw new AssertionError("no worker release"); }))
+            .hasMessageContaining("WALLET_CHANGED");
+        assertThat(journal.verifiedRepair("release")).isNull();
+        assertThat(store.require(reservation.id()).workerToken()).isEqualTo(claim.workerToken());
+    }
+    Readback resumedWallet() {
+        var before = plan.nativeEvidence().wallet();
+        return RuntimeArtifactRepairWalletTest.usage(before, before.chatAttempts(), before.providerAttempts() + 6,
+            before.accountedUsage().inputTokens() + 429, before.accountedUsage().outputTokens(), before.accountedUsage().costNanoUsd() + 8580);
+    }
     void completeEffects() {
         for (Effect effect : effects(plan.local().request().mode())) {
             var intent = journal.intent(plan, effect, "admin", () -> {});
             Map<String, String> result = switch (effect) {
                 case DEPLOY_RUNTIME -> Map.of("jobUuid", "runtime-job", "applicationUuid", "runtime-app", "repository", "reviewed/runtime", "tag", "sha256-" + "b".repeat(64));
                 case RESUME_CONNECTOR -> Map.of("connectorJob", json.write(connectorJob()));
+                case ADOPT_COLD_GENERATION -> Map.of("coldMaintenanceReceipt", coldReceipt());
                 default -> Map.of("observed", "exact-synthetic-effect");
             };
             journal.outcome(plan, intent, Outcome.CONFIRMED, result, "admin");
@@ -235,9 +282,27 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
     }
     NativeJob connectorJob() { return new NativeJob("connector-job", "connector-app", "finished", NOW, NOW); }
     VerifiedRepair proof() {
+        return proof(RuntimeArtifactRepairWalletTest.wallet(null, 3));
+    }
+    VerifiedRepair proof(Readback wallet) {
+        var inventory = new java.util.HashMap<String, String>(); inventory.put("synthetic", "final-inventory");
+        if (plan.local().request().mode() == Mode.COLD_MAINTENANCE_REAPPLY) {
+            inventory.put("coldMaintenanceReceipt", coldReceipt());
+            inventory.put("resumedUsageAccounting", json.write(RuntimeArtifactRepairWallet.requireResumedNonChatUsage(plan.nativeEvidence().wallet(), wallet)));
+        }
         return new VerifiedRepair(plan.id(), journal.fingerprint(plan), plan.local().scope(), plan.local().original(), plan.local().replacement(),
-            "runtime-app", "runtime-job", NOW, NOW, connectorJob(), RuntimeArtifactRepairWalletTest.wallet(null, 3),
-            plan.local().fingerprints(), Map.of("synthetic", "final-inventory"), NOW);
+            "runtime-app", "runtime-job", NOW, NOW, connectorJob(), wallet, plan.local().fingerprints(), inventory, NOW);
+    }
+    String coldReceipt() {
+        var previous = new RuntimeGenerationTransitionContracts.Readback(
+            new RuntimeGenerationTransitionContracts.Target("deployment1", TARGET, "prior-release"), "tenant",
+            RuntimeGenerationTransitionContracts.State.DRAINING, 1, "replace:release", "old-drain", NOW, false, false, NOW);
+        var current = new RuntimeGenerationTransitionContracts.Readback(
+            new RuntimeGenerationTransitionContracts.Target("deployment1", TARGET, "release"), "tenant",
+            RuntimeGenerationTransitionContracts.State.ACTIVE, 2, null, null, null, false, false, NOW);
+        return json.write(new RuntimeGenerationTransitionContracts.ColdMaintenanceTransitionResult(
+            new RuntimeGenerationTransitionContracts.GenerationTransitionResult(previous, current, "synthetic-physical-stop", NOW, false),
+            null, "PHYSICAL_STOP_COLD_MAINTENANCE_V1", "owner-approval", true));
     }
     static final class MovingClock extends Clock {
         final AtomicReference<Instant> value;

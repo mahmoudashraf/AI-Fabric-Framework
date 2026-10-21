@@ -323,6 +323,35 @@ observation budget and test concurrent maintenance operations. The10s correction
 addresses the observed basic single-operation burst; it does not claim a global
 Coolify quota/concurrency scheduler or automatic recovery of unknown mutations.
 
+### 21:24 UTC Final Journal Integration Correction
+
+Both control planes verified `965343734`, schema207/UP and unchanged protected
+configuration/history (stage job `m67l6orge3lbhbraryv1d6us`, production
+`a2lnumuco3lssep6zkb7x5wu`; closure SHA256
+`4d12814dc152d777024847de3de746df5986cbe11e2c108dbdd66f460a1288b9`).
+The fresh final-verification attempt still returned `WALLET_CHANGED`: Main missed
+the second strict comparison inside `RuntimeArtifactRepairJournal.finish`.
+Runtime-side proof accepted the actual accounting, but atomic finalization still
+used the old rule. This is an integration miss, not another runtime/provider or
+framework defect. Both failed final-verification intents remain retained.
+
+The journal now applies the same cold-only accounting policy and requires the
+recorded typed continuation to equal its own recomputation. Sealed cold receipt
+readback also validates that proof. Ordinary repair finalization still requires
+exactly unchanged counters.66 focused checks pass, including23 actual PostgreSQL
+cases, with zero failures/errors/skips; package succeeds. Tests cover final
+receipt persistence with worker release and unchanged reservation/grants,
+missing/changed usage-proof rejection without releasing the worker, ordinary
+mode rejection and transaction rollback. Existing actual native accounting
+remains18 settled calls,1156 input/0 output tokens,23120nanoUSD and0 chat attempts.
+No wallet row was edited or reset. New private evidence/helper root:
+`/private/tmp/01044-cold-maintenance-final-accounting-20261021`.
+
+Next is a backend-only rollout from965, then a fresh local `verify-r3` intent for
+the SAME plan and command. All9 native effects remain confirmed and must not be
+repeated. App activation, browser acceptance, production promotion and UI-LAST
+extraction remain unproven. No missing user material is blocking this work.
+
 No vector copy, customer inventory database, framework-wide LLM matrix for a
 mechanical hook change, new recovery engine, silent offer/version rewrite or
 inferred readiness. Old vector data is owner-declared disposable, but that does
