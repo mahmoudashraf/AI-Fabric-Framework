@@ -232,6 +232,7 @@ public class RuntimeArtifactRepairOperations {
     private void requireColdWritersStopped(Plan plan, Effect effect, NativeInventory inventory) {
         if (plan.local().request().mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART
             && effect.ordinal() >= Effect.BEGIN_DRAIN.ordinal() && effect.ordinal() <= Effect.CANCEL_DRAIN.ordinal()
+            && journal.confirmed(plan, Effect.CANCEL_DRAIN) == null
             && (!stopped(inventory.connectorStatus()) || !stopped(inbox.observe(plan.local()).get("applicationStatus"))))
             fail("COLD_REMOTE_WRITERS_NOT_STOPPED");
     }

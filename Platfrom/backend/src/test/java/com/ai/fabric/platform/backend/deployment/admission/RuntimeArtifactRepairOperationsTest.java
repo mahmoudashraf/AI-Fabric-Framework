@@ -115,6 +115,20 @@ class RuntimeArtifactRepairOperationsTest {
         verify(h.journal, never()).recordColdStoreEvidence(any(), any());
         verify(h.runtime, never()).command(anyString(), any(), anyMap());
     }
+    @Test void finalColdRepairProofAllowsServicesResumedAfterConfirmedDrainCancellation() {
+        var h = new Harness(Effect.RESUME_CONNECTOR, Mode.IDLE_CHECKPOINT_COLD_RESTART);
+        h.runtimeStarted.set(true); h.connectorStarted.set(true); h.inboxStarted.set(true); h.cancelled.set(true);
+        h.dispatches.put(Effect.RESUME_CONNECTOR, Map.of("jobUuid", "connector-job"));
+        h.dispatches.put(Effect.RESUME_INBOX, Map.of("jobUuid", "inbox-job"));
+        when(h.journal.confirmed(h.plan, Effect.CANCEL_DRAIN)).thenReturn(new EffectReceipt("plan", Effect.CANCEL_DRAIN,
+            Outcome.CONFIRMED, "request", Map.of("readback", "confirmed-active-target"), Harness.NOW));
+        when(h.journal.confirmed(h.plan, Effect.RESUME_INBOX)).thenReturn(new EffectReceipt("plan", Effect.RESUME_INBOX,
+            Outcome.CONFIRMED, "request", Map.of("inbox", h.json.write(h.inboxInventory(true)), "inboxJob", h.json.write(h.newJob("inbox-job", "inbox-app"))), Harness.NOW));
+        when(h.journal.confirmed(h.plan, Effect.RESUME_CONNECTOR)).thenReturn(new EffectReceipt("plan", Effect.RESUME_CONNECTOR,
+            Outcome.CONFIRMED, "request", Map.of("connectorJob", h.json.write(h.newJob("connector-job", "connector-app"))), Harness.NOW));
+        assertThatCode(() -> h.ops.finalProof(h.plan, h.plan.local())).doesNotThrowAnyException();
+        verify(h.runtime, never()).command(anyString(), any(), anyMap());
+    }
     static class Harness {
         static final Instant NOW = AdmissionFixture.NOW;
         final AdmissionJson json = new AdmissionJson(new ObjectMapper().registerModule(new JavaTimeModule()));
@@ -151,6 +165,7 @@ class RuntimeArtifactRepairOperationsTest {
             doAnswer(i -> { dispatches.put(i.getArgument(1), i.getArgument(2)); return null; }).when(journal).dispatched(eq(plan), any(), anyMap(), eq("admin"));
             when(journal.confirmed(eq(plan), any())).thenAnswer(i -> {
                 Effect e = i.getArgument(1);
+                if (e == Effect.CANCEL_DRAIN) return null;
                 if (e == Effect.BEGIN_DRAIN && mode == Mode.IDLE_CHECKPOINT_COLD_RESTART)
                     return new EffectReceipt("plan", e, Outcome.CONFIRMED, "request", Map.of("idleQueue", json.write(new RuntimeArtifactRepairIdleCheckpoint.Queue(0, 0, 0, 36, 0, 36))), NOW);
                 return new EffectReceipt("plan", e, Outcome.CONFIRMED, "request", e == Effect.QUIESCE_CONNECTOR
