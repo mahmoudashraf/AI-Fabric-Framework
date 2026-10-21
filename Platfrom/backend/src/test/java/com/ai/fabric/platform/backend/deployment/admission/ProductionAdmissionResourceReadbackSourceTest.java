@@ -18,6 +18,7 @@ import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOper
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementStore;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.deployment.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -142,12 +143,21 @@ class ProductionAdmissionResourceReadbackSourceTest {
             "runtime-app", "runtime", null, "running:healthy", null, null, raw)));
         when(client.getDatabase(connection, "runtime-app")).thenReturn(Optional.of(new CoolifyDatabaseSummary(
             "runtime-app", "runtime", "running:healthy", "postgresql", null, null, raw)));
-        when(consumers.findAll()).thenReturn(List.of());
+        var unbound = new PlatformConsumerEntity();
+        var otherDeployment = consumer("other-deployment", null, null);
+        var configuredTarget = consumer("deployment", AdmissionFixture.TARGET, null);
+        var legacyTarget = consumer("deployment", null, null);
+        var releaseReference = consumer("other-deployment", "other-target", "release");
+        var unrelatedRelease = consumer("other-deployment", "other-target", "other-release");
+        var otherTarget = consumer("deployment", "other-target", null);
+        when(consumers.findAll()).thenReturn(List.of(unbound, otherDeployment, configuredTarget, legacyTarget,
+            releaseReference, unrelatedRelease, otherTarget));
 
         var readback = source.read(new ReadbackContext(reservation, policy(), "worker-1"));
         assertThat(readback.inventoryComplete()).isTrue();
         assertThat(readback.evidenceReference()).startsWith("admission-active:");
         assertThat(readback.resourcesAbsent()).isFalse();
+        assertThat(readback.assignmentCount()).isEqualTo(3);
         verify(client, never()).getApplication(connection, "external-resource");
         verify(client, never()).getDatabase(connection, "external-resource");
 
@@ -193,6 +203,14 @@ class ProductionAdmissionResourceReadbackSourceTest {
         return Stream.of("EXTERNAL_DOCUMENT_STORAGE_BINDING", "EXTERNAL_VECTOR_STORAGE_BINDING", "EXTERNAL_AI_STATE_STORAGE_BINDING")
             .flatMap(retained -> Stream.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE")
                 .flatMap(resource -> Stream.of(false, true).map(nested -> Arguments.of(retained, resource, nested))));
+    }
+
+    private static PlatformConsumerEntity consumer(String deployment, String target, String release) {
+        var consumer = new PlatformConsumerEntity();
+        consumer.setBoundDeploymentId(deployment);
+        consumer.setBoundTargetProfileId(target);
+        consumer.setBoundReleaseId(release);
+        return consumer;
     }
 
     @ParameterizedTest

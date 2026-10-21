@@ -325,7 +325,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         boolean target = reservation.deploymentId().equals(consumer.getBoundDeploymentId())
             && (consumer.getBoundTargetProfileId() == null
                 || reservation.targetProfileId().equals(consumer.getBoundTargetProfileId()));
-        return target || releaseIds.contains(consumer.getBoundReleaseId());
+        return target || (consumer.getBoundReleaseId() != null && releaseIds.contains(consumer.getBoundReleaseId()));
     }
 
     private com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity requirePlacement(
