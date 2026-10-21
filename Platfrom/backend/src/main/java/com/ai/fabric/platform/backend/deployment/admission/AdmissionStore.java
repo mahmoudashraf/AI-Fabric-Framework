@@ -2135,8 +2135,10 @@ class AdmissionStore {
             if (jdbc.update("""
                 UPDATE platform_deployment_releases SET status='APPLY_REQUESTED',provisioning_status='QUEUED',verification_status='PENDING',
                   current_step_key='queue_release',current_step_description='Post-provisioning continuation authorized.',
-                  error_message=NULL,provisioning_details_json=?,updated_at=? WHERE id=? AND status='FAILED' AND current_step_key='apply_failed'
-                """, json.write(details), time(now), command.releaseId()) != 1)
+                  error_message=NULL,provisioning_details_json=?,updated_at=? WHERE id=? AND status=? AND provisioning_status=?
+                  AND verification_status=? AND current_step_key=?
+                """, json.write(details), time(now), command.releaseId(), failed.path("status").asText(),
+                failed.path("provisioning_status").asText(), failed.path("verification_status").asText(), failed.path("current_step_key").asText()) != 1)
                 throw new AdmissionFailure(CONFLICT, "POST_PROVISION_RESUME_RELEASE_CHANGED");
             jdbc.update("UPDATE platform_deployments SET status='APPLY_REQUESTED',updated_at=? WHERE id=?", time(now), deploymentId);
             var summary = new PostProvisionResumeContracts.Summary(uuid(), r.id(), r.generation(), r.revision(), reserved.revision(),

@@ -855,6 +855,113 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(allRelevant()).isEqualTo(before);
     }
 
+    @Test void preflightBlockedContinuationUsesDurableNativeChainWithoutChangingCheckpointsOrFunding() {
+        preflightBlockedContinuation(); var r = store.require(original.id()); var api = resumeApi("customer");
+        var before = nativePreserved(); var ownershipBefore = rows("platform_managed_resource_ownership");
+        var verificationBefore = rows("platform_deployment_verification_runs"); var reviewsBefore = rows("deployment_admission_reviews");
+        String failedRelease = json.write(jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id='failed-release'"));
+        var plan = api.plan("offer", "deployment", r.id(), new PostProvisionResumeContracts.PlanRequest(
+            "failed-release", "resume-after-preflight", "Continue after a no-effect preflight failure", true));
+        assertThat(rows("deployment_admission_reviews")).isEqualTo(reviewsBefore);
+        var result = api.resume("offer", "deployment", r.id(), plan.command());
+        assertThat(api.resume("offer", "deployment", r.id(), plan.command())).isEqualTo(result);
+        assertThat(result.fromRevision()).isEqualTo(r.revision()); assertThat(result.revision()).isEqualTo(r.revision() + 1);
+        assertThat(result.runtimeRedeployRequired()).isFalse(); assertThat(result.financialMutationPerformed()).isFalse();
+        assertThat(result.retainedAllocationIds()).containsExactly("retained-allocation");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+        assertThat(store.require(r.id()).generation()).isEqualTo(r.generation());
+        assertThat(store.require(r.id()).demand()).isEqualTo(r.demand());
+        assertThat(nativePreserved()).isEqualTo(before); assertThat(rows("platform_managed_resource_ownership")).isEqualTo(ownershipBefore);
+        assertThat(rows("platform_deployment_verification_runs")).isEqualTo(verificationBefore);
+        var receipt = json.read(jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE kind='POST_RESUME' AND payload_json LIKE '%resume-after-preflight%'", String.class), PostProvisionResumeContracts.Receipt.class);
+        assertThat(json.read(receipt.failedAttempt().failedReleaseJson(), com.fasterxml.jackson.databind.JsonNode.class))
+            .isEqualTo(json.read(failedRelease, com.fasterxml.jackson.databind.JsonNode.class));
+        var details = json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(details.path("retryHistory")).hasSize(4);
+        assertThat(details.path("retryHistory").get(3).path("progress").path("steps").findValuesAsText("key"))
+            .containsExactly("queue_release", "preflight_verification");
+        verify(retryExecution, times(1)).executeApply("deployment", "version", "failed-release");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing-receipt", "marker-proof", "foreign-verification", "verification-type",
+        "verification-missing", "later-step", "graph-drift", "handle-drift", "missing-marker"})
+    void preflightBlockedContinuationRejectsUnprovenNoEffectBoundary(String change) {
+        preflightBlockedContinuation();
+        var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(jdbc.queryForObject(
+            "SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        switch (change) {
+            case "missing-receipt" -> jdbc.update("DELETE FROM deployment_admission_reviews WHERE kind='POST_RESUME'");
+            case "marker-proof" -> ((com.fasterxml.jackson.databind.node.ObjectNode) details.path("postProvisionResume")).put("proofFingerprint", "0".repeat(64));
+            case "foreign-verification" -> {
+                jdbc.update("INSERT INTO platform_customer_tenants(id,customer_id,name,slug,status,created_at,updated_at) VALUES ('foreign-tenant','customer','Foreign','foreign-fixture','ACTIVE',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+                jdbc.update("INSERT INTO platform_deployments(id,name,environment_name,template_id,status,customer_id,tenant_id,created_at,updated_at) VALUES ('foreign','Foreign','staging','fixture','DRAFT','customer','foreign-tenant',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+                jdbc.update("UPDATE platform_deployment_verification_runs SET deployment_id='foreign' WHERE id='failed-preflight'");
+            }
+            case "verification-type" -> jdbc.update("UPDATE platform_deployment_verification_runs SET verification_type='POST_APPLY' WHERE id='failed-preflight'");
+            case "verification-missing" -> jdbc.update("UPDATE platform_deployment_releases SET verification_run_id=NULL WHERE id='failed-release'");
+            case "later-step" -> ((com.fasterxml.jackson.databind.node.ArrayNode) details.path("progress").path("steps"))
+                .addObject().put("key", "resume_managed_dependencies").put("status", "RUNNING");
+            case "graph-drift" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET revision=revision+1 WHERE id='prepared-graph'");
+            case "handle-drift" -> jdbc.update("UPDATE deployment_provider_resource_handles SET status='CHANGED' WHERE resource_kind='APPLICATION'");
+            case "missing-marker" -> details.remove("postProvisionResume");
+            default -> throw new AssertionError(change);
+        }
+        jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+        var before = allRelevant(); var graphBefore = rows("deployment_managed_dependency_graphs"); var r = store.require(original.id());
+        assertThatThrownBy(() -> store.postProvisionResumeCandidate("customer", "deployment", r.id(), resumeDraft(r.fence()), value -> { }))
+            .isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before); assertThat(rows("deployment_managed_dependency_graphs")).isEqualTo(graphBefore);
+    }
+
+    @Test void continuationAfterLaterDependencyWorkDoesNotCompareAgainstAnObsoletePreflightCheckpoint() {
+        preflightBlockedContinuation(); var r = store.require(original.id());
+        var draft = new PostProvisionResumeContracts.Command(r.fence(), "failed-release", "resume-preflight-then-work", "Continue setup", true, null);
+        var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        coordinator().beginProvisioning("failed-release");
+        var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(jdbc.queryForObject(
+            "SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        var steps = details.putObject("progress").putArray("steps");
+        for (var pair : List.of(List.of("queue_release", "QUEUED"), List.of("preflight_verification", "COMPLETED"),
+            List.of("resume_managed_dependencies", "RUNNING"), List.of("apply_failed", "FAILED")))
+            steps.addObject().put("key", pair.getFirst()).put("status", pair.getLast());
+        preparedGraphState.nodes.getFirst().status = "PROVISIONED";
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET revision=revision+1,state_json=? WHERE id='prepared-graph'", json.write(preparedGraphState));
+        jdbc.update("UPDATE platform_deployment_releases SET status='FAILED',provisioning_status='FAILED',verification_status='SKIPPED',current_step_key='apply_failed',provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+        jdbc.update("UPDATE platform_deployments SET status='APPLY_FAILED' WHERE id='deployment'");
+        coordinator().observe("failed-release");
+        r = store.require(original.id()); var before = nativePreserved();
+        draft = new PostProvisionResumeContracts.Command(r.fence(), "failed-release", "resume-later-checkpoint", "Continue later checkpoint", true, null);
+        inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        var result = store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        assertThat(result.runtimeRedeployRequired()).isFalse(); assertThat(result.financialMutationPerformed()).isFalse();
+        assertThat(nativePreserved()).isEqualTo(before);
+    }
+
+    private void preflightBlockedContinuation() {
+        failedSetupContinuation(); var node = preparedGraphState.nodes.getFirst();
+        node.status = "INITIALIZING"; node.baseUrl = "https://inbox-service.example";
+        node.provisionedConfigurationRevision = preparedGraphState.configurationRevision;
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET step='INITIALIZE:inbox',state_json=? WHERE id='prepared-graph'", json.write(preparedGraphState));
+        var r = store.require(original.id()); var draft = new PostProvisionResumeContracts.Command(
+            r.fence(), "failed-release", "resume-before-preflight", "Continue checkpointed setup", true, null);
+        var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        var details = (com.fasterxml.jackson.databind.node.ObjectNode) json.read(jdbc.queryForObject(
+            "SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        var progress = details.putObject("progress").put("currentStepKey", "preflight_verification").put("currentStepStatus", "FAILED");
+        progress.putArray("steps").addObject().put("key", "queue_release").put("status", "QUEUED");
+        ((com.fasterxml.jackson.databind.node.ArrayNode) progress.path("steps")).addObject().put("key", "preflight_verification").put("status", "FAILED");
+        jdbc.update("INSERT INTO platform_deployment_verification_runs(id,deployment_id,release_id,deployment_version_id,verification_type,status,summary_message,checks_json,created_at,completed_at) VALUES ('failed-preflight','deployment','failed-release','version','PRE_APPLY','FAILED','Fixture preflight unavailable','[]',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+        jdbc.update("UPDATE platform_deployment_releases SET status='PRE_APPLY_BLOCKED',provisioning_status='BLOCKED',verification_status='FAILED',verification_run_id='failed-preflight',current_step_key='preflight_verification',provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+        jdbc.update("UPDATE platform_deployments SET status='ACTIVE' WHERE id='deployment'");
+        coordinator().observe("failed-release");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+    }
+
     private void failedSetupContinuation() {
         postProvisionFailure(); var r = store.require(original.id()); var draft = resumeDraft(r.fence());
         var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });

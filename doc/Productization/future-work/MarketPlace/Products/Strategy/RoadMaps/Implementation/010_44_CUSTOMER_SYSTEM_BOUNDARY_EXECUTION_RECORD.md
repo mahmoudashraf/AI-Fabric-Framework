@@ -1,5 +1,24 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 07:37 UTC Same-Wallet Renewal And Basic Retry Correction
+
+Both live control planes verify19d0ba004/image05986044/schema207/UP. Same-wallet
+extension validity-4f675c37 is ACKNOWLEDGED and read back until18:00UTC, with
+original approval/store/caps/counters/holds retained. Normal CUSTOMER_ADMIN
+continuation receipt11122853 succeeded, then preflight failed before resumed
+effects (vrf-b787d109). Release is PRE_APPLY_BLOCKED, reservation revision22 and
+OUTCOME_UNKNOWN. Original command/history remain; do not blindly replay it.
+
+Same-container provider metadata readback now passes for the exact Free01 cluster
+and serving token, zero collections. A timeout is plausible but not established.
+Safe constant-code diagnostics qualify126 tests. A narrowly receipt-proven
+preflight retry qualifies69 distinct cases, including48 actual PostgreSQL, after
+one fixture correction and clean affected9-case rerun. Original failed reports
+remain. Main reviewed the fix to avoid constraining later dependency work to an
+obsolete historical checkpoint. Combined package/backend-only rollout is next.
+No framework, schema, new endpoint, or broad recovery change. Fresh admission
+evidence will be collected once after rollout; full customer acceptance is open.
+
 ## 2026-10-21 06:22 UTC Repair Verified And Policy Published
 
 Both control planes verify d507380ea/schema207/healthUP. The original same-release
@@ -22,6 +41,16 @@ acceptance, promotion and finally reversible UI extraction remain. Harder recove
 cases remain documented/deferred. More efficient Coolify polling is a follow-up,
 not additional current-path scope. Evidence is retained under the attended
 runtime-validity recovery and post-empty-recovery-policy directories in /private/tmp.
+
+### Deferred Repair-Specific Promotion Case
+
+Static review found that a repaired release's original immutable offer still pins
+its older artifact. Normal candidate creation reads that pin; the same-release
+repair receipt deliberately does not authorize successors. Do not silently copy
+the repaired image to production or weaken the offer-pin boundary. A normal
+reviewed latest-catalogue path must be established before production proof. Broad
+automatic propagation of repair lineage is deferred under the user's basic-case
+scope direction. This finding does not prevent current workspace/indexing checks.
 
 ## 2026-10-21 05:29 UTC Approval And Readback
 

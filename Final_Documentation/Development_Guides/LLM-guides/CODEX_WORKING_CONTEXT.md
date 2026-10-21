@@ -10,6 +10,36 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 07:37UTC: main vector typed-failure diagnostics126checksPASS. Agent's
+  bounded preflight continuation69distinct/48actualPG PASS, oneforeignTenant
+  fixture corrected+affected9rerun, rawfailedreportretained. Proof1352ba0e1eb01f614d76a31b758c47912f6a3efd4b4aefc653c11887864adeca
+  under01044-post-provision-preflight-continuation-20261021. Main reviewed and
+  fixedcurrent-vs-historicalcheckpointregression; no promotion/DDL/endpoints.
+  Mainintegratedpackage195case reuse underway at01044-preflight-continuation-
+  20261021; byte-match qualifiedclasses and fullcommittedsource beforepublish.
+  Nextonebackend-onlyrollout helper01044-preflight-continuation-rollout-
+  20261021 preservesnonemptyvalidityaudittables; freshhostsample+policyhelpers
+  01044-post-preflight-{capacity,policy}-20261021 preparedNOTexecuted. Normal
+  ownernewattempt01044-owner-preflight-retry-20261021 preparedR22/vrfb787;
+  requiresnewrolloutclosurebeforeuse, sameoldowner-sessionprivatefile. BothCPs
+  still19d0ba004/image05986044/schema207/UP; appDRAFT/no newnativeeffects.
+
+- Oct21 07:20UTC: BOTH CPs verified19d0ba004/image05986044/schema207/UP,
+  closure01044-validity-handle-rollout-20261021.146focused/68PG tests+backend-only
+  CI39554945121PASS. Samewallet validity4f675c37 ACK/readback until18UTC, original
+  pua9a083/store099a09f4/caps/history retained. Normalowner resume plan+execute
+  receipt11122853 accepted R21, then preflightonlyMilvus failed vrf-b787d109;
+  rel nowPRE_APPLY_BLOCKED/BLOCKED/FAILED, R22OUTCOME_UNKNOWN workerreleased.
+  No newnativeeffects; consumedcommandDO NOTREPLAY. Sameprodcontainer actual
+  Zillizmanagement+serving200/code0 at07:15, exactFree01/zero collections; timeout
+  plausibleonly. Main safe typedvector diagnostics + agentChandrasekhar bounded
+  receipt-proven no-effect preflight continuation/test. No broadrecovery/newDDL.
+  Policy01036-reviewed... validuntil07:49:57; collectfreshonce afterfinalrollout.
+  Currentofferpinsoldartifact andno existingupgrade route; repairedoldoffer
+  successor promotiondeferred, keepguards. New reviewedlatestcatalogue+fresh
+  normalbootstrap isexistingpath, do notinventrepairlineagescope. Currentworkspace
+  activation/index/liveproof remainsfirst. UIextractionLAST. No question pending.
+
 - Oct21 06:22UTC: BOTH CPs verified d507380ea/schema207/UP; closure under
   01044-append-window-rollout-20261021. Same-release repair487f7a46 now VERIFIED,
   all ten effects confirmed; receipt fa3e1d31da0d86df80fb51c6b0a9a650b2bcca5db833ab2a6f51a901694ba042.

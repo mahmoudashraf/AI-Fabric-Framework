@@ -413,8 +413,10 @@ public class DeploymentReleaseVerificationService {
                 addCheck(checks, "milvus_authentication_ready", "PASSED",
                     "Milvus authentication mode and runtime secret references are valid.", null);
             } catch (RuntimeException ex) {
+                ObjectNode details = ex instanceof DeploymentExistingVectorBindingService.BindingFailure failure
+                    ? objectMapper.createObjectNode().put("errorCode", failure.code()) : null;
                 addCheck(checks, "milvus_authentication_ready", "FAILED",
-                    "Milvus authentication or the required target-scoped external binding is unavailable or invalid.", null);
+                    "Milvus authentication or the required target-scoped external binding is unavailable or invalid.", details);
                 return;
             }
         }

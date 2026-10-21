@@ -26,15 +26,22 @@ final class PostProvisionResumeEvidence {
         var inventory = new TreeMap<String, String>();
         var deployment = one("SELECT * FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", r.deploymentId());
         var release = one("SELECT * FROM platform_deployment_releases WHERE id=? FOR UPDATE NOWAIT", releaseId);
+        boolean preflightBlocked = "PRE_APPLY_BLOCKED".equals(release.get("status"))
+            && "BLOCKED".equals(release.get("provisioning_status")) && "FAILED".equals(release.get("verification_status"))
+            && "preflight_verification".equals(release.get("current_step_key"));
+        boolean setupFailed = "FAILED".equals(release.get("status")) && "FAILED".equals(release.get("provisioning_status"))
+            && "SKIPPED".equals(release.get("verification_status")) && "apply_failed".equals(release.get("current_step_key"));
         if (!r.customerId().equals(deployment.get("customer_id")) || !r.tenantId().equals(deployment.get("tenant_id"))
             || !manifest.versionId().equals(deployment.get("active_version_id")) || deployment.get("archived_at") != null
-            || !"APPLY_FAILED".equals(deployment.get("status"))
+            || !(preflightBlocked ? "ACTIVE".equals(deployment.get("status")) : "APPLY_FAILED".equals(deployment.get("status")))
             || !r.deploymentId().equals(release.get("deployment_id")) || !r.targetProfileId().equals(release.get("target_profile_id"))
             || !manifest.versionId().equals(release.get("deployment_version_id")) || !"COOLIFY".equals(release.get("provider_type"))
-            || !"FAILED".equals(release.get("status")) || !"FAILED".equals(release.get("provisioning_status"))
-            || !"SKIPPED".equals(release.get("verification_status")) || !"apply_failed".equals(release.get("current_step_key"))) fail("RELEASE_PHASE_CHANGED");
+            || !(setupFailed || preflightBlocked)) fail("RELEASE_PHASE_CHANGED");
         var details = tree(release.get("provisioning_details_json"));
-        requireCompletedNativePhase(nativePhase(details, r, releaseId).path("progress").path("steps"));
+        if (preflightBlocked && !details.has("postProvisionResume")) fail("CONTROL_FLOW_UNPROVEN");
+        var preflightCheckpoints = new java.util.ArrayList<PostProvisionResumeContracts.Candidate>();
+        requireCompletedNativePhase(nativePhase(tree(json.write(release)), r, releaseId, manifest, inventory, preflightCheckpoints)
+            .path("progress").path("steps"));
         if (!Objects.equals(deployment.get("runtime_base_url"), details.path("runtimeBaseUrl").asText())
             || !Objects.equals(deployment.get("connector_base_url"), details.path("connectorBaseUrl").asText())
             || details.path("runtimeBaseUrl").asText().isBlank() || details.path("connectorBaseUrl").asText().isBlank()) fail("ENDPOINT_CHANGED");
@@ -116,6 +123,8 @@ final class PostProvisionResumeEvidence {
         inventory.put("financialEvents", json.fingerprint(rows("SELECT * FROM provider_usage_allowance_events WHERE subject_id=? ORDER BY id FOR UPDATE NOWAIT", allocation.get("approval_id"))));
         inventory.put("validityReviews", json.fingerprint(rows("SELECT * FROM provider_usage_validity_reviews WHERE approval_id=? ORDER BY extension_id FOR UPDATE NOWAIT", allocation.get("approval_id"))));
         inventory.put("validityEvents", json.fingerprint(rows("SELECT e.* FROM provider_usage_validity_events e JOIN provider_usage_validity_reviews r ON r.extension_id=e.extension_id WHERE r.approval_id=? ORDER BY e.extension_id,e.event_type FOR UPDATE OF e NOWAIT", allocation.get("approval_id"))));
+        for (var checkpoint : preflightCheckpoints) for (String field : List.of("graph", "dependencyOwnership", "handles"))
+            if (!inventory.get(field).equals(checkpoint.inventory().get(field))) fail("PREFLIGHT_CHECKPOINT_CHANGED");
         return new PostProvisionResumeContracts.Candidate(r, Map.copyOf(inventory), json.write(release),
             ((Timestamp) release.get("created_at")).toInstant(), ((Timestamp) release.get("updated_at")).toInstant(), List.of((String) allocation.get("approval_id")));
     }
@@ -133,17 +142,29 @@ final class PostProvisionResumeEvidence {
             fail("DEPENDENCY_OWNERSHIP_UNPROVEN");
     }
 
-    private JsonNode nativePhase(JsonNode current, Reservation reservation, String releaseId) {
+    private JsonNode nativePhase(JsonNode failedRelease, Reservation reservation, String releaseId, Manifest manifest,
+        Map<String, String> inventory, List<PostProvisionResumeContracts.Candidate> preflightCheckpoints) {
         long revision = reservation.revision();
+        var current = tree(failedRelease.path("provisioning_details_json").asText());
+        boolean currentAttempt = true;
         // Repeated continuation follows verified immutable receipts, never an editable history entry.
         while (current.has("postProvisionResume")) {
             var marker = current.path("postProvisionResume");
             if (!PostProvisionResumeContracts.BOUNDARY.equals(marker.path("boundary").asText())) fail("CONTROL_FLOW_UNPROVEN");
-            requireSteps(current.path("progress").path("steps"), List.of("queue_release", "preflight_verification", "resume_managed_dependencies", "apply_failed"),
-                List.of("QUEUED", "COMPLETED", "RUNNING", "FAILED"));
+            boolean preflightBlocked = "PRE_APPLY_BLOCKED".equals(failedRelease.path("status").asText());
+            if (preflightBlocked) {
+                requireFailedPreflight(failedRelease, reservation, releaseId, manifest, inventory);
+                requireSteps(current.path("progress").path("steps"), List.of("queue_release", "preflight_verification"),
+                    List.of("QUEUED", "FAILED"));
+            } else {
+                requireSteps(current.path("progress").path("steps"), List.of("queue_release", "preflight_verification", "resume_managed_dependencies", "apply_failed"),
+                    List.of("QUEUED", "COMPLETED", "RUNNING", "FAILED"));
+            }
             String key = json.fingerprint(Map.of("reservation", reservation.id(), "generation", reservation.generation(),
                 "operation", marker.path("operationKey").asText()));
-            var receipt = receipts.apply(key); var command = receipt.command(); var prior = receipt.failedAttempt();
+            var receipt = receipts.apply(key);
+            if (receipt == null) fail("CONTROL_FLOW_UNPROVEN");
+            var command = receipt.command(); var prior = receipt.failedAttempt();
             if (!reservation.id().equals(command.fence().reservationId()) || !reservation.generation().equals(command.fence().generation())
                 || !releaseId.equals(command.releaseId()) || !command.proofFingerprint().equals(marker.path("proofFingerprint").asText())
                 || !command.acceptRemainingDependencyProvisioning() || command.fence().revision() >= revision
@@ -159,10 +180,29 @@ final class PostProvisionResumeEvidence {
                 || !reservation.tenantId().equals(prior.reservation().tenantId())
                 || !reservation.deploymentId().equals(prior.reservation().deploymentId())
                 || !reservation.targetProfileId().equals(prior.reservation().targetProfileId())) fail("CONTROL_FLOW_UNPROVEN");
+            // Older links prove lineage, not equality with checkpoints changed by later dependency work.
+            if (preflightBlocked && currentAttempt) preflightCheckpoints.add(prior);
             revision = command.fence().revision();
-            current = tree(tree(prior.failedReleaseJson()).path("provisioning_details_json").asText());
+            failedRelease = tree(prior.failedReleaseJson());
+            current = tree(failedRelease.path("provisioning_details_json").asText());
+            currentAttempt = false;
         }
         return current;
+    }
+
+    private void requireFailedPreflight(JsonNode release, Reservation reservation, String releaseId, Manifest manifest,
+        Map<String, String> inventory) {
+        if (!releaseId.equals(release.path("id").asText()) || !"BLOCKED".equals(release.path("provisioning_status").asText())
+            || !"FAILED".equals(release.path("verification_status").asText())
+            || !"preflight_verification".equals(release.path("current_step_key").asText())
+            || release.path("verification_run_id").asText().isBlank()) fail("PREFLIGHT_VERIFICATION_UNPROVEN");
+        var run = one("SELECT * FROM platform_deployment_verification_runs WHERE id=? FOR UPDATE NOWAIT",
+            release.path("verification_run_id").asText());
+        if (!reservation.deploymentId().equals(run.get("deployment_id")) || !releaseId.equals(run.get("release_id"))
+            || !manifest.versionId().equals(run.get("deployment_version_id"))
+            || !"PRE_APPLY".equals(run.get("verification_type")) || !"FAILED".equals(run.get("status")))
+            fail("PREFLIGHT_VERIFICATION_UNPROVEN");
+        inventory.put("preflightVerification:" + run.get("id"), json.fingerprint(run));
     }
 
     private void requireCompletedNativePhase(JsonNode steps) {

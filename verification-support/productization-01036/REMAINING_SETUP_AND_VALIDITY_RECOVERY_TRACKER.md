@@ -8,6 +8,40 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Latest Scope Decision And Basic Recovery
 
+- 07:37UTC source qualification: safe vector failure-code projection passes126
+  focused tests. The receipt-proven no-effect preflight continuation correction
+  qualifies69 distinct cases, including48 real PostgreSQL. One synthetic
+  foreign-tenant fixture error was corrected; the affected9-case method rerun
+  passes, retaining the initial failed report. Main's review also protected
+  later legitimate dependency progress from obsolete historical checkpoint hashes.
+  Combined195-case evidence is being pinned to the final package; neither fix
+  is deployed yet. Both live control planes remain19d0ba004/schema207/UP.
+  No DDL, endpoint or framework changes; current failed owner attempt remains
+  preserved. One backend-only rollout, then fresh capacity review and normal
+  customer retry are next, not another broad verification matrix.
+
+- Latest actual boundary, 07:20UTC: BOTH control planes verify19d0ba004/image
+  05986044/schema207/UP. Focused146 tests include68 actual PostgreSQL; backend-only
+  CI39554945121 and scoped sequential rollout pass. Closure is in
+  01044-validity-handle-rollout-20261021. Production's initial read-only verification
+  caught an observer lease; settled readback passed without another deployment.
+- Same-wallet extension validity-4f675c37-ec0c-47f6-abfd-3c451aa1807a is
+  ACKNOWLEDGED and read back, effective until18:00UTC. Original approval/store,
+  original23:30UTC expiry, caps, counters and holds remain. Evidence is under
+  01044-validity-healthy-handle-attempt-20261021. No replacement credit.
+- Normal CUSTOMER_ADMIN plan/execute succeeded; receipt11122853-eef7-4a4c-bf47-fa71ecb736d1
+  advanced the same reservation to21. Preflight then failed only
+  milvus_authentication_ready before any resumed native effect, leaving release
+  PRE_APPLY_BLOCKED and reservationOUTCOME_UNKNOWN/revision22. The failed run is
+  vrf-b787d109. Do NOT replay the consumed continuation command.
+- Exact same-container provider readback at07:15UTC returned management200/code0,
+  correct Free01 identity and serving200/code0/zero collections. Credentials and
+  scope are valid now; a transient timeout is plausible, not established as fact.
+  Main adds safe typed failure codes. One bounded continuation correction is in
+  progress: a receipt-proven no-effect preflight failure must remain retryable
+  through normal owner review, retaining failed history and all existing fences.
+  No new tables/endpoints, framework release or general recovery expansion.
+
 - 06:22 UTC supersedes the intermediate checkpoints below. Both control planes
   verify `d507380ea`, schema207, healthUP. Same-release repair487f7a46 is VERIFIED:
   all ten effects confirmed, final receipt
@@ -28,6 +62,13 @@ extraction stays last. This is an execution tracker, not a new product direction
   polling is a documented operational follow-up, not a reason to expand this
   release's scope. Full owner resume, indexing, app activation, browser acceptance,
   production promotion and UI extraction remain incomplete.
+- Deferred repair-specific promotion case found by static review: the existing
+  immutable offer pins the original runtime artifact. A verified same-release
+  repair does not authorize successor releases. Candidate creation currently
+  reads that original pin, so do not claim production will carry the repaired
+  runtime or bypass the reviewed-offer guard. Establish a normal reviewed latest
+  catalogue path before production proof; automatic repair-lineage propagation
+  is not being added to the basic-case scope. Current workspace proof continues.
 
 - 05:29 UTC update supersedes the pending approval below: the owner approved
   the fixed count capability in **Required for production**. The exact tested
@@ -136,12 +177,13 @@ extraction stays last. This is an execution tracker, not a new product direction
   service. Existing initialization operation keys must remain idempotent.
   This source fix is now deployed on both control planes. Hosted runtime repair,
   validity renewal and owner continuation remain unchecked.
-- [ ] Establish the correct supported, counter-preserving allowance-validity
+- [x] Establish the correct supported, counter-preserving allowance-validity
   renewal and runtime-artifact adoption path. Preserve the original approval,
   limits, charges, holds and store identity; any expiry change needs an explicit
   durable authorization and positive readback, not SQL repair or a fresh wallet.
-  Runtime and control-plane source implementations are locally qualified below;
-  no hosted renewal is claimed yet.
+  Runtime repair is VERIFIED and the same-wallet finite validity extension is
+  ACKNOWLEDGED/read back. Original approval, store, limits and financial history
+  remain. The subsequent owner continuation is separately blocked at preflight.
 - [ ] Reconcile the same release through source synchronization and verification;
   activate the existing consumer and app only after those gates pass.
 - [ ] Run real stock/document compound queries, scoped reads, confirmed writes,

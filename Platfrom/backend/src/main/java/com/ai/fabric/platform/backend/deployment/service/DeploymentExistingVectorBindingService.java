@@ -671,5 +671,11 @@ public class DeploymentExistingVectorBindingService {
         catch (RuntimeException error) { throw failure("EXTERNAL_VECTOR_PROVIDER_READBACK_FAILED"); }
     }
 
-    private ResponseStatusException failure(String code) { return new ResponseStatusException(PRECONDITION_FAILED, code); }
+    private BindingFailure failure(String code) { return new BindingFailure(code); }
+
+    static final class BindingFailure extends ResponseStatusException {
+        private final String code;
+        private BindingFailure(String code) { super(PRECONDITION_FAILED, code); this.code = code; }
+        String code() { return code; }
+    }
 }

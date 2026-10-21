@@ -167,6 +167,36 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void preApplyProjectsOnlyTheTypedVectorFailureCodeWithoutUpstreamExceptionDetails() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        var service = releaseVerificationService(mock(PlatformSecretService.class), artifacts);
+        var bindings = mock(DeploymentExistingVectorBindingService.class);
+        ReflectionTestUtils.setField(service, "existingVectorBindings", bindings);
+        var version = version("""
+            {"vectorStrategy":"milvus","milvusAuthenticationType":"TOKEN","milvusExternalBindingRequired":true,
+             "vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED"}
+            """);
+        var actualBindings = new DeploymentExistingVectorBindingService(null, null, null, null, null, null, null, null, null, objectMapper);
+        var failure = (DeploymentExistingVectorBindingService.BindingFailure) ReflectionTestUtils.invokeMethod(
+            actualBindings, "failure", "EXTERNAL_VECTOR_SERVING_VERIFICATION_FAILED");
+        when(bindings.resolve(any(), any(), any(), any())).thenThrow(failure);
+        var checks = objectMapper.createArrayNode();
+        ReflectionTestUtils.invokeMethod(service, "verifyPreApply", checks,
+            deployment("https://runtime.example", null), version, release(), null);
+        var check = StreamSupport.stream(checks.spliterator(), false)
+            .filter(value -> "milvus_authentication_ready".equals(value.path("name").asText())).findFirst().orElseThrow();
+        assertThat(check.path("details").path("errorCode").asText()).isEqualTo("EXTERNAL_VECTOR_SERVING_VERIFICATION_FAILED");
+        assertThat(check.path("status").asText()).isEqualTo("FAILED");
+        checks.removeAll();
+        org.mockito.Mockito.doThrow(new IllegalStateException("private-token-and-upstream-body"))
+            .when(bindings).resolve(any(), any(), any(), any());
+        ReflectionTestUtils.invokeMethod(service, "verifyPreApply", checks,
+            deployment("https://runtime.example", null), version, release(), null);
+        assertThat(checks.toString()).doesNotContain("private-token-and-upstream-body", "errorCode");
+        org.mockito.Mockito.verifyNoInteractions(artifacts);
+    }
+
+    @Test
     void serverOwnedRuntimeActionExpectationsComeFromExplicitBehaviorBinding() throws Exception {
         JsonNode behaviorConfig = objectMapper.readTree("""
             {
