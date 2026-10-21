@@ -864,8 +864,14 @@ public class ManagedDependencyLifecycleService {
         if (graph == null) return null;
         if (!deploymentId.equals(graph.getDeploymentId()) || !targetProfileId.equals(graph.getTargetProfileId())
             || !nextVersionId.equals(graph.getVersionId()) || graph.getWorkerToken() != null
-            || !"READY".equals(graph.getStatus())) fail("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
+            || !generationGraphPrepared(graph)) fail("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
         return graph;
+    }
+
+    private boolean generationGraphPrepared(ManagedDependencyGraphEntity graph) {
+        // Reapply prepares foundations before quiescing the existing runtime-bound Inbox.
+        return "READY".equals(graph.getStatus()) || "PROVISIONED".equals(graph.getStatus())
+            && "RUNTIME_INITIALIZATION_REQUIRED".equals(graph.getStep()) && graph.getFailureCode() == null;
     }
 
     private void beginGenerationTransition(String graphId, String operationKey) {
@@ -883,7 +889,7 @@ public class ManagedDependencyLifecycleService {
     private void requireGenerationOperation(ManagedDependencyGraphEntity graph, ManagedDependencyState state,
             String operationKey) {
         if (!operationKey.equals(state.runtimeGenerationOperationKey) || graph.getWorkerToken() != null
-            || !"READY".equals(graph.getStatus())) fail("DEPENDENCY_GENERATION_OPERATION_CHANGED");
+            || !generationGraphPrepared(graph)) fail("DEPENDENCY_GENERATION_OPERATION_CHANGED");
     }
 
     private PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint generationCheckpoint(

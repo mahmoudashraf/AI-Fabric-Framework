@@ -1965,6 +1965,10 @@ class AdmissionStore {
         try {
             var adapter = new PreparedFailureRecoveryContracts.Command(command.fence(), command.releaseId(), command.operationKey(), command.reason(), command.proofFingerprint());
             var r = preparedRecoveryReservation(customerId, deploymentId, reservationId, adapter, authorize);
+            String activeVersion = jdbc.queryForObject("SELECT active_version_id FROM platform_deployments WHERE id=?", String.class, deploymentId);
+            if (activeVersion != null) {
+                return new ReapplyBeforeRuntimeStopEvidence(jdbc, json).read(r, command.releaseId(), context(r).manifest());
+            }
             var proof = new PreparedFailureRecoveryEvidence(jdbc, json, true).read(r, command.releaseId(), context(r).manifest());
             var release = jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id=?", command.releaseId());
             return new FailedApplyRetryContracts.Candidate(r, proof.inventory(), json.write(release),
@@ -1983,7 +1987,7 @@ class AdmissionStore {
             requireRetryCandidateUnchanged(inspected, current);
             var proof = failedApplyRetryFingerprint(current, readback);
             return new FailedApplyRetryContracts.Plan(new FailedApplyRetryContracts.Command(current.reservation().fence(),
-                command.releaseId(), command.operationKey(), command.reason(), true, proof), FailedApplyRetryContracts.BOUNDARY,
+                command.releaseId(), command.operationKey(), command.reason(), true, proof), failedApplyRetryBoundary(current),
                 List.of("runtime", "connector"));
         });
     }
@@ -2012,10 +2016,16 @@ class AdmissionStore {
     FailedApplyRetryContracts.Summary queueFailedApplyRetry(String customerId, String deploymentId, String reservationId,
         FailedApplyRetryContracts.Command command, FailedApplyRetryContracts.Candidate inspected,
         FailedApplyRetryContracts.NativeReadback readback, String actor, java.util.function.Consumer<Reservation> authorize) {
+        return submitFailedApplyRetry(customerId, deploymentId, reservationId, command, inspected, readback, actor, authorize).summary();
+    }
+
+    FailedApplyRetryContracts.Submission submitFailedApplyRetry(String customerId, String deploymentId, String reservationId,
+        FailedApplyRetryContracts.Command command, FailedApplyRetryContracts.Candidate inspected,
+        FailedApplyRetryContracts.NativeReadback readback, String actor, java.util.function.Consumer<Reservation> authorize) {
         validateFailedApplyRetry(command, true); required(actor, 255);
         return locked(() -> {
             var prior = recordedFailedApplyRetryLocked(customerId, deploymentId, reservationId, command, actor, authorize);
-            if (prior != null) return prior;
+            if (prior != null) return new FailedApplyRetryContracts.Submission(prior, false);
             var current = failedApplyRetryCandidateLocked(customerId, deploymentId, reservationId, command, authorize);
             requireRetryCandidateUnchanged(inspected, current);
             if (!command.proofFingerprint().equals(failedApplyRetryFingerprint(current, readback)))
@@ -2046,7 +2056,7 @@ class AdmissionStore {
                 command.releaseId(), "APPLY_REQUESTED", false, current.retainedAllocationIds(), now);
             review("NATIVE_RETRY", failedApplyRetryKey(reservationId, command), new FailedApplyRetryContracts.Receipt(actor,
                 failedApplyRetryCommandFingerprint(customerId, deploymentId, reservationId, actor, command), command, current, readback, summary), actor, now);
-            return summary;
+            return new FailedApplyRetryContracts.Submission(summary, true);
         });
     }
 
@@ -2172,11 +2182,35 @@ class AdmissionStore {
 
     private String failedApplyRetryFingerprint(FailedApplyRetryContracts.Candidate candidate, FailedApplyRetryContracts.NativeReadback readback) {
         if (readback == null || readback.observedAt() == null || readback.inventory() == null
-            || !json.read(candidate.inventory().get("nativeKinds"), List.class).equals(readback.inventory().keySet().stream().sorted().toList()))
+            || !json.read(candidate.inventory().get("nativeKinds"), List.class).equals(readback.inventory().keySet().stream().sorted().toList())
+            || readback.inventory().values().stream().anyMatch(value -> value == null || value.isBlank()))
             throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_NATIVE_INVENTORY_REQUIRED");
         fresh(readback.observedAt(), clock.instant(), 60);
-        return json.fingerprint(Map.of("boundary", FailedApplyRetryContracts.BOUNDARY,
+        return json.fingerprint(Map.of("boundary", failedApplyRetryBoundary(candidate),
             "local", candidate.inventory(), "native", readback.inventory()));
+    }
+    FailedApplyRetryContracts.ReapplyScope reapplyRetryScope(FailedApplyRetryContracts.Candidate candidate) {
+        String scope = candidate.inventory().get("reapplyScope");
+        return scope == null ? null : json.read(scope, FailedApplyRetryContracts.ReapplyScope.class);
+    }
+    private String failedApplyRetryBoundary(FailedApplyRetryContracts.Candidate candidate) {
+        return reapplyRetryScope(candidate) == null ? FailedApplyRetryContracts.BOUNDARY : FailedApplyRetryContracts.REAPPLY_BOUNDARY;
+    }
+    FailedApplyRetryContracts.NativeReadback reapplyRetryReadback(FailedApplyRetryContracts.Candidate candidate,
+        FailedApplyRetryContracts.NativeReadback nativeReadback,
+        com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.Readback generation) {
+        var scope = reapplyRetryScope(candidate); var r = candidate.reservation();
+        if (scope == null || generation == null || generation.target() == null || nativeReadback == null
+            || nativeReadback.inventory() == null || !r.deploymentId().equals(generation.target().deploymentId())
+            || !r.targetProfileId().equals(generation.target().targetProfileId()) || !scope.priorReleaseId().equals(generation.target().releaseId())
+            || !r.tenantId().equals(generation.tenantId())
+            || generation.state() != com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.State.ACTIVE
+            || generation.authorityRevoked() || generation.reclaimStarted())
+            throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_PREVIOUS_GENERATION_REQUIRED");
+        var inventory = new java.util.TreeMap<>(nativeReadback.inventory());
+        if (inventory.putIfAbsent("RUNTIME_GENERATION", json.fingerprint(generation)) != null)
+            throw new AdmissionFailure(CONFLICT, "FAILED_APPLY_RETRY_NATIVE_INVENTORY_REQUIRED");
+        return new FailedApplyRetryContracts.NativeReadback(nativeReadback.observedAt(), Map.copyOf(inventory));
     }
     private void requireRetryCandidateUnchanged(FailedApplyRetryContracts.Candidate inspected, FailedApplyRetryContracts.Candidate current) {
         if (inspected == null || !json.fingerprint(inspected).equals(json.fingerprint(current)))

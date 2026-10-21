@@ -116,6 +116,56 @@ class CoolifyFailedApplyRetryReadbackTest {
         if (!"old".equals(change)) assertThatThrownBy(() -> provider.postProvisionResumeReadback("deployment", "target", "release", start, failure)).isInstanceOf(RuntimeException.class);
         verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean()); verify(handles, never()).save(any());
     }
+    @Test void reapplyRetryRetainsPriorRuntimeOwnershipAndAllowsOnlyTheStoppedExistingConnector() {
+        preparedReapply();
+        var proof = reapplyRead();
+        assertThat(proof.inventory()).containsOnlyKeys("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE");
+        assertThat(proof.inventory().get("APPLICATION")).contains("\"releaseId\":\"prior-release\"");
+        assertThat(proof.inventory().get("CONNECTOR_APPLICATION")).contains("\"releaseId\":\"release\"");
+        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
+        verify(handles, never()).save(any());
+        verify(ownership, times(3)).requireHandle(any(), any(), anyString(), anyString(), any(), eq(false));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"runtimeRebound", "foreignConnector", "foreignTarget", "duplicateRole",
+        "runningConnector", "unhealthyRuntime", "pendingJob", "newJob", "failedJob", "ownership"})
+    void reapplyRetryRejectsStartedReplacementAndAmbiguousOwnership(String change) {
+        preparedReapply();
+        switch (change) {
+            case "runtimeRebound" -> inventory.getFirst().setReleaseId("release");
+            case "foreignConnector" -> inventory.get(1).setReleaseId("foreign");
+            case "foreignTarget" -> inventory.getFirst().setTargetProfileId("foreign");
+            case "duplicateRole" -> inventory.add(inventory.getFirst());
+            case "runningConnector" -> applications.put("CONNECTOR_APPLICATION", application("CONNECTOR_APPLICATION", "running:healthy"));
+            case "unhealthyRuntime" -> applications.put("APPLICATION", application("APPLICATION", "running:unhealthy"));
+            case "pendingJob" -> jobs.put("APPLICATION", job("APPLICATION", "in_progress"));
+            case "newJob" -> {
+                var j = jobs.get("APPLICATION");
+                jobs.put("APPLICATION", new CoolifyDeploymentSummary(j.deploymentUuid(), j.applicationName(), j.applicationUuid(),
+                    j.status(), null, null, start.plusSeconds(601).toString(), start.plusSeconds(620).toString(),
+                    start.plusSeconds(620).toString(), j.raw()));
+            }
+            case "failedJob" -> jobs.put("APPLICATION", job("APPLICATION", "failed"));
+            case "ownership" -> when(ownership.requireHandle(any(), any(), anyString(), anyString(), any(), eq(false)))
+                .thenThrow(new IllegalStateException("receipt ownership changed"));
+            default -> throw new AssertionError(change);
+        }
+        assertThatThrownBy(this::reapplyRead).isInstanceOf(RuntimeException.class);
+        verify(api, never()).start(any(), anyString(), anyBoolean(), anyBoolean());
+        verify(handles, never()).save(any());
+    }
+
+    private void preparedReapply() {
+        inventory.getFirst().setReleaseId("prior-release");
+        applications.put("CONNECTOR_APPLICATION", application("CONNECTOR_APPLICATION", "exited"));
+        jobs.put("CONNECTOR_APPLICATION", job("CONNECTOR_APPLICATION", "finished"));
+    }
+
+    private com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback reapplyRead() {
+        return provider.reapplyBeforeRuntimeStopReadback("deployment", "target", "release", "prior-release",
+            start, start.plusSeconds(600), start.plusSeconds(650));
+    }
+
     private CoolifyApplicationSummary application(String uuid, String status) {
         return new CoolifyApplicationSummary(uuid, "name", "https://owned.example", status, "image", "digest", json.createObjectNode());
     }

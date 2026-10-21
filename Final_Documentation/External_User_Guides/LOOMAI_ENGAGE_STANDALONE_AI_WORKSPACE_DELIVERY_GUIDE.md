@@ -244,6 +244,30 @@ retry. Repeated or ambiguous failures require their owning reconciliation path.
 Do not automatically fall back between recovery types, cancel the reservation
 as unused, or repeat an uncertain native operation.
 
+### Retry A Reapply Before Runtime Replacement
+
+The same owner-only retry-plan and execute endpoints also distinguish a failed
+update of an existing deployment from an initial installation. This boundary
+requires the old verified runtime generation to remain ACTIVE, its existing
+runtime ownership to be intact, the connector to be stopped, and no replacement
+runtime job or generation transition to have begun. Existing managed Inbox
+resources and operator identities remain owned by the deployment.
+The first supported update boundary uses a new candidate version, managed
+PostgreSQL AI state and one PostgreSQL-backed managed Basic Inbox; it does not
+claim recovery for every deployment topology or failure phase.
+
+Review the returned boundary and exact fenced command before executing it.
+Retrying retains the same candidate release, reservation, resource identities,
+prior verified release, consumer assignment and provider allowance. The failed
+attempt remains in immutable history. Connector configuration or stopping may
+already have occurred, so this is not a no-effect recovery. The ordinary drain,
+authority fence, single-writer runtime replacement, dependency initialization
+and verification still run before the candidate can be activated.
+
+This bounded retry does not authorize recovery after a runtime stop, adoption,
+an ownership change, a pending provider job or an ambiguous generation. Do not
+manually change admission state or create another allocation to bypass it.
+
 ### Resume Unfinished Setup After Provisioning
 
 When runtime and connector provisioning, credential removal and allowance

@@ -5,6 +5,8 @@ import com.ai.fabric.platform.backend.customerselfservice.service.CustomerOfferE
 import com.ai.fabric.platform.backend.customerselfservice.service.CustomerSelfServiceOperationBoundary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseExecutionService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,12 +29,16 @@ public class FailedApplyRetryService {
     private final DeploymentVersionRepository versions;
     private final CoolifyDeploymentProvider provider;
     private final DeploymentReleaseExecutionService execution;
+    private final DeploymentReleaseRepository releases;
+    private final DeploymentRuntimeGenerationService generations;
 
     public FailedApplyRetryService(AdmissionStore store, CustomerOfferEntitlementService entitlements,
         CustomerSelfServiceOperationBoundary boundary, DeploymentRepository deployments,
-        DeploymentVersionRepository versions, CoolifyDeploymentProvider provider, DeploymentReleaseExecutionService execution) {
+        DeploymentVersionRepository versions, CoolifyDeploymentProvider provider, DeploymentReleaseExecutionService execution,
+        DeploymentReleaseRepository releases, DeploymentRuntimeGenerationService generations) {
         this.store = store; this.entitlements = entitlements; this.boundary = boundary;
         this.deployments = deployments; this.versions = versions; this.provider = provider; this.execution = execution;
+        this.releases = Objects.requireNonNull(releases); this.generations = Objects.requireNonNull(generations);
     }
 
     public Plan plan(String offerId, String deploymentId, String reservationId, PlanRequest request) {
@@ -55,15 +61,26 @@ public class FailedApplyRetryService {
         if (prior != null) return prior;
         var candidate = store.failedApplyRetryCandidate(actor.customerId(), deploymentId, reservationId, command, authorize);
         var nativeReadback = readback(candidate, command.releaseId());
-        var queued = store.queueFailedApplyRetry(actor.customerId(), deploymentId, reservationId, command,
+        var submitted = store.submitFailedApplyRetry(actor.customerId(), deploymentId, reservationId, command,
             candidate, nativeReadback, actor.userId(), authorize);
-        execution.executeApply(deploymentId, store.context(candidate.reservation()).manifest().versionId(), command.releaseId());
-        return queued;
+        if (submitted.queued()) {
+            execution.executeApply(deploymentId, store.context(candidate.reservation()).manifest().versionId(), command.releaseId());
+        }
+        return submitted.summary();
     }
 
     private NativeReadback readback(Candidate candidate, String releaseId) {
         var r = candidate.reservation();
         // Provider reads run outside the admission mutex; the local snapshot is rechecked atomically afterwards.
+        var reapply = store.reapplyRetryScope(candidate);
+        if (reapply != null) {
+            var deployment = deployments.findById(r.deploymentId()).orElseThrow(this::denied);
+            var release = releases.findById(releaseId).orElseThrow(this::denied);
+            var nativeReadback = provider.reapplyBeforeRuntimeStopReadback(r.deploymentId(), r.targetProfileId(), releaseId,
+                reapply.priorReleaseId(), reapply.priorReleaseCreatedAt(), candidate.releaseCreatedAt(), candidate.failedAt());
+            var generation = generations.requireActiveForReapply(deployment, release, reapply.priorReleaseId(), reapply.priorRuntimeBaseUrl());
+            return store.reapplyRetryReadback(candidate, nativeReadback, generation);
+        }
         return provider.failedApplyRetryReadback(r.deploymentId(), r.targetProfileId(), releaseId,
             candidate.releaseCreatedAt(), candidate.failedAt());
     }

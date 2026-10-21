@@ -1057,7 +1057,8 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         var provider = mock(com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider.class);
         when(provider.failedApplyRetryReadback(anyString(), anyString(), anyString(), any(), any())).thenReturn(nativeReadback(NOW));
         retryExecution = mock(com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseExecutionService.class);
-        return new FailedApplyRetryController(new FailedApplyRetryService(store, entitlements, boundary, deployments, versions, provider, retryExecution));
+        return new FailedApplyRetryController(new FailedApplyRetryService(store, entitlements, boundary, deployments, versions, provider, retryExecution,
+            mock(DeploymentReleaseRepository.class), mock(com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService.class)));
     }
 
     @Test void staleObserverPausedAfterChecksCannotResurrectRecoveredBindingOrReservation() throws Exception {

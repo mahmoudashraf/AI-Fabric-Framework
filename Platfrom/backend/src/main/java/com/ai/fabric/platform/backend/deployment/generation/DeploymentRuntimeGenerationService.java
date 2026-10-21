@@ -53,6 +53,21 @@ public class DeploymentRuntimeGenerationService {
         this.sleeper = sleeper;
     }
 
+    public Readback requireActiveForReapply(DeploymentEntity deployment, DeploymentReleaseEntity nextRelease,
+                                            String previousReleaseId, String previousRuntimeBaseUrl) {
+        Scope scope = scope(deployment, nextRelease, previousReleaseId);
+        Target previous = new Target(deployment.getId(), nextRelease.getTargetProfileId(), previousReleaseId);
+        var readHeaders = authority.issueSystemHeaders(deployment.getId(), nextRelease.getTargetProfileId(),
+            previousReleaseId, scope.authorityFingerprint(), "platform-reapply-readback",
+            "reapply-readback:" + nextRelease.getId(), List.of(READ_SCOPE), Duration.ofMinutes(2));
+        Readback current = client.status(previousRuntimeBaseUrl, previous, readHeaders);
+        validate(current, previous, deployment.getTenantId());
+        if (current.state() != State.ACTIVE || current.authorityRevoked() || current.reclaimStarted()) {
+            throw failure("RUNTIME_GENERATION_PREVIOUS_NOT_ACTIVE");
+        }
+        return current;
+    }
+
     public DrainReceipt drainAndFence(DeploymentEntity deployment, DeploymentReleaseEntity nextRelease,
                                       String previousReleaseId, String previousRuntimeBaseUrl,
                                       Duration timeout, Duration pollInterval,

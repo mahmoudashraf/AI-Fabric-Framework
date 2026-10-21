@@ -49,6 +49,28 @@ class DeploymentRuntimeGenerationServiceTest {
             .thenReturn(Map.of("Authorization", "private"));
     }
 
+    @Test void reapplyReadbackProvesPriorGenerationWithoutDrainingOrIssuingWriteCommands() {
+        when(authority.issueSystemHeaders("dep-1", "staging", "release-old", "a".repeat(64),
+            "platform-reapply-readback", "reapply-readback:release-new", List.of(DeploymentRuntimeGenerationService.READ_SCOPE),
+            Duration.ofMinutes(2))).thenReturn(Map.of("Authorization", "read-only-private"));
+        var active = readback(State.ACTIVE, 1, null, null);
+        when(client.status(anyString(), eq(previous), anyMap())).thenReturn(active);
+        assertThat(service.requireActiveForReapply(deployment, next, "release-old", "https://old.example"))
+            .isEqualTo(active);
+        verify(client, never()).command(anyString(), any(), anyMap());
+        verify(client, never()).transition(anyString(), any(), anyMap());
+        verify(client).status("https://old.example", previous, Map.of("Authorization", "read-only-private"));
+        verify(authority, never()).issueGenerationTransitionHeaders(any(), any(), anyString(), anyString(), anyString());
+        when(client.status(anyString(), eq(previous), anyMap())).thenReturn(readback(State.DRAINING, 2, null, null));
+        assertThatThrownBy(() -> service.requireActiveForReapply(deployment, next, "release-old", "https://old.example"))
+            .hasMessage("RUNTIME_GENERATION_PREVIOUS_NOT_ACTIVE");
+        when(client.status(anyString(), eq(previous), anyMap())).thenReturn(new Readback(
+            new Target("dep-other", "staging", "release-old"), "tenant-1", State.ACTIVE, 1,
+            null, null, null, false, false, now));
+        assertThatThrownBy(() -> service.requireActiveForReapply(deployment, next, "release-old", "https://old.example"))
+            .hasMessage("RUNTIME_GENERATION_READBACK_INVALID");
+    }
+
     @Test void drainsFencesAndAdoptsExactGenerationWithoutPersistingHeaders() {
         when(client.status(anyString(), eq(previous), anyMap())).thenReturn(readback(State.ACTIVE, 1, null, null));
         when(client.command(anyString(), argThat(command -> command != null && command.type() == CommandType.BEGIN_DRAIN), anyMap()))

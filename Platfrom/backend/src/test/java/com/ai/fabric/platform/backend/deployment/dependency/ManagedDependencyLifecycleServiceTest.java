@@ -73,7 +73,8 @@ class ManagedDependencyLifecycleServiceTest {
         when(specRepository.findById("spec1")).thenReturn(Optional.of(reviewed));
         when(gates.orderedStream()).thenAnswer(ignored -> java.util.stream.Stream.of(gate));
         when(gate.reserve(any(), any(), any())).thenAnswer(i -> new ManagedDependencyPrerequisites.Admission(
-            "reservation-" + ((ManagedDependencyPrerequisites.Scope)i.getArgument(0)).graphId(), "c".repeat(64),
+            "reservation-" + ((ManagedDependencyPrerequisites.Scope)i.getArgument(0)).graphId(),
+            ((ManagedDependencyPrerequisites.Scope)i.getArgument(0)).bindingFingerprint(),
             i.getArgument(2) == ManagedDependencyPrerequisites.ProvisioningPhase.RUNTIME_BOUND
                 ? Map.of("inbox", "https://connector.example.test/inbox/callback") : Map.of(),
             List.of("https://app.example.test"), Map.of(),
@@ -562,6 +563,112 @@ class ManagedDependencyLifecycleServiceTest {
             eq("inbox"), anyString(), any());
         verify(provider).resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(ready.graphId()), anyString(),
             eq("inbox"), anyString(), any());
+    }
+
+    @Test void releaseReapplyQuiescesPreparedFoundationsThenResumesBeforeRuntimeBoundInitialization() {
+        var first = ready("staging");
+        var graph = graphs.get(first.graphId());
+        graph.setReleaseId("release-old");
+        var previous = store.state(graph);
+        var resources = previous.nodes.stream()
+            .map(n -> List.of(n.serviceRef, n.applicationUuid, Objects.toString(n.databaseUuid, ""))).toList();
+        var operator = previous.operators.getFirst();
+        var operatorIdentity = List.of(operator.id, operator.secretName, Integer.toString(operator.credentialRevision));
+
+        lifecycle.submitForRelease("dep-1", "staging", new ManagedDependencyLifecycleService.Request(
+            "spec1", "v2", "release-new", "d".repeat(64), "reapply-submit"));
+        var prepared = lifecycle.provisionForRelease("dep-1", "staging", "release-new", "reapply-foundation");
+        assertThat(prepared.status()).isEqualTo("PROVISIONED");
+        assertThat(graph.getStep()).isEqualTo("RUNTIME_INITIALIZATION_REQUIRED");
+        assertThat(store.state(graph).effectiveConfigurationRevision).isEqualTo(-1);
+        clearInvocations(provider);
+        when(provider.quiesceOwnedDependencyForRuntimeGeneration(any(), eq(first.graphId()), anyString(),
+            eq("inbox"), anyString(), any())).thenAnswer(call -> {
+                call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
+                return "managed-dependency-generation:stopped";
+            });
+        when(provider.resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(first.graphId()), anyString(),
+            eq("inbox"), anyString(), any())).thenAnswer(call -> {
+                call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
+                return "managed-dependency-generation:running";
+            });
+
+        lifecycle.quiesceForRuntimeGeneration("dep-1", "staging", "release-old", "release-new", "v2");
+        assertThat(store.state(graph).runtimeGenerationState).isEqualTo("QUIESCED");
+        lifecycle.resumeAfterRuntimeGeneration("dep-1", "staging", "release-old", "release-new", "v2");
+        assertThat(store.state(graph).runtimeGenerationState).isEqualTo("RESUMED");
+        assertThat(graph.getStatus()).isEqualTo("PROVISIONED");
+        assertThat(store.state(graph).effectiveConfigurationRevision).isEqualTo(-1);
+        verify(provider).quiesceOwnedDependencyForRuntimeGeneration(any(), eq(first.graphId()), anyString(),
+            eq("inbox"), anyString(), any());
+        verify(provider).resumeOwnedDependencyAfterRuntimeGeneration(any(), eq(first.graphId()), anyString(),
+            eq("inbox"), anyString(), any());
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+
+        var completed = lifecycle.reconcileForRelease("dep-1", "staging", "release-new", "reapply-runtime-bound");
+        assertThat(completed.status()).isEqualTo("READY");
+        var after = store.state(graph);
+        assertThat(after.effectiveConfigurationRevision).isEqualTo(after.configurationRevision);
+        assertThat(after.nodes.stream().map(n -> List.of(n.serviceRef, n.applicationUuid,
+            Objects.toString(n.databaseUuid, "")))).containsExactlyElementsOf(resources);
+        var retained = after.operators.getFirst();
+        assertThat(List.of(retained.id, retained.secretName, Integer.toString(retained.credentialRevision)))
+            .isEqualTo(operatorIdentity);
+    }
+
+    @Test void runtimeGenerationRejectsIncompleteOrBusyGraphsBeforeProviderCalls() {
+        var first = ready("staging");
+        var graph = graphs.get(first.graphId());
+        clearInvocations(provider);
+        for (String status : List.of("PLANNED", "RUNNING", "BLOCKED", "FAILED", "RETIRING", "RETIRED")) {
+            graph.setStatus(status);
+            graph.setStep("RUNTIME_INITIALIZATION_REQUIRED");
+            assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
+                "dep-1", "staging", "release-old", "release-new", "v1"))
+                .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
+        }
+        graph.setStatus("PROVISIONED");
+        graph.setStep("PROVISION:inbox");
+        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
+            "dep-1", "staging", "release-old", "release-new", "v1"))
+            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
+        graph.setStep("RUNTIME_INITIALIZATION_REQUIRED");
+        graph.setWorkerToken("other-worker");
+        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
+            "dep-1", "staging", "release-old", "release-new", "v1"))
+            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
+        graph.setWorkerToken(null);
+        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
+            "dep-1", "staging", "release-old", "release-new", "v2"))
+            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
+        graph.setFailureCode("DEPENDENCY_RECONCILE_FAILED");
+        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
+            "dep-1", "staging", "release-old", "release-new", "v1"))
+            .hasMessageContaining("DEPENDENCY_GENERATION_GRAPH_NOT_READY");
+        verifyNoInteractions(provider);
+    }
+
+    @Test void preparedRuntimeGenerationCheckpointRejectsConcurrentWorkerAndResourceCreation() {
+        var first = ready("staging");
+        var graph = graphs.get(first.graphId());
+        graph.setStatus("PROVISIONED");
+        graph.setStep("RUNTIME_INITIALIZATION_REQUIRED");
+        when(provider.quiesceOwnedDependencyForRuntimeGeneration(any(), eq(first.graphId()), anyString(),
+            eq("inbox"), anyString(), any())).thenAnswer(call -> {
+                var checkpoint = call.getArgument(5, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class);
+                checkpoint.guard();
+                assertThatThrownBy(() -> checkpoint.creating("APPLICATION"))
+                    .hasMessageContaining("DEPENDENCY_GENERATION_RESOURCE_CREATION_FORBIDDEN");
+                graph.setWorkerToken("concurrent-worker");
+                checkpoint.guard();
+                return "unreachable";
+            });
+        assertThatThrownBy(() -> lifecycle.quiesceForRuntimeGeneration(
+            "dep-1", "staging", "release-old", "release-new", "v1"))
+            .hasMessageContaining("DEPENDENCY_GENERATION_OPERATION_CHANGED");
+        assertThat(store.state(graph).runtimeGenerationState).isNotEqualTo("QUIESCED");
+        verify(provider, never()).resumeOwnedDependencyAfterRuntimeGeneration(any(), anyString(), anyString(),
+            anyString(), anyString(), any());
     }
 
     @Test void releaseRebindAdvancesGenerationAndInitialOwnerEnrollmentIsIdempotent() {
