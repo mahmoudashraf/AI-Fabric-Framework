@@ -1,5 +1,33 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 Hosted Customer Journey Focus
+
+At 08:46 UTC the normal continuation initialized the existing Inbox and reached
+post-apply verification. Stock indexing reports six vehicles; document indexing
+is not yet established. The retained gate has 25 passes, two stale expectation
+failures (target auth authority and resolved document-storage handle) and six
+skips. A scoped Platform verifier correction passes 51 checks, including four
+actual PostgreSQL cases; one obsolete reflection fixture was corrected and its
+original failed report retained. A separate customer document authorization
+mismatch is being checked before the one combined backend rollout. No runtime
+redeploy, wallet reset, source write, app activation or full journey pass is
+claimed. These are concrete hosted-path blockers, not additional recovery scope.
+
+The user directed Main to continue the open hosted stream and prioritize actual
+customer acceptance. The narrow Coolify identity fix is verified on staging;
+production rollout and normal owner setup continuation are next. No unrelated
+framework release, recovery feature or broad test matrix is added.
+
+The detailed acceptance order and deferred-work return points are recorded in
+`verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md`,
+section **Hosted Customer Journey Priority, 21 October 08:30 UTC**. It separates
+setup/indexing/app activation, real browser chat/auth/actions/handover, production
+promotion readiness, and finally reversible UI extraction. Faster native polling,
+automatic repair-to-successor lineage and nonempty/custom-store recovery remain
+documented follow-ups, not implicit prerequisites for the current workspace proof.
+The original offer's old artifact remains a real promotion constraint; no bypass
+or production-ready claim is authorized by this reprioritization.
+
 ## 2026-10-21 08:06 UTC Native Dependency Identity Correction
 
 Fresh policy01036-reviewed-preflight-fleet-20261021 is verified until09:56:13UTC,

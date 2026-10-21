@@ -6,6 +6,115 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Hosted Customer Journey Priority, 21 October 08:30 UTC
+
+Live update at 08:46 UTC: continuation receipt
+`6942e50d-4c43-47ef-bc55-4808fe4dd349` accepted R26. The existing Inbox
+initialized successfully at 08:36:47; no runtime/connector redeploy was requested.
+The release reached post-apply verification, now `APPLIED_VERIFICATION_FAILED`,
+provisioning ACTIVE, reservation revision 28 / OUTCOME_UNKNOWN. Verification
+`vrf-c3e5c64b` records 25 passed, two failed and six skipped checks. Runtime
+indexing reports six `dealer-vehicle` vectors and zero `document` vectors.
+
+The two concrete failed expectations are shared auth issuer/audience defaults
+instead of the frozen target authority, and logical `slot:document-storage`
+instead of resolved handle `dsh-4aca83e5-cf8`. Main's scoped correction uses the
+existing authority snapshot and document resolver, preserving exact mismatches
+and drift denials. The first test run found one old reflection fixture missing
+the new method argument; it was corrected without changing its assertion and
+failed reports are retained. The rerun passes 51 cases, including four actual
+PostgreSQL cases. No framework/schema/runtime change is involved.
+
+Normal customer document connector/list requests separately returned
+`SETTING_FORBIDDEN`. The current PUBLIC-only document offer is being compared
+against both PUBLIC and AUTHENTICATED audiences inferred from transport auth
+modes; authenticated access to public knowledge is not, by itself, permission
+to add private documents. One bounded independent service correction/review is
+in progress, including requested-visibility enforcement. Do not use staff
+credentials, broaden the offer or seed documents through a bypass. Evidence:
+`/private/tmp/01044-customer-document-journey-20261021` and the retained
+post-apply verification under `01044-owner-native-id-retry-20261021`.
+
+Live update at 08:36 UTC: both control planes verified `47399a6b2` / image
+`sha256:1637a2922913fe20720a35b4191a5205e61618342aa64b9981a94d9e350c7522`,
+schema 207, health UP. Rollout closure:
+`/private/tmp/01044-native-id-rollout-20261021/maintenance.completed.json`,
+SHA `09dfa7808ed10761a6b23feb823bd0b8352acbd9c9e7d15c9281e3a7c2e68ab0`.
+Original tables, audit/history and configuration are preserved. The runtime's
+aggregate health and the workspace's actual `/health` route both return UP/200.
+
+One replacement read-only 61-by-5-second sample ended at 08:34:50/51 UTC because
+the prior sample's publication window expired. It recorded at least 8.81 GiB
+RAM/89.2 GiB Docker-disk free on staging and 11.73 GiB/123.3 GiB on production;
+CPU peaks were 968/593 millicores, below the retained conservative baselines.
+Policy `01036-reviewed-native-id-fleet-20261021` is verified, fingerprint
+`1ce0a8c9c4ac47830162757b9304ed9af9565dfef4de5e0b7312c364ba3df5e4`,
+valid until 10:34:50 UTC. No capacity, quota or funding increase. Evidence:
+`/private/tmp/01044-native-id-policy-20261021/verified.actual.json`, SHA
+`46aef257cbce24b5bcb23f03531d5e0387a6baab4f62f8c2571f80e9139c2252`.
+
+The normal owner continuation plan was accepted from reservation revision 25,
+retaining the existing release and allocation. Its response fingerprint is
+`4c67636dacf963a321b9d6525fcfd7d080d5b0e1ed13f0acebb8800364914482`.
+One execution is in progress under
+`/private/tmp/01044-owner-native-id-retry-20261021`; do not replay the command.
+App readiness at 08:30 passed assets, experience pack, connection, exact origin,
+auth profile, domain and delivery; only verified release assignment was blocked.
+No app activation or live query is claimed yet.
+
+The user explicitly prioritized hosted, end-to-end customer verification over
+further recovery or edge-case expansion. Main owns the sequential live path;
+parallel agents remain parked unless a genuinely independent task is needed.
+
+Current acceptance order:
+
+1. Verify the narrow native deployment identity fix on staging and production.
+   Staging verified `47399a6b2`, image `1637a292`, schema 207, health UP at
+   08:26 UTC. Production rollout is dispatched; verification remains open.
+2. Continue the existing customer's failed setup through the normal
+   `CUSTOMER_ADMIN` session. Preserve the same release, resources, reservation,
+   wallet, failed history and idempotent dependency initialization.
+3. Verify stock and approved S3 document indexing, then activate the existing
+   consumer and DRAFT workspace. Do not treat successful infrastructure checks
+   as proof that either knowledge source is queryable.
+4. Exercise the real public workspace URL: a compound stock-and-policy query,
+   multi-turn context, anonymous read flow, protected action sign-in and
+   confirmation, cancelled sign-in, account isolation, human handover/reply/
+   return to AI, and basic desktop/mobile rendering.
+5. Check normal production promotion readiness without copying vector records.
+   Promotion must use a reviewed current artifact and independently index the
+   production integration sources. Record a blocked gate honestly rather than
+   promoting an obsolete pinned image.
+6. Only after backend/integration acceptance, finish the independently reversible
+   customer UI extraction and compare STAFF-001 through STAFF-039.
+
+Deferred follow-ups, with explicit return points:
+
+- **Coolify polling efficiency:** the repair waiter polls full native inventory
+  every two seconds and encountered HTTP 429 after a successful dispatch. Return
+  to the `CoolifyRuntimeRepair.waitFor` path; use bounded job-specific polling
+  and backoff. Existing exact-job read-only reconciliation is retained. This is
+  not a reason to redispatch an acknowledged native operation.
+- **Repair-to-successor artifact lineage:** normal candidate creation reads the
+  immutable offer's original artifact (`dsa-ed384ca8`), whereas the same-release
+  repair verified `dsa-395fa10f`. The repair receipt does not authorize a new
+  release. Automatic offer upgrades/repair-lineage propagation are deferred.
+  Before a production proof, use the existing reviewed latest-offer/fresh
+  customer bootstrap path or document the unsupported transition; never weaken
+  the offer-pin boundary. Inspect `DeploymentPromotionCandidateService` and
+  `CustomerSelfServicePromotionBoundary` when returning to this work.
+- **Nonempty or custom-store recovery:** the completed cold repair is restricted
+  to never-activated setup, explicit consent and fixed empty-store checks.
+  Preservation of active customer state, custom stores and complete worker
+  fencing require a separate design. Do not infer support from the empty canary.
+- **Broad qualification/capacity certification:** no unrelated framework matrix,
+  stress test or new resource-capacity product is being added to this cycle.
+  The five-minute sample is current-fleet admission evidence only. Collect a
+  replacement once if its publication freshness expires; preserve prior samples
+  and do not label stale observations fresh.
+
+None of the open hosted acceptance gates is marked passed by this scope record.
+
 ### Latest Scope Decision And Basic Recovery
 
 - 08:06UTC: fresh policy01036-reviewed-preflight-fleet-20261021 is VERIFIED,

@@ -10,6 +10,34 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 08:46UTC owner6942e50d continuation initialized sameInbox; release now
+  APPLIED_VERIFICATION_FAILED/provisioningACTIVE, R28OUTCOME_UNKNOWN. vrfc3e5c64b
+  has25PASS/2FAIL/6SKIP: auth expectations sharedinsteadfrozen-target, document
+  slotinsteadresolvedhandle. Stock6vectors, document0. Main verifierfix51tests/
+  4realPG PASS after oneoldreflectionfixture correction (failedreportsretained).
+  No deployednewfixyet. Normalcustomer docGET403SETTING_FORBIDDEN; Chandrasekhar
+  bounded serviceaudience-vs-authmode fix/test only, no hostedmutations. Main
+  prepares ONE combinedrollout; appDRAFT. Authbrowserhelperreadyprivate/notrun.
+
+- Oct21 08:36UTC BOTH CPs47399a6b2/image1637a292/schema207/UP; closure
+  01044-native-id-rollout-20261021 SHA09dfa780...68ab0. Runtime aggregate and
+  app /health UP200. One replacement61x5sample ended08:34:50/51 (old publication
+  freshness expired); peaks stage968/prod593millicores, >=8.81/11.73GiB RAM,
+  >=89.2/123.3GiB disk. New policy01036-reviewed-native-id-fleet-20261021
+  FP1ce0a8c9...df5e4 VERIFIED until10:34:50, same ceilings/quota/funding. Normal
+  owner R25 continuation plan200; execute in progress under owner-native-id-retry,
+  responsehash4c67636d...14482. Do not replay. App stillDRAFT pending release.
+  Sartre prepares private single-origin auth browser harness ONLY, no live calls.
+
+- Oct21 08:30UTC user explicitly prioritizes hosted/end-to-end customer journey;
+  other work must be recorded for later. Detailed acceptance order and deferred
+  return points are in REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md section
+  Hosted Customer Journey Priority. Staging47399a6b2 verified08:26/schema207/UP,
+  prod narrow rollout dispatched, not yet verified. Continue normal owner setup,
+  stock/S3 indexing, app activation and real browser chat/auth/handover. Keep
+  repaired-artifact promotion restriction explicit; no bypass. Polling efficiency,
+  automatic successor lineage and nonempty/custom recovery deferred. UI-LAST.
+
 - Oct21 08:06UTC policy01036-reviewed-preflight-fleet-20261021 VERIFIED,
   SHA654e6b9cfe081de954db55e15fe4ffcf2d12767b0dedb0d5f06d1758070b0af6,
   until09:56:13; actualhostsample07:56peakstage940/prod543millicores. Normalowner

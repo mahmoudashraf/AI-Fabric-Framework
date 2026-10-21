@@ -6,6 +6,24 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-21 Hosted Journey Priority
+
+The latest continuation is recorded in the [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md)
+and `verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md`.
+Both control planes now verify `47399a6b2`, schema 207, health UP. The narrow fix
+uses Coolify's detailed deployment application UUID/ID instead of an absent
+application-list ID; 85 scoped tests include four actual PostgreSQL cases.
+Runtime aggregate health is also UP/HTTP 200. No customer acceptance is inferred
+from those infrastructure checks.
+
+The user now prioritizes setup completion, stock/S3 source verification, existing
+app activation and hosted chat/auth/actions/handover, followed by safe promotion
+readiness. The detailed tracker records deferred polling efficiency, automatic
+repair-to-successor artifact lineage and nonempty/custom-store recovery with
+specific return points. They must not expand the current verification cycle.
+The promotion artifact-pin restriction remains explicit. Reversible UI extraction
+is still last; P5/P7 and the full customer journey are not complete.
+
 Current continuation, 2026-10-19 22:48UTC: initial evidence-renewal source is
 qualified: final actual326 focused tests pass with zero failures/errors/skips,
 including57 real PostgreSQL cases, corruption/cancellation/consumer preservation
