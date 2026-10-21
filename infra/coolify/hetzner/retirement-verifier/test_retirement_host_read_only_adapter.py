@@ -1,7 +1,9 @@
 from contextlib import nullcontext, redirect_stderr, redirect_stdout
 import io
+import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -21,6 +23,68 @@ CONTAINER_COMMANDS = [
     "docker ps -a --quiet --filter label=coolify.applicationId --filter name=app-uuid",
 ]
 VOLUME_COMMAND = b"docker volume ls --quiet --filter name=^runtime.data$"
+
+
+class ColdStoreCountTests(unittest.TestCase):
+    def test_exact_java_script_and_shell_quoted_command_contract(self):
+        source = (ROOT.parents[3] / "Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RuntimeColdStoreReadback.java").read_text()
+        expression = source.split("private static final String SCRIPT = ", 1)[1].split("\n    private final ", 1)[0]
+        literal = r'"(?:[^"\\]|\\.)*"'
+        literals = re.findall(literal, expression)
+        self.assertRegex(re.sub(literal, '""', expression), r'^\s*""(?:\s*\+\s*""\s*)*;\s*$')
+        java_script = "".join(json.loads(value) for value in literals)
+        self.assertEqual(adapter.COLD_STORE_SCRIPT.encode("ascii"), java_script.encode("ascii"))
+        quoted = "'" + java_script.replace("'", "'\"'\"'") + "'"
+        expected = "docker exec db-uuid sh -lc " + quoted
+        self.assertEqual(adapter.cold_store_command("db-uuid"), expected)
+        result = subprocess.run(["/bin/sh", "-c", "printf '%s' " + quoted], check=True,
+                                capture_output=True, timeout=3)
+        self.assertEqual(result.stdout, java_script.encode("ascii"))
+        self.assertLessEqual(len(adapter.cold_store_command("a" * 128).encode()), adapter.MAX_REQUEST_BYTES)
+
+    def test_zero_and_positive_metadata_return_only_the_four_totals(self):
+        for count in (0, 7, 9223372036854775807):
+            counts = dict.fromkeys(adapter.COLD_STORE_TABLES, 0)
+            counts["ai_specialist_execution"] = count
+            docker = mock.Mock(return_value="\n" + json.dumps(counts) + "\n")
+            code, output = adapter.execute(adapter.cold_store_command("db-uuid").encode(), docker)
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(output), counts)
+            docker.assert_called_once_with(["exec", "db-uuid", "sh", "-lc", adapter.COLD_STORE_SCRIPT])
+
+    def test_changed_script_shell_uuid_or_extra_arguments_never_reach_docker(self):
+        exact = adapter.cold_store_command("db-uuid")
+        commands = [exact.replace("count(*)", "count(id)", 1), exact.replace("read_only=on", "read_only=off"),
+                    exact.replace(" sh -lc ", " bash -lc "), exact.replace(" sh -lc ", " sh -c "),
+                    exact + " extra", exact + "; id", exact.replace("docker exec ", "docker exec --privileged ", 1),
+                    exact.replace("db-uuid", "db;id", 1), exact.replace("db-uuid", "$(id)", 1),
+                    exact.replace("db-uuid", "db/path", 1), exact.replace("db-uuid", "-db", 1),
+                    exact.replace("db-uuid", "a" * 129, 1), exact.replace("docker exec ", "docker  exec ", 1),
+                    "docker exec db-uuid sh -lc 'psql -c SELECT'", "docker exec db-uuid psql -c SELECT"]
+        for command in commands:
+            docker = mock.Mock()
+            with self.subTest(command=command), self.assertRaises(adapter.Denied):
+                adapter.execute(command.encode(), docker)
+            docker.assert_not_called()
+
+    def test_malformed_extra_duplicate_and_count_types_fail_closed(self):
+        empty = dict.fromkeys(adapter.COLD_STORE_TABLES, 0)
+        valid = json.dumps(empty)
+        outputs = ["", "not-json", "null", "[]", "{}", valid + "{}", "warning\n" + valid,
+                   valid[:-1] + ',"extra":0}', valid[:-1] + ',"chat_sessions":0}', "x" * 4097]
+        for value in (True, False, None, -1, 0.0, "0", [], {}, 9223372036854775808):
+            outputs.append(json.dumps(dict(empty, chat_sessions=value)))
+        for table in adapter.COLD_STORE_TABLES:
+            missing = dict(empty)
+            del missing[table]
+            outputs.append(json.dumps(missing))
+        for output in outputs:
+            with self.subTest(output=output[:100]), self.assertRaises(adapter.Denied):
+                adapter.execute(adapter.cold_store_command("db-uuid").encode(), mock.Mock(return_value=output))
+
+    def test_process_failure_is_never_an_empty_count_result(self):
+        with self.assertRaises(adapter.Denied):
+            adapter.execute(adapter.cold_store_command("db-uuid").encode(), mock.Mock(side_effect=adapter.Denied()))
 
 
 class ReadOnlyCommandTests(unittest.TestCase):

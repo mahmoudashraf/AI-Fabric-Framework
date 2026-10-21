@@ -128,3 +128,38 @@ results. During real retirement retain the exact provider/host container and
 volume readbacks and terminal ledger evidence. Offline tests, an HTTP404 or a
 healthy runtime are not cleanup proof. Preserve resources and charged capacity
 whenever evidence is incomplete or an outcome is unknown.
+
+## Fixed Cold-Store Count Extension
+
+This source adds one narrowly bounded, counts-only exception to the original
+metadata grammar. It is **not installed or authorized by the earlier installation
+approval**. Extending the existing production-only `loomai-retire` capability
+requires separate explicit human approval and Main's installed-state verification.
+Do not change the key, account, `from` restriction, sudoers, sshd or firewall for it.
+
+The only accepted new request is the exact shell-joined command produced by
+`RuntimeColdStoreReadback.command`: `docker exec <validated-native-UUID> sh -lc`
+followed by its exact quote-encoded fixed script. The adapter does not use
+`shlex`, `eval`, an untrusted script, generic SQL or a generic `docker exec`
+permission. It constructs local Docker argv from constants and the validated UUID.
+An offline regression requires the script to byte-match the Java source and
+checks its shell-quoting round trip.
+
+Inside that owned PostgreSQL container, the fixed script uses `POSTGRES_USER`
+and `POSTGRES_DB`, sets `PGOPTIONS='-c default_transaction_read_only=on'`, and
+runs `psql -X -qAt -v ON_ERROR_STOP=1` with one fixed SELECT. It returns total
+row counts for exactly `chat_sessions`, `ai_conversation_control`,
+`ai_conversation_orchestration_state` and `ai_specialist_execution`. Only
+duplicate-free JSON with these four keys and nonnegative integral bigint counts
+is returned. Positive totals remain positive metadata; Java decides whether the
+store is empty. Missing relations, errors, malformed/extra/duplicate fields and
+unexpected types never become zero. No row contents or credential values are
+returned or logged.
+
+The existing 1024-byte command, 4096-byte output and 8-second request/3-second
+process bounds remain unchanged. The database must have local `psql` and the
+two expected container variables. This is a snapshot, not proof of ownership,
+writer quiescence, retirement, worker fencing or future emptiness. Main retains
+ownership checks, explicit cold-recovery consent and all repair orchestration.
+The Python suite is offline only; Java's separate seven local PostgreSQL cases
+do not prove host installation or an approved hosted invocation.

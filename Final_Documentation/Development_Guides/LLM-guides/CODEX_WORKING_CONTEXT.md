@@ -10,6 +10,32 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 03:03UTC Main continues. BOTH CPs now verified6fd136abd/image3f6e3a20/
+  schema207/UP; closureb6b30f28a85378b191bb2bf97fefc0fe0691b4c25df3ce97f9e35f26ae12cf5f
+  in01044-empty-recovery-completion-rollout-20261021. Initial133checks/25PG+
+  completion24targeted+package+backend-onlyCI39534285371 pass. Intermediatee8
+  deployedstageonly; do not reuse its unclosed rollout forprod. Newwindowreview
+  fororiginalplan487f7a46 expires04:41:21.170UTC, olddrainbindingunchanged.
+  Reconcile-reviewed-empty-BEGIN_DRAIN409 OWNED_POSTGRES_EMPTY_STORE_READBACK_FAILED:
+  productusesprod-onlyloomai-retire forcedadapter(metadataonly), NOTloomops.
+  No drainreplay/runtimeSTOP/imagepatch/renewal/activation. Rrev19workerheld,
+  connector+Inboxstopped, oldruntimeDRAININGepoch1. Hostadapterfixedquerysource
+  ready24Pythonchecks+readonlypreflight7010d917...69f2, oldinstalledb79d4816,
+  newfa6e4997, NOTinstalled. ExplicitpermissionpendinginRequired for production
+  thread01a14123-a0af-7bb1-9df5-b1c981bd3a4a; machinependingrecord
+  /private/tmp/01036-staging-retire-adapter-four-table-count-approval-20261021.json.
+  Installer/inspectionhelper01044-owned-pg-host-readback-20261021/patch.mjs;
+  liveinstallrequiresactualhumanapproval/recordhash, no key/account/sudo/sshd/
+  firewallchanges. AgentSartreparked. Fresh61x5samplesended02:56:20under
+  post-empty-recovery-capacity; stagingCPUmax1412>oldbaseline1000, proposal1500
+  (lessfreecapacity), prod610<1000; originalphysical/headroomunchanged. No policy
+  published. Policyhelperpost-empty-recovery-policy waitsRworkerrelease/rev20;
+  originalcontinuation7df89.., previoushead8bfa.. preserved. Normalownerlogin
+  succeeded; newprivate session inowner-reviewed-recovery-resume-20261021.
+  Continuehostapproval/install/read-onlydrainreconcile thenexistingremaining
+  effects/verify, samewalletvalidityrenewal, policy, ownerresume/activation/live
+  acceptance/promotion. UI extractionLAST; M5-M9 open. No OpenAI calls thiscycle.
+
 - Oct21 latest user direction supersedes the suggested scope reduction: retain
   full010.36 self-service, basic supported cases first; document hard cases,
   extractionLAST. Main implements one append-only <=2h/reservation-bounded repair

@@ -1,5 +1,30 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 03:03 UTC Hosted Checkpoint
+
+Both control planes are verified on `6fd136abd`, image
+`sha256:3f6e3a20ba7933a5c9066a14979d44951578bedafeaa4bee325945229974ba38`,
+schema207 and healthUP, with configuration and original histories preserved.
+Initial133 checks include25 real PostgreSQL cases; the final completion-path
+correction passes24 targeted cases. Package, backend-only CI39534285371 and
+sequential hosted verification pass. Framework and runtime artifacts are unchanged.
+
+The same repair plan has a separately reviewed window until04:41:21.170UTC.
+Its original acknowledged drain command was NOT repeated. Read-only reconciliation
+identified an external permission boundary: the product's dedicated staging host
+identity deliberately allows metadata only, so the fixed PostgreSQL count query
+is denied. The bounded extension passes24 Python tests and read-only host preflight;
+installation awaits explicit approval in **Required for production**. No key,
+account, source-IP restriction, sudoers, sshd or firewall expansion is proposed.
+Only the fixed counts query is proposed; no row contents or arbitrary commands.
+
+Runtime remains its original image/DRAININGepoch1; connector and Inbox remain
+stopped. Reservation remains revision19/workerheld. No runtime stop, new image,
+wallet renewal, app activation or hosted customer acceptance is claimed. Fresh
+host measurements pass physical ceilings/headroom, with a conservative staging
+CPU baseline increase proposed (not published). Main continues the basic-case
+path; nonempty/custom/active-customer cold recovery remains deferred and blocked.
+
 ## 2026-10-21 Basic-Case Scope Decision
 
 The user retained the full self-service goal (option 1), not the suggested

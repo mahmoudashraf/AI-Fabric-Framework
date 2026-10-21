@@ -24,6 +24,19 @@ RESOURCE_UUID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z", re.ASCII)
 VOLUME_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z", re.ASCII)
 ABSOLUTE_PATH = re.compile(r"/[A-Za-z0-9._/-]+\Z", re.ASCII)
 CONTAINER_ID = re.compile(r"[0-9a-f]{12,64}\Z", re.ASCII)
+COLD_STORE_TABLES = ("chat_sessions", "ai_conversation_control",
+                     "ai_conversation_orchestration_state", "ai_specialist_execution")
+# Must byte-match RuntimeColdStoreReadback.SCRIPT. This is not caller-supplied shell or SQL.
+COLD_STORE_SCRIPT = (
+    "exec env PGOPTIONS='-c default_transaction_read_only=on' "
+    'psql -X -qAt -v ON_ERROR_STOP=1 --username="${POSTGRES_USER:?}" --dbname="${POSTGRES_DB:?}" '
+    '--command="SELECT json_build_object('
+    "'chat_sessions', (SELECT count(*) FROM public.chat_sessions), "
+    "'ai_conversation_control', (SELECT count(*) FROM public.ai_conversation_control), "
+    "'ai_conversation_orchestration_state', (SELECT count(*) FROM public.ai_conversation_orchestration_state), "
+    "'ai_specialist_execution', (SELECT count(*) FROM public.ai_specialist_execution));\""
+)
+COLD_STORE_QUOTED_SCRIPT = "'" + COLD_STORE_SCRIPT.replace("'", "'\"'\"'") + "'"
 
 
 class Denied(Exception):
@@ -44,12 +57,24 @@ def retained_path_allowed(path):
             and posixpath.normpath(path) == path)
 
 
+def cold_store_command(database_uuid):
+    require(matches(RESOURCE_UUID, database_uuid))
+    return "docker exec " + database_uuid + " sh -lc " + COLD_STORE_QUOTED_SCRIPT
+
+
 def parse_command(raw):
     require(isinstance(raw, bytes) and len(raw) <= MAX_REQUEST_BYTES + 1)
     if raw.endswith(b"\n"):
         raw = raw[:-1]
     require(0 < len(raw) <= MAX_REQUEST_BYTES and all(32 <= value <= 126 for value in raw))
-    command = raw.decode("ascii").split(" ")
+    text = raw.decode("ascii")
+    if text.startswith("docker exec "):
+        prefix = text.split(" ", 3)
+        require(len(prefix) == 4 and matches(RESOURCE_UUID, prefix[2])
+                and text == cold_store_command(prefix[2]))
+        # Rebuild argv from constants. Never unquote, evaluate or execute the supplied script.
+        return "cold_store_counts", ["exec", prefix[2], "sh", "-lc", COLD_STORE_SCRIPT], None
+    command = text.split(" ")
     require(all(command))
     if len(command) == 3 and command[:2] == ["test", "-d"]:
         require(retained_path_allowed(command[2]))
@@ -189,12 +214,34 @@ class LocalDocker:
             process.stdout.close()
 
 
+def cold_store_counts(output):
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result)
+            result[key] = value
+        return result
+
+    try:
+        counts = json.loads(output, object_pairs_hook=unique_fields)
+    except (ValueError, TypeError, RecursionError):
+        raise Denied() from None
+    require(isinstance(counts, dict) and set(counts) == set(COLD_STORE_TABLES)
+            and all(type(value) is int and 0 <= value <= 9223372036854775807
+                    for value in counts.values()))
+    return json.dumps({table: counts[table] for table in COLD_STORE_TABLES}, separators=(",", ":"))
+
+
 def execute(raw, docker, directory_check=directory_present):
     kind, arguments, name = parse_command(raw)
     if kind == "directory":
         return (0 if directory_check(arguments) else 1), ""
     output = docker(arguments)
     require(isinstance(output, str) and len(output.encode("ascii")) <= MAX_OUTPUT_BYTES)
+    if kind == "cold_store_counts":
+        result = cold_store_counts(output)
+        require(len(result.encode("ascii")) + 1 <= MAX_OUTPUT_BYTES)
+        return 0, result
     rows = output.splitlines()
     if kind == "containers":
         require(all(matches(CONTAINER_ID, row) for row in rows))

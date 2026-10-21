@@ -8,6 +8,34 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Latest Scope Decision And Basic Recovery
 
+- Latest verified state, 03:03 UTC: BOTH control planes run `6fd136abd`, image
+  `sha256:3f6e3a20ba7933a5c9066a14979d44951578bedafeaa4bee325945229974ba38`,
+  schema 207 and health UP. Maintenance closed at 02:51 UTC with original
+  tables/history/configuration preserved. The initial 133 checks (25 actual
+  PostgreSQL) passed; the final completion-path correction separately passed
+  24 targeted checks and package/build/hosted verification.
+- The same repair now has an explicit append-only window until
+  `2026-10-21T04:41:21.170Z`. Reservation revision is 19, worker held. The old
+  drain deadline/binding is unchanged. A new read-only reconciliation returned
+  `OWNED_POSTGRES_EMPTY_STORE_READBACK_FAILED`; no drain replay, runtime stop,
+  image patch, wallet renewal or activation occurred.
+- Cause: the existing production-only `loomai-retire` forced-command adapter
+  permits host metadata but deliberately denies database execution. Its exact
+  four-table count extension passes 24 offline Python checks and a read-only
+  host preflight, but is NOT installed. A separate explicit human approval is
+  pending in **Required for production**. Preserve key/account/from/host-pin,
+  sudoers/sshd/firewall restrictions; do not use general admin credentials as an
+  automatic substitute for the product's restricted identity.
+- Fresh 61-by-5-second host samples completed 02:56 UTC. Physical ceilings and
+  safety headroom are unchanged. Staging's observed 1,412 millicore peak exceeds
+  the old 1,000 baseline; a conservative proposed baseline is 1,500, reducing
+  available capacity rather than raising a ceiling. Product continuity already
+  supports remeasured baselines. This measured policy is not yet published.
+- Main's bounded adapter installer/preflight is prepared under
+  `/private/tmp/01044-owned-pg-host-readback-20261021`; no host mutation has
+  occurred. The existing owner has a fresh normal CUSTOMER_ADMIN session for
+  continuation. Pending approval does not authorize new resources or spending.
+
 - On 2026-10-21 the user retained the full self-service target (option 1), with
   basic cases first and difficult cases documented. The staff-assisted scope
   reduction suggested earlier was not accepted. UI extraction remains last.
@@ -34,7 +62,7 @@ extraction stays last. This is an execution tracker, not a new product direction
   drain cancellation. Final package and one backend-only rollout are next. No
   new hosted recovery or full customer acceptance is claimed yet.
 
-- Both control planes are verified on `ea8294d2dc2971f6adfb7ff61d2021c41e293786`,
+- Previous deployed boundary (superseded above): both control planes verified on `ea8294d2dc2971f6adfb7ff61d2021c41e293786`,
   image `sha256:637b3b790e2ab54fb88d061d6068598eefac6e90b07a47ebb5ae65ce9ae90856`,
   schema 207. Latest source-only maintenance closed at 01:40 UTC, preserving
   original tables/history/configuration and the two empty validity audit tables.
