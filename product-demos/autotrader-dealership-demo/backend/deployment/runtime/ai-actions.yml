@@ -1,6 +1,6 @@
 actions:
   - name: dealership_search_inventory
-    description: Read the dealership account's current provider stock through the Auto Trader stock contract, then apply every buyer preference to the returned facts.
+    description: Search current synchronized stock using only explicit constraints supported by the typed parameters. Preserve stated fuel, budget, mileage and supported body style constraints. Suitability requests such as family-friendly, practical, spacious or commuting are not categorical filters; assess them only from returned vehicle facts and disclose missing evidence. Never invent a body style or silently relax an explicit filter. For electric vehicles under GBP40000 suitable for a family, use fuelType Electric and maxPriceGbp 40000; omit bodyType and make unless explicitly stated.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
@@ -32,11 +32,11 @@ actions:
             - imageUrl
     params:
       - name: make
-        description: Exact vehicle manufacturer brand only, such as Aster, Northstar or Arden. Never place a fuel or powertrain term such as Electric, Petrol, Diesel, Hybrid or Plug-in Hybrid in this parameter; use fuelType for those terms.
+        description: Exact vehicle manufacturer brand only. Put fuel or powertrain terms in fuelType. Omit when no manufacturer was stated; do not send an empty string or a suitability term.
         type: STRING
         required: false
       - name: fuelType
-        description: Exact buyer-stated fuel type filter, such as Electric, Diesel, Hybrid or Plug-in Hybrid.
+        description: Explicit buyer-stated fuel type from allowedValues, using its canonical spelling (for example, electric becomes Electric). Omit when no fuel type was stated.
         type: STRING
         required: false
         allowedValues:
@@ -46,9 +46,15 @@ actions:
           - Hybrid
           - Plug-in hybrid
       - name: bodyType
-        description: Exact buyer-stated body type filter, such as SUV, Estate or Hatchback.
+        description: Explicit buyer-stated vehicle body style from allowedValues, using its canonical spelling. Omit when no supported body style was stated; never infer SUV or another body style from intended use. Family, family-friendly, practical, spacious and commuting are suitability criteria, not body styles. If an unsupported body style is an explicit hard requirement, ask for clarification rather than silently dropping or replacing it. This integration vocabulary must be reviewed against the bound external stock provider before adoption.
         type: STRING
         required: false
+        allowedValues:
+          - SUV
+          - Estate
+          - Hatchback
+          - Saloon
+          - Crossover
       - name: maxPriceGbp
         description: Maximum budget from phrases such as under or up to GBP N, represented as a positive whole number of GBP pounds. Omit this parameter when the buyer did not state a budget; never use zero as a missing-value marker.
         type: INTEGER
