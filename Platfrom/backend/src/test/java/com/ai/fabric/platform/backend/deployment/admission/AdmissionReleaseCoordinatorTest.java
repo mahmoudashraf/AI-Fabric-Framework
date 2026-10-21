@@ -125,6 +125,31 @@ class AdmissionReleaseCoordinatorTest extends AdmissionFixture {
     }
 
     @Test
+    void reconciliationLogsReasonWithoutProviderPayloadAndKeepsCapacity() {
+        coordinator.beginProvisioning("release");
+        release.setStatus("APPLIED_VERIFIED"); release.setProvisioningStatus("ACTIVE");
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AdmissionReleaseCoordinator.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start(); logger.addAppender(appender);
+        try {
+            when(readback.read(any())).thenThrow(new AdmissionFailure(
+                org.springframework.http.HttpStatus.PRECONDITION_FAILED, "ACTIVE_PROVIDER_READBACK_UNAVAILABLE"));
+            coordinator.reconcile();
+            doThrow(new IllegalStateException("private-provider-payload")).when(readback).read(any());
+            coordinator.reconcile();
+            assertThat(appender.list).extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                .containsExactly(
+                    "Admission release readback remains blocked for release: ACTIVE_PROVIDER_READBACK_UNAVAILABLE",
+                    "Admission release readback remains blocked for release: IllegalStateException");
+            assertThat(appender.list).allSatisfy(event -> assertThat(event.getThrowableProxy()).isNull());
+            assertThat(store.held().getFirst().state()).isEqualTo(State.PROVISIONING);
+            assertThat(store.releaseBinding("release").state()).isEqualTo("PROVISIONING");
+        } finally {
+            logger.detachAppender(appender); appender.stop();
+        }
+    }
+
+    @Test
     void unsettledReadbackBatchAdvancesPastUnchangedOrUnavailableReleases() {
         var allocation = store.held().getFirst();
         for (int i = 0; i < 33; i++) jdbc.update("""

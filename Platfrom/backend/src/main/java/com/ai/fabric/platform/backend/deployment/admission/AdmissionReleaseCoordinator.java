@@ -91,7 +91,11 @@ public class AdmissionReleaseCoordinator {
     void reconcile() {
         for (String releaseId : store.unsettledReleases(32)) {
             try { observe(releaseId); }
-            catch (RuntimeException error) { log.warn("Admission release readback remains blocked for {}", releaseId); }
+            catch (RuntimeException error) {
+                // Exception messages can contain provider payloads or SQL parameters.
+                String reason = error instanceof AdmissionFailure failure ? failure.getReason() : error.getClass().getSimpleName();
+                log.warn("Admission release readback remains blocked for {}: {}", releaseId, reason);
+            }
         }
     }
 
