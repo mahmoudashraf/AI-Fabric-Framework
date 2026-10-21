@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.security;
 
+import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,56 @@ class PlatformUserPreferencesIntegrationTest {
     void preferencesRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/platform/preferences"))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void customerPreferencesPersistPerUserWithoutGrantingStaffAuthority() throws Exception {
+        Cookie admin = login("admin@example.com", "AdminPass123!");
+        Cookie first = customerSession(admin, "preferences-a@example.com");
+        Cookie other = customerSession(admin, "preferences-b@example.com");
+        mockMvc.perform(get("/api/platform/preferences").cookie(first))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", nullValue()));
+        mockMvc.perform(put("/api/platform/preferences").cookie(first)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"deploymentWorkspace":{"lastDeploymentId":"dep-owned-navigation","lastSection":"/document-knowledge"}}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", is("dep-owned-navigation")))
+            .andExpect(jsonPath("$.deploymentWorkspace.lastSection", is("/document-knowledge")));
+        mockMvc.perform(get("/api/platform/preferences").cookie(other))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", nullValue()))
+            .andExpect(jsonPath("$.deploymentWorkspace.lastSection", nullValue()));
+        mockMvc.perform(put("/api/platform/preferences").cookie(other)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"deploymentWorkspace":{"lastDeploymentId":"dep-other-navigation","lastSection":"/integrations"}}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentWorkspace.lastSection", is("/integrations")));
+        mockMvc.perform(get("/api/platform/preferences").cookie(first))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", is("dep-owned-navigation")))
+            .andExpect(jsonPath("$.deploymentWorkspace.lastSection", is("/document-knowledge")));
+        mockMvc.perform(post("/api/platform/customers").cookie(first)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Not permitted\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    private Cookie customerSession(Cookie admin, String email) throws Exception {
+        var customer = mockMvc.perform(post("/api/platform/customers").cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Preferences isolation fixture\"}"))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String customerId = JsonPath.read(customer, "$.id");
+        mockMvc.perform(post("/api/platform/users").cookie(admin).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"%s","displayName":"Preferences owner","password":"CustomerAdmin123!",
+                     "role":"CUSTOMER_ADMIN","customerId":"%s"}
+                    """.formatted(email, customerId)))
+            .andExpect(status().isCreated());
+        return login(email, "CustomerAdmin123!");
     }
 
     @Test

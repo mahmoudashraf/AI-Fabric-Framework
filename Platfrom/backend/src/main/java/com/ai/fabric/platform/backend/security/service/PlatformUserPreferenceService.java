@@ -125,16 +125,22 @@ public class PlatformUserPreferenceService {
     );
     private static final Set<String> WORKSPACE_SECTIONS = Set.of(
         "/overview",
+        "/behavior",
+        "/behavior-operations",
+        "/human-review",
         "/activity",
         "/actions",
         "/approvals",
         "/access",
         "/knowledge",
+        "/document-knowledge",
+        "/integrations",
         "/poc",
         "/prompts",
         "/providers",
         "/security",
         "/verification",
+        "/vectorization",
         "/revisions",
         "/diagnostics",
         "/users"
