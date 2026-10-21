@@ -1,6 +1,9 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformVerificationProperties;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
@@ -97,6 +100,88 @@ class DeploymentReleaseVerificationServiceTest {
         org.mockito.Mockito.verify(authority).issueReleaseVerificationHeaders(deployment, release, false);
         org.mockito.Mockito.verify(authority).issueReleaseVerificationHeaders(deployment, release, true);
         org.mockito.Mockito.verifyNoMoreInteractions(authority);
+    }
+
+    @Test
+    void targetAuthorityExpectationsRejectSharedDefaultsAndAnotherTarget() throws Exception {
+        var service = releaseVerificationService(mock(PlatformSecretService.class), mock(DeploymentArtifactService.class));
+        var revisions = new java.util.EnumMap<RuntimeAuthorityPurpose, RuntimeAuthorityBinding.SecretRevision>(RuntimeAuthorityPurpose.class);
+        for (var purpose : List.of(RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY,
+            RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY, RuntimeAuthorityPurpose.PUBLIC_TOKEN_SIGNING_KEY)) {
+            revisions.put(purpose, new RuntimeAuthorityBinding.SecretRevision("synthetic-" + purpose, "revision-1"));
+        }
+        var binding = new RuntimeAuthorityBinding("customer-123", "tenant-123", "dep-123", "target-123", "ver-123", "hash-123",
+            1, "target-private-issuer", "target-private-audience", "target-public-issuer", "target-public-audience",
+            true, true, List.of("https://workspace.example"), revisions);
+        Object expected = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+            deployment("https://runtime.example", null), version(), release(), artifactBundle(), binding);
+        for (String posture : List.of("exact", "another-target", "shared-default")) {
+            ObjectNode auth = objectMapper.createObjectNode();
+            auth.put("ingressMode", "VERIFIED_CONTEXT_REQUIRED");
+            auth.put("rejectConflictingRequestIdentity", true);
+            auth.put("rejectRequestIdentityWhenVerifiedContextPresent", true);
+            auth.put("trustedBackendConfigured", true);
+            auth.put("privateAssertionValidationConfigured", true);
+            auth.put("publicTokenValidationConfigured", true);
+            auth.putObject("publicBootstrap").put("enabled", true);
+            String privateIssuer = "exact".equals(posture) ? binding.privateIssuer()
+                : "shared-default".equals(posture) ? "platform-release-verification" : "another-target-private-issuer";
+            String privateAudience = "exact".equals(posture) ? binding.privateAudience() : "dep-123";
+            String publicIssuer = "exact".equals(posture) ? binding.publicIssuer() : "runtime-public-bootstrap";
+            String publicAudience = "exact".equals(posture) ? binding.publicAudience() : "loomai-ai-workspace";
+            auth.putArray("privateAssertionAcceptedIssuers").add(privateIssuer);
+            auth.putArray("privateAssertionAcceptedAudiences").add(privateAudience);
+            auth.put("publicTokenIssuer", publicIssuer);
+            auth.putArray("publicAcceptedIssuers").add(publicIssuer);
+            auth.putArray("publicAcceptedAudiences").add(publicAudience);
+            auth.put("publicDefaultAudience", publicAudience);
+            var checks = objectMapper.createArrayNode();
+            ReflectionTestUtils.invokeMethod(service, "validateRuntimeAuth", checks, auth, expected);
+            assertThat(checks.get(0).path("status").asText()).as(posture)
+                .isEqualTo("exact".equals(posture) ? "PASSED" : "FAILED");
+        }
+    }
+
+    @Test
+    void unavailableFrozenTargetAuthorityBlocksVerificationBeforeRuntimeProbes() throws Exception {
+        var artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(any())).thenReturn(artifactBundle());
+        var service = releaseVerificationService(runtimePrivateSecrets(), artifactService);
+        var authority = mock(DeploymentRuntimeAuthorityService.class);
+        ReflectionTestUtils.setField(service, "runtimeAuthorityService", authority);
+        when(authority.requireReleaseUnchangedForProvisioning(any(), any(), any()))
+            .thenThrow(new IllegalStateException("Frozen authority changed"));
+        var run = verifyWithTargetEvidence(service, deployment("http://127.0.0.1:1", null), version(), release(), "POST_DEPLOY");
+        var checks = objectMapper.readTree(run.getChecksJson());
+        assertThat(run.getStatus()).isEqualTo("FAILED");
+        assertThat(checks.size()).isEqualTo(1);
+        assertThat(checks.get(0).path("name").asText()).isEqualTo("release_target_context");
+        org.mockito.Mockito.verify(authority).requireReleaseUnchangedForProvisioning(any(), any(), any());
+        org.mockito.Mockito.verifyNoMoreInteractions(authority);
+    }
+
+    @Test
+    void documentConnectorSlotUsesTheOwnedTargetResolverAndNeverTheLiteralSlot() throws Exception {
+        var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
+        var resolver = mock(DeploymentDocumentBindingResolver.class);
+        ReflectionTestUtils.setField(service, "documentBindingResolver", resolver);
+        var handle = new com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity();
+        handle.setId("owned-document-handle");
+        when(resolver.resolve("dep-123", "target-123", "slot:document-storage")).thenReturn(handle);
+        var version = documentEnabledRuntimeOnlyVersion();
+        JsonNode config = objectMapper.readTree(version.getMarketplaceDatasetConfigJson());
+        ((ObjectNode) config.path("datasets").get(0).path("sourceConnector")).put("bindingRef", "slot:document-storage");
+        var release = release(); release.setTargetProfileId("target-123");
+        Set<?> expected = ReflectionTestUtils.invokeMethod(service, "expectedDocumentSourceConnectorValues",
+            config, "bindingRef", deployment("https://runtime.example", null), release);
+        assertThat(expected).isEqualTo(Set.of("owned-document-handle"));
+        assertThat(expected.contains("slot:document-storage")).isFalse();
+        when(resolver.resolve("dep-123", "target-123", "slot:document-storage"))
+            .thenThrow(new IllegalStateException("Document storage ownership changed"));
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "expectedDocumentSourceConnectorValues",
+            config, "bindingRef", deployment("https://runtime.example", null), release))
+            .hasMessageContaining("Document storage ownership changed");
+        assertThat(version.getMarketplaceDatasetConfigJson()).contains("documents-primary").doesNotContain("slot:document-storage");
     }
 
     @Test
@@ -263,7 +348,8 @@ class DeploymentReleaseVerificationServiceTest {
             deployment("https://runtime.example", "https://connector.example"),
             version,
             runtimeOnlyImageRelease(),
-            artifacts
+            artifacts,
+            null
         );
 
         assertThat((Set<String>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNames"))

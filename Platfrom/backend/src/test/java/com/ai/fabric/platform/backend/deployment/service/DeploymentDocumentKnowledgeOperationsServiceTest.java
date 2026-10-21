@@ -58,6 +58,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     void mixedModesRequireBothAudiencesBeforeTheRuntimeWrite() throws Exception {
         configureDocumentDeployment();
+        when(offerBoundary.reviewedDocumentAudiences(any())).thenReturn(java.util.Set.of(DocumentAudience.PUBLIC, DocumentAudience.AUTHENTICATED));
         var version = documentVersion();
         version.setKnowledgeSourceConfigJson("""
             {"sources":[{"datasetRef":"document-knowledge","authModes":[
@@ -80,6 +81,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     @Test
     void publicAuthorizationCannotMaskAnAuthenticatedAudienceRejection() throws Exception {
         configureDocumentDeployment();
+        when(offerBoundary.reviewedDocumentAudiences(any())).thenReturn(java.util.Set.of(DocumentAudience.PUBLIC, DocumentAudience.AUTHENTICATED));
         var version = documentVersion();
         version.setKnowledgeSourceConfigJson("""
             {"sources":[{"datasetRef":"document-knowledge","authModes":[
@@ -92,6 +94,96 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         assertThatThrownBy(() -> service().index(target, "source-1", "mixed-deny-1"))
             .hasMessageContaining("AUDIENCE_FORBIDDEN");
         verify(httpClient, never()).send(any(), any());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"connector", "sources"})
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void publicOnlyOwnerCanReadMixedTransportDocumentSources(String operation) throws Exception {
+        configurePublicOnlyMixedDeployment();
+        doReturn(runtimeResponse(200, "{}")).when(httpClient).send(any(), any());
+
+        var result = "connector".equals(operation) ? service().connectorStatus(target) : service().list(target);
+
+        assertThat(result.statusCode()).isEqualTo(200);
+        verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"), eq(Operation.READ),
+            org.mockito.ArgumentMatchers.isNull(), eq(java.util.Map.of()), any(), any(), eq(DocumentAudience.PUBLIC));
+        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
+        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites);
+        verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
+            List.of("documents:read"), Duration.ofMinutes(5));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void publicOnlyOwnerSourceMutationRefreshesOnlyTheReviewedAudience() throws Exception {
+        configurePublicOnlyMixedDeployment();
+        doReturn(runtimeResponse(202, "{}")).when(httpClient).send(any(), any());
+
+        service().index(target, "source-1", "public-index-1");
+
+        verify(sourcePrerequisites).ensureFresh(target, Operation.SOURCE_INDEX, "public-index-1", java.util.Set.of(DocumentAudience.PUBLIC));
+        verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"), eq(Operation.SOURCE_INDEX), eq("public-index-1"),
+            eq(java.util.Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode("PUBLIC"))), any(), any(), eq(DocumentAudience.PUBLIC));
+        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
+    }
+
+    @Test void registrationPreservesRuntimeVisibilityAndMetadataWithoutGrantingAnotherAudience() throws Exception {
+        configurePublicOnlyMixedDeployment();
+        var transport = mock(DeploymentRuntimeJsonTransport.class);
+        var body = objectMapper.readTree("""
+            {"datasetId":"document-knowledge","objectReference":"policy.txt","visibility":"tenant",
+             "metadata":{"publicationStatus":"PUBLIC_APPROVED"}}
+            """);
+        when(transport.send(any(), any(), any(), any(), any(), any())).thenReturn(
+            new DeploymentRuntimeJsonTransport.Response(201, objectMapper.createObjectNode()));
+        var service = new DeploymentDocumentKnowledgeOperationsService(targetContextService, runtimeAuthority, auditService,
+            objectMapper, transport, offerBoundary, sourcePrerequisites);
+
+        assertThat(service.register(target, body, "public-register-1").statusCode()).isEqualTo(201);
+
+        verify(transport).send(eq("https://runtime.example"), eq("POST"), eq("/api/documents/sources"), any(), eq(body), eq("public-register-1"));
+        verify(sourcePrerequisites).ensureFresh(target, Operation.SOURCE_INDEX, "public-register-1", java.util.Set.of(DocumentAudience.PUBLIC));
+        verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
+            List.of("documents:register"), Duration.ofMinutes(5));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"AUTHENTICATED", "authenticated", "unsupported"})
+    void registrationCannotSmuggleAnUnsupportedOrForbiddenAudienceThroughVisibility(String visibility) throws Exception {
+        configurePublicOnlyMixedDeployment();
+        var body = objectMapper.createObjectNode().put("datasetId", "document-knowledge")
+            .put("objectReference", "policy.txt").put("visibility", visibility);
+
+        assertThatThrownBy(() -> service().register(target, body, "visibility-1"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("visibility is not allowed");
+
+        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites, runtimeAuthority);
+        verify(httpClient, never()).send(any(), any());
+    }
+
+    @Test void disjointReviewedAndSourceAudiencesFailBeforeProbesOrRuntimeCalls() throws Exception {
+        configurePublicOnlyMixedDeployment(); var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"datasetRef":"document-knowledge","authModes":["PRIVATE_RUNTIME_BACKEND_MEDIATED"]}]}
+            """);
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+
+        assertThatThrownBy(() -> service().index(target, "source-1", "disjoint-1")).hasMessageContaining("SETTING_FORBIDDEN");
+
+        org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites, runtimeAuthority);
+        verify(httpClient, never()).send(any(), any());
+    }
+
+    @Test void emptyReviewedAudiencesDoNotBypassTheOwningAuthorizationBoundary() throws Exception {
+        configureDocumentDeployment(); authenticate(PlatformRole.CUSTOMER_ADMIN);
+        when(offerBoundary.reviewedDocumentAudiences(any())).thenReturn(java.util.Set.of());
+        org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.SETTING_FORBIDDEN))
+            .when(offerBoundary).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> service().list(target)).hasMessageContaining("SETTING_FORBIDDEN");
+
+        verify(httpClient, never()).send(any(), any());
+        org.mockito.Mockito.verifyNoInteractions(runtimeAuthority);
     }
 
     @ParameterizedTest
@@ -201,7 +293,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         assertThatThrownBy(() -> service().index(target, "source-1", "index-1"))
             .hasMessageContaining("SOURCE_CONNECTOR_PROBE_FAILED");
         verify(httpClient, never()).send(any(), any());
-        org.mockito.Mockito.verifyNoInteractions(offerBoundary);
+        verify(offerBoundary).reviewedDocumentAudiences(any());
+        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @AfterEach
@@ -333,6 +426,21 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
                 RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER, "Bearer signed-assertion"));
     }
 
+    private void configurePublicOnlyMixedDeployment() {
+        configureDocumentDeployment(); authenticate(PlatformRole.CUSTOMER_ADMIN);
+        var version = documentVersion();
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"datasetRef":"document-knowledge","authModes":[
+              "PUBLIC_RUNTIME_ANONYMOUS","PUBLIC_RUNTIME_AUTHENTICATED","PRIVATE_RUNTIME_BACKEND_MEDIATED"]}]}
+            """);
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", false)).thenReturn(context(version));
+        when(targetContextService.resolve("dep-1", "target-1", "rel-1", true)).thenReturn(context(version));
+        when(offerBoundary.reviewedDocumentAudiences(any())).thenReturn(java.util.Set.of(DocumentAudience.PUBLIC));
+        org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.SETTING_FORBIDDEN))
+            .when(offerBoundary).require(any(), any(), any(), any(), any(), any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
+    }
+
     private DeploymentTargetContextService.Context context(DeploymentVersionEntity version) {
         DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
         profile.setId("target-1");
@@ -379,9 +487,13 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
     }
 
     private void authenticate() {
+        authenticate(PlatformRole.PLATFORM_OPERATOR);
+    }
+
+    private void authenticate(PlatformRole role) {
         PlatformPrincipal principal = new PlatformPrincipal(
             "operator@example.com",
-            PlatformRole.PLATFORM_OPERATOR,
+            role,
             "Operator",
             "SESSION"
         );

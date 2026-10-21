@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRu
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityBinding;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
@@ -241,6 +243,7 @@ public class DeploymentReleaseVerificationService {
             verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
             DeploymentEntity targetDeployment = null;
+            RuntimeAuthorityBinding targetAuthority = null;
             try {
                 if (!deployment.getId().equals(release.getDeploymentId())
                     || !deployment.getId().equals(version.getDeploymentId())
@@ -250,6 +253,9 @@ public class DeploymentReleaseVerificationService {
                 }
                 if (documentBindingResolver != null) documentBindingResolver.requireUnchanged(deployment, version, release);
                 else if (hasText(release.getDocumentBindingFingerprint())) throw new IllegalStateException("Document binding resolver is required.");
+                if (runtimeAuthorityService != null) {
+                    targetAuthority = runtimeAuthorityService.requireReleaseUnchangedForProvisioning(deployment, version, release).binding();
+                }
                 targetDeployment = new DeploymentEntity();
                 org.springframework.beans.BeanUtils.copyProperties(deployment, targetDeployment);
                 DeploymentReleaseEndpointService endpoints = new DeploymentReleaseEndpointService(objectMapper);
@@ -265,7 +271,7 @@ public class DeploymentReleaseVerificationService {
                     "Selected release target evidence is unavailable or inconsistent; reconcile it before verification.", null);
             }
             if (targetDeployment != null) {
-                VerificationExpectations expectations = buildExpectations(targetDeployment, version, release, artifacts);
+                VerificationExpectations expectations = buildExpectations(targetDeployment, version, release, artifacts, targetAuthority);
                 boolean connectorVerificationRequired = connectorVerificationRequired(release, expectations);
                 addBooleanCheck(
                     checks,
@@ -1040,11 +1046,11 @@ public class DeploymentReleaseVerificationService {
         );
         Set<String> expectedConnectorTypes = expectedDocumentSourceConnectorValues(
             expectations.marketplaceDatasetConfig(),
-            "connectorType"
+            "connectorType", deployment, release
         );
         Set<String> expectedBindingRefs = expectedDocumentSourceConnectorValues(
             expectations.marketplaceDatasetConfig(),
-            "bindingRef"
+            "bindingRef", deployment, release
         );
         JsonNode body = probe.body();
         String actualConnectorType = body == null ? "" : body.path("connectorType").asText("");
@@ -1247,7 +1253,8 @@ public class DeploymentReleaseVerificationService {
         return URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
     }
 
-    private Set<String> expectedDocumentSourceConnectorValues(JsonNode marketplaceDatasetConfig, String field) {
+    private Set<String> expectedDocumentSourceConnectorValues(JsonNode marketplaceDatasetConfig, String field,
+                                                              DeploymentEntity deployment, DeploymentReleaseEntity release) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         if (marketplaceDatasetConfig == null || !marketplaceDatasetConfig.path("datasets").isArray()) {
             return Set.of();
@@ -1257,6 +1264,9 @@ public class DeploymentReleaseVerificationService {
                 continue;
             }
             String value = dataset.path("sourceConnector").path(field).asText("").trim();
+            if ("bindingRef".equals(field) && documentBindingResolver != null) {
+                value = documentBindingResolver.resolve(deployment.getId(), release.getTargetProfileId(), value).getId();
+            }
             if (hasText(value)) {
                 values.add(value);
             }
@@ -1267,7 +1277,8 @@ public class DeploymentReleaseVerificationService {
     private VerificationExpectations buildExpectations(DeploymentEntity deployment,
                                                        DeploymentVersionEntity version,
                                                        DeploymentReleaseEntity release,
-                                                       DeploymentArtifactBundleSummary artifacts) {
+                                                       DeploymentArtifactBundleSummary artifacts,
+                                                       RuntimeAuthorityBinding targetAuthority) {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode providerConfig = effectiveProviderConfig(version, release);
@@ -1390,6 +1401,23 @@ public class DeploymentReleaseVerificationService {
                 artifacts.deploymentId()
             ))
             : Set.of();
+        Set<String> expectedPublicAcceptedIssuers = csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig));
+        Set<String> expectedPublicAcceptedAudiences = csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig));
+        String expectedPublicDefaultAudience = ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig);
+        boolean expectedPublicBootstrapEnabled = expectedPublicTokenValidationConfigured
+            && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
+        if (targetAuthority != null) {
+            expectedTrustedBackendConfigured = targetAuthority.secrets().containsKey(RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY);
+            expectedPrivateAssertionValidationConfigured = targetAuthority.secrets().containsKey(RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY);
+            expectedPublicTokenValidationConfigured = targetAuthority.secrets().containsKey(RuntimeAuthorityPurpose.PUBLIC_TOKEN_SIGNING_KEY);
+            expectedPrivateAcceptedIssuers = Set.of(targetAuthority.privateIssuer());
+            expectedPrivateAcceptedAudiences = Set.of(targetAuthority.privateAudience());
+            expectedPublicTokenIssuer = targetAuthority.publicIssuer();
+            expectedPublicAcceptedIssuers = Set.of(targetAuthority.publicIssuer());
+            expectedPublicAcceptedAudiences = Set.of(targetAuthority.publicAudience());
+            expectedPublicDefaultAudience = targetAuthority.publicAudience();
+            expectedPublicBootstrapEnabled = expectedPublicTokenValidationConfigured && targetAuthority.anonymousBootstrapEnabled();
+        }
 
         return new VerificationExpectations(
             artifacts,
@@ -1462,10 +1490,10 @@ public class DeploymentReleaseVerificationService {
             expectedPrivateAcceptedIssuers,
             expectedPrivateAcceptedAudiences,
             expectedPublicTokenIssuer,
-            csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)),
-            csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)),
-            ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig),
-            expectedPublicTokenValidationConfigured && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)
+            expectedPublicAcceptedIssuers,
+            expectedPublicAcceptedAudiences,
+            expectedPublicDefaultAudience,
+            expectedPublicBootstrapEnabled
         );
     }
 

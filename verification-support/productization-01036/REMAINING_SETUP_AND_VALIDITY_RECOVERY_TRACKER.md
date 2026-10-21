@@ -8,6 +8,35 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
+08:57 UTC source qualification: one combined backend package passes 97 focused
+checks, including four actual PostgreSQL cases, with zero failures/errors/skips.
+It contains only the concrete hosted-path corrections: frozen target-authority
+auth expectations, canonical target document-binding resolution, PUBLIC-only
+document offer authorization across mixed query transports, and native trusted-
+proxy TLS handling. The document service's two-case red regression was observed
+before its correction; its independent 41-case green proof is retained. No
+framework, schema or runtime-image change is needed.
+
+The first owner Inbox credential delivery returned 409
+`INBOX_CREDENTIAL_TLS_REQUIRED`, before delivering any key. The backend has no
+published 8088 host port and is reached through Coolify's private proxy network;
+forwarded transport handling was unset. Application configuration now selects
+Tomcat's native handling, retaining its internal-proxy trust checks rather than
+accepting arbitrary forwarded headers in the controller. Five transport tests
+cover trusted proxy HTTPS, HTTP and untrusted public-peer spoofing. Default
+trusted internal networks remain an explicit deployment assumption; direct
+backend exposure to untrusted internal peers needs its own proxy trust policy.
+Spring's documented approach: https://docs.spring.io/spring-boot/3.5/how-to/webserver.html
+The original failed non-replayable delivery intent/response is retained under
+`/private/tmp/01044-customer-inbox-journey-20261021`; delivery is still false.
+
+Publication and one sequential staging/production rollout are next. Afterwards,
+use normal customer discovery/registration/index APIs for the three approved
+fictional S3 policies and normal verification recheck, not a full setup replay.
+Runtime registration `visibility` (`tenant`/`private`/`internal`) is distinct from
+the offer's PUBLIC audience; approved public knowledge metadata remains explicit.
+Real browser authentication, action confirmation and human reply remain open.
+
 Live update at 08:46 UTC: continuation receipt
 `6942e50d-4c43-47ef-bc55-4808fe4dd349` accepted R26. The existing Inbox
 initialized successfully at 08:36:47; no runtime/connector redeploy was requested.

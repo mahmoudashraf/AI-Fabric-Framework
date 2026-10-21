@@ -1,5 +1,7 @@
 server:
   port: ${PORT:8088}
+  # Coolify terminates TLS; retain Tomcat's internal-proxy trust checks.
+  forward-headers-strategy: native
   error:
     include-message: always
 

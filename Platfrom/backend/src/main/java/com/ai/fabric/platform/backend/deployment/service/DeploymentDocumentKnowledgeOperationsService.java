@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -132,8 +133,14 @@ public class DeploymentDocumentKnowledgeOperationsService {
 
     public RuntimeResponse register(DeploymentTargetReference target, JsonNode body, String idempotencyKey) {
         String key = DeploymentOperationIdempotencyKey.require(idempotencyKey);
-        OperationAccess access = requireAccess(target, true, Operation.SOURCE_INDEX, key);
         JsonNode safe = boundedBody(body, Set.of("datasetId", "objectReference", "visibility", "metadata"));
+        JsonNode visibility = safe.path("visibility");
+        if (!visibility.isMissingNode() && !visibility.isNull()
+            && (!visibility.isTextual() || !visibility.asText().isBlank()
+                && !Set.of("internal", "private", "tenant").contains(visibility.asText().trim().toLowerCase(Locale.ROOT)))) {
+            throw new ResponseStatusException(BAD_REQUEST, "visibility is not allowed by the document policy.");
+        }
+        OperationAccess access = requireAccess(target, true, Operation.SOURCE_INDEX, key);
         RuntimeResponse response = send(access, "POST", "/api/documents/sources", safe, key, REGISTER_SCOPE);
         auditSuccess("DOCUMENT_SOURCE_REGISTERED", access, response, Map.of("idempotencyKey", key));
         return response;
@@ -222,6 +229,15 @@ public class DeploymentDocumentKnowledgeOperationsService {
         }
         if (audiences.isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "Document source audience evidence is required.");
+        }
+        Set<DocumentAudience> reviewed = offerBoundary.reviewedDocumentAudiences(deployment);
+        if (!reviewed.isEmpty()) {
+            // Transport access does not grant additional document audiences beyond the reviewed offer.
+            audiences.retainAll(reviewed);
+            if (audiences.isEmpty()) {
+                throw com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.SETTING_FORBIDDEN);
+            }
         }
         if (switch (operation) {
             case SOURCE_DISCOVER, SOURCE_PREVIEW, SOURCE_INDEX, SOURCE_REFRESH, SOURCE_REMOVE -> true;

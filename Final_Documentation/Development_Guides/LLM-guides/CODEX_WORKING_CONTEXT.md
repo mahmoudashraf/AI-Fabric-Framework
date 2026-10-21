@@ -10,6 +10,17 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 08:57UTC combined hosted-path package97checks/4actualPG PASS, no skips.
+  Main frozenauth/resolveddocumentverification + agentdocaudienceintersection/
+  runtimevisibilityvalidation + servernativeforwardedTLS (5 tests publicspoof
+  rejected). Native8088notpublished, Coolifyproxy172.30private, trustdefault
+  internalnet assumption recorded. Normalowner operatorcredential409TLS_REQUIRED,
+  no key delivered, intent retained; fresh reviewed request afterrollout only.
+  No framework/schema/runtime image change. Publish onebackendthen normal
+  docsdiscover/register/index(PUBLIC_APPROVEDmetadata, tenantvisibility), recheck,
+  activate/browser. Agent41proof85439bda...8ab0, bothagentsparked. Auth gateprivate
+  ready/notrun. SameR28/APPLIED_VERIFICATION_FAILED, appDRAFT; UI-LAST.
+
 - Oct21 08:46UTC owner6942e50d continuation initialized sameInbox; release now
   APPLIED_VERIFICATION_FAILED/provisioningACTIVE, R28OUTCOME_UNKNOWN. vrfc3e5c64b
   has25PASS/2FAIL/6SKIP: auth expectations sharedinsteadfrozen-target, document
