@@ -308,7 +308,12 @@ public class RuntimeArtifactRepairOperations {
         if (value.state() != RuntimeGenerationTransitionContracts.State.DRAINING || value.authorityRevoked() || value.reclaimStarted()
             || value.fenceEpoch() != drainBinding(plan).fenceEpoch() || !operation(plan).equals(value.operationId())
             || !journal.fingerprint(plan).equals(value.requestFingerprint())
-            || !plan.local().executionDeadline().equals(value.drainDeadline())) fail("DRAIN_BINDING_CHANGED");
+            || !samePersistedDeadline(plan.local().executionDeadline(), value.drainDeadline())) fail("DRAIN_BINDING_CHANGED");
+    }
+    private static boolean samePersistedDeadline(Instant expected, Instant observed) {
+        // PostgreSQL/JDBC rounds TIMESTAMPTZ to microseconds; this is not a clock-skew allowance.
+        return expected.equals(observed)
+            || expected.plusNanos(500).truncatedTo(java.time.temporal.ChronoUnit.MICROS).equals(observed);
     }
     private static void validateTarget(Scope scope, RuntimeGenerationTransitionContracts.Readback value) {
         if (value == null || !target(scope).equals(value.target()) || !scope.tenantId().equals(value.tenantId())

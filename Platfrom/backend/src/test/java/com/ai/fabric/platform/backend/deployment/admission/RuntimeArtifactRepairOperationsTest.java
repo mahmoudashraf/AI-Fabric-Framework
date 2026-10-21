@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import static com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -56,6 +57,17 @@ class RuntimeArtifactRepairOperationsTest {
         verify(h.budgets, never()).activate(anyString(), any(), anyMap());
         verify(h.budgets, never()).extendValidity(anyString(), any(), anyMap());
     }
+    @ParameterizedTest @ValueSource(strings = {"2026-10-21T01:53:17.065664499Z", "2026-10-21T01:53:17.065664792Z", "2026-10-21T01:53:17.999999999Z"})
+    void reconcilesOnlyTheExactAcknowledgedDeadlineOrItsPostgresRepresentation(String input) {
+        var deadline = Instant.parse(input);
+        var h = new Harness(Effect.BEGIN_DRAIN, Mode.IDLE_CHECKPOINT_COLD_RESTART, deadline);
+        h.observedDeadline = deadline.plusNanos(500).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        assertThatCode(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN)).doesNotThrowAnyException();
+        verify(h.runtime, never()).command(anyString(), any(), anyMap());
+        h.observedDeadline = h.observedDeadline.plusNanos(1000);
+        assertThatThrownBy(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN))
+            .isInstanceOf(AdmissionFailure.class).hasMessageContaining("DRAIN_BINDING_CHANGED");
+    }
     static class Harness {
         static final Instant NOW = AdmissionFixture.NOW;
         final AdmissionJson json = new AdmissionJson(new ObjectMapper().registerModule(new JavaTimeModule()));
@@ -69,13 +81,16 @@ class RuntimeArtifactRepairOperationsTest {
         final AtomicBoolean runtimeStarted = new AtomicBoolean(), connectorStarted = new AtomicBoolean(), inboxStarted = new AtomicBoolean(), cancelled = new AtomicBoolean();
         final Plan plan;
         final RuntimeArtifactRepairOperations ops;
+        Instant observedDeadline;
         Harness(Effect effect) { this(effect, Mode.FULL_DRAIN); }
-        Harness(Effect effect, Mode mode) {
+        Harness(Effect effect, Mode mode) { this(effect, mode, NOW.plusSeconds(1800)); }
+        Harness(Effect effect, Mode mode, Instant deadline) {
+            observedDeadline = deadline;
             var scope = new Scope("customer", "tenant", "deployment1", AdmissionFixture.TARGET, "release", "version", "config", "authority", "reservation", "generation", "https://runtime.example.test", "runtime-app", "connector-app", "runtime-pg");
             var old = new ArtifactPin("old", "old-pin", "reviewed/runtime", "sha256:" + "a".repeat(64), "a".repeat(40), "ci-old", "staging", "old-manifest");
             var next = new ArtifactPin("next", "new-pin", "reviewed/runtime", "sha256:" + "b".repeat(64), "b".repeat(40), "ci-new", "staging", "new-manifest");
             var request = new Request(new AdmissionContracts.Fence("reservation", 1, "generation"), "next", "offer", 2, "repair", "reviewed fix", true, mode);
-            var local = new LocalEvidence(scope, request, old, next, Map.of("graph", "unchanged"), NOW.plusSeconds(300), NOW.plusSeconds(1800));
+            var local = new LocalEvidence(scope, request, old, next, Map.of("graph", "unchanged"), NOW.plusSeconds(300), deadline);
             plan = new Plan("plan", "admin", local, new NativeEvidence(Map.of("inventory", json.write(inventory(false, false, "running:healthy", false)),
                 "inbox", json.write(inboxInventory(true)), "inboxJobs", json.write(List.of(oldJob("inbox-app")))),
                 RuntimeArtifactRepairWalletTest.wallet(null, 3), readback(scope, RuntimeGenerationTransitionContracts.State.ACTIVE, 0), NOW), NOW, NOW.plusSeconds(300));
@@ -133,7 +148,7 @@ class RuntimeArtifactRepairOperationsTest {
         static RuntimeGenerationTransitionContracts.Target target(Scope scope) { return new RuntimeGenerationTransitionContracts.Target(scope.deploymentId(), scope.targetProfileId(), scope.releaseId()); }
         RuntimeGenerationTransitionContracts.Readback readback(Scope scope, RuntimeGenerationTransitionContracts.State state, long epoch) {
             return new RuntimeGenerationTransitionContracts.Readback(target(scope), scope.tenantId(), state, epoch,
-                epoch == 0 ? null : "artifact-repair:plan", epoch == 0 ? null : "plan-hash", NOW.plusSeconds(1800), false, false, NOW);
+                epoch == 0 ? null : "artifact-repair:plan", epoch == 0 ? null : "plan-hash", observedDeadline, false, false, NOW);
         }
     }
 }

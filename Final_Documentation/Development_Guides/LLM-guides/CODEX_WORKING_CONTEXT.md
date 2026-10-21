@@ -10,6 +10,33 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At01:31UTC same-release repair487f7a46 isCLAIMED. QUIESCE_CONNECTOR and
+  QUIESCE_INBOX CONFIRMED; runtime stilloldimage,DRAININGepoch1. BEGIN_DRAIN
+  ACKpersisted butcheck409 DRAIN_BINDING_CHANGED: plan01:53:17.065664792Z vs
+  actualPG01:53:17.065665Z. Otherbindingfieldsallmatch. DONOTrePOSTdrain;
+  useexplicitread-onlyreconcile aftercorrection. Executiondeadline01:53UTC.
+  NarrowOperationsdeadlinecomparefix accepts exact orPG/JDBCroundedmicrosecond
+  only; rejects1usdifferent.48focusedchecks/14actualPG PASS; packagingrunning
+  under01044-repair-deadline-precision-20261021. Backend-onlypublish/rolloutnext,
+  noframework/runtimeimagechange. Fresh61x5hostsamplesfinished01:27; cannotclaim
+  theypostdateanylaterrollout. Existingrecover.mjs helper has durableintentfiles;
+  registerreturned201wasNOTrepeated. Replacementdsa-395fa10f stagingpromoted.
+
+- At01:23UTC Oct21 MAIN CONTINUES. Scope/overengineering assessment delivered
+  and confirmed in Platform - Updates: freeze additions, finish required live
+  journey, extractionLAST. Both builds f927b3ec2 pass:39525489237 backend-only
+  (UI skipped),39525489248 runtime. BOTH CPs now verifiedf927b3ec2/image462330e2/
+  schema207/UP, all139original tables/history/config/financial statepreserved;
+  twoemptyvalidityaudittablesadded. Closure6c4f8a1781f82e106cde32c6bdec8440a9a13dc9c52c7f448683c0c1f55a9269
+  under01044-validity-recovery-rollout-20261021. Runtimeimagec266a428 passes
+  unstartedinspection under01044-validity-runtime-inspection-lwBlEfbRmpPQ;
+  all20frameworkJARsbyteidentical0.8.36,sourcecapability/migrationmatch.
+  Imagepreloadedstage; normalartifact201Createsdsa-395fa10f. Helperexpected200
+  butsaved201ispositiveevidence; DONOTrepeatregister. Attendedhelperrecover.mjs
+  under01044-runtime-validity-image-inspection-20261021; normalpromotion/repair
+  pending. Fresh61x5hostcollectionrunning underpost-validity-recovery-capacity-
+  20261021. SameD7438/Rc4d054ec/rel-b7206a67/expiredwallet; noactivationyet.
+
 - At01:04UTC Oct21 MAIN CONTINUES. Effective-artifact/actual-migration/schema207
   integration221checks incl105PG passes. Final repair integration566checks
   incl116actualPG passes; packagePASS under01044-final-repair-r3-20261021.bYSpis.

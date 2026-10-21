@@ -6,9 +6,10 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
-- Both control planes are verified on `2a7f7fad397e7c6412f8806fcdb589339012bfce`,
-  image `sha256:5d00f3299608217748e889a77029b2fe3df0f71eafcbbe3dc35ba22a5997a20b`,
-  schema 206. Source-only maintenance is closed with original state preserved.
+- Both control planes are verified on `f927b3ec24ed943554ebe89230551ed3765d71d1`,
+  image `sha256:462330e2d47b4bef2edccef7653fbd68ef118b6aae2c69deb2fba587e60a2df4`,
+  schema 207. Maintenance closed at 01:22 UTC, preserving all 139 original
+  tables/history/configuration; only the two empty validity audit tables were added.
 - The same customer runtime, connector, AI-state PostgreSQL, Inbox application
   and Inbox PostgreSQL exist. Inbox deployment `s9nzu0yu3yj9cawkmguuhwld` finished
   healthy at 2026-10-20 23:31:45 UTC. No customer business database was created.
@@ -34,8 +35,8 @@ extraction stays last. This is an execution tracker, not a new product direction
   checkpoint. Verify exact live ownership, image, environment, health and terminal
   deployment history before reusing it. Do not redeploy an unchanged healthy
   service. Existing initialization operation keys must remain idempotent.
-  This source fix is not deployed yet; combined runtime/CP integration and hosted
-  continuation remain unchecked.
+  This source fix is now deployed on both control planes. Hosted runtime repair,
+  validity renewal and owner continuation remain unchecked.
 - [ ] Establish the correct supported, counter-preserving allowance-validity
   renewal and runtime-artifact adoption path. Preserve the original approval,
   limits, charges, holds and store identity; any expiry change needs an explicit
@@ -185,3 +186,52 @@ extraction stays last. This is an execution tracker, not a new product direction
   Package, combined image publication, backend migration/rollout and actual
   repair/renewal/owner continuation precede customer activation. UI extraction
   remains last.
+
+## 2026-10-21 01:23 UTC Hosted Backend Rollout
+
+- CI 39525489237 and 39525489248 both pass for `f927b3ec24ed943554ebe89230551ed3765d71d1`.
+  Backend-only publication skips UI. Staging job `tz43il2m6pvbpgxqzdxthndo` and
+  production job `lvscpl4k3x25mdky3e9j2b52` finish healthy. Exact immutable image,
+  migration207, original139 tables/raw history, environment and configuration
+  preservation pass on both. Maintenance closure:
+  `/private/tmp/01044-validity-recovery-rollout-20261021/maintenance.completed.json`,
+  SHA256 `6c4f8a1781f82e106cde32c6bdec8440a9a13dc9c52c7f448683c0c1f55a9269`.
+- Runtime image `sha256:c266a4284fdeebebf1d12f90b45b9445a5a5f7ee63defc7f2ba3123331fcad80`
+  passes unstarted local package inspection. Its manifest/migration match committed
+  source; all20 public framework libraries remain byte-identical at0.8.36.
+  Inspection container is removed. Evidence:
+  `/private/tmp/01044-validity-runtime-inspection-lwBlEfbRmpPQ/evidence.json`.
+- The exact runtime image is preloaded on staging without starting a workload.
+  Normal artifact registration returns201 Created, artifact `dsa-395fa10f`.
+  The local helper initially expected200, but retains the successful response;
+  no duplicate create is performed. Runtime repair/promotion/renewal are not yet
+  claimed. Fresh61x5second host samples run after closed backend maintenance.
+- User requested a candid delivery assessment in Platform - Updates. Delivered:
+  scope has stretched and recovery tooling is disproportionate; freeze additions,
+  finish the real customer journey and mandatory gates, defer noncritical work
+  explicitly, and keep extraction last. No new framework release or unrelated
+  infrastructure variant is part of this cycle.
+
+## 2026-10-21 01:31 UTC Exact Drain Deadline Correction
+
+- Replacement artifact `dsa-395fa10f` is staging-promoted. Repair plan
+  `487f7a463aec7ae187e8943e8c6da2b65699a2356d5fb853c5a7bf30e6f77fb4` is claimed.
+  Connector and Inbox stops are positively confirmed; runtime remains on its
+  original image, with the acknowledged DRAINING state and epoch1. No wallet
+  renewal, reset, replacement resource or replay has occurred.
+- BEGIN_DRAIN returns409 because the existing PostgreSQL runtime stores deadline
+  `01:53:17.065665Z`, while the plan contains `01:53:17.065664792Z`. All other
+  acknowledged target/binding/fingerprint/epoch fields match. The command is
+  recorded UNKNOWN and must be settled by read-only reconciliation, not POSTed
+  again. Original execution deadline remains01:53UTC.
+- The narrow Platform correction accepts only the exact instant or its exact
+  PostgreSQL/JDBC microsecond representation, not a clock-skew window. Focused
+  operations/service/journal tests pass48 cases including14 actual PostgreSQL;
+  changed-by-one-microsecond deadlines still fail and reconciliation dispatches
+  no command. Package/publication/rollout are next; public framework and runtime
+  image remain unchanged. Snapshot:
+  `/private/tmp/01044-repair-deadline-precision-20261021`.
+- Fresh61x5second host measurements completed01:27UTC. They are current-fleet
+  baselines only, not workload capacity certification. Publish continuity only
+  after the narrow correction is deployed and the current reservation fence is
+  known, without pretending these measurements occurred after a later rollout.
