@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class RuntimeTargetRetirementController {
     public static final String READ_SCOPE = "runtime:target-retirement:read";
     public static final String WRITE_SCOPE = "runtime:target-retirement:write";
+    public static final String COLD_MAINTENANCE_WRITE_SCOPE = "runtime:target-retirement:cold-maintenance:write";
     private final RuntimeRequestAuthResolver auth;
     private final RuntimeTargetRetirementIdentity identity;
     private final RuntimeTargetRetirementService service;
@@ -42,6 +43,23 @@ public class RuntimeTargetRetirementController {
         HttpServletRequest request) {
         authorize(request, WRITE_SCOPE);
         return response(service.transition(command));
+    }
+    @PostMapping("/cold-maintenance-generation-transitions")
+    public ResponseEntity<ColdMaintenanceTransitionResult> coldMaintenanceTransition(
+        @RequestBody ColdMaintenanceTransition command, HttpServletRequest request) {
+        RuntimeResolvedIdentity caller;
+        try {
+            caller = authorize(request, COLD_MAINTENANCE_WRITE_SCOPE);
+        } catch (ResponseStatusException exception) {
+            if (exception.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "PRIVATE_COLD_MAINTENANCE_SYSTEM_SCOPE_REQUIRED");
+            }
+            throw exception;
+        }
+        if (caller.getAuthContext().getSubjectType() != RuntimeAuthSubjectType.SYSTEM_PROCESS) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "PRIVATE_COLD_MAINTENANCE_SYSTEM_SCOPE_REQUIRED");
+        }
+        return response(service.coldMaintenanceTransition(command));
     }
     @PostMapping("/status")
     public ResponseEntity<Readback> status(@RequestBody Target target, HttpServletRequest request) {
@@ -72,7 +90,7 @@ public class RuntimeTargetRetirementController {
         return response(indexes.readback(command));
     }
 
-    private void authorize(HttpServletRequest request, String scope) {
+    private RuntimeResolvedIdentity authorize(HttpServletRequest request, String scope) {
         RuntimeResolvedIdentity caller = auth.resolveVerifiedPrivateContext(request, "runtime target retirement");
         auth.requireScope(caller, scope, "runtime target retirement");
         if (caller == null || caller.getAuthContext() == null
@@ -84,6 +102,7 @@ public class RuntimeTargetRetirementController {
             || !java.util.Objects.equals(identity.tenantId(), caller.getAuthContext().getTenantId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "PRIVATE_RETIREMENT_SERVER_SCOPE_REQUIRED");
         }
+        return caller;
     }
     private <T> ResponseEntity<T> response(T value) { return ResponseEntity.ok().header("Cache-Control", "no-store").body(value); }
 }

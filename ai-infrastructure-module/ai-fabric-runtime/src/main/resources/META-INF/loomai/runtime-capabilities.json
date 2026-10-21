@@ -42,6 +42,7 @@
     "deployment-local-provider-sync",
     "deployment-local-provider-budget-v1",
     "deployment-local-provider-budget-validity-extension-v1",
+    "runtime-cold-maintenance-generation-adoption-v1",
     "milvus-token-authentication-v1",
     "document-ingestion-core",
     "document-source-connectors",
@@ -91,6 +92,7 @@
     ,"integration-operations"
     ,"provider-webhook-ingress"
     ,"provider-budget-administration"
+    ,"runtime-cold-maintenance-generation-adoption"
   ],
   "migrationIds": [
     "ai-action-proposal-receipt-v1",

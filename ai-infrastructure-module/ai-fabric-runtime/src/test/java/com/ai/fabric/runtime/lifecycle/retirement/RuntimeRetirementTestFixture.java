@@ -44,7 +44,12 @@ final class RuntimeRetirementTestFixture {
         this(dedicated, certified, dependencies, false);
     }
     RuntimeRetirementTestFixture(boolean dedicated, boolean certified, List<RuntimeRetirementTopology.Dependency> dependencies, boolean canonical) {
-        dataSource = new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=3000", "sa", "");
+        this(new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID()
+            + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=3000", "sa", ""), dedicated, certified, dependencies, canonical);
+    }
+    RuntimeRetirementTestFixture(DriverManagerDataSource dataSource, boolean dedicated, boolean certified,
+        List<RuntimeRetirementTopology.Dependency> dependencies, boolean canonical) {
+        this.dataSource = dataSource;
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V12__runtime_target_retirement.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V13__runtime_generation_transition.sql")).execute(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("db/runtime-migration/V14__runtime_target_index_retirement.sql")).execute(dataSource);

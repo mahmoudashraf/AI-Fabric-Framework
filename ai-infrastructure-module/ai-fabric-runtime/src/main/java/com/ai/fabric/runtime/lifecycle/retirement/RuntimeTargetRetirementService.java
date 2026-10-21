@@ -15,8 +15,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RuntimeTargetRetirementService {
+    private static final String COLD_EVIDENCE_KIND = "PHYSICAL_STOP_COLD_MAINTENANCE_V1";
+    private static final String COLD_EXECUTION_ENUMERATION = "DRAIN_PROVIDER_UNSUPPORTED:ai_specialist_execution";
+    private static final Set<String> COLD_FENCING_BLOCKERS = Set.of(
+        "FRAMEWORK_EXECUTION_RECOVERY_TARGET_EPOCH_FENCE_UNSUPPORTED:SPECIALIST_EXECUTION",
+        "FRAMEWORK_INDEXING_PROCESSOR_TARGET_EPOCH_FENCE_UNSUPPORTED");
     private final RuntimeTargetRetirementIdentity identity;
     private final JdbcTemplate jdbc;
     private final RuntimeRetirementSchema schema;
@@ -208,6 +215,145 @@ public class RuntimeTargetRetirementService {
                 command.nextTopologyFingerprint(), command.providerStopEvidenceReference(), json(result), timestamp(now));
             return result;
         });
+    }
+
+    /** Explicit physical-stop adoption; this is not a successful local drain or authority fence. */
+    public ColdMaintenanceTransitionResult coldMaintenanceTransition(ColdMaintenanceTransition command) {
+        if (command == null) throw badRequest("COLD_MAINTENANCE_TRANSITION_REQUIRED");
+        GenerationTransition transition = command.transition();
+        validateTransition(transition);
+        if (!command.acceptInMemoryStateLoss() || command.approvalReference() == null
+            || command.approvalReference().isBlank() || command.approvalReference().length() > 1000
+            || !command.approvalReference().equals(command.approvalReference().trim())
+            || command.previousOperationId() == null || !command.previousOperationId().matches("[A-Za-z0-9._:-]{1,160}")
+            || !sha256(command.previousRequestFingerprint())) {
+            throw badRequest("COLD_MAINTENANCE_APPROVAL_AND_PREVIOUS_BINDING_REQUIRED");
+        }
+        return transaction.execute(status -> {
+            if (!schema.supports("runtime_target_generation_transition", "operation_id", "payload_digest", "result_json")) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "RUNTIME_GENERATION_TRANSITION_MIGRATION_REQUIRED");
+            }
+            Readback previous = persistedLocked();
+            String payloadDigest = digest(json(command));
+            List<String[]> receipts = jdbc.query("""
+                SELECT payload_digest, result_json FROM runtime_target_generation_transition WHERE operation_id = ?
+                """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)}, transition.operationId());
+            if (!receipts.isEmpty()) {
+                if (!receipts.getFirst()[0].equals(payloadDigest)) throw conflict("GENERATION_TRANSITION_COMMAND_REUSE");
+                ColdMaintenanceTransitionResult persisted = read(receipts.getFirst()[1], ColdMaintenanceTransitionResult.class);
+                GenerationTransitionResult applied = persisted.transition();
+                return new ColdMaintenanceTransitionResult(new GenerationTransitionResult(applied.previous(), applied.current(),
+                    applied.providerStopEvidenceReference(), applied.transitionedAt(), true), persisted.observedInventory(),
+                    persisted.evidenceKind(), persisted.approvalReference(), persisted.inMemoryStateLossAcknowledged());
+            }
+            if (!transition.previousTarget().equals(previous.target()) || !transition.tenantId().equals(previous.tenantId())) {
+                throw conflict("GENERATION_TRANSITION_PREVIOUS_SCOPE_MISMATCH");
+            }
+            if (previous.fenceEpoch() != transition.expectedFenceEpoch()) throw conflict("GENERATION_TRANSITION_STALE_FENCE");
+            if (previous.state() != State.DRAINING || previous.authorityRevoked() || previous.reclaimStarted()) {
+                throw conflict("COLD_MAINTENANCE_PREVIOUS_GENERATION_NOT_DRAINING");
+            }
+            if (!command.previousOperationId().equals(previous.operationId())
+                || !command.previousRequestFingerprint().equals(previous.requestFingerprint())) {
+                throw conflict("COLD_MAINTENANCE_PREVIOUS_BINDING_MISMATCH");
+            }
+            String pinnedTopology = jdbc.queryForObject(
+                "SELECT topology_fingerprint FROM runtime_target_retirement WHERE singleton_id = 1", String.class);
+            if (!transition.previousTopologyFingerprint().equals(pinnedTopology)) {
+                throw conflict("GENERATION_TRANSITION_PREVIOUS_TOPOLOGY_MISMATCH");
+            }
+            if (!transition.nextTopologyFingerprint().equals(inventory.topologyFingerprint())) {
+                throw conflict("GENERATION_TRANSITION_NEXT_TOPOLOGY_MISMATCH");
+            }
+            Long turns = jdbc.queryForObject("SELECT COUNT(*) FROM runtime_target_retirement_turn", Long.class);
+            if (turns == null || turns != 0) throw conflict("GENERATION_TRANSITION_IN_FLIGHT_WORK_REMAINS");
+            // The running replacement owns this topology. Do not store it as an old-generation drain snapshot.
+            Snapshot observed = inventory.inspect(previous, turns);
+            requireColdInventory(observed, previous, transition.nextTopologyFingerprint());
+
+            long nextFence = Math.addExact(previous.fenceEpoch(), 1L);
+            Instant now = Instant.now();
+            jdbc.update("""
+                UPDATE runtime_target_retirement SET deployment_id = ?, target_profile_id = ?, release_id = ?,
+                    tenant_id = ?, topology_fingerprint = ?, state = ?, fence_epoch = ?, operation_id = NULL,
+                    request_fingerprint = NULL, drain_deadline = NULL, authority_revoked = FALSE,
+                    reclaim_started = FALSE, updated_at = ? WHERE singleton_id = 1
+                """, transition.nextTarget().deploymentId(), transition.nextTarget().targetProfileId(),
+                transition.nextTarget().releaseId(), transition.tenantId(), transition.nextTopologyFingerprint(),
+                State.ACTIVE.name(), nextFence, timestamp(now));
+            GenerationTransitionResult applied = new GenerationTransitionResult(previous, persistedLocked(),
+                transition.providerStopEvidenceReference(), now, false);
+            ColdMaintenanceTransitionResult result = new ColdMaintenanceTransitionResult(applied, observed,
+                COLD_EVIDENCE_KIND, command.approvalReference(), true);
+            jdbc.update("""
+                INSERT INTO runtime_target_generation_transition
+                    (operation_id, request_fingerprint, payload_digest, previous_deployment_id,
+                     previous_target_profile_id, previous_release_id, next_release_id,
+                     previous_fence_epoch, next_fence_epoch, previous_topology_fingerprint,
+                     next_topology_fingerprint, provider_stop_evidence_reference, result_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, transition.operationId(), transition.requestFingerprint(), payloadDigest,
+                transition.previousTarget().deploymentId(), transition.previousTarget().targetProfileId(),
+                transition.previousTarget().releaseId(), transition.nextTarget().releaseId(), previous.fenceEpoch(),
+                nextFence, transition.previousTopologyFingerprint(), transition.nextTopologyFingerprint(),
+                transition.providerStopEvidenceReference(), json(result), timestamp(now));
+            return result;
+        });
+    }
+
+    private void requireColdInventory(Snapshot snapshot, Readback previous, String topology) {
+        if (!identity.dedicatedStore() || snapshot == null || !previous.equals(snapshot.target())
+            || !topology.equals(snapshot.topologyFingerprint()) || snapshot.observedAt() == null
+            || snapshot.snapshotId() == null || snapshot.snapshotId().isBlank()
+            || snapshot.evidenceReference() == null || snapshot.evidenceReference().isBlank()
+            || snapshot.inFlightRequests() != 0 || snapshot.blockers() == null || snapshot.remoteObligations() == null) {
+            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
+        }
+        requireColdZeroMetric(snapshot.openConversations(), false);
+        requireColdZeroMetric(snapshot.pendingConfirmations(), false);
+        requireColdZeroMetric(snapshot.humanWork(), false);
+        requireColdZeroMetric(snapshot.backgroundWork(), true);
+        Set<String> expectedBlockers = new HashSet<>();
+        snapshot.backgroundWork().observations().forEach(observation -> expectedBlockers.addAll(observation.blockers()));
+        for (String blocker : snapshot.blockers()) {
+            if (blocker == null) throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
+            if (COLD_FENCING_BLOCKERS.contains(blocker)) expectedBlockers.add(blocker);
+            else if (!COLD_EXECUTION_ENUMERATION.equals(blocker)) throw conflict("COLD_MAINTENANCE_INVENTORY_INCOMPLETE");
+        }
+        boolean complete = snapshot.backgroundWork().complete();
+        boolean fenced = snapshot.blockers().stream().noneMatch(COLD_FENCING_BLOCKERS::contains);
+        if (!expectedBlockers.equals(new HashSet<>(snapshot.blockers()))
+            || snapshot.inventoryComplete() != complete || snapshot.workerFencingComplete() != fenced
+            || snapshot.localDrainComplete() != (complete && fenced)
+            || snapshot.reclaimable() != (snapshot.localDrainComplete() && snapshot.remoteObligations().isEmpty())) {
+            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
+        }
+    }
+
+    private void requireColdZeroMetric(Metric metric, boolean allowExecutionEnumeration) {
+        if (metric == null || metric.observations() == null || metric.observations().isEmpty()) {
+            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
+        }
+        Set<String> sources = new HashSet<>();
+        boolean complete = true;
+        for (Observation observation : metric.observations()) {
+            if (observation == null || observation.source() == null || observation.source().isBlank()
+                || !sources.add(observation.source()) || observation.observedCount() == null
+                || observation.observedCount() != 0 || observation.blockers() == null) {
+                throw conflict("COLD_MAINTENANCE_WORK_REMAINS_OR_UNOBSERVED");
+            }
+            if (!observation.complete()) {
+                if (!allowExecutionEnumeration || !"ai_specialist_execution".equals(observation.source())
+                    || !observation.blockers().equals(List.of(COLD_EXECUTION_ENUMERATION))) {
+                    throw conflict("COLD_MAINTENANCE_INVENTORY_INCOMPLETE");
+                }
+                complete = false;
+            } else if (!observation.blockers().isEmpty()) throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
+        }
+        if (metric.complete() != complete || (complete ? !Long.valueOf(0).equals(metric.count()) : metric.count() != null)) {
+            throw conflict("COLD_MAINTENANCE_INVENTORY_INVALID");
+        }
     }
 
     public Readback status(Target target) {
