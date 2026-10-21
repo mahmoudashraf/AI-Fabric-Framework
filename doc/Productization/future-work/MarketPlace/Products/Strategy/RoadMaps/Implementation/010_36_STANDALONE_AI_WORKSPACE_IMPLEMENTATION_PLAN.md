@@ -1,5 +1,39 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- **Basic-journey priority, 21 October 19:40 UTC:** zero-loss live upgrade is
+  deferred for this disposable pilot, not made a prerequisite for its first
+  usable session. An explicit cold-maintenance extension to the EXISTING repair
+  and generation flow is wired locally, preserving prior/candidate ownership,
+  wallet/history and honest physical-stop evidence.202 focused backend cases
+  pass, including22 actual PostgreSQL cases; final qualification is in progress.
+  No cold mutation, app activation or browser acceptance has run. Framework0.8.36
+  stays unchanged; broader fencing hooks remain parked. Publish one reviewed
+  product runtime/backend pair, recover the same pilot, then prioritize hosted
+  stock/policy, attachments, sign-in and handover checks. Promotion remains an
+  independent source-indexing path, never a vector-record transfer. UI extraction
+  LAST. The bounded recovery track is the current operational return point.
+
+- **Actual M5 boundary, 21 October 18:42 UTC:** same-release retry progressed to
+  drain and failed closed on a real framework background-fencing/inventory gap.
+  No active chats/human work; terminal dead letters were misclassified and
+  primary-store detection was too strict.18 focused runtime inventory checks
+  now pass locally; actual background effect fencing and inspectable execution
+  storage remain required. The bounded recovery track linked from010.44 records
+  implementation, verification and the honest failed-drain recovery limitation.
+  No public browser gate has run; app DRAFT. Both control planes remain healthy.
+  This supersedes the queued-not-yet-verified boundary below. UI extraction LAST.
+
+- **Current execution, 21 October 18:24 UTC:** both control planes verify
+  `e8f0771dd` / image `81eb5035` / schema207 with healthy services and unchanged
+  configuration/protected financial history. The runtime's valid initial fence0
+  is now accepted without weakening scope or command fencing;43 focused checks,
+  including13 actual PostgreSQL cases, package and backend-only CI pass. One
+  normal owner retry of SAME fresh-pilot release/allocation is accepted, not yet
+  workload verified. App remains DRAFT and browser gates have not run. Main
+  continues hosted acceptance; production promotion and reversible UI extraction
+  remain open, extraction LAST. Current exact receipts and deferred items are in
+  the linked recovery tracker and010.44, superseding historical checkpoints below.
+
 - **Environment clarification, 21 October:** the chosen deployment model keeps
   staging and production vector clusters separate: Free01 staging and the already
   recorded approved Frankfurt Serverless production cluster. Sharing one cluster

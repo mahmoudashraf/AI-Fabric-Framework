@@ -6,6 +6,129 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Bounded Cold-Maintenance Integration, 21 October 19:40 UTC
+
+Existing repair/generation/owner-continuation paths are now wired locally, with
+202 focused backend cases passing, including22 actual PostgreSQL cases. Final
+prior-binding checks and runtime PostgreSQL follow-up are under qualification.
+No cold mutation or hosted acceptance has occurred. The detailed execution track
+records exact mode, physical-stop evidence, dedicated system authority, ownership
+split, append-only failure history and deferred edges. No framework release,
+customer business database or vector-record transfer is needed for this path.
+Both CPs remain e8/schema207; app DRAFT. Hosted browser acceptance is next after
+one reviewed product runtime/backend publication. UI extraction stays last.
+
+### Basic Journey Priority Correction, 21 October 18:55 UTC
+
+Main's answer to the user's overengineering question: YES, a zero-loss live
+upgrade/recovery requirement has become a premature prerequisite for this
+disposable pilot. The shortest route is an explicit cold-maintenance replacement
+inside the existing repair/generation flow, followed by app activation/browser
+acceptance. This path is not yet implemented; no cold mutation/deletion occurred.
+Framework-only hooks are being parked at a resumable checkpoint, not published.
+Do not mislabel physical-stop evidence as completed worker drain, discard
+financial history, weaken isolation or reopen consumed retry intents. The bounded
+execution track above now separates this immediate route from deferred zero-loss
+fencing. Runtime inventory fix is local commit033301a78 with18 passing tests;
+not pushed/deployed. Both control planes remain e8/schema207/healthy; app DRAFT.
+
+### Real Worker-Fencing Blocker, 21 October 18:42 UTC
+
+The same-release apply failed `RUNTIME_GENERATION_DRAIN_INCOMPLETE`. Actual
+runtime evidence is DRAINING/epoch1, not authority-revoked/reclaiming, with zero
+chats, confirmations, human work and in-flight requests. Connector and Inbox
+are stopped. Queue57 COMPLETED/6 DEAD_LETTER is NOT six active indexing jobs.
+Primary-store resolution and terminal-work classification fixes pass18 focused
+tests locally, not deployed. Framework0.8.36 lacks the background epoch-effect
+hook required to prove safe drain. The IN_MEMORY execution store also cannot
+be certified through empty SQL tables. These are genuine readiness gaps, not
+server-load or authentication failures. App remains DRAFT; browser gates and
+business writes have not run.
+
+The bounded [worker-fencing recovery execution track](WORKER_FENCING_RECOVERY_EXECUTION_TRACKER.md)
+records concrete fixes, qualification, the failed-drain recovery limitation and
+return to the hosted journey. One independent agent owns the framework-only hook;
+Main owns runtime/configuration and all live operations. No guards/financial
+history are bypassed, no failed apply is replayed, and UI extraction remains last.
+Both CPs remain healthy on e8f0771dd/schema207; no new framework/runtime image
+has been released or deployed yet.
+
+### Same-Release Retry Accepted, 21 October 18:24 UTC
+
+- Backend-only CI39650498084 passed. Both control planes verify source
+  `e8f0771dd13718be76bf11deddb904bd3e9ea58e`, image
+  `sha256:81eb50358d9ae2e524d1e3c98bf29309eb3c4ea77d1a6ffe5c08d399c59e238f`,
+  health UP, schema207 and unchanged configuration/25 protected authority and
+  financial tables. Staging job `iew4gk8yl154w5hox8f8fkvn`, production job
+  `uqrin31p491gds42g44t5y0v`. Maintenance closure SHA256
+  `9d6b9f3101d9cbdf3414bfb5b124b7673525b7f799aa5bbe9a3e61970deb839d`.
+- Fresh normal owner placement and retry PLAN200 now pass. One EXECUTE200
+  accepted SAME `rel-efc001ac`, reservation `25dea632-66b6-48c5-897c-bfcabb112894`,
+  generation `8bf1bb40-5100-464b-a67b-11d366f3a380`, now revision8.
+  `APPLY_REQUESTED` is not readiness; no allocation reset, financial mutation,
+  manual state repair or replacement deployment. Observe this queued apply;
+  do not replay the consumed execute intent.
+- A local helper attempt stopped before execute intent/POST because the durable
+  JSON writer sorts object keys while the earlier checksum used response order.
+  Original evidence is retained. The reviewed persisted command has identical
+  scope/fence/proof and is now bound consistently; this was a harness correction,
+  not a Platform failure or remote retry. Fresh placement receipt is
+  `initial-fence-retry-placement.response.private.json`, not the expired17:56
+  receipt. Actual new plan/execute receipts use `initial-fence-reapply-retry-*`.
+- App remains DRAFT and browser gates have NOT run. Next: verify the same apply,
+  retained index/documents and managed Inbox, activate consumer/app normally,
+  refresh the browser scope, then run stock/policy/continuity, auth and human
+  handover gates. UI extraction remains last; no framework/runtime/schema/UI
+  release or missing user material.
+- Independent source review confirms the simplest existing promotion proof is
+  a separately reviewed promotable offer/deployment using Milvus on BOTH targets:
+  existing Free01 staging and approved Serverless production, target-specific
+  endpoint/credential bindings, same immutable version/artifact, independently
+  populated production index. Current Qdrant staging-only offer cannot change
+  its provider/offer association in place. Finish this staging journey first;
+  no vector copying, silent offer rewrite or new cross-provider feature is
+  authorized by that review. Old-stage retirement/capacity must precede another
+  hosted composition; production and UI gates remain OPEN.
+
+### Initial Runtime Fence Contract, 21 October 18:13 UTC
+
+- Both control planes verified `3a1eccfce` / image `315224e6...2c2509b`, healthUP,
+  schema207, unchanged configuration and25 protected authority/financial tables.
+  Maintenance closure SHA256
+  `34dd8f7edde3214c8127902712c7d446b467746516c5932ab574de6f0305749c`.
+- Owner retry planning, NOT execution, exposed an existing producer/consumer
+  mismatch: runtime V12 initializes an ACTIVE generation at fence0, while the
+  Platform validator required1. Actual read-only runtime-PG evidence confirms
+  `rel-1fe0f5b8`, ACTIVE/0, correct tenant/target, not revoked/reclaiming. No
+  counter/data repair is appropriate. An unhandled validation exception was
+  masked by servlet ERROR redispatch as401; the owner session remains200 and
+  authenticated. The original plan intent/trace is retained; no retry queued.
+- Narrow correction `e8f0771dd13718be76bf11deddb904bd3e9ea58e` is committed and
+  pushed; backend-only CI39650498084 is running. Readbacks allow valid zero,
+  reject negative epochs, and require an explicitly present/non-null wire
+  counter. Exact command increments, scope checks, drain/fence/adoption remain.
+  Readback failure returns explicit409 with its cause, without fallback or
+  queueing.43 focused checks, including13 real-PG cases, pass with zero
+  failures/errors/skips; package passes. No broad settlement/framework rerun,
+  runtime artifact change, schema change or UI change.
+- Private qualification/rollout root `01044-initial-runtime-fence-20261021`;
+  actual producer evidence `runtime-generation-initial-fence.actual.json` in
+  the fresh-pilot root. After both CPs verify and maintenance closes, use the NEW
+  `01044-fresh-pilot-initial-fence-retry-20261021.mjs` intent; do not replay the
+  earlier consumed plan. SAME release/allocation/gen/full charges remain.
+  App DRAFT; no public browser query or lead write. Policy remains valid through
+  19:32:24Z. UI extraction last; no user material/permission missing.
+- Helper corrections, not deployment changes: refresh normal owner placement
+  before status reads; customer-safe reservation responses expose
+  `chargedDemand`, not internal `generation`/`demand`. Checks now compare actual
+  charged demand and the server-issued plan fence to the preserved internal
+  snapshot; no undefined-field equality is accepted as preservation evidence.
+- Deferred beyond this basic path: replace expiry-blocked owner status UX with
+  a safe read-only projection/explicit refresh, review general sanitized ERROR
+  dispatch beyond this scoped409, and add a portable real-producer lifecycle
+  contract fixture to avoid initial-state assumptions in isolated mocks. These
+  are recorded follow-ups, not extra prerequisites added to this cycle.
+
 ### Qualified Reapply Recovery, 21 October 17:42 UTC
 
 - Generic correction `3a1eccfce5b90a2b4d779cbd3dc6128240d22975` is committed

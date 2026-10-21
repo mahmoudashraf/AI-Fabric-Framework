@@ -1,5 +1,87 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 19:40 UTC Bounded Cold Path Locally Integrated
+
+The owner-approved downtime/disposable-pilot path now extends the existing repair
+journal and runtime generation contracts. It pins the old physical runtime and
+failed candidate separately, requires explicit in-memory-loss acknowledgement,
+records actual writer stops, and advances via a typed COLD_ADOPTED checkpoint.
+False inventory/fencing flags remain false; no fabricated drain receipt is used.
+The final checkpoint and repair verification commit atomically. Customer retry
+requires that verified receipt and current candidate ACTIVE state, keeping the
+same allocation and financial history. Retry history is append-only.
+
+Read-only hosted SQL confirmed the runtime handle still belongs to the prior
+release, while connector and PostgreSQL handles belong to the failed candidate.
+That split is represented explicitly rather than silently reassigned.202 focused
+backend cases pass, including22 actual PostgreSQL cases; final prior-binding and
+runtime PostgreSQL qualifications remain in progress. Independent review found
+no concrete P1/P2 blocker. This is not a hosted acceptance claim.
+
+No cold maintenance effect, app activation, public AI query or business write
+has run. Both control planes remain healthy on e8/schema207. The framework stays
+0.8.36; broader zero-loss worker fencing is parked. Next is one reviewed product
+runtime/backend publication, bounded recovery and hosted customer browser gates.
+The [bounded execution track](../../../../../../../../verification-support/productization-01036/WORKER_FENCING_RECOVERY_EXECUTION_TRACKER.md)
+contains the precise deferred edges. UI extraction remains LAST.
+
+## 2026-10-21 18:42 UTC Hosted Worker-Fencing Gap Confirmed
+
+The normal same-release retry reached real runtime drain, then failed closed
+`RUNTIME_GENERATION_DRAIN_INCOMPLETE`. There are no open conversations,
+confirmations, human work or in-flight turns. Six reported indexing jobs are
+retained terminal DEAD_LETTER entries. Runtime primary-store resolution and
+terminal classification corrections pass18 focused tests locally, not deployed.
+
+An independent source review confirms a genuine0.8.36 background effect-fencing
+gap; reading empty SQL tables also cannot certify the selected IN_MEMORY execution
+store. Correcting counts alone is insufficient. The exact old generation is now
+DRAINING/epoch1, not revoked/reclaiming; connector and Inbox stopped, app DRAFT.
+No browser AI query, business write, SQL repair or guard bypass occurred.
+
+The [bounded recovery execution track](../../../../../../../../verification-support/productization-01036/WORKER_FENCING_RECOVERY_EXECUTION_TRACKER.md)
+owns the minimal framework hook/runtime adapter/configuration, critical testing,
+immutable publication and honest recovery to the hosted journey. Main retains
+sequential integration; no new runtime/framework image is yet deployed. Both
+control planes remain healthy on e8/schema207. Production promotion and final
+UI extraction remain open; extraction stays last.
+
+## 2026-10-21 18:24 UTC Contract Fix Live And Owner Retry Accepted
+
+Both control planes verify `e8f0771dd` / image `81eb5035...59e238f`, health UP,
+schema207, unchanged configuration and25 protected authority/financial tables.
+Backend-only CI39650498084 and43 focused checks/13 actual PostgreSQL cases pass.
+The normal owner retry plan and one execution now succeed for SAME
+`rel-efc001ac` / allocation `25dea632-66b6-48c5-897c-bfcabb112894` / generation,
+revision8, no financial mutation. Apply is requested, NOT accepted as ready.
+App is still DRAFT; no browser AI query or lead write has happened.
+
+The local pre-dispatch checksum correction and exact deployment/closure receipts
+are retained in the recovery tracker. Main continues same-apply observation,
+retained-source/Inbox verification, normal consumer/app activation, then hosted
+browser acceptance. Promotion and final reversible UI extraction remain open.
+The existing basic promotion path requires a promotable same-engine composition
+with separate staging/production bindings; it does not mutate this staging-only
+Qdrant offer or copy its vectors. That follow-on remains separate from M5.
+
+## 2026-10-21 18:13 UTC Real Initial-State Contract Correction
+
+Both control planes verified3a with preserved schema/configuration/financial
+history. The owner retry PLAN then exposed Platform validation rejecting the
+runtime's valid initial ACTIVE fence0. A read-only production-runtime database
+observation and Runtime V12 independently confirm0 is the correct initial value.
+The internal validation error was misleadingly exposed as401; owner auth is
+valid. No retry execution, counter repair, browser query or business write ran.
+
+`e8f0771dd` aligns readback with that producer contract, requires explicit/non-null
+wire counters, keeps all scope/fencing checks, and reports unproven readback as
+409 without fallback.43 focused checks/13 real-PG cases/package pass; backend-only
+CI39650498084 is running. No runtime/framework/schema/UI release. Main will
+verify both rollouts and use a new normal plan intent for the SAME failed release
+and allocation. Detailed evidence, helper corrections and deferred metadata/
+error-dispatch/contract-fixture improvements are recorded in the recovery tracker.
+App remains DRAFT; hosted acceptance, promotion and UI extraction remain open.
+
 ## 2026-10-21 17:42 UTC Reapply Recovery Qualified, CI Running
 
 `3a1eccfce` is committed/pushed; backend-only CI39645965490 is running. The
@@ -314,14 +396,14 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-21 09:58 UTC. The detailed
+Authoritative short checklist, updated 2026-10-21 18:24 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
 - **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
   healthy staging and production, preserved configuration/history. Both verify
-  `684d8982f` / image `b096ef6d` / schema207, healthUP. Latest scoped package
-  passes97 checks including4 actual PostgreSQL cases; backendCI39573339382 passes.
+  `e8f0771dd` / image `81eb5035` / schema207, healthUP. Latest scoped package
+  passes43 checks including13 actual PostgreSQL cases; backendCI39650498084 passes.
   Earlier deadline/repair qualifications remain retained as historical evidence.
   Both current hosts verify healthy with existing tables/configuration/financial
   history preserved. No framework/runtime/UI redeploy is implied by this gate.
@@ -362,7 +444,9 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   full raw evidence retained. Original pre-intent failures stay preserved and
   were never POSTed. [Actual closure](/private/tmp/01044-attended-free01-handoff-20261020/operation-route-stable-r2/closure.actual.json).
 - **M5 IN PROGRESS: Hosted staging workload.** Historical startup/continuation
-  attempts follow; the superseding09:58UTC boundary is stated at the end. Source6e8f49882 was live on both
+  attempts follow; the current18:24UTC boundary is above: fresh Qdrant pilot's
+  SAME reapply is queued, app DRAFT and browser gates not yet run. The older
+ 09:58UTC boundary below is historical. Source6e8f49882 was live on both
   control planes, including the startup policy and explicit owner-fenced initial
   partial-native retry. Fresh measured policy continuity verifies21:34 with
   unchanged R/physical budgets/quota/funding, valid23:31:42UTC. Normal owner

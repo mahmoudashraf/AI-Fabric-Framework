@@ -10,6 +10,126 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 19:44UTC coldpathcommittedNOTpushed/live: backendf8054c743, runtime76c312cf3,
+  inventory033301a78. Backend202baselineunique(22actualPG) +final9PGselected
+  rerun/packagePASS; XMLbaseline22andfinal9separate/root
+  /private/tmp/01044-cold-maintenance-runtime-20261021. Runtime40PASS incl3realPG
+  +manifest/security/retirement, sourcefreezequalifiedmatchesrepo, HANDOFF.md
+  /private/tmp/01044-runtime-cold-maintenance-generation-20261021/postgres-followup.
+  IndependentreviewnoP1/P2; agentsPARKED/noMaven. NeedONEpush thenruntimeCI+
+  backendCI(UIskipped), inspectexactimagejars(manifest+framework0.8.36), register
+  STAGINGartifact, backup/readguardrolloutCPstage/prod frome8, coldplan/claim/
+  9effects/verify thenfreshownerplacement/retrySAMErelR. AppDRAFT/browsersUNRUN.
+
+- 19:40UTC localcoldintegrationwired, NOTpublished/deployed. Backend10reports
+  202uniquePASS/22actualPG/no skips; authorityfixturebeanfactory/providerfixture
+  IDfixesonly. Finalpriorbindingguards+PGnarrowpackagecurrentlyrunning. Existing
+  repairCOLDmode/orderedphysicalstop/adopt/resume, dedicatedSYSTEMscope, exact
+  prior/candidateauthority, optionalScope.priorRuntimeReleaseId (legacyNULLomitted).
+  HostedSQLconfirmedAPPhandleoldrel1fe; connector+PGcandidateefc. Keepthatlineage.
+  COLD_ADOPTEDtypedcheckpointrecordedonlyfinalverifyTX, nofakeDrainReceipt.
+  Customerretrynewexplicitboundaryrequiresverifiedcoldreceipt+candidateACTIVE,
+  SAMErelease/R/wallet/fullholds. retryHistoryAPPENDS, noerase. Framework0.8.36
+  unchanged/prototypePARKED. RuntimeagentH2/securitypass, PG3testfollowupactive,
+  mainaddedmanifestcoldcap+endpoint/configtestassertion. ReviewernoP1/P2blocker.
+  No hostedcoldmutation/appactivation/publicingress/businesswrite; CPremainse8.
+  Nextqualify/publishruntime+backendONEpair, boundedcoldrepairthenownerretry,
+  consumer/appactivation+preparedbrowsergates. Capacitypolicyexpired19:32;
+  refreshonlywhenconsumingretry. DetailsWORKER_FENCING_RECOVERY_EXECUTION_TRACKER.
+
+- 19:05UTC boundedcoldpathactive: frameworkprototypePARKED22paths/84testsPASS,
+  /private/tmp/01044-framework-background-work-fencing-20261021/HANDOFF.md,
+  nover/commit/push/release/sharedMaveninstall. SameagentChandraNEWLEAFruntime
+  DTO/Service/Controller+testsONLY, noframework/Backendedits. NewColdMaintenance
+  requestwrapsexistingGenerationTransition+previousOperationId/previousReqFP/
+  approvalReference/acceptInMemoryStateLoss; typedresulttransition+actualobserved
+  Snapshot+kindPHYSICAL_STOP_COLD_MAINTENANCE_V1+approvalRef+ack.
+  URI/private/runtime-target-retirement/cold-maintenance-generation-transitions,
+  dedicatedscope runtime:target-retirement:cold-maintenance:write +SYSTEM_PROCESS.
+  MainBackendtypes/RuntimeGenerationTransitionClient/newtest7PASS, uncommitted,
+  sourcebased0.8.36. CurrentRPConlynotrepairwired/notlive. MainmustextendEXISTING
+  artifactrepairModewithseparatepriorphysicalrelease/candidateScope, allowonly
+  explicitcoldlossack/neverACTIVEapp(CONVERSATIONALstaging), allwritersstopproof,
+  SAMEframeworknewPRODUCTsourceartifact. Keepwallet/PG/nativeIDs/financialhistory.
+  Artifactrepaircurrentlyrequiresactive_version==candidate andinitialAdmission
+  version==manifest (currentwalletinitialold2e); coldeligibilitymustPINoldprior
+  versionnotrewriteinitialterms. Graphprepared+runtimegenerationQUIESCEDcurrently
+  rejectedbyoldDependencyEligibility; exactcoldallowanceonly, oldmodesunchanged.
+  Needmode-specificeffects list (excludeBEGIN_DRAIN/CANCEL_DRAIN, addtypedCOLD
+  adoptionstep) preservingoldsealedJSONfingerprints withNON_NULLoptionalfields.
+  NeedCOLD_ADOPTEDcheckpointdistinctfromFENCED/ADOPTED, thennormalretryboundary
+  requiringverifiedrepair+actualcandidateACTIVE; oldpre-runtime-stopretryCANNOT
+  replay. PriorRuntime physicaloldrel1fe...; candidate0ad/rel-efc... alreadycorrect
+  broker8.36. NewruntimebootfromcurrentCoolifycandidateenv thenexplicitcoldRPC
+  admitsoldDRAINING1->candidateACTIVE2afterauthoritativeoldprocessstop, nofake
+  worker/drainproof. BackendSDKcoldclient7PASS; realPG/securitytestsREQUIRED.
+  No furtherhostedmutation sincefailedapply; CPhealthy_e8, appDRAFT, browserunrun.
+
+- 18:55UTC userviaPlatform-Updatesasksmainoverengineeringverdict. Mainanswered
+  YES zero-lossupgradeprematureforfirstdisposablepilot. ImmediateNEXT bounded
+  explicitCOLDmaintenanceusingexistingrepair/generationflow, notnewengine.
+  Priorphysicalruntime+failedcandidatepinnedseparately; explicitdowntime/lossack;
+  stopALLownedwriters/readbacks; sameframework0.8.36newPRODUCTartifactneeded,
+  typedphysical-stopadoption/monotonicepoch, NOTfakefull-drainproof. Correctauth
+  candidatever0ad already0.8.36, noframeworkupgradeintrinsicallyneededforchat.
+  Preservewallet/limits/usage/history; noSQLrepair/newallocation/hiddenfallback.
+  ThispathNOTimplemented/mutatedyet. Frameworkagenttoldstopscopeexpansion,
+  finishonlycurrenttestsandparkuncommittedWIP/nover/release/push/sharedinstall.
+  inventorylocalcommit033301a78(18PASS/H2andprimarybean/noPG), notpushed.
+  Qualification/privateXMLroot01044-worker-fencing-runtime-20261021.
+  UpdatedWORKER_FENCING_RECOVERY_EXECUTION_TRACKER separatesNEXTvsdeferred.
+  Reviewer: existingCANCEL_DRAINruntimeprimitivecanrestoreold1->2butnoPlatform
+  generationcancelAPI; artifactrepaireligibilityactivever/handlepriorrelease
+  mismatch+neveractivatedrestrictionrequiresboundedmaintenanceextension.
+  ExistingrepaircompatrequiresSAMEframework (fitscurrent0.8.36repair).
+  Noexistingcoldrouteclaimed. CurrentCPe8healthy/appDRAFT/oldruntimeDRAINING1,
+  connector+Inboxstopped, noquery/businesswrite, sameRheld. Maincontinuesbasicpath.
+
+- 18:42UTC same rel-efc001ac retry FAILED RUNTIME_GENERATION_DRAIN_INCOMPLETE.
+  Actual oldruntimeDRAININGepoch1/notrevoked/notreclaiming; connector+Inboxstopped.
+  Zerochats/confirms/human/inflight; queue57COMPLETED/6DEAD_LETTER, noactivework.
+  Primarydraftbean+terminalDEADinventory fixes18testsPASS locally, notlive.
+  Initialcompilefailedstaleprivatebudgetjar; unchanged sourceinstalled, rerunPASS.
+  Framework0.8.36 genuinelymissingbackgroundclaim/effect/completionfencingSPI;
+  executionIN_MEMORY cannotbeprovenemptyfromPG. Do NOTskipguard/fakeabsence/
+  replaypre-runtime-stopretry (epochalreadychanged). Exactrecoverycoldrepair
+  verified/consumereligibilitygap underread-onlyreview. Newboundedtrack:
+  verification-support/productization-01036/WORKER_FENCING_RECOVERY_EXECUTION_TRACKER.md.
+  AgentChandrasekhar01a159ac frameworkONLYminimalhook, norelease/commit yet;
+  reviewer01a15640 checksEXISTINGrecoverypaths read-only. Mainruntime/live.
+  BothCPstillhealthye8/schema207. AppDRAFT/browserunrun/leadwrites0/UIlast.
+
+- 18:24UTC both CPs verify e8f0771dd/image81eb5035/schema207/healthUP, unchanged
+  config and25 protected authority/financial tables. CI39650498084 PASS,
+  stagejobiew4gk8yl154w5hox8f8fkvn/prodjobuqrin31p491gds42g44t5y0v;
+  closure9d6b9f31...eb839d. New normal owner placement+retryPLAN200 then one
+  EXECUTE200 SAMErel-efc001ac/R25dea632/gen8bf1bb40 nowR8 APPLY_REQUESTED,
+  nofinancialmutation. Helper checksum's JSON key-order failure was BEFORE
+  intent/POST; original evidence retained, corrected persisted-command review.
+  Execute intent NOW CONSUMED: observe, never replay. AppDRAFT/browserunrun.
+  Next sameapply verification/retainedsources/consumer+appactivation/scope/browser.
+  Policyvalid19:32:24Z. UIlast. Independent source review: currentQdrantoffer
+  cannot promote toZilliz in place; basicexistingpath isnewpromotableMilvus
+  composition withFree01stage/approvedServerlessprod, separatetargetbindings,
+  SAMEversion/artifact, independentproductionindex. No vectorcopy/offerrewrite/
+  cross-providerfeature. Retireoldstage/capacity beforeanothercomposition.
+
+- 18:13UTC BOTHCP3a1eccfce/image315224e6 verified/schema207/25criticaltables
+  preserved; closure34dd8f7e...05749c. OwnerretryPLAN failed(notexecute): actual
+  runtimeACTIVEfence0 perV12schema/liveREADONLYPG, Platformrequires>=1. Unhandled
+  validationmasked401viaERRORdispatch, ownerstill200authenticated. NOqueue/
+  statecounterrepair/publicquery/leadwrite. e8f0771dd fix>=0 +wirecounterrequired/
+  nonnull +explicit409cause; fullinitial0and1fencecycle/negative/HTTP regressions.
+  43checks/13realPG/zero failures/errors/skips/packagePASS; CI39650498084running.
+  No framework/runtime/schema/UIchange. Root01044-initial-runtime-fence-20261021
+  qualifier/rollout/closure helpersprepared. BOTHCPstill3a untilnewrollout.
+  NEWretryhelper01044-fresh-pilot-initial-fence-retry-20261021.mjs NOTRUN;
+  oldplanintentconsumed401, donotreplay. SameR7/rel-efc001ac/gen8bf.../fullholds.
+  Placementreceipt17:56canreusewhilefresh; customerSummary chargedDemand only,
+  genmustcomparenormalplanfencewithactualpreservedinternalrow (notundefined).
+  Policyvalid19:32:24Z; appDRAFT/browserhelpersunrun/UIlast. Followupsrecorded
+  forreadonlystatusfreshness/globalERRORdispatch/portableproducercontractfixture.
+
 - 17:42UTC source3a1eccfce committed/pushed; CI39645965490 backendonlybuilding.
   Combinedqualification257cases/152realPG/zero failures/errors/skips +package.
   Composition117focusedPASS+140completedPGsuite; broadouterrun12941 intentionally
