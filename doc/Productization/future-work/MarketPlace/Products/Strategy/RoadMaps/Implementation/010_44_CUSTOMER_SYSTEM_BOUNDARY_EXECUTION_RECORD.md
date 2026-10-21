@@ -1,5 +1,18 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 23:30 UTC Retained Runtime Setup Verified
+
+Both control planes now verify `8090fc1ed`, schema207/healthUP, unchanged
+configuration and25 protected authority/financial tables. The minimal correction
+keeps the provisioned-runtime authority contract intact, distinguishes setup from
+verification and excludes recovery while an apply worker is active.127 focused
+tests, including2 actual PostgreSQL cases, package and backend-only CI pass.
+The existing owner continuation completed dependency setup/source sync/verification
+without redeploying the runtime or changing funding. `rel-efc001ac` is now
+`APPLIED_VERIFIED/PASSED`; all3 customer-owned S3 policy sources are ACTIVEv1.
+Exact receipts and prior failures remain in the bounded tracker. Customer app
+activation/browser acceptance, promotion and UI-LAST extraction remain open.
+
 ## 2026-10-21 22:17 UTC Recovery Verified, Live Apply Race Found
 
 Cold maintenance is VERIFIED on the same allocation and framework0.8.36. The

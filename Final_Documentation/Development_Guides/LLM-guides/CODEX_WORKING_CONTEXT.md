@@ -10,6 +10,30 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 23:45UTC rel-efc APPLIED_VERIFIED/PASSED, graphREADY, consumerbinding3 and
+  appACTIVE https://northfield-pilot.apps.loomai.pro. All3S3sourcesACTIVEv1;
+  retrievalproof200/3scopedchunks. FIRSTbrowserrunFAILED: modelbodyTypefamily
+  yielded0stock; fundedadvancedRAGworkerThreadLocalmissingINVOCATION_CONTEXT_REQUIRED.
+  Harnessalsoincorrectlyassumedmetadata.authenticated=false (signedanonprincipal
+  istrue); useverifiedpublicsession+typedauthheaders, notthatflag. Failedrunkept.
+  Minimalruntime-only executorSPI override keepsadvancedfanoutSYNCHRONOUS when
+  budgetenabled, publicframework0.8.36unchanged.29focused/packagePASS, notlive.
+  IndependentInboxrunSTOPPEDbeforehandover onLIMIT_EXCEEDED: full128kinputhold,
+  actual21416tokens/$0.00338159/2queries/all37attemptsSETTLED. NOhumanclaim/write.
+  AskedRequiredforproduction toclarify2Mtechnicaltokenceiling, SAME12USD/50queries,
+  noextra$ oroldtermreset; continueindependentwork. Sourcepublicationnext.
+  BoundedRawlsstockmetadataworkerfinishedlocalnew1.1source; Mainreviewpending.
+
+- 23:30UTC BOTHCP8090fc1ed/image6458604a/schema207/UP, config+25protected
+  tablesunchanged. Stagejobk6csyc7jovvyju2ruyhpvrh1/prodk13wqylmjeeanxlcj28qsvj5;
+  closureaf6dbe7d542c15d15f79838b12e55002ffaec69dc368c0c38850c28d96b7e557.
+  NEW normalowner continuation PLAN200/EXECUTE200R19, nofinancialmutation/
+  runtimeredeploy; rel-efc001ac NOW APPLIED_VERIFIED/PASSED. All3S3policies
+  ACTIVEv1. Failedindex1-409 retained; explicit newindexretry202, doc2register201/
+  index202. Consumeractivation inprogress via identity-activatehelper; app/scope/
+  browserfirst-auth-inbox next, unrun. No publicAIquery/businesswrite/UIextraction.
+  UIlast, promotionunproven. Previous consumedcommands mustnot bereplayed.
+
 - 23:07UTC BOTHCPee7622a12/image78ef36d9/schema207/UP/25tables+configunchanged,
   stgjobrtgx742ydwk1q7s1d6oh2z52/prodqeo0xf9tmznl0ie1nif5g4yq;
   closure2d179718...c43aca6. Owner post-provision PLAN200/EXECUTE200R16

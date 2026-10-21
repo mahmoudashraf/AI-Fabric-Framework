@@ -6,18 +6,38 @@ import static org.mockito.Mockito.*;
 
 import ai.fabric.config.AIProviderConfig;
 import ai.fabric.core.AIEmbeddingService;
+import ai.fabric.core.AICoreService;
+import ai.fabric.core.AISearchService;
+import ai.fabric.dto.AdvancedRAGRequest;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.dto.RAGResponse;
 import ai.fabric.embedding.EmbeddingProvider;
 import ai.fabric.indexing.worker.IndexingOperationExecutor;
 import ai.fabric.provider.onnx.ONNXEmbeddingProvider;
 import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.config.RAGAutoConfiguration;
+import ai.fabric.rag.service.AdvancedRAGService;
+import ai.fabric.prompt.ClasspathPromptTemplateStore;
+import ai.fabric.config.PromptBundleProperties;
+import ai.fabric.prompt.PromptRenderer;
+import ai.fabric.prompt.PromptTemplateResolver;
+import ai.fabric.spi.RAGProvider;
 import ai.fabric.service.VectorManagementService;
 import com.ai.fabric.budget.ProviderBudgetLedger;
+import com.ai.fabric.budget.BudgetException;
 import com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver;
+import com.ai.fabric.budget.openai.OpenAiBudgetInvocation;
 import com.ai.fabric.budget.openai.ReviewedOpenAiRateCard;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimeAuthContext;
+import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -38,6 +58,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.core.io.DefaultResourceLoader;
 
 class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.TestScope {
     private static final String KEY = "fixture-config-key-not-a-provider-credential";
@@ -49,9 +70,83 @@ class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.
                 assertThat(context).hasNotFailed().doesNotHaveBean(RuntimeBudgetBindingService.class)
                     .doesNotHaveBean(ProviderBudgetLedger.class).doesNotHaveBean(RuntimeProviderBudgetAdminController.class)
                     .doesNotHaveBean(RuntimeBudgetTurnScopes.class).doesNotHaveBean(RuntimeBudgetHealthGroups.class)
-                    .doesNotHaveBean(BudgetGuardedSpringAiModelResolver.class).doesNotHaveBean(RuntimeBudgetStorage.class);
+                    .doesNotHaveBean(BudgetGuardedSpringAiModelResolver.class).doesNotHaveBean(RuntimeBudgetStorage.class)
+                    .doesNotHaveBean("advancedRagSearchExecutor");
             });
         }
+    }
+
+    @Test
+    void releasedAdvancedRagUsesTheFundedTurnAndCannotHideProviderDenials() throws Exception {
+        for (boolean denied : new boolean[]{false, true}) {
+            var fixture = new RuntimeBudgetFixture();
+            enabled(fixture).withConfiguration(AutoConfigurations.of(RAGAutoConfiguration.class))
+                .withBean(AISearchService.class, () -> mock(AISearchService.class))
+                .withBean(AICoreService.class, () -> mock(AICoreService.class))
+                .withBean(RAGProvider.class, () -> mock(RAGProvider.class))
+                .withBean(PromptRenderer.class, PromptRenderer::new)
+                .withBean(PromptTemplateResolver.class, () -> new PromptTemplateResolver(
+                    new ClasspathPromptTemplateStore(new DefaultResourceLoader()), new PromptBundleProperties()))
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(AdvancedRAGService.class);
+                    assertThat(context.getBeansOfType(ExecutorService.class)).isEmpty();
+                    var budgets = context.getBean(RuntimeBudgetBindingService.class);
+                    var scope = context.getBean(RuntimeBudgetConfiguration.class).scope();
+                    var approval = new ProviderBudgetLedger.Approval("advanced-rag-fixture", scope,
+                        APPROVAL.limits(), Instant.parse("2099-01-01T00:00:00Z"));
+                    activate(budgets, budgets.initialize(allocation(approval)));
+                    var turns = context.getBean(RuntimeBudgetTurnScopes.class);
+                    var core = context.getBean(AICoreService.class);
+                    when(core.generateText(any())).thenReturn("expanded one\nexpanded two");
+                    var provider = context.getBean(RAGProvider.class);
+                    var calls = new AtomicInteger();
+                    var owner = Thread.currentThread();
+                    when(provider.performRag(any(RAGRequest.class))).thenAnswer(invocation -> {
+                        assertThat(Thread.currentThread()).isSameAs(owner);
+                        var capture = turns.capture(OpenAiBudgetInvocation.Operation.EMBEDDING);
+                        calls.incrementAndGet();
+                        if (denied) {
+                            capture.observer().onDenied(new OpenAiBudgetInvocation.Denial(
+                                capture.operationId(), UUID.randomUUID(), BudgetException.Code.LIMIT_EXCEEDED, null));
+                        }
+                        return RAGResponse.builder().success(!denied).documents(denied ? List.of() : List.of(
+                            RAGResponse.RAGDocument.builder().id("policy").content("Approved delivery policy")
+                                .score(0.9).similarity(0.9).build())).build();
+                    });
+                    var identity = RuntimeResolvedIdentity.builder().authContext(RuntimeAuthContext.builder()
+                        .subjectId("advanced-rag-owner").authMode(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED)
+                        .customerId("customer").tenantId("tenant").deploymentId("deployment")
+                        .expiresAt(Instant.parse("2099-01-01T00:00:00Z")).grantedScopes(List.of("chat:query")).build()).build();
+                    try (var turn = turns.openChat(identity, null)) {
+                        var response = context.getBean(AdvancedRAGService.class).performAdvancedRAG(
+                            AdvancedRAGRequest.builder().query("delivery policy").expansionLevel(2)
+                                .rerankingStrategy("hybrid").build());
+                        assertThat(calls).hasValue(3);
+                        assertThat(response.getDocuments()).hasSize(denied ? 0 : 1);
+                        var result = ai.fabric.intent.orchestration.OrchestrationResult.builder()
+                            .type(ai.fabric.intent.orchestration.OrchestrationResultType.INFORMATION_PROVIDED)
+                            .success(true).build();
+                        turn.verifyBeforeResultCommit(result);
+                        assertThat(result.isSuccess()).isEqualTo(!denied);
+                        assertThat(result.getErrorCode()).isEqualTo(denied ? RuntimeBudgetTurnScopes.INTERRUPTION_CODE : null);
+                    }
+                    assertThat(budgets.readCurrent().chatAttempts()).isEqualTo(1);
+                });
+        }
+    }
+
+    @Test
+    void disablingAdvancedRagDoesNotInstallAnExecutorInTheFundedProfile() throws Exception {
+        enabled(new RuntimeBudgetFixture()).withPropertyValues("ai.infrastructure.rag.advanced.enabled=false")
+            .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean("advancedRagSearchExecutor"));
+    }
+
+    @Test
+    void unguardedRuntimeKeepsTheFrameworkParallelExecutor() {
+        base().withConfiguration(AutoConfigurations.of(RAGAutoConfiguration.class)).run(context -> {
+            assertThat(context).hasNotFailed().doesNotHaveBean(RuntimeBudgetTurnScopes.class);
+            assertThat(context.getBean("advancedRagSearchExecutor")).isInstanceOf(ExecutorService.class);
+        });
     }
 
     @Test

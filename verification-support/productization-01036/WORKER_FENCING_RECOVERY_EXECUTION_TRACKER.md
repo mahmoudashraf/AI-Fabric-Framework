@@ -7,6 +7,62 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+### 23:45 UTC Browser Evidence And Bounded Retrieval Correction
+
+Normal consumer activation advances the binding to3 and the existing app is now
+ACTIVE at `https://northfield-pilot.apps.loomai.pro`. The graph is READY and all3
+policy sources are ACTIVEv1. Direct retrieval proof returns3 correctly scoped
+chunks. This does not establish browser answer quality.
+
+The first real browser query is retained as FAILED. It exposed two independent
+issues: the model supplied `bodyType: family`, an invalid categorical stock
+constraint; and advanced RAG's worker threads lost this funded runtime's explicit
+synchronous invocation scope. All4 policy embedding attempts failed closed
+`INVOCATION_CONTEXT_REQUIRED`, so the policy answer had no evidence. The harness
+also incorrectly expected orchestration `authenticated=false` for a signed
+anonymous principal; subsequent checks must use the verified public anonymous
+session and typed runtime authentication headers instead.
+
+Minimal runtime correction uses the RELEASED framework's named executor hook.
+Only when the guarded budget profile is enabled, advanced expanded searches run
+sequentially within the same funded request. No ThreadLocal inheritance, global
+scope, unmetered path, semantic matching, retrieval disablement or framework
+release.29 focused cases/package pass, including actual released RAG wiring,
+3 expanded searches, surfaced provider denials, and unchanged framework parallel
+executor for unguarded runtimes. This correction is not live yet.
+
+An independent Inbox browser attempt stopped before handover: the transport
+correctly denied a full128k-input reservation against the150k-token allowance.
+Read-only actual ledger:2 queries/37 SETTLED attempts/20505input+911output/
+3381590nanoUSD ($0.00338159), stopped=false, no unresolved provider attempt.
+This is our technical allocation-sizing mistake, not insufficient OpenAI funds.
+Required for production has the narrow ceiling clarification:2M task tokens,
+unchanged12USD/50queries, preserved old terms/usage, no reset or refund. Other
+work continues. Neither failed browser run is reopened or represented as green.
+
+Normal latest-artifact/new immutable composition adoption must be reviewed;
+do not add another repair engine or repeat a completed repair to install this
+next image. UI extraction remains LAST. Production promotion remains unproven.
+
+### 23:30 UTC Normal Continuation Verified
+
+Both control planes verify source `8090fc1edf23a7a01714fd436842c88caa88d156`,
+image `sha256:6458604afd54b2bc3fcf2e822241519925cfad03ea6b3a02a9d68b683500b2f2`,
+schema207/UP with configuration and25 protected authority/financial tables
+unchanged. Staging job `k6csyc7jovvyju2ruyhpvrh1`, production
+`k13wqylmjeeanxlcj28qsvj5`. Closure SHA256
+`af6dbe7d542c15d15f79838b12e55002ffaec69dc368c0c38850c28d96b7e557`.
+The normal owner continuation returned PLAN200 and EXECUTE200/revision19 for the
+same release/allocation/generation, explicitly without runtime redeployment or
+financial mutation. It completed dependencies, source sync and verification:
+`rel-efc001ac` is now `APPLIED_VERIFIED`, verification `PASSED`.
+All three customer-owned S3 policy sources are ACTIVEv1. The original document1
+index409 is retained; a separately named explicit retry returned202. Document2
+registered201/index202. No source-storage write or invented activation was used.
+Consumer activation is next, then normal app activation and the prepared live
+browser stock/policy, auth/attachments and Basic Inbox journeys. Those journeys,
+production promotion and final UI extraction are not yet accepted. UI stays last.
+
 23:07UTC latest boundary: both CPs verify ee7622a12/image78ef36d9/schema207/UP,
 25 protected tables and configuration unchanged. Closure SHA256
 2d179718c50cb2c5a58b23f7724dca109ae9a8e2d2ea35c6239967fc0c43aca6.

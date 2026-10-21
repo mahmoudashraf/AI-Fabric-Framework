@@ -14,6 +14,7 @@ import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.observation.ObservationRegistry;
 import java.time.Clock;
+import java.util.concurrent.Executor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -80,6 +81,13 @@ public class RuntimeProviderBudgetSpringConfiguration {
 
     @Bean
     RuntimeBudgetTurnScopes runtimeBudgetTurnScopes(RuntimeBudgetBindingService budgets) { return new RuntimeBudgetTurnScopes(budgets); }
+
+    @Bean("advancedRagSearchExecutor")
+    @ConditionalOnProperty(prefix = "ai.infrastructure.rag.advanced", name = "enabled", havingValue = "true", matchIfMissing = true)
+    Executor fundedAdvancedRagSearchExecutor() {
+        // This guarded profile supports synchronous scopes; expanded searches retain that same scope.
+        return Runnable::run;
+    }
 
     @Bean
     @Primary
