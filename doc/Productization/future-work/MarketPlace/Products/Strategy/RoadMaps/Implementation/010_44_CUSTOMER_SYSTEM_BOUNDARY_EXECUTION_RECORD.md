@@ -2,6 +2,14 @@
 
 ## 2026-10-21 Hosted Customer Journey Focus
 
+Environment clarification: the chosen design intentionally separates vector
+clusters by environment, with Free01 staging and the recorded owner-approved
+Frankfurt Serverless production cluster. Cross-environment sharing is optional,
+not a blocker or prerequisite for this promotion path. The fresh-pilot question
+concerns old/new STAGING adoption; any same-environment namespace-sharing proposal
+is a separate alternative, not permission to share staging with production. The
+owner's clarification question is not a new resource or deployment approval.
+
 Latest actual checkpoint, 09:58 UTC: normal customer password sign-in, owned
 deployment management, UI placement refresh, and the selected release's three
 ACTIVE document rows pass on `console.loomai.pro`. The delivered operator key
@@ -293,8 +301,9 @@ workload or a customer-ready product; local checks are not hosted acceptance.
 - **M6 PENDING: Production promotion.** Acceptance: independently indexed
   production sources, verified release and explicit app/consumer switch, then
   bounded staging drain/retirement. No vector/conversation/business-data copy.
-  Current old-offer artifact adoption and exclusive external-cluster binding are
-  explicit constraints; a successful staging-only pilot would not remove them.
+  Current old-offer artifact adoption remains an explicit constraint. The chosen
+  separate staging/production clusters do not require shared-cluster support;
+  their actual bindings and independent indexing still require normal verification.
   [Promotion contract](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#105-promotion-assignment-data-and-session-safety).
 - **M7 PENDING: Hosted operations.** Acceptance: startup/traffic capacity,
   customer-visible limits and cleanup, actual scoped cold recovery and preserved

@@ -8,6 +8,30 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
+### Environment Separation Clarification, 21 October
+
+Required for production relayed the owner's clarification question, not a new
+approval. The agreed design uses **separate staging and production vector
+clusters**: Free01 for staging and the already recorded owner-approved Frankfurt
+Serverless cluster for production. That production provider choice is not missing
+and must not be requested or provisioned again. The historical approval reference
+is in CODEX_WORKING_CONTEXT.md, 18 October separate-Serverless checkpoint; it does
+not prove current provider health or authorize a new workload by itself.
+
+The earlier sharing observation describes an OPTIONAL unsupported configuration.
+It is **not a production blocker for this chosen separate-cluster design**, and
+fixing cross-environment sharing is not a prerequisite for hosted acceptance.
+This clarification supersedes any earlier wording implying otherwise.
+
+The unresolved fresh-pilot issue is narrower: replacing the old-offer STAGING
+canary needs its own supported artifact/admission/vector-binding path. Sharing
+Free01 between old and new staging pilots would be same-environment reuse, not
+staging/production sharing, and would require a separately reviewed generic
+contract change. No such change, extra staging cluster, fresh pilot, admission
+increase, production-cluster reuse, paid resource or Free01 reuse is approved by
+the clarification question. No provider, host, deployment or framework change
+was performed. The actual fresh staging-pilot route decision remains pending.
+
 ### Actual Hosted Acceptance, 21 October 09:58 UTC
 
 The user repeated the instruction to prioritize the open hosted stream and
@@ -80,7 +104,7 @@ runtime and the shared workspace `/health`. No new five-minute sample was run.
 
 ### Additional Deferred Return Points From This Hosted Cycle
 
-- **Shared external-vector contract, actual generic gap:** current template
+- **Optional shared external-vector contract, deferred:** current template
   `vectorStoragePosture=SHARED` does not permit sharing one physical external
   cluster across two deployment/target bindings. Three independent guards enforce
   exclusivity: `DeploymentExistingVectorBindingService` registration around line
@@ -89,6 +113,10 @@ runtime and the shared workspace `/health`. No new five-minute sample was run.
   already derives distinct customer/tenant/deployment/target prefixes, but this
   is application partitioning, not provider ACL isolation. Even basic same-owner
   staging-to-production independent indexing against Free01 is unsupported today.
+  That sharing is not the chosen design: staging uses Free01 and production uses
+  its separately approved cluster. This optional limitation is not a blocker for
+  separate-cluster promotion. Old/new staging namespace reuse is a different,
+  same-environment alternative and is not implicitly approved.
   Do not remove one guard or call a populated cluster unused as a shortcut.
   Return to all three boundaries together if the owner selects this work. No
   change was implemented here; no vectors were copied or removed.
@@ -97,8 +125,10 @@ runtime and the shared workspace `/health`. No new five-minute sample was run.
   temporary staging headroom, and a distinct compatible NO-COST vector binding
   verified before launch. No second Free cluster is confirmed. Zilliz's recorded
   one-Free-per-organization limit means another Free in the same organization
-  cannot be presumed. Owner may instead prefer to fix the generic sharing gap
-  first or pause the new pilot. No consent is inferred; no new offer/headroom,
+  cannot be presumed. An owner may select separately reviewed same-environment
+  old/new staging reuse or pause the new pilot; cross-environment sharing is not
+  required. The existing production cluster is not a new staging candidate.
+  No consent is inferred; no new offer/headroom,
   provider allocation or native deployment was dispatched. Old scope, allocation,
   audit history, customer S3 and business sources remain intact. Decision record:
   `/private/tmp/01036-fresh-latest-offer-pilot-adoption-decision-20261021.json`.

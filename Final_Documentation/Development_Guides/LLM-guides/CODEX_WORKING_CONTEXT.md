@@ -10,6 +10,16 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 clarification supersedes earliercrossenvironmentsharingblocker wording:
+  Requiredforproduction relays owner'sQUESTION, NOTapproval. Agreeddesign is
+  Free01STAGING and DISTINCTalreadyapprovedFrankfurtServerlessPRODUCTION
+  (existingOct18recordnear8395; currenthealthnotreverifiedhere). Don'treaskprovider
+  choice/create duplicate/repurposeprodclusterfornewstage. Crossenvironment
+  sharing isOPTIONAL, NOTproductionblocker/hostedprerequisite. Freshold-offer
+  STAGINGpilot adoption stillneedsroute decision; old/newSTAGINGnamespace reuse
+  isseparatealternative, noapprovalinferredforit/freshpilot/headroom/newresource/
+  paidcost/Free01reuse. Corrected4progressdocs; nohost/provider/deploymentchange.
+
 - Oct21 10:04UTC readonlyhostedguardcheck: ownerSESSION/listown2/workspace200,
   realforeignworkspace404/stafftarget403/noauthworkspace401 PASS6. Combined
   authorization-boundaries/report.json FAILretained:missingoperatorkeyreturns400

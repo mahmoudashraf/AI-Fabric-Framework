@@ -1,5 +1,14 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+- **Environment clarification, 21 October:** the chosen deployment model keeps
+  staging and production vector clusters separate: Free01 staging and the already
+  recorded approved Frankfurt Serverless production cluster. Sharing one cluster
+  across environments is optional, not a required fix or production blocker for
+  this design. The outstanding adoption decision concerns a fresh STAGING pilot;
+  same-environment old/new pilot reuse is distinct from staging/production sharing.
+  The owner's clarification question grants no fresh-pilot, sharing, resource or
+  deployment approval. See the progress tracker's environment-separation section.
+
 - **Current hosted checkpoint, 21 October 09:58 UTC:** real customer password
   sign-in, owned deployment management, normal UI placement refresh and all three
   ACTIVE policy rows pass at `console.loomai.pro`. The once-delivered operator
@@ -10,8 +19,9 @@
   deployed. The old offer cannot adopt another one-off repair. A conditional
   fresh-pilot decision is pending in Required for production; no verified second
   free vector option, new offer/headroom or deployment is assumed. A separate
-  generic gap is recorded: current external-vector exclusivity also blocks one
-  customer-provided cluster serving independent staging/production namespaces.
+  optional limitation is recorded: current external-vector exclusivity blocks one
+  customer-provided cluster serving multiple bindings. Separate staging/production
+  clusters remain the intended path and do not require that sharing capability.
   Detailed evidence, failed harness attempts, blocked gates and deferred return
   points are in the [hosted progress tracker](../../../../../../../../verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md).
   Full hosted acceptance, production promotion and reversible UI extraction are
