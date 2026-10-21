@@ -18,6 +18,9 @@ public final class RuntimeArtifactRepairContracts {
                           String expectedOfferFingerprint, long expectedEntitlementRevision,
                           String operationKey, String reason, boolean acceptRuntimeRestart, Mode mode) { }
     public record Command(String planId, String planFingerprint) { }
+    public record RenewWindow(Command command, Instant expectedExecutionDeadline, Instant executionDeadline,
+                              String reason, boolean acceptEmptyJdbcColdRestart) { }
+    public record ExecutionWindow(RenewWindow review, String actorId, Instant reviewedAt) { }
     public record StepCommand(String planId, String planFingerprint, Effect effect) { }
     public record Scope(String customerId, String tenantId, String deploymentId, String targetProfileId,
                         String releaseId, String versionId, String versionConfigHash, String authorityFingerprint,

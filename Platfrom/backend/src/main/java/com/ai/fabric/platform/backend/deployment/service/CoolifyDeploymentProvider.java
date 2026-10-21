@@ -1694,6 +1694,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         coolifyApiClient.stop(connectionForHandle(handle), handle.getProviderResourceUuid(), false);
     }
 
+    public record OwnedRepairDatabase(CoolifyConnection connection,
+        com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent intent, String databaseUuid) { }
+
+    public OwnedRepairDatabase runtimeArtifactRepairDatabase(
+        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope) {
+        var handle = repairHandle(scope, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, scope.databaseUuid());
+        var connection = connectionForHandle(handle);
+        var database = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        if (!scope.databaseUuid().equals(database.uuid()) || !"running:healthy".equalsIgnoreCase(database.status())) throw failedApplyRetryUnproven();
+        var profile = targetProfileRepository.findById(scope.targetProfileId()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        var intent = switch (profile.getEnvironmentName().toUpperCase(java.util.Locale.ROOT)) {
+            case "STAGING" -> com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_STAGING;
+            case "PRODUCTION" -> com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent.CUSTOMER_PRODUCTION;
+            default -> throw failedApplyRetryUnproven();
+        };
+        return new OwnedRepairDatabase(connection, intent, database.uuid());
+    }
+
     public void patchRuntimeArtifactRepairImage(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope,
         com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ArtifactPin replacement) {
         var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());

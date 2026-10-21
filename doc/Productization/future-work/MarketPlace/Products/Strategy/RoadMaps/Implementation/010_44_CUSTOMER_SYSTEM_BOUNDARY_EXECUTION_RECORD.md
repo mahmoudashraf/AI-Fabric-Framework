@@ -1,5 +1,29 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 Basic-Case Scope Decision
+
+The user retained the full self-service goal (option 1), not the suggested
+staff-assisted reduction. Complete the basic supported journey; record difficult
+cases rather than broadening the recovery machinery. UI extraction stays last.
+
+The current never-activated setup needs one explicit, append-only repair-window
+review and a separately retained native empty-store proof. The four owned
+PostgreSQL conversation/action-state tables actually read zero over staging SSH
+at approximately 02:21 UTC. This is not proof of empty in-memory state or complete
+worker fencing. Explicit cold-state consent, stopped remote writers and a physical
+runtime stop remain required. Original plan/drain identity, unknown-effect
+no-replay guards, wallet counters and failed indexing history remain unchanged.
+
+Nonempty/custom-store recovery and active-customer state-preserving recovery are
+deferred and blocked. Focused integrated checks now pass 133 tests, including
+25 actual PostgreSQL checks. The bounded review found one current-writer-state
+gap, fixed and regression-tested: current connector/Inbox status must still be
+stopped through drain cancellation, not merely have an old stop receipt.
+Final packaging and one backend-only rollout remain.
+No new hosted recovery, allowance renewal, customer activation or end-to-end
+acceptance is claimed by this source checkpoint. The earlier current-milestone
+records below describe the last deployed state until a later verified entry.
+
 ## Current Pre-Extraction Milestones
 
 Execution policy agreed 2026-10-20: main owns sequential integration, mutation and

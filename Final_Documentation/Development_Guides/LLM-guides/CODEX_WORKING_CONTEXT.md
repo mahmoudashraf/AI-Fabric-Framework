@@ -10,6 +10,19 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 latest user direction supersedes the suggested scope reduction: retain
+  full010.36 self-service, basic supported cases first; document hard cases,
+  extractionLAST. Main implements one append-only <=2h/reservation-bounded repair
+  window renewal plus explicit neveractivated cold-state consent. Original plan,
+  claim/drain binding, wallet and unknown-intent no-replay guards unchanged.
+  Four fixed ownedPG tables actually read zero over stagingSSH ~02:21UTC.
+  Supplement only three known incomplete built-in observations, preserving raw
+  signed snapshot; never claim in-memory emptiness/fullfencing/retirement.
+  Nonempty/custom/active-customer recovery deferred and blocked. Final focused
+  tests133/25actualPG PASS in01044-reviewed-empty-recovery-20261021. Review's
+  fresh-remote-writer-status gap fixed/tested; finalpackage/backend-onlypublish
+  next. No new hosted mutation yet.
+
 - At01:46UTC BOTH CPs verifiedea8294d2d/image637b3b79/schema207/UP; source-only
   closure8bdd5558be3068463b1b8d7d3d8017003eaef9c945d2170d0bb6a0f604f25cb7
   under01044-deadline-precision-backend-rollout-20261021.48checks/14actualPG+

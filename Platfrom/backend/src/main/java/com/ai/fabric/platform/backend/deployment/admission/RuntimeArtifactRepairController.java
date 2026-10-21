@@ -32,6 +32,12 @@ public class RuntimeArtifactRepairController {
     public Summary verify(@PathVariable String deploymentId, @PathVariable String releaseId, @PathVariable String planId, @RequestBody Command command) {
         same(planId, command); return service.verify(deploymentId, releaseId, command);
     }
+    @PostMapping("/runtime-artifact-repairs/{planId}/renew-window")
+    public ExecutionWindow renewWindow(@PathVariable String deploymentId, @PathVariable String releaseId,
+        @PathVariable String planId, @RequestBody RenewWindow review) {
+        if (review == null) throw new AdmissionFailure(org.springframework.http.HttpStatus.BAD_REQUEST, "RUNTIME_ARTIFACT_REPAIR_WINDOW_REVIEW_REQUIRED");
+        same(planId, review.command()); return service.renewWindow(deploymentId, releaseId, review);
+    }
     @GetMapping("/runtime-artifact-repairs/{planId}")
     public Summary read(@PathVariable String deploymentId, @PathVariable String releaseId, @PathVariable String planId, @RequestParam String planFingerprint) {
         return service.read(deploymentId, releaseId, new Command(planId, planFingerprint));

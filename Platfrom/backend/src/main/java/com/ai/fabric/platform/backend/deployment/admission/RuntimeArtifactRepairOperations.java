@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTra
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider;
 import com.ai.fabric.platform.backend.deployment.service.RuntimeArtifactRepairInboxOperations;
+import com.ai.fabric.platform.backend.deployment.service.RuntimeColdStoreReadback;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashSet;
@@ -30,6 +31,9 @@ public class RuntimeArtifactRepairOperations {
     private final RuntimeArtifactRepairJournal journal;
     private final AdmissionJson json;
     private final Clock clock;
+    private RuntimeColdStoreReadback coldStores;
+    @Autowired
+    void setColdStores(RuntimeColdStoreReadback coldStores) { this.coldStores = coldStores; }
     @Autowired
     public RuntimeArtifactRepairOperations(CoolifyDeploymentProvider provider, ProviderUsageRuntimeClient budgets,
         RuntimeGenerationTransitionClient runtime, DeploymentRuntimeAuthorityService authority,
@@ -64,13 +68,22 @@ public class RuntimeArtifactRepairOperations {
         if (target.state() != RuntimeGenerationTransitionContracts.State.ACTIVE || target.authorityRevoked() || target.reclaimStarted()) fail("INITIAL_RUNTIME_NOT_ACTIVE");
         var inboxInventory = inbox.observe(local); var inboxJobs = inbox.jobs(local);
         if (!healthy(inboxInventory.get("applicationStatus")) || !terminal(inboxJobs) || inboxJobs.isEmpty()) fail("INITIAL_INBOX_STATE_UNPROVEN");
-        return new NativeEvidence(Map.of("inventory", json.write(inventory), "inbox", json.write(inboxInventory),
-            "inboxJobs", json.write(inboxJobs)), wallet, target, clock.instant());
+        var identities = new TreeMap<String, String>();
+        identities.put("inventory", json.write(inventory)); identities.put("inbox", json.write(inboxInventory));
+        identities.put("inboxJobs", json.write(inboxJobs));
+        if (local.request().mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART) {
+            if (coldStores == null) fail("EMPTY_JDBC_READBACK_UNAVAILABLE");
+            var owned = provider.runtimeArtifactRepairDatabase(local.scope());
+            identities.put("emptyJdbcPreflight", json.write(coldStores.requireEmpty(owned.intent(),
+                owned.connection().config().serverUuid(), owned.databaseUuid())));
+        }
+        return new NativeEvidence(identities, wallet, target, clock.instant());
     }
     Map<String, String> perform(Plan plan, Effect effect, String actor) {
         outsideTransaction(); journal.requireEffectAuthority(plan, effect, actor);
         var scope = plan.local().scope();
-        requireStable(plan, provider.runtimeArtifactRepairInventory(scope));
+        var current = provider.runtimeArtifactRepairInventory(scope);
+        requireStable(plan, current); requireColdWritersStopped(plan, effect, current);
         journal.requireEffectAuthority(plan, effect, actor);
         switch (effect) {
             case QUIESCE_CONNECTOR -> {
@@ -145,7 +158,7 @@ public class RuntimeArtifactRepairOperations {
         return check(plan, effect, provider.runtimeArtifactRepairInventory(plan.local().scope()));
     }
     private Map<String, String> waitFor(Plan plan, Effect effect) {
-        while (clock.instant().isBefore(plan.local().executionDeadline())) {
+        while (clock.instant().isBefore(journal.executionDeadline(plan))) {
             try { return reconcile(plan, effect); }
             catch (ObservationPending pending) {
                 try { Thread.sleep(2000); }
@@ -155,7 +168,7 @@ public class RuntimeArtifactRepairOperations {
         fail("EXECUTION_DEADLINE_ELAPSED"); return Map.of();
     }
     private Map<String, String> check(Plan plan, Effect effect, NativeInventory inventory) {
-        requireStable(plan, inventory); var scope = plan.local().scope();
+        requireStable(plan, inventory); requireColdWritersStopped(plan, effect, inventory); var scope = plan.local().scope();
         var result = new TreeMap<String, String>();
         result.put("inventory", json.write(inventory));
         switch (effect) {
@@ -215,6 +228,12 @@ public class RuntimeArtifactRepairOperations {
             }
         }
         return Map.copyOf(result);
+    }
+    private void requireColdWritersStopped(Plan plan, Effect effect, NativeInventory inventory) {
+        if (plan.local().request().mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART
+            && effect.ordinal() >= Effect.BEGIN_DRAIN.ordinal() && effect.ordinal() <= Effect.CANCEL_DRAIN.ordinal()
+            && (!stopped(inventory.connectorStatus()) || !stopped(inbox.observe(plan.local()).get("applicationStatus"))))
+            fail("COLD_REMOTE_WRITERS_NOT_STOPPED");
     }
     VerifiedRepair finalProof(Plan plan, LocalEvidence finalLocal) {
         var scope = plan.local().scope(); var inventory = provider.runtimeArtifactRepairInventory(scope);
@@ -292,8 +311,18 @@ public class RuntimeArtifactRepairOperations {
         if (connector == null || human == null || !expected.equals(java.util.Set.of("CONNECTOR", "HUMAN_INBOX"))
             || connector.evidence().get("CONNECTOR") == null || human.evidence().get("HUMAN_INBOX") == null) fail("REMOTE_DRAIN_PROOF_REQUIRED");
         if (plan.local().request().mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART) {
-            var queue = RuntimeArtifactRepairIdleCheckpoint.require(value, budgets.indexingOverview(plan.local().scope().runtimeBaseUrl(),
-                authority.issueRuntimeArtifactRepairHeaders(plan.id(), false)));
+            var overview = budgets.indexingOverview(plan.local().scope().runtimeBaseUrl(), authority.issueRuntimeArtifactRepairHeaders(plan.id(), false));
+            RuntimeArtifactRepairIdleCheckpoint.Queue queue;
+            if (!value.inventoryComplete() && journal.emptyJdbcColdRestartAccepted(plan)) {
+                if (coldStores == null) fail("EMPTY_JDBC_READBACK_UNAVAILABLE");
+                var owned = provider.runtimeArtifactRepairDatabase(plan.local().scope());
+                var empty = coldStores.requireEmpty(owned.intent(), owned.connection().config().serverUuid(), owned.databaseUuid());
+                if (!plan.local().scope().databaseUuid().equals(empty.databaseUuid()) || empty.observedAt() == null
+                    || empty.observedAt().isAfter(clock.instant()) || empty.observedAt().isBefore(clock.instant().minusSeconds(60)))
+                    fail("EMPTY_JDBC_READBACK_STALE");
+                queue = RuntimeArtifactRepairIdleCheckpoint.requireWithEmptyJdbcStores(value, overview, empty);
+                journal.recordColdStoreEvidence(plan, empty);
+            } else queue = RuntimeArtifactRepairIdleCheckpoint.require(value, overview);
             var proof = journal.confirmed(plan, Effect.BEGIN_DRAIN);
             if (proof != null && !queue.equals(json.read(proof.evidence().get("idleQueue"), RuntimeArtifactRepairIdleCheckpoint.Queue.class)))
                 fail("IDLE_QUEUE_CHANGED");

@@ -61,6 +61,18 @@ class RuntimeArtifactRepairServiceTest {
         assertThatThrownBy(() -> service.read("deployment1", "release", fixture.command())).hasMessageContaining("staff disabled");
         verifyNoInteractions(operations);
     }
+    @Test void windowRenewalRechecksLocalEvidenceWithoutDispatchingRemoteEffects() {
+        fixture.plan = fixture.plan("service-window", AdmissionFixture.NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART);
+        doReturn(fixture.plan.local()).when(evidence).read(anyString(), anyString(), any(), any());
+        service.claim("deployment1", "release", fixture.command());
+        var request = new RenewWindow(fixture.command(), fixture.plan.local().executionDeadline(),
+            AdmissionFixture.NOW.plusSeconds(900), "Continue the same reviewed repair", true);
+        var renewed = service.renewWindow("deployment1", "release", request);
+        assertThat(renewed.review()).isEqualTo(request);
+        verifyNoInteractions(operations);
+        doThrow(new AdmissionFailure(org.springframework.http.HttpStatus.FORBIDDEN, "staff disabled")).when(entitlements).requireStaffAdmin();
+        assertThatThrownBy(() -> service.renewWindow("deployment1", "release", request)).hasMessageContaining("staff disabled");
+    }
     @Test void finalVerificationFailureLeavesOriginalWalletAndWorkerHeld() {
         service.claim("deployment1", "release", fixture.command()); fixture.completeEffects();
         when(operations.finalProof(eq(fixture.plan), any())).thenThrow(new IllegalStateException("wallet changed"));

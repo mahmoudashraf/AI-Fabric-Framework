@@ -27,13 +27,14 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         journal = new RuntimeArtifactRepairJournal(jdbc, json, new DataSourceTransactionManager(dataSource), clock);
         plan = plan("repair-once");
     }
-    Plan plan(String operation) {
+    Plan plan(String operation) { return plan(operation, NOW.plusSeconds(1800), Mode.FULL_DRAIN); }
+    Plan plan(String operation, Instant deadline, Mode mode) {
         var scope = new Scope("customer", "tenant", "deployment1", TARGET, "release", "version", "config-hash", "authority",
             reservation.id(), reservation.generation(), "https://runtime.example.test", "runtime-app", "connector-app", "runtime-pg");
-        var request = new Request(reservation.fence(), "replacement", "offer-fingerprint", 2, operation, "reviewed fix", true, Mode.FULL_DRAIN);
+        var request = new Request(reservation.fence(), "replacement", "offer-fingerprint", 2, operation, "reviewed fix", true, mode);
         var original = new ArtifactPin("original", "original-pin", "reviewed/runtime", "sha256:" + "a".repeat(64), "a".repeat(40), "ci-old", "staging", "old-manifest");
         var replacement = new ArtifactPin("replacement", "replacement-pin", "reviewed/runtime", "sha256:" + "b".repeat(64), "b".repeat(40), "ci-new", "staging", "new-manifest");
-        var local = new LocalEvidence(scope, request, original, replacement, Map.of("graph", "unchanged"), NOW.plusSeconds(300), NOW.plusSeconds(1800));
+        var local = new LocalEvidence(scope, request, original, replacement, Map.of("graph", "unchanged"), NOW.plusSeconds(300), deadline);
         String id = journal.preview(local, "admin");
         return journal.savePlan(id, "admin", new NativeEvidence(Map.of("inventory", "synthetic"), RuntimeArtifactRepairWalletTest.wallet(null, 3), null, clock.instant()));
     }
@@ -66,6 +67,44 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         assertThatThrownBy(() -> journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {})).hasMessageContaining("READ_ONLY_RECONCILIATION_REQUIRED");
         assertThat(store.require(reservation.id()).workerToken()).isEqualTo(claim.workerToken());
         assertThat(journal.summary(command()).status()).isEqualTo("READ_ONLY_RECONCILIATION_REQUIRED");
+    }
+    @Test void explicitOneTimeWindowRenewalPreservesOriginalPlanReservationAndUnknownIntent() {
+        prepare(); plan = plan("window-basic", NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART);
+        var claim = claim(); var before = store.require(reservation.id());
+        var intent = journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {});
+        journal.outcome(plan, intent, Outcome.UNKNOWN, Map.of("failureType", "lost-response"), "admin");
+        clock.advance(301);
+        var review = new RenewWindow(command(), NOW.plusSeconds(300), NOW.plusSeconds(900), "Continue the reviewed empty initial setup", true);
+        var renewed = journal.renewWindow(plan, review, "admin", () -> before.expiresAt());
+        assertThat(journal.renewWindow(plan, review, "admin", () -> { throw new AssertionError("duplicate review must not revalidate or dispatch"); })).isEqualTo(renewed);
+        assertThat(journal.executionDeadline(plan)).isEqualTo(review.executionDeadline());
+        assertThat(journal.requireClaim(plan)).isEqualTo(claim);
+        assertThat(journal.requirePlan(command())).isEqualTo(plan);
+        assertThat(store.require(reservation.id())).isEqualTo(before);
+        assertThat(journal.emptyJdbcColdRestartAccepted(plan)).isTrue();
+        assertThatThrownBy(() -> journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {})).hasMessageContaining("READ_ONLY_RECONCILIATION_REQUIRED");
+        journal.reconciled(plan, Effect.QUIESCE_CONNECTOR, Map.of("CONNECTOR", "observed-stop"), "admin");
+        assertThatCode(() -> journal.intent(plan, Effect.QUIESCE_INBOX, "admin", () -> {})).doesNotThrowAnyException();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='ART_WINDOW'", Integer.class)).isEqualTo(1);
+    }
+    @Test void windowRenewalCannotExceedReservationOrChangeActor() {
+        prepare(); plan = plan("window-bounds", NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART); claim(); clock.advance(301);
+        var review = new RenewWindow(command(), NOW.plusSeconds(300), reservation.expiresAt().plusSeconds(1), "Continue setup", true);
+        assertThatThrownBy(() -> journal.renewWindow(plan, review, "admin", () -> reservation.expiresAt())).hasMessageContaining("RESERVATION_EXPIRED");
+        assertThatThrownBy(() -> journal.renewWindow(plan, review, "other-admin", () -> reservation.expiresAt())).hasMessageContaining("ACTOR_CHANGED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='ART_WINDOW'", Integer.class)).isZero();
+    }
+    @Test void windowRenewalRequiresExactDeadlineAndBoundsTheNewWindow() {
+        prepare(); claim();
+        var stale = new RenewWindow(command(), NOW.plusSeconds(1799), NOW.plusSeconds(2000), "Continue setup", false);
+        assertThatThrownBy(() -> journal.renewWindow(plan, stale, "admin", () -> NOW.plusSeconds(10000))).hasMessageContaining("WINDOW_INVALID");
+        var excessive = new RenewWindow(command(), NOW.plusSeconds(1800), NOW.plusSeconds(7201), "Continue setup", false);
+        assertThatThrownBy(() -> journal.renewWindow(plan, excessive, "admin", () -> NOW.plusSeconds(10000))).hasMessageContaining("WINDOW_INVALID");
+    }
+    @Test void fullDrainReviewCannotAuthorizeDiscardingNonDurableColdState() {
+        prepare(); claim();
+        var review = new RenewWindow(command(), NOW.plusSeconds(1800), NOW.plusSeconds(2000), "Continue setup", true);
+        assertThatThrownBy(() -> journal.renewWindow(plan, review, "admin", () -> NOW.plusSeconds(10000))).hasMessageContaining("WINDOW_REVIEW_REQUIRED");
     }
     @Test void singleEffectFailureDoesNotAuthorizeItsSuccessor() {
         prepare(); claim(); journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {});

@@ -84,6 +84,14 @@ public class RuntimeArtifactRepairService {
     public Summary read(String deploymentId, String releaseId, Command command) {
         authorized(deploymentId, releaseId, command); return journal.summary(command);
     }
+    public ExecutionWindow renewWindow(String deploymentId, String releaseId, RenewWindow review) {
+        if (review == null) throw new AdmissionFailure(BAD_REQUEST, "RUNTIME_ARTIFACT_REPAIR_WINDOW_REVIEW_REQUIRED");
+        var plan = authorized(deploymentId, releaseId, review.command()); var claim = journal.requireClaim(plan);
+        return journal.renewWindow(plan, review, actor(), () -> {
+            revalidate(plan, claim);
+            return store.require(plan.local().scope().reservationId()).expiresAt();
+        });
+    }
     private LocalEvidence revalidate(Plan plan, Claim claim) {
         var scope = plan.local().scope();
         var current = evidence.read(scope.deploymentId(), scope.releaseId(), plan.local().request(), claim);

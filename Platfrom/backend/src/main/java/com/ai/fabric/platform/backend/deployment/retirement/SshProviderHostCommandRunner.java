@@ -135,6 +135,7 @@ public class SshProviderHostCommandRunner implements ProviderHostCommandRunner {
 
     static boolean safeCommand(List<String> command) {
         if (command == null || command.stream().anyMatch(SshProviderHostCommandRunner::blank)) return false;
+        if (com.ai.fabric.platform.backend.deployment.service.RuntimeColdStoreReadback.permits(command)) return true;
         if (command.size() == 3 && "test".equals(command.get(0)) && "-d".equals(command.get(1))) {
             String path = command.get(2);
             return SAFE_PATH.matcher(path).matches() && !path.startsWith("//")

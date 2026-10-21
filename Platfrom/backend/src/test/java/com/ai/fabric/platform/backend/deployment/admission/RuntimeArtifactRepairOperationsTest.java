@@ -6,6 +6,10 @@ import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTra
 import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider;
 import com.ai.fabric.platform.backend.deployment.service.RuntimeArtifactRepairInboxOperations;
+import com.ai.fabric.platform.backend.deployment.service.RuntimeColdStoreReadback;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileConfig;
+import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
@@ -16,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -68,6 +73,48 @@ class RuntimeArtifactRepairOperationsTest {
         assertThatThrownBy(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN))
             .isInstanceOf(AdmissionFailure.class).hasMessageContaining("DRAIN_BINDING_CHANGED");
     }
+    @Test void reviewedColdRecoveryAuditsNativeEmptyProofWithoutRepeatingTheDrainCommand() {
+        var h = new Harness(Effect.BEGIN_DRAIN, Mode.IDLE_CHECKPOINT_COLD_RESTART);
+        h.incompleteStores();
+        when(h.journal.emptyJdbcColdRestartAccepted(h.plan)).thenReturn(true);
+        assertThatCode(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN)).doesNotThrowAnyException();
+        verify(h.journal).recordColdStoreEvidence(eq(h.plan), eq(h.emptyProof));
+        verify(h.runtime, never()).command(anyString(), any(), anyMap());
+        verify(h.provider, never()).stopRuntimeArtifactRepairApplication(any(), anyBoolean());
+        verify(h.budgets, never()).initialize(anyString(), any(), anyMap());
+        verify(h.budgets, never()).extendValidity(anyString(), any(), anyMap());
+    }
+    @Test void incompleteInventoryCannotUseNativeProofWithoutExplicitColdConsent() {
+        var h = new Harness(Effect.BEGIN_DRAIN, Mode.IDLE_CHECKPOINT_COLD_RESTART); h.incompleteStores();
+        assertThatThrownBy(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN)).isInstanceOf(AdmissionFailure.class);
+        verifyNoInteractions(h.coldStores);
+        verify(h.journal, never()).recordColdStoreEvidence(any(), any());
+    }
+    @ParameterizedTest @ValueSource(strings = {"connector", "inbox"})
+    void coldRecoveryRejectsStatusOnlyWriterRestartDespiteHistoricalStopReceipts(String writer) {
+        var h = new Harness(Effect.BEGIN_DRAIN, Mode.IDLE_CHECKPOINT_COLD_RESTART); h.incompleteStores();
+        when(h.journal.emptyJdbcColdRestartAccepted(h.plan)).thenReturn(true);
+        if (writer.equals("connector")) {
+            var before = h.inventory(false, false, "running:healthy", false);
+            when(h.provider.runtimeArtifactRepairInventory(h.plan.local().scope())).thenReturn(new NativeInventory(
+                before.fingerprints(), before.runtimeStatus(), "running:healthy", before.runtimeRepository(), before.runtimeTag(),
+                before.runtimeJobs(), before.connectorJobs(), before.observedAt()));
+        } else when(h.inbox.observe(h.plan.local())).thenReturn(h.inboxInventory(true));
+        assertThatThrownBy(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN)).hasMessageContaining("COLD_REMOTE_WRITERS_NOT_STOPPED");
+        verifyNoInteractions(h.coldStores);
+        verify(h.runtime, never()).command(anyString(), any(), anyMap());
+    }
+    @ParameterizedTest @ValueSource(strings = {"stale", "foreign"})
+    void nativeProofMustBeFreshAndForTheOwnedDatabase(String change) {
+        var h = new Harness(Effect.BEGIN_DRAIN, Mode.IDLE_CHECKPOINT_COLD_RESTART); h.incompleteStores();
+        when(h.journal.emptyJdbcColdRestartAccepted(h.plan)).thenReturn(true);
+        when(h.coldStores.requireEmpty(any(), anyString(), anyString())).thenReturn(new RuntimeColdStoreReadback.Proof(
+            change.equals("foreign") ? "other-db" : "runtime-pg", change.equals("stale") ? Harness.NOW.minusSeconds(61) : Harness.NOW,
+            h.emptyProof.counts(), "native-proof"));
+        assertThatThrownBy(() -> h.ops.reconcile(h.plan, Effect.BEGIN_DRAIN)).hasMessageContaining("EMPTY_JDBC_READBACK_STALE");
+        verify(h.journal, never()).recordColdStoreEvidence(any(), any());
+        verify(h.runtime, never()).command(anyString(), any(), anyMap());
+    }
     static class Harness {
         static final Instant NOW = AdmissionFixture.NOW;
         final AdmissionJson json = new AdmissionJson(new ObjectMapper().registerModule(new JavaTimeModule()));
@@ -77,6 +124,9 @@ class RuntimeArtifactRepairOperationsTest {
         final ProviderUsageRuntimeClient budgets = mock(ProviderUsageRuntimeClient.class);
         final DeploymentRuntimeAuthorityService authority = mock(DeploymentRuntimeAuthorityService.class);
         final RuntimeArtifactRepairJournal journal = mock(RuntimeArtifactRepairJournal.class);
+        final RuntimeColdStoreReadback coldStores = mock(RuntimeColdStoreReadback.class);
+        final RuntimeColdStoreReadback.Proof emptyProof = new RuntimeColdStoreReadback.Proof("runtime-pg", NOW,
+            Map.of("chat_sessions", 0L, "ai_conversation_control", 0L, "ai_conversation_orchestration_state", 0L, "ai_specialist_execution", 0L), "native-proof");
         final Map<Effect, Map<String, String>> dispatches = new HashMap<>();
         final AtomicBoolean runtimeStarted = new AtomicBoolean(), connectorStarted = new AtomicBoolean(), inboxStarted = new AtomicBoolean(), cancelled = new AtomicBoolean();
         final Plan plan;
@@ -96,6 +146,7 @@ class RuntimeArtifactRepairOperationsTest {
                 RuntimeArtifactRepairWalletTest.wallet(null, 3), readback(scope, RuntimeGenerationTransitionContracts.State.ACTIVE, 0), NOW), NOW, NOW.plusSeconds(300));
             ops = new RuntimeArtifactRepairOperations(provider, budgets, runtime, authority, inbox, journal, json, Clock.fixed(NOW, ZoneOffset.UTC));
             when(journal.fingerprint(plan)).thenReturn("plan-hash");
+            when(journal.executionDeadline(plan)).thenReturn(deadline);
             when(journal.dispatch(eq(plan), any())).thenAnswer(i -> dispatches.get(i.getArgument(1)));
             doAnswer(i -> { dispatches.put(i.getArgument(1), i.getArgument(2)); return null; }).when(journal).dispatched(eq(plan), any(), anyMap(), eq("admin"));
             when(journal.confirmed(eq(plan), any())).thenAnswer(i -> {
@@ -116,7 +167,8 @@ class RuntimeArtifactRepairOperationsTest {
             });
             when(provider.deployRuntimeArtifactRepairApplication(scope, false)).thenAnswer(i -> { runtimeStarted.set(true); return "runtime-job"; });
             when(provider.deployRuntimeArtifactRepairApplication(scope, true)).thenAnswer(i -> { connectorStarted.set(true); return "connector-job"; });
-            when(inbox.observe(local)).thenAnswer(i -> inboxInventory(effect != Effect.QUIESCE_INBOX && effect != Effect.RESUME_INBOX || inboxStarted.get()));
+            when(inbox.observe(local)).thenAnswer(i -> inboxInventory(mode == Mode.IDLE_CHECKPOINT_COLD_RESTART
+                ? inboxStarted.get() : effect != Effect.QUIESCE_INBOX && effect != Effect.RESUME_INBOX || inboxStarted.get()));
             when(inbox.jobs(local)).thenAnswer(i -> inboxStarted.get() ? List.of(oldJob("inbox-app"), newJob("inbox-job", "inbox-app")) : List.of(oldJob("inbox-app")));
             when(inbox.start(plan, "admin")).thenAnswer(i -> { inboxStarted.set(true); return "inbox-job"; });
             when(authority.issueRuntimeArtifactRepairHeaders(eq("plan"), anyBoolean())).thenReturn(Map.of("Authorization", "synthetic-only"));
@@ -149,6 +201,20 @@ class RuntimeArtifactRepairOperationsTest {
         RuntimeGenerationTransitionContracts.Readback readback(Scope scope, RuntimeGenerationTransitionContracts.State state, long epoch) {
             return new RuntimeGenerationTransitionContracts.Readback(target(scope), scope.tenantId(), state, epoch,
                 epoch == 0 ? null : "artifact-repair:plan", epoch == 0 ? null : "plan-hash", observedDeadline, false, false, NOW);
+        }
+        void incompleteStores() {
+            ops.setColdStores(coldStores);
+            var config = mock(CoolifyTargetProfileConfig.class); when(config.serverUuid()).thenReturn("server");
+            when(provider.runtimeArtifactRepairDatabase(plan.local().scope())).thenReturn(new CoolifyDeploymentProvider.OwnedRepairDatabase(
+                new CoolifyConnection("https://provider.example.test", "synthetic", config), TargetIntent.CUSTOMER_STAGING, "runtime-pg"));
+            when(coldStores.requireEmpty(TargetIntent.CUSTOMER_STAGING, "server", "runtime-pg")).thenReturn(emptyProof);
+            var incomplete = new RuntimeArtifactRepairIdleCheckpointTest().incompleteBuiltinStores(false);
+            when(runtime.snapshot(anyString(), any(), anyMap())).thenReturn(new RuntimeGenerationTransitionContracts.Snapshot(
+                "snapshot", "signed-original", readback(plan.local().scope(), RuntimeGenerationTransitionContracts.State.DRAINING, 1), NOW,
+                incomplete.openConversations(), incomplete.pendingConfirmations(), incomplete.humanWork(), incomplete.backgroundWork(), 0,
+                false, false, false, false, true, incomplete.topologyFingerprint(),
+                List.of(new RuntimeGenerationTransitionContracts.RemoteObligation("CONNECTOR", target(plan.local().scope()), "topology", "stop"),
+                    new RuntimeGenerationTransitionContracts.RemoteObligation("HUMAN_INBOX", target(plan.local().scope()), "topology", "stop")), incomplete.blockers()));
         }
     }
 }

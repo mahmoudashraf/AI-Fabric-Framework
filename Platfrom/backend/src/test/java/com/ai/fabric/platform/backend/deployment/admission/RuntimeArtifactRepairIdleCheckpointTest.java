@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import com.ai.fabric.platform.backend.deployment.service.RuntimeColdStoreReadback;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,6 +22,38 @@ class RuntimeArtifactRepairIdleCheckpointTest {
         assertThat(snapshot.workerFencingComplete()).isFalse(); assertThat(snapshot.localDrainComplete()).isFalse();
         assertThat(snapshot.blockers()).contains("FRAMEWORK_INDEXING_PROCESSOR_TARGET_EPOCH_FENCE_UNSUPPORTED", "DRAIN_WORK_REMAINS");
         assertThat(queue.path("queue").path("deadLetters").longValue()).isEqualTo(36);
+    }
+
+    @Test void separateNativeEmptyStoreProofSupportsOnlyTheKnownInitialSetupStores() {
+        var original = incompleteBuiltinStores(false);
+        var proof = new RuntimeColdStoreReadback.Proof("owned-db", Instant.now(), Map.of(
+            "chat_sessions", 0L, "ai_conversation_control", 0L, "ai_conversation_orchestration_state", 0L, "ai_specialist_execution", 0L), "native-empty-jdbc-proof");
+        assertThat(RuntimeArtifactRepairIdleCheckpoint.requireWithEmptyJdbcStores(original, overview(), proof).deadLetters()).isEqualTo(36);
+        assertThat(original.inventoryComplete()).isFalse();
+        assertThat(original.backgroundWork().count()).isNull();
+        assertThat(original.workerFencingComplete()).isFalse();
+        assertThatThrownBy(() -> RuntimeArtifactRepairIdleCheckpoint.require(original, overview())).isInstanceOf(AdmissionFailure.class);
+        assertThatThrownBy(() -> RuntimeArtifactRepairIdleCheckpoint.requireWithEmptyJdbcStores(incompleteBuiltinStores(true), overview(), proof))
+            .isInstanceOf(AdmissionFailure.class);
+        var nonempty = new RuntimeColdStoreReadback.Proof("owned-db", Instant.now(), Map.of(
+            "chat_sessions", 1L, "ai_conversation_control", 0L, "ai_conversation_orchestration_state", 0L, "ai_specialist_execution", 0L), "nonempty");
+        assertThatThrownBy(() -> RuntimeArtifactRepairIdleCheckpoint.requireWithEmptyJdbcStores(original, overview(), nonempty))
+            .isInstanceOf(AdmissionFailure.class);
+    }
+
+    Snapshot incompleteBuiltinStores(boolean custom) {
+        var base = snapshot("valid");
+        var observations = new java.util.ArrayList<Observation>();
+        observations.add(new Observation("ai_indexing_queue", 36L, true, List.of()));
+        observations.add(new Observation("chat_sessions.session_metadata.actionDraft", 0L, false, List.of("ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED")));
+        observations.add(new Observation("ai_conversation_orchestration_state.actionDraft", 0L, false, List.of("CANONICAL_ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED")));
+        observations.add(new Observation(custom ? "custom-worker" : "ai_specialist_execution", 0L, false,
+            List.of(custom ? "CUSTOM_STORE_UNSUPPORTED" : "DRAIN_PROVIDER_UNSUPPORTED:ai_specialist_execution")));
+        return new Snapshot(base.snapshotId(), base.evidenceReference(), base.target(), base.observedAt(), base.openConversations(),
+            base.pendingConfirmations(), base.humanWork(), new Metric(null, false, observations), 0, false, false, false, false, false,
+            base.topologyFingerprint(), base.remoteObligations(), List.of("ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED",
+                "CANONICAL_ACTION_DRAFT_STORE_ENUMERATION_UNSUPPORTED", custom ? "CUSTOM_STORE_UNSUPPORTED" : "DRAIN_PROVIDER_UNSUPPORTED:ai_specialist_execution",
+                "FRAMEWORK_EXECUTION_RECOVERY_TARGET_EPOCH_FENCE_UNSUPPORTED:SPECIALIST_EXECUTION", "FRAMEWORK_INDEXING_PROCESSOR_TARGET_EPOCH_FENCE_UNSUPPORTED"));
     }
 
     @ParameterizedTest @ValueSource(strings = {"commitPending", "pending", "processing"})

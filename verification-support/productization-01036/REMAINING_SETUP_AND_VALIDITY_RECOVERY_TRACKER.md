@@ -6,6 +6,34 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Latest Scope Decision And Basic Recovery
+
+- On 2026-10-21 the user retained the full self-service target (option 1), with
+  basic cases first and difficult cases documented. The staff-assisted scope
+  reduction suggested earlier was not accepted. UI extraction remains last.
+- A narrow correction is being qualified: one staff-reviewed, append-only
+  execution-window renewal, capped at two hours and the existing reservation
+  expiry. The original plan, claim, acknowledged drain command and wallet stay
+  immutable; UNKNOWN effects still require read-only reconciliation.
+- For never-activated initial setup only, explicit consent to discard non-durable
+  state may be combined with a fixed read-only native count of all rows in four
+  owned PostgreSQL conversation/action-state tables. All four must be zero.
+  The original signed incomplete snapshot is preserved separately; this is not
+  complete worker fencing, retirement, or a claim that in-memory state was empty.
+- Actual read-only staging preflight at approximately 02:21 UTC returned zero
+  for `chat_sessions`, `ai_conversation_control`,
+  `ai_conversation_orchestration_state` and `ai_specialist_execution`.
+  No repair effect, wallet renewal or app activation was dispatched by this check.
+- Deferred hard cases: nonempty/custom stores, active customers requiring state
+  preservation, and general automatic repair of incomplete diagnostics. Those
+  remain blocked. The basic path requires owned remote writers quiesced and a
+  physical runtime stop before the reviewed image replacement.
+- Focused integrated qualification passes 133 checks, including 25 real
+  PostgreSQL cases, with zero failures/errors/skips. The bounded review's one
+  finding is fixed: fresh connector/Inbox stopped status is required through
+  drain cancellation. Final package and one backend-only rollout are next. No
+  new hosted recovery or full customer acceptance is claimed yet.
+
 - Both control planes are verified on `ea8294d2dc2971f6adfb7ff61d2021c41e293786`,
   image `sha256:637b3b790e2ab54fb88d061d6068598eefac6e90b07a47ebb5ae65ce9ae90856`,
   schema 207. Latest source-only maintenance closed at 01:40 UTC, preserving

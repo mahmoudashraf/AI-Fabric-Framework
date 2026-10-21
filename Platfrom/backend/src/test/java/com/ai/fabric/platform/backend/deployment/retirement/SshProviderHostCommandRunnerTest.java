@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.retirement;
 import com.ai.fabric.platform.backend.customerselfservice.config.CustomerSelfServiceProperties;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.TargetIntent;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.deployment.service.RuntimeColdStoreReadback;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -29,6 +30,21 @@ class SshProviderHostCommandRunnerTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void onlyTheFixedOwnedPostgresReadbackScriptIsAddedToExecWhitelist() {
+        var exact = RuntimeColdStoreReadback.command("owned-database-uuid");
+        assertThat(SshProviderHostCommandRunner.safeCommand(exact)).isTrue();
+        for (int index = 0; index < exact.size(); index++) {
+            if (index == 2) continue;
+            var changed = new ArrayList<>(exact); changed.set(index, changed.get(index) + " unexpected");
+            assertThat(SshProviderHostCommandRunner.safeCommand(changed)).isFalse();
+        }
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "exec", "owned-database-uuid", "sh", "-lc", "'psql -c DELETE'"))).isFalse();
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "exec", "owned-database-uuid", "psql", "-c", "SELECT 1"))).isFalse();
+        var injected = new ArrayList<>(exact); injected.set(2, "owned-database;id");
+        assertThat(SshProviderHostCommandRunner.safeCommand(injected)).isFalse();
+    }
 
     @Test
     void disabledVerificationFailsBeforeReadingSecrets() {

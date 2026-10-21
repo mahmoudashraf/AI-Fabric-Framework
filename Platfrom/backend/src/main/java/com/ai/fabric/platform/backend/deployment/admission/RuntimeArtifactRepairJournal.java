@@ -71,7 +71,7 @@ public class RuntimeArtifactRepairJournal {
             var r = json.read((String) rows.getFirst().get("payload_json"), AdmissionContracts.Reservation.class);
             if (!r.fence().equals(claim.reservationFence()) || !Objects.equals(r.workerToken(), claim.workerToken())
                 || r.state() != AdmissionContracts.State.OUTCOME_UNKNOWN) fail("WORKER_CHANGED");
-            if (write) requireFresh(claim.executionDeadline());
+            if (write) requireFresh(executionDeadline(plan));
         } else requireFresh(plan.expiresAt());
         return plan.local();
     }
@@ -124,12 +124,54 @@ public class RuntimeArtifactRepairJournal {
         if (!claim.planId().equals(plan.id()) || !claim.planFingerprint().equals(json.fingerprint(plan))) fail("CLAIM_CHANGED");
         return claim;
     }
+    public Instant executionDeadline(Plan plan) {
+        var window = optional("ART_WINDOW", plan.id(), ExecutionWindow.class);
+        return window == null ? requireClaim(plan).executionDeadline() : window.review().executionDeadline();
+    }
+    public boolean emptyJdbcColdRestartAccepted(Plan plan) {
+        var window = optional("ART_WINDOW", plan.id(), ExecutionWindow.class);
+        return window != null && window.review().acceptEmptyJdbcColdRestart();
+    }
+    void recordColdStoreEvidence(Plan plan, Object proof) {
+        locked(() -> {
+            requireClaim(plan);
+            var value = Map.of("planId", plan.id(), "planFingerprint", fingerprint(plan), "scope", plan.local().scope(), "proof", proof);
+            append("ART_COLD_STORE", json.fingerprint(value), value, plan.actorId());
+            return null;
+        });
+    }
+    ExecutionWindow renewWindow(Plan plan, RenewWindow review, String actor, Supplier<Instant> revalidate) {
+        return locked(() -> {
+            var claim = requireClaim(plan);
+            if (!claim.actorId().equals(actor) || !plan.actorId().equals(actor)) fail("ACTOR_CHANGED");
+            if (review == null || !new Command(plan.id(), fingerprint(plan)).equals(review.command())
+                || review.expectedExecutionDeadline() == null || review.executionDeadline() == null
+                || review.reason() == null || review.reason().isBlank() || review.reason().length() > 1000
+                || review.acceptEmptyJdbcColdRestart() && plan.local().request().mode() != Mode.IDLE_CHECKPOINT_COLD_RESTART)
+                fail("WINDOW_REVIEW_REQUIRED");
+            var prior = optional("ART_WINDOW", plan.id(), ExecutionWindow.class);
+            if (prior != null) {
+                if (!prior.review().equals(review) || !prior.actorId().equals(actor)) fail("WINDOW_ALREADY_REVIEWED");
+                return prior;
+            }
+            if (!claim.executionDeadline().equals(review.expectedExecutionDeadline())
+                || !review.executionDeadline().isAfter(clock.instant())
+                || !review.executionDeadline().isAfter(claim.executionDeadline())
+                || review.executionDeadline().isAfter(clock.instant().plusSeconds(7200))) fail("WINDOW_INVALID");
+            if (verifiedRepair(plan.local().scope().releaseId()) != null) fail("ALREADY_VERIFIED");
+            Instant reservationExpiry = revalidate.get();
+            if (reservationExpiry == null || review.executionDeadline().isAfter(reservationExpiry)) fail("RESERVATION_EXPIRED");
+            var value = new ExecutionWindow(review, actor, clock.instant());
+            append("ART_WINDOW", plan.id(), value, actor);
+            return value;
+        });
+    }
     EffectReceipt intent(Plan plan, Effect effect, String actor, Runnable revalidate) {
         return locked(() -> {
             var claim = requireClaim(plan);
             if (!claim.actorId().equals(actor)) fail("ACTOR_CHANGED");
             if (verifiedRepair(plan.local().scope().releaseId()) != null) fail("ALREADY_VERIFIED");
-            requireFresh(claim.executionDeadline());
+            requireFresh(executionDeadline(plan));
             for (Effect previous : Effect.values()) {
                 if (previous == effect) break;
                 if (confirmed(plan, previous) == null) fail("PRIOR_EFFECT_UNCONFIRMED");
