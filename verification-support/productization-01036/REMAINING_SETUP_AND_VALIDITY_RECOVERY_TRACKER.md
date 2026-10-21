@@ -29,6 +29,32 @@ Fresh capacity, normal customer authorization and actual indexing/retrieval
 still precede activation. At this checkpoint no new pilot was created or
 deployed, and no provider data was removed. UI extraction remains last.
 
+13:30 UTC continuation: published template `mkv-6c662c54` (1.2.0) and the
+separately reviewed PostgreSQL Inbox spec through normal APIs. The first spec
+readback assertion compared raw JSON rather than the established null-omitting
+representation; publication had succeeded. A separate read-only check using
+`requirePostgresInboxPublication` passes. No publication was repeated.
+
+The old canary's charged reservation exposed a normal capacity-review gap:
+continuity required every logical ceiling to remain exactly equal, preventing
+the expressly approved extra pilot slot even with fresh physical measurements.
+The narrow correction permits monotonic increases to six reviewed logical slot
+dimensions only. Physical, funding, API/build ceilings and all safety headroom
+remain exact; coverage, placement and full held-demand checks remain required.
+236 focused checks pass, including 111 actual PostgreSQL cases, with no skips.
+Snapshot: `/private/tmp/01044-reviewed-logical-capacity-20261021`. Package,
+publication and hosted rollout remain pending at this checkpoint.
+
+Staging Shopify bridge `c12bjqdcyqdt7tzgr48pev3z` was temporarily stopped under
+the owner's earlier explicit permission; its data and configuration were not
+deleted. A subsequent GET to `/stop` was mistakenly used as a status read, but
+Coolify treats that route as another stop command. Both requests concerned the
+same already-stopped authorized service; retain the responses and do not repeat
+that route for observation. Docker's actual running inventory confirms absence.
+Resume tracking is in `shopify-pause.intent.json` under the fresh-pilot evidence
+directory. ProdUS staging was already stopped. Public framework demos and
+production Shopify were not changed by this pause.
+
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
 ### Environment Separation Clarification, 21 October

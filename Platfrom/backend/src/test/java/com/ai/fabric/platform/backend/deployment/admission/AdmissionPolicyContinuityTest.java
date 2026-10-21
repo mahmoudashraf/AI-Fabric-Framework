@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.admission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -110,6 +111,205 @@ class AdmissionPolicyContinuityTest extends AdmissionFixture {
         assertThat(store.held()).containsExactly(original);
     }
 
+    @ParameterizedTest @EnumSource(value=Dimension.class, names={"ENVIRONMENTS","REPLICAS","DATABASES","INDEXES","DEPENDENCIES","CONCURRENT_APPLIES"})
+    void reviewedLogicalCeilingIncreasePreservesTheUnknownHeldAllocationAndItsHistory(Dimension dimension) {
+        var held = store.outcome(original.fence(), State.OUTCOME_UNKNOWN, "retain-unknown-effects", "worker", NOW);
+        String allocationBytes = jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?", String.class, held.id());
+        String policyBytes = jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE kind='POLICY' AND record_key='policy1'", String.class);
+        var events = jdbc.queryForList("SELECT * FROM deployment_admission_events ORDER BY revision");
+        var grant = store.customerGrant(held.customerId());
+        at(NOW.plusSeconds(31));
+        var candidate = continuation(store, json, "policy2", List.of(held), current, NOW.plusSeconds(300));
+        for (String scope : List.of("fleet", "target")) candidate = budgetAmount(candidate, scope, "measured", dimension, 4);
+        publishFixture(store, jdbc, candidate, current);
+        assertThat(store.activePolicy()).isEqualTo(candidate);
+        assertThat(store.context(held).policy()).isEqualTo(candidate);
+        assertThat(store.manifestPolicy(held.deploymentId(), TARGET, "version")).isEqualTo(originalPolicy);
+        assertThat(store.require(held.id())).isEqualTo(held);
+        assertThat(store.held()).containsExactly(held);
+        assertThat(store.customerGrant(held.customerId())).isEqualTo(grant);
+        assertThat(jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?", String.class, held.id())).isEqualTo(allocationBytes);
+        assertThat(jdbc.queryForObject("SELECT payload_json FROM deployment_admission_reviews WHERE kind='POLICY' AND record_key='policy1'", String.class)).isEqualTo(policyBytes);
+        assertThat(jdbc.queryForList("SELECT * FROM deployment_admission_events ORDER BY revision")).isEqualTo(events);
+    }
+
+    @Test void laterFreshMeasurementRetainsIncreasedLogicalCeilingsAndStillResolvesTheOriginalPolicy() {
+        at(NOW.plusSeconds(31));
+        var increased = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(100)), 4);
+        publishFixture(store, jdbc, increased, current);
+        String allocationBytes = jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?", String.class, original.id());
+        at(NOW.plusSeconds(40));
+        var fresh = logicalCeilings(continuation(store, json, "policy3", List.of(original), current, NOW.plusSeconds(300)), 4);
+        publishFixture(store, jdbc, fresh, current);
+        assertThat(store.context(original).policy()).isEqualTo(fresh);
+        assertThat(store.authorizedPolicyReferences(store.context(original)))
+            .containsExactlyInAnyOrder("policy:policy1", "policy:policy2", "policy:policy3");
+        assertThat(store.manifestPolicy(original.deploymentId(), TARGET, "version")).isEqualTo(originalPolicy);
+        assertThat(store.require(original.id())).isEqualTo(original);
+        assertThat(jdbc.queryForObject("SELECT payload_json FROM deployment_capacity_reservations WHERE id=?", String.class, original.id())).isEqualTo(allocationBytes);
+    }
+
+    @ParameterizedTest @EnumSource(value=Dimension.class, names={"ENVIRONMENTS","REPLICAS","DATABASES","INDEXES","DEPENDENCIES","CONCURRENT_APPLIES"})
+    void logicalCeilingsCannotFallBackToOriginalValuesAfterAnIncrease(Dimension dimension) {
+        at(NOW.plusSeconds(31));
+        var increased = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(100)), 4);
+        publishFixture(store, jdbc, increased, current);
+        var relations = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='POLICY_CONT' ORDER BY record_key", String.class);
+        at(NOW.plusSeconds(40));
+        var fresh = logicalCeilings(continuation(store, json, "policy3", List.of(original), current, NOW.plusSeconds(300)), 4);
+        for (String scope : List.of("fleet", "target")) {
+            var decreased = budgetAmount(fresh, scope, "measured", dimension, 3);
+            assertThatThrownBy(() -> publishFixture(store, jdbc, decreased, current)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+            assertThat(store.activePolicy()).isEqualTo(increased);
+            assertThat(store.require(original.id())).isEqualTo(original);
+            assertThat(jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='POLICY_CONT' ORDER BY record_key", String.class)).isEqualTo(relations);
+        }
+    }
+
+    @ParameterizedTest @EnumSource(Dimension.class)
+    void noMeasuredCeilingMayDecreaseInEitherFleetOrTargetContinuity(Dimension dimension) {
+        at(NOW.plusSeconds(31));
+        var candidate = continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300));
+        for (String scope : List.of("fleet", "target")) {
+            var decreased = budgetAmount(candidate, scope, "measured", dimension, 2);
+            assertThatThrownBy(() -> publishFixture(store, jdbc, decreased, current)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+            assertThat(store.activePolicy()).isEqualTo(originalPolicy);
+            assertThat(store.require(original.id())).isEqualTo(original);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='POLICY_CONT'", Long.class)).isZero();
+    }
+
+    @ParameterizedTest @EnumSource(value=Dimension.class, names={"CPU_MILLICORES","MEMORY_BYTES","DISK_BYTES","INDEX_BYTES",
+        "CONCURRENT_BUILDS","API_REQUESTS_PER_WINDOW","PROVIDER_TOKENS_PER_WINDOW","PROVIDER_SPEND_MICROS_PER_WINDOW"})
+    void physicalFinancialApiAndBuildCeilingsCannotIncreaseWithLogicalSlots(Dimension dimension) {
+        at(NOW.plusSeconds(31));
+        var candidate = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300)), 4);
+        for (String scope : List.of("fleet", "target")) {
+            var enlarged = budgetAmount(candidate, scope, "measured", dimension, 4);
+            assertThatThrownBy(() -> publishFixture(store, jdbc, enlarged, current)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+            assertThat(store.activePolicy()).isEqualTo(originalPolicy);
+            assertThat(store.require(original.id())).isEqualTo(original);
+        }
+    }
+
+    @Test void zeroBuildCeilingsRemainZeroWhenAllSixLogicalCeilingsIncrease() {
+        at(NOW.plusSeconds(31));
+        var before = originalPolicy;
+        var after = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300)), 4);
+        for (String scope : List.of("fleet", "target")) {
+            before = budgetAmount(before, scope, "measured", Dimension.CONCURRENT_BUILDS, 0);
+            after = budgetAmount(after, scope, "measured", Dimension.CONCURRENT_BUILDS, 0);
+        }
+        AdmissionRules.policy(before, NOW); AdmissionRules.policy(after, current);
+        AdmissionPolicyContinuity.compatible(before, after);
+        var zeroBuilds = before;
+        for (String scope : List.of("fleet", "target")) {
+            var buildsEnabled = budgetAmount(after, scope, "measured", Dimension.CONCURRENT_BUILDS, 1);
+            assertThatThrownBy(() -> AdmissionPolicyContinuity.compatible(zeroBuilds, buildsEnabled)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+        }
+    }
+
+    @ParameterizedTest @EnumSource(Dimension.class)
+    void allHeadroomRemainsExactEvenWhenLogicalCeilingsIncrease(Dimension dimension) {
+        at(NOW.plusSeconds(31));
+        var candidate = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300)), 4);
+        for (String scope : List.of("fleet", "target")) {
+            var enlarged = budgetAmount(candidate, scope, "headroom", dimension, 1);
+            assertThatThrownBy(() -> publishFixture(store, jdbc, enlarged, current)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+            var originalWithHeadroom = budgetAmount(originalPolicy, scope, "headroom", dimension, 1);
+            assertThatThrownBy(() -> AdmissionPolicyContinuity.compatible(originalWithHeadroom, candidate)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+            assertThat(store.activePolicy()).isEqualTo(originalPolicy);
+            assertThat(store.require(original.id())).isEqualTo(original);
+        }
+    }
+
+    @Test void logicalIncreaseCannotReplaceAHeadWithoutExactCoverageOfUnknownHeldWork() {
+        var held = store.outcome(original.fence(), State.OUTCOME_UNKNOWN, "retain-unknown-effects", "worker", NOW);
+        at(NOW.plusSeconds(31));
+        var candidate = logicalCeilings(continuation(store, json, "policy2", List.of(held), current, NOW.plusSeconds(300)), 4);
+        var uncovered = new FleetPolicy(candidate.id(), candidate.fleet(), candidate.targets(), candidate.lifecycle(),
+            candidate.restoreEvidenceReference(), candidate.privacyEvidenceReference(), candidate.supportReference());
+        assertThatThrownBy(() -> store.approvePolicy(uncovered, "staff", current)).hasMessageContaining("POLICY_CONTINUITY_COVERAGE_REQUIRED");
+        assertThat(store.activePolicy()).isEqualTo(originalPolicy); assertThat(store.held()).containsExactly(held);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='POLICY_CONT'", Long.class)).isZero();
+    }
+
+    @ParameterizedTest @ValueSource(strings={"fleet","target"})
+    void logicalIncreaseCannotDiscountUnknownHeldPhysicalDemandFromFreshNonLedgerBaseline(String scope) {
+        var held = store.outcome(original.fence(), State.OUTCOME_UNKNOWN, "retain-unknown-effects", "worker", NOW);
+        at(NOW.plusSeconds(31));
+        var candidate = logicalCeilings(continuation(store, json, "policy2", List.of(held), current, NOW.plusSeconds(300)), 4);
+        var overdrawn = budgetAmount(candidate, scope, "baseline", Dimension.CPU_MILLICORES, 3);
+        assertThatThrownBy(() -> publishFixture(store, jdbc, overdrawn, current))
+            .hasMessageContaining(scope.equals("fleet") ? "FLEET_QUOTA_EXCEEDED:CPU_MILLICORES" : "TARGET_QUOTA_EXCEEDED:CPU_MILLICORES");
+        assertThat(store.activePolicy()).isEqualTo(originalPolicy); assertThat(store.held()).containsExactly(held);
+    }
+
+    @ParameterizedTest @ValueSource(strings={"fleet-time","target-time","target-report"})
+    void logicalIncreaseStillRequiresNewActualMeasurementTimesAndTargetReportIdentity(String changed) {
+        at(NOW.plusSeconds(31));
+        var candidate = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300)), 4);
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(candidate);
+        var budget = (com.fasterxml.jackson.databind.node.ObjectNode) (changed.equals("fleet-time")
+            ? node.path("fleet") : node.path("targets").path(TARGET).path("budget"));
+        if (changed.equals("target-report")) budget.put("measurementReference", originalPolicy.targets().get(TARGET).budget().measurementReference());
+        else budget.put("measuredAt", originalPolicy.fleet().measuredAt().toString());
+        var stale = json.read(node.toString(), FleetPolicy.class);
+        assertThatThrownBy(() -> publishFixture(store, jdbc, stale, current)).hasMessageContaining("POLICY_CONTINUITY_INCOMPATIBLE");
+        assertThat(store.activePolicy()).isEqualTo(originalPolicy); assertThat(store.require(original.id())).isEqualTo(original);
+    }
+
+    @Test void logicalIncreaseStillRequiresFreshPlacementEvidenceForTheLockedProfiles() {
+        at(NOW.plusSeconds(31));
+        var candidate = logicalCeilings(continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300)), 4);
+        jdbc.execute("CREATE TABLE deployment_target_profiles (id VARCHAR(64) PRIMARY KEY)");
+        jdbc.update("INSERT INTO deployment_target_profiles VALUES (?)", TARGET);
+        assertThatThrownBy(() -> store.approvePolicy(candidate, "staff", current, Map::of)).hasMessageContaining("POLICY_CONTINUITY_PLACEMENT_REQUIRED");
+        assertThat(store.activePolicy()).isEqualTo(originalPolicy); assertThat(store.require(original.id())).isEqualTo(original);
+    }
+
+    @Test void extraLogicalEnvironmentSlotUsesUnchangedPhysicalCapacityWithoutReleasingTheUnknownHold() {
+        var held = store.outcome(original.fence(), State.OUTCOME_UNKNOWN, "retain-unknown-effects", "worker", NOW);
+        at(NOW.plusSeconds(10));
+        var full = continuation(store, json, "policy2", List.of(held), current, NOW.plusSeconds(300));
+        for (String scope : List.of("fleet", "target")) full = budgetAmount(full, scope, "baseline", Dimension.ENVIRONMENTS, 2);
+        publishFixture(store, jdbc, full, current);
+        store.approveManifest(new Manifest("blocked-manifest", "deployment2", "version", "config", TARGET, "binding", "topology",
+            vector(1), Set.of("policy:policy2")), "staff", current);
+        var blocked = context("blocked-manifest");
+        assertThatThrownBy(() -> store.reserve(blocked, new Reserve("blocked-key", "blocked-manifest"), evidence(blocked, current), "owner", current))
+            .hasMessageContaining("FLEET_QUOTA_EXCEEDED:ENVIRONMENTS");
+        at(NOW.plusSeconds(11));
+        var increased = continuation(store, json, "policy3", List.of(held), current, NOW.plusSeconds(300));
+        for (String scope : List.of("fleet", "target")) {
+            increased = budgetAmount(increased, scope, "baseline", Dimension.ENVIRONMENTS, 2);
+            increased = budgetAmount(increased, scope, "measured", Dimension.ENVIRONMENTS, 4);
+        }
+        publishFixture(store, jdbc, increased, current);
+        store.approveManifest(new Manifest("new-manifest", "deployment2", "version", "config", TARGET, "binding", "topology",
+            vector(1), Set.of("policy:policy3")), "staff", current);
+        var admittedContext = context("new-manifest");
+        var admitted = store.reserve(admittedContext, new Reserve("new-key", "new-manifest"), evidence(admittedContext, current), "owner", current);
+        assertThat(admitted.policyId()).isEqualTo(increased.id());
+        assertThat(store.require(held.id())).isEqualTo(held); assertThat(store.held()).containsExactlyInAnyOrder(held, admitted);
+        assertThat(AdmissionRules.sum(store.held().stream().map(Reservation::chargedDemand).toList())).isEqualTo(vector(2));
+        assertThat(store.context(held).policy()).isEqualTo(increased);
+    }
+
+    private FleetPolicy budgetAmount(FleetPolicy source, String scope, String vectorName, Dimension dimension, long amount) {
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(source);
+        var budget = scope.equals("fleet") ? node.path("fleet") : node.path("targets").path(TARGET).path("budget");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) budget.path(vectorName).path("amounts")).put(dimension.name(), amount);
+        return json.read(node.toString(), FleetPolicy.class);
+    }
+
+    private FleetPolicy logicalCeilings(FleetPolicy source, long amount) {
+        for (String scope : List.of("fleet", "target")) for (Dimension dimension : List.of(Dimension.ENVIRONMENTS, Dimension.REPLICAS,
+            Dimension.DATABASES, Dimension.INDEXES, Dimension.DEPENDENCIES, Dimension.CONCURRENT_APPLIES))
+            source = budgetAmount(source, scope, "measured", dimension, amount);
+        return source;
+    }
+
     @Test void uncoveredReplacementIsRejectedAtomicallyInsteadOfStrandingTheHeldAllocation() {
         at(NOW.plusSeconds(31));
         var candidate = continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300));
@@ -212,7 +412,8 @@ class AdmissionPolicyContinuityTest extends AdmissionFixture {
         assertThat(store.activePolicy()).isEqualTo(originalPolicy); assertThat(store.require(original.id())).isEqualTo(original);
     }
 
-    @Test void publicationReplayAndRejectedRolloverPreserveEveryFinancialRowAndHighWaterCounter() {
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void publicationReplayAndRejectedRolloverPreserveEveryFinancialRowAndHighWaterCounter(boolean logicalIncrease) {
         new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(new org.springframework.core.io.ClassPathResource(
             "db/migration/V190__provider_usage_allowance.sql")).execute(dataSource);
         jdbc.update("""
@@ -231,7 +432,10 @@ class AdmissionPolicyContinuityTest extends AdmissionFixture {
             VALUES ('event','ALLOCATED','approval','owner','PLATFORM_ADMIN',?,?)
             """, "d".repeat(64), java.sql.Timestamp.from(NOW));
         var before = financialRows();
-        at(NOW.plusSeconds(31)); var next = publish("policy2", original, NOW.plusSeconds(300));
+        at(NOW.plusSeconds(31));
+        var next = continuation(store, json, "policy2", List.of(original), current, NOW.plusSeconds(300));
+        if (logicalIncrease) next = logicalCeilings(next, 4);
+        publishFixture(store, jdbc, next, current);
         publishFixture(store, jdbc, next, current);
         assertThat(financialRows()).isEqualTo(before);
         at(NOW.plusSeconds(32));

@@ -56,11 +56,22 @@ record AdmissionPolicyContinuity(String originalPolicyId, String originalPolicyF
     }
 
     private static void capacityContract(Budget before, Budget after, boolean reportIdentity) {
-        // Baseline is remeasured; approved ceilings and safety headroom are not enlarged by continuity.
-        if (!before.measured().equals(after.measured()) || !before.headroom().equals(after.headroom())
+        // Baseline is remeasured; only explicitly reviewed logical slots may grow, never physical/funding ceilings or headroom.
+        AdmissionRules.vector(before.measured());
+        AdmissionRules.vector(after.measured());
+        if (!before.headroom().equals(after.headroom())
             || !after.measuredAt().isAfter(before.measuredAt())
             || (!reportIdentity && !before.measurementReference().equals(after.measurementReference()))
             || (reportIdentity && before.measurementReference().equals(after.measurementReference()))) deny();
+        for (Dimension dimension : Dimension.values()) {
+            long previous = before.measured().amounts().get(dimension);
+            long current = after.measured().amounts().get(dimension);
+            boolean compatible = switch (dimension) {
+                case ENVIRONMENTS, REPLICAS, DATABASES, INDEXES, DEPENDENCIES, CONCURRENT_APPLIES -> current >= previous;
+                default -> current == previous;
+            };
+            if (!compatible) deny();
+        }
     }
 
     private static void deny() { throw new AdmissionFailure(PRECONDITION_FAILED, "POLICY_CONTINUITY_INCOMPATIBLE"); }
