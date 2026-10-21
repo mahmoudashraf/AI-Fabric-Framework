@@ -10,6 +10,24 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 21:08UTC all9r2cold effectsCONFIRMED. Runtimeadopt oldDRAINING1->candidateACTIVE2,
+  typedphysicalstop/volatilelossack, falseworkerflagsretained. Aggregate+readiness
+  HTTP200UP. Inboxc9z51x8lf03rp7jrontmrcr3/connectorniyskvmjumm302noj52y0btm
+  finishedhealthy; bothinitialwaits429UNKNOWN thenexactreadonlyreconcilePASS,
+  no repeatedstarts. Finalverify409WALLET_CHANGED (localverifyintentCONSUMED).
+  Actualledger12->18SETTLED calls,input727->1156,cost14540->23120nanoUSD,
+  output0/chat0; samewallet/approval/allocation/caps/expiry. Sixresumedindexing
+  callsdelta429input/$0.00000858,NOTreset/topup. Backendnarrowfixqualified51tests
+  PASS/package+compiledactual18rows/totalsproof; coldFINALonlyallowsrecorded
+  monotonicnonchatusage/sameterms/caps, preadoptremainsstrict. Poll2->10s stops
+  observedAPIburst; errorsstillUNKNOWN, nevereffectreplay. NOTcommitted/liveyet.
+  Newroot01044-cold-maintenance-resumed-usage-20261021 helperspreparedFROM e47.
+  BOTHCPe47/image2f51/schema207/UP; closure9f4e8935...ffe90057. Needcommit/push/
+  CI(image-r51)/rolloutthenfreshfinalverify-r2 ONLY, not9effects. Windowrenewed
+  normally21:41:26.545Z. StillSAMER/worker/oldconsumer/appDRAFT; no publicqueries/
+  businesswrite. Prodmeasurement20:34valid22:34; stagingunrununtilcoldverified.
+  RetryhelpermustpointNEWclosure/source/finalverify-r2 beforeownerplan. UIlast.
+
 - 20:40UTC labelcorrectionfollowup107focusedPASS/provider41/package/no skips.
   OldInboxsealedhashencoded, runtime+connectorplain: newobservationsrecordboth
   exactWHOLEconfigurationrepresentations, oldsealedmustmatchone/newmustmatchboth;

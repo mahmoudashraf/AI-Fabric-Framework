@@ -273,6 +273,56 @@ follow-up supersedes it before the next control-plane rollout. New private root:
 
 ## Boundaries
 
+### 21:08 UTC All Recovery Effects Confirmed; Resumed Accounting Guard
+
+- Both control planes verify `e47df94dd`, image
+  `sha256:2f51aac217dabeea90f6082aa235af28b191a6f112314e6b440984aeadcc4efa`,
+  schema207/UP, unchanged configuration and25 protected authority/financial
+  tables. Stage job `gru9a1vpicen0xcjy320e69t`, production
+  `seyvpm6x1o20xnz6h5yk7aac`; closure SHA256
+  `9f4e893500d035a25b9005fa2b6634fbf0e631cb1a89224e55efc150ffe90057`.
+- Exact native runtime job `e1o551qremhlni5ck7ebmnt5` finished; running digest,
+  source and health match the qualified0.8.36 image. Aggregate health and
+  readiness both returned HTTP200/UP after adoption.
+- Dedicated cold adoption confirmed old DRAINING epoch1 -> candidate ACTIVE
+  epoch2, with typed physical-stop evidence and volatile-state-loss acceptance.
+  Unsupported background fencing flags were not changed into positive proof.
+- Inbox job `c9z51x8lf03rp7jrontmrcr3` and connector job
+  `niyskvmjumm302noj52y0btm` finished/healthy. Existing two-second expensive
+  inventory polling exhausted Coolify's rate limit. Both UNKNOWN responses were
+  retained, then their exact jobs reconciled read-only after cooldown. Neither
+  native start was dispatched again. All9 effects are now CONFIRMED.
+- Final verification rejected `WALLET_CHANGED`. Actual read-only accounting
+  proves12 ->18 settled provider attempts, input727 ->1156, cost14540 ->23120
+  nanoUSD, output0 and chat attempts0. Thus six resumed non-chat calls consumed
+  429 input tokens/$0.00000858 under the existing allowance. Store UUID,
+  allocation/approval identity, limits and expiry are unchanged. No wallet reset,
+  SQL repair, top-up, allowance mutation or business lead/write occurred.
+- The bounded correction retains strict unchanged accounting through adoption.
+  Only final verification of this explicitly acknowledged, unactivated cold mode
+  records monotonic non-chat usage under identical funding terms. Counter
+  decreases, new chats/output, changed terms and cap violations reject. Both
+  before/after and the exact delta are included in the verified receipt.
+- Native observation polling is reduced from2s to10s; provider errors still
+  produce UNKNOWN and require observation, never automatic effect replay.
+ 51 focused checks/package pass with no failures/errors/skips. A direct compiled
+  check against the actual private accounting snapshot also verifies all18
+  settled rows sum exactly to the counters/usage and accepts the typed delta.
+- This backend-only follow-up is qualified locally, NOT live yet. Evidence root
+  `/private/tmp/01044-cold-maintenance-resumed-usage-20261021`. The original failed
+  final-verification intent stays retained. After rollout, re-run final proof
+  only with a fresh local verification intent; do not replay any9 native effects.
+  The existing window was normally extended to21:41:26.545Z. The same R/worker,
+  generation, release, stores and consumer binding remain intact; app is DRAFT.
+- Next: source/image qualification and one backend-only rollout, final cold
+  verification, one fresh staging capacity sample, normal owner continuation and
+  activation, then the prepared hosted browser journeys. No UI extraction yet.
+
+Deferred rate-limit hardening: honour provider Retry-After with a bounded shared
+observation budget and test concurrent maintenance operations. The10s correction
+addresses the observed basic single-operation burst; it does not claim a global
+Coolify quota/concurrency scheduler or automatic recovery of unknown mutations.
+
 No vector copy, customer inventory database, framework-wide LLM matrix for a
 mechanical hook change, new recovery engine, silent offer/version rewrite or
 inferred readiness. Old vector data is owner-declared disposable, but that does

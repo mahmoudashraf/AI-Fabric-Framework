@@ -63,6 +63,23 @@ class RuntimeArtifactRepairColdMaintenanceOperationsTest {
         verify(h.provider, never()).stopRuntimeArtifactRepairApplication(any(), anyBoolean());
         verify(h.runtime, never()).coldMaintenanceTransition(anyString(), any(), anyMap());
     }
+    @Test void finalColdProofRecordsResumedNonChatUsageWithoutInitializingOrChangingTheWallet() {
+        var h = new Harness(); h.prepare();
+        for (Effect effect : effects(Mode.COLD_MAINTENANCE_REAPPLY)) {
+            var observed = h.operations.perform(h.plan, effect, "admin");
+            h.confirmed.put(effect, new EffectReceipt(h.plan.id(), effect, Outcome.CONFIRMED, "effect-hash", observed, Harness.NOW));
+        }
+        var before = h.plan.nativeEvidence().wallet();
+        var after = RuntimeArtifactRepairWalletTest.usage(before, before.chatAttempts(), before.providerAttempts() + 6,
+            before.accountedUsage().inputTokens() + 429, before.accountedUsage().outputTokens(), before.accountedUsage().costNanoUsd() + 8580);
+        when(h.budgets.read(anyString(), anyMap())).thenReturn(after);
+        var proof = h.operations.finalProof(h.plan, h.local);
+        assertThat(proof.wallet()).isEqualTo(after);
+        var accounting = h.json.read(proof.finalNativeInventory().get("resumedUsageAccounting"), RuntimeArtifactRepairWallet.ResumedUsage.class);
+        assertThat(accounting.additionalProviderAttempts()).isEqualTo(6);
+        verify(h.budgets, never()).initialize(anyString(), any(), anyMap());
+        verify(h.budgets, never()).activate(anyString(), any(), anyMap());
+    }
 
     @ParameterizedTest @ValueSource(strings = {"connector", "inbox"})
     void writerRestartPreventsPhysicalRuntimeStop(String writer) {

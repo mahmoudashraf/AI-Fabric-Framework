@@ -194,7 +194,7 @@ public class RuntimeArtifactRepairOperations {
         while (clock.instant().isBefore(journal.executionDeadline(plan))) {
             try { return reconcile(plan, effect); }
             catch (ObservationPending pending) {
-                try { Thread.sleep(2000); }
+                try { Thread.sleep(10000); }
                 catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException("RUNTIME_ARTIFACT_REPAIR_INTERRUPTED", interrupted); }
             }
         }
@@ -290,8 +290,10 @@ public class RuntimeArtifactRepairOperations {
         check(plan, cold(plan) ? Effect.ADOPT_COLD_GENERATION : Effect.CANCEL_DRAIN, inventory);
         check(plan, Effect.RESUME_INBOX, inventory); check(plan, Effect.RESUME_CONNECTOR, inventory);
         var wallet = budgets.read(scope.runtimeBaseUrl(), authority.issueRuntimeArtifactRepairHeaders(plan.id(), false));
-        RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), wallet);
         var finalInventory = new TreeMap<String, String>();
+        if (cold(plan)) finalInventory.put("resumedUsageAccounting", json.write(
+            RuntimeArtifactRepairWallet.requireResumedNonChatUsage(plan.nativeEvidence().wallet(), wallet)));
+        else RuntimeArtifactRepairWallet.requireUnchanged(plan.nativeEvidence().wallet(), wallet);
         finalInventory.put("inventory", json.write(inventory));
         finalInventory.put("dependencyGraph", plan.local().fingerprints().get("graph"));
         finalInventory.put("inbox", journal.confirmed(plan, Effect.RESUME_INBOX).evidence().get("inbox"));
