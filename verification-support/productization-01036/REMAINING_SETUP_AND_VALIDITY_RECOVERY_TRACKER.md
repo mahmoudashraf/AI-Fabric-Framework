@@ -8,6 +8,22 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Latest Scope Decision And Basic Recovery
 
+- 05:29 UTC update supersedes the pending approval below: the owner approved
+  the fixed count capability in **Required for production**. The exact tested
+  adapter is installed, old backup retained, and protected host settings remain
+  unchanged. Production-source readback and read-only drain reconciliation pass.
+  Three original effects are confirmed; none was replayed. Runtime remains its
+  old image/DRAINING, remote writers stopped, reservation revision19/workerheld.
+- The write window expired while permission was pending. A narrow correction
+  now supports additional explicit, append-only staff reviews naming the current
+  deadline, bounded by two hours and the existing reservation. Earlier reviews,
+  original plan/claim/drain and completed effects remain immutable. Focused65
+  checks include17 real PostgreSQL cases; package/rollout remain. No runtime
+  stop/image patch, financial reset or full customer acceptance is claimed.
+- Both live control planes remain6fd136abd/schema207/UP. Fresh measurements
+  will follow the next rollout; the earlier02:56 samples are historical, not
+  current admission evidence. The required continuation path remains unchanged.
+
 - Latest verified state, 03:03 UTC: BOTH control planes run `6fd136abd`, image
   `sha256:3f6e3a20ba7933a5c9066a14979d44951578bedafeaa4bee325945229974ba38`,
   schema 207 and health UP. Maintenance closed at 02:51 UTC with original

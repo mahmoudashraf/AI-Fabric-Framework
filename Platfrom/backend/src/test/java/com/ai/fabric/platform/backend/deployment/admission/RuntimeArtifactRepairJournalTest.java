@@ -68,7 +68,7 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         assertThat(store.require(reservation.id()).workerToken()).isEqualTo(claim.workerToken());
         assertThat(journal.summary(command()).status()).isEqualTo("READ_ONLY_RECONCILIATION_REQUIRED");
     }
-    @Test void explicitOneTimeWindowRenewalPreservesOriginalPlanReservationAndUnknownIntent() {
+    @Test void explicitWindowRenewalPreservesOriginalPlanReservationAndUnknownIntent() {
         prepare(); plan = plan("window-basic", NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART);
         var claim = claim(); var before = store.require(reservation.id());
         var intent = journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {});
@@ -86,6 +86,35 @@ class RuntimeArtifactRepairJournalTest extends AdmissionFixture {
         journal.reconciled(plan, Effect.QUIESCE_CONNECTOR, Map.of("CONNECTOR", "observed-stop"), "admin");
         assertThatCode(() -> journal.intent(plan, Effect.QUIESCE_INBOX, "admin", () -> {})).doesNotThrowAnyException();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='ART_WINDOW'", Integer.class)).isEqualTo(1);
+    }
+    @Test void operatorCanAppendASecondFiniteReviewAfterAnApprovalDelayWithoutReplayingEffects() {
+        prepare(); plan = plan("window-pause", NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART);
+        var claim = claim(); var before = store.require(reservation.id());
+        var intent = journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {});
+        journal.outcome(plan, intent, Outcome.UNKNOWN, Map.of("failureType", "lost-response"), "admin");
+        var firstReview = new RenewWindow(command(), NOW.plusSeconds(300), NOW.plusSeconds(600), "Await the required host approval", true);
+        var first = journal.renewWindow(plan, firstReview, "admin", before::expiresAt);
+        clock.advance(601);
+        assertThatThrownBy(() -> journal.intent(plan, Effect.QUIESCE_INBOX, "admin", () -> {})).hasMessageContaining("PLAN_EXPIRED");
+        var nextReview = new RenewWindow(command(), NOW.plusSeconds(600), NOW.plusSeconds(900), "Approval received; continue the same repair", true);
+        var next = journal.renewWindow(plan, nextReview, "admin", before::expiresAt);
+        assertThat(journal.renewWindow(plan, nextReview, "admin", () -> { throw new AssertionError("duplicate must not dispatch"); })).isEqualTo(next);
+        assertThat(journal.renewWindow(plan, firstReview, "admin", () -> { throw new AssertionError("historical duplicate must not dispatch"); })).isEqualTo(first);
+        assertThat(journal.executionDeadline(plan)).isEqualTo(nextReview.executionDeadline());
+        assertThat(journal.requireClaim(plan)).isEqualTo(claim); assertThat(journal.requirePlan(command())).isEqualTo(plan);
+        assertThat(store.require(reservation.id())).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM deployment_admission_reviews WHERE kind='ART_WINDOW'", Integer.class)).isEqualTo(2);
+        assertThatThrownBy(() -> journal.intent(plan, Effect.QUIESCE_CONNECTOR, "admin", () -> {})).hasMessageContaining("READ_ONLY_RECONCILIATION_REQUIRED");
+        journal.reconciled(plan, Effect.QUIESCE_CONNECTOR, Map.of("CONNECTOR", "observed-stop"), "admin");
+        assertThatCode(() -> journal.intent(plan, Effect.QUIESCE_INBOX, "admin", () -> {})).doesNotThrowAnyException();
+    }
+    @Test void laterReviewMustNameTheCurrentDeadlineAndCurrentConsent() {
+        prepare(); plan = plan("window-chain", NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART); claim();
+        journal.renewWindow(plan, new RenewWindow(command(), NOW.plusSeconds(300), NOW.plusSeconds(600), "First reviewed window", true), "admin", reservation::expiresAt);
+        var stale = new RenewWindow(command(), NOW.plusSeconds(300), NOW.plusSeconds(900), "Stale predecessor", true);
+        assertThatThrownBy(() -> journal.renewWindow(plan, stale, "admin", reservation::expiresAt)).hasMessageContaining("WINDOW_INVALID");
+        journal.renewWindow(plan, new RenewWindow(command(), NOW.plusSeconds(600), NOW.plusSeconds(900), "Continue without cold-state consent", false), "admin", reservation::expiresAt);
+        assertThat(journal.emptyJdbcColdRestartAccepted(plan)).isFalse();
     }
     @Test void windowRenewalCannotExceedReservationOrChangeActor() {
         prepare(); plan = plan("window-bounds", NOW.plusSeconds(300), Mode.IDLE_CHECKPOINT_COLD_RESTART); claim(); clock.advance(301);

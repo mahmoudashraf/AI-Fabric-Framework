@@ -1,5 +1,22 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-21 05:29 UTC Approval And Readback
+
+Direct owner approval for the exact fixed four-table count capability was
+verified in **Required for production**. The tested staging adapter is installed
+and independently inspected; its old bytes are backed up and existing protected
+host configuration is unchanged. Production-source readback and read-only
+reconciliation pass. Three original repair effects are confirmed, without any
+drain replay, runtime stop/image patch, wallet reset or new customer resources.
+
+The separate write window expired during the permission wait. A narrow
+append-only renewal correction passes65 checks, including17 actual PostgreSQL
+cases. Each staff review must name the current deadline and is bounded by two
+hours and the existing reservation; old reviews, plan/claim and effect receipts
+remain immutable. Package/backend-only rollout is next. Both deployed control
+planes remain6fd136abd/schema207/UP; full customer acceptance and UI extraction
+remain open. No further host permission question is needed for this exact query.
+
 ## 2026-10-21 03:03 UTC Hosted Checkpoint
 
 Both control planes are verified on `6fd136abd`, image

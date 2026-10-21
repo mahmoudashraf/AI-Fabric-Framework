@@ -10,6 +10,25 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 05:29UTC Main resumed after directhuman Approved inRequiredforproduction,
+  actualuserID01a15ce9-2618-7af1-9283-52cdf6cd2270 verifiedviaread_thread.
+  Approvedexistingstagingadapterinstalledb79d4816->fa6e4997, backupretained,
+  protectedkey/account/from/sudo/sshd/firewallunchanged; installproof8f710e3d...
+  ad25 +independentinspection3c2b9eff...c1e9 underowned-pg-host-readback-20261021.
+  Production-sourcefourzeroquery+readonlydrainreconcileSUCCEEDED; original
+  plan487f7a46 nowconfirmed3effects/no pendingUNKNOWN, no drainreplay. Rrev19held, old
+  runtimeDRAININGepoch1, connector+Inboxstopped; no runtimeSTOP/patch/renewal.
+  Writewindow04:41expiredwhilewaitinghumanapproval. BoundedJournalcorrection
+  appendsnewstaffreviews expectedcurrentdeadline, <=2h/Rexpiry, keepsallprior
+  reviews+plan/claim/effects immutable; noautomaticextension. 65focusedchecks/
+  17actualPG PASS underappend-window-renewal-20261021; package/backend-only
+  publication/rolloutpreparedinappend-window-rollout-20261021. BothliveCPsstill
+  6fd136abd/3f6e3a20/schema207/UP. Framework0.8.36/runtimef927unchanged.
+  Old02:56capacitysamplesnowstale; collectafternewrolloutthenrepairremaining
+  effects, walletvalidity, policy, ownerresume/acceptance/promotion, UI-LAST.
+  HostapprovaloriginalJSONremainsbyteexactSHA1583a0c9...777f; completionrecord
+  /private/tmp/01036-staging-retire-adapter-four-table-count-completion-20261021.json.
+
 - Oct21 03:03UTC Main continues. BOTH CPs now verified6fd136abd/image3f6e3a20/
   schema207/UP; closureb6b30f28a85378b191bb2bf97fefc0fe0691b4c25df3ce97f9e35f26ae12cf5f
   in01044-empty-recovery-completion-rollout-20261021. Initial133checks/25PG+

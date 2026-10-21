@@ -125,12 +125,31 @@ public class RuntimeArtifactRepairJournal {
         return claim;
     }
     public Instant executionDeadline(Plan plan) {
-        var window = optional("ART_WINDOW", plan.id(), ExecutionWindow.class);
-        return window == null ? requireClaim(plan).executionDeadline() : window.review().executionDeadline();
+        var windows = windows(plan);
+        return windows.isEmpty() ? requireClaim(plan).executionDeadline() : windows.getLast().review().executionDeadline();
     }
     public boolean emptyJdbcColdRestartAccepted(Plan plan) {
-        var window = optional("ART_WINDOW", plan.id(), ExecutionWindow.class);
-        return window != null && window.review().acceptEmptyJdbcColdRestart();
+        var windows = windows(plan);
+        return !windows.isEmpty() && windows.getLast().review().acceptEmptyJdbcColdRestart();
+    }
+    private List<ExecutionWindow> windows(Plan plan) {
+        var keys = jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='ART_WINDOW' AND (record_key=? OR record_key LIKE ?)",
+            String.class, plan.id(), plan.id() + ":%");
+        if (keys.size() > 32) fail("WINDOW_REVIEW_LIMIT");
+        var values = new ArrayList<ExecutionWindow>();
+        Instant previous = requireClaim(plan).executionDeadline();
+        for (int index = 0; index < keys.size(); index++) {
+            String key = index == 0 ? plan.id() : plan.id() + ":" + index;
+            if (!keys.contains(key)) fail("WINDOW_CHAIN_CHANGED");
+            var value = required("ART_WINDOW", key, ExecutionWindow.class);
+            if (!plan.actorId().equals(value.actorId()) || value.review() == null
+                || !new Command(plan.id(), fingerprint(plan)).equals(value.review().command())
+                || !previous.equals(value.review().expectedExecutionDeadline())
+                || value.review().executionDeadline() == null || !value.review().executionDeadline().isAfter(previous))
+                fail("WINDOW_CHAIN_CHANGED");
+            previous = value.review().executionDeadline(); values.add(value);
+        }
+        return List.copyOf(values);
     }
     void recordColdStoreEvidence(Plan plan, Object proof) {
         locked(() -> {
@@ -149,20 +168,19 @@ public class RuntimeArtifactRepairJournal {
                 || review.reason() == null || review.reason().isBlank() || review.reason().length() > 1000
                 || review.acceptEmptyJdbcColdRestart() && plan.local().request().mode() != Mode.IDLE_CHECKPOINT_COLD_RESTART)
                 fail("WINDOW_REVIEW_REQUIRED");
-            var prior = optional("ART_WINDOW", plan.id(), ExecutionWindow.class);
-            if (prior != null) {
-                if (!prior.review().equals(review) || !prior.actorId().equals(actor)) fail("WINDOW_ALREADY_REVIEWED");
-                return prior;
-            }
-            if (!claim.executionDeadline().equals(review.expectedExecutionDeadline())
+            var windows = windows(plan);
+            for (var prior : windows) if (prior.review().equals(review)) return prior;
+            if (windows.size() >= 32) fail("WINDOW_REVIEW_LIMIT");
+            Instant currentDeadline = windows.isEmpty() ? claim.executionDeadline() : windows.getLast().review().executionDeadline();
+            if (!currentDeadline.equals(review.expectedExecutionDeadline())
                 || !review.executionDeadline().isAfter(clock.instant())
-                || !review.executionDeadline().isAfter(claim.executionDeadline())
+                || !review.executionDeadline().isAfter(currentDeadline)
                 || review.executionDeadline().isAfter(clock.instant().plusSeconds(7200))) fail("WINDOW_INVALID");
             if (verifiedRepair(plan.local().scope().releaseId()) != null) fail("ALREADY_VERIFIED");
             Instant reservationExpiry = revalidate.get();
             if (reservationExpiry == null || review.executionDeadline().isAfter(reservationExpiry)) fail("RESERVATION_EXPIRED");
             var value = new ExecutionWindow(review, actor, clock.instant());
-            append("ART_WINDOW", plan.id(), value, actor);
+            append("ART_WINDOW", windows.isEmpty() ? plan.id() : plan.id() + ":" + windows.size(), value, actor);
             return value;
         });
     }
