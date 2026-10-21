@@ -151,6 +151,19 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         assertThat(allState()).isEqualTo(before); verifyNoInteractions(execution);
     }
 
+    @Test void unprovenGenerationReturnsExplicitConflictWithoutQueueingOrChangingHistory() {
+        var before = allState();
+        when(generations.requireActiveForReapply(any(), any(), anyString(), anyString()))
+            .thenThrow(new IllegalStateException("RUNTIME_GENERATION_READBACK_INVALID"));
+        assertThatThrownBy(this::plan).isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class,
+            error -> {
+                assertThat(error.getStatusCode().value()).isEqualTo(409);
+                assertThat(error.getReason()).isEqualTo("FAILED_APPLY_RETRY_GENERATION_READBACK_UNPROVEN");
+                assertThat(error.getCause()).hasMessage("RUNTIME_GENERATION_READBACK_INVALID");
+            });
+        assertThat(allState()).isEqualTo(before); verifyNoInteractions(execution);
+    }
+
     @Test void concurrentExecuteDispatchesOnlyTheTransactionThatActuallyQueued() throws Exception {
         var plan = plan(); var arrived = new CountDownLatch(2); var proceed = new CountDownLatch(1);
         when(generations.requireActiveForReapply(any(), any(), anyString(), anyString())).thenAnswer(call -> {

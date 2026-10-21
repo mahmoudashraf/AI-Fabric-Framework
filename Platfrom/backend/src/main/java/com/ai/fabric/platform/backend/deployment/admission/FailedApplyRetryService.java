@@ -7,12 +7,14 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.generation.DeploymentRuntimeGenerationService;
+import com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationTransitionContracts.Readback;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentProvider;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentReleaseExecutionService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import java.util.Objects;
 import java.util.function.Consumer;
 import static com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.*;
@@ -78,7 +80,13 @@ public class FailedApplyRetryService {
             var release = releases.findById(releaseId).orElseThrow(this::denied);
             var nativeReadback = provider.reapplyBeforeRuntimeStopReadback(r.deploymentId(), r.targetProfileId(), releaseId,
                 reapply.priorReleaseId(), reapply.priorReleaseCreatedAt(), candidate.releaseCreatedAt(), candidate.failedAt());
-            var generation = generations.requireActiveForReapply(deployment, release, reapply.priorReleaseId(), reapply.priorRuntimeBaseUrl());
+            Readback generation;
+            try {
+                generation = generations.requireActiveForReapply(deployment, release, reapply.priorReleaseId(), reapply.priorRuntimeBaseUrl());
+            } catch (IllegalStateException unproven) {
+                throw new ResponseStatusException(CONFLICT,
+                    "FAILED_APPLY_RETRY_GENERATION_READBACK_UNPROVEN", unproven);
+            }
             return store.reapplyRetryReadback(candidate, nativeReadback, generation);
         }
         return provider.failedApplyRetryReadback(r.deploymentId(), r.targetProfileId(), releaseId,

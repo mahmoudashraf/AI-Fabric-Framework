@@ -180,8 +180,9 @@ public class DeploymentRuntimeGenerationService {
     }
 
     private void validate(Readback readback, Target target, String tenantId) {
+        // A fresh runtime starts at zero; fenced commands must advance beyond its current epoch.
         if (readback == null || !target.equals(readback.target()) || !tenantId.equals(readback.tenantId())
-            || readback.updatedAt() == null || readback.fenceEpoch() < 1) {
+            || readback.updatedAt() == null || readback.fenceEpoch() < 0) {
             throw failure("RUNTIME_GENERATION_READBACK_INVALID");
         }
     }

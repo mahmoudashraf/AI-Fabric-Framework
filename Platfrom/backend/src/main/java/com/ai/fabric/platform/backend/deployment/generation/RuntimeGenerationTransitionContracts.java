@@ -1,5 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.generation;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import java.time.Instant;
 import java.util.List;
 
@@ -16,7 +19,8 @@ public final class RuntimeGenerationTransitionContracts {
     public record Binding(Target target, long fenceEpoch, String operationId, String requestFingerprint) { }
     public record Command(Binding binding, long expectedFenceEpoch, CommandType type,
                           Instant drainDeadline, String externalEvidenceReference) { }
-    public record Readback(Target target, String tenantId, State state, long fenceEpoch,
+    public record Readback(Target target, String tenantId, State state,
+                           @JsonProperty(value = "fenceEpoch", required = true) @JsonSetter(nulls = Nulls.FAIL) long fenceEpoch,
                            String operationId, String requestFingerprint, Instant drainDeadline,
                            boolean authorityRevoked, boolean reclaimStarted, Instant updatedAt) { }
     public record CommandResult(Readback applied, Readback current, boolean replay) { }

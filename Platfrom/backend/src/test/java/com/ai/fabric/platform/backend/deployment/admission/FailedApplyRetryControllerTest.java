@@ -43,6 +43,22 @@ class FailedApplyRetryControllerTest {
         var command = new Command(new AdmissionContracts.Fence("r", 6, "g"), "release", "operation", "Retry", true, "a".repeat(64));
         controller.retry("offer", "deployment", "r", command); verify(service).retry("offer", "deployment", "r", command);
     }
+
+    @Test void authenticatedReadbackConflictIsNotRedispatchedAsAnUnauthorizedResponse() throws Exception {
+        authenticate("CUSTOMER_ADMIN");
+        when(service.plan(eq("offer"), eq("deployment"), eq("r"), any()))
+            .thenThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                "FAILED_APPLY_RETRY_GENERATION_READBACK_UNPROVEN", new IllegalStateException("RUNTIME_GENERATION_READBACK_INVALID")));
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
+            .setControllerAdvice(new com.ai.fabric.platform.backend.web.PlatformApiExceptionHandler()).build();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                "/api/customer-self-service/catalogue/offer/deployments/deployment/admission-reservations/r/failed-apply-retry-plan")
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .content("{\"releaseId\":\"release\",\"operationKey\":\"retry\",\"reason\":\"Retry\",\"acceptOwnedServiceRedeploy\":true}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message")
+                .value("FAILED_APPLY_RETRY_GENERATION_READBACK_UNPROVEN"));
+    }
     @ParameterizedTest @ValueSource(strings = {"{}", "{\"fence\":null}",
         "{\"fence\":{\"reservationId\":\"r\",\"generation\":\"g\"}}",
         "{\"fence\":{\"reservationId\":\"r\",\"generation\":\"g\",\"revision\":\"6\"}}",

@@ -7,6 +7,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -53,7 +55,7 @@ class DeploymentRuntimeGenerationServiceTest {
         when(authority.issueSystemHeaders("dep-1", "staging", "release-old", "a".repeat(64),
             "platform-reapply-readback", "reapply-readback:release-new", List.of(DeploymentRuntimeGenerationService.READ_SCOPE),
             Duration.ofMinutes(2))).thenReturn(Map.of("Authorization", "read-only-private"));
-        var active = readback(State.ACTIVE, 1, null, null);
+        var active = readback(State.ACTIVE, 0, null, null);
         when(client.status(anyString(), eq(previous), anyMap())).thenReturn(active);
         assertThat(service.requireActiveForReapply(deployment, next, "release-old", "https://old.example"))
             .isEqualTo(active);
@@ -69,37 +71,41 @@ class DeploymentRuntimeGenerationServiceTest {
             null, null, null, false, false, now));
         assertThatThrownBy(() -> service.requireActiveForReapply(deployment, next, "release-old", "https://old.example"))
             .hasMessage("RUNTIME_GENERATION_READBACK_INVALID");
+        when(client.status(anyString(), eq(previous), anyMap())).thenReturn(readback(State.ACTIVE, -1, null, null));
+        assertThatThrownBy(() -> service.requireActiveForReapply(deployment, next, "release-old", "https://old.example"))
+            .hasMessage("RUNTIME_GENERATION_READBACK_INVALID");
     }
 
-    @Test void drainsFencesAndAdoptsExactGenerationWithoutPersistingHeaders() {
-        when(client.status(anyString(), eq(previous), anyMap())).thenReturn(readback(State.ACTIVE, 1, null, null));
+    @ParameterizedTest @ValueSource(longs = {0, 1})
+    void drainsFencesAndAdoptsExactGenerationWithoutPersistingHeaders(long initialFence) {
+        when(client.status(anyString(), eq(previous), anyMap())).thenReturn(readback(State.ACTIVE, initialFence, null, null));
         when(client.command(anyString(), argThat(command -> command != null && command.type() == CommandType.BEGIN_DRAIN), anyMap()))
-            .thenReturn(new CommandResult(readback(State.DRAINING, 2, "replace:release-new", null),
-                readback(State.DRAINING, 2, "replace:release-new", null), false));
-        when(client.snapshot(anyString(), any(), anyMap())).thenReturn(snapshot(List.of()));
+            .thenReturn(new CommandResult(readback(State.DRAINING, initialFence + 1, "replace:release-new", null),
+                readback(State.DRAINING, initialFence + 1, "replace:release-new", null), false));
+        when(client.snapshot(anyString(), any(), anyMap())).thenReturn(snapshot(List.of(), initialFence + 1));
         when(client.command(anyString(), argThat(command -> command != null && command.type() == CommandType.FENCE_AUTHORITY), anyMap()))
-            .thenReturn(new CommandResult(readback(State.AUTHORITY_REVOKED, 3, "replace:release-new", null),
-                readback(State.AUTHORITY_REVOKED, 3, "replace:release-new", null), false));
+            .thenReturn(new CommandResult(readback(State.AUTHORITY_REVOKED, initialFence + 2, "replace:release-new", null),
+                readback(State.AUTHORITY_REVOKED, initialFence + 2, "replace:release-new", null), false));
 
         var receipt = service.drainAndFence(deployment, next, "release-old", "https://old.example",
             Duration.ofMinutes(1), Duration.ofSeconds(1), null);
         assertThat(receipt.previousTarget()).isEqualTo(previous);
         assertThat(receipt.nextTarget().releaseId()).isEqualTo("release-new");
-        assertThat(receipt.fencedEpoch()).isEqualTo(3);
+        assertThat(receipt.fencedEpoch()).isEqualTo(initialFence + 2);
         assertThat(receipt.requestFingerprint()).hasSize(64);
         assertThat(receipt.toString()).doesNotContain("private");
 
         when(client.transition(anyString(), any(), anyMap())).thenAnswer(invocation -> {
             GenerationTransition command = invocation.getArgument(1);
-            return new GenerationTransitionResult(readback(State.AUTHORITY_REVOKED, 3,
+            return new GenerationTransitionResult(readback(State.AUTHORITY_REVOKED, initialFence + 2,
                 "replace:release-new", command.requestFingerprint()),
-                new Readback(command.nextTarget(), "tenant-1", State.ACTIVE, 4, null, null,
+                new Readback(command.nextTarget(), "tenant-1", State.ACTIVE, initialFence + 3, null, null,
                     null, false, false, now), command.providerStopEvidenceReference(), now, false);
         });
         var result = service.adoptAfterProviderStop(deployment, next, receipt, "https://new.example",
             "c".repeat(64), "coolify-stop:runtime-uuid:2026-10-14T12:00:00Z");
         assertThat(result.current().target().releaseId()).isEqualTo("release-new");
-        assertThat(result.current().fenceEpoch()).isEqualTo(4);
+        assertThat(result.current().fenceEpoch()).isEqualTo(initialFence + 3);
         verify(authority, atLeastOnce()).issueGenerationTransitionHeaders(deployment, next, "release-old", "a".repeat(64), "replace:release-new");
         verify(authority, never()).issueSystemHeaders(any(), any(), any(), any(), any(), any(), any(), any());
     }
@@ -161,8 +167,12 @@ class DeploymentRuntimeGenerationServiceTest {
     }
 
     private Snapshot snapshot(List<RemoteObligation> obligations) {
+        return snapshot(obligations, 2);
+    }
+
+    private Snapshot snapshot(List<RemoteObligation> obligations, long fence) {
         return new Snapshot("snapshot-1", "runtime-target-drain:snapshot-1",
-            readback(State.DRAINING, 2, "replace:release-new", fingerprintForOperation()), now,
+            readback(State.DRAINING, fence, "replace:release-new", fingerprintForOperation()), now,
             zero(), zero(), zero(), zero(), 0, true, true, true, obligations.isEmpty(), false,
             "b".repeat(64), obligations, List.of());
     }

@@ -5,6 +5,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
@@ -30,7 +32,7 @@ class RuntimeGenerationTransitionClientTest {
         server = server("/api/private/runtime-target-retirement/status", exchange -> {
             body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             key.set(exchange.getRequestHeaders().getFirst("X-AI-Fabric-Backend-Key"));
-            respond(exchange, 200, mapper.writeValueAsString(readback("release-old", State.ACTIVE, 1)));
+            respond(exchange, 200, mapper.writeValueAsString(readback("release-old", State.ACTIVE, 0)));
         });
         var client = client();
         var target = new Target("dep-1", "staging", "release-old");
@@ -39,9 +41,19 @@ class RuntimeGenerationTransitionClientTest {
             "X-AI-Fabric-Backend-Key", "private-value", "Authorization", "AI-Fabric-Private assertion"));
 
         assertThat(result.target()).isEqualTo(target);
-        assertThat(result.fenceEpoch()).isEqualTo(1);
+        assertThat(result.fenceEpoch()).isEqualTo(0);
         assertThat(key.get()).isEqualTo("private-value");
         assertThat(mapper.readTree(body.get()).path("releaseId").asText()).isEqualTo("release-old");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing", "null"})
+    void absentCounterIsNotSilentlyInterpretedAsTheValidInitialZero(String shape) throws Exception {
+        var payload = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(readback("release-old", State.ACTIVE, 0));
+        if ("missing".equals(shape)) payload.remove("fenceEpoch");
+        else payload.putNull("fenceEpoch");
+        server = server("/api/private/runtime-target-retirement/status", exchange -> respond(exchange, 200, payload.toString()));
+        assertThatThrownBy(() -> client().status(baseUrl(), new Target("dep-1", "staging", "release-old"),
+            Map.of("Authorization", "private"))).hasMessage("RUNTIME_GENERATION_REMOTE_UNAVAILABLE");
     }
 
     @Test void postsDrainSnapshotFenceAndTransitionToDedicatedRoutes() throws Exception {
