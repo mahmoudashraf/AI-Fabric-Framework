@@ -103,7 +103,7 @@ class ManagedDependencyReleaseCoordinatorTest {
 
     @Test void explicitContinuationUsesANewBoundedOperationWithoutRepeatingFoundationOrOwnerEnrollment() {
         coordinator.resumeRuntimeBound(deployment, version, release, "b".repeat(64));
-        verify(lifecycle).reconcileForRelease("dep-1", "target-1", "release-1",
+        verify(lifecycle).resumeForRelease("dep-1", "target-1", "release-1",
             "release:release-1:dependency:resume:" + "b".repeat(64));
         verify(lifecycle, never()).submitForRelease(any(), any(), any());
         verify(lifecycle, never()).provisionForRelease(any(), any(), any(), any());

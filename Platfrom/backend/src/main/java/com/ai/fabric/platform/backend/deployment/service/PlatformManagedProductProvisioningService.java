@@ -1521,9 +1521,7 @@ public class PlatformManagedProductProvisioningService {
         var request = new CoolifyCreateDockerImageApplicationRequest(config.projectUuid(), config.serverUuid(),
             config.environmentName(), config.environmentUuid(), image.repository(), image.hashTag(), Integer.toString(spec.port()),
             config.destinationUuid(), serviceRef, marker, domain, true, spec.healthPath(), Integer.toString(spec.port()),
-            new CoolifyApplicationRuntimeSettings(10, 5, 18, 180,
-                spec.capacity().memoryMiB() + "M", null, null,
-                java.math.BigDecimal.valueOf(spec.capacity().milliCpu(), 3).toPlainString(), null),
+            ownedDependencyRuntimeSettings(spec),
             false, true, false);
         CoolifyApplicationSummary app = null;
         String appUuid = resources.applicationUuid();
@@ -1661,13 +1659,21 @@ public class PlatformManagedProductProvisioningService {
     private void requireExistingInboxResources(CoolifyConnection connection, String graphId, String serviceRef,
             com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
             OwnedDependencyResources resources) {
+        if (spec.contract() != com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1) {
+            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
+        }
+        requireExistingDependencyResources(connection, graphId, serviceRef, spec, resources);
+    }
+
+    private void requireExistingDependencyResources(CoolifyConnection connection, String graphId, String serviceRef,
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources) {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Dependency provider work must run outside a database transaction.");
         }
-        if (spec.contract() != com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Contract.BASIC_INBOX_KEYS_V1
-            || resources == null || !hasText(resources.applicationUuid())
+        if (resources == null || !hasText(resources.applicationUuid())
             || (spec.database() == null) != !hasText(resources.databaseUuid())) {
-            throw new ResponseStatusException(CONFLICT, "INBOX_OPERATOR_EXISTING_RESOURCES_REQUIRED");
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_EXISTING_RESOURCES_REQUIRED");
         }
         var authority = requireOwnedDependencyAuthority();
         var owner = authority.context(connection, graphId, serviceRef, spec.slot());
@@ -1800,6 +1806,80 @@ public class PlatformManagedProductProvisioningService {
         if (!reclaimed.equals(volumePlan.keySet())) {
             throw new ResponseStatusException(CONFLICT, "DEPENDENCY_VOLUME_RECLAMATION_UNPROVEN");
         }
+    }
+
+    /** Read-only reuse of a completed provisioning checkpoint. Drift never triggers a redeploy. */
+    public OwnedDependencyResult verifyOwnedDependencyCheckpoint(CoolifyConnection connection, String graphId,
+            String serviceRef, com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec,
+            OwnedDependencyResources resources, java.util.function.Function<String, List<CoolifyEnvVar>> environment,
+            String expectedBaseUrl, OwnedDependencyCheckpoint checkpoint) {
+        requireExistingDependencyResources(connection, graphId, serviceRef, spec, resources);
+        checkpoint.guard();
+        var authority = requireOwnedDependencyAuthority();
+        var owner = authority.context(connection, graphId, serviceRef, spec.slot());
+        var app = authority.application(owner, resources.applicationUuid());
+        var settings = ownedDependencyRuntimeSettings(spec);
+        CoolifyApplicationCapacity.requireReadback(app, settings, "DEPENDENCY_APPLICATION_SPEC_DRIFT");
+        if (!app.fqdn().equals(expectedBaseUrl) || !"dockerimage".equals(app.raw().path("build_pack").asText())
+            || !Integer.toString(spec.port()).equals(app.raw().path("ports_exposes").asText())
+            || !app.raw().path("health_check_enabled").isBoolean()
+            || !app.raw().path("health_check_enabled").asBoolean()
+            || !spec.healthPath().equals(app.raw().path("health_check_path").asText())
+            || !Integer.toString(spec.port()).equals(app.raw().path("health_check_port").asText())
+            || app.raw().path("health_check_interval").asInt(-1) != settings.healthCheckIntervalSeconds()
+            || app.raw().path("health_check_timeout").asInt(-1) != settings.healthCheckTimeoutSeconds()
+            || app.raw().path("health_check_retries").asInt(-1) != settings.healthCheckRetries()
+            || app.raw().path("health_check_start_period").asInt(-1) != settings.healthCheckStartPeriodSeconds()) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_APPLICATION_SPEC_DRIFT");
+        }
+        if (spec.database() != null) {
+            CoolifyDatabaseCapacity.requireReadback(authority.database(owner, resources.databaseUuid()),
+                CoolifyDatabaseCapacity.of(spec.database().capacity().milliCpu(), spec.database().capacity().memoryMiB()),
+                "DEPENDENCY_DATABASE_SPEC_DRIFT");
+        }
+        var values = environment.apply(resources.databaseUuid()).stream()
+            .filter(value -> !"__DATABASE_PASSWORD".equals(value.key())).toList();
+        var keys = new java.util.HashSet<String>();
+        for (var value : values) {
+            if (value.preview() || !keys.add(value.key()) || !java.util.Objects.equals(value.value(),
+                coolifyApiClient.requireRuntimeEnvironmentValue(connection, resources.applicationUuid(), value.key()))) {
+                throw new ResponseStatusException(CONFLICT, "DEPENDENCY_ENVIRONMENT_READBACK_FAILED");
+            }
+        }
+        var jobs = coolifyApiClient.applicationDeploymentHistory(connection, resources.applicationUuid());
+        var ids = new java.util.HashSet<String>();
+        if (jobs.isEmpty() || jobs.stream().anyMatch(job -> !hasText(job.deploymentUuid()) || !ids.add(job.deploymentUuid())
+            || (job.applicationUuid() != null ? !resources.applicationUuid().equals(job.applicationUuid())
+                : job.raw() == null || !hasText(app.raw().path("id").asText(null))
+                    || !app.raw().path("id").asText().equals(job.raw().path("application_id").asText()))
+            || !Set.of("finished", "failed", "cancelled").contains(job.status())
+            || !hasText(job.createdAt()) || !hasText(job.finishedAt()))) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        }
+        try {
+            var latest = jobs.stream().max(java.util.Comparator.comparing(job -> Instant.parse(job.createdAt()))).orElseThrow();
+            var exact = coolifyApiClient.getDeployment(connection, latest.deploymentUuid()).orElseThrow();
+            if (!latest.deploymentUuid().equals(exact.deploymentUuid())
+                || !resources.applicationUuid().equals(exact.applicationUuid()) || !"finished".equals(exact.status())
+                || !latest.createdAt().equals(exact.createdAt()) || !latest.finishedAt().equals(exact.finishedAt())
+                || Instant.parse(exact.finishedAt()).isBefore(Instant.parse(exact.createdAt()))
+                || Instant.parse(exact.finishedAt()).isAfter(Instant.now())) {
+                throw new IllegalStateException();
+            }
+        } catch (RuntimeException unproven) {
+            throw new ResponseStatusException(CONFLICT, "DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        }
+        checkpoint.guard();
+        verifyOwnedDependencyReady(connection, graphId, serviceRef, spec.slot(), resources.applicationUuid(),
+            resources.databaseUuid(), resources.volumes());
+        return new OwnedDependencyResult(resources.applicationUuid(), resources.databaseUuid(), expectedBaseUrl);
+    }
+
+    private CoolifyApplicationRuntimeSettings ownedDependencyRuntimeSettings(
+            com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencySpec.Service spec) {
+        return new CoolifyApplicationRuntimeSettings(10, 5, 18, 180,
+            spec.capacity().memoryMiB() + "M", null, null,
+            java.math.BigDecimal.valueOf(spec.capacity().milliCpu(), 3).toPlainString(), null);
     }
 
     /** Exact provider readback used after idempotent service initialization. */

@@ -71,7 +71,10 @@ public class ManagedDependencyReleaseCoordinator {
     public void resumeRuntimeBound(DeploymentEntity deployment, DeploymentVersionEntity version,
                                    DeploymentReleaseEntity release, String proofFingerprint) {
         if (proofFingerprint == null || !proofFingerprint.matches("[a-f0-9]{64}")) throw conflict("DEPENDENCY_CONTINUATION_PROOF_REQUIRED");
-        completeRuntimeBound(deployment, version, release, "resume:" + proofFingerprint);
+        Context context = context(deployment, version, release);
+        if (context == null) return;
+        lifecycle.resumeForRelease(deployment.getId(), release.getTargetProfileId(), release.getId(),
+            operation(release, "resume:" + proofFingerprint));
     }
 
     private void completeRuntimeBound(DeploymentEntity deployment, DeploymentVersionEntity version,

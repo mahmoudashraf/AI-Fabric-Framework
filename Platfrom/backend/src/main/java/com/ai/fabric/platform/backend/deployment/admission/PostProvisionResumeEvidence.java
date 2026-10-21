@@ -74,7 +74,9 @@ final class PostProvisionResumeEvidence {
             || !"BLOCKED".equals(graph.get("status")) || graph.get("failure_code") == null) fail("DEPENDENCY_PHASE_CHANGED");
         var state = json.read((String) graph.get("state_json"), ManagedDependencyState.class);
         if (state.nodes.isEmpty() || state.nodes.stream().noneMatch(node ->
-                "ADMISSION".equals(graph.get("step")) || ("PROVISION:" + node.slot).equals(graph.get("step")))
+                "ADMISSION".equals(graph.get("step")) || ("PROVISION:" + node.slot).equals(graph.get("step"))
+                    || ("INITIALIZE:" + node.slot).equals(graph.get("step"))
+                        && java.util.Set.of("PROVISIONED", "INITIALIZING").contains(node.status))
             || state.effectiveConfigurationRevision != -1
             || state.retirementFingerprint != null || state.runtimeGenerationOperationKey != null || state.runtimeGenerationState != null
             || !state.runtimeGenerationStoppedSlots.isEmpty() || state.operatorRevocationOperationKey != null
@@ -84,8 +86,12 @@ final class PostProvisionResumeEvidence {
         var ownership = rows("SELECT * FROM platform_managed_resource_ownership WHERE deployment_id=? AND target_profile_id=? ORDER BY id FOR UPDATE NOWAIT",
             r.deploymentId(), r.targetProfileId());
         for (var node : state.nodes) {
-            if (node.baseUrl != null || node.initialized || node.disabled
-                || !"PLANNED".equals(node.status) || node.provisionedConfigurationRevision != -1
+            boolean planned = "PLANNED".equals(node.status) && node.baseUrl == null
+                && node.provisionedConfigurationRevision == -1;
+            boolean provisioned = java.util.Set.of("PROVISIONED", "INITIALIZING").contains(node.status)
+                && node.baseUrl != null && !node.baseUrl.isBlank() && node.applicationUuid != null
+                && node.provisionedConfigurationRevision == state.configurationRevision;
+            if ((!planned && !provisioned) || node.initialized || node.disabled
                 || node.applicationCreateIntent != (node.applicationUuid != null)
                 || node.databaseCreateIntent != (node.databaseUuid != null)
                 || node.retirementOperationKey != null || !node.volumeReclamationPlan.isEmpty()

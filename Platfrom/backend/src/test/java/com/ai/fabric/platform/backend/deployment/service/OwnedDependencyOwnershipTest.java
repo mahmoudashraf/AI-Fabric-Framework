@@ -101,6 +101,112 @@ class OwnedDependencyOwnershipTest {
             ignored -> List.of(new CoolifyEnvVar("__DATABASE_PASSWORD", "private", false, true, false, true)), checkpoint);
     }
 
+    private void checkpointReady() {
+        existing(true);
+        var before = fixture.applications.get("app");
+        var raw = (com.fasterxml.jackson.databind.node.ObjectNode) before.raw();
+        raw.put("build_pack", "dockerimage").put("ports_exposes", "8085")
+            .put("health_check_enabled", true).put("health_check_path", "/actuator/health")
+            .put("health_check_port", "8085").put("health_check_interval", 10)
+            .put("health_check_timeout", 5).put("health_check_retries", 18).put("health_check_start_period", 180)
+            .put("limits_memory", "512M").put("limits_cpus", "0.250");
+        when(api.requireRuntimeEnvironmentValue(connection, "app", "API_KEY")).thenReturn("private-exact-value");
+        var job = new CoolifyDeploymentSummary("finished-job", "inbox-service", "app", "finished", null, null,
+            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "2026-01-01T00:01:00Z", mapper.createObjectNode());
+        when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(job));
+        when(api.getDeployment(connection, "finished-job")).thenReturn(Optional.of(job));
+    }
+
+    private PlatformManagedProductProvisioningService.OwnedDependencyResult verifyCheckpoint() {
+        return service.verifyOwnedDependencyCheckpoint(connection, "graph", "inbox-service", inbox(), fixture.resources(),
+            ignored -> List.of(new CoolifyEnvVar("API_KEY", "private-exact-value", false, true, false, true)),
+            "https://inbox-service.example.test", checkpoint);
+    }
+
+    @Test void completedCheckpointIsVerifiedWithoutProviderMutation() {
+        checkpointReady();
+        assertThat(verifyCheckpoint()).isEqualTo(new PlatformManagedProductProvisioningService.OwnedDependencyResult(
+            "app", null, "https://inbox-service.example.test"));
+        verify(checkpoint, times(2)).guard();
+        verify(checkpoint, never()).creating(anyString());
+        noMutations();
+    }
+
+    @Test void nativeHistoryApplicationIdIsVerifiedAgainstTheOwnedAppAndDetailedJob() {
+        checkpointReady();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) fixture.applications.get("app").raw()).put("id", 277);
+        var exact = api.applicationDeploymentHistory(connection, "app").getFirst();
+        var listed = new CoolifyDeploymentSummary(exact.deploymentUuid(), exact.applicationName(), null, exact.status(),
+            null, null, exact.createdAt(), exact.updatedAt(), exact.finishedAt(), mapper.createObjectNode().put("application_id", "277"));
+        when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(listed));
+        assertThatCode(this::verifyCheckpoint).doesNotThrowAnyException();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) listed.raw()).put("application_id", "278");
+        assertThatThrownBy(this::verifyCheckpoint).hasMessageContaining("DEPENDENCY_DEPLOYMENT_READBACK_REQUIRED");
+        noMutations();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"healthy", "capacity-drift", "unhealthy"})
+    void checkpointReuseSupportsGenericAiServicesWithOwnedPostgres(String scenario) {
+        var spec = ManagedDependencyFixtures.http("state", true);
+        existingDatabase("postgres://dependency:synthetic-password@" + DATABASE_UUID + ":5432/dependency", false);
+        fixture.graph(spec, "state-service", new PlatformManagedProductProvisioningService.OwnedDependencyResources(
+            "app", DATABASE_UUID, true, true, Map.of()));
+        var app = app("app", "state-service", "state");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) app.raw())
+            .put("build_pack", "dockerimage").put("ports_exposes", "8080")
+            .put("health_check_enabled", true).put("health_check_path", "/actuator/health")
+            .put("health_check_port", "8080").put("health_check_interval", 10)
+            .put("health_check_timeout", 5).put("health_check_retries", 18).put("health_check_start_period", 180)
+            .put("limits_memory", "512M").put("limits_cpus", "0.250");
+        fixture.applications.put("app", app); fixture.receipts();
+        var database = fixture.databases.get(DATABASE_UUID);
+        if ("capacity-drift".equals(scenario)) ((com.fasterxml.jackson.databind.node.ObjectNode) database.raw()).put("limits_memory", "128M");
+        if ("unhealthy".equals(scenario)) fixture.databases.put(DATABASE_UUID,
+            new CoolifyDatabaseSummary(database.uuid(), database.name(), "running:unhealthy", database.databaseType(),
+                database.postgresUser(), database.postgresDatabase(), database.raw()));
+        var job = new CoolifyDeploymentSummary("finished-job", "state-service", "app", "finished", null, null,
+            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "2026-01-01T00:01:00Z", mapper.createObjectNode());
+        when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(job));
+        when(api.getDeployment(connection, "finished-job")).thenReturn(Optional.of(job));
+        Runnable verify = () -> service.verifyOwnedDependencyCheckpoint(connection, "graph", "state-service", spec,
+            fixture.resources(), ignored -> List.of(), "https://state-service.example.test", checkpoint);
+        if ("healthy".equals(scenario)) assertThatCode(verify::run).doesNotThrowAnyException();
+        else assertThatThrownBy(verify::run).hasMessageContaining("DEPENDENCY_DATABASE_");
+        noMutations();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"image", "port", "health", "interval", "memory", "environment", "missing-job",
+        "pending-job", "foreign-job", "changed-job", "duplicate-job", "unhealthy", "ownership"})
+    void checkpointDriftIsVisibleAndNeverRepairedByRedeploy(String change) {
+        checkpointReady();
+        var before = fixture.applications.get("app");
+        var raw = (com.fasterxml.jackson.databind.node.ObjectNode) before.raw();
+        var job = api.applicationDeploymentHistory(connection, "app").getFirst();
+        switch (change) {
+            case "image" -> fixture.applications.put("app", new CoolifyApplicationSummary(before.uuid(), before.name(),
+                before.fqdn(), before.status(), before.imageRepository(), "sha256-" + "f".repeat(64), raw));
+            case "port" -> raw.put("ports_exposes", "9999");
+            case "health" -> raw.put("health_check_enabled", false);
+            case "interval" -> raw.put("health_check_interval", 5);
+            case "memory" -> raw.put("limits_memory", "128M");
+            case "environment" -> when(api.requireRuntimeEnvironmentValue(connection, "app", "API_KEY")).thenReturn("different-value");
+            case "missing-job" -> when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of());
+            case "pending-job", "foreign-job" -> when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(
+                new CoolifyDeploymentSummary(job.deploymentUuid(), job.applicationName(), "foreign-job".equals(change) ? "foreign" : "app",
+                    "pending-job".equals(change) ? "in_progress" : "finished", null, null, job.createdAt(), job.updatedAt(), job.finishedAt(), job.raw())));
+            case "changed-job" -> when(api.getDeployment(connection, "finished-job")).thenReturn(Optional.empty());
+            case "duplicate-job" -> when(api.applicationDeploymentHistory(connection, "app")).thenReturn(List.of(job, job));
+            case "unhealthy" -> fixture.applications.put("app", new CoolifyApplicationSummary(before.uuid(), before.name(),
+                before.fqdn(), "running:unhealthy", before.imageRepository(), before.imageTag(), raw));
+            case "ownership" -> fixture.jdbc.update("DELETE FROM platform_managed_resource_ownership WHERE resource_kind=?", OwnedDependencyOwnership.APPLICATION);
+            default -> throw new AssertionError(change);
+        }
+        assertThatThrownBy(this::verifyCheckpoint).isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageNotContaining("private-exact-value").hasMessageNotContaining("different-value");
+        noMutations();
+    }
+
     private void noMutations() {
         verify(api, never()).createDockerImageApplication(any(), any());
         verify(api, never()).createPostgresDatabase(any(), any());

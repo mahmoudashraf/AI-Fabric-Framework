@@ -387,6 +387,11 @@ public class ManagedDependencyLifecycleService {
         return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, true);
     }
 
+    Summary resumeForRelease(String deploymentId, String targetProfileId, String releaseId,
+                             String operationKey) {
+        return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, true, true);
+    }
+
     private Summary schedule(String deploymentId, String targetProfileId, String operationKey, boolean initialize) {
         requireScope(deploymentId, targetProfileId, true);
         var graph = find(deploymentId, targetProfileId);
@@ -395,9 +400,14 @@ public class ManagedDependencyLifecycleService {
 
     private Summary runForRelease(String deploymentId, String targetProfileId, String releaseId,
                                   String operationKey, boolean initialize) {
+        return runForRelease(deploymentId, targetProfileId, releaseId, operationKey, initialize, false);
+    }
+
+    private Summary runForRelease(String deploymentId, String targetProfileId, String releaseId,
+                                  String operationKey, boolean initialize, boolean resume) {
         var graph = find(deploymentId, targetProfileId);
         if (releaseId == null || !releaseId.equals(graph.getReleaseId())) fail("DEPENDENCY_RELEASE_BINDING_CHANGED");
-        Summary accepted = schedule(graph, operationKey, initialize, true);
+        schedule(graph, operationKey, initialize, true, resume);
         var completed = find(deploymentId, targetProfileId);
         String expected = initialize ? "READY" : "PROVISIONED";
         if (!expected.equals(completed.getStatus())) {
@@ -408,11 +418,16 @@ public class ManagedDependencyLifecycleService {
 
     private Summary schedule(ManagedDependencyGraphEntity graph, String operationKey, boolean initialize,
                              boolean synchronous) {
+        return schedule(graph, operationKey, initialize, synchronous, false);
+    }
+
+    private Summary schedule(ManagedDependencyGraphEntity graph, String operationKey, boolean initialize,
+                             boolean synchronous, boolean resume) {
         required(operationKey, 128);
         boolean[] accepted = {false};
         store.mutate(graph.getId(), null, (current, state) -> {
             if ("RETIRING".equals(current.getStatus()) || "RETIRED".equals(current.getStatus())) fail("DEPENDENCY_RETIREMENT_IN_PROGRESS");
-            accepted[0] = command(state, operationKey, validator.fingerprint(List.of(initialize ? "RECONCILE" : "PROVISION", current.getSpecFingerprint(),
+            accepted[0] = command(state, operationKey, validator.fingerprint(List.of(resume ? "RESUME" : initialize ? "RECONCILE" : "PROVISION", current.getSpecFingerprint(),
                 current.getBindingFingerprint(), state.configurationRevision)), current.getId());
         });
         if (!accepted[0]) return summary(store.read(graph.getId()));
@@ -428,7 +443,7 @@ public class ManagedDependencyLifecycleService {
         });
         if (claimed) {
             if (synchronous) {
-                execute(graph.getId(), token, initialize);
+                execute(graph.getId(), token, initialize, resume);
             } else {
                 try { executor.execute(() -> execute(graph.getId(), token, initialize)); }
                 catch (RuntimeException error) { failure(graph.getId(), token, "DEPENDENCY_EXECUTOR_REJECTED"); }
@@ -438,6 +453,10 @@ public class ManagedDependencyLifecycleService {
     }
 
     void execute(String graphId, String token, boolean initialize) {
+        execute(graphId, token, initialize, false);
+    }
+
+    private void execute(String graphId, String token, boolean initialize, boolean resume) {
         try {
             var graph = store.read(graphId); var spec = store.spec(graph); validator.validate(spec);
             if (!validator.fingerprint(spec).equals(graph.getSpecFingerprint())) fail("DEPENDENCY_SPEC_DRIFT");
@@ -504,8 +523,20 @@ public class ManagedDependencyLifecycleService {
                     disabled[0] = true;
                     continue;
                 }
-                var result = provisioning.reconcileOwnedDependency(connection, graphId, node.serviceRef, service,
-                    resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid), checkpoint(graphId, token, service.slot()));
+                var checkpointState = store.state(store.read(graphId));
+                boolean checkpointed = resume && Set.of("PROVISIONED", "INITIALIZING", "READY").contains(node.status);
+                if (resume && !checkpointed && (!"PLANNED".equals(node.status)
+                    || node.provisionedConfigurationRevision != -1 || node.baseUrl != null || node.initialized)) {
+                    fail("DEPENDENCY_CONTINUATION_CHECKPOINT_CHANGED");
+                }
+                if (checkpointed && (node.provisionedConfigurationRevision != checkpointState.configurationRevision
+                    || node.baseUrl == null)) fail("DEPENDENCY_CONTINUATION_CONFIGURATION_CHANGED");
+                var result = checkpointed
+                    ? provisioning.verifyOwnedDependencyCheckpoint(connection, graphId, node.serviceRef, service,
+                        resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid),
+                        node.baseUrl, checkpoint(graphId, token, service.slot()))
+                    : provisioning.reconcileOwnedDependency(connection, graphId, node.serviceRef, service,
+                        resources(node), databaseUuid -> environment(graphId, service, connection, databaseUuid), checkpoint(graphId, token, service.slot()));
                 store.mutate(graphId, token, (current, state) -> {
                     var owned = node(state, service.slot()); owned.baseUrl = result.baseUrl(); owned.status = "PROVISIONED";
                     owned.provisionedConfigurationRevision = state.configurationRevision;

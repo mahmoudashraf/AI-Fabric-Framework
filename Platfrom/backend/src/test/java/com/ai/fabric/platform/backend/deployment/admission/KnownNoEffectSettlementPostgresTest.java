@@ -794,6 +794,39 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(store.recordedPostProvisionResume("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).isEqualTo(result);
     }
 
+    @ParameterizedTest @ValueSource(strings = {"PROVISIONED", "INITIALIZING"})
+    void repeatedSetupContinuationAcceptsExactProvisionedUninitializedCheckpoint(String status) {
+        failedSetupContinuation(); var node = preparedGraphState.nodes.getFirst();
+        node.status = status; node.baseUrl = "https://inbox-service.example";
+        node.provisionedConfigurationRevision = preparedGraphState.configurationRevision;
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET step='INITIALIZE:inbox',state_json=? WHERE id='prepared-graph'", json.write(preparedGraphState));
+        var before = nativePreserved(); var r = store.require(original.id()); var draft = resumeDraft(r.fence());
+        draft = new PostProvisionResumeContracts.Command(draft.fence(), draft.releaseId(), "resume-provisioned", draft.reason(), true, null);
+        var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
+        var plan = store.planPostProvisionResume("customer", "deployment", r.id(), draft, inspected, nativeReadback(NOW), value -> { });
+        var result = store.queuePostProvisionResume("customer", "deployment", r.id(), plan.command(), inspected, nativeReadback(NOW), "owner", value -> { });
+        assertThat(result.runtimeRedeployRequired()).isFalse(); assertThat(result.financialMutationPerformed()).isFalse();
+        assertThat(nativePreserved()).isEqualTo(before);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"configuration", "missing-url", "missing-app", "initialized"})
+    void repeatedSetupContinuationRejectsChangedProvisionedCheckpoint(String change) {
+        failedSetupContinuation(); var node = preparedGraphState.nodes.getFirst();
+        node.status = "INITIALIZING"; node.baseUrl = "https://inbox-service.example";
+        node.provisionedConfigurationRevision = preparedGraphState.configurationRevision;
+        switch (change) {
+            case "configuration" -> node.provisionedConfigurationRevision++;
+            case "missing-url" -> node.baseUrl = null;
+            case "missing-app" -> node.applicationUuid = null;
+            case "initialized" -> node.initialized = true;
+            default -> throw new AssertionError(change);
+        }
+        jdbc.update("UPDATE deployment_managed_dependency_graphs SET step='INITIALIZE:inbox',state_json=? WHERE id='prepared-graph'", json.write(preparedGraphState));
+        var before = allRelevant(); var r = store.require(original.id());
+        assertThatThrownBy(() -> store.postProvisionResumeCandidate("customer", "deployment", r.id(), resumeDraft(r.fence()), value -> { })).isInstanceOf(AdmissionFailure.class);
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
     @ParameterizedTest @ValueSource(strings = {"missing-receipt", "tampered-receipt", "marker-proof", "uncertain-create", "missing-ownership", "pending-ownership", "foreign-ownership", "wrong-kind", "wrong-resource", "initialized", "phase"})
     void repeatedSetupContinuationRejectsUnprovenCheckpointsWithoutMutation(String change) {
         failedSetupContinuation(); var state = mapper.valueToTree(preparedGraphState);

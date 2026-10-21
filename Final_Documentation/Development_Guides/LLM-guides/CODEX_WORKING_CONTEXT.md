@@ -10,6 +10,38 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At00:07UTC Oct21 MAIN CONTINUES. Provisioned-checkpoint correction locally
+  qualifies151checks:115finalisolatedunit+36actualPG with admission production/
+  testclass bytes identical to finalcopy. Proof2904de2f0bf0ca5eb364d36675c29b737ff2fe0a81e70db0259ea26a675df2a3
+  under01044-final-checkpoint-unit-20261021.xb735R. PGbatchusedschema206;
+  combined207migration/regression/package/CIandhostedcontinuationstillpending.
+  Private runtime validity extension qualifies111checks incl38actualPG, while
+  capabilitymanifestadditionqualificationfollows; CPvaliditytestsruninprivatecopy.
+  Release-scopedreviewedartifactrepairimplementationinprogress. Newbackend
+  rolloutwillbecombined; no blindPOST ornewcustomerresource/financialmutation.
+  Additive207rolloutguardpreparedwithall139originaltables/rawhistory,206original
+  Flywayrowsandexactnewemptyvaliditytablespreservation; noactualrolloutyet.
+
+- At23:55UTC MAIN CONTINUES. Both backends are healthy on2a7f7fad/image5d00f329/
+  schema206, source-only maintenance closed. Functional receipt UI592a9f9de/
+  imageb270da72 is VERIFIED on BOTH hosts with configuration/domains unchanged;
+  production jobq7nxhiona0ut0ka0hndjm9or, proof3616e7761f2780c7b53835dfc8a05332f792ca06af2855dea3e9ca21640358c3.
+  Same release rel-b7206a67/Rc4d054ec now UNKNOWNrev18 after Inbox native job
+  s9nzu0yu3yj9cawkmguuhwld finished healthy23:31:45, three seconds after capacity
+  policy expiry. Node INITIALIZING/uninitialized/current configuration provisioned.
+  Existing wallet initialization ACTIVE but actual allowance expired23:30; this
+  is not missing OpenAI credit or user material. No reset/regrant/extra funding.
+  Main implements strict read-only provisioned-checkpoint reuse; focused actualPG
+  qualification running. Independent agents implement append-only effective
+  validity extension in product ledger/runtime and CP, retaining original terms,
+  caps/counters/store/stop. New runtime needs reviewed artifact adoption, never
+  silent offer/release pin edits. No new hosted backend/runtime mutation yet.
+  Fresh fleet baseline completed23:43, not workload certification. Renew policy
+  only after next combined source rollout. Tracker:
+  verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md.
+  Customer app remains DRAFT; full live acceptance/promotion/operations and UI
+  extraction remain. Extraction LAST; no claim of plan completion.
+
 - At23:14UTC MAIN CONTINUES. Both backends verifydc3530fd0/image922e6dfc/
   schema206/UP; all139 tables/history/config/finances preserved, maintenance
   closurebadb4a5499f1ee82796b3d4ed1c5e5906a6c6c3acd5af53c46d835372a17b736

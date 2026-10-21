@@ -176,6 +176,44 @@ class ManagedDependencyLifecycleServiceTest {
             .containsExactlyElementsOf(initializationKeys.getAllValues().subList(3, 6));
         assertThat(store.json(ready)).doesNotContain(keys.values().iterator().next(), "secretName");
     }
+
+    @Test void explicitResumeReusesProvisionedNodesAndRetainsInitializationKeys() {
+        var ready = ready("staging"); var graph = graphs.get(ready.graphId()); graph.setReleaseId("release");
+        var failedKeys = new ArrayList<String>();
+        doAnswer(call -> { failedKeys.add(call.getArgument(3)); throw new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT, "FRESH_MEASURED_CAPACITY_REQUIRED"); })
+            .when(gate).initializeAndVerify(any(), anyString(), any(), anyString());
+        assertThatThrownBy(() -> lifecycle.reconcileForRelease("dep-1", "staging", "release", "failed-initialization"))
+            .hasMessageContaining("FRESH_MEASURED_CAPACITY_REQUIRED");
+        var failed = store.state(graph); var before = failed.nodes.stream()
+            .map(n -> List.of(n.applicationUuid, Objects.toString(n.databaseUuid, ""))).toList();
+        clearInvocations(provider, gate);
+        doNothing().when(gate).initializeAndVerify(any(), anyString(), any(), anyString());
+        when(provider.verifyOwnedDependencyCheckpoint(any(), anyString(), anyString(), any(), any(), any(), anyString(), any()))
+            .thenAnswer(call -> {
+                var resources = call.getArgument(4, PlatformManagedProductProvisioningService.OwnedDependencyResources.class);
+                call.getArgument(7, PlatformManagedProductProvisioningService.OwnedDependencyCheckpoint.class).guard();
+                return new PlatformManagedProductProvisioningService.OwnedDependencyResult(resources.applicationUuid(),
+                    resources.databaseUuid(), call.getArgument(6));
+            });
+        assertThat(lifecycle.resumeForRelease("dep-1", "staging", "release", "explicit-resume").status()).isEqualTo("READY");
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(provider, times(3)).verifyOwnedDependencyCheckpoint(any(), anyString(), anyString(), any(), any(), any(), anyString(), any());
+        var resumedKeys = ArgumentCaptor.forClass(String.class);
+        verify(gate, times(3)).initializeAndVerify(any(), anyString(), any(), resumedKeys.capture());
+        assertThat(resumedKeys.getAllValues().getFirst()).isEqualTo(failedKeys.getFirst());
+        assertThat(store.state(graph).nodes.stream().map(n -> List.of(n.applicationUuid, Objects.toString(n.databaseUuid, ""))).toList()).isEqualTo(before);
+    }
+
+    @Test void explicitResumeRejectsChangedConfigurationWithoutReprovisioning() {
+        var ready = ready("staging"); var graph = graphs.get(ready.graphId()); graph.setReleaseId("release");
+        store.mutate(graph.getId(), null, (current, state) -> state.configurationRevision++);
+        clearInvocations(provider);
+        assertThatThrownBy(() -> lifecycle.resumeForRelease("dep-1", "staging", "release", "changed-config-resume"))
+            .hasMessageContaining("DEPENDENCY_CONTINUATION_CONFIGURATION_CHANGED");
+        verify(provider, never()).reconcileOwnedDependency(any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(provider, never()).verifyOwnedDependencyCheckpoint(any(), anyString(), anyString(), any(), any(), any(), anyString(), any());
+    }
     @Test void configurationChangeProducesFreshInitializationGenerations() {
         var initial = ready("staging");
         var initialKeys = ArgumentCaptor.forClass(String.class);
