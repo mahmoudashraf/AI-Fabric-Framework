@@ -10,6 +10,28 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 20:05UTC BOTH CPsa2df03d48/schema207/UP, image41fbb459, 25criticaltables+config
+  unchanged. Stagejobnvwenyhwkw365nu8ektc0nei/prodl8tmwe6r1khpz8q1sm2w1cej.
+  closurec86cd3bc... root01044-cold-maintenance-runtime-20261021. CIbackend
+  39664423569/runtime39664424196PASS/UI skipped. Runtimee31d3b95 inspected27classes
+  +20frameworkjars byteidentical0.8.36; dsa6678c16b registeredSTAGINGnotdeployed.
+  ColdPLAN409DEPENDENCY_CHECKPOINT_UNPROVEN BEFOREpreview/claim/nativeeffect.
+  ActualgraphPROVISIONED config2 QUIESCED butnodePLANNED/provisionedRev1 (retained
+  olderconfiguration), notfakefixturePROVISIONED2. FixonlycoldEligibility+
+  ReapplyEvidence torequire PLANNED/priorrev; testsfixturescorrectedactualshape,
+  2negativecasesadded. MainnarrowPG/package88428running. RuntimeunchangeddoNOT
+  rebuildagain. Firstlocalpilot/planintentconsumedREJECTIONroot/pilot; r2needs
+  FRESHroot/opkey notblind replay. RstillOUTCOME_UNKNOWNrev10/noworker/samegen.
+  Noqueries/nativecold/appactivation/businesswrites. Needbackend-onlyqual+push+
+  rolloutFROMa2; runtimeapprovedsourceREMAINSa2 sohelpersmustDECOUPLEbackendsource
+  fromruntimeartifactsource. Rootnew01044-cold-maintenance-prepared-inbox-20261021
+  plannedforfollowup; notcreatedyet. No usermaterialmissing/UI-LASTunchanged.
+
+- 20:08UTC prepared-Inbox correction56focusedPASS incl11actualPG/package/no skips.
+  ChangesONLYcold-owned-node eligibility +ReapplyBeforeRuntimeStopEvidence+test
+  fixtureactualPLANNED1/config2, rejectcurrent/missingprior. Runtimea2imagee31d/
+  dsa6678unchanged. Needbackend-onlypublish/rolloutnewroot thenfreshcoldplanr2.
+
 - 19:44UTC coldpathcommittedNOTpushed/live: backendf8054c743, runtime76c312cf3,
   inventory033301a78. Backend202baselineunique(22actualPG) +final9PGselected
   rerun/packagePASS; XMLbaseline22andfinal9separate/root

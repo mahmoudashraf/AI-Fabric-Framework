@@ -23,21 +23,26 @@ public final class RuntimeArtifactRepairDependencyEligibility {
             || state.effectiveConfigurationRevision != -1) fail();
     }
     public static void requireColdPrepared(String status, String step, String failureCode, ManagedDependencyState state) {
-        requireNode(state);
+        requireOwnedNode(state);
         var node = state.nodes.getFirst();
         if (!"PROVISIONED".equals(status) || !"RUNTIME_INITIALIZATION_REQUIRED".equals(step)
-            || failureCode != null || node.initialized || !"PROVISIONED".equals(node.status)
+            || failureCode != null || node.initialized || !"PLANNED".equals(node.status)
+            || node.provisionedConfigurationRevision < 0 || node.provisionedConfigurationRevision >= state.configurationRevision
             || state.effectiveConfigurationRevision != -1 || state.retirementFingerprint != null
             || state.operatorRevocationOperationKey != null || state.operatorRevocationOperatorId != null
             || state.operatorRevocationLifecycleKey != null || !state.retiredOperatorSecretNames.isEmpty()) fail();
     }
     private static void requireNode(ManagedDependencyState state) {
+        requireOwnedNode(state);
+        if (state.nodes.getFirst().provisionedConfigurationRevision != state.configurationRevision) fail();
+    }
+    private static void requireOwnedNode(ManagedDependencyState state) {
         if (state == null || state.nodes.size() != 1) fail();
         var node = state.nodes.getFirst();
         if (node.disabled || node.applicationUuid == null || node.applicationUuid.isBlank()
             || node.databaseUuid == null || node.databaseUuid.isBlank() || node.applicationUuid.equals(node.databaseUuid)
             || !node.applicationCreateIntent || !node.databaseCreateIntent || node.baseUrl == null || node.baseUrl.isBlank()
-            || node.provisionedConfigurationRevision != state.configurationRevision || node.retirementOperationKey != null
+            || node.retirementOperationKey != null
             || !node.volumeReclamationPlan.isEmpty() || !node.reclaimedVolumeUuids.isEmpty()) fail();
     }
     private static void fail() { throw new AdmissionFailure(CONFLICT, "RUNTIME_ARTIFACT_REPAIR_DEPENDENCY_CHECKPOINT_UNPROVEN"); }

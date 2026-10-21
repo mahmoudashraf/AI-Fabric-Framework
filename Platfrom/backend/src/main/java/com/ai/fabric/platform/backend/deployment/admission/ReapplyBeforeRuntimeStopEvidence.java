@@ -183,10 +183,9 @@ final class ReapplyBeforeRuntimeStopEvidence {
             || state.operatorRevocationLifecycleKey != null || !state.retiredOperatorSecretNames.isEmpty()) fail("INBOX_GENERATION_ALREADY_STARTED");
         var inbox = state.nodes.getFirst();
         if (!spec.services().getFirst().slot().equals(inbox.slot) || !text(inbox.serviceRef) || !text(inbox.accountId) || !text(inbox.bindingId)
-            || !(cold ? "PROVISIONED" : "PLANNED").equals(inbox.status) || inbox.initialized || inbox.disabled || !text(inbox.applicationUuid) || !text(inbox.databaseUuid)
+            || !"PLANNED".equals(inbox.status) || inbox.initialized || inbox.disabled || !text(inbox.applicationUuid) || !text(inbox.databaseUuid)
             || !text(inbox.baseUrl) || !inbox.applicationCreateIntent || !inbox.databaseCreateIntent
-            || inbox.provisionedConfigurationRevision < 0 || (cold ? inbox.provisionedConfigurationRevision != state.configurationRevision
-                : inbox.provisionedConfigurationRevision >= state.configurationRevision)
+            || inbox.provisionedConfigurationRevision < 0 || inbox.provisionedConfigurationRevision >= state.configurationRevision
             || inbox.retirementOperationKey != null || !inbox.volumeReclamationPlan.isEmpty() || !inbox.reclaimedVolumeUuids.isEmpty()) fail("RETAINED_INBOX_REQUIRED");
         if (state.operators.isEmpty() || state.operators.stream().anyMatch(o -> !inbox.slot.equals(o.slot)
             || !"ENROLLED".equals(o.status) || o.effectiveAt == null || !text(o.id) || !text(o.secretName) || o.credentialRevision < 1)) fail("RETAINED_OPERATOR_REQUIRED");

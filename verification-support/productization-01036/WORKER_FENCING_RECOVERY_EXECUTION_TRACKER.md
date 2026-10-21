@@ -113,6 +113,42 @@ Checkpoint19:05UTC:
 
 ## Actual Failure
 
+### Hosted Prepared-Inbox Correction, 20:05 UTC
+
+Both CPs verify a2df03d48 / backend image41fbb459, schema207, healthy services,
+unchanged configuration and25 protected authority/financial tables. Stage job
+nvwenyhwkw365nu8ektc0nei; production jobl8tmwe6r1khpz8q1sm2w1cej. Closure
+SHA256c86cd3bc1958195d12850dc2ae004741b7cac812d7a77221569ff4f51bc9e38f.
+Both image workflows passed; UI skipped. The runtime image e31d3b95 was inspected:
+27 qualified class hashes match and20 released0.8.36 framework jars are byte
+identical. dsa-6678c16b is registered/STAGING-approved, not deployed.
+
+The first actual cold PLAN returned409
+RUNTIME_ARTIFACT_REPAIR_DEPENDENCY_CHECKPOINT_UNPROVEN before a plan/claim/native
+effect was recorded. The original local intent/rejection are retained under
+`/private/tmp/01044-cold-maintenance-runtime-20261021/pilot`; do not replay them.
+Read-only authoritative SQL exposed an incorrectly modeled fixture: the graph
+is PROVISIONED/RUNTIME_INITIALIZATION_REQUIRED, configurationRevision2, but the
+retained, uninitialized Inbox node is deliberately PLANNED with provisioned
+revision1. This is the preparation producer's state before continuation, not a
+fully provisioned revision2 node. Neither the row nor the source state was edited.
+
+Main is correcting only cold-prepared eligibility and its continuation check to
+require that retained PLANNED/prior-revision state, keeping ordinary repair modes
+unchanged. Tests now retain the actual producer shape and reject already-current
+or missing prior revision. This is a BACKEND-ONLY follow-up; the qualified runtime
+image/artifact stays unchanged. No claim, writer stop, public AI query, app
+activation, financial change or business write occurred. Reservation remains
+OUTCOME_UNKNOWN revision10, same generation, no worker. Final qualification and
+one backend-only rollout precede a fresh r2 plan intent.
+
+The correction qualifies56 focused cases, including11 actual PostgreSQL cases,
+with zero failures/errors/skips; packaging passes. Both cold planning and owner
+continuation now use the retained PLANNED/prior-revision producer state. Already
+current/provisioned and missing-prior-revision cases reject. No state row or
+runtime/framework image change is required. This is a bounded integration fix,
+not a relaxation allowing arbitrary failed dependency phases.
+
 - Both control planes verify `e8f0771dd`, schema207 and health UP. Customer retry
   plan/execution200 retained the same release, allocation and full financial
   history. The apply subsequently failed `RUNTIME_GENERATION_DRAIN_INCOMPLETE`.

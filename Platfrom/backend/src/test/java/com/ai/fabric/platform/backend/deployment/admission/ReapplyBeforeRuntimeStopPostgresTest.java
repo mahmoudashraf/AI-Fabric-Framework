@@ -123,13 +123,18 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         verifyNoInteractions(provider, generations, execution);
     }
 
-    @ParameterizedTest @ValueSource(strings = {"activatedApp", "foreignConsumer", "wrongGraphOperation", "missingConsent"})
+    @ParameterizedTest @ValueSource(strings = {"activatedApp", "foreignConsumer", "wrongGraphOperation", "missingConsent", "alreadyProvisioned", "missingPriorRevision"})
     void coldMaintenanceEligibilityRejectsLiveOrUnprovenScopeWithoutChangingHistory(String change) {
         prepareColdMaintenance();
         switch (change) {
             case "activatedApp" -> jdbc.update("UPDATE ai_workspace_installations SET status='ACTIVE',activated_at=? WHERE id='workspace'", Timestamp.from(NOW));
             case "foreignConsumer" -> jdbc.update("UPDATE platform_consumers SET bound_target_profile_id='foreign-target' WHERE id='consumer'");
             case "wrongGraphOperation" -> changeGraph(state -> state.runtimeGenerationOperationKey = "foreign-operation");
+            case "alreadyProvisioned" -> changeGraph(state -> {
+                state.nodes.getFirst().status = "PROVISIONED";
+                state.nodes.getFirst().provisionedConfigurationRevision = state.configurationRevision;
+            });
+            case "missingPriorRevision" -> changeGraph(state -> state.nodes.getFirst().provisionedConfigurationRevision = -1);
             case "missingConsent" -> { }
             default -> throw new AssertionError(change);
         }
@@ -248,8 +253,6 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         jdbc.update("INSERT INTO ai_workspace_installations(id,installation_id,customer_id,consumer_entity_id,display_name,status,experience_pack_code,experience_pack_version,connection_mode,connection_profile_code,connection_profile_version,connection_configuration_json,allowed_origins_json,configuration_json,created_at,updated_at) VALUES ('workspace','workspace-public','customer','consumer','Fixture','DRAFT','generic','1','PUBLIC_RUNTIME_ANONYMOUS','public','1','{}','[]','{}',?,?)",
             Timestamp.from(NOW), Timestamp.from(NOW));
         changeGraph(state -> {
-            state.nodes.getFirst().provisionedConfigurationRevision = state.configurationRevision;
-            state.nodes.getFirst().status = "PROVISIONED";
             state.runtimeGenerationState = "QUIESCED";
             state.runtimeGenerationStoppedSlots.add("inbox");
             state.runtimeGenerationOperationKey = new ManagedDependencySpecValidator(mapper).fingerprint(List.of(
