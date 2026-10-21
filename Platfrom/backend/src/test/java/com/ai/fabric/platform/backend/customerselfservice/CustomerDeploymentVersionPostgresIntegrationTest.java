@@ -234,6 +234,7 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
     @Test
     void publicationThatWinsTheLockRemainsImmutableAndProjectionMovesToTheNextDraft() throws Exception {
         ProjectionFixture fixture = projectionFixture();
+        String nextOrigin = "https://next-workspace.example";
         var transaction = new TransactionTemplate(transactionManager);
         var draftLocked = new CountDownLatch(1);
         var releaseDraft = new CountDownLatch(1);
@@ -247,7 +248,14 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
             var publication = executor.submit(() -> transaction.execute(
                 ignored -> deploymentService.publishDraftForTrustedCaller(fixture.draftId())));
             awaitBlockedQuery("platform_deployment_drafts");
-            var projection = executor.submit(() -> workspaceSecurityProjection.synchronizeDeployment(fixture.deploymentId()));
+            var projection = executor.submit(() -> transaction.executeWithoutResult(ignored -> {
+                var consumer = consumers.findById(fixture.consumerEntityId()).orElseThrow();
+                workspaceSecurityProjection.lockDeploymentsForConsumers(List.of(consumer));
+                var installation = workspaceInstallations.findByCustomerIdOrderByCreatedAtDesc(fixture.customerId()).getFirst();
+                installation.setAllowedOriginsJson(mapper.createArrayNode().add(nextOrigin).toString());
+                workspaceInstallations.saveAndFlush(installation);
+                workspaceSecurityProjection.synchronizeDeployment(fixture.deploymentId());
+            }));
             awaitBlockedQuery("platform_deployments");
             assertThat(publication.isDone()).isFalse();
             assertThat(projection.isDone()).isFalse();
@@ -258,13 +266,45 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
             projection.get(20, TimeUnit.SECONDS);
             var publishedSecurity = mapper.readTree(
                 versions.findById(published.id()).orElseThrow().getSecurityConfigJson());
-            assertThat(publishedSecurity.path("corsAllowedOrigins").asText("")).doesNotContain(fixture.origin());
+            assertThat(publishedSecurity.path("corsAllowedOrigins").asText()).isEqualTo(fixture.origin());
+            assertThat(publishedSecurity.path("corsAllowedOrigins").asText()).doesNotContain(nextOrigin);
             String nextDraftId = deployments.findById(fixture.deploymentId()).orElseThrow().getActiveDraftId();
             var nextDraftSecurity = mapper.readTree(drafts.findById(nextDraftId).orElseThrow().getSecurityConfigJson());
-            assertThat(nextDraftSecurity.path("corsAllowedOrigins").asText()).isEqualTo(fixture.origin());
+            assertThat(nextDraftSecurity.path("corsAllowedOrigins").asText()).isEqualTo(nextOrigin);
         } finally {
             releaseDraft.countDown();
         }
+    }
+
+    @Test
+    void customerPublicationProjectsReviewedIdentityWithoutAnExtraWorkspaceUpdate() throws Exception {
+        ProjectionFixture fixture = projectionFixture();
+        var installation = workspaceInstallations.findByCustomerIdOrderByCreatedAtDesc(fixture.customerId()).getFirst();
+        installation.setInteractionPolicy(AIWorkspaceInteractionPolicy.PUBLIC_WITH_PROTECTED_CAPABILITIES);
+        installation.setAuthProfileCode("supabase");
+        installation.setAuthConfigurationJson("""
+            {"projectUrl":"https://synthetic.supabase.co","publishableKey":"sb_publishable_synthetic",
+             "methods":["email-password"]}
+            """);
+        workspaceInstallations.saveAndFlush(installation);
+        var approved = new Authorization(new AdmissionContext(fixture.customerId(), fixture.tenantId(),
+            fixture.deploymentId(), null, "staging-target", TargetIntent.CUSTOMER_STAGING, fixture.offerId(),
+            "fingerprint", 2, "placement", Operation.VERSION_PUBLISH, "publish-identity", null, null), null);
+        when(authorization.authorize(eq(fixture.customerId()), any())).thenReturn(approved);
+        CustomerOfferTestFixtures.authenticate(fixture.ownerEmail(), PlatformRole.CUSTOMER_ADMIN, "SESSION");
+
+        var published = service.publish(fixture.offerId(), fixture.deploymentId(),
+            new PublishRequest("staging-target", 2, "publish-identity"));
+
+        var security = mapper.readTree(versions.findById(published.versionId()).orElseThrow().getSecurityConfigJson());
+        assertThat(security.path("externalIdentityBrokerEnabled").asBoolean()).isTrue();
+        assertThat(security.path("externalIdentityIssuer").asText()).isEqualTo("https://synthetic.supabase.co/auth/v1");
+        assertThat(security.path("externalIdentityJwkSetUri").asText())
+            .isEqualTo("https://synthetic.supabase.co/auth/v1/.well-known/jwks.json");
+        assertThat(security.path("externalIdentityGrantedScopes").asText())
+            .contains("chat:query", "chat:conversations");
+        assertThat(security.path("corsAllowedOrigins").asText()).contains(fixture.origin());
+        assertThat(security.path("aiWorkspaceManagedExternalIdentity").isObject()).isTrue();
     }
 
     @Test

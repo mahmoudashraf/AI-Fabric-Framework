@@ -161,6 +161,8 @@ public class DeploymentService {
 
     @Autowired
     private com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementGateService retirementGates;
+    @Autowired
+    private com.ai.fabric.platform.backend.aiworkspace.service.AIWorkspaceDeploymentSecurityProjectionService workspaceSecurityProjection;
     private VectorizationPlanRepository vectorizationPlanRepository;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
@@ -1393,6 +1395,7 @@ public class DeploymentService {
         assertReviewedOfferUsesDedicatedDraftPath(deployment, skipAccessCheck);
         assertNotArchived(deployment, "publish draft");
         assertActiveEditableDraft(deployment, draft, "be published");
+        workspaceSecurityProjection.synchronizeBeforePublication(deploymentId);
         if (!EntityConfigContractService.CONTRACT_VERSION_V04.equals(
             draft.getEntityConfigContractVersion()
         )) {

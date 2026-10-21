@@ -115,7 +115,14 @@ exact project origin, publishable key, and approved email/password or magic-link
 methods. The publishable key is browser metadata; service-role keys and runtime
 signing material must never enter installation configuration.
 
-For Supabase, the assigned deployment must enable its deployment-local broker:
+Selecting a reviewed sign-in profile projects its identity requirements, together
+with exact app origins, into the editable deployment draft. Publication refreshes
+that projection against the current behavior configuration. Publish and apply
+the new version before activating the app; changing the app profile does not
+hot-patch a running service or mutate a published version. Public-only apps do
+not enable an identity broker.
+
+The resulting Supabase runtime configuration is equivalent to:
 
 ```text
 AI_FABRIC_RUNTIME_EXTERNAL_IDENTITY_BROKER_ENABLED=true
@@ -139,6 +146,14 @@ required when conversation handover and canonical message routes are enabled.
 These are customer conversation permissions, not operator or administrator
 permissions. Installation readiness rejects an incomplete explicit grant;
 it never silently adds scopes to the broker configuration.
+
+Managed projection adds only the supported conversation scopes required by the
+enabled behavior. Existing manually enabled broker settings are preserved and
+must already match the selected provider and required scopes. Conflicting
+identity providers across apps sharing one deployment, manual configuration
+drift, or malformed projection metadata block publication. Removing the last
+sign-in app restores only the settings owned by projection; independent private
+authentication and email-verification policy are retained.
 
 A successful anonymous-to-authenticated sign-in starts a fresh,
 identity-scoped conversation. Anonymous messages, attachments, confirmations,

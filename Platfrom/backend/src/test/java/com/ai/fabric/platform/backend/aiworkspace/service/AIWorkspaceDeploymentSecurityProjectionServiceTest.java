@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.aiworkspace.service;
 
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInstallationStatus;
+import com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceInteractionPolicy;
 import com.ai.fabric.platform.backend.aiworkspace.repository.AIWorkspaceInstallationRepository;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformAIWorkspaceProperties;
@@ -43,6 +44,58 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
             "apps.loomai.test", "https://workspace.loomai.test"));
 
     @Test
+    void publicationLeavesUnconfiguredDeploymentsUnchanged() {
+        var deployment = deployment();
+        var draft = draft("{\"authzMode\":\"LOCAL\"}");
+        when(deployments.findByIdForUpdate("deployment-1")).thenReturn(Optional.of(deployment));
+        when(drafts.findByIdForUpdate("draft-1")).thenReturn(Optional.of(draft));
+        when(consumers.findByBoundDeploymentIdOrderByUpdatedAtDesc("deployment-1")).thenReturn(List.of());
+
+        service().synchronizeBeforePublication("deployment-1");
+
+        assertThat(draft.getSecurityConfigJson()).isEqualTo("{\"authzMode\":\"LOCAL\"}");
+        verify(drafts, never()).save(any());
+        verify(deployments, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(audit);
+    }
+
+    @Test
+    void publicationRefreshesIdentityScopesFromCurrentBehavior() throws Exception {
+        var deployment = deployment();
+        var draft = draft("{\"authzMode\":\"LOCAL\"}");
+        var consumer = consumer("consumer-a");
+        var installation = installation("consumer-a", AIWorkspaceInstallationStatus.DRAFT,
+            "[\"https://app.example\"]");
+        installation.setInteractionPolicy(AIWorkspaceInteractionPolicy.PUBLIC_WITH_PROTECTED_CAPABILITIES);
+        installation.setAuthProfileCode(AIWorkspaceAuthenticationProfileRegistry.SUPABASE);
+        installation.setAuthConfigurationJson("""
+            {"projectUrl":"https://synthetic.supabase.co","publishableKey":"sb_publishable_synthetic",
+             "methods":["email-password"]}
+            """);
+        when(deployments.findByIdForUpdate("deployment-1")).thenReturn(Optional.of(deployment));
+        when(drafts.findByIdForUpdate("draft-1")).thenReturn(Optional.of(draft));
+        when(consumers.findByBoundDeploymentIdOrderByUpdatedAtDesc("deployment-1")).thenReturn(List.of(consumer));
+        when(installations.findByConsumerEntityIdInAndStatusIn(eq(List.of("consumer-a")), any()))
+            .thenReturn(List.of(installation));
+        var service = service();
+
+        service.synchronizeBeforePublication("deployment-1");
+        var first = objectMapper.readTree(draft.getSecurityConfigJson());
+        assertThat(first.path("externalIdentityBrokerEnabled").asBoolean()).isTrue();
+        assertThat(first.path("externalIdentityIssuer").asText()).isEqualTo("https://synthetic.supabase.co/auth/v1");
+        assertThat(first.path("externalIdentityGrantedScopes").asText()).doesNotContain("handover");
+
+        draft.setBehaviorConfigJson("""
+            {"executionExtensions":["CONVERSATION_HANDOVER"],"conversationHandover":{"enabled":true}}
+            """);
+        service.synchronizeBeforePublication("deployment-1");
+        var second = objectMapper.readTree(draft.getSecurityConfigJson());
+        assertThat(second.path("externalIdentityGrantedScopes").asText()).contains("chat:messages", "chat:handover:request",
+            "chat:handover:control", "chat:handover:read");
+        assertThat(second.path("authzMode").asText()).isEqualTo("LOCAL");
+    }
+
+    @Test
     void replacesOnlyPreviouslyManagedOriginsAndProjectsAllCurrentAppsDeterministically() throws Exception {
         DeploymentEntity deployment = deployment();
         DeploymentDraftEntity draft = draft("""
@@ -77,7 +130,7 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
         assertThat(deployment.getStatus()).isEqualTo("DRAFT");
         verify(drafts).save(draft);
         verify(deployments).save(deployment);
-        verify(audit).record(eq("AI_WORKSPACE_DEPLOYMENT_ORIGINS_SYNCHRONIZED"),
+        verify(audit).record(eq("AI_WORKSPACE_DEPLOYMENT_SECURITY_SYNCHRONIZED"),
             eq("DEPLOYMENT_DRAFT"), eq("draft-1"), any());
     }
 
@@ -221,7 +274,8 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
 
     private AIWorkspaceDeploymentSecurityProjectionService service() {
         return new AIWorkspaceDeploymentSecurityProjectionService(
-            installations, consumers, deployments, drafts, validator, audit, objectMapper);
+            installations, consumers, deployments, drafts, validator, audit, objectMapper,
+            new AIWorkspaceExternalIdentityProjection(objectMapper, new AIWorkspaceAuthenticationProfileRegistry(objectMapper)));
     }
 
     private DeploymentEntity deployment() {
@@ -263,6 +317,10 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
         installation.setId("installation-" + consumerId);
         installation.setConsumerEntityId(consumerId);
         installation.setStatus(status);
+        installation.setInteractionPolicy(AIWorkspaceInteractionPolicy.PUBLIC);
+        installation.setAuthProfileCode(AIWorkspaceAuthenticationProfileRegistry.NONE);
+        installation.setAuthProfileVersion(AIWorkspaceAuthenticationProfileRegistry.VERSION);
+        installation.setAuthConfigurationJson("{}");
         installation.setAllowedOriginsJson(origins);
         return installation;
     }

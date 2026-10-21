@@ -30,7 +30,7 @@ import java.util.TreeSet;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-/** Projects reviewed AI Workspace origins into the next immutable deployment version. */
+/** Projects reviewed AI Workspace origins and identity into the next immutable deployment version. */
 @Service
 public class AIWorkspaceDeploymentSecurityProjectionService {
 
@@ -44,6 +44,7 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
     private final AIWorkspaceConfigurationValidator configurationValidator;
     private final PlatformAuditService audit;
     private final ObjectMapper objectMapper;
+    private final AIWorkspaceExternalIdentityProjection externalIdentity;
 
     public AIWorkspaceDeploymentSecurityProjectionService(AIWorkspaceInstallationRepository installations,
                                                            PlatformConsumerRepository consumers,
@@ -51,7 +52,8 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
                                                            DeploymentDraftRepository drafts,
                                                            AIWorkspaceConfigurationValidator configurationValidator,
                                                            PlatformAuditService audit,
-                                                           ObjectMapper objectMapper) {
+                                                           ObjectMapper objectMapper,
+                                                           AIWorkspaceExternalIdentityProjection externalIdentity) {
         this.installations = installations;
         this.consumers = consumers;
         this.deployments = deployments;
@@ -59,6 +61,7 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         this.configurationValidator = configurationValidator;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.externalIdentity = externalIdentity;
     }
 
     @Transactional
@@ -102,6 +105,15 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
 
     @Transactional
     public void synchronizeDeployment(String deploymentId) {
+        synchronizeDeployment(deploymentId, false);
+    }
+
+    @Transactional
+    public void synchronizeBeforePublication(String deploymentId) {
+        synchronizeDeployment(deploymentId, true);
+    }
+
+    private void synchronizeDeployment(String deploymentId, boolean skipUnconfigured) {
         var deployment = deployments.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         if (deployment.getArchivedAt() != null || "ARCHIVED".equalsIgnoreCase(deployment.getStatus())
@@ -119,9 +131,6 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         }
 
         ObjectNode security = readSecurity(draft.getSecurityConfigJson());
-        LinkedHashSet<String> manual = new LinkedHashSet<>(csv(security.path("corsAllowedOrigins").asText("")));
-        manual.removeAll(previousManagedOrigins(security));
-
         List<String> consumerIds = consumers.findByBoundDeploymentIdOrderByUpdatedAtDesc(deploymentId).stream()
             .map(PlatformConsumerEntity::getId)
             .filter(StringUtils::hasText)
@@ -130,6 +139,10 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         var projectedInstallations = consumerIds.isEmpty() ? List.<AIWorkspaceInstallationEntity>of()
             : installations.findByConsumerEntityIdInAndStatusIn(consumerIds,
                 List.of(AIWorkspaceInstallationStatus.DRAFT, AIWorkspaceInstallationStatus.ACTIVE));
+        if (skipUnconfigured && projectedInstallations.isEmpty() && !security.has(MANAGED_ORIGINS_FIELD)
+            && !security.has("aiWorkspaceManagedExternalIdentity")) return;
+        LinkedHashSet<String> manual = new LinkedHashSet<>(csv(security.path("corsAllowedOrigins").asText("")));
+        manual.removeAll(previousManagedOrigins(security));
         TreeSet<String> desired = new TreeSet<>();
         projectedInstallations.forEach(installation -> desired.addAll(readOrigins(installation.getAllowedOriginsJson())));
         if (desired.size() > MAX_MANAGED_ORIGINS) {
@@ -150,6 +163,7 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         else security.put("corsAllowedOrigins", String.join(",", combined));
         ArrayNode managedNode = security.putArray(MANAGED_ORIGINS_FIELD);
         managed.forEach(managedNode::add);
+        externalIdentity.project(security, projectedInstallations, readBehavior(draft.getBehaviorConfigJson()));
 
         String updated = writeJson(security);
         if (updated.equals(draft.getSecurityConfigJson())) return;
@@ -161,10 +175,22 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         deployment.setStatus("DRAFT");
         deployment.setUpdatedAt(now);
         deployments.save(deployment);
-        audit.record("AI_WORKSPACE_DEPLOYMENT_ORIGINS_SYNCHRONIZED", "DEPLOYMENT_DRAFT", draft.getId(), Map.of(
+        audit.record("AI_WORKSPACE_DEPLOYMENT_SECURITY_SYNCHRONIZED", "DEPLOYMENT_DRAFT", draft.getId(), Map.of(
             "deploymentId", deploymentId,
-            "managedOriginCount", managed.size()
+            "managedOriginCount", managed.size(),
+            "externalIdentityBrokerEnabled", security.path("externalIdentityBrokerEnabled").asBoolean(false)
         ));
+    }
+
+    private JsonNode readBehavior(String raw) {
+        try {
+            JsonNode behavior = objectMapper.readTree(raw);
+            if (behavior != null && behavior.isObject()) return behavior;
+        } catch (Exception ignored) {
+            // A malformed draft must not select a smaller identity scope implicitly.
+        }
+        throw new ResponseStatusException(CONFLICT,
+            "Deployment behavior configuration requires reconciliation before AI Workspace configuration.");
     }
 
     private ObjectNode readSecurity(String raw) {
