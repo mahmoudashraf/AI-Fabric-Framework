@@ -215,6 +215,8 @@ public class ProviderUsageAllowanceService {
                 if (!terms.caps().equals(command.caps()) || !terms.binding().equals(command.binding())
                     || !terms.pricingReference().equals(command.rateCardReference()) || !terms.credentialSha256().equals(credentialSha))
                     throw conflict("PROVIDER_USAGE_ALLOCATION_IMMUTABLE");
+                if (!clock.instant().isBefore(projection(previous).effectiveExpiresAt()))
+                    throw conflict("PROVIDER_USAGE_ALLOWANCE_EXPIRED");
                 return projection(previous);
             }
             if (!clock.instant().isBefore(grant.expiresAt())) throw conflict("PROVIDER_USAGE_GRANT_EXPIRED");
@@ -358,6 +360,21 @@ public class ProviderUsageAllowanceService {
 
     private GrantRow grantForRelease(AuthorizedRelease authorized) {
         jdbc.queryForObject("SELECT id FROM provider_usage_grant_mutex WHERE id=1 FOR UPDATE", Integer.class);
+        // An ACK extends only this already charged allocation, never the grant's unused credit.
+        var existing = jdbc.query("SELECT approval_id FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=? ORDER BY approval_id",
+            (rs, index) -> rs.getString(1), authorized.deployment().getId(), authorized.profile().getId());
+        if (existing.size() > 1) throw conflict("PROVIDER_USAGE_ALLOCATION_AMBIGUOUS");
+        if (existing.size() == 1) {
+            var allocation = allocation(existing.getFirst(), false);
+            var source = requireActiveGrant(allocation.terms().grantId());
+            if (!source.grant().customerId().equals(authorized.deployment().getCustomerId())
+                || !source.grant().targetProfileId().equals(authorized.profile().getId())
+                || !source.grant().environment().equals(authorized.profile().getEnvironmentName()))
+                throw conflict("PROVIDER_USAGE_ALLOCATION_IMMUTABLE");
+            if (!clock.instant().isBefore(projection(allocation).effectiveExpiresAt()))
+                throw conflict("PROVIDER_USAGE_ALLOWANCE_EXPIRED");
+            return source;
+        }
         var grants = jdbc.query("SELECT id FROM provider_usage_grants WHERE customer_id=? AND target_profile_id=? AND environment_name=? AND lifecycle_status='ACTIVE' ORDER BY id",
             (rs, index) -> rs.getString(1), authorized.deployment().getCustomerId(), authorized.profile().getId(), authorized.profile().getEnvironmentName())
             .stream().map(this::requireActiveGrant).filter(row -> clock.instant().isBefore(row.grant().expiresAt())).toList();
@@ -395,6 +412,19 @@ public class ProviderUsageAllowanceService {
             AllocationRow row = allocation(scope.approvalId(), false);
             if (!row.terms().scope().equals(scope)) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");
             allocationReadAccess(scope);
+            return projection(row);
+        });
+    }
+
+    /** Admin validity review is not a bypass for inactive customers, deleted deployments or relabelled targets. */
+    SafeAllowanceProjection readForValidityExtension(AllocationScope scope) {
+        staff(true);
+        if (scope == null) throw invalid();
+        return transaction(() -> {
+            var row = allocation(scope.approvalId(), false);
+            if (!row.terms().scope().equals(scope)) throw denied("PROVIDER_USAGE_SCOPE_MISMATCH");
+            ownedDeployment(scope.deploymentId(), scope.customerId());
+            actualTarget(scope.targetProfileId(), scope.environment());
             return projection(row);
         });
     }
@@ -547,9 +577,12 @@ public class ProviderUsageAllowanceService {
     private SafeAllowanceProjection projection(AllocationRow row) {
         var terms = row.terms();
         requireActiveGrant(terms.grantId());
-        return new SafeAllowanceProjection(terms.approvalId(), terms.scope(), terms.caps(), terms.expiresAt(), terms.pricingReference(),
+        var original = new SafeAllowanceProjection(terms.approvalId(), terms.scope(), terms.caps(), terms.expiresAt(), terms.pricingReference(),
             terms.binding(), terms.credentialSha256(), row.fingerprint(), ProviderUsageRuntimeAllocationIdentity.fingerprint(terms),
             row.state(), row.storeUuid(), row.initializationFingerprint());
+        return new SafeAllowanceProjection(original.approvalId(), original.scope(), original.caps(), original.expiresAt(), original.pricingReference(),
+            original.binding(), original.credentialSha256(), original.approvalFingerprint(), original.runtimeAllocationFingerprint(), original.state(),
+            original.storeUuid(), original.initializationFingerprint(), ProviderUsageValidityExtensionStore.effectiveExpiry(jdbc, codec, original));
     }
 
     private GrantQuotaView quota(GrantRow row) {

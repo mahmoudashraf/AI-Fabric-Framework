@@ -80,7 +80,8 @@ public class ProviderUsageReleaseCoordinator {
         observed = runtime.read(deployment.getRuntimeBaseUrl(), headers);
         verifyScope(observed, allocation); verifyReceipt(observed.receipt(), allocation, allocation.storeUuid());
         if (!"ACTIVE".equals(observed.state()) || !Boolean.FALSE.equals(observed.stopped())
-            || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())) fail();
+            || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())
+            || !allocation.effectiveExpiresAt().equals(effectiveExpiry(observed))) fail();
     }
 
     /** Continuation may inspect the existing wallet, but must never initialize, activate or top it up. */
@@ -91,11 +92,17 @@ public class ProviderUsageReleaseCoordinator {
         artifactGate.require(release);
         var allocation = required(release);
         if (allocation.state() != InitializationState.ACTIVE || allocation.storeUuid() == null
-            || !allocation.expiresAt().isAfter(java.time.Instant.now())) fail();
+            || !allocation.effectiveExpiresAt().isAfter(java.time.Instant.now())) fail();
         var observed = runtime.read(deployment.getRuntimeBaseUrl(), authority.issueReleaseVerificationHeaders(deployment, release, false));
         verifyScope(observed, allocation); verifyReceipt(observed.receipt(), allocation, allocation.storeUuid());
         if (!"ACTIVE".equals(observed.state()) || !Boolean.FALSE.equals(observed.stopped())
-            || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())) fail();
+            || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())
+            || !allocation.effectiveExpiresAt().equals(effectiveExpiry(observed))) fail();
+    }
+
+    private static java.time.Instant effectiveExpiry(Readback readback) {
+        // Old images can attest only their original validity; an extended CP projection cannot match this fallback.
+        return readback.effectiveExpiresAt() == null ? readback.expiresAt() : readback.effectiveExpiresAt();
     }
 
     private SafeAllowanceProjection required(DeploymentReleaseEntity release) {

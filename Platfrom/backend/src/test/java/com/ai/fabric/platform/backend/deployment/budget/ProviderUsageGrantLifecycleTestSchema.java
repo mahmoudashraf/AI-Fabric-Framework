@@ -15,6 +15,8 @@ final class ProviderUsageGrantLifecycleTestSchema {
                 try (var statement = connection.createStatement()) {
                     statement.execute(new ClassPathResource("db/migration/V204__provider_usage_grant_void_unused.sql")
                         .getContentAsString(StandardCharsets.UTF_8));
+                    statement.execute(new ClassPathResource("db/migration/V207__provider_usage_validity_extensions.sql")
+                        .getContentAsString(StandardCharsets.UTF_8));
                 }
                 return;
             }
@@ -37,5 +39,9 @@ final class ProviderUsageGrantLifecycleTestSchema {
                 receipt_fingerprint VARCHAR(64) NOT NULL,payload_json TEXT NOT NULL,actor_id VARCHAR(255) NOT NULL,
                 actor_role VARCHAR(64) NOT NULL CHECK (actor_role='PLATFORM_ADMIN'),created_at TIMESTAMP WITH TIME ZONE NOT NULL)
             """);
+        String validity = new ClassPathResource("db/migration/V207__provider_usage_validity_extensions.sql")
+            .getContentAsString(StandardCharsets.UTF_8);
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(new org.springframework.core.io.ByteArrayResource(
+            validity.substring(0, validity.indexOf("CREATE TRIGGER")).getBytes(StandardCharsets.UTF_8))).execute(source);
     }
 }

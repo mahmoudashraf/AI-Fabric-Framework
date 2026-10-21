@@ -129,6 +129,40 @@ class ProviderUsageReleaseCoordinatorTest {
         verifyNoInteractions(runtime, authority);
     }
 
+    @Test void continuationUsesAcknowledgedEffectiveValidityButStillRequiresImmutableOriginalExpiry() {
+        var original = allocation(InitializationState.ACTIVE, store); var effective = Instant.now().plusSeconds(3600);
+        var extended = new SafeAllowanceProjection(original.approvalId(), original.scope(), original.caps(), original.expiresAt(),
+            original.pricingReference(), original.binding(), original.credentialSha256(), original.approvalFingerprint(),
+            original.runtimeAllocationFingerprint(), original.state(), original.storeUuid(), original.initializationFingerprint(), effective);
+        when(allowances.findForAuthorizedRelease("rel-1")).thenReturn(Optional.of(extended));
+        when(authority.issueReleaseVerificationHeaders(deployment, release, false)).thenReturn(headers);
+        when(runtime.read(deployment.getRuntimeBaseUrl(), headers)).thenReturn(new Readback("ACTIVE", store, extended.approvalId(),
+            extended.runtimeAllocationFingerprint(), "customer-1", "dep-1", "target-1", "staging", RATE_CARD, extended.caps(),
+            extended.expiresAt(), 7L, 11L, new Usage(12000, 3000, 123456), false, effective));
+        coordinator.verifyActive(deployment, version, release);
+        when(runtime.read(deployment.getRuntimeBaseUrl(), headers)).thenReturn(new Readback("ACTIVE", store, extended.approvalId(),
+            extended.runtimeAllocationFingerprint(), "customer-1", "dep-1", "target-1", "staging", RATE_CARD, extended.caps(),
+            effective, 7L, 11L, new Usage(12000, 3000, 123456), false, effective));
+        assertThatThrownBy(() -> coordinator.verifyActive(deployment, version, release)).isInstanceOf(IllegalStateException.class);
+        verify(runtime, never()).initialize(any(), any(), any()); verify(runtime, never()).activate(any(), any(), any());
+    }
+
+    @Test void anExtendedProjectionCannotUseOldImageOriginalOnlyReadbackOrAStoppedWallet() {
+        var original = allocation(InitializationState.ACTIVE, store); var effective = Instant.now().plusSeconds(3600);
+        var extended = new SafeAllowanceProjection(original.approvalId(), original.scope(), original.caps(), original.expiresAt(),
+            original.pricingReference(), original.binding(), original.credentialSha256(), original.approvalFingerprint(),
+            original.runtimeAllocationFingerprint(), original.state(), original.storeUuid(), original.initializationFingerprint(), effective);
+        when(allowances.findForAuthorizedRelease("rel-1")).thenReturn(Optional.of(extended));
+        when(authority.issueReleaseVerificationHeaders(deployment, release, false)).thenReturn(headers);
+        when(runtime.read(deployment.getRuntimeBaseUrl(), headers)).thenReturn(readback("ACTIVE", store, false));
+        assertThatThrownBy(() -> coordinator.verifyActive(deployment, version, release)).isInstanceOf(IllegalStateException.class);
+        when(runtime.read(deployment.getRuntimeBaseUrl(), headers)).thenReturn(new Readback("ACTIVE", store, extended.approvalId(),
+            extended.runtimeAllocationFingerprint(), "customer-1", "dep-1", "target-1", "staging", RATE_CARD, extended.caps(),
+            extended.expiresAt(), 7L, 11L, new Usage(12000, 3000, 123456), true, effective));
+        assertThatThrownBy(() -> coordinator.verifyActive(deployment, version, release)).isInstanceOf(IllegalStateException.class);
+        verify(runtime, never()).initialize(any(), any(), any()); verify(runtime, never()).activate(any(), any(), any());
+    }
+
     @Test void anOldArtifactIsRejectedBeforeAnyFinancialAllocationOrRuntimeRequest() {
         doThrow(new IllegalStateException("PROVIDER_USAGE_GUARDED_RUNTIME_ARTIFACT_REQUIRED")).when(artifacts).require(release);
         assertThatThrownBy(() -> coordinator.prepare(deployment, release))

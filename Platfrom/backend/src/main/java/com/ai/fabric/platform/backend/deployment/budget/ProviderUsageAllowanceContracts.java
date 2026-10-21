@@ -69,7 +69,14 @@ public final class ProviderUsageAllowanceContracts {
                                           String pricingReference, ProviderBinding binding, String credentialSha256,
                                           String approvalFingerprint, String runtimeAllocationFingerprint,
                                           InitializationState state, UUID storeUuid,
-                                          String initializationFingerprint) { }
+                                          String initializationFingerprint, Instant effectiveExpiresAt) {
+        public SafeAllowanceProjection(String approvalId, AllocationScope scope, Limits caps, Instant expiresAt,
+            String pricingReference, ProviderBinding binding, String credentialSha256, String approvalFingerprint,
+            String runtimeAllocationFingerprint, InitializationState state, UUID storeUuid, String initializationFingerprint) {
+            this(approvalId, scope, caps, expiresAt, pricingReference, binding, credentialSha256, approvalFingerprint,
+                runtimeAllocationFingerprint, state, storeUuid, initializationFingerprint, expiresAt);
+        }
+    }
 
     public record GrantQuota(String grantId, String campaignId, String customerId, String targetProfileId,
                              String environment, Limits lifetimeCredits, Limits lifetimeAllocated, Limits remaining,

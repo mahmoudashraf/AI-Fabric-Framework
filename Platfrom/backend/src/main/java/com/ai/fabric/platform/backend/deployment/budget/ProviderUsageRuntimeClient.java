@@ -38,6 +38,10 @@ public class ProviderUsageRuntimeClient {
         return exchange(baseUrl, PATH, null, headers, Readback.class);
     }
 
+    public com.fasterxml.jackson.databind.JsonNode overview(String baseUrl, Map<String, String> headers) {
+        return exchange(baseUrl, "/api/admin/overview", null, headers, com.fasterxml.jackson.databind.JsonNode.class, 262_144);
+    }
+
     public StoreReceipt initialize(String baseUrl, SafeAllowanceProjection allowance, Map<String, String> headers) {
         var scope = allowance.scope();
         var approval = Map.of("id", allowance.approvalId(), "scope", Map.of(
@@ -54,7 +58,23 @@ public class ProviderUsageRuntimeClient {
             "storeUuid", receipt.storeUuid(), "runtimeFingerprint", receipt.runtimeFingerprint()), headers, StoreReceipt.class);
     }
 
+    public ProviderUsageValidityExtensionContracts.RuntimeReceipt extendValidity(String baseUrl,
+        ProviderUsageValidityExtensionContracts.RuntimeCommand command, Map<String, String> headers) {
+        return exchange(baseUrl, PATH + "/validity-extensions", command, headers,
+            ProviderUsageValidityExtensionContracts.RuntimeReceipt.class);
+    }
+
+    public ProviderUsageValidityExtensionContracts.RuntimeReceipt readValidityExtension(String baseUrl, String extensionId,
+        Map<String, String> headers) {
+        return exchange(baseUrl, PATH + "/validity-extensions/" + ProviderUsageValidityExtensionContracts.identifier(extensionId),
+            null, headers, ProviderUsageValidityExtensionContracts.RuntimeReceipt.class);
+    }
+
     private <T> T exchange(String baseUrl, String path, Object body, Map<String, String> headers, Class<T> type) {
+        return exchange(baseUrl, path, body, headers, type, 16_384);
+    }
+
+    private <T> T exchange(String baseUrl, String path, Object body, Map<String, String> headers, Class<T> type, int maxBytes) {
         CompletableFuture<HttpResponse<byte[]>> pending = null;
         try {
             URI base = URI.create(baseUrl);
@@ -72,7 +92,7 @@ public class ProviderUsageRuntimeClient {
                 if (name == null || name.isBlank() || value == null || value.isBlank()) throw new IllegalArgumentException();
                 request.header(name, value);
             });
-            pending = client.sendAsync(request.build(), ignored -> new BoundedBody());
+            pending = client.sendAsync(request.build(), ignored -> new BoundedBody(maxBytes));
             var response = pending.get(10, TimeUnit.SECONDS);
             if (response.statusCode() != 200 || response.body().length == 0) throw new IllegalStateException();
             return mapper.readValue(response.body(), type);
@@ -91,7 +111,13 @@ public class ProviderUsageRuntimeClient {
     public record Readback(String state, UUID storeUuid, String approvalId, String runtimeFingerprint,
                            String customerId, String deploymentId, String targetProfileId, String environment,
                            String rateCardReference, Limits limits, Instant expiresAt, Long chatAttempts,
-                           Long providerAttempts, Usage accountedUsage, Boolean stopped) {
+                           Long providerAttempts, Usage accountedUsage, Boolean stopped, Instant effectiveExpiresAt) {
+        public Readback(String state, UUID storeUuid, String approvalId, String runtimeFingerprint,
+            String customerId, String deploymentId, String targetProfileId, String environment, String rateCardReference,
+            Limits limits, Instant expiresAt, Long chatAttempts, Long providerAttempts, Usage accountedUsage, Boolean stopped) {
+            this(state, storeUuid, approvalId, runtimeFingerprint, customerId, deploymentId, targetProfileId, environment,
+                rateCardReference, limits, expiresAt, chatAttempts, providerAttempts, accountedUsage, stopped, expiresAt);
+        }
         StoreReceipt receipt() { return new StoreReceipt(state, storeUuid, approvalId, runtimeFingerprint); }
     }
 
@@ -99,11 +125,13 @@ public class ProviderUsageRuntimeClient {
         private final CompletableFuture<byte[]> result = new CompletableFuture<>();
         private final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
         private Flow.Subscription subscription;
+        private final int maxBytes;
+        BoundedBody(int maxBytes) { this.maxBytes = maxBytes; }
         @Override public CompletionStage<byte[]> getBody() { return result; }
         @Override public void onSubscribe(Flow.Subscription value) { subscription = value; value.request(1); }
         @Override public void onNext(List<ByteBuffer> buffers) {
             for (var buffer : buffers) {
-                if (buffer.remaining() > 16_384 - bytes.size()) {
+                if (buffer.remaining() > maxBytes - bytes.size()) {
                     subscription.cancel(); result.completeExceptionally(new IllegalStateException("RESPONSE_TOO_LARGE")); return;
                 }
                 byte[] chunk = new byte[buffer.remaining()]; buffer.get(chunk); bytes.writeBytes(chunk);

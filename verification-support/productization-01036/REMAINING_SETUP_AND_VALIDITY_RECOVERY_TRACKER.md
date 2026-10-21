@@ -112,3 +112,22 @@ extraction stays last. This is an execution tracker, not a new product direction
   Main verified all 15 frozen code/test/manifest files against the worktree.
 - This is not a live renewal. Image publication, reviewed artifact adoption,
   control-plane integration and exact hosted receipt verification remain pending.
+
+## Control-Plane Validity Source Qualification
+
+- 197 passing checks, including 91 actual PostgreSQL cases, qualify explicit
+  admin review, one-shot execution, durable UNKNOWN/ACK reconciliation, unchanged
+  lifetime credit, immutable audit tables and existing allowance/coordinator
+  behavior. The final 19 owned files match their isolated qualification hashes.
+- Proof: `/private/tmp/01044-cp-budget-validity-extension-20261021/final-r3/qualification.actual.json`,
+  SHA256 `1dd5f0303cedc210079222e071dcc28358c3d7031c6b11e139b72dbdc6c2e1d1`.
+- Staff routes: `/api/deployments/provider-usage/validity-extensions/plan`, then
+  exact reviewed `/{extensionId}/execute`; GET `/{extensionId}` inspects durable
+  state and explicit POST `/{extensionId}/reconcile` performs only receipt GET.
+  A missing/mismatched runtime receipt never releases the original intent.
+- Original expiry/fingerprint remain immutable; ACK-derived effective expiry is
+  separate. A fixed 30-second cross-host timestamp skew bound is tested at and
+  beyond its boundary. It does not relax runtime expiry or the 24-hour extension
+  ceiling. Actual signed runtime capability metadata is checked before intent.
+- Main still must integrate the verified effective-artifact resolver, qualify
+  combined schema207 continuation and publish/deploy. No live renewal is claimed.
