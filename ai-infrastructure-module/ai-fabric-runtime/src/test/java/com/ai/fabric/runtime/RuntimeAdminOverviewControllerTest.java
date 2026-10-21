@@ -49,6 +49,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.flywaydb.core.Flyway;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.lang.reflect.Constructor;
 import java.time.Instant;
@@ -63,6 +64,66 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RuntimeAdminOverviewControllerTest {
+
+    @Test
+    void mapsOnlyExactBudgetMigrationSlugsToDeclaredProtocolIds() {
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        RuntimeAdminOverviewController controller = migrationController(authProperties);
+        for (var migration : Map.of(
+            "provider budget accounting", List.of("19", "provider-budget-accounting-v1"),
+            "provider budget validity extensions", List.of("20", "provider-budget-validity-extensions-v1"),
+            "provider budget accounting extra", List.of("19", "provider-budget-accounting-extra-v19"),
+            "provider budget validity extension", List.of("20", "provider-budget-validity-extension-v20")
+        ).entrySet()) {
+            String id = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                controller, "semanticMigrationId", migration.getKey(), migration.getValue().getFirst());
+            assertThat(id).isEqualTo(migration.getValue().getLast());
+        }
+        assertThat((String) org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+            controller, "semanticMigrationId", "provider budget accounting", (String) null))
+            .isEqualTo("provider budget accounting");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void actualPostgresV19ToV20OverviewReportsOnlyAppliedBudgetProtocolIds() {
+        try (var postgres = new PostgreSQLContainer<>("postgres:16-alpine")) {
+            postgres.start();
+            var v19 = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/runtime-migration").target("19").load();
+            v19.migrate();
+            RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+            authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+            authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+            authProperties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-secret");
+            authProperties.getIngress().setAcceptedIssuers(List.of("platform-poc:SESSION"));
+            authProperties.getIngress().setAcceptedAudiences(List.of("dep-auth"));
+            var controller = migrationController(authProperties);
+            var beans = new StaticListableBeanFactory();
+            beans.addBean("flyway", v19);
+            org.springframework.test.util.ReflectionTestUtils.setField(controller, "flywayProvider", beans.getBeanProvider(Flyway.class));
+
+            var before = migrationOverview(controller, authProperties);
+            assertThat(before).containsEntry("available", true);
+            assertThat((List<String>) before.get("appliedMigrationIds")).contains("provider-budget-accounting-v1")
+                .doesNotContain("provider-budget-validity-extensions-v1", "provider-budget-accounting-v19");
+            assertThat((List<Map<String, String>>) before.get("applied")).contains(Map.of("id", "provider-budget-accounting-v1",
+                "version", "19", "description", "provider budget accounting", "state", "SUCCESS"));
+
+            var v20 = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/runtime-migration").load();
+            v20.migrate(); v20.validate();
+            beans.addBean("flyway", v20);
+            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("20");
+            var after = migrationOverview(controller, authProperties);
+            assertThat(after).containsEntry("available", true);
+            assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1")
+                .doesNotContain("provider-budget-accounting-v19", "provider-budget-validity-extensions-v20");
+            assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "provider-budget-validity-extensions-v1",
+                "version", "20", "description", "provider budget validity extensions", "state", "SUCCESS"));
+            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 1);
+        }
+    }
 
     @Test
     void mapsDocumentFlywayMigrationToStableCapabilityId() {
@@ -526,6 +587,25 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
         assertThat(marketplaceSupport).containsEntry("searchSourceDiagnosticsContractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
         assertThat(marketplaceSupport).containsEntry("supportedKnowledgeSourceAdapterTypes", List.of());
+    }
+
+    private RuntimeAdminOverviewController migrationController(RuntimeAuthProperties authProperties) {
+        return instantiateController(mock(AIActionRegistry.class), mock(RuntimeActionCatalogGateway.class),
+            mock(AIEntityConfigurationLoader.class), new TestVectorDatabaseService(), authProperties,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
+            emptyProvider(ConfirmationInterceptorCatalogProvider.class), emptyProvider(ConnectorActionWebhookPolicyCatalog.class),
+            emptyProvider(RuntimeDeploymentKnowledgeSourceConfigService.class), emptyProvider(RuntimeDeploymentShellConfigService.class),
+            emptyProvider(SearchSourceRegistry.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> migrationOverview(RuntimeAdminOverviewController controller, RuntimeAuthProperties authProperties) {
+        var response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        var body = (Map<String, Object>) response.getBody();
+        var manifest = (Map<String, Object>) body.get("runtimeCapabilityManifest");
+        assertThat((List<String>) manifest.get("migrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1");
+        return (Map<String, Object>) body.get("runtimeMigrations");
     }
 
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,

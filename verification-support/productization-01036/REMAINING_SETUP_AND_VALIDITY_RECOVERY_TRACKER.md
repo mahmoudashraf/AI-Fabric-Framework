@@ -131,3 +131,17 @@ extraction stays last. This is an execution tracker, not a new product direction
   ceiling. Actual signed runtime capability metadata is checked before intent.
 - Main still must integrate the verified effective-artifact resolver, qualify
   combined schema207 continuation and publish/deploy. No live renewal is claimed.
+
+## Applied-Migration Attestation Follow-Up
+
+- The runtime now maps the two exact accounting migration descriptions to their
+  stable protocol IDs. A declared capability does not imply its migration ran.
+- Nine focused tests pass, including three actual PostgreSQL cases and the real
+  V19-to-V20 authenticated overview projection; package passes. The prior
+  112-case proof and all 20 public framework JARs remain unchanged.
+- Proof: `/private/tmp/01044-runtime-budget-migration-id-followup-20261021/qualification.actual.json`,
+  SHA256 `296b0f1832a05c6516c3f6db30201cece4e136f6f1428d25e7b15fb18bceeeae`.
+  Runtime JAR SHA256 `cf2e1f546627ed204ec3d5d8e0474aaaa384c5852eb71f25c6093f25059445dc`.
+- Main's effective-artifact, actual-migration and schema207 continuation
+  integration compiles; focused local regression is running. This is not a
+  hosted repair, renewal, green release, or completed plan.
