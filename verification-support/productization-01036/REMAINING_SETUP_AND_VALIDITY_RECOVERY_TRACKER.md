@@ -8,6 +8,73 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
+09:26 UTC actual customer checkpoint: both control planes verify `684d8982f`,
+schema 207, health UP. Maintenance closure is
+`/private/tmp/01044-hosted-verifier-rollout-20261021/maintenance.completed.json`,
+SHA `4aeff66259a21c0c20d9b800d6686f763535c651ccbd45bdd1e62e6df3694a40`.
+The next owner operations correctly required a normal placement refresh; it
+passes and expires at 09:26:55 UTC. First and second credential requests were
+rejected before delivery (TLS posture, then expired placement). A separately
+reviewed third request delivered the existing operator's key once, privately,
+without native redeploy. Never replay any delivery request. Successful receipt:
+`/private/tmp/01044-customer-inbox-journey-20261021/attempt-003/delivery.response.private.json`.
+
+The normal customer S3 APIs discovered, registered and indexed all three approved
+fictional files: `delivery.txt`, `test-drive.txt`, `warranty.txt`. All are ACTIVE,
+version 1, with PUBLIC_APPROVED metadata and tenant visibility. Original S3
+objects were not changed. Evidence is under
+`/private/tmp/01044-customer-document-journey-20261021`. Stock remains six indexed
+vehicles. This proves the source/indexing path, not a successful chat answer.
+
+Normal verification-only recheck `vrf-03d372ff` records 28 passes, one failure,
+four skips. Auth and resolved document binding now pass. The remaining actual
+HTTP 500 is `document_retrieval_evidence_ready`: the runtime retrieval-proof
+endpoint invokes embeddings without a budget invocation scope. Runtime log
+`runtime-retrieval-error.private.log` under the owner recheck root shows
+`OpenAiBudgetException: INVOCATION_CONTEXT_REQUIRED`. No missing funds, provider
+outage or framework defect was established. Do not disable budgeting, waive the
+failed check, or substitute a hidden alternate retrieval route.
+
+A minimal runtime correction opens an embedding-only scope after verified
+documents:read authorization, requires an active existing allowance, verifies
+provider completion and closes the scope on success/failure. It grants no chat
+or action authority and does not consume/reset a chat allowance or replace the
+wallet. Controller/scope/indexing regressions pass 21 checks with zero skips;
+package succeeds against the existing Central-only 0.8.36 cache. An initial
+default-cache/offline invocation failed to resolve the BOM and is not a test
+failure or a framework regression. No runtime image is deployed yet.
+
+Runtime adoption is an explicit remaining boundary: this never-activated canary
+already consumed its one same-release artifact repair. Its immutable offer still
+pins the older source artifact, and the repair journal rejects a second repair.
+Do not silently patch the native image, overwrite the original offer/receipt,
+or add general repair chaining just to turn this canary green. The supported
+latest-offer/fresh-canary path must be assessed for resource retirement, current
+quota and a distinct vector binding before dispatch. Automatic old-offer upgrade
+and repair lineage remain deferred as agreed. Public app is still DRAFT; real
+public browser acceptance has not passed. UI extraction remains last.
+
+09:05 UTC publication checkpoint: source
+`684d8982fdbe90cce71f2aaa6a48137a887fe4c5` is committed/pushed. Backend-only CI
+`39573339382` passes; UI is skipped. Registry image is
+`sha256:b096ef6d8170ef75dfbd8a84dadde8073b3d96541f88a799b1504d164b9d7136`.
+The 97-case/four-PostgreSQL package proof is
+`/private/tmp/01044-hosted-verifier-20261021/hosted-verifier-qualification.actual.json`,
+SHA `8b116853564f91db8009ccf49ec5875db5250af21b34429bf142fc74d8a5671f`.
+The staging native job `wh2wfoxeel8722pty77b8fis` is in progress under
+`/private/tmp/01044-hosted-verifier-rollout-20261021`; production remains on the
+previous verified source until staging verification. Do not replay execute.
+
+Hosted acceptance helpers are prepared, not executed: customer S3 discovery/
+indexing, normal verification-only recheck, single-origin auth/cancellation/
+account-isolation, and customer-plus-operator Inbox browser flow. Raw docs use
+runtime `tenant` visibility and explicit `publicationStatus=PUBLIC_APPROVED` to
+match the published knowledge-source filter. No public workspace query or
+credential delivery has passed yet. The same app is still DRAFT, reservation
+revision 28 remains OUTCOME_UNKNOWN, and release verification remains failed
+until the normal recheck passes. Existing policy validity ends 10:34:50 UTC;
+another fleet sample is not needed merely for the read-only verification rerun.
+
 08:57 UTC source qualification: one combined backend package passes 97 focused
 checks, including four actual PostgreSQL cases, with zero failures/errors/skips.
 It contains only the concrete hosted-path corrections: frozen target-authority

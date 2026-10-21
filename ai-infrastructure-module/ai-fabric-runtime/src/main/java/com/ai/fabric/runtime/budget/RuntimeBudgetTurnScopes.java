@@ -76,6 +76,15 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
 
     /** Parent must open this inside the actual indexing worker, not on its enqueueing thread. */
     public EmbeddingWork openIndexingWork() {
+        return openEmbeddingWork();
+    }
+
+    /** A verified synchronous retrieval surface may spend on embeddings, never generation. */
+    public EmbeddingWork openEmbeddingRead() {
+        return openEmbeddingWork();
+    }
+
+    private EmbeddingWork openEmbeddingWork() {
         requireNoScope();
         budgets.requireActive();
         var work = new EmbeddingWork();

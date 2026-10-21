@@ -4,6 +4,7 @@ import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.auth.RuntimeScopeCatalog;
 import com.ai.fabric.runtime.admin.RuntimeAdminMutationService;
+import com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService.DiscoveryResult;
 import com.ai.fabric.runtime.documents.DocumentKnowledgeService.OperationResult;
@@ -21,6 +22,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,6 +45,7 @@ public class DocumentKnowledgeController {
     private final RuntimeRequestAuthResolver authResolver;
     private final DocumentKnowledgeService service;
     private final RuntimeAdminMutationService mutations;
+    private RuntimeBudgetTurnScopes providerBudgetTurns;
 
     public DocumentKnowledgeController(
         RuntimeRequestAuthResolver authResolver,
@@ -52,6 +55,11 @@ public class DocumentKnowledgeController {
         this.authResolver = authResolver;
         this.service = service;
         this.mutations = mutations;
+    }
+
+    @Autowired(required = false)
+    public void setProviderBudgetTurns(RuntimeBudgetTurnScopes turns) {
+        this.providerBudgetTurns = turns;
     }
 
     @GetMapping("/source-connector/status")
@@ -166,11 +174,12 @@ public class DocumentKnowledgeController {
         @Valid @RequestBody RetrievalProofRequest body,
         HttpServletRequest request
     ) {
-        return service.retrievalProof(
-            authorize(request, RuntimeScopeCatalog.DOCUMENTS_READ, "document retrieval proof"),
-            body.query(),
-            body.limit() == null ? 5 : body.limit()
-        );
+        RuntimeResolvedIdentity identity = authorize(request, RuntimeScopeCatalog.DOCUMENTS_READ, "document retrieval proof");
+        try (var scope = providerBudgetTurns == null ? null : providerBudgetTurns.openEmbeddingRead()) {
+            RetrievalProof proof = service.retrievalProof(identity, body.query(), body.limit() == null ? 5 : body.limit());
+            if (scope != null) scope.verifyComplete();
+            return proof;
+        }
     }
 
     @GetMapping("/retention")

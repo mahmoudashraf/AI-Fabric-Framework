@@ -233,6 +233,21 @@ class RuntimeBudgetTurnScopesTest extends RuntimeBudgetFixture.TestScope {
     }
 
     @Test
+    void embeddingReadIsEmbeddingOnlyAndDoesNotConsumeAChatAttempt() throws Exception {
+        var budgets = new RuntimeBudgetFixture().register();
+        var turns = new RuntimeBudgetTurnScopes(budgets);
+        try (var work = turns.openEmbeddingRead()) {
+            assertThat(turns.capture(OpenAiBudgetInvocation.Operation.EMBEDDING)).isNotNull();
+            assertThatThrownBy(() -> turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION))
+                .isInstanceOf(OpenAiBudgetException.class);
+            assertThatThrownBy(turns::openEmbeddingRead).isInstanceOf(IllegalStateException.class);
+            work.verifyComplete();
+        }
+        assertThat(budgets.readCurrent().chatAttempts()).isZero();
+        assertUnscopedDenied(turns);
+    }
+
+    @Test
     void explicitIndexingWorkerCaptureIsEmbeddingOnlyAndCannotReportSuccessAfterDenial() throws Exception {
         var budgets = new RuntimeBudgetFixture().register();
         var turns = new RuntimeBudgetTurnScopes(budgets);

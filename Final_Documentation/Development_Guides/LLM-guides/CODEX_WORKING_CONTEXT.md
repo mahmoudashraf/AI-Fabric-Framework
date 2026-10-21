@@ -10,6 +10,39 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- Oct21 09:26UTC BOTH CPs684d8982f/b096ef6d/schema207/UP; closure4aeff662...4a40.
+  Customer placement refreshed09:11 expires09:26:55. NormalthirdInboxdelivery200,
+  keyprivate attempt-003 (earlier409TLS then409STALE retained/no replay). All3S3
+  fictionalpoliciesACTIVEv1/publicapproved, stock6. Normalrecheckvrf03d372ff
+  28PASS/1FAIL/4SKIP: docretrieval-proof500 budgetINVOCATION_CONTEXT_REQUIRED.
+  Runtimeguardcorrectlydeniesunscopedembedding, NOTfunding/provider/framework.
+  Mainminimalruntimecontroller+embeddingreadscope fix21tests/packagePASS with
+  priorCentral0.8.36cache; initialdefaultofflinecacheBOMfailed (no tests ran).
+  Fourruntimefilesdirty, notcommitted/deployedyet. Qualifierprepared at
+  01044-document-retrieval-budget-scope-20261021/qualify.mjs needscommitHEAD;
+  checks20frameworkjarsbyteidentical. Currentrepairedcanaryoldofferpinsoldartifact,
+  journalALREADY_VERIFIED deniessecondrepair; NOchaining/nativepatchbypass.
+  Assessnormalfreshlatestoffer/canary supportedpath quota/retirement/vectorbefore
+  dispatch; hardcase detailsintracker. AppDRAFT/R28 stillblocked. Browserhelpers
+  ready/notrun; no publicAIqueryyet. UI-LAST. Firewallkeepopenasrequested.
+
+- Oct21 09:05UTC source684d8982fdbe90cce71f2aaa6a48137a887fe4c5 committed/pushed,
+  backend-onlyCI39573339382PASS/UI skipped; imageb096ef6d...d7136. Qualification
+  8b116853...671f under01044-hosted-verifier-20261021,97tests/4PG/packagePASS,
+  jar30b75fbb...57ca. One staging rollout wh2wfoxeel8722pty77b8fis inprogress,
+  plan3fae74fe...0633 at01044-hosted-verifier-rollout-20261021. No execute replay.
+  Prod still47399a6b2; prepare onlyafterstageverified thenexecute/verify/close.
+  No new5minsample needed for verification-only continuation (policy until10:34).
+  Afterclosure: customer-document-journey/main.mjs discover -> review3objects,
+  index.mjs index SHA(registerednull/3txt, PUBLIC_APPROVEDmetadata/tenantvisibility)
+  thenobserve3ACTIVE. Owner-verification-recheck/main.mjs recheck(201), observe;
+  no fullsetupreplay. Normalowner firstInboxdelivery409TLS,no keydelivered;
+  freshattempt002/deliver.mjs requiresnewclosure+beforefalse. InboxREADY,
+  operatora73a.. ENROLLED/effective1/notdelivered. Browserhandoverhelperready,
+  notrun. AppDRAFT; acceptancehelperactivate-consumer/app waitsverifiedRactive.
+  Firstrealquery+authsingleoriginhelpersready/notrun. Agentcode41checks reviewed,
+  parked. UI-LAST; deferredhardcase detailsintracker. Docscommit8cbe018dd pushed.
+
 - Oct21 08:57UTC combined hosted-path package97checks/4actualPG PASS, no skips.
   Main frozenauth/resolveddocumentverification + agentdocaudienceintersection/
   runtimevisibilityvalidation + servernativeforwardedTLS (5 tests publicspoof
