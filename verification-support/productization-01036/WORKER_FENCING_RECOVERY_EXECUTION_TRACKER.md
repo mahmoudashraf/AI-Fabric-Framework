@@ -194,6 +194,39 @@ public browser AI query or business-action write has been issued.
   capacity only for its consuming owner retry, then run hosted browser journeys.
   Production promotion and final UI extraction remain outstanding; UI stays last.
 
+## 2026-10-21 21:41 UTC Attended Recovery Verified
+
+The same cold-maintenance plan is VERIFIED, receipt fingerprint
+`3412d807d408522f4ae82632c6c25bf08d5091bc3b1639ed9d739328cf140dd0`.
+All9 effects are CONFIRMED, with no pending or repeated native effect. Runtime,
+Inbox and connector are healthy. Actual reservation remains the same
+`25dea632-66b6-48c5-897c-bfcabb112894`, generation
+`8bf1bb40-5100-464b-a67b-11d366f3a380`, OUTCOME_UNKNOWN revision12, worker cleared,
+full demand unchanged. Candidate `rel-efc001ac` now has the typed COLD_ADOPTED
+checkpoint; its original FAILED release status/error remain intact until the
+normal owner retry. The previous consumer binding and DRAFT app are unchanged.
+
+Both control planes verify `d19b8ded2`, schema207/UP and unchanged configuration
+and25 protected authority/financial tables. Stage job
+`cgzk1eqlwr9agxcbceryi48n`; production job `df7gfwwinqd41cgf6uysw9q3`.
+Image `sha256:04e640fb8e4303d79bc9fcc63ac893d3f4c78ad4b58491cb522740e9ed628d1a`;
+closure SHA256 `e17790e5536f98b50b6e15e7cf0a6301a2757d4ccdfe9a891e839e787b98f020`.
+The qualified runtime remains sourcea2df03d48 / artifactdsa-6678c16b / released
+AI Fabric0.8.36. No framework release or UI deployment was needed.
+
+The second normally reviewed maintenance window extends to22:32:43.821Z. No
+allowance, reservation expiry or capacity limit was extended. All failed local
+intents and read-only reconciliations remain retained. Final proof includes the
+exact resumed usage delta, not an unchanged-usage claim. No SQL state repair,
+wallet reset, customer inventory database, vector copy or business write.
+
+One fresh61-by5-second staging capacity sample is now running under
+`/private/tmp/01044-cold-maintenance-capacity-refresh-20261021/staging`.
+Production's20:34 sample is still within its22:34 validity window. Next is the
+normal owner retry of the same candidate, then consumer/app activation and the
+prepared browser journeys. This is recovery closure, NOT customer acceptance or
+production promotion. UI extraction remains last.
+
 ## Execution
 
 ### 20:34 UTC Provider Representation Correction
@@ -262,11 +295,11 @@ follow-up supersedes it before the next control-plane rollout. New private root:
   release only after Main review. Build the consumer from Central artifacts,
   verify exact runtime jars/image and publish the new qualified artifact. Do not
   install altered artifacts under the immutable0.8.36 identity in shared Maven.
-- [ ] NEXT: resolve the existing pilot's recovery honestly: a failed drain has already
-  changed its epoch, and the current cold-repair contract excludes verified/
-  consumer-bound releases. Do not pretend the pre-runtime-stop retry still
-  applies or bypass its eligibility. Check supported cancellation/maintenance
-  paths first and record any exact missing operation before implementing it.
+- [x] Resolve the existing pilot's recovery through explicit attended physical-stop
+  maintenance, typed COLD_ADOPTED evidence and a verified journal receipt. The
+  changed drain epoch was not treated as a pre-runtime-stop retry. The exception
+  is limited to acknowledged, never-activated conversational customer staging;
+  broader zero-loss recovery cases remain deferred.
 - [ ] Verify the recovered or explicitly replaced composition and return to
   normal consumer/app activation and the prepared hosted browser gates. Reuse
   valid evidence; refresh capacity only immediately before a consuming operation.
