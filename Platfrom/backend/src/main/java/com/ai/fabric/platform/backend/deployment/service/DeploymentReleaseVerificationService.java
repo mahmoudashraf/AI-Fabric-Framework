@@ -57,6 +57,8 @@ public class DeploymentReleaseVerificationService {
     private DeploymentDocumentBindingResolver documentBindingResolver;
     @Autowired
     private DeploymentRuntimeAuthorityService runtimeAuthorityService;
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver effectiveRuntimeArtifacts;
     @Autowired(required = false)
     private DeploymentExistingVectorBindingService existingVectorBindings;
     private static final int JSON_PROBE_MAX_ATTEMPTS = 3;
@@ -1274,6 +1276,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
         JsonNode provisioningDetails = readJson(release.getProvisioningDetailsJson());
+        RuntimeSource runtimeSource = expectedRuntimeSource(release, provisioningDetails);
         JsonNode routingConfig = compileRoutingExpectations(deployment, version);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
@@ -1363,6 +1366,7 @@ public class DeploymentReleaseVerificationService {
                 DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_MIGRATION_ID
             );
         }
+        expectedRuntimeMigrationIds.addAll(runtimeSource.additionalMigrationIds());
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
@@ -1405,8 +1409,8 @@ public class DeploymentReleaseVerificationService {
             compositionProvenance.path("compositionHash").asText(""),
             expectsSpecialistChains(behaviorConfig),
             expectedRuntimeMigrationIds,
-            provisioningDetails.path("sourceCapabilityManifestHash").asText(""),
-            provisioningDetails.path("sourceGitCommit").asText(""),
+            runtimeSource.capabilityManifestHash(),
+            runtimeSource.commit(),
             expectedAiFabricFrameworkVersion,
             expectedEntityConfigContractVersion,
             expectedEntityConfigHash,
@@ -2880,6 +2884,21 @@ public class DeploymentReleaseVerificationService {
             }
         }
     }
+
+    private RuntimeSource expectedRuntimeSource(DeploymentReleaseEntity release, JsonNode provisioningDetails) {
+        if (!hasText(release.getSourceArtifactId())) {
+            return new RuntimeSource(provisioningDetails.path("sourceCapabilityManifestHash").asText(""),
+                provisioningDetails.path("sourceGitCommit").asText(""), Set.of());
+        }
+        if (effectiveRuntimeArtifacts == null) throw new IllegalStateException("EFFECTIVE_RUNTIME_ARTIFACT_RESOLVER_REQUIRED");
+        var artifact = effectiveRuntimeArtifacts.resolve(release);
+        String validityMigration = "provider-budget-validity-extensions-v1";
+        Set<String> migrations = textSet(readJson(artifact.getCapabilityManifestJson()).path("migrationIds"));
+        return new RuntimeSource(artifact.getCapabilityManifestHash(), artifact.getGitCommitSha(),
+            migrations.contains(validityMigration) ? Set.of(validityMigration) : Set.of());
+    }
+
+    private record RuntimeSource(String capabilityManifestHash, String commit, Set<String> additionalMigrationIds) { }
 
     private boolean runtimeOverviewMatchesExpected(JsonProbeResult probe,
                                                    VerificationExpectations expectations) {

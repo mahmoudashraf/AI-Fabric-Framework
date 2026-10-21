@@ -1,7 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.budget;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
-import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceArtifactService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
+import com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -9,17 +10,21 @@ import org.springframework.stereotype.Component;
 /** A startup flag cannot retrofit a guard into an older image. Require the reviewed immutable artifact. */
 @Component
 public class ProviderUsageRuntimeArtifactGate {
-    private final DeploymentSourceArtifactService artifacts;
+    private final EffectiveRuntimeArtifactResolver artifacts;
     private final DeploymentSourceCapabilityManifestService manifests;
 
-    public ProviderUsageRuntimeArtifactGate(DeploymentSourceArtifactService artifacts,
+    public ProviderUsageRuntimeArtifactGate(EffectiveRuntimeArtifactResolver artifacts,
         DeploymentSourceCapabilityManifestService manifests) {
         this.artifacts = artifacts; this.manifests = manifests;
     }
 
     public void require(DeploymentReleaseEntity release) {
+        requireArtifact(release);
+    }
+
+    public DeploymentSourceArtifactEntity requireArtifact(DeploymentReleaseEntity release) {
         if (release == null || release.getSourceArtifactId() == null || release.getSourceArtifactId().isBlank()) fail();
-        var artifact = artifacts.require(release.getSourceArtifactId());
+        var artifact = artifacts.resolve(release);
         if (!"RUNTIME".equals(artifact.getArtifactRole()) || !"DOCKER_IMAGE".equals(artifact.getArtifactType())
             || artifact.getImageDigest() == null || !artifact.getImageDigest().matches("sha256:[a-f0-9]{64}")
             || artifact.getGitCommitSha() == null || !artifact.getGitCommitSha().matches("[a-f0-9]{40}")
@@ -31,6 +36,7 @@ public class ProviderUsageRuntimeArtifactGate {
             || !contains(manifest.manifest().path("endpointClasses"), "provider-budget-administration")
             || !contains(manifest.manifest().path("migrationIds"), "provider-budget-accounting-v1")
             || !contains(manifest.manifest().path("verificationPackIds"), "provider-budget-hard-limit-v1")) fail();
+        return artifact;
     }
 
     private static boolean contains(JsonNode values, String expected) {

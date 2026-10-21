@@ -49,12 +49,41 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
+
+    @Test void verifiedEffectiveRuntimeSourceOverridesExpectationsWithoutRewritingOriginalProvenance() {
+        var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
+        var resolver = mock(com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver.class);
+        ReflectionTestUtils.setField(service, "effectiveRuntimeArtifacts", resolver);
+        var release = release(); release.setSourceArtifactId("original-artifact");
+        String original = "{\"sourceCapabilityManifestHash\":\"original-hash\",\"sourceGitCommit\":\"original-commit\"}";
+        release.setProvisioningDetailsJson(original);
+        var artifact = new com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity();
+        artifact.setCapabilityManifestHash("c".repeat(64)); artifact.setGitCommitSha("d".repeat(40));
+        artifact.setCapabilityManifestJson("{\"migrationIds\":[\"provider-budget-validity-extensions-v1\"]}");
+        when(resolver.resolve(release)).thenReturn(artifact);
+        Object expected = ReflectionTestUtils.invokeMethod(service, "expectedRuntimeSource", release, objectMapper.valueToTree(Map.of(
+            "sourceCapabilityManifestHash", "original-hash", "sourceGitCommit", "original-commit")));
+        assertThat((String) ReflectionTestUtils.invokeMethod(expected, "capabilityManifestHash")).isEqualTo("c".repeat(64));
+        assertThat((String) ReflectionTestUtils.invokeMethod(expected, "commit")).isEqualTo("d".repeat(40));
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expected, "additionalMigrationIds"))
+            .isEqualTo(Set.of("provider-budget-validity-extensions-v1"));
+        assertThat(release.getSourceArtifactId()).isEqualTo("original-artifact");
+        assertThat(release.getProvisioningDetailsJson()).isEqualTo(original);
+    }
+
+    @Test void artifactBackedVerificationCannotSilentlyUseOriginalDetailsWhenResolverIsMissing() {
+        var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
+        var release = release(); release.setSourceArtifactId("original-artifact");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "expectedRuntimeSource", release, objectMapper.createObjectNode()))
+            .hasMessageContaining("EFFECTIVE_RUNTIME_ARTIFACT_RESOLVER_REQUIRED");
+    }
 
     @Test void asynchronousVerificationUsesOnlyTheTypedWorkerHeaderBoundary() {
         var service = releaseVerificationService(mock(PlatformSecretService.class), mock(DeploymentArtifactService.class));

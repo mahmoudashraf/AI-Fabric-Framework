@@ -72,6 +72,8 @@ public class DeploymentRuntimeAuthorityService {
     private final ObjectMapper mapper;
     @Autowired
     private JdbcTemplate workerReadback;
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal> artifactRepairs;
 
     public DeploymentRuntimeAuthorityService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentReleaseRepository releases, DeploymentTargetProfileRepository targets, DeploymentAccessService access,
@@ -304,6 +306,30 @@ public class DeploymentRuntimeAuthorityService {
         return headers(checked.binding(), "platform-release-verification", "SYSTEM_PROCESS",
             (documentRead ? "document-release-verification-" : "release-verification-") + release.getId(), false,
             documentRead ? RuntimePrivateAccessSupport.documentReadScopes() : RuntimePrivateAccessSupport.adminReadScopes(), Duration.ofMinutes(5));
+    }
+
+    /** Dedicated, journal-fenced repair authority. Never initializes, activates or extends an allowance. */
+    @Transactional
+    public Map<String, String> issueRuntimeArtifactRepairHeaders(String planId, boolean write) {
+        var principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN
+            || artifactRepairs == null || artifactRepairs.getIfAvailable() == null) throw conflict("Reviewed runtime artifact repair authority is required.");
+        var local = artifactRepairs.getObject().authorityEvidence(required(planId), principal.actorId(), write);
+        var scope = local.scope();
+        var deployment = deployments.findById(scope.deploymentId()).orElseThrow(() -> conflict("Repair deployment is unavailable."));
+        access.requireDeploymentAdminAccess(deployment);
+        var release = workerRelease(scope.releaseId());
+        var snapshot = snapshots.findByReleaseId(scope.releaseId()).orElseThrow(() -> conflict("Repair release authority is unavailable."));
+        if (!"FAILED".equals(release.getStatus()) || !"FAILED".equals(release.getProvisioningStatus())
+            || !scope.deploymentId().equals(release.getDeploymentId()) || !scope.targetProfileId().equals(release.getTargetProfileId())
+            || !scope.versionId().equals(release.getDeploymentVersionId())
+            || !scope.authorityFingerprint().equals(release.getRuntimeAuthorityFingerprint())
+            || !local.original().artifactId().equals(release.getSourceArtifactId())
+            || !scope.versionId().equals(snapshot.getVersionId())) throw conflict("Repair release authority changed.");
+        var checked = checkedSnapshot(deployment, authority(deployment, scope.targetProfileId()), snapshot, scope.authorityFingerprint());
+        return headers(checked.binding(), "platform-runtime-artifact-repair", "SYSTEM_PROCESS", planId, false,
+            write ? List.of("runtime:admin:overview", "runtime:index:overview", "runtime:target-retirement:read", "runtime:target-retirement:write")
+                : List.of("runtime:admin:overview", "runtime:index:overview", "runtime:target-retirement:read"), Duration.ofMinutes(2));
     }
 
     /** Exact previous/next frozen releases, with only the generation-transition worker scopes. */

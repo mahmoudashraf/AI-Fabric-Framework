@@ -114,6 +114,8 @@ final class PostProvisionResumeEvidence {
         inventory.put("allocation", json.fingerprint(allocation));
         inventory.put("grant", json.fingerprint(one("SELECT * FROM provider_usage_grants WHERE id=? FOR UPDATE NOWAIT", allocation.get("grant_id"))));
         inventory.put("financialEvents", json.fingerprint(rows("SELECT * FROM provider_usage_allowance_events WHERE subject_id=? ORDER BY id FOR UPDATE NOWAIT", allocation.get("approval_id"))));
+        inventory.put("validityReviews", json.fingerprint(rows("SELECT * FROM provider_usage_validity_reviews WHERE approval_id=? ORDER BY extension_id FOR UPDATE NOWAIT", allocation.get("approval_id"))));
+        inventory.put("validityEvents", json.fingerprint(rows("SELECT e.* FROM provider_usage_validity_events e JOIN provider_usage_validity_reviews r ON r.extension_id=e.extension_id WHERE r.approval_id=? ORDER BY e.extension_id,e.event_type FOR UPDATE OF e NOWAIT", allocation.get("approval_id"))));
         return new PostProvisionResumeContracts.Candidate(r, Map.copyOf(inventory), json.write(release),
             ((Timestamp) release.get("created_at")).toInstant(), ((Timestamp) release.get("updated_at")).toInstant(), List.of((String) allocation.get("approval_id")));
     }

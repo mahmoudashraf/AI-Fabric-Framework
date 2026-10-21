@@ -64,6 +64,8 @@ import java.util.function.Supplier;
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider, CoolifyRetirementOwnership {
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver> effectiveRuntimeArtifacts;
 
     private static final Logger log = LoggerFactory.getLogger(CoolifyDeploymentProvider.class);
     private static final Duration TRACKED_STEP_HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
@@ -1648,6 +1650,101 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return failedApplyReadback(deploymentId, targetProfileId, releaseId, releaseCreatedAt, failedAt, true);
     }
 
+    /** Exact native ownership is rechecked for every repair observation and effect. No local lock spans these calls. */
+    public com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeInventory runtimeArtifactRepairInventory(
+        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope) {
+        var fingerprints = new java.util.TreeMap<String, String>();
+        var runtime = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
+        var connector = repairHandle(scope, RESOURCE_KIND_CONNECTOR_APPLICATION, scope.connectorApplicationUuid());
+        var database = repairHandle(scope, RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE, scope.databaseUuid());
+        var connection = connectionForHandle(runtime);
+        var app = coolifyApiClient.getApplication(connection, runtime.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        var connectorApp = coolifyApiClient.getApplication(connectionForHandle(connector), connector.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        var db = coolifyApiClient.getDatabase(connectionForHandle(database), database.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        if (!"running:healthy".equalsIgnoreCase(db.status())) throw failedApplyRetryUnproven();
+        var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(objectMapper);
+        for (var handle : List.of(runtime, connector, database)) {
+            var handleConnection = connectionForHandle(handle);
+            String kind = handle.getResourceKind();
+            fingerprints.put(kind + ":storage", codec.fingerprint(isRuntimePostgresDatabase(handle)
+                ? coolifyApiClient.listDatabaseStorages(handleConnection, handle.getProviderResourceUuid())
+                : coolifyApiClient.listApplicationStorages(handleConnection, handle.getProviderResourceUuid())));
+            if (!isRuntimePostgresDatabase(handle)) {
+                var item = kind.equals(RESOURCE_KIND_APPLICATION) ? app : connectorApp;
+                var config = RuntimeArtifactRepairApplicationProjection.project(item.raw(), kind.equals(RESOURCE_KIND_APPLICATION));
+                fingerprints.put(kind + ":configuration", codec.fingerprint(config));
+                var environment = coolifyApiClient.runtimeRepairEnvironmentInventory(handleConnection, handle.getProviderResourceUuid());
+                if (kind.equals(RESOURCE_KIND_APPLICATION)) {
+                    var provenance = RuntimeArtifactRepairProvenance.inspect(environment);
+                    fingerprints.put(kind + ":environment", codec.fingerprint(provenance.stable()));
+                    fingerprints.put("runtimeSourceCommit", provenance.commit());
+                } else fingerprints.put(kind + ":environment", codec.fingerprint(environment));
+            }
+        }
+        fingerprints.put("databaseUuid", db.uuid()); fingerprints.put("databaseName", db.name());
+        fingerprints.put("connectorRepository", connectorApp.imageRepository()); fingerprints.put("connectorTag", connectorApp.imageTag());
+        return new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeInventory(
+            fingerprints, app.status(), connectorApp.status(), app.imageRepository(), app.imageTag(),
+            repairJobs(connection, app.uuid()), repairJobs(connectionForHandle(connector), connectorApp.uuid()), Instant.now());
+    }
+
+    public void stopRuntimeArtifactRepairApplication(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope, boolean connector) {
+        var handle = repairHandle(scope, connector ? RESOURCE_KIND_CONNECTOR_APPLICATION : RESOURCE_KIND_APPLICATION,
+            connector ? scope.connectorApplicationUuid() : scope.runtimeApplicationUuid());
+        coolifyApiClient.stop(connectionForHandle(handle), handle.getProviderResourceUuid(), false);
+    }
+
+    public void patchRuntimeArtifactRepairImage(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope,
+        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ArtifactPin replacement) {
+        var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
+        var connection = connectionForHandle(handle);
+        var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        if (!Set.of("exited", "exited:unhealthy", "stopped").contains(app.status())) throw failedApplyRetryUnproven();
+        coolifyApiClient.updateRuntimeRepairImage(connection, handle.getProviderResourceUuid(), replacement.repository(), "sha256-" + replacement.digest().substring(7));
+    }
+
+    public String deployRuntimeArtifactRepairApplication(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope, boolean connector) {
+        var handle = repairHandle(scope, connector ? RESOURCE_KIND_CONNECTOR_APPLICATION : RESOURCE_KIND_APPLICATION,
+            connector ? scope.connectorApplicationUuid() : scope.runtimeApplicationUuid());
+        var response = coolifyApiClient.start(connectionForHandle(handle), handle.getProviderResourceUuid(), false, false);
+        if (response == null || !StringUtils.hasText(response.deploymentUuid())) throw failedApplyRetryUnproven();
+        return response.deploymentUuid();
+    }
+
+    public void patchRuntimeArtifactRepairProvenance(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope,
+        String expectedCommit, String replacementCommit) {
+        var handle = repairHandle(scope, RESOURCE_KIND_APPLICATION, scope.runtimeApplicationUuid());
+        var connection = connectionForHandle(handle);
+        var app = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+        if (!Set.of("exited", "exited:unhealthy", "stopped").contains(app.status())) throw failedApplyRetryUnproven();
+        coolifyApiClient.updateRuntimeRepairProvenance(connection, handle.getProviderResourceUuid(), expectedCommit, replacementCommit);
+    }
+
+    private DeploymentProviderResourceHandleEntity repairHandle(
+        com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.Scope scope, String kind, String uuid) {
+        var matches = resourceHandleRepository.findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(scope.deploymentId(), scope.targetProfileId())
+            .stream().filter(h -> kind.equals(h.getResourceKind())).toList();
+        if (matches.size() != 1) throw failedApplyRetryUnproven();
+        var handle = matches.getFirst();
+        if (!scope.releaseId().equals(handle.getReleaseId()) || !uuid.equals(handle.getProviderResourceUuid())
+            || handle.getProviderType() != DeploymentProviderType.COOLIFY) throw failedApplyRetryUnproven();
+        requireOwnedHandle(connectionForHandle(handle), handle, false);
+        return handle;
+    }
+
+    private List<com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeJob> repairJobs(CoolifyConnection connection, String appUuid) {
+        var history = coolifyApiClient.applicationDeploymentHistory(connection, appUuid);
+        var result = new ArrayList<com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeJob>();
+        for (var item : history) {
+            var exact = coolifyApiClient.getDeployment(connection, item.deploymentUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
+            if (!appUuid.equals(exact.applicationUuid()) || !item.status().equals(exact.status())) throw failedApplyRetryUnproven();
+            result.add(new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.NativeJob(exact.deploymentUuid(),
+                exact.applicationUuid(), exact.status(), Instant.parse(exact.createdAt()),
+                StringUtils.hasText(exact.finishedAt()) ? Instant.parse(exact.finishedAt()) : null));
+        }
+        return List.copyOf(result);
+    }
+
     private com.ai.fabric.platform.backend.deployment.admission.FailedApplyRetryContracts.NativeReadback failedApplyReadback(
         String deploymentId, String targetProfileId, String releaseId, Instant releaseCreatedAt, Instant failedAt,
         boolean completedNativePhase) {
@@ -1683,8 +1780,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 var latest = jobs.stream().max(java.util.Comparator.comparing(job -> Instant.parse(job.createdAt()))).orElseThrow();
                 var exact = coolifyApiClient.getDeployment(connection, latest.deploymentUuid()).orElseThrow(CoolifyDeploymentProvider::failedApplyRetryUnproven);
                 Instant created = Instant.parse(exact.createdAt());
+                boolean verifiedRepairJob = completedNativePhase && effectiveRuntimeArtifacts != null
+                    && effectiveRuntimeArtifacts.getIfAvailable() != null && (connector
+                        ? effectiveRuntimeArtifacts.getObject().permitsConnectorJob(releaseId, app.uuid(), exact.deploymentUuid(),
+                            app.imageRepository(), app.imageTag(), created, Instant.parse(exact.finishedAt()), exact.status())
+                        : effectiveRuntimeArtifacts.getObject().permitsRuntimeJob(releaseId, app.uuid(), exact.deploymentUuid(),
+                            app.imageRepository(), app.imageTag(), created, Instant.parse(exact.finishedAt()), exact.status()));
                 if (!app.uuid().equals(exact.applicationUuid()) || !latest.status().equals(exact.status())
-                    || created.isBefore(releaseCreatedAt) || created.isAfter(failedAt)
+                    || created.isBefore(releaseCreatedAt) || created.isAfter(failedAt) && !verifiedRepairJob
                     || !(connector && !completedNativePhase ? "failed".equals(exact.status()) : "finished".equals(exact.status())))
                     throw failedApplyRetryUnproven();
                 identity.put("status", app.status()).put("image", app.imageRepository())
@@ -2742,7 +2845,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private DeploymentSourceArtifactEntity resolveSourceArtifact(DeploymentReleaseEntity release, JsonNode resourceDefaults) {
         if (StringUtils.hasText(release.getSourceArtifactId())) {
-            DeploymentSourceArtifactEntity artifact = sourceArtifactService.require(release.getSourceArtifactId());
+            if (effectiveRuntimeArtifacts == null || effectiveRuntimeArtifacts.getIfAvailable() == null)
+                throw new IllegalStateException("EFFECTIVE_RUNTIME_ARTIFACT_RESOLVER_REQUIRED");
+            DeploymentSourceArtifactEntity artifact = effectiveRuntimeArtifacts.getObject().resolve(release);
             validateDockerImageArtifact(artifact);
             return artifact;
         }

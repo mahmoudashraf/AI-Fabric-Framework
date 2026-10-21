@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.budget;
 
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
@@ -12,21 +13,31 @@ import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageAllo
 public class ProviderUsageValidityCapabilityGate {
     private final ProviderUsageRuntimeClient runtime;
     private final DeploymentSourceCapabilityManifestService manifests;
+    private final DeploymentReleaseRepository releases;
+    private final ProviderUsageRuntimeArtifactGate artifacts;
 
-    public ProviderUsageValidityCapabilityGate(ProviderUsageRuntimeClient runtime, DeploymentSourceCapabilityManifestService manifests) {
-        this.runtime = runtime; this.manifests = manifests;
+    public ProviderUsageValidityCapabilityGate(ProviderUsageRuntimeClient runtime, DeploymentSourceCapabilityManifestService manifests,
+        DeploymentReleaseRepository releases, ProviderUsageRuntimeArtifactGate artifacts) {
+        this.runtime = runtime; this.manifests = manifests; this.releases = releases; this.artifacts = artifacts;
     }
 
-    // Exact release/scope are supplied so the effective-artifact resolver can add its immutable-source check here.
     public String require(AllocationScope scope, String releaseId, ProviderUsageValidityRuntimeAccess.Access access) {
+        var release = releases.findById(releaseId).orElseThrow(ProviderUsageValidityCapabilityGate::unsupported);
+        if (!scope.deploymentId().equals(release.getDeploymentId()) || !scope.targetProfileId().equals(release.getTargetProfileId())) throw unsupported();
+        var artifact = artifacts.requireArtifact(release);
         var overview = runtime.overview(access.baseUrl(), access.headers());
         if (overview == null || !overview.path("success").isBoolean() || !overview.path("success").booleanValue()) throw unsupported();
         var normalized = manifests.normalize(overview.path("runtimeCapabilityManifest"));
         if (normalized.hash() == null || !normalized.hash().equals(overview.path("runtimeCapabilityManifestHash").asText())
+            || !normalized.hash().equals(artifact.getCapabilityManifestHash())
+            || !artifact.getGitCommitSha().equals(overview.path("productSourceCommit").asText())
             || !contains(normalized.manifest().path("capabilities"), "deployment-local-provider-budget-validity-extension-v1")
             || !contains(normalized.manifest().path("endpointClasses"), "provider-budget-administration")
             || !contains(normalized.manifest().path("migrationIds"), "provider-budget-validity-extensions-v1")
-            || !contains(normalized.manifest().path("verificationPackIds"), "provider-budget-validity-extension-v1")) throw unsupported();
+            || !contains(normalized.manifest().path("verificationPackIds"), "provider-budget-validity-extension-v1")
+            || !overview.path("runtimeMigrations").path("available").isBoolean()
+            || !overview.path("runtimeMigrations").path("available").booleanValue()
+            || !contains(overview.path("runtimeMigrations").path("appliedMigrationIds"), "provider-budget-validity-extensions-v1")) throw unsupported();
         return normalized.hash();
     }
 

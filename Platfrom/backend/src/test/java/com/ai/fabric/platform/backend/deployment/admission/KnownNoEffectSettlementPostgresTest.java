@@ -78,7 +78,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         var admin = new JdbcTemplate(new DriverManagerDataSource(DATABASE.getJdbcUrl(), DATABASE.getUsername(), DATABASE.getPassword()));
         admin.execute("CREATE DATABASE settlement_template");
         Flyway.configure().dataSource(databaseUrl("settlement_template"), DATABASE.getUsername(), DATABASE.getPassword())
-            .locations("classpath:db/migration").target("206").load().migrate();
+            .locations("classpath:db/migration").target("207").load().migrate();
     }
 
     private static String databaseUrl(String name) {
@@ -753,7 +753,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(allRelevant()).isEqualTo(before);
     }
 
-    @ParameterizedTest @ValueSource(strings = {"native-proof", "native-expired", "local-graph", "fence", "owner"})
+    @ParameterizedTest @ValueSource(strings = {"native-proof", "native-expired", "local-graph", "validity-review", "fence", "owner"})
     void postProvisionResumePlanCannotAuthorizeChangedState(String change) {
         postProvisionFailure(); var r = store.require(original.id()); var draft = resumeDraft(r.fence());
         var inspected = store.postProvisionResumeCandidate("customer", "deployment", r.id(), draft, value -> { });
@@ -763,6 +763,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
             case "native-proof" -> readback = new FailedApplyRetryContracts.NativeReadback(NOW, Map.of("APPLICATION", "other", "CONNECTOR_APPLICATION", "connector", "RUNTIME_POSTGRES_DATABASE", "postgres"));
             case "native-expired" -> readback = nativeReadback(NOW.minusSeconds(61));
             case "local-graph" -> jdbc.update("UPDATE deployment_managed_dependency_graphs SET revision=revision+1 WHERE id='prepared-graph'");
+            case "validity-review" -> jdbc.update("INSERT INTO provider_usage_validity_reviews VALUES ('concurrent-review','retained-allocation',?,?, '{}')", "a".repeat(64), "b".repeat(64));
             case "fence" -> command = new PostProvisionResumeContracts.Command(new Fence(r.id(), r.revision() - 1, r.generation()), command.releaseId(), command.operationKey(), command.reason(), true, command.proofFingerprint());
             case "owner" -> { }
             default -> throw new AssertionError(change);

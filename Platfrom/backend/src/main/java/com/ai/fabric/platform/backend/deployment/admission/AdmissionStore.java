@@ -1830,7 +1830,7 @@ class AdmissionStore {
             Instant now = effectiveTime(requestedAt);
             Reservation r = fenced(fence); LifecyclePolicy p = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
             if (r.intent() != Intent.CUSTOMER_STAGING || !r.occupiesActiveSlot() || r.expiryState() != ExpiryState.NOTIFIED
-                || now.isBefore(r.expiresAt()) || (r.keepUntil() != null && now.isBefore(r.keepUntil())))
+                || r.workerToken() != null || now.isBefore(r.expiresAt()) || (r.keepUntil() != null && now.isBefore(r.keepUntil())))
                 throw new AdmissionFailure(CONFLICT, "EXPIRY_NOT_ELIGIBLE");
             if (!delivered(r, NoticeChannel.CONSOLE) || !delivered(r, NoticeChannel.OWNER_EMAIL))
                 throw new AdmissionFailure(PRECONDITION_FAILED, "NOTICE_DELIVERY_UNPROVEN");
@@ -2205,6 +2205,33 @@ class AdmissionStore {
         if (changed != 1) throw new AdmissionFailure(CONFLICT, "STALE_RESERVATION_FENCE");
         event(next, type, actor, next.evidenceReference(), now);
         return next;
+    }
+
+    /** The repair journal already holds the admission mutex, before any grant or provider state is read. */
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    Reservation claimRuntimeArtifactRepair(Fence fence, String releaseId, String actor, String planFingerprint) {
+        Reservation r = fenced(fence);
+        var binding = releaseBinding(releaseId);
+        if (r.state() != State.OUTCOME_UNKNOWN || r.workerToken() != null || r.retirementOperationId() != null
+            || r.retentionEnvelope() != null || r.retentionSettlement() != null || r.expiryState() == ExpiryState.CLAIMED
+            || binding == null || !r.id().equals(binding.reservationId()) || !r.generation().equals(binding.generation())
+            || !"OUTCOME_UNKNOWN".equals(binding.state()))
+            throw new AdmissionFailure(CONFLICT, "RUNTIME_ARTIFACT_REPAIR_NOT_ELIGIBLE");
+        Mutation m = new Mutation(r); m.worker = uuid();
+        m.evidence = "runtime-artifact-repair:" + required(planFingerprint, 64);
+        return save(r, m, "RUNTIME_ARTIFACT_REPAIR_CLAIMED", required(actor, 255), clock.instant());
+    }
+
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    void finishRuntimeArtifactRepair(RuntimeArtifactRepairContracts.Claim claim, String actor, String receiptFingerprint) {
+        Reservation r = fenced(claim.reservationFence());
+        if (r.state() != State.OUTCOME_UNKNOWN || !Objects.equals(r.workerToken(), claim.workerToken())
+            || !Objects.equals(r.evidenceReference(), "runtime-artifact-repair:" + claim.planFingerprint())
+            || r.retirementOperationId() != null || r.retentionSettlement() != null)
+            throw new AdmissionFailure(CONFLICT, "RUNTIME_ARTIFACT_REPAIR_WORKER_CHANGED");
+        Mutation m = new Mutation(r); m.worker = null;
+        m.evidence = "runtime-artifact-repair-verified:" + required(receiptFingerprint, 64);
+        save(r, m, "RUNTIME_ARTIFACT_REPAIR_VERIFIED", required(actor, 255), clock.instant());
     }
     private void event(Reservation r, String type, String actor, String evidence, Instant now) {
         jdbc.update("INSERT INTO deployment_admission_events(id,reservation_id,revision,event_type,actor_id,evidence_reference,created_at) VALUES (?,?,?,?,?,?,?)",

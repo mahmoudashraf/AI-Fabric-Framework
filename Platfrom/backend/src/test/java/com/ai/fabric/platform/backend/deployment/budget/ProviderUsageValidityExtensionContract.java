@@ -68,9 +68,23 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
     }
 
     ProviderUsageValidityExtensionService extensionService(Instant at) {
+        var manifests = new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper);
+        var releases = mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository.class);
+        var resolver = mock(com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver.class);
+        var release = new com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity();
+        release.setId("release-deployment"); release.setDeploymentId("deployment"); release.setTargetProfileId("target");
+        release.setSourceArtifactId("artifact");
+        when(releases.findById("release-deployment")).thenReturn(java.util.Optional.of(release));
+        var artifact = new com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity();
+        artifact.setArtifactRole("RUNTIME"); artifact.setArtifactType("DOCKER_IMAGE");
+        artifact.setImageDigest("sha256:" + "a".repeat(64)); artifact.setGitCommitSha("b".repeat(40));
+        artifact.setBuildRunId("synthetic-reviewed-build"); artifact.setPromotedAt(NOW);
+        artifact.setCapabilityManifestJson(overview().path("runtimeCapabilityManifest").toString());
+        artifact.setCapabilityManifestHash(overview().path("runtimeCapabilityManifestHash").asText());
+        when(resolver.resolve(release)).thenReturn(artifact);
         return new ProviderUsageValidityExtensionService(source, new DataSourceTransactionManager(source), mapper,
-            instance(at), runtime, access, new ProviderUsageValidityCapabilityGate(runtime,
-                new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper)), Clock.fixed(at, ZoneOffset.UTC));
+            instance(at), runtime, access, new ProviderUsageValidityCapabilityGate(runtime, manifests, releases,
+                new ProviderUsageRuntimeArtifactGate(resolver, manifests)), Clock.fixed(at, ZoneOffset.UTC));
     }
 
     com.fasterxml.jackson.databind.node.ObjectNode overview() {
@@ -78,12 +92,15 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
         manifest.putArray("supportedBehaviorTypes").add("CONVERSATIONAL");
         for (String field : List.of("supportedActivationSources", "supportedChannelBindings", "supportedExecutionExtensions", "specialistBundles"))
             manifest.putArray(field);
-        manifest.putArray("capabilities").add("deployment-local-provider-budget-validity-extension-v1");
+        manifest.putArray("capabilities").add("deployment-local-provider-budget-v1").add("deployment-local-provider-budget-validity-extension-v1");
         manifest.putArray("endpointClasses").add("provider-budget-administration");
-        manifest.putArray("migrationIds").add("provider-budget-validity-extensions-v1");
-        manifest.putArray("verificationPackIds").add("provider-budget-validity-extension-v1");
+        manifest.putArray("migrationIds").add("provider-budget-accounting-v1").add("provider-budget-validity-extensions-v1");
+        manifest.putArray("verificationPackIds").add("provider-budget-hard-limit-v1").add("provider-budget-validity-extension-v1");
         var normalized = new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper).normalize(manifest);
         var overview = mapper.createObjectNode().put("success", true).put("runtimeCapabilityManifestHash", normalized.hash());
+        overview.put("productSourceCommit", "b".repeat(40));
+        overview.putObject("runtimeMigrations").put("available", true).putArray("appliedMigrationIds")
+            .add("provider-budget-accounting-v1").add("provider-budget-validity-extensions-v1");
         overview.set("runtimeCapabilityManifest", normalized.manifest()); return overview;
     }
 
@@ -294,6 +311,27 @@ abstract class ProviderUsageValidityExtensionContract extends ProviderUsageAllow
         doReturn(mapper.createObjectNode().put("success", true)).when(runtime).overview(anyString(), anyMap());
         assertThatThrownBy(() -> extensions.execute(request.extensionId(), plan.command())).isInstanceOf(RuntimeException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_validity_events", Integer.class)).isZero();
+        verify(runtime, never()).extendValidity(anyString(), any(), anyMap());
+    }
+
+    @Test void extensionSourceCommitOrActualMigrationMismatchCannotPersistAuthorization() {
+        for (String difference : List.of("source", "unapplied", "unavailable", "manifest")) {
+            var observed = overview();
+            switch (difference) {
+                case "source" -> observed.put("productSourceCommit", "c".repeat(40));
+                case "unapplied" -> ((com.fasterxml.jackson.databind.node.ObjectNode) observed.path("runtimeMigrations")).putArray("appliedMigrationIds");
+                case "unavailable" -> ((com.fasterxml.jackson.databind.node.ObjectNode) observed.path("runtimeMigrations")).put("available", false);
+                case "manifest" -> {
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) observed.path("runtimeCapabilityManifest")).putArray("supportedBehaviorTypes").add("SMART_BRAIN");
+                    observed.put("runtimeCapabilityManifestHash", new com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService(mapper)
+                        .normalize(observed.path("runtimeCapabilityManifest")).hash());
+                }
+                default -> throw new AssertionError(difference);
+            }
+            doReturn(observed).when(runtime).overview(anyString(), anyMap());
+            assertThatThrownBy(() -> extensions.plan(request("drift-" + difference))).hasMessageContaining("CAPABILITY_REQUIRED");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_validity_reviews", Integer.class)).isZero();
         verify(runtime, never()).extendValidity(anyString(), any(), anyMap());
     }
 

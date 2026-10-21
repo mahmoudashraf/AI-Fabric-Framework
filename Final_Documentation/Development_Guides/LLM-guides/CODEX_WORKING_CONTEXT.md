@@ -10,6 +10,26 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At01:04UTC Oct21 MAIN CONTINUES. Effective-artifact/actual-migration/schema207
+  integration221checks incl105PG passes. Final repair integration566checks
+  incl116actualPG passes; packagePASS under01044-final-repair-r3-20261021.bYSpis.
+  Runtime migration-attestation followup1cdb9deb0 commits9checks incl3PG;
+  prior112/38PG runtime proof unchanged. Public framework stays0.8.36.
+  Native preflight caught full-drain fencing unsupported for PRESENT indexing/
+  specialist execution. Main implements explicit IDLE_CHECKPOINT_COLD_RESTART,
+  not fake full-drain success: neveractivated failedsetup, complete signedwork
+  diagnostics, zero activequeues/conversations, retained terminaldeadletters,
+  ownedwritersquiesced and sameprocessphysicallystopped. Queue/wallet evidence
+  rechecked afterrestart beforeingress. Four existing APP_BUILD_COMMIT/
+  PLATFORM_SOURCE_COMMIT runtime+preview records receive one separate audited
+  bulkPATCH; unrelatedenv/identities/flags remainpinned. Binding observer
+  updated_at alone normalizes with sourcejustification. Ten nativeintents;
+  unknownreadbackneverredispatches. Productsourcecommit/imagepublication and
+  combined206->207rollout next; no newhostedmutation/renewal/activation yet.
+  BothCPs remain2a7f7fad/image5d00f329/schema206; UI592a9f9de/b270da72 verifiedboth.
+  SameD7438/Rc4d054ec/rel-b7206a67/expiredpua9a083 preserved. Updated tracker has
+  detailedcurrentboundary. M5-M9 open, extractionLAST; nofinalcheckpointstop.
+
 - At00:07UTC Oct21 MAIN CONTINUES. Provisioned-checkpoint correction locally
   qualifies151checks:115finalisolatedunit+36actualPG with admission production/
   testclass bytes identical to finalcopy. Proof2904de2f0bf0ca5eb364d36675c29b737ff2fe0a81e70db0259ea26a675df2a3

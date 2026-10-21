@@ -40,7 +40,8 @@ extraction stays last. This is an execution tracker, not a new product direction
   renewal and runtime-artifact adoption path. Preserve the original approval,
   limits, charges, holds and store identity; any expiry change needs an explicit
   durable authorization and positive readback, not SQL repair or a fresh wallet.
-  No implementation or hosted renewal is claimed yet.
+  Runtime and control-plane source implementations are locally qualified below;
+  no hosted renewal is claimed yet.
 - [ ] Reconcile the same release through source synchronization and verification;
   activate the existing consumer and app only after those gates pass.
 - [ ] Run real stock/document compound queries, scoped reads, confirmed writes,
@@ -143,5 +144,44 @@ extraction stays last. This is an execution tracker, not a new product direction
   SHA256 `296b0f1832a05c6516c3f6db30201cece4e136f6f1428d25e7b15fb18bceeeae`.
   Runtime JAR SHA256 `cf2e1f546627ed204ec3d5d8e0474aaaa384c5852eb71f25c6093f25059445dc`.
 - Main's effective-artifact, actual-migration and schema207 continuation
-  integration compiles; focused local regression is running. This is not a
+  integration compiles; 221 focused checks pass, including 105 actual PostgreSQL
+  cases, with zero failures/errors/skips. Proof:
+  `/private/tmp/01044-main-effective-artifact-integration-20261021.6g6nQh/qualification.actual.json`,
+  SHA256 `51c9baa027b3ea7264abee761f3a807eda36ba53c755ce8df143edc82a0bb34b`.
+  Final repair qualification and combined package remain required. This is not a
   hosted repair, renewal, green release, or completed plan.
+
+## 2026-10-21 01:04 UTC Repair Integration
+
+- Main owns the sequential repair implementation and rollout. The integrated
+  focused batch passes 566 cases, including 116 actual PostgreSQL cases, with
+  zero failures/errors/skips. Snapshot:
+  `/private/tmp/01044-final-repair-r3-20261021.bYSpis`.
+  Earlier fixture-constructor and ObjectProvider errors remain in the rejected
+  local rounds; they are not represented as passing runs.
+- Native preflight proves that this runtime advertises PRESENT indexing and
+  specialist execution without full framework retirement fencing. The repair
+  must not claim that a full drain passed. Explicit idle-checkpoint cold restart
+  instead requires complete signed diagnostics, no active work or conversations,
+  only retained terminal indexing failures, and a never-activated setup. It
+  quiesces owned remote writers and physically stops the same runtime before
+  changing its image. Before ingress resumes, idle counts and wallet identity,
+  counters, limits and original expiry must still match.
+- The four existing runtime/preview source-provenance records are updated by one
+  separately journalled bulk PATCH. Their identities/flags and every unrelated
+  environment record remain pinned. Installed Coolify source confirms the bulk
+  endpoint handles preview and runtime records separately within that request.
+- Actual read-only CP checks show no verified releases, release-backed consumer
+  assignment, non-DRAFT app or retirement operation for this setup. Existing
+  indexing failures identify expired or uninitialized budget authorization;
+  they are retained, not deleted or relabelled. Subsequent normal indexing must
+  be verified after the separate validity renewal.
+- Ten individually journalled effects, exact runtime/connector native job
+  receipts, one-shot dispatch, read-only UNKNOWN reconciliation and the separate
+  claim/execution deadlines are covered. Original offer/version/release pins
+  remain immutable. The same-release receipt does not authorize a later target
+  or successor release; promotion still requires its own reviewed source path.
+- This remains local qualification, not a hosted repair or finished M5-M9.
+  Package, combined image publication, backend migration/rollout and actual
+  repair/renewal/owner continuation precede customer activation. UI extraction
+  remains last.

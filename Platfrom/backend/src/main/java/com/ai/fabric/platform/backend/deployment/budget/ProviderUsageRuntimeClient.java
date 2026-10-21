@@ -42,6 +42,10 @@ public class ProviderUsageRuntimeClient {
         return exchange(baseUrl, "/api/admin/overview", null, headers, com.fasterxml.jackson.databind.JsonNode.class, 262_144);
     }
 
+    public com.fasterxml.jackson.databind.JsonNode indexingOverview(String baseUrl, Map<String, String> headers) {
+        return exchange(baseUrl, "/api/admin/indexing/overview", null, headers, com.fasterxml.jackson.databind.JsonNode.class);
+    }
+
     public StoreReceipt initialize(String baseUrl, SafeAllowanceProjection allowance, Map<String, String> headers) {
         var scope = allowance.scope();
         var approval = Map.of("id", allowance.approvalId(), "scope", Map.of(

@@ -28,6 +28,13 @@ class ProviderUsageValidityRuntimeClientTest {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         var posts = new AtomicInteger(); var gets = new AtomicInteger(); var body = new AtomicReference<String>();
         var overviewGets = new AtomicInteger();
+        var indexingGets = new AtomicInteger();
+        server.createContext("/api/admin/indexing/overview", exchange -> {
+            assertThat(exchange.getRequestMethod()).isEqualTo("GET");
+            assertThat(exchange.getRequestHeaders().getFirst("X-Synthetic")).isEqualTo("not-a-credential");
+            indexingGets.incrementAndGet(); byte[] response = "{\"success\":true,\"queue\":{\"ready\":true}}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, response.length); exchange.getResponseBody().write(response); exchange.close();
+        });
         server.createContext("/api/admin/overview", exchange -> {
             assertThat(exchange.getRequestMethod()).isEqualTo("GET");
             assertThat(exchange.getRequestHeaders().getFirst("X-Synthetic")).isEqualTo("not-a-credential");
@@ -54,6 +61,8 @@ class ProviderUsageValidityRuntimeClientTest {
             assertThat(posts).hasValue(1); assertThat(gets).hasValue(1);
             assertThat(client.overview(url, Map.of("X-Synthetic", "not-a-credential")).path("success").booleanValue()).isTrue();
             assertThat(overviewGets).hasValue(1);
+            assertThat(client.indexingOverview(url, Map.of("X-Synthetic", "not-a-credential")).path("queue").path("ready").booleanValue()).isTrue();
+            assertThat(indexingGets).hasValue(1);
             assertThatThrownBy(() -> client.readValidityExtension(url, "../other", Map.of("X-Synthetic", "test"))).isInstanceOf(ProviderUsageAllowanceFailure.class);
             assertThat(gets).hasValue(1);
         } finally { server.stop(0); }

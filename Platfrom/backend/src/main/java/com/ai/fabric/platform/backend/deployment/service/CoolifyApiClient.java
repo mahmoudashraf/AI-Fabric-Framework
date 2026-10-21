@@ -342,6 +342,33 @@ public class CoolifyApiClient {
         );
     }
 
+    /** Repair changes only the explicitly reviewed immutable image, never the application's configuration. */
+    public void updateRuntimeRepairImage(CoolifyConnection connection, String uuid, String repository, String tag) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("docker_registry_image_name", requireText(repository, "reviewed image repository"));
+        body.put("docker_registry_image_tag", requireText(tag, "reviewed immutable image tag"));
+        requestJson(connection, "PATCH", "/applications/" + encodePath(uuid), body, true);
+    }
+
+    /** Private callers hash this complete inventory; no secret values belong in public repair receipts. */
+    public JsonNode runtimeRepairEnvironmentInventory(CoolifyConnection connection, String uuid) {
+        return environmentInventory(connection, uuid);
+    }
+
+    public void updateRuntimeRepairProvenance(CoolifyConnection connection, String uuid, String expectedCommit, String replacementCommit) {
+        if (replacementCommit == null || !replacementCommit.matches("[a-f0-9]{40}"))
+            throw new IllegalStateException("REVIEWED_RUNTIME_COMMIT_REQUIRED");
+        var inventory = RuntimeArtifactRepairProvenance.inspect(environmentInventory(connection, uuid));
+        if (!inventory.commit().equals(expectedCommit)) throw new IllegalStateException("RUNTIME_SOURCE_PROVENANCE_CHANGED");
+        var body = objectMapper.createObjectNode(); var data = body.putArray("data");
+        for (var row : inventory.sourceRecords()) {
+            var item = data.addObject().put("key", row.path("key").textValue()).put("value", replacementCommit);
+            for (String flag : List.of("is_preview", "is_runtime", "is_buildtime", "is_literal", "is_multiline", "is_shown_once"))
+                item.put(flag, row.path(flag).booleanValue());
+        }
+        requestJson(connection, "PATCH", "/applications/" + encodePath(uuid) + "/envs/bulk", body, true);
+    }
+
     public void configurePrivateApplicationNetwork(CoolifyConnection connection,
                                                    String uuid,
                                                    String internalName) {

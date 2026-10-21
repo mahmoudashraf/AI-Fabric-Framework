@@ -100,6 +100,50 @@ unknown, provisioned or retained-index workloads.
   `CANCELLED_UNUSED_NO_EFFECT` and `reclamationPerformed=false`: no provider
   deletion, credit refund, financial-allowance reset or zero-index claim occurs.
 
+## Repair A Failed Runtime Image In Place
+
+Staff-only routes live under
+`/api/deployments/{deploymentId}/releases/{releaseId}`. POST
+`/runtime-artifact-repair-plan` with the exact reservation fence, replacement
+artifact, offer fingerprint, entitlement revision, operation key, reason,
+`acceptRuntimeRestart=true` and explicit `mode`. The returned command must be
+claimed within five minutes. A separate execution deadline is bounded to thirty
+minutes and the original reservation expiry.
+
+- `FULL_DRAIN` requires actual complete worker fencing and drain evidence. An
+  unsupported framework worker remains a blocker; no advertised capability is
+  substituted for this evidence.
+- `IDLE_CHECKPOINT_COLD_RESTART` is only for a never-activated failed setup with
+  an owned provisioned, uninitialized dependency checkpoint. No verified release,
+  release-backed assignment, or non-DRAFT workspace is permitted. Signed runtime
+  inventory must be complete, with zero conversations, confirmations, human work,
+  active background work and in-flight requests. Indexing queue diagnostics must
+  prove zero commit-pending, pending and processing work. Terminal dead letters
+  may remain, exactly accounting for the only nonzero background count. Their
+  history is preserved; this mode does not claim full retirement fencing.
+- Claim through `/runtime-artifact-repairs/{planId}/claim`. Execute each effect
+  separately through `.../effects/{effect}`: `QUIESCE_CONNECTOR`, `QUIESCE_INBOX`,
+  `BEGIN_DRAIN`, `STOP_RUNTIME`, `PATCH_IMAGE`, `PATCH_PROVENANCE`, `DEPLOY_RUNTIME`,
+  `CANCEL_DRAIN`, `RESUME_INBOX`, `RESUME_CONNECTOR`. Each intent precedes one
+  provider command. No database, app, volume, integration credential or wallet is
+  created, removed or reinitialized. The source-provenance PATCH changes only
+  the four existing runtime/preview records for `APP_BUILD_COMMIT` and
+  `PLATFORM_SOURCE_COMMIT`; other configuration remains pinned.
+- Idle queue counts are rechecked before stop and after restart, before ingress
+  resumes. Native process stop is required before image or provenance changes.
+  An expired wallet remains expired and must match its original identity,
+  approval, counters and limits. Validity renewal is a separate audited API.
+- GET `.../runtime-artifact-repairs/{planId}?planFingerprint=...` reads durable
+  status. Lost responses never authorize another native dispatch. Explicit POST
+  `.../effects/{effect}/reconcile` performs observation only; an unattributed job,
+  partial configuration or unverifiable result remains held for operator review.
+  Read-only reconciliation remains available after the execution deadline.
+- POST `.../verify` records an exact replacement artifact/native-job receipt and
+  releases the repair worker atomically. Original offer, version, failed release
+  provenance and accounting history stay unchanged. Only this same release may
+  resolve the replacement; the receipt grants no authority to successor releases
+  or production targets. Normal owner continuation is still required afterward.
+
 ## Acceptance And Remaining Gates
 
 `AdmissionStoreTest` and its PostgreSQL subclass cover complete dimensions,

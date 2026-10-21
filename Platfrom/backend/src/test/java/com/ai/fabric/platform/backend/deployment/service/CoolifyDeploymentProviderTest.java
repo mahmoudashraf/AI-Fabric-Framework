@@ -193,7 +193,7 @@ class CoolifyDeploymentProviderTest {
                 Map.of("APP_ADMIN_API_KEY", "${secret:TARGET_KEY}")
             )
         );
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             mock(DeploymentTargetProfileRepository.class),
             mock(DeploymentProviderResourceHandleRepository.class),
             mock(DeploymentSourceArtifactService.class),
@@ -242,7 +242,7 @@ class CoolifyDeploymentProviderTest {
 
     @Test
     void heartbeatsWhileTrackedCoolifyOperationIsStillRunning() {
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             mock(DeploymentTargetProfileRepository.class),
             mock(DeploymentProviderResourceHandleRepository.class),
             mock(DeploymentSourceArtifactService.class),
@@ -301,7 +301,7 @@ class CoolifyDeploymentProviderTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
         CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -608,7 +608,7 @@ class CoolifyDeploymentProviderTest {
             .thenReturn(new CoolifyActionResponse("Application deletion queued.", null, objectMapper.createObjectNode()));
         when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.empty());
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -645,7 +645,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.getDatabase(connection, "database-uuid")).thenReturn(Optional.empty());
         when(platformSecretService.isManagedSecretName("MANAGED_RUNTIME_DATABASE_PASSWORD")).thenReturn(true);
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -738,7 +738,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -872,7 +872,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1012,7 +1012,7 @@ class CoolifyDeploymentProviderTest {
         )).thenReturn(Optional.empty());
         when(coolifyApiClient.listApplications(connection)).thenReturn(List.of(duplicateOne, duplicateTwo));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1136,7 +1136,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1221,7 +1221,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1369,7 +1369,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1540,7 +1540,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1699,7 +1699,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1808,7 +1808,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -1923,7 +1923,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -2067,7 +2067,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -2171,7 +2171,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -2352,7 +2352,7 @@ class CoolifyDeploymentProviderTest {
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -2473,7 +2473,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.of(application));
 
-        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+        CoolifyDeploymentProvider provider = fixtureProvider(
             targetProfileRepository,
             resourceHandleRepository,
             sourceArtifactService,
@@ -2682,8 +2682,47 @@ class CoolifyDeploymentProviderTest {
         return provider(mock(CoolifyApiClient.class));
     }
 
+    private CoolifyDeploymentProvider fixtureProvider(DeploymentTargetProfileRepository targets,
+        DeploymentProviderResourceHandleRepository handles, DeploymentSourceArtifactService artifacts,
+        RailwayProvisioningPlanService plans, CoolifyTargetProfileResolver resolver,
+        CoolifyApiClient api, ObjectMapper mapper) {
+        return fixtureProvider(targets, handles, artifacts, plans, null, null, resolver, api, null, null, null, mapper);
+    }
+
+    private CoolifyDeploymentProvider fixtureProvider(DeploymentTargetProfileRepository targets,
+        DeploymentProviderResourceHandleRepository handles, DeploymentSourceArtifactService artifacts,
+        RailwayProvisioningPlanService plans, CoolifyTargetProfileResolver resolver,
+        CoolifyApiClient api, PlatformSecretService secrets, ObjectMapper mapper) {
+        return fixtureProvider(targets, handles, artifacts, plans, null, null, resolver, api, secrets, null, null, mapper);
+    }
+
+    private CoolifyDeploymentProvider fixtureProvider(DeploymentTargetProfileRepository targets,
+        DeploymentProviderResourceHandleRepository handles, DeploymentSourceArtifactService artifacts,
+        RailwayProvisioningPlanService plans, CoolifyTargetProfileResolver resolver,
+        CoolifyApiClient api, PlatformSecretService secrets, PlatformCustomerRepository customers, ObjectMapper mapper) {
+        return fixtureProvider(targets, handles, artifacts, plans, null, null, resolver, api, secrets, customers, null, mapper);
+    }
+
+    private CoolifyDeploymentProvider fixtureProvider(DeploymentTargetProfileRepository targets,
+        DeploymentProviderResourceHandleRepository handles, DeploymentSourceArtifactService artifacts,
+        RailwayProvisioningPlanService plans, DeploymentManagedVectorProvisioningService vectorProvisioning,
+        DeploymentManagedVectorResourceService vectorResources, CoolifyTargetProfileResolver resolver,
+        CoolifyApiClient api, PlatformSecretService secrets, PlatformCustomerRepository customers,
+        DeploymentExecutionSecretService executionSecrets, ObjectMapper mapper) {
+        var provider = new CoolifyDeploymentProvider(targets, handles, artifacts, plans, vectorProvisioning, vectorResources,
+            resolver, api, secrets, customers, executionSecrets, mapper);
+        var effective = mock(com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver.class);
+        when(effective.resolve(any())).thenAnswer(call -> artifacts.require(((DeploymentReleaseEntity) call.getArgument(0)).getSourceArtifactId()));
+        @SuppressWarnings("unchecked")
+        var providerBean = (org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver>)
+            mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(providerBean.getIfAvailable()).thenReturn(effective); when(providerBean.getObject()).thenReturn(effective);
+        ReflectionTestUtils.setField(provider, "effectiveRuntimeArtifacts", providerBean);
+        return provider;
+    }
+
     private CoolifyDeploymentProvider provider(CoolifyApiClient coolifyApiClient) {
-        return new CoolifyDeploymentProvider(
+        return fixtureProvider(
             mock(DeploymentTargetProfileRepository.class),
             mock(DeploymentProviderResourceHandleRepository.class),
             mock(DeploymentSourceArtifactService.class),

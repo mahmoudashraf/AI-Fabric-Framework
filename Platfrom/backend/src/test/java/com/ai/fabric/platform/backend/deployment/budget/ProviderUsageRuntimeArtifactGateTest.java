@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.deployment.budget;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
-import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceArtifactService;
+import com.ai.fabric.platform.backend.deployment.admission.EffectiveRuntimeArtifactResolver;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceCapabilityManifestService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -14,11 +14,25 @@ import static org.mockito.Mockito.*;
 class ProviderUsageRuntimeArtifactGateTest {
     private final ObjectMapper json = new ObjectMapper();
     private final DeploymentSourceCapabilityManifestService manifests = new DeploymentSourceCapabilityManifestService(json);
-    private final DeploymentSourceArtifactService artifacts = mock(DeploymentSourceArtifactService.class);
+    private final EffectiveRuntimeArtifactResolver artifacts = mock(EffectiveRuntimeArtifactResolver.class);
     private final ProviderUsageRuntimeArtifactGate gate = new ProviderUsageRuntimeArtifactGate(artifacts, manifests);
 
+    @Test void effectiveArtifactAndValidityGatesHaveResolvableProductionConstructors() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+            .withBean(ObjectMapper.class, ObjectMapper::new)
+            .withBean(EffectiveRuntimeArtifactResolver.class, () -> artifacts)
+            .withBean(ProviderUsageRuntimeClient.class, () -> mock(ProviderUsageRuntimeClient.class))
+            .withBean(com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository.class,
+                () -> mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository.class))
+            .withUserConfiguration(DeploymentSourceCapabilityManifestService.class,
+                ProviderUsageRuntimeArtifactGate.class, ProviderUsageValidityCapabilityGate.class)
+            .run(context -> assertThat(context).hasNotFailed()
+                .hasSingleBean(ProviderUsageRuntimeArtifactGate.class)
+                .hasSingleBean(ProviderUsageValidityCapabilityGate.class));
+    }
+
     @Test void requiresAllFourReviewedDeclarationsAndTheirOriginalHash() throws Exception {
-        var release = release(); var artifact = artifact(); when(artifacts.require("artifact")).thenReturn(artifact);
+        var release = release(); var artifact = artifact(); when(artifacts.resolve(release)).thenReturn(artifact);
         assertThatCode(() -> gate.require(release)).doesNotThrowAnyException();
         String valid = artifact.getCapabilityManifestJson();
         for (String field : java.util.List.of("capabilities", "endpointClasses", "migrationIds", "verificationPackIds")) {
@@ -36,7 +50,7 @@ class ProviderUsageRuntimeArtifactGateTest {
         assertThatThrownBy(() -> gate.require(release)).hasMessage("PROVIDER_USAGE_GUARDED_RUNTIME_ARTIFACT_REQUIRED");
         verifyNoInteractions(artifacts);
         release.setSourceArtifactId("artifact"); var artifact = artifact(); artifact.setPromotedAt(null);
-        when(artifacts.require("artifact")).thenReturn(artifact);
+        when(artifacts.resolve(release)).thenReturn(artifact);
         assertThatThrownBy(() -> gate.require(release)).hasMessage("PROVIDER_USAGE_GUARDED_RUNTIME_ARTIFACT_REQUIRED");
     }
 
