@@ -10,6 +10,19 @@ Rules:
 
 ## 2026-10-21 Hosted Customer Journey, 14:29 UTC
 
+- 16:08UTC secondrootcause confirmed: immutableSet.contains(null) inresource
+  assignmentcount,2unrelatednullconsumerrows; independentJava21reproNPEbefore
+  ledger. Fix660974ee8 preserves3legitassignmentcases;29checks/packagePASS,
+  CI39630462022/image590a8779 verifiedBOTHCPjobs srb37fsolyv5t695z0swddkn /
+  wcsz3jamakdmrudodupybnfe. Closure63016b02...965f8 in freshroot;25critical
+  authority/config/financialtables+schema/envpreserved. Diagnostic-onlya87b
+  imagenotdeployed. ActualreservationstillPROVISIONINGr1 before120sworker
+  delay. Awaitnormalreadback thenactivate/browser. Newprivatehelperroot
+  01044-null-consumer-admission-20261021. Stage61x5sample15:58CPUincludes
+  ledgerload; Chandrasekhar measurescgroupCPU/anon independently,noAPIwrites.
+  Activationpolicyhelperpreparednotrun:01044-pilot-activation-capacity-20261021.mjs.
+  Ownerconsumerhelperplacementname nowr2;originalplacementr1consumed/noactivation.
+
 - 15:52UTC: BOTH CP826f090/image1d2ead27/schema207/UP verified; maintenance
   closed before furtherownercommands. Actualdeployedclass matchesqualifiedSHA.
   Release rel1fe0f5b8 VERIFIED butreservation25dea632 PROVISIONINGr1 persists.

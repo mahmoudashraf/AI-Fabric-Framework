@@ -2,6 +2,15 @@
 
 ## 2026-10-21 15:52 UTC Verified Release, Settlement Still Open
 
+16:08UTC update: independent reproduction found a null-release-ID crash while
+counting unrelated consumer assignments, before ledger reconciliation. Minimal
+fix `660974ee8` retains exact assignment semantics;29 focused checks/package
+pass. The combined image is verified on both control planes, with schema207 and
+critical configuration/financial history unchanged. The diagnostic-only image
+was not separately deployed. Normal worker settlement and public browser gates
+are still pending; neither an active allocation nor complete product readiness
+is inferred from a successful backend rollout.
+
 Both control planes now run qualified `826f090ac`, schema207, with unchanged
 critical customer configuration and financial history. Fresh pilot release
 `rel-1fe0f5b8` is APPLIED_VERIFIED/PASSED; Inbox is READY and all three

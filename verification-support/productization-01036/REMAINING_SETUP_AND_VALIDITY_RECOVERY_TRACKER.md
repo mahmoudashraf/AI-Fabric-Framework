@@ -8,6 +8,31 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ### Settlement Diagnosis, 21 October 15:52 UTC
 
+- 16:08UTC: the second cause is confirmed: `references()` called immutable
+  `Set.of(releaseId).contains(null)` for unrelated configuration-only consumers.
+  Production contains two such rows; independent Java21 reproduction confirms
+  the NPE before ledger reconciliation. Empty-consumer replay did not cover it.
+  `660974ee8` null-checks only the release fallback, retaining same-target and
+  legacy-target assignment counts. Eighteen protocol-shape cases now include
+  unrelated/unbound consumers and assert the three legitimate references.
+  Combined29 focused checks/package pass; no broad framework matrix required.
+- Safe-logging-only image `a87b90f00` was NOT deployed (prepare only). One final
+  combined backend image `590a8779968ca7527a3514657a209b962bf51d6da594517d541dada4cd29ee77`
+  / CI39630462022 is deployed and verified on both control planes. Stage job
+  `srb37fsolyv5t695z0swddkn`; production job `wcsz3jamakdmrudodupybnfe`.
+  Schema207, environment/configuration and25 critical authority/financial table
+  snapshots are preserved. Maintenance closure SHA256
+  `63016b027d55004b92029b82db5a01f726fba187a9cb4d3a4a1799853f4965f8`.
+  At16:08 the normal worker's120-second initial delay has not yet settled the
+  reservation. No manual ledger update or activation occurred.
+- Fresh61x5-second host sample ended15:58. Raw staging CPU includes the CPU of
+  the ten already fully charged containers; a bounded sidecar is measuring their
+  cgroup usage to avoid counting it twice, retaining raw deltas and identities.
+  Production is lightly loaded (peak517m/4cores,11.69GiB available). Memory
+  baseline can use64MiB quantization above the actual peak; the unchanged2GiB
+  headroom and both full4GiB reservations must still fit. No lowered limits,
+  new capacity, invented zero-load evidence or paid-usage reset is authorized.
+
 - Both control planes completed the `826f090ac` rollout: staging job
   `i78mxhp6ro6wa5giwp3ep4r7`, production job `kzjyz3kr7xfe4xfn9c4zek4q`.
   Schema207, healthUP, exact image and 25 critical authority/configuration/
