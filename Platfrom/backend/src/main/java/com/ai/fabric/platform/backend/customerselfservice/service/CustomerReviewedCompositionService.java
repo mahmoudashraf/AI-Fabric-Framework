@@ -78,8 +78,12 @@ public class CustomerReviewedCompositionService {
         try { externalIntegrations.validateDefinition(definition); }
         catch (RuntimeException error) { throw conflict(APPROVED_POLICY_REQUIRED); }
         requireTopologyWithinLimits(definition.topology(), definition.limits());
-        if (!definition.targets().stream().map(TargetPermission::intent).collect(java.util.stream.Collectors.toSet())
-            .containsAll(Set.of(TargetIntent.CUSTOMER_STAGING, TargetIntent.CUSTOMER_PRODUCTION))) throw invalid();
+        Set<TargetIntent> intents = definition.targets().stream().map(TargetPermission::intent)
+            .collect(java.util.stream.Collectors.toSet());
+        if (!intents.contains(TargetIntent.CUSTOMER_STAGING)
+            || ((definition.operations().contains(Operation.PROMOTION_PLAN)
+                || definition.operations().contains(Operation.PROMOTION_APPLY))
+                && !intents.contains(TargetIntent.CUSTOMER_PRODUCTION))) throw invalid();
 
         MarketplacePluginVersionEntity templateVersion = requirePlugin(definition.template());
         var template = plugins.findById(definition.template().pluginId()).orElseThrow(() -> conflict(APPROVED_POLICY_REQUIRED));

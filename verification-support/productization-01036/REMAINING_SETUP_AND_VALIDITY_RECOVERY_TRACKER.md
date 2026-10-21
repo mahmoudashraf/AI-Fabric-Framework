@@ -55,6 +55,26 @@ Resume tracking is in `shopify-pause.intent.json` under the fresh-pilot evidence
 directory. ProdUS staging was already stopped. Public framework demos and
 production Shopify were not changed by this pause.
 
+13:41 UTC: first offer publication returned 400 / INVALID_CONTRACT, before
+creating a record. The normal composition validator incorrectly required both
+target intents even for a staging-only offer without promotion operations.
+The small generic correction requires staging, and additionally requires
+production only when either promotion operation is authorized. It never adds a
+permission or promotes an artifact. 61 focused composition, entitlement and
+authorization checks pass, with no skips. Combined with the unchanged admission
+batch, 297 targeted checks pass (111 actual PostgreSQL cases). Package and the
+final combined backend rollout are pending; the earlier capacity-only image
+was built successfully but is not deployed.
+
+After the authorized Shopify pause, the five-minute ledger-aware staging
+measurement ends 13:32:21 UTC. Only measured anonymous memory from the five
+already-reserved canary containers is excluded from the non-ledger baseline;
+their entire configured reservation remains charged separately. Proposed
+non-ledger baseline is 5 GiB, with the existing 2 GiB safety headroom unchanged.
+This is a current-fleet admission input, not a workload/load certification.
+Evidence: `/private/tmp/01044-free-pilot-postpause-baseline-20261021/staging.actual.json`,
+SHA256 `e54054073911bcb76e161461bb88c889c3a1291045409b59242da5aed947bbe8`.
+
 ### Hosted Customer Journey Priority, 21 October 08:30 UTC
 
 ### Environment Separation Clarification, 21 October

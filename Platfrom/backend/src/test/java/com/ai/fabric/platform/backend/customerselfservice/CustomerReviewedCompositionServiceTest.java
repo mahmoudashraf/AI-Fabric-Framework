@@ -76,6 +76,44 @@ class CustomerReviewedCompositionServiceTest {
 
     @Test void explicitReviewedPublishedImmutableCompositionPasses() { service.validate(definition); }
 
+    @Test void stagingOnlyWithoutPromotionPassesWithoutInferringProductionPermissionOrArtifactPromotion() {
+        definition = copyWithTargetsAndOperations(List.of(definition.targets().getFirst()), withoutPromotionOperations());
+        artifact.setPromotionChannel("staging");
+        String fingerprint = codec.hash(definition);
+
+        service.validate(definition);
+
+        assertThat(definition.targets()).extracting(TargetPermission::intent).containsExactly(TargetIntent.CUSTOMER_STAGING);
+        assertThat(definition.operations()).doesNotContain(Operation.PROMOTION_PLAN, Operation.PROMOTION_APPLY);
+        assertThat(codec.hash(definition)).isEqualTo(fingerprint);
+        assertThat(artifact.getPromotionChannel()).isEqualTo("staging");
+        verify(profiles, never()).findById("production-target");
+    }
+
+    @Test void stagingOnlyWithPromotionPlanIsInvalid() {
+        var operations = withoutPromotionOperations();
+        operations.add(Operation.PROMOTION_PLAN);
+        definition = copyWithTargetsAndOperations(List.of(definition.targets().getFirst()), operations);
+        assertCode(INVALID_CONTRACT);
+    }
+
+    @Test void stagingOnlyWithPromotionApplyIsInvalid() {
+        var operations = withoutPromotionOperations();
+        operations.add(Operation.PROMOTION_APPLY);
+        definition = copyWithTargetsAndOperations(List.of(definition.targets().getFirst()), operations);
+        assertCode(INVALID_CONTRACT);
+    }
+
+    @Test void productionOnlyWithoutPromotionIsInvalid() {
+        definition = copyWithTargetsAndOperations(List.of(definition.targets().get(1)), withoutPromotionOperations());
+        assertCode(INVALID_CONTRACT);
+    }
+
+    @Test void dualTargetWithoutPromotionStillPasses() {
+        definition = copyWithTargetsAndOperations(definition.targets(), withoutPromotionOperations());
+        service.validate(definition);
+    }
+
     @Test void immutableBusinessArtifactCannotBePublishedAsACustomerAiDependency() throws Exception {
         var dependency = com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures.ownedAiArtifact(
             com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyFixtures.http("inventory-service", true));
@@ -238,6 +276,21 @@ class CustomerReviewedCompositionServiceTest {
             definition.settings(), definition.bindingSlots(), definition.documentAudiences(),
             definition.admissionPrerequisites(), definition.limits(), topology, definition.approvedPolicyRef(),
             definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef());
+    }
+
+    private EnumSet<Operation> withoutPromotionOperations() {
+        var operations = EnumSet.copyOf(definition.operations());
+        operations.removeAll(Set.of(Operation.PROMOTION_PLAN, Operation.PROMOTION_APPLY));
+        return operations;
+    }
+
+    private Definition copyWithTargetsAndOperations(List<TargetPermission> targets, Set<Operation> operations) {
+        return new Definition(definition.schemaVersion(), definition.name(), definition.templateId(),
+            definition.template(), definition.plugins(), definition.artifacts(), targets, operations,
+            definition.settings(), definition.bindingSlots(), definition.documentAudiences(),
+            definition.admissionPrerequisites(), definition.limits(), definition.topology(), definition.approvedPolicyRef(),
+            definition.operatingPolicyRef(), definition.identityPolicyRef(), definition.storagePolicyRef(),
+            definition.workspaceProfiles(), definition.aiStateStorageTopologies(), definition.externalIntegrationProfiles());
     }
 
     private void assertCode(CustomerSelfServiceException.Code code) {
