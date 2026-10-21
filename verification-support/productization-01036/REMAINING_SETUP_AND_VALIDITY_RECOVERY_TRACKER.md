@@ -6,10 +6,10 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
-- Both control planes are verified on `f927b3ec24ed943554ebe89230551ed3765d71d1`,
-  image `sha256:462330e2d47b4bef2edccef7653fbd68ef118b6aae2c69deb2fba587e60a2df4`,
-  schema 207. Maintenance closed at 01:22 UTC, preserving all 139 original
-  tables/history/configuration; only the two empty validity audit tables were added.
+- Both control planes are verified on `ea8294d2dc2971f6adfb7ff61d2021c41e293786`,
+  image `sha256:637b3b790e2ab54fb88d061d6068598eefac6e90b07a47ebb5ae65ce9ae90856`,
+  schema 207. Latest source-only maintenance closed at 01:40 UTC, preserving
+  original tables/history/configuration and the two empty validity audit tables.
 - The same customer runtime, connector, AI-state PostgreSQL, Inbox application
   and Inbox PostgreSQL exist. Inbox deployment `s9nzu0yu3yj9cawkmguuhwld` finished
   healthy at 2026-10-20 23:31:45 UTC. No customer business database was created.
@@ -22,6 +22,12 @@ extraction stays last. This is an execution tracker, not a new product direction
   proof of current eligibility. No lack of OpenAI credit or user material is
   established. Do not ask for more money, reset counters, or issue replacement
   credit to disguise this expired time window.
+- The same-release repair is now CLAIMED. Connector and Inbox are stopped;
+  the original runtime is DRAINING at epoch1, still on its original image.
+  BEGIN_DRAIN is acknowledged natively but its journal result remains UNKNOWN.
+  Read-only reconciliation cannot establish complete idle-work inventory. The
+  repair's execution deadline is 2026-10-21T01:53:17.065664792Z; after that,
+  observation is permitted but no additional repair effect is authorized.
 
 ## Execution Order
 
@@ -235,3 +241,47 @@ extraction stays last. This is an execution tracker, not a new product direction
   baselines only, not workload capacity certification. Publish continuity only
   after the narrow correction is deployed and the current reservation fence is
   known, without pretending these measurements occurred after a later rollout.
+
+## 2026-10-21 01:46 UTC Actual Inventory Blocker
+
+- Narrow correction `ea8294d2d` passes48 focused checks/14 actual PostgreSQL,
+  package and backend-only CI39527864916. Both rollouts are verified healthy,
+  with the exact image/source/schema and all existing data/history/configuration
+  preserved. Closure:
+  `/private/tmp/01044-deadline-precision-backend-rollout-20261021/maintenance.completed.json`,
+  SHA256 `8bdd5558be3068463b1b8d7d3d8017003eaef9c945d2170d0bb6a0f604f25cb7`.
+- The exact deadline mismatch is resolved. A single explicit read-only
+  BEGIN_DRAIN reconciliation then correctly rejects `IDLE_CHECKPOINT_REQUIRED`.
+  Persisted native snapshot proves zero in-flight requests, open conversations,
+  pending confirmations and human work, but inventoryComplete=false and the
+  background total unknown. Unsupported observations are the legacy/canonical
+  action-draft stores and specialist execution. Indexing observes54 retained
+  terminal failures. Zero observed counts with complete=false are NOT proof of
+  absence. No guard is relaxed to reinterpret them as complete.
+- These retirement implementation files are identical between original runtime
+  source `d2b1a9792dc10ec801d3ce30c170763f1f2ab301` and inspected replacement
+  `f927b3ec24ed943554ebe89230551ed3765d71d1`. Installing the replacement alone
+  cannot solve this inventory gap. The original preflight inspected topology,
+  not the full signed snapshot; Main missed this earlier. Local synthetic
+  operation tests assumed complete inventory and do not establish hosted support.
+- Same repair plan/claim and all original resource identities/history remain.
+  No runtime stop/image/provenance mutation, allowance renewal, SQL repair,
+  duplicate drain command or wallet reset occurs. No customer activation or
+  production promotion is claimed. Only this never-activated canary is quiesced;
+  existing public demos, ProdUS and Shopify were not stopped by this operation.
+- AI-state-only backup is saved before any runtime image change:
+  `/private/tmp/01044-attended-runtime-validity-recovery-20261021/AI-state.before-runtime-image.dump`;
+  proof `dda916df49b821f0b280f821e13406d9b1cabc1888cb6af82fcefdf0abf63532`.
+  Fresh61x5second host baselines complete01:45:46UTC after the latest closed
+  rollout. They remain measurements, not admission approval or workload proof.
+- Platform - Updates received Main's direct scope verdict, concrete final-product
+  description and this blocker. Recommendation: stop expanding generic recovery
+  exceptions without a release-boundary decision. A supported staff-assisted
+  early-adopter pilot and fully autonomous lifecycle certification are different
+  claims. Narrowing the original contract requires explicit agreement; mandatory
+  security, ownership, accounting and isolation gates are not silently deferred.
+  UI extraction remains last under the existing agreement.
+- Resume by addressing supported idle-inventory evidence and checking it BEFORE
+  quiescing a fresh operation. Do not repeat consumed helper commands. All current
+  read-only reconcile failures, native acknowledgements and plan deadlines must
+  remain visible. No new public framework release has been made.

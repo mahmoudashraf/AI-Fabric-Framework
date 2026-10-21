@@ -9,16 +9,18 @@ diagnostics or expand tooling without a concrete next-operation need. Security,
 isolation, financial and duplicate-write checks remain required; UI extraction
 stays last. Progress is measured by completed customer-visible milestones.
 
-Authoritative short checklist, updated 2026-10-20 22:45 UTC. The detailed
+Authoritative short checklist, updated 2026-10-21 01:46 UTC. The detailed
 010.36 P0-P7 contract remains binding. Complete configuration is not a live
 workload or a customer-ready product; local checks are not hosted acceptance.
 
 - **M1 COMPLETE: Backend rollout.** Acceptance: exact qualified source/image,
   healthy staging and production, preserved configuration/history. Both verify
- 2a6340d71/image85811bd2/schema206 after295 focused cases/111 actual PostgreSQL,
-  package, independent review and backend-only CI39507690807. Source-only
-  maintenance closes22:32 with all139-table/config/financial preservation.
-  [Hosted closure](/private/tmp/01044-post-provision-backend-rollout-20261020/maintenance.completed.json).
+  ea8294d2d/image637b3b79/schema207 after48 focused cases/14 actual PostgreSQL
+  for the narrow deadline correction, package and backend-only CI39527864916.
+  The preceding integrated repair proof passed566 cases/116 actual PostgreSQL.
+  Both current hosts verify healthy with existing tables/configuration/financial
+  history preserved. Latest source-only maintenance closes01:40UTC.
+  [Hosted closure](/private/tmp/01044-deadline-precision-backend-rollout-20261021/maintenance.completed.json).
 - **M2 COMPLETE: Customer configuration path.** Acceptance: normal owner app
   reuse/profile choice, customer-owned S3, immutable version and approved DATA
   binding without privileged repair. App stays DRAFT; versionver-c8cb7261,
@@ -50,7 +52,8 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   fenced; only four source-justified worker timing/lease fields normalize, with
   full raw evidence retained. Original pre-intent failures stay preserved and
   were never POSTed. [Actual closure](/private/tmp/01044-attended-free01-handoff-20261020/operation-route-stable-r2/closure.actual.json).
-- **M5 IN PROGRESS: Hosted staging workload.** Source6e8f49882 is live on both
+- **M5 IN PROGRESS: Hosted staging workload.** Historical startup/continuation
+  attempts follow; the current01:46UTC boundary is stated at the end. Source6e8f49882 was live on both
   control planes, including the startup policy and explicit owner-fenced initial
   partial-native retry. Fresh measured policy continuity verifies21:34 with
   unchanged R/physical budgets/quota/funding, valid23:31:42UTC. Normal owner
@@ -73,7 +76,17 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   pre-initialization continuation are being tested. This must retain confirmed
   owned resources and immutable failed-attempt receipts, not pretend they are
   absent or replay native runtime provisioning.
-  No blind retry/reset/refund/new grant.
+  Current01:46UTC: both backends areea8294d2d/schema207. Same-release repair
+  confirmed connector/Inbox stops and runtime BEGIN_DRAIN, but its explicit
+  read-only reconciliation rejects incomplete action-draft/specialist inventory.
+  Zero observed counts with complete=false are not absence proof. The timestamp
+  comparison defect is fixed; no runtime replacement, wallet renewal or SQL repair
+  has occurred. Same canary remains DRAFT/quiesced on the original runtime image,
+  with original history and financial limits preserved. Repair execution deadline
+  is01:53UTC; no effects are authorized after it. Installing the new runtime alone
+  cannot close this inventory gap because its retirement implementation is unchanged.
+  No blind retry/reset/refund/new grant. Full current evidence and limitations:
+  [recovery tracker](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/verification-support/productization-01036/REMAINING_SETUP_AND_VALIDITY_RECOVERY_TRACKER.md).
   Acceptance: normal customer admission/
   apply, AI-only PostgreSQL services, live stock/document indexing, chat/read/
   confirmed-action receipts, identity isolation and human handover. No customer
@@ -95,8 +108,9 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   are pushed; latest UI-only CI39494817690 succeeds. Recovery UI additionally
   passes12 unit/hold cases,6 loopback browser scenarios, TypeScript and build.
   Functional controls includingab24b1056/b0db95097 are now deployed and
-  source/image/config/health verified on BOTH hosts, UI-only CI39508149934,
-  image56ca7b46. Actual complete customer UI journey remains open; these controls
+  source/image/config/health verified on BOTH hosts. The latest receipt-handling
+  UI592a9f9de/imageb270da72 is also verified on both hosts, UI-only CI39514177760.
+  Actual complete customer UI journey remains open; these controls
   do not constitute extraction or full hosted acceptance. Original staff capability
   baseline remains preserved. [Projection evidence](/private/tmp/01044-functional-ui-three-p2-projection-20261020/HANDOFF.md).
 - **M9 PENDING, LAST: UI redesign/extraction and final certification.** Start
@@ -104,12 +118,12 @@ workload or a customer-ready product; local checks are not hosted acceptance.
   editors, UI-only rollback, user visual review and fresh-customer full journey.
   [P6/P7 ordering](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md#1010-backend-first-verification-and-ui-only-rollback-boundary).
 
-**Next:** qualify and deploy the database-address and checkpointed-continuation
-corrections in one backend build; then explicitly resume remaining setup through
-the normal owner API and complete hosted runtime/index/chat/action/identity/
-handover gates. Never replay the consumed native retry POST or reset its wallet.
-Main owns sequential flow and every mutation. Faraday handles only the independent
-minimal functional retry/resume UI against frozen APIs; no extraction/hosted work.
+**Next:** establish a genuinely supported idle-inventory/preflight contract before
+another recovery effect. Main's recommended scope boundary distinguishes a
+staff-assisted early-adopter release from fully autonomous lifecycle certification;
+that narrowing has not been agreed, and mandatory gates remain open. Do not expand
+generic recovery exceptions silently or repeat the consumed drain/native commands.
+Main owns sequential flow and every mutation; no UI extraction starts yet.
 **Required user input: none
 currently.** No new spending or deployment authority is implied by this list.
 

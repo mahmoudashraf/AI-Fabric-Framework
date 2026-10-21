@@ -10,6 +10,30 @@ Rules:
 
 ## 2026-10-20 Execution Optimization Agreed With User
 
+- At01:46UTC BOTH CPs verifiedea8294d2d/image637b3b79/schema207/UP; source-only
+  closure8bdd5558be3068463b1b8d7d3d8017003eaef9c945d2170d0bb6a0f604f25cb7
+  under01044-deadline-precision-backend-rollout-20261021.48checks/14actualPG+
+  package+backend-onlyCI39527864916PASS. Timestampcomparefixworks; one explicit
+  read-onlyBEGIN_DRAINreconcile409 IDLE_CHECKPOINT_REQUIRED. Actualpersisted
+  snapshotinventoryComplete=false: legacy+canonicalactiondraftenumeration and
+  specialiststoreunsupported; backgroundcountUNKNOWN, indexing54terminalfailures.
+  Zeroobserved/completefalse isNOTemptyproof. Oldd2b1andnewf927retirementcode
+  identical, sojustinstallingnewimagecannotfix. Mainmissedfullsignedsnapshot
+  preflight beforequiescing. DO NOT weakenchecks orclaimreal-idlesupportbasedon
+  syntheticfixtures. Sameclaimedplan487f7a46; connector+InboxSTOPPED; runtime
+  oldimageDRAININGepoch1; BEGIN_DRAIN journalUNKNOWN(nativeACKknown), noother
+  effects/renewal/reset/SQLrepair/replay. Deadline01:53:17.065664792UTC; nofuture
+  effectsafterit, readonlyobservationallowed. Need supportedidleinventory/preflight
+  solution or explicitrelease-boundarydecision, notuncheckedexceptions. Usergot
+  directMainanswersinPlatform - Updates: scopeoverstretched,recoverydisproportionate,
+  worthwhileproductbutfreezeadditions; recommendedstaff-assistedearlyadoptervs
+  autonomouscertificationdistinction NOTacceptedscopereductionyet. AppDRAFT;
+  M5-M9unfinished, extractionLAST. Existingpublicdemos/ProdUS/Shopifyuntouched.
+  AIstate-onlybackup retainedin01044-attended-runtime-validity-recovery-20261021;
+  proofdda916df49b821f0b280f821e13406d9b1cabc1888cb6af82fcefdf0abf63532.
+  Freshpostcorrection61x5samplescomplete01:45:46underpost-precision-capacity-
+  20261021, noapprovalclaim. No runninglocalcommand sessions remain.
+
 - At01:31UTC same-release repair487f7a46 isCLAIMED. QUIESCE_CONNECTOR and
   QUIESCE_INBOX CONFIRMED; runtime stilloldimage,DRAININGepoch1. BEGIN_DRAIN
   ACKpersisted butcheck409 DRAIN_BINDING_CHANGED: plan01:53:17.065664792Z vs
