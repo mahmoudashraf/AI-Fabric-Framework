@@ -65,7 +65,8 @@ public class DeploymentPromotionCandidateService {
             .orElseThrow(() -> conflict("Candidate verification evidence is missing."));
         Instant now = Instant.now();
         if (!deployment.getId().equals(run.getDeploymentId()) || !version.getId().equals(run.getDeploymentVersionId())
-            || !release.getId().equals(run.getReleaseId()) || !"POST_APPLY".equals(run.getVerificationType())
+            || !release.getId().equals(run.getReleaseId())
+            || (!"POST_APPLY".equals(run.getVerificationType()) && !"MANUAL_RERUN".equals(run.getVerificationType()))
             || !"PASSED".equals(run.getStatus()) || run.getCompletedAt() == null || run.getCompletedAt().isAfter(now)
             || run.getCompletedAt().plusSeconds(maxAge).isBefore(now)) {
             throw conflict("Candidate verification is stale, failed or does not belong to the selected release.");

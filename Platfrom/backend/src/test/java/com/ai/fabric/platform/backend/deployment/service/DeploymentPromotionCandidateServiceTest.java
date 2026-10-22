@@ -132,4 +132,18 @@ class DeploymentPromotionCandidateServiceTest {
         production.setProviderConfigJson("[]");
         assertThatThrownBy(() -> service.promotionEvidenceMaxAgeSeconds(production)).hasMessageContaining("unavailable");
     }
+
+    @Test void exactFullManualRecheckCanRefreshEvidenceButPreApplyAndUnknownRunsCannot() {
+        run.setVerificationType("MANUAL_RERUN");
+        assertThat(service.resolve(deployment, version, staging, production, consumer)
+            .path("stagingVerificationRunId").asText()).isEqualTo(run.getId());
+        for (String type : new String[] { "PRE_APPLY", "CONNECTION_PROBE", "", null }) {
+            run.setVerificationType(type);
+            assertThatThrownBy(() -> service.resolve(deployment, version, staging, production, consumer))
+                .hasMessageContaining("does not belong");
+        }
+        run.setVerificationType("MANUAL_RERUN");run.setReleaseId("other-release");
+        assertThatThrownBy(() -> service.resolve(deployment, version, staging, production, consumer))
+            .hasMessageContaining("does not belong");
+    }
 }

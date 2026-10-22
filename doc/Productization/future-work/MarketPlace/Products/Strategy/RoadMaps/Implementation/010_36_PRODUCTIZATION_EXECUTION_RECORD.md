@@ -8,6 +8,15 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-22 21:27 UTC Core Staging Customer Journey Passed; Promotion Configuration Gap
 
+Pre-execution inspection additionally found that normal full verification rechecks
+are stored as MANUAL_RERUN and become the release's current verification pointer,
+but the promotion gate accepted POST_APPLY only. Both invoke the same complete
+server verification path. The correction accepts those two exact full-run types;
+PRE_APPLY, unknown types and unrelated release/version evidence stay rejected.
+The first19-test image was prepared read-only but NOT deployed. Final20-test
+qualification includes this normal customer recheck contract before a single
+native rollout. Original qualification/image/preparation receipts remain.
+
 The same customer app now proves current external stock plus both indexed S3
 delivery/warranty policies, real sign-in/cancel without replay, UI confirmation
 and exactly one external receipt, actual Basic Inbox reply, and authoritative
