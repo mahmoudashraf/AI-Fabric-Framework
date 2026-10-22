@@ -6,6 +6,30 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 08:22 UTC Real Customer Configuration Accepted
+
+The production UI now passes real customer password sign-in, offer acceptance/
+selection, placement verification and staging configuration creation, with no
+failed reads or blocked requests. The new dealership offer pins runtime0.8.37,
+template1.4.0 and stock-discovery1.1.0, with both staging and production targets.
+Customer deployment `dep-694f86e1` has published version `ver-2fcdc930`, framework
+0.8.37, read-only customer S3, simulator stock and external business-action
+bindings. Its Engage app is created as DRAFT at
+`https://northfield-journey.apps.loomai.pro`. This is not runtime/app acceptance.
+
+Both CPs now run b12d347d9/schema208/UP, preserving27 protected projections and
+configuration. A narrowly scoped staff-attended stop of the failed, never-
+activated pilot is qualified159 focused checks, including19 actual PostgreSQL
+cases, and independently reviewed. It is not yet deployed/executed. Only compute
+can be released after native ownership and actual host no-running readbacks;
+databases/volumes/external data and their storage charges remain, with no fake
+drain, deletion, usage reset or refund. Broader automated deletion/recovery is
+deferred. The owner approved target-scoped token usage; no token approval is
+pending. Continue ordinary staging admission/apply and actual stock/policy,
+identity/action/handover checks, then independent production indexing and app
+switch. UI extraction remains LAST. Private receipts:
+`/private/tmp/01044-journey-0837-20261022`.
+
 ### 2026-10-22 00:38 UTC Latest Boundary
 
 Both CPs now verify `ee951bfaf`/schema208/UP. Existing customer app is ACTIVE,

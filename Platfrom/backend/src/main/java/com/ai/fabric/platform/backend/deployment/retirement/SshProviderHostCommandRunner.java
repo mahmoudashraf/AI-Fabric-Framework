@@ -154,6 +154,11 @@ public class SshProviderHostCommandRunner implements ProviderHostCommandRunner {
     }
 
     private static boolean safeContainerReadback(List<String> command) {
+        if (command.size() >= 5 && command.subList(0, 4).equals(List.of("docker", "ps", "--quiet", "--filter"))) {
+            var normalized = new ArrayList<>(command);
+            normalized.add(2, "-a");
+            return safeContainerReadback(normalized);
+        }
         List<String> prefix = List.of("docker", "ps", "-a", "--quiet", "--filter");
         if (command.size() == 6 && command.subList(0, 5).equals(prefix)) {
             return currentOwnerFilter(command.get(5));

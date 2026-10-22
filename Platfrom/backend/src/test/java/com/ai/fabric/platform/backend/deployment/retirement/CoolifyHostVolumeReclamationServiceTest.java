@@ -13,6 +13,34 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CoolifyHostVolumeReclamationServiceTest {
 
+    @Test void coldStopReadbackChecksAllOwnershipFormsWithoutDeletingContainersOrVolumes() {
+        List<List<String>> commands = new ArrayList<>();
+        var service = new CoolifyHostVolumeReclamationService((intent, server, command) -> {
+            commands.add(List.copyOf(command));
+            return new ProviderHostCommandRunner.Result(0, "");
+        });
+        var receipt = service.verifyNoRunningContainers(TargetIntent.CUSTOMER_STAGING, "server", "review", "application", "owned-app");
+        assertThat(receipt.reference()).isEqualTo("provider-host-no-running-containers:review");
+        assertThat(commands).hasSize(3).allSatisfy(command -> {
+            assertThat(command.subList(0, 4)).containsExactly("docker", "ps", "--quiet", "--filter");
+            assertThat(command).doesNotContain("-a", "rm", "stop", "volume");
+        });
+    }
+
+    @Test void coldStopFailsClosedForRunningContainersHostFailureOrNonStagingScope() {
+        for (var result : List.of(new ProviderHostCommandRunner.Result(0, "running-container"),
+            new ProviderHostCommandRunner.Result(1, ""))) {
+            var service = new CoolifyHostVolumeReclamationService((intent, server, command) -> result);
+            assertThatThrownBy(() -> service.verifyNoRunningContainers(TargetIntent.CUSTOMER_STAGING, "server",
+                "review", "database", "owned-db")).isInstanceOf(TargetRetirementFailure.class);
+        }
+        var unreachable = new CoolifyHostVolumeReclamationService((intent, server, command) -> {
+            throw new AssertionError("Scope denial must precede SSH");
+        });
+        assertThatThrownBy(() -> unreachable.verifyNoRunningContainers(TargetIntent.CUSTOMER_PRODUCTION, "server",
+            "review", "application", "owned-app")).hasMessageContaining("SCOPE_INVALID");
+    }
+
     @Test
     void removesDisposableVolumeAndProvesRetainedHostDirectory() {
         Set<String> volumes = new HashSet<>(Set.of("runtime-data"));

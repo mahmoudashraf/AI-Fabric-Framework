@@ -71,7 +71,7 @@ public class AdmissionReleaseCoordinator {
         ReleaseBinding binding = store.releaseBinding(releaseId);
         DeploymentReleaseEntity release = requireBoundRelease(releaseId, binding);
         if (binding == null) return;
-        if (Set.of("NO_EFFECT", "SUPERSEDED").contains(binding.state())) return;
+        if (Set.of("NO_EFFECT", "SUPERSEDED", "COLD_STOPPED").contains(binding.state())) return;
         Reservation reservation = store.require(binding.reservationId());
         requireGeneration(binding, reservation);
         if ("APPLIED_VERIFIED".equals(release.getStatus()) && "ACTIVE".equals(release.getProvisioningStatus())) {

@@ -30,6 +30,22 @@ public class CoolifyHostVolumeReclamationService {
     public record Receipt(String reference, Instant observedAt, Set<String> reclaimedUuids) { }
     public record ContainerReceipt(String reference, Instant observedAt) { }
 
+    /** Cold-stop proof deliberately allows stopped containers and makes no drain/volume-deletion claim. */
+    public ContainerReceipt verifyNoRunningContainers(TargetIntent intent, String serverUuid,
+        String operationReference, String resourceType, String providerResourceUuid) {
+        if (intent != TargetIntent.CUSTOMER_STAGING || blank(serverUuid) || blank(operationReference)
+            || !Set.of("application", "database").contains(resourceType)
+            || blank(providerResourceUuid) || !SAFE_NAME.matcher(providerResourceUuid).matches())
+            throw new TargetRetirementFailure("PROVIDER_CONTAINER_VERIFICATION_SCOPE_INVALID");
+        assertNoContainers(intent, serverUuid, List.of("docker", "ps", "--quiet", "--filter",
+            "label=coolify." + resourceType + "Uuid=" + providerResourceUuid));
+        assertNoContainers(intent, serverUuid, List.of("docker", "ps", "--quiet", "--filter",
+            "label=coolify." + resourceType + "Id", "--filter", "label=com.docker.compose.project=" + providerResourceUuid));
+        if ("application".equals(resourceType)) assertNoContainers(intent, serverUuid,
+            List.of("docker", "ps", "--quiet", "--filter", "label=coolify.applicationId", "--filter", "name=" + providerResourceUuid));
+        return new ContainerReceipt("provider-host-no-running-containers:" + operationReference, Instant.now());
+    }
+
     /**
      * Proves that no current or legacy Coolify container remains for an exact frozen resource UUID.
      * The label fallbacks mirror Coolify's own container-owner resolution contract.

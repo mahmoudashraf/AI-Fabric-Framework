@@ -1594,6 +1594,95 @@ class AdmissionStore {
             return save(r, m, release ? "CAPACITY_RELEASED" : "INVENTORY_RECONCILED", actor, now);
         });
     }
+    void reviewAttendedStop(AttendedStagingStopContracts.Plan plan, String actor) {
+        locked(() -> {
+            fenced(plan.review().expectation().fence());
+            AdmissionColdTerminationReview.freeze(plan.review().expectation(), plan.review().capture(),
+                plan.review().acknowledgement(), clock.instant());
+            if (!actor.equals(plan.actorId())) throw new AdmissionFailure(FORBIDDEN, "ATTENDED_STOP_ACTOR_CHANGED");
+            review("ATTENDED_STOP_PLAN", plan.id(), plan, actor, clock.instant());
+            return null;
+        });
+    }
+
+    AttendedStagingStopContracts.Claim claimAttendedStop(AttendedStagingStopContracts.Plan plan, String actor,
+                                                       Supplier<Long> claimTargetFence) {
+        return locked(() -> {
+            Instant now = clock.instant();
+            String fingerprint = json.fingerprint(plan);
+            var prior = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='ATTENDED_STOP_CLAIM' AND record_key=?", String.class, plan.id());
+            if (!prior.isEmpty()) {
+                var claim = json.read(prior.getFirst(), AttendedStagingStopContracts.Claim.class);
+                if (!claim.actorId().equals(actor) || !claim.planFingerprint().equals(fingerprint))
+                    throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_COMMAND_CHANGED");
+                return claim;
+            }
+            Reservation r = fenced(plan.review().expectation().fence());
+            AdmissionColdTerminationReview.freeze(plan.review().expectation(), plan.review().capture(),
+                plan.review().acknowledgement(), now);
+            if (!actor.equals(plan.actorId()) || !plan.expiresAt().isAfter(now))
+                throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_REVIEW_EXPIRED_OR_ACTOR_CHANGED");
+            long epoch = claimTargetFence.get();
+            review("ATTENDED_STOP_PLAN", plan.id(), plan, actor, now);
+            Mutation m = new Mutation(r); m.evidence = "attended-staging-stop:" + plan.id();
+            m.failure = "ATTENDED_STOP_NATIVE_READBACK_PENDING";
+            Reservation claimed = save(r, m, "ATTENDED_STOP_CLAIMED_NOT_DRAINED", actor, now);
+            var claim = new AttendedStagingStopContracts.Claim(plan.id(), fingerprint, actor, claimed.fence(), epoch);
+            review("ATTENDED_STOP_CLAIM", plan.id(), claim, actor, now);
+            return claim;
+        });
+    }
+
+    AttendedStagingStopContracts.Receipt settleAttendedStop(AttendedStagingStopContracts.Claim claim,
+        AttendedStagingStopContracts.StoppedReadback proof, String actor, Runnable recheckLocal) {
+        return locked(() -> {
+            Instant now = clock.instant();
+            var prior = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='ATTENDED_STOP_RECEIPT' AND record_key=?", String.class, claim.planId());
+            if (!prior.isEmpty()) {
+                var receipt = json.read(prior.getFirst(), AttendedStagingStopContracts.Receipt.class);
+                if (!receipt.claim().equals(claim) || !receipt.actorId().equals(actor))
+                    throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_COMMAND_CHANGED");
+                return receipt;
+            }
+            var stored = reviewed("ATTENDED_STOP_CLAIM", claim.planId(), AttendedStagingStopContracts.Claim.class);
+            var plan = reviewed("ATTENDED_STOP_PLAN", claim.planId(), AttendedStagingStopContracts.Plan.class);
+            if (!stored.equals(claim) || !actor.equals(claim.actorId()) || !plan.expiresAt().isAfter(now)
+                || proof == null || !claim.planId().equals(proof.planId())
+                || !claim.planFingerprint().equals(proof.planFingerprint()) || claim.targetEpoch() != proof.targetEpoch()
+                || !plan.resources().equals(proof.resources()) || proof.observedAt() == null
+                || proof.observedAt().isAfter(now) || proof.observedAt().isBefore(now.minusSeconds(60))
+                || proof.hostEvidenceReference() == null || proof.hostEvidenceReference().isBlank())
+                throw new AdmissionFailure(PRECONDITION_FAILED, "ATTENDED_STOP_HOST_PROOF_REQUIRED");
+            Reservation r = fenced(claim.fence());
+            if (!Objects.equals(r.evidenceReference(), "attended-staging-stop:" + plan.id())
+                || r.intent() != Intent.CUSTOMER_STAGING || r.retentionSettlement() != null
+                || r.retirementOperationId() != null || r.expiryState() != ExpiryState.CLAIMED)
+                throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_RESERVATION_CHANGED");
+            recheckLocal.run();
+            // Stopped databases/volumes and external indexes remain charged. No refund or usage reset.
+            var releasedDimensions = java.util.EnumSet.of(Dimension.ENVIRONMENTS, Dimension.REPLICAS,
+                Dimension.CPU_MILLICORES, Dimension.MEMORY_BYTES, Dimension.CONCURRENT_APPLIES, Dimension.CONCURRENT_BUILDS);
+            var retained = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+            var released = new java.util.EnumMap<Dimension, Long>(Dimension.class);
+            for (Dimension d : Dimension.values()) {
+                long amount = r.chargedDemand().amounts().get(d);
+                retained.put(d, releasedDimensions.contains(d) ? 0L : amount);
+                released.put(d, releasedDimensions.contains(d) ? amount : 0L);
+            }
+            Mutation m = new Mutation(r); m.state = State.RETAINED_EXTERNAL;
+            m.expiryState = ExpiryState.SETTLED_RETAINED; m.worker = null; m.nextRetry = null; m.failure = null;
+            m.evidence = "attended-staging-stop-verified:" + plan.id();
+            m.retentionSettlement = new RetainedCapacitySettlement(r.revision(), plan.id(), json.fingerprint(proof),
+                json.fingerprint(proof), "attended-stop:" + plan.id(), new Vector(retained), new Vector(released), now);
+            Reservation settled = save(r, m, "COMPUTE_STOPPED_STORAGE_RETAINED_NOT_DRAINED", actor, now);
+            jdbc.update("UPDATE deployment_admission_release_bindings SET state='COLD_STOPPED',updated_at=? WHERE reservation_id=? AND generation=? AND state='OUTCOME_UNKNOWN'",
+                time(now), r.id(), r.generation());
+            var receipt = new AttendedStagingStopContracts.Receipt(plan.id(), actor, claim, proof, settled, now);
+            review("ATTENDED_STOP_RECEIPT", plan.id(), receipt, actor, now);
+            return receipt;
+        });
+    }
+
     Reservation settleRetained(Fence fence, ResourceReadback evidence, String actor, Instant requestedAt) {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);

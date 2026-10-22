@@ -1,5 +1,32 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 08:22 UTC Actual Customer Journey Advanced
+
+Production customer UI acceptance passes sign-in, new dealership offer acceptance/
+selection, placement verification and staging configuration creation. New
+`dep-694f86e1`/`ten-dd57efd2` has published `ver-2fcdc930` on framework0.8.37,
+read-only customer S3 and external stock/action bindings. The new immutable offer
+supports the same-engine staging-to-production path; no cross-provider promotion
+or vector copying is assumed. Engage app `northfield-journey.apps.loomai.pro` is
+created DRAFT, not active. Both CPs b12d347d9/schema208/UP preserve27 protected
+ownership/funding/catalogue projections and configuration.
+
+No safe third full staging slot fits the two existing holds. The immediate
+prerequisite is reduced to a staff-attended compute STOP of the never-activated
+failed pilot, with storage retained.159 focused checks pass, including19 real
+PostgreSQL cases; independent scoped review found noP1/P2. It is not yet hosted.
+Server-owned capture, exact target/reservation fences, native ownership and
+provider-plus-SSH no-running proof gate the compute settlement. Databases, disk,
+indexes, dependency/storage charges and all usage/grants remain; this is neither
+graceful drain nor completed resource deletion. Original failed-release history
+and immutable offers are not rewritten.
+
+The owner approved any token usage for the stated journey. The pending2M-token
+amendment is resolved; existing monetary/accounting history remains intact.
+Full hosted stock/policy/auth/protected-action/human-channel acceptance,
+production promotion and UI extraction remain open. UI extraction stays LAST.
+Receipt root: `/private/tmp/01044-journey-0837-20261022`.
+
 ## 2026-10-22 01:42 UTC Bounded Review Contract, Not Cleanup Completion
 
 The next cold-terminal-retirement prerequisite now has a generic pure eligibility/

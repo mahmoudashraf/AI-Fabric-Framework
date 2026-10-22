@@ -7,6 +7,33 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+### 22 October 08:22 UTC: Customer Journey First, Bounded Stop Only
+
+The owner reaffirmed the five-step customer journey and approved target-scoped
+token usage. The pending token amendment is resolved. Both CPs now run the
+published37-default b12 backend, schema208/UP. The real production-customer UI
+passes sign-in, accepting/selecting the new dealership offer, placement and
+creating staging configuration. New dep694f/ver2fcdc pins37; S3/stock/action
+bindings are configured and the new Engage app is DRAFT. No hosted chat/action/
+handover or production-promotion pass is claimed.
+
+The earlier broad terminal-retirement checklist is superseded for this cycle:
+implement ONLY attended compute stop/retained storage for the old never-activated
+failed pilot, then ordinary fresh staging apply.159 focused checks pass, including
+19 actualPG, zero skips; independent scoped review finds noP1/P2. Source is not
+yet deployed and no native pilot stop or capacity release has happened. The
+operator must use the immutable server capture, newer exact reservation/target
+fence and real provider/SSH no-running evidence. Existing RETIRING gate remains
+closed; only CPU/memory/environment/replica/apply/build demand releases. DB/disk/
+index/dependency/funding remain charged, no fake graceful drain or zero work.
+
+Deferred return points, not new critical-path features: automatic physical
+deletion and retained-storage purge; expired/partially executed attended-stop
+recovery; wider background-work fencing; cross-provider promotion. Record hard
+cases rather than expanding them before the actual basic customer journey.
+Root `/private/tmp/01044-journey-0837-20261022` seals UI/configuration, rollout,
+integration and focused qualification receipts. UI extraction remains LAST.
+
 ### 22 October 01:42 UTC: Frozen Review Primitive Tested, Execution Still Open
 
 The new generic `AdmissionColdTerminationReview` is a pure eligibility and frozen

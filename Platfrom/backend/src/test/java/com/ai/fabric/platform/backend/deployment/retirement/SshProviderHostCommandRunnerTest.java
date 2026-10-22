@@ -28,6 +28,19 @@ import static org.mockito.Mockito.when;
 
 class SshProviderHostCommandRunnerTest {
 
+    @Test void attendedStopAllowsOnlyTheSameOwnedRunningContainerReadbacks() {
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "ps", "--quiet", "--filter",
+            "label=coolify.applicationUuid=owned-app"))).isTrue();
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "ps", "--quiet", "--filter",
+            "label=coolify.databaseId", "--filter", "label=com.docker.compose.project=owned-db"))).isTrue();
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "ps", "--quiet", "--filter",
+            "label=coolify.applicationId", "--filter", "name=owned-app"))).isTrue();
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "ps", "--quiet", "--filter", "name=anything"))).isFalse();
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "ps", "--quiet", "--filter",
+            "label=coolify.applicationUuid=owned;id"))).isFalse();
+        assertThat(SshProviderHostCommandRunner.safeCommand(List.of("docker", "stop", "owned-app"))).isFalse();
+    }
+
     @TempDir
     Path temporaryDirectory;
 
