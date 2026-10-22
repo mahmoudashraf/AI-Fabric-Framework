@@ -84,6 +84,7 @@ class ExternalIndexRetentionPostgresIT {
     @Autowired TargetRetirementOperationRepository operations;
     @Autowired TargetRetirementWorker worker;
     @Autowired ProductionAdmissionResourceReadbackSource resourceReadback;
+    @Autowired AdmissionTargetRetirementSystemAuthorizer expiryAuthorizer;
     @MockBean TargetRetirementRuntimeGateway runtime;
     @MockBean TargetRetirementRuntimeIndexGateway indexes;
     @MockBean TargetRetirementProviderResources provider;
@@ -111,6 +112,7 @@ class ExternalIndexRetentionPostgresIT {
         deploymentId = "retention-deployment-" + suffix; targetId = "retention-target-" + suffix; releaseId = "retention-release-" + suffix;
         clock = new MutableClock(Instant.now().truncatedTo(ChronoUnit.MICROS));
         org.springframework.test.util.ReflectionTestUtils.setField(resourceReadback, "clock", clock);
+        org.springframework.test.util.ReflectionTestUtils.setField(expiryAuthorizer, "clock", clock);
         store = new AdmissionStore(jdbc, json, transactions, clock);
         retention = new ExternalIndexRetentionService(store, jdbc, json, retirementJson, audit, transactions, runtime);
         authenticate(PlatformRole.PLATFORM_ADMIN);
@@ -236,6 +238,26 @@ class ExternalIndexRetentionPostgresIT {
         assertThat(financialSnapshot()).isEqualTo(financial);
         assertThat(retention.approve(policy)).isEqualTo(approved);
         verifyNoInteractions(indexes);
+
+        var participant = new TargetIndexRetirementParticipant(runtime, indexes, handles);
+        participant.setRetention(retention);
+        var preEffect = participant.inspect(context);
+        assertThat(preEffect.inventoryComplete()).isTrue();
+        assertThat(preEffect.retentionApproved()).isTrue();
+        assertThat(preEffect.blockers()).isEmpty();
+        reservation = store.require(reservation.id());
+        reservation = store.handoff(store.expiryWork(reservation), operation.id(), "synthetic-reviewed-handoff", "synthetic-expiry", clock.instant());
+        retirements.execute(operation.id(), new Command(operation.requestFingerprint()));
+        clock.advance(Duration.between(clock.instant(), reservation.recoveryUntil()).toSeconds() + 1);
+        for (int i = 0; i < 10; i++) worker.runNext(operation.id());
+        var completed = retirements.summary(operations.findById(operation.id()).orElseThrow());
+        assertThat(completed.state()).isEqualTo(TargetRetirementContracts.State.RETIRED_WITH_RETAINED_DATA);
+        Reservation settled = store.settleRetained(store.require(reservation.id()).fence(), settlementReadback(), "synthetic-reviewed-settlement", clock.instant());
+        assertThat(settled.state()).isEqualTo(AdmissionContracts.State.RETAINED_EXTERNAL);
+        assertThat(settled.chargedDemand().amounts().get(Dimension.MEMORY_BYTES)).isZero();
+        assertThat(settled.chargedDemand().amounts().get(Dimension.INDEXES)).isEqualTo(policy.indexes());
+        assertThat(financialSnapshot()).isEqualTo(financial);
+        assertThat(operations.findById(operation.id()).orElseThrow().getRequestFingerprint()).isEqualTo(context.requestFingerprint());
     }
 
     @ParameterizedTest

@@ -39,7 +39,7 @@ public class TargetIndexRetirementParticipant implements TargetRetirementPartici
         if (preservationRequested(context)) {
             var receipt = retention().receipt(context);
             return evidence(context, receipt != null, receipt == null
-                ? "reviewed-external-retention:" + context.retention().externalIndexRetention().policyFingerprint()
+                ? "reviewed-external-retention:" + retention().reviewedAuthorization(context).policyFingerprint()
                 : "external-index-retention:" + receipt.id(), List.of());
         }
         if (retainedExternalIndexes(context)) {
@@ -87,7 +87,8 @@ public class TargetIndexRetirementParticipant implements TargetRetirementPartici
     }
 
     private boolean preservationRequested(Context context) {
-        return context.retention() != null && context.retention().externalIndexRetention() != null;
+        return context.retention() != null && (context.retention().externalIndexRetention() != null
+            || retention != null && retainedExternalIndexes(context) && retention.reviewedAuthorization(context) != null);
     }
 
     private ExternalIndexRetentionService retention() {

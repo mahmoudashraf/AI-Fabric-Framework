@@ -102,7 +102,7 @@ public class ExternalIndexRetentionService {
             throw new AdmissionFailure(CONFLICT, "INDEX_RETENTION_REVIEW_BEFORE_EFFECT_REQUIRED");
     }
 
-    private Authorization reviewedAuthorization(Context context) {
+    public Authorization reviewedAuthorization(Context context) {
         Authorization authorization = context.retention().externalIndexRetention();
         if (authorization != null) return authorization;
         if (!"system".equals(context.requestedByActorId()) || !"SYSTEM".equals(context.requestedByRole())) return null;

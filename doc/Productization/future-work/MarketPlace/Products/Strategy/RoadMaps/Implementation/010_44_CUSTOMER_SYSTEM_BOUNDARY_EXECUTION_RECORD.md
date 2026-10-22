@@ -1,5 +1,22 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 13:55 UTC Exact Caller Integration Qualified
+
+Both CPs verify21ed587ce/schema208/UP. The explicit old37 index review was
+accepted200,2indexes/16MiB; do NOT repeat it. Status-read placement expiry was
+resolved through the normal refresh. Full holds/native data still remain.
+
+Live readback exposed remaining static approval checks in the INDEX participant
+and terminal store. Four-file33-line connection correction uses the exact
+reviewed authority for all participant entry points, pre-delete durable receipt
+and retained-data classification. Original plan stays immutable. The first
+full-worker test caught incorrect COMPLETE classification before publication;
+that failure is retained, not called a fixture error. Corrected canonical208PG
+worker/readback/settlement now proves compute release with index charges and
+financial history preserved. Final87 focused checks PASS, zero skips,39 realPG.
+New backend publication/rollout next; no framework/schema/UI/native effects.
+Hosted38 customer journey and independent production switch still OPEN, UI LAST.
+
 ## 2026-10-22 13:20 UTC Live Blocker Evidence And Bounded Correction
 
 Both CPs verify1fa352a18/schema208/UP. The storage404 fix is proven live:

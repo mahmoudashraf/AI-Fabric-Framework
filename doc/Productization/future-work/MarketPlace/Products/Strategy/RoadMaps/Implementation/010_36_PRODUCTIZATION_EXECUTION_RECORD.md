@@ -6,6 +6,23 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 13:55 UTC Caller And Settlement Contract Qualified
+
+Both CPs now21ed587ce/schema208/UP. Old37's explicit index preservation review
+is accepted normally,2indexes/16MiB, without changing the immutable plan. Full
+capacity is still held. Live revealed static caller checks that did not consume
+this append-only review. A four-file33-line correction connects INDEX inspection,
+application/readback, mandatory pre-delete receipt and retained-data completion.
+No new API/recovery engine, external deletion, vector copying or framework change.
+
+The new canonical208 PostgreSQL full-worker test initially caught incorrect
+COMPLETE classification; that real implementation failure is retained. Corrected
+worker/readback/ledger test now proves compute0 with retained indexes charged and
+financial history unchanged. Final Main87 focused checks PASS/zero skips,39 realPG.
+Publication/rollout next; existing accepted review must NOT be posted again.
+No38 runtime admission, hosted AI/action/handover or production switch yet.
+Keep the five-step customer journey as the only target; UI extraction LAST.
+
 ### 2026-10-22 13:20 UTC Exact Live Return Blockers, No Scope Expansion
 
 Both CPs now1fa352a18/schema208/UP. Storage404 correction is proven live:

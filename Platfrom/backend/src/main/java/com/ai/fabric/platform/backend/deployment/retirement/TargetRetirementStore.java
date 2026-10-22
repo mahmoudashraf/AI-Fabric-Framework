@@ -300,7 +300,7 @@ public class TargetRetirementStore {
             requireWorker(operation, context);
             requireFence(operation);
             requireObserved(operation, observed);
-            boolean retainedData = !cancelled && request(operation).retention().externalIndexRetention() != null;
+            boolean retainedData = !cancelled && retentionRequested(context);
             if (retainedData) {
                 if (indexRetention == null) throw new TargetRetirementFailure("INDEX_RETENTION_ADAPTER_REQUIRED");
                 indexRetention.requireReceipt(context);
@@ -324,9 +324,14 @@ public class TargetRetirementStore {
     }
 
     public void requireIndexRetentionReceipt(Context context) {
-        if (context.retention().externalIndexRetention() == null) return;
+        if (!retentionRequested(context)) return;
         if (indexRetention == null) throw new TargetRetirementFailure("INDEX_RETENTION_ADAPTER_REQUIRED");
         indexRetention.requireReceipt(context);
+    }
+
+    private boolean retentionRequested(Context context) {
+        return context.retention().externalIndexRetention() != null
+            || indexRetention != null && indexRetention.reviewedAuthorization(context) != null;
     }
 
     public void failure(Context context, String code, boolean uncertain) {
