@@ -257,7 +257,7 @@ class RuntimeAdminOverviewControllerTest {
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "knowledgeSourceConfigLocation", "https://platform.example/knowledge-sources");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "shellConfigLocation", "https://platform.example/shell");
-        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredAiFabricFrameworkVersion", "0.8.36");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredAiFabricFrameworkVersion", "0.8.37");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigHash", "entity-hash-123");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentVersionId", "ver-123");
@@ -277,8 +277,8 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
-        assertThat(body).containsEntry("aiFabricFrameworkVersion", "0.8.36");
-        assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.8.36");
+        assertThat(body).containsEntry("aiFabricFrameworkVersion", "0.8.37");
+        assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.8.37");
         assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
         assertThat(body).containsEntry("deploymentVersionId", "ver-123");
@@ -299,7 +299,7 @@ class RuntimeAdminOverviewControllerTest {
             "schemaVersion",
             "loomai-runtime-capabilities-v1"
         );
-        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.36");
+        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.37");
         assertThat(runtimeCapabilityManifest.get("supportedBehaviorTypes")).isEqualTo(List.of(
             "AGENTIC_SPECIALIST_TEAM",
             "CONVERSATIONAL",

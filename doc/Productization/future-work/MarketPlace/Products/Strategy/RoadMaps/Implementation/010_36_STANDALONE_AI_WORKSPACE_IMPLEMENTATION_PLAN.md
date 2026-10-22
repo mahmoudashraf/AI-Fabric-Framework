@@ -1,5 +1,13 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+Latest build checkpoint,22October01:12UTC: AI Fabric0.8.37 published on Central;
+combined runtime219 focused cases (at least40 realPG), all20 Central JARs and
+packaged version37 verified. Backend defaults/compiler120 tests/package PASS.
+This is not hosted adoption: live CPs/runtime remain unchanged, and a used staging
+slot needs honest terminal retirement before the normal replacement flow. Exact
+scope/receipts/remaining gaps in [010.44 execution](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md).
+Hosted acceptance/promotion remain open; UI extraction remains LAST.
+
 Latest checkpoint, 22 October00:38UTC: both control planes verify `ee951bfaf`,
 schema208/UP. Pilot app ACTIVE, release APPLIED_VERIFIED/PASSED,3 S3 policies
 indexed. Separate zero-query real two-account auth/attachments/cancel/basic-mobile

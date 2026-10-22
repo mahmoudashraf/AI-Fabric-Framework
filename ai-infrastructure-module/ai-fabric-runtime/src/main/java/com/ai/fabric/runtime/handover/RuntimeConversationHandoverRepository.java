@@ -22,7 +22,7 @@ import java.util.function.Supplier;
 import javax.sql.DataSource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
@@ -36,12 +36,13 @@ final class RuntimeConversationHandoverRepository {
 
     RuntimeConversationHandoverRepository(
         DataSource dataSource,
+        PlatformTransactionManager transactionManager,
         ObjectMapper objectMapper,
         ConversationHandoverSecurity security,
         Clock clock
     ) {
         this.jdbc = new JdbcTemplate(dataSource);
-        this.transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        this.transactions = new TransactionTemplate(transactionManager);
         this.objectMapper = objectMapper.copy();
         this.security = security;
         this.clock = clock;

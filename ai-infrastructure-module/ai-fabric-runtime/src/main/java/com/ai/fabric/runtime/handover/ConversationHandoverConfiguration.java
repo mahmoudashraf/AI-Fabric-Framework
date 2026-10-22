@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ConversationHandoverProperties.class)
@@ -46,9 +47,11 @@ public class ConversationHandoverConfiguration {
     @Bean
     RuntimeConversationHandoverRepository runtimeConversationHandoverRepository(
         DataSource dataSource,
+        PlatformTransactionManager transactionManager,
         ObjectMapper objectMapper,
         ConversationHandoverSecurity security
     ) {
-        return new RuntimeConversationHandoverRepository(dataSource, objectMapper, security, Clock.systemUTC());
+        return new RuntimeConversationHandoverRepository(
+            dataSource, transactionManager, objectMapper, security, Clock.systemUTC());
     }
 }

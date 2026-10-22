@@ -1,5 +1,18 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 01:12 UTC Framework Published, Combined Consumer Qualified
+
+AI Fabric0.8.37 is released on Central, public main91e35278, both release/build
+workflows passed. The combined product runtime passes219 empty-cache/Central-only
+checks, at least40 actualPG, with all20 framework JARs and packaged version37
+verified. Platform new-version/compiler defaults37 pass120 focused tests/package.
+Both hosted CPs and current runtime are unchanged; no hosted adoption is implied.
+Safe replacement still needs honest release of one used staging slot: current
+immutable offer/completed repair cannot silently accept a cross-framework image.
+The bounded tracker records the minimal cold-terminal-retirement gap and required
+proofs, rather than inventing completed drain, zero usage or no-effect cancellation.
+Source publication is next. UI extraction remains LAST; full journey/promotion open.
+
 ## 2026-10-22 00:38 UTC Hosted Identity Verified, Handover Fix Qualified
 
 The pilot app is ACTIVE, release APPLIED_VERIFIED/PASSED, graphREADY and all3

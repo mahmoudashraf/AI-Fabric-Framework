@@ -32,6 +32,7 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 class RuntimeConversationHandoverServiceTest {
@@ -65,6 +66,7 @@ class RuntimeConversationHandoverServiceTest {
         security = new ConversationHandoverSecurity(properties, clock);
         repository = new RuntimeConversationHandoverRepository(
             dataSource,
+            new DataSourceTransactionManager(dataSource),
             objectMapper,
             security,
             clock

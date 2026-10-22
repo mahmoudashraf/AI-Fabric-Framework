@@ -7,6 +7,91 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+### 22 October 01:12 UTC: Combined Runtime Qualified From Central
+
+Framework0.8.37 is published on Central; release workflow39701585250 SUCCESS.
+BOM and all20 runtime public framework JARs are available. Public main was then
+fast-forwarded to91e35278, with the22 parked fencing files excluded. Combined
+product runtime now passes219 checks from an EMPTY cache/Central-only mirror:
+160 provider accounting and59 runtime cases, including at least40 actualPG.
+All20 framework JARs match the downloaded artifacts and packaged capability
+metadata declares37. Platform entity/compiler/application defaults also declare37;
+120 focused backend tests and package pass. Historical migration fixtures remain
+historical. Runtime/provider behavior changes remain limited to shared handover
+transactions and funded synchronous advanced retrieval.
+
+The initial51-case package passed but its new PG fixture closed too late; retained
+baseline reports/jar are not final qualification. Closing the Spring context
+after the test class removes the teardown warning in the59-case final run. Two
+local read-only qualification-parser mistakes were corrected: capability metadata
+is at the JAR's root META-INF, and the2 private budget JARs are not public framework
+artifacts. No application behavior, assertion or artifact was altered to hide
+those parser failures. Exact source hashes, final reports and both qualified JARs
+are in `/private/tmp/01044-combined-runtime-0837-20261022`.
+
+Live own-preferences GET/PUT/readback also pass200 with identical values and
+zeroAI/businesswrites; its separate earlier portal gate remains failed. Both
+hosted CPs remain ee951/schema208; runtime remains36. Source publication is next;
+neither this build nor framework publication is hosted adoption/acceptance.
+The existing offer/repair restrictions and cold-terminal-retirement gap below
+still stand. Actual read-only old slot:OUTCOME_UNKNOWN32/expiryCLAIMED/workerheld,
+recoveryUntil22October20:00UTC, no retirement operation. Current pilotACTIVE23.
+Do not forge a drain or capacity release. UI extraction remains LAST.
+
+### 22 October 00:54 UTC: Publication And Honest Adoption Boundary
+
+Framework Build39700016105 SUCCESS. Annotated `ai-fabric-framework-v0.8.37`
+and GitHub release now point to `91e352784ea1424b8c2fcf8821e7a8686b48093b`.
+Central workflow39701585250 is deploying; public main deliberately remains36
+until required artifacts are available, preventing push hooks building an
+unpublished dependency. The combined Platform37 build is prepared at
+`/private/tmp/01044-combined-runtime-0837-20261022`: fresh isolated source copy,
+EMPTY Maven cache, Central-only mirror, provider-accounting tests,51 focused
+runtime cases including4 realPG, all20 framework JAR provenance checks. Its
+`build` intent is NOT consumed yet. Parent version edits/test ctor are local.
+
+Bounded independent source inspection confirms there is no existing safe route
+to silently install this runtime in the active offer. Ordinary apply uses that
+offer's artifact pin; completed same-release repair is immutable and explicitly
+rejects a framework-version change. Repeating it is not an upgrade. A fresh
+reviewed offer/replacement is supported, but both current used staging allocation
+holds remain real. A third slot is not admitted by the reviewed policy.
+
+The smallest remaining lifecycle gap for the owner's downtime/fresh-data choice
+is admission-linked **cold terminal retirement**, NOT another live recovery or
+zero-loss upgrade engine. It is NOT implemented/verified. Required design:
+
+1. Freeze exact customer/tenant/target, reservation/generation/worker fence,
+   released/native resource identities, all managed Inbox writers, consumers,
+   volumes and external vector bindings; explicit staff-reviewed downtime and
+   AI-state-loss acknowledgement. Reject active apply/repair or foreign/shared
+   resources. Do not lower holds while work/outcomes remain unknown.
+2. Reuse existing durable retirement intent/readback/resource ownership helpers.
+   Physically stop/read back every owned writer, settle/revoke exact runtime,
+   connector and operator authority, detach exact consumer revisions. A separate
+   typed physical-termination receipt must keep `drainComplete=false` and must
+   not manufacture zero conversation/background counts or worker-fencing proof.
+3. Preserve actual usage, grants, financial holds/history and audited backups;
+   resource capacity and financial settlement are separate. Retain/review external
+   vector records without changing customer source storage. Delete only exact
+   owned AI resources/approved volumes with absence proof. Unknown native effects
+   are read-only reconciled, never automatically redispatched.
+4. Existing admission settlement must accept only that exact completed terminal
+   disposition, releasing only physically reclaimed CPU/RAM/disk dimensions;
+   retained external-index demand remains charged. No SQL reset, stale receipt,
+   no-effect cancellation, same-offer pin rewrite or force-drain flag.
+5. Then use ordinary fresh immutable offer/version/application flow and fresh
+   target-scoped indexing. Align runtime/framework37 and stock-discovery1.1.0;
+   no vector copy. Keep broader live upgrades/nonempty distributed recovery
+   deferred. Required critical tests: realPG atomic ownership/settlement, foreign
+   scope, active writer, native-unknown, retained data, duplicate command and
+   source/financial history preservation, followed by ONE hosted basic journey.
+
+The implementation must extend the existing retirement/admission primitives,
+not add a parallel deployment aggregate or silently treat this outline as proof.
+UI extraction remains LAST. Token-only amendment remains pending, unchanged$12/
+50 cumulative cap and all prior allocations counted.
+
 ### 22 October 00:38 UTC: Auth Pass, Two Runtime Fixes
 
 Both control planes now verify `ee951bfaf`, schema208/UP, unchanged configuration
