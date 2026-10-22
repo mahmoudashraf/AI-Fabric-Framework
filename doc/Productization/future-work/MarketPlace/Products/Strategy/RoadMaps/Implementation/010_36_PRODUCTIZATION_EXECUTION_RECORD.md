@@ -6,6 +6,40 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 15:26 UTC Fresh Customer Preflight Ready, No Hosted Acceptance Claim
+
+Both control planes verify d8da08aed/schema208/UP/image19a4d1f6 with27 protected
+projections/config/UI/history preserved.40 focused tests pass. Actual source
+and immutable image chain are verified; CI workflow reports success, while
+contradictory job readbacks are retained rather than called individual passes.
+
+Normal recovery applied one real drain command to old37. Its actual snapshot
+proves unsupported specialist/indexing target-epoch fencing plus an expired
+anonymous conversation. Broader old-fixture graceful-retirement engineering is
+deferred, not a prerequisite to expand indefinitely. Fresh38 retirement is not
+verified or claimed fixed. The old operation and full capacity holds remain.
+
+The disabled old fixture's five AI services are physically stopped through
+normal native operations with provider+host proof, storage/history preserved.
+This is explicitly NOT graceful drain or a capacity-release receipt. Existing
+attended settlement cannot be repurposed by bypassing its never-activated guard.
+One-for-one Free staging vector replacement is RUNNING and normally bound to
+fresh38. Production vector is unchanged; no new paid vector, data transfer,
+customer business DB, S3 write or business/model request.
+
+Ordinary customer preflight now PASS for dep-1a516e76/ver-30aa1f14, both-target
+bindings ready, zero admissions/releases; Engage remains DRAFT. Actual stage
+apply, indexed answer, sign-in/action/Inbox, independent production/app switch
+remain OPEN. Existing charged fixture allocations block another bounded slot,
+not asserted physical host saturation. Required for production has one bounded
+owner capacity choice; prior NO-UPGRADE remains in force until changed. No
+resize is authorized; exact cost and permanent legacy-price loss are disclosed
+there. Do not silently weaken capacity or start another broad recovery stream.
+Customer journey is the sole acceptance target. UI extraction LAST.
+
+Evidence: /private/tmp/01044-journey-0837-20261022/journey-0838 (preflight,
+physical-stop proof, Free replacement/binding) and drain-recovery-rollout.
+
 ### 2026-10-22 14:42 UTC Exact Staging Return Recovery, Journey Still Open
 
 Both control planes now833c491/schema208/UP. The admitted old37 return advanced

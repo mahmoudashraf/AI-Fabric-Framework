@@ -1,5 +1,34 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 15:26 UTC Bounded Operational Unblock, Journey Preflight PASS
+
+Both CPs verify d8da08aed/schema208/UP,27 critical projections/config/UI/history
+preserved.40 focused checks pass; no new framework release/matrix. One normal
+retry applied exactly one real BEGIN_DRAIN. Old37 then proves unsupported
+specialist/indexing target-epoch fencing and one expired anonymous conversation.
+Do not expand old-fixture graceful-retirement engineering, fabricate zero work
+or claim fresh38 retirement is fixed. Old operation and full holds remain.
+
+Owner-authorized native STOP of exactly old37 runtime/connector/Inbox and two
+AI PGs is physically verified; storage/accounting/funding/history retained.
+No graceful-drain/capacity-release claim. One-for-one FREE vector replacement
+in03-85c5192cfdbda1b is RUNNING and normally bound as evb-04df1b9b to fresh38;
+same project/Frankfurt, production vector unchanged, no paid vector or transfer.
+Credentials remain private0600. Customer-owned S3/business systems untouched.
+
+Customer preflight PASS dep1a516/ver30aa, both-target integrations ready; NO
+reservation/release, app still DRAFT. Live stock/policies/sign-in/action/Inbox,
+production promotion/app switch remain OPEN. Existing full fixture holds block
+another bounded slot, not an asserted physically full host. Required for
+production holds ONE bounded capacity choice with exact pricing and permanent
+legacy-rate-loss warning; prior NO-UPGRADE still stands. No cloud resize is
+authorized. Do not repeat its question, bypass settlement guards or silently
+raise measured capacity. Customer journey first, UI extraction LAST.
+
+Proof root /private/tmp/01044-journey-0837-20261022/journey-0838, including
+return-stopped.actual.json, free-replacement-verified.actual.json and
+journey-preflight.actual.json. No new model/business write this cycle.
+
 ## 2026-10-22 14:42 UTC Customer Journey, Bounded Drain Recovery
 
 Both CPs now833c491/schema208/UP. Exact rollout reconciliation proves only the
