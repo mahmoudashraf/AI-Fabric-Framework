@@ -346,6 +346,12 @@ public class ChatRuntimeController {
             );
         }
         boolean interactive = auth.getCallerType() == RuntimeAuthCallerType.PUBLIC_BROWSER;
+        if (auth.isAnonymousSession() && !interactive) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Anonymous conversation ownership requires a verified browser session."
+            );
+        }
         String principalId = StringUtils.hasText(auth.getSubjectId())
             ? auth.getSubjectId().trim()
             : interactive ? "runtime-user" : "loomai-runtime-service";
@@ -353,7 +359,9 @@ public class ChatRuntimeController {
             new ExecutionPrincipal(
                 principalId,
                 interactive
-                    ? ExecutionPrincipalType.END_USER
+                    ? auth.isAnonymousSession()
+                        ? ExecutionPrincipalType.ANONYMOUS_SESSION
+                        : ExecutionPrincipalType.END_USER
                     : ExecutionPrincipalType.SERVICE
             ),
             new ExecutionSubjectRef("conversation", controlledTurn.scope().conversationId()),

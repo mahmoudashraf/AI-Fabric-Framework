@@ -54,17 +54,23 @@ public class AllowVerifiedEntityAccessPolicy implements EntityAccessPolicy {
     }
 
     private boolean hasVerifiedAnonymousContract(AIAccessSubjectContext authContext) {
-        if (!RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name().equals(authContext.getAuthMode())
-            || !RuntimeAuthCallerType.PUBLIC_BROWSER.name().equals(authContext.getCallerType())
-            || !StringUtils.hasText(authContext.getSessionId())
+        if (!StringUtils.hasText(authContext.getSessionId())
             || !authContext.getSubjectId().equals(authContext.getSessionId())
             || !StringUtils.hasText(authContext.getDeploymentId())
             || !StringUtils.hasText(authContext.getTenantId())
-            || !StringUtils.hasText(authContext.getIssuer())
-            || authContext.getAudiences() == null
-            || authContext.getAudiences().stream().noneMatch(StringUtils::hasText)
             || authContext.getGrantedScopes() == null
             || !authContext.getGrantedScopes().contains(CHAT_QUERY_SCOPE)) {
+            return false;
+        }
+        // Canonical context comes from the verified runtime principal, not request metadata or a JWT body.
+        if ("TRUSTED_INTERACTIVE".equals(authContext.getAuthMode())) {
+            return RuntimeAuthSubjectType.ANONYMOUS_SESSION.name().equals(authContext.getCallerType());
+        }
+        if (!RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name().equals(authContext.getAuthMode())
+            || !RuntimeAuthCallerType.PUBLIC_BROWSER.name().equals(authContext.getCallerType())
+            || !StringUtils.hasText(authContext.getIssuer())
+            || authContext.getAudiences() == null
+            || authContext.getAudiences().stream().noneMatch(StringUtils::hasText)) {
             return false;
         }
         try {

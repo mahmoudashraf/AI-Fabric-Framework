@@ -1,5 +1,37 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 11:48 UTC Framework Publication And Runtime Qualification
+
+Framework38 is published on Central (workflow39770400234 SUCCESS, BOM+20JARs
+verified); public mainf8b095c7, unrelated primary dirty worktree untouched.
+Fresh-cache/Central-only runtime280 unique checks/package pass,20 packaged
+framework JARs byte-match Central; typed sign-in/source contracts and real
+PostgreSQL checks included. Runtime image publication next, not hosted adoption.
+Canonical208-schema staging-return fixture requires its missing review_reference
+seed correction; lifecycle code stays unqualified/unpublished meanwhile.
+Current37app DISABLED, fresh native production vector unbound, no newAI/write.
+Fresh38 offer path and hosted customer journey remain the target; UI LAST.
+
+## 2026-10-22 11:35 UTC Boundary Fix And Native Production Vector
+
+Both CPs c22b1d3c8/schema208/UP now include the qualified generic knowledge
+prompt projection. Canonical anonymous ownership must remain anonymous for
+protected actions: framework38 typed-principal fix240 checks and runtime63
+unique candidate checks pass. Central publication still runs; no hosted38 claim.
+Existing37 offer/configuration/history remain immutable and the app DISABLED.
+Fresh reviewed38 offer is the supported adoption path. A bounded early customer
+staging-return command reuses existing retirement/admission workers; not yet
+qualified/published, no native effect or capacity settlement from this work.
+
+Owner-approved exact production vector replacement completed normally: old
+in05-58b569513f0fc1c confirmed deleted before one same-tier/project/region
+in05-d469353a6aebb73 created. New RUNNING and native serving credentials verified;
+zero running old references/deployed release use found. Staging Free unchanged.
+No customer business/inventory DB, source/S3 write, immutable-history rewrite,
+binding, production deployment or vector copying. Source reindexing remains the
+production contract. Native proof root/vector/production-replacement.verified.actual.json.
+Hosted browser journey and promotion still OPEN; UI extraction LAST.
+
 ## 2026-10-22 11:10 UTC Hosted Staging And First Browser Failure
 
 Current dep-d0fdcad7/ver-bfb3a31f/rel-3cdb8a2a is APPLIED_VERIFIED/PASSED.

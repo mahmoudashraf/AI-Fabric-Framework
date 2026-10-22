@@ -1,11 +1,18 @@
 package com.ai.fabric.runtime.authz;
 
 import ai.fabric.dto.AIAccessSubjectContext;
+import ai.fabric.execution.context.ExecutionPrincipal;
+import ai.fabric.execution.context.ExecutionPrincipalType;
+import ai.fabric.execution.context.ExecutionSource;
+import ai.fabric.execution.context.ExecutionSubjectRef;
+import ai.fabric.execution.context.TrustedExecutionContext;
+import ai.fabric.intent.orchestration.OrchestrationAuthContextResolver;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -76,6 +83,41 @@ class AllowVerifiedEntityAccessPolicyTest {
             .build();
 
         assertThat(policy.canAccess(authContext, Map.of("resourceId", "rag:intent"))).isFalse();
+    }
+
+    @Test
+    void canonicalAnonymousOwnerStillRequiresDeploymentOptIn() {
+        var auth = canonicalAnonymousSubject();
+
+        assertThat(policy.canAccess(auth, Map.of("resourceId", "rag:intent"))).isFalse();
+        assertThat(new AllowVerifiedEntityAccessPolicy(true)
+            .canAccess(auth, Map.of("resourceId", "rag:intent"))).isTrue();
+        assertThat(auth.getSubjectId()).isEqualTo("session-1");
+        assertThat(auth.getIssuer()).isNull();
+        assertThat(auth.getExpiresAt()).isNull();
+    }
+
+    @Test
+    void canonicalAnonymousContextRequiresExactSessionScopeAndQueryPermission() {
+        var anonymousPolicy = new AllowVerifiedEntityAccessPolicy(true);
+        var missingTenant = canonicalAnonymousSubject(); missingTenant.setTenantId(null);
+        var missingDeployment = canonicalAnonymousSubject(); missingDeployment.setDeploymentId(null);
+        var wrongSession = canonicalAnonymousSubject(); wrongSession.setSessionId("other-session");
+        var wrongCaller = canonicalAnonymousSubject(); wrongCaller.setCallerType("PUBLIC_BROWSER");
+        var missingScope = canonicalAnonymousSubject(); missingScope.setGrantedScopes(List.of("chat:conversations"));
+        var machine = canonicalAnonymousSubject(); machine.setAuthMode("TRUSTED_APPLICATION");
+
+        for (var invalid : List.of(missingTenant, missingDeployment, wrongSession, wrongCaller, missingScope, machine)) {
+            assertThat(anonymousPolicy.canAccess(invalid, Map.of("resourceId", "rag:intent"))).isFalse();
+        }
+    }
+
+    private AIAccessSubjectContext canonicalAnonymousSubject() {
+        return OrchestrationAuthContextResolver.from(new TrustedExecutionContext(
+            new ExecutionPrincipal("session-1", ExecutionPrincipalType.ANONYMOUS_SESSION),
+            new ExecutionSubjectRef("conversation", "conversation-1"), ExecutionSource.INTERACTIVE,
+            "tenant-1", "dep-1", Set.of("chat:query"), null, Instant.now()
+        ));
     }
 
     private AIAccessSubjectContext verifiedAnonymousSubject() {

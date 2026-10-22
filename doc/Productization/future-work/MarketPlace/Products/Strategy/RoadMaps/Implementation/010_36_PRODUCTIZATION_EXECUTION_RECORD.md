@@ -6,6 +6,54 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 11:48 UTC Published Framework And Central-Only Runtime
+
+Framework0.8.38 Central workflow39770400234 succeeded; BOM and all20 required
+public runtime JARs resolve. Public main is now `f8b095c7`, primary dirty framework
+worktree untouched. The runtime builds from a NEW empty Central-only Maven cache:
+280 unique focused checks/package pass, zero failures/errors/skips,20 packaged
+framework JARs byte-match Central. This includes typed sign-in/source contracts,
+runtime and budget PostgreSQL checks; widget auth-contract smoke also passes.
+Runtime image/source publication is next, not hosted acceptance.
+
+The explicit staging-return sidecar remains unqualified: its canonical208-schema
+test caught a missing required fixture review_reference. Correcting the seed is
+required; do not widen constraints or use the toy schema as production proof.
+Current app remains DISABLED and production vector unbound. Keep the fresh38
+reviewed-offer journey as the supported path; in-place immutable-offer adoption
+is a documented deferred edge. UI extraction LAST.
+
+### 2026-10-22 11:35 UTC Blocking Auth Fix Qualified, Production Vector Ready
+
+Both control planes now verify `c22b1d3c8`/schema208/UP with27 protected
+projections/config/UI preserved. Compiled knowledge guidance is deployed, but
+the customer's immutable runtime version has not changed. Its app stays DISABLED.
+
+The canonical anonymous-action defect has a bounded typed-principal fix:
+framework240 unique focused checks/guards/release-profile pass; runtime63 unique
+candidate checks pass, at least11 actual PostgreSQL. Framework0.8.38 is tagged
+and GitHub-released at `f8b095c7`; Maven Central publication is still RUNNING,
+so public main stays37 and fresh Central-only runtime qualification is next.
+Backend38-default/provisioning/verification126 checks pass. These are not hosted
+customer acceptance and must not be described as a completed promotion.
+
+The current immutable37 offer has no normal in-place runtime38 adoption route.
+Preserve it and its association/history; use a normal fresh reviewed38 offer.
+To avoid waiting until tomorrow for its now-disabled staging allocation, a
+bounded explicit customer staging-return command is being implemented using
+the EXISTING admission/retirement workers. It is unqualified/unpublished; no
+hosted effect. Full holds remain until real retirement and readback. Do not add
+another upgrade/recovery engine or claim a stop/deletion from a request alone.
+
+The owner separately approved exact production vector replacement and disposal
+of its records. Fresh preflight found zero collections/running references and
+no deployed release use. Old `in05-58b569513f0fc1c` was confirmed deleted BEFORE
+one equivalent `in05-d469353a6aebb73` was created, same Serverless tier/project/
+Frankfurt region. New service RUNNING/native serving credentials verified.
+Staging Free unchanged; no source/S3 change, history rewrite, production binding
+or deployment, or vector transfer. Independent production source indexing remains
+mandatory. Proof under root/vector. UI extraction remains LAST.
+
 ### 2026-10-22 11:10 UTC Real Staging Deployed, Browser Acceptance Still Open
 
 The production customer's staging release `rel-3cdb8a2a` for `dep-d0fdcad7`
