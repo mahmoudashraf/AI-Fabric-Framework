@@ -7,6 +7,45 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+### 22 October 01:42 UTC: Frozen Review Primitive Tested, Execution Still Open
+
+The new generic `AdmissionColdTerminationReview` is a pure eligibility and frozen
+payload primitive.112 UNIT cases pass in a private Maven copy, including exact
+scope/fence/expiry worker, old expired reservation eligibility, explicit loss/
+recovery waiver, preserved external bindings, immutable native identities/volumes,
+30-minute maximum review window, stable enum/reference serialization and a JSON
+payload that grants no authority when deserialized. Source/report hashes are
+sealed in `/private/tmp/01044-old-slot-cold-terminal-review-20261022/review-qualification.actual.json`.
+The sidecar is closed. This is NOT yet a cleanup endpoint, native stop/delete,
+completed retirement, capacity release or hosted readiness proof.
+
+Next implementation must bind authoritative server/native/managed-Inbox capture
+and immutable review persistence to the EXISTING retirement/admission lifecycle.
+Advance a newer exact worker fence, then record actual physical termination and
+resource disposition as a distinct non-drain receipt. Only proven reclaimed
+compute/storage dimensions may be released; external retained-index demand,
+financial usage/grants/history and original offers stay intact. Never trust a
+browser-supplied capture/absence flag, force a fake drain, rewrite an old repair,
+or build a second deployment aggregate. Refresh the old read-only capture at the
+real command boundary. Both live CPs have no pinned framework-version env override;
+new backend defaults37 need no env mutation when a reviewed rollout occurs.
+
+- [x] Publish narrowly scoped framework37 and verify Central availability.
+- [x] Qualify/publish combined product runtime and register STAGING artifact.
+- [x] Capture old slot's exact5 owned AI services read-only; preserve external bindings.
+- [x] Test pure bounded frozen-review contract; no effect authority implied.
+- [ ] Persist authoritative capture/review and connect exact existing lifecycle fence.
+- [ ] Execute and prove physical terminal resource disposition, preserving financial history.
+- [ ] Settle only reclaimed capacity, retaining external-index demand accurately.
+- [ ] Adopt fresh37 immutable composition through the normal customer path.
+- [ ] Accept actual hosted stock/policy, identity/protected action and human channel flows.
+- [ ] Verify independent production reindex/activation and post-promotion staging disposition.
+- [ ] Extract UI last; prove STAFF-001..039 parity and UI-only rollback.
+
+The2M-token-only clarification is still pending, with unchanged$12/50-query
+cumulative constraints. No paid model test, resource deletion or customer switch
+was performed during this preparation cycle. The plan remains incomplete.
+
 ### 22 October 01:32 UTC: Image Published, Staging Candidate Registered
 
 Product commit `b12d347d93d9f59e330a25654265aca74c83efc2` is pushed. Runtime
