@@ -1597,8 +1597,7 @@ class AdmissionStore {
     void reviewAttendedStop(AttendedStagingStopContracts.Plan plan, String actor) {
         locked(() -> {
             fenced(plan.review().expectation().fence());
-            AdmissionColdTerminationReview.freeze(plan.review().expectation(), plan.review().capture(),
-                plan.review().acknowledgement(), clock.instant());
+            validateAttendedReview(plan, clock.instant());
             if (!actor.equals(plan.actorId())) throw new AdmissionFailure(FORBIDDEN, "ATTENDED_STOP_ACTOR_CHANGED");
             review("AST_PLAN", plan.id(), plan, actor, clock.instant());
             return null;
@@ -1618,8 +1617,7 @@ class AdmissionStore {
                 return claim;
             }
             Reservation r = fenced(plan.review().expectation().fence());
-            AdmissionColdTerminationReview.freeze(plan.review().expectation(), plan.review().capture(),
-                plan.review().acknowledgement(), now);
+            validateAttendedReview(plan, now);
             if (!actor.equals(plan.actorId()) || !plan.expiresAt().isAfter(now))
                 throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_REVIEW_EXPIRED_OR_ACTOR_CHANGED");
             long epoch = claimTargetFence.get();
@@ -1656,7 +1654,10 @@ class AdmissionStore {
             Reservation r = fenced(claim.fence());
             if (!Objects.equals(r.evidenceReference(), "attended-staging-stop:" + plan.id())
                 || r.intent() != Intent.CUSTOMER_STAGING || r.retentionSettlement() != null
-                || r.retirementOperationId() != null || r.expiryState() != ExpiryState.CLAIMED)
+                || !(plan.review().capture().reservation().retirementOperationId() == null
+                    ? r.retirementOperationId() == null && r.expiryState() == ExpiryState.CLAIMED
+                    : Objects.equals(r.retirementOperationId(), plan.review().capture().reservation().retirementOperationId())
+                        && r.state() == State.ACTIVE && r.expiryState() == ExpiryState.HANDED_OFF))
                 throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_RESERVATION_CHANGED");
             recheckLocal.run();
             // Stopped databases/volumes and external indexes remain charged. No refund or usage reset.
@@ -1675,12 +1676,25 @@ class AdmissionStore {
             m.retentionSettlement = new RetainedCapacitySettlement(r.revision(), plan.id(), json.fingerprint(proof),
                 json.fingerprint(proof), "attended-stop:" + plan.id(), new Vector(retained), new Vector(released), now);
             Reservation settled = save(r, m, "COMPUTE_STOPPED_STORAGE_RETAINED_NOT_DRAINED", actor, now);
-            jdbc.update("UPDATE deployment_admission_release_bindings SET state='COLD_STOPPED',updated_at=? WHERE reservation_id=? AND generation=? AND state='OUTCOME_UNKNOWN'",
+            jdbc.update("UPDATE deployment_admission_release_bindings SET state='COLD_STOPPED',updated_at=? WHERE reservation_id=? AND generation=? AND state IN ('OUTCOME_UNKNOWN','ACTIVE')",
                 time(now), r.id(), r.generation());
             var receipt = new AttendedStagingStopContracts.Receipt(plan.id(), actor, claim, proof, settled, now);
             review("AST_RECEIPT", plan.id(), receipt, actor, now);
             return receipt;
         });
+    }
+
+    private void validateAttendedReview(AttendedStagingStopContracts.Plan plan, Instant now) {
+        var review = plan.review();
+        var r = review.capture().reservation();
+        if (r.retirementOperationId() == null) {
+            AdmissionColdTerminationReview.freeze(review.expectation(), review.capture(), review.acknowledgement(), now);
+        } else {
+            var returned = customerReturnAuthority(r);
+            if (returned == null || !returned.waivesRecoveryWindow())
+                throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_EXPLICIT_RETURN_REQUIRED");
+            AdmissionColdTerminationReview.freezeReturned(review.expectation(), review.capture(), review.acknowledgement(), now);
+        }
     }
 
     Reservation settleRetained(Fence fence, ResourceReadback evidence, String actor, Instant requestedAt) {

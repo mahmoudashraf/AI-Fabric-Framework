@@ -87,6 +87,16 @@ public final class AdmissionColdTerminationReview {
 
     public static AdmissionColdTerminationReview freeze(Expectation expected, ServerCapture capture,
                                                          Acknowledgement acknowledgement, Instant now) {
+        return freeze(expected, capture, acknowledgement, now, false);
+    }
+
+    static AdmissionColdTerminationReview freezeReturned(Expectation expected, ServerCapture capture,
+                                                         Acknowledgement acknowledgement, Instant now) {
+        return freeze(expected, capture, acknowledgement, now, true);
+    }
+
+    private static AdmissionColdTerminationReview freeze(Expectation expected, ServerCapture capture,
+                                                         Acknowledgement acknowledgement, Instant now, boolean returned) {
         require(expected != null && expected.fence() != null && capture != null
             && capture.reservation() != null && capture.snapshot() != null && acknowledgement != null,
             "COLD_REVIEW_INPUT_REQUIRED");
@@ -102,19 +112,25 @@ public final class AdmissionColdTerminationReview {
             && expected.targetProfileId().equals(s.targetProfileId()), "COLD_REVIEW_SCOPE_CHANGED");
         require(r.intent() == Intent.CUSTOMER_STAGING
             && !"dtp-coolify-prod-staging".equals(r.targetProfileId())
-            && (r.state() == State.OUTCOME_UNKNOWN || r.state() == State.CLEANUP_FAILED)
+            && (returned ? r.state() == State.ACTIVE : r.state() == State.OUTCOME_UNKNOWN || r.state() == State.CLEANUP_FAILED)
             && r.retentionSettlement() == null, "COLD_REVIEW_FAILED_USED_STAGING_REQUIRED");
-        require(r.expiryState() == ExpiryState.CLAIMED && expected.expiryWorkerToken().equals(r.workerToken())
-            && r.retirementOperationId() == null, "COLD_REVIEW_EXACT_EXPIRY_CLAIM_REQUIRED");
+        require(expected.expiryWorkerToken().equals(r.workerToken())
+            && (returned ? r.expiryState() == ExpiryState.HANDED_OFF && r.retirementOperationId() != null
+                : r.expiryState() == ExpiryState.CLAIMED && r.retirementOperationId() == null),
+            "COLD_REVIEW_EXACT_EXPIRY_CLAIM_REQUIRED");
+        var confirmations = EnumSet.allOf(Confirmation.class);
+        if (returned) { confirmations.remove(Confirmation.NEVER_ACTIVATED); confirmations.remove(Confirmation.NO_RETIREMENT_OPERATION); }
         require(capture.confirmations() != null
-            && capture.confirmations().containsAll(Set.of(Confirmation.values())),
+            && capture.confirmations().containsAll(confirmations)
+            && (!returned || !capture.confirmations().contains(Confirmation.NEVER_ACTIVATED)
+                && !capture.confirmations().contains(Confirmation.NO_RETIREMENT_OPERATION)),
             "COLD_REVIEW_SERVER_CONFIRMATIONS_REQUIRED");
-        validateTimes(capture, acknowledgement, now);
+        validateTimes(capture, acknowledgement, now, returned);
         text(r.manifestFingerprint(), r.bindingFingerprint(), r.noticeCycle(), s.targetGeneration(),
             capture.reference(), capture.projectUuid(), capture.environmentUuid());
         require(s.targetEpoch() >= 0, "COLD_REVIEW_TARGET_GENERATION_REQUIRED");
         AdmissionRules.placement(Intent.CUSTOMER_STAGING, capture.nativePlacement());
-        validateInventory(capture);
+        validateInventory(capture, returned);
         text(acknowledgement.reviewReference(), acknowledgement.captureReference(),
             acknowledgement.staffActorId(), acknowledgement.reason());
         require(capture.reference().equals(acknowledgement.captureReference())
@@ -146,7 +162,7 @@ public final class AdmissionColdTerminationReview {
         return capture.snapshot().resources().stream().filter(ResourceGeneration::preserved).toList();
     }
 
-    private static void validateTimes(ServerCapture capture, Acknowledgement ack, Instant now) {
+    private static void validateTimes(ServerCapture capture, Acknowledgement ack, Instant now, boolean returned) {
         Reservation r = capture.reservation();
         require(finite(now) && finite(capture.capturedAt()) && finite(capture.validUntil())
             && finite(ack.acknowledgedAt()) && finite(ack.validUntil())
@@ -156,16 +172,17 @@ public final class AdmissionColdTerminationReview {
         require(Duration.between(capture.capturedAt(), capture.validUntil()).compareTo(MAX_REVIEW_WINDOW) <= 0,
             "COLD_REVIEW_WINDOW_TOO_LONG");
         require(finite(r.createdAt()) && finite(r.updatedAt()) && finite(r.expiresAt())
-            && r.expiresAt().isAfter(r.createdAt()) && !r.expiresAt().isAfter(capture.capturedAt())
+            && r.expiresAt().isAfter(r.createdAt()) && (returned || !r.expiresAt().isAfter(capture.capturedAt()))
             && !r.updatedAt().isBefore(r.createdAt()) && !r.updatedAt().isAfter(capture.capturedAt())
             && (r.keepUntil() == null || finite(r.keepUntil()) && !r.keepUntil().isAfter(capture.capturedAt()))
             && finite(r.drainDeadline()) && finite(r.recoveryUntil())
-            && r.drainDeadline().isAfter(r.expiresAt()) && r.recoveryUntil().isAfter(r.drainDeadline()),
+            && (returned ? r.drainDeadline().isAfter(r.createdAt()) && !r.drainDeadline().isAfter(capture.capturedAt())
+                : r.drainDeadline().isAfter(r.expiresAt())) && r.recoveryUntil().isAfter(r.drainDeadline()),
             "COLD_REVIEW_BOUNDED_EXPIRED_RESERVATION_REQUIRED");
         // Recovery need not have elapsed: its explicit waiver is mandatory even after that deadline.
     }
 
-    private static void validateInventory(ServerCapture capture) {
+    private static void validateInventory(ServerCapture capture, boolean returned) {
         Reservation r = capture.reservation();
         Snapshot s = capture.snapshot();
         require(s.releases() != null && !s.releases().isEmpty() && s.resources() != null
@@ -184,7 +201,8 @@ public final class AdmissionColdTerminationReview {
                 && r.customerId().equals(binding.customerId()) && r.tenantId().equals(binding.tenantId())
                 && r.deploymentId().equals(binding.deploymentId()) && r.targetProfileId().equals(binding.targetProfileId())
                 && binding.versionId() != null && binding.versionId().equals(releases.get(binding.releaseId()))
-                && ("OUTCOME_UNKNOWN".equals(binding.state()) || "NO_EFFECT".equals(binding.state())),
+                && (returned ? "ACTIVE".equals(binding.state())
+                    : "OUTCOME_UNKNOWN".equals(binding.state()) || "NO_EFFECT".equals(binding.state())),
                 "COLD_REVIEW_RELEASE_SCOPE_CHANGED");
             require(bindingStates.putIfAbsent(binding.releaseId(), binding.state()) == null,
                 "COLD_REVIEW_DUPLICATE_RELEASE_BINDING");
@@ -215,7 +233,7 @@ public final class AdmissionColdTerminationReview {
             }
             require(NATIVE_KINDS.contains(resource.resourceKind())
                 && resource.providerType() == DeploymentProviderType.COOLIFY
-                && "OUTCOME_UNKNOWN".equals(bindingStates.get(resource.releaseId())),
+                && (returned ? "ACTIVE" : "OUTCOME_UNKNOWN").equals(bindingStates.get(resource.releaseId())),
                 "COLD_REVIEW_NATIVE_FAILED_RESOURCE_REQUIRED");
             text(resource.serverUuid(), resource.projectUuid(), resource.environmentUuid(), resource.destinationUuid(),
                 resource.providerName(), resource.providerIdentityFingerprint());

@@ -14,6 +14,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.EnumSet;
+import java.util.List;
+import java.time.Instant;
+
+import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.*;
+import static com.ai.fabric.platform.backend.deployment.admission.AdmissionColdTerminationReview.*;
+import static com.ai.fabric.platform.backend.deployment.admission.AttendedStagingStopContracts.*;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -100,5 +107,73 @@ class CustomerStagingReturnPostgresTest extends CustomerStagingReturnTest {
             assertThat(store.require(allocation.id())).isEqualTo(allocation);
             worker.rollback();
         }
+    }
+
+    @Test void explicitlyReturnedActivatedTargetCanSettleStoppedComputeWithoutRewritingItsHistory() {
+        var plan = returnedStopPlan(true);
+        var original = plan.review().capture().reservation();
+        var returnReceipt = store.customerReturnAuthority(original);
+        var reviewsBefore = jdbc.queryForList("SELECT * FROM deployment_admission_reviews ORDER BY kind,record_key");
+        var claim = store.claimAttendedStop(plan, "staff", () -> 9L);
+        var proof = new StoppedReadback(plan.id(), claim.planFingerprint(), claim.targetEpoch(), plan.resources(),
+            plan.review().frozenAt(), "actual-host-stopped-proof");
+        var receipt = store.settleAttendedStop(claim, proof, "staff", () -> { });
+        var settled = receipt.reservation();
+        assertThat(settled.state()).isEqualTo(State.RETAINED_EXTERNAL);
+        assertThat(settled.expiryState()).isEqualTo(ExpiryState.SETTLED_RETAINED);
+        assertThat(settled.retirementOperationId()).isEqualTo("retirement");
+        assertThat(settled.demand()).isEqualTo(original.demand());
+        assertThat(settled.chargedDemand().amounts().get(Dimension.MEMORY_BYTES)).isZero();
+        assertThat(settled.chargedDemand().amounts().get(Dimension.CPU_MILLICORES)).isZero();
+        assertThat(settled.chargedDemand().amounts().get(Dimension.DISK_BYTES))
+            .isEqualTo(original.chargedDemand().amounts().get(Dimension.DISK_BYTES));
+        assertThat(settled.chargedDemand().amounts().get(Dimension.DATABASES))
+            .isEqualTo(original.chargedDemand().amounts().get(Dimension.DATABASES));
+        assertThat(store.releaseBinding("release").state()).isEqualTo("COLD_STOPPED");
+        assertThat(jdbc.queryForList("SELECT * FROM deployment_admission_reviews ORDER BY kind,record_key"))
+            .containsAll(reviewsBefore);
+        assertThat(store.reviewed("STAGING_RETURN", json.fingerprint(java.util.Map.of("reservation", original.id(),
+            "generation", original.generation())), CustomerStagingReturnContracts.Receipt.class)).isEqualTo(returnReceipt);
+        assertThat(store.settleAttendedStop(claim, proof, "staff", () -> { throw new AssertionError("duplicate"); }))
+            .isEqualTo(receipt);
+        assertThatThrownBy(() -> store.outcome(original.fence(), State.CLEANUP_FAILED, "late", "worker", proof.observedAt()))
+            .hasMessageContaining("STALE_RESERVATION_FENCE");
+    }
+
+    @Test void anUnwaivedCustomerReturnCannotAuthorizeAttendedStopOrReleaseAnything() {
+        var plan = returnedStopPlan(false);
+        var before = store.require(allocation.id());
+        assertThatThrownBy(() -> store.claimAttendedStop(plan, "staff", () -> { throw new AssertionError("fence"); }))
+            .hasMessageContaining("ATTENDED_STOP_EXPLICIT_RETURN_REQUIRED");
+        assertThat(store.require(allocation.id())).isEqualTo(before);
+        assertThat(store.releaseBinding("release").state()).isEqualTo("ACTIVE");
+    }
+
+    private Plan returnedStopPlan(boolean waive) {
+        service.returnStaging("offer", "deployment1", request(waive));
+        var claimed = store.require(allocation.id());
+        var r = store.handoff(store.expiryWork(claimed), "retirement", "target-retirement:retirement:fingerprint", "worker", NOW);
+        Instant observed = r.drainDeadline().plusSeconds(1);
+        store = new AdmissionStore(jdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(observed, ZoneOffset.UTC));
+        var resource = new com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.ResourceGeneration(
+            "runtime", "release", com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType.COOLIFY,
+            "APPLICATION", "runtime-uuid", STAGING.serverUuid(), "project", "environment", STAGING.destinationUuid(),
+            "runtime", "Managed by AI Fabric deployment deployment1", "runtime-generation", "native-identity", List.of(), false);
+        var snapshot = new com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.Snapshot(
+            r.customerId(), r.tenantId(), r.deploymentId(), TARGET, "target-generation", 8,
+            List.of(new com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.ReleaseGeneration(
+                "release", "version", "release-generation")), List.of(resource), List.of());
+        var confirmations = EnumSet.allOf(Confirmation.class);
+        confirmations.remove(Confirmation.NEVER_ACTIVATED);
+        confirmations.remove(Confirmation.NO_RETIREMENT_OPERATION);
+        var capture = new ServerCapture("returned-capture", observed, observed.plusSeconds(300), r, snapshot,
+            List.of(store.releaseBinding("release")), STAGING, "project", "environment", confirmations);
+        var expected = new Expectation(r.fence(), r.customerId(), r.tenantId(), r.deploymentId(), TARGET, r.workerToken());
+        var ack = new Acknowledgement("returned-review", capture.reference(), "staff", "Explicit return and stopped host",
+            observed, observed.plusSeconds(180), EnumSet.allOf(LossAcknowledgement.class));
+        var review = freezeReturned(expected, capture, ack, observed);
+        return new Plan("returned-stop", "staff", review.payload(), null, -1, null,
+            List.of(new NativeResource("APPLICATION", "runtime-uuid", "runtime", resource.deploymentMarker(),
+                STAGING.serverUuid(), STAGING.destinationUuid(), "environment")), observed.plusSeconds(180));
     }
 }

@@ -68,6 +68,61 @@ class AdmissionColdTerminationReviewTest {
             .isEqualTo(Semantics.PHYSICAL_TERMINATION_WITH_LOSS_NOT_DRAIN);
     }
 
+    @Test void explicitlyReturnedActiveStagingUsesDistinctHonestConfirmationsBeforeOriginalExpiry() {
+        var capture = returnedCapture();
+        var review = freezeReturned(expected(), capture, acknowledgement(), NOW);
+        assertThat(review.capture().reservation().expiresAt()).isAfter(NOW);
+        assertThat(review.capture().reservation().state()).isEqualTo(State.ACTIVE);
+        assertThat(review.capture().confirmations()).doesNotContain(Confirmation.NEVER_ACTIVATED,
+            Confirmation.NO_RETIREMENT_OPERATION);
+        assertThat(review.semantics()).isEqualTo(Semantics.PHYSICAL_TERMINATION_WITH_LOSS_NOT_DRAIN);
+        assertThat(review.capture().reservation().chargedDemand()).isEqualTo(capture.reservation().chargedDemand());
+        assertThatThrownBy(() -> freeze(expected(), capture, acknowledgement(), NOW))
+            .hasMessageContaining("FAILED_USED_STAGING_REQUIRED");
+    }
+
+    @ParameterizedTest @EnumSource(value = Confirmation.class, names = {"NEVER_ACTIVATED", "NO_RETIREMENT_OPERATION"})
+    void returnedCaptureCannotPretendItWasNeverActivatedOrHadNoRetirement(Confirmation falseClaim) {
+        var confirmations = EnumSet.copyOf(returnedCapture().confirmations());
+        confirmations.add(falseClaim);
+        assertThatThrownBy(() -> freezeReturned(expected(), changed(returnedCapture(), "confirmations", confirmations),
+            acknowledgement(), NOW)).hasMessageContaining("SERVER_CONFIRMATIONS_REQUIRED");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"expiryState", "retirementOperationId", "state", "drainDeadline"})
+    void returnedCaptureRequiresHandedOffActiveStateAndElapsedDrainDeadline(String fault) {
+        Object replacement = switch (fault) {
+            case "expiryState" -> ExpiryState.CLAIMED;
+            case "state" -> State.OUTCOME_UNKNOWN;
+            case "drainDeadline" -> NOW.plusSeconds(1);
+            default -> null;
+        };
+        var capture = returnedCapture();
+        String expectedCode = switch (fault) {
+            case "state" -> "FAILED_USED_STAGING_REQUIRED";
+            case "drainDeadline" -> "BOUNDED_EXPIRED_RESERVATION_REQUIRED";
+            default -> "EXACT_EXPIRY_CLAIM_REQUIRED";
+        };
+        assertThatThrownBy(() -> freezeReturned(expected(), changed(capture, "reservation",
+            changed(capture.reservation(), fault, replacement)), acknowledgement(), NOW))
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(expectedCode);
+    }
+
+    static ServerCapture returnedCapture() {
+        var r = changed(reservation(), "state", State.ACTIVE);
+        r = changed(r, "expiryState", ExpiryState.HANDED_OFF);
+        r = changed(r, "retirementOperationId", "retirement");
+        r = changed(r, "evidenceReference", "target-retirement:retirement:fingerprint");
+        r = changed(r, "expiresAt", NOW.plusSeconds(3600));
+        var confirmations = EnumSet.allOf(Confirmation.class);
+        confirmations.remove(Confirmation.NEVER_ACTIVATED);
+        confirmations.remove(Confirmation.NO_RETIREMENT_OPERATION);
+        var result = changed(capture(), "reservation", r);
+        result = changed(result, "releaseBindings", List.of(binding("used-release", "ACTIVE"),
+            binding("no-effect-release", "ACTIVE")));
+        return changed(result, "confirmations", confirmations);
+    }
+
     @ParameterizedTest @ValueSource(longs = {1801, 31536000})
     void finiteButOverlongReviewCannotAuthorizeTermination(long seconds) {
         rejected(changed(capture(), "validUntil", NOW.plusSeconds(seconds)), "WINDOW_TOO_LONG");

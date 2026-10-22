@@ -71,7 +71,7 @@ public class AttendedStagingStopService {
             || !request.acceptDowntimeVolatileStateLossAndWaiveRecoveryWindow()) throw failure(BAD_REQUEST, "ATTENDED_STOP_EXPLICIT_ACCEPTANCE_REQUIRED");
         Reservation r = store.require(reservationId);
         if (!r.fence().equals(request.fence())) throw failure(CONFLICT, "STALE_RESERVATION_FENCE");
-        requireUnusedFailedTarget(r);
+        requireEligibleTarget(r);
         var connection = connection(r.targetProfileId());
         var trusted = properties.trustedServers().get(TargetIntent.CUSTOMER_STAGING);
         var server = client.getServer(connection, connection.config().serverUuid());
@@ -80,16 +80,20 @@ public class AttendedStagingStopService {
             || !Objects.equals(trusted.uuid(), server.path("uuid").asText()))
             throw failure(PRECONDITION_FAILED, "ATTENDED_STOP_PLACEMENT_UNPROVEN");
         List<ReleaseBinding> releases = releaseBindings(r);
-        var existingGate = jdbc.queryForList("SELECT epoch,state FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=?",
+        boolean returned = r.retirementOperationId() != null;
+        var existingGate = jdbc.queryForList("SELECT epoch,state,operation_id FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=?",
             r.deploymentId(), r.targetProfileId());
-        if (existingGate.size() > 1 || !existingGate.isEmpty() && !"AVAILABLE".equals(existingGate.getFirst().get("state")))
+        if (existingGate.size() > 1 || returned && (existingGate.size() != 1
+            || !"RETIRING".equals(existingGate.getFirst().get("state"))
+            || !r.retirementOperationId().equals(existingGate.getFirst().get("operation_id")))
+            || !returned && !existingGate.isEmpty() && !"AVAILABLE".equals(existingGate.getFirst().get("state")))
             throw failure(CONFLICT, "TARGET_RETIREMENT_FENCED");
         long epoch = existingGate.isEmpty() ? 0L : ((Number) existingGate.getFirst().get("epoch")).longValue();
         var snapshot = inventory.captureRetainingStorage(r.deploymentId(), r.targetProfileId(), retirementRequest(r, releases), epoch);
         var resources = new ArrayList<NativeResource>();
         for (var resource : snapshot.resources()) if (!resource.preserved()) {
             resources.add(observe(connection, resource.resourceKind(), resource.providerResourceUuid(),
-                resource.deploymentMarker(), false));
+                resource.deploymentMarker(), returned));
         }
         String graphId = null, graphFingerprint = null; long graphRevision = -1;
         var graph = graphs.find(r.deploymentId(), r.targetProfileId());
@@ -105,8 +109,8 @@ public class AttendedStagingStopService {
             graphId = value.getId(); graphRevision = value.getRevision(); graphFingerprint = plan.fingerprint();
             for (var node : plan.resources()) {
                 String marker = "ManagedDependency:" + graphId + ":" + node.slot();
-                if (node.applicationUuid() != null) resources.add(observe(connection, "MANAGED_INBOX_APPLICATION", node.applicationUuid(), marker, false));
-                if (node.databaseUuid() != null) resources.add(observe(connection, "MANAGED_INBOX_DATABASE", node.databaseUuid(), marker, false));
+                if (node.applicationUuid() != null) resources.add(observe(connection, "MANAGED_INBOX_APPLICATION", node.applicationUuid(), marker, returned));
+                if (node.databaseUuid() != null) resources.add(observe(connection, "MANAGED_INBOX_DATABASE", node.databaseUuid(), marker, returned));
             }
         }
         resources.sort(Comparator.comparing(NativeResource::uuid));
@@ -114,15 +118,19 @@ public class AttendedStagingStopService {
             throw failure(PRECONDITION_FAILED, "ATTENDED_STOP_INVENTORY_INCOMPLETE");
         Instant now = Instant.now(), expiry = now.plusSeconds(900);
         String id = UUID.randomUUID().toString(), reference = "attended-staging-stop:" + id;
+        var confirmations = EnumSet.allOf(Confirmation.class);
+        if (returned) { confirmations.remove(Confirmation.NEVER_ACTIVATED); confirmations.remove(Confirmation.NO_RETIREMENT_OPERATION); }
         var capture = new ServerCapture(reference, now, expiry, r, snapshot, releases,
             new Placement(trusted.uuid(), connection.config().destinationUuid(), trusted.address()),
             snapshot.resources().stream().filter(resource -> !resource.preserved()).findFirst().orElseThrow().projectUuid(),
             snapshot.resources().stream().filter(resource -> !resource.preserved()).findFirst().orElseThrow().environmentUuid(),
-            EnumSet.allOf(Confirmation.class));
+            confirmations);
         var expected = new Expectation(r.fence(), r.customerId(), r.tenantId(), r.deploymentId(), r.targetProfileId(), r.workerToken());
         var acknowledgement = new Acknowledgement(reference, reference, actor, request.reason(), now, expiry,
             EnumSet.allOf(LossAcknowledgement.class));
-        var reviewed = AdmissionColdTerminationReview.freeze(expected, capture, acknowledgement, now);
+        if (returned) verifyStoppedHost(id, resources);
+        var reviewed = returned ? AdmissionColdTerminationReview.freezeReturned(expected, capture, acknowledgement, now)
+            : AdmissionColdTerminationReview.freeze(expected, capture, acknowledgement, now);
         var plan = new Plan(id, actor, reviewed.payload(), graphId, graphRevision, graphFingerprint, resources, expiry);
         store.reviewAttendedStop(plan, actor);
         return summary(plan, null, null);
@@ -132,10 +140,13 @@ public class AttendedStagingStopService {
         Plan plan = requirePlan(reservationId, planId, command);
         recheckRemote(plan, false);
         Claim claim = store.claimAttendedStop(plan, actor(), () -> {
-            recheckLocal(plan);
             var r = plan.review().capture().reservation();
             var gate = gates.lock(r.deploymentId(), r.targetProfileId());
-            if (!"AVAILABLE".equals(gate.getState()) || gate.getEpoch() != plan.review().capture().snapshot().targetEpoch())
+            recheckLocal(plan);
+            boolean returned = r.retirementOperationId() != null;
+            if (!(returned ? "RETIRING".equals(gate.getState()) && r.retirementOperationId().equals(gate.getOperationId())
+                    : "AVAILABLE".equals(gate.getState()))
+                || gate.getEpoch() != plan.review().capture().snapshot().targetEpoch())
                 throw failure(CONFLICT, "TARGET_GENERATION_CHANGED");
             // Keep the existing mutation barrier closed while storage remains. This is not RETIRED/drained.
             gate.setEpoch(gate.getEpoch() + 1); gate.setState("RETIRING"); gate.setOperationId(plan.id());
@@ -153,14 +164,13 @@ public class AttendedStagingStopService {
         if (!claim.actorId().equals(actor()) || !claim.planFingerprint().equals(json.fingerprint(plan)))
             throw failure(CONFLICT, "ATTENDED_STOP_COMMAND_CHANGED");
         recheckRemote(plan, true);
-        for (var resource : plan.resources()) host.verifyNoRunningContainers(TargetIntent.CUSTOMER_STAGING,
-            resource.serverUuid(), plan.id(), database(resource.kind()) ? "database" : "application", resource.uuid());
+        verifyStoppedHost(plan.id(), plan.resources());
         var proof = new StoppedReadback(plan.id(), json.fingerprint(plan), claim.targetEpoch(), plan.resources(),
             Instant.now(), "provider-host-attended-stop:" + plan.id());
         var receipt = store.settleAttendedStop(claim, proof, actor(), () -> {
-            recheckLocal(plan);
             var r = plan.review().capture().reservation();
             var gate = gates.lock(r.deploymentId(), r.targetProfileId());
+            recheckLocal(plan);
             if (!"RETIRING".equals(gate.getState()) || !plan.id().equals(gate.getOperationId())
                 || gate.getEpoch() != claim.targetEpoch()) throw failure(CONFLICT, "ATTENDED_STOP_TARGET_FENCE_CHANGED");
         });
@@ -185,14 +195,16 @@ public class AttendedStagingStopService {
     }
     private void recheckRemote(Plan plan, boolean stopped) {
         var r = plan.review().capture().reservation();
+        stopped = stopped || r.retirementOperationId() != null;
         var connection = connection(r.targetProfileId());
         inventory.recheckRetainingStorage(plan.review().capture().snapshot(), retirementRequest(r, plan.review().capture().releaseBindings()));
         for (var resource : plan.resources()) if (!resource.equals(observe(connection, resource.kind(), resource.uuid(), resource.marker(), stopped)))
             throw failure(CONFLICT, "ATTENDED_STOP_NATIVE_IDENTITY_CHANGED");
+        if (r.retirementOperationId() != null) verifyStoppedHost(plan.id(), plan.resources());
     }
     private void recheckLocal(Plan plan) {
         var r = plan.review().capture().reservation();
-        requireUnusedFailedTarget(r);
+        requireEligibleTarget(r, true);
         inventory.recheckLocalRetainingStorage(plan.review().capture().snapshot(), retirementRequest(r, plan.review().capture().releaseBindings()));
         var graph = graphs.find(r.deploymentId(), r.targetProfileId());
         if (plan.dependencyGraphId() == null) {
@@ -223,6 +235,40 @@ public class AttendedStagingStopService {
             if (current.fence().equals(claim.reservationFence()) && Objects.equals(current.workerToken(), claim.workerToken())
                 && claim.executionDeadline().isAfter(Instant.now())) throw failure(CONFLICT, "ATTENDED_STOP_REPAIR_ACTIVE");
         }
+    }
+    private void requireEligibleTarget(Reservation r) {
+        requireEligibleTarget(r, false);
+    }
+    private void requireEligibleTarget(Reservation r, boolean lockOperation) {
+        if (r.retirementOperationId() == null) { requireUnusedFailedTarget(r); return; }
+        var returned = store.customerReturnAuthority(r);
+        if (r.intent() != Intent.CUSTOMER_STAGING || r.state() != State.ACTIVE
+            || r.expiryState() != ExpiryState.HANDED_OFF || r.retentionSettlement() != null
+            || returned == null || !returned.waivesRecoveryWindow())
+            throw failure(CONFLICT, "ATTENDED_STOP_EXPLICIT_RETURN_REQUIRED");
+        var operations = jdbc.queryForList("""
+            SELECT operation_key,request_fingerprint,state,step,fence_epoch,destructive_started,lease_expires_at
+            FROM platform_target_retirement_operations
+            WHERE id=? AND customer_id=? AND deployment_id=? AND target_profile_id=?
+            """ + (lockOperation ? " FOR UPDATE NOWAIT" : ""),
+            r.retirementOperationId(), r.customerId(), r.deploymentId(), r.targetProfileId());
+        if (operations.size() != 1) throw failure(CONFLICT, "ATTENDED_STOP_RETURN_OPERATION_CHANGED");
+        var op = operations.getFirst();
+        var lease = (java.sql.Timestamp) op.get("lease_expires_at");
+        if (!List.of("BLOCKED", "RETRYABLE_FAILURE").contains(op.get("state")) || !"DRAIN".equals(op.get("step"))
+            || !Boolean.FALSE.equals(op.get("destructive_started")) || lease != null && lease.toInstant().isAfter(Instant.now())
+            || !Objects.equals(op.get("operation_key"), "admission-expiry:" + r.id() + ":" + r.generation())
+            || !Objects.equals(r.evidenceReference(), "target-retirement:" + r.retirementOperationId() + ":" + op.get("request_fingerprint"))
+            || ((Number) op.get("fence_epoch")).longValue() != returned.targetEpoch() + 1)
+            throw failure(CONFLICT, "ATTENDED_STOP_RETURN_OPERATION_BUSY_OR_CHANGED");
+        if (count("SELECT count(*) FROM ai_workspace_installations i JOIN platform_consumers c ON c.id=i.consumer_entity_id WHERE c.bound_deployment_id=? AND i.status='ACTIVE'", r.deploymentId()) != 0
+            || count("SELECT count(*) FROM platform_deployment_releases WHERE deployment_id=? AND provisioning_status IN ('QUEUED','PROVISIONING','VERIFYING')", r.deploymentId()) != 0
+            || count("SELECT count(*) FROM platform_deployment_deletion_operations WHERE deployment_id=? AND status IN ('QUEUED','RUNNING')", r.deploymentId()) != 0)
+            throw failure(CONFLICT, "ATTENDED_STOP_RETURN_TARGET_BUSY");
+    }
+    private void verifyStoppedHost(String planId, List<NativeResource> resources) {
+        for (var resource : resources) host.verifyNoRunningContainers(TargetIntent.CUSTOMER_STAGING,
+            resource.serverUuid(), planId, database(resource.kind()) ? "database" : "application", resource.uuid());
     }
     private int count(String sql, Object... parameters) { return Objects.requireNonNull(jdbc.queryForObject(sql, Integer.class, parameters)); }
     private List<ReleaseBinding> releaseBindings(Reservation r) {

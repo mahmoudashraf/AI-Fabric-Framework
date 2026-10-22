@@ -6,6 +6,33 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 16:13 UTC Existing-Infrastructure Customer Journey Unblock
+
+No further owner answer or server upgrade is required. Main withdrew the optional
+resize question; the earlier no-upgrade decision remains authoritative.
+
+The existing attended-stop path now supports an explicitly returned, recovery-
+waived, already physically stopped staging allocation that was formerly active.
+It requires durable return authority, an idle failed DRAIN operation, exact
+ownership/inventory, newer fencing, native stopped status and SSH no-running
+proof. It preserves the old failed retirement record and all storage/funding
+history. Compute-only settlement is explicitly NOT successful graceful drain.
+This is not another retirement engine, schema/API or framework change.
+
+159 focused checks PASS, including30 actual PostgreSQL checks using all208
+production migrations; final backend package PASS. Four initial test assertions
+expected the wrong exception class and were corrected to the exact existing
+exception/code; the initial failure log is retained. Hosted rollout/settlement
+is next, not claimed complete. Fresh staging61-sample baseline ends16:12:25 UTC,
+min available12.15GB of16.37GB, peak843.7m CPU, swap excluded. Existing physical
+ceilings and headroom remain unchanged.
+
+Continue normal customer staging apply -> actual Engage stock/policy, sign-in,
+one confirmed action and Basic Inbox -> independent production reindex/promotion
+and app assignment. These remain OPEN. UI extraction stays LAST. Evidence root:
+`/private/tmp/01044-journey-0837-20261022/returned-stop-qualification` and
+`journey-0838/staging-after-returned-stop.actual.json`.
+
 ### 2026-10-22 15:26 UTC Fresh Customer Preflight Ready, No Hosted Acceptance Claim
 
 Both control planes verify d8da08aed/schema208/UP/image19a4d1f6 with27 protected
