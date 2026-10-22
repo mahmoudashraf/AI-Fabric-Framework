@@ -1,5 +1,20 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 14:42 UTC Customer Journey, Bounded Drain Recovery
+
+Both CPs now833c491/schema208/UP. Exact rollout reconciliation proves only the
+expected old37 reservation revision5->6/CLAIMED->HANDED_OFF transition; full
+capacity/funding/history retained. Drain failed unknown before any runtime
+command, proven by ACTIVE/fence0/zero command receipts. Supported retry failed
+closed409 without recovery proof. A narrow correction allows only authenticated
+exact unbound ACTIVE readback to resume the existing idempotent BEGIN_DRAIN;
+foreign/unknown authority and other steps remain closed. Late applied drain is
+read back, not reissued. Secret-free error class/location diagnostics added.
+Final focused40-check package PASS/zero skips, including H2 persistence; no new
+realPG/framework/runtime/schema/UI claim. Publish/rollout next. Hosted38 journey
+and production switch remain open. No new AI/business write, vector transfer or
+business DB. Finish actual customer journey first, UI extraction LAST.
+
 ## 2026-10-22 13:55 UTC Exact Caller Integration Qualified
 
 Both CPs verify21ed587ce/schema208/UP. The explicit old37 index review was

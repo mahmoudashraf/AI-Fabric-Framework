@@ -78,6 +78,14 @@ public class RuntimeDrainTargetRetirementParticipant implements TargetRetirement
         throw new TargetRetirementFailure("RUNTIME_DRAIN_STEP_UNSUPPORTED");
     }
 
+    @Override
+    public boolean recoverySafe(Context context, Step step, String effectKey) {
+        if (step != Step.DRAIN) return false;
+        // An exact unbound ACTIVE readback permits the same fenced, idempotent BEGIN_DRAIN.
+        // The gateway rejects foreign bindings; a late command is reconciled before any reissue.
+        return runtime.status(context).state() == RuntimeGenerationTransitionContracts.State.ACTIVE;
+    }
+
     private Evidence evidence(Context context, String reference, boolean complete, boolean ingressBlocked,
                               boolean inventoryComplete, Long conversations, Long confirmations,
                               Long humanWork, Long backgroundWork, List<String> blockers) {

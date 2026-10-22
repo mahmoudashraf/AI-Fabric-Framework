@@ -86,4 +86,24 @@ class ProductionTargetRetirementInterlockTest {
         assertThat(evidence.resumeSafe()).isFalse();
         verifyNoInteractions(resources);
     }
+
+    @Test void fencedActiveDrainCanResumeOnlyWithExplicitParticipantRecoveryProof() {
+        String effect = "operation:2:DRAIN:target";
+        operation.setInFlightEffect(effect);
+        var drain = mock(TargetRetirementParticipant.class);
+        when(drain.kind()).thenReturn(ParticipantKind.RUNTIME_DRAIN);
+        when(drain.readback(context, Step.DRAIN, effect))
+            .thenReturn(new EffectResult(false, "runtime:active", Instant.now()));
+        when(drain.recoverySafe(context, Step.DRAIN, effect)).thenReturn(true);
+        var participants = new TargetRetirementParticipation(List.of(drain), List.of(interlock));
+        when(participation.getObject()).thenReturn(participants);
+        var evidence = interlock.recover(context, "old-worker", effect);
+        assertThat(evidence.workerFenced()).isTrue();
+        assertThat(evidence.remoteOutcomeSettled()).isFalse();
+        assertThat(evidence.resumeSafe()).isTrue();
+
+        when(drain.recoverySafe(context, Step.DRAIN, effect)).thenReturn(false);
+        assertThat(interlock.recover(context, "old-worker", effect).resumeSafe()).isFalse();
+        verifyNoInteractions(resources);
+    }
 }

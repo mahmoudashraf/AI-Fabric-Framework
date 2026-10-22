@@ -13,6 +13,7 @@ import static com.ai.fabric.platform.backend.deployment.retirement.TargetRetirem
 @Service
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 public class TargetRetirementWorker {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TargetRetirementWorker.class);
     private final TargetRetirementStore store;
     private final TargetRetirementParticipation participation;
     private final TargetRetirementProviderResources resources;
@@ -39,6 +40,11 @@ public class TargetRetirementWorker {
             store.failure(context, ex.code(), false);
         } catch (RuntimeException ex) {
             // Provider payloads/errors can contain credentials. Persist bounded codes and readback refs only.
+            var location = java.util.Arrays.stream(ex.getStackTrace())
+                .filter(frame -> frame.getClassName().startsWith("com.ai.fabric.platform.backend."))
+                .findFirst().map(frame -> frame.getClassName() + ":" + frame.getLineNumber()).orElse("external");
+            log.warn("Retirement effect remains unproven: operation={} type={} location={}",
+                operationId, ex.getClass().getName(), location);
             store.failure(context, "REMOTE_OUTCOME_UNKNOWN", true);
         }
     }

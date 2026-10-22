@@ -6,6 +6,26 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 14:42 UTC Exact Staging Return Recovery, Journey Still Open
+
+Both control planes now833c491/schema208/UP. The admitted old37 return advanced
+CLAIMED->HANDED_OFF without releasing compute or changing financial history.
+Production rollout is verified with that explicit expected row-level delta,
+not an unchanged-capacity-table claim. Runtime readback remains ACTIVE/fence0,
+zero command receipts; normal retry refused without recovery evidence.
+
+Narrow correction permits only exact authenticated unbound ACTIVE readback to
+resume the existing idempotent BEGIN_DRAIN under existing fences. Foreign or
+unknown authority and other steps remain blocked; late applied drain is read
+back without another command. Secret-free exception class/location diagnostics
+identify future unproven effects without exposing payloads. Final40 focused
+checks/package PASS, zero skips; persistence here is H2, not a realPG claim.
+Backend rollout next. No new framework release, schema, runtime or UI change.
+
+Fresh38 customer runtime, live stock/policies/sign-in/action/handover and
+independent production promotion/app switch remain OPEN. No new AI/business
+write. User journey is the sole target; UI extraction LAST, other edges deferred.
+
 ### 2026-10-22 13:55 UTC Caller And Settlement Contract Qualified
 
 Both CPs now21ed587ce/schema208/UP. Old37's explicit index preservation review
