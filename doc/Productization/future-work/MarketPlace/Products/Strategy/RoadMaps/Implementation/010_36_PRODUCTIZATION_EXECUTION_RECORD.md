@@ -6,6 +6,49 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 19:06 UTC Final Basic-Journey Corrections And Honest Acceptance State
+
+The owner reaffirmed the real customer journey as the only acceptance target.
+UI extraction remains last. No full journey, successful external receipt, Inbox
+operator reply, production promotion or app switch is claimed yet.
+
+The earlier browser-r3 compound-answer description was too optimistic: inventory
+was returned but approved policy evidence was not. Native Milvus gRPC reproduced
+the provider's actual metadata LIKE expression parse error for PUBLIC_APPROVED.
+The framework correction escapes the pattern and its string literal separately,
+preserving the complete ownership filter. A read-only real-provider canary returns
+all three owned policies; wrong tenant and deployment each return zero. There is
+no semantic keyword decision, filter removal or hidden fallback.
+
+Framework0.8.41 is published to Maven Central (workflow39833637674 successful),
+with191 focused framework and64 runtime checks passing, including4 real runtime
+PostgreSQL cases. The inherited caller-identity change previously passed1,411
+checks across all affected modules. A fresh empty-cache Central-only runtime
+consumer build is running; source and hosted deployment qualification are not
+yet claimed. The final Platform default/manifest/test references are41. The
+generic late-history guard and complete Inbox variable-generation guard remain
+in local task commits pending one combined source push/rollout.
+
+Old38 was normally disabled/returned and its five AI-owned services stopped.
+Existing attended-stop settlement verified compute stopped with storage retained,
+not graceful drain. Its failed retirement/audit/storage/funding history remains.
+Corrected immutable template1.6.0 and PG Inbox spec are published. A fresh measured
+admission policy is valid until20:12:38UTC without hardware, funding or headroom
+increases. No41 customer deployment has been created yet. Both control planes
+still run5ee5681/schema208. Customer inventory/business storage remains external;
+customer S3 is read-only; production will independently index, not copy vectors.
+
+At19:08UTC the empty-cache runtime consumer qualification passed253 checks with
+zero failures/errors/skips and at least11 actual PostgreSQL cases. All20 embedded
+framework41 JARs byte-match the Central-only resolved artifacts. The source-frozen
+proof is `/private/tmp/01044-combined-runtime-0841-20261022/qualification.actual.json`.
+This is local consumer qualification, not hosted journey acceptance.
+
+Next: finish Central-only proof, publish/roll out one combined fix, then execute
+the normal customer staging/action/Inbox journey and independent production
+promotion/app assignment. Recorded noncritical cold-sync readiness, placeholder
+validation and broad-query quality gaps remain deferred, not silently green.
+
 ### 2026-10-22 18:13 UTC Basic Journey Exposes History And Inbox Wiring Gaps
 
 No full acceptance or production switch is claimed. The current staging38 app

@@ -112,7 +112,7 @@ class ExistingVectorBindingMigrationPostgresTest {
         Path runtimeManifest = Path.of(System.getProperty("basedir", "."))
             .resolve("../../ai-infrastructure-module/ai-fabric-runtime/src/main/resources/META-INF/loomai/runtime-capabilities.json");
         var actual = mapper.readTree(Files.readString(runtimeManifest));
-        assertThat(actual.path("aiFabricVersion").asText()).isEqualTo("0.8.40");
+        assertThat(actual.path("aiFabricVersion").asText()).isEqualTo("0.8.41");
         var behaviors = new com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService(mapper);
         var manifests = new DeploymentSourceCapabilityManifestService(mapper);
         ObjectNode behavior = (ObjectNode) behaviors.defaultConfig("CONVERSATIONAL");
