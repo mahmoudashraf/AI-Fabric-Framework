@@ -52,6 +52,25 @@ class CustomerStagingLifecycleControllerTest {
             .with(authentication(customer))).andExpect(status().isBadRequest());
     }
 
+    @Test
+    void returnEndpointIsCustomerOnlyAndDoesNotAcceptScopeOrProviderOverrides() throws Exception {
+        var mvc = webAppContextSetup(context).apply(springSecurity()).build();
+        String route = "/api/customer-self-service/catalogue/offer/deployments/deployment/staging-lifecycle/returns";
+        String body = "{\"allocationId\":\"allocation\",\"expectedRevision\":1,"
+            + "\"operationKey\":\"return\",\"reason\":\"Return preview\",\"acknowledgement\":\""
+            + CustomerStagingReturnContracts.ACKNOWLEDGEMENT + "\"}";
+        for (var role : List.of(PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT)) {
+            mvc.perform(post(route).contentType("application/json").content(body).with(authentication(new UsernamePasswordAuthenticationToken(
+                new PlatformPrincipal("staff", role, "Staff", "SESSION"), null, List.of(new SimpleGrantedAuthority(role.authority()))))))
+                .andExpect(status().isForbidden());
+        }
+        var customer = new UsernamePasswordAuthenticationToken(new PlatformPrincipal("owner", PlatformRole.CUSTOMER_ADMIN, "Owner", "SESSION"),
+            null, List.of(new SimpleGrantedAuthority(PlatformRole.CUSTOMER_ADMIN.authority())));
+        mvc.perform(post(route).contentType("application/json").content(body).with(authentication(customer))).andExpect(status().isOk());
+        mvc.perform(post(route).contentType("application/json").content(body.substring(0, body.length() - 1) + ",\"tenantId\":\"foreign\"}")
+            .with(authentication(customer))).andExpect(status().isBadRequest());
+    }
+
     @org.springframework.boot.test.context.TestConfiguration
     @EnableWebMvc @EnableWebSecurity @EnableMethodSecurity
     static class Config {

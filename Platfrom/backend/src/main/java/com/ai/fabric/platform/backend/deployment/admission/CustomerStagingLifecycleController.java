@@ -22,4 +22,10 @@ public class CustomerStagingLifecycleController {
     public Summary extend(@PathVariable String offerId, @PathVariable String deploymentId, @RequestBody JsonNode body) {
         return service.extend(offerId, deploymentId, codec.read(codec.write(body), ExtensionRequest.class));
     }
+
+    @PostMapping("/returns")
+    public Summary returnStaging(@PathVariable String offerId, @PathVariable String deploymentId, @RequestBody JsonNode body) {
+        return service.returnStaging(offerId, deploymentId,
+            codec.read(codec.write(body), CustomerStagingReturnContracts.Request.class));
+    }
 }

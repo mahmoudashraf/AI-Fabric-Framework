@@ -1921,6 +1921,134 @@ class AdmissionStore {
             return save(r, m, "NOTICE_DELIVERY_RESOLVED", required(actor, 255), now);
         });
     }
+    Reservation requestCustomerStagingReturn(String customerId, String offerId, String deploymentId,
+        CustomerStagingReturnContracts.Request request, String actor, java.util.function.Consumer<Reservation> authorize) {
+        required(customerId, 64); required(offerId, 64); required(deploymentId, 64); required(actor, 255);
+        if (request == null || request.expectedRevision() < 0
+            || !CustomerStagingReturnContracts.ACKNOWLEDGEMENT.equals(request.acknowledgement())
+            || request.recoveryWindowAcknowledgement() != null
+                && !CustomerStagingReturnContracts.RECOVERY_WAIVER.equals(request.recoveryWindowAcknowledgement()))
+            throw new AdmissionFailure(BAD_REQUEST, "STAGING_RETURN_ACKNOWLEDGEMENT_REQUIRED");
+        required(request.allocationId(), 64);
+        required(request.operationKey(), 128); required(request.reason(), 500);
+        String fingerprint = json.fingerprint(Map.of("customerId", customerId, "offerId", offerId,
+            "deploymentId", deploymentId, "actor", actor, "request", request));
+        try {
+            return transaction.execute(tx -> {
+                // Apply and target mutations own the deployment first; never wait for an active worker.
+                var owners = jdbc.queryForList("SELECT * FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", deploymentId);
+                if (owners.size() != 1) throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                jdbc.queryForObject("SELECT id FROM deployment_admission_mutex WHERE id=1 FOR UPDATE NOWAIT", Integer.class);
+                Reservation r = require(request.allocationId());
+                var owner = owners.getFirst();
+                if (!customerId.equals(r.customerId()) || !deploymentId.equals(r.deploymentId())
+                    || !customerId.equals(owner.get("customer_id")) || !r.tenantId().equals(owner.get("tenant_id"))
+                    || owner.get("archived_at") != null)
+                    throw new AdmissionFailure(NOT_FOUND, "RESERVATION_NOT_FOUND");
+                authorize.accept(r);
+                String key = customerReturnKey(r);
+                if (!jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='STAGING_RETURN' AND record_key=?",
+                    String.class, key).isEmpty()) {
+                    var receipt = verifiedReview("STAGING_RETURN", key, CustomerStagingReturnContracts.Receipt.class);
+                    if (!fingerprint.equals(receipt.commandFingerprint()))
+                        throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_OPERATION_REUSED");
+                    return receipt.claimed();
+                }
+                r = fenced(new Fence(r.id(), request.expectedRevision(), r.generation()));
+                Instant now = clock.instant();
+                if (r.intent() != Intent.CUSTOMER_STAGING || r.state() != State.ACTIVE
+                    || r.expiryState() != ExpiryState.CURRENT || r.workerToken() != null
+                    || r.retirementOperationId() != null || r.failureCode() != null || r.retentionSettlement() != null
+                    || r.expiresAt() == null || !r.expiresAt().isAfter(now))
+                    throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_NOT_ELIGIBLE");
+                long epoch = customerReturnTargetEpoch(r, owner);
+                LifecyclePolicy policy = reviewed("POLICY", r.policyId(), FleetPolicy.class).lifecycle();
+                Mutation mutation = new Mutation(r);
+                mutation.expiryState = ExpiryState.CLAIMED; mutation.worker = uuid(); mutation.nextRetry = null;
+                mutation.drainDeadline = now.plusSeconds(policy.drainSeconds());
+                mutation.recoveryUntil = mutation.drainDeadline.plusSeconds(policy.recoverySeconds());
+                Reservation claimed = save(r, mutation, "CUSTOMER_STAGING_RETURN_REQUESTED", actor, now);
+                review("STAGING_RETURN", key, new CustomerStagingReturnContracts.Receipt(fingerprint, request,
+                    actor, offerId, epoch, r, claimed), actor, now);
+                return claimed;
+            });
+        } catch (org.springframework.dao.DataAccessException busy) {
+            throw unusedCancellationLockFailure(busy, "STAGING_RETURN_BUSY");
+        }
+    }
+
+    private long customerReturnTargetEpoch(Reservation r, Map<String, Object> deployment) {
+        Manifest manifest = reviewed("MANIFEST", r.manifestId(), Manifest.class);
+        String releaseId = currentReleaseId(r);
+        var binding = releaseId == null ? null : releaseBinding(releaseId);
+        if (binding == null || !"ACTIVE".equals(binding.state()) || !r.id().equals(binding.reservationId())
+            || !r.generation().equals(binding.generation()) || !r.customerId().equals(binding.customerId())
+            || !r.tenantId().equals(binding.tenantId()) || !r.deploymentId().equals(binding.deploymentId())
+            || !r.targetProfileId().equals(binding.targetProfileId()) || !manifest.versionId().equals(binding.versionId())
+            || !manifest.versionConfigHash().equals(binding.versionConfigHash())
+            || !manifest.versionId().equals(deployment.get("active_version_id")))
+            throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_ACTIVE_RELEASE_REQUIRED");
+        var releases = jdbc.queryForList("""
+            SELECT * FROM platform_deployment_releases WHERE deployment_id=?
+             AND (target_profile_id=? OR target_profile_id IS NULL) ORDER BY id FOR UPDATE NOWAIT
+            """, r.deploymentId(), r.targetProfileId());
+        boolean current = false;
+        for (var release : releases) {
+            if (releaseId.equals(release.get("id"))) current = "APPLIED_VERIFIED".equals(release.get("status"))
+                && "PASSED".equals(release.get("verification_status")) && "ACTIVE".equals(release.get("provisioning_status"))
+                && manifest.versionId().equals(release.get("deployment_version_id"));
+            else if (!List.of("APPLIED_VERIFIED", "FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_FAILED",
+                "APPLIED_VERIFICATION_BLOCKED").contains(release.get("status")))
+                throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_WORKER_ACTIVE");
+        }
+        if (!current || jdbc.queryForObject("""
+            SELECT COUNT(*) FROM deployment_admission_release_bindings WHERE deployment_id=? AND target_profile_id=?
+             AND state NOT IN ('ACTIVE','SUPERSEDED','NO_EFFECT')
+            """, Long.class, r.deploymentId(), r.targetProfileId()) != 0)
+            throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_WORKER_ACTIVE");
+        var graphs = jdbc.queryForList("""
+            SELECT * FROM deployment_managed_dependency_graphs WHERE deployment_id=? AND target_profile_id=?
+             ORDER BY id FOR UPDATE NOWAIT
+            """, r.deploymentId(), r.targetProfileId());
+        if (graphs.stream().anyMatch(graph -> graph.get("worker_token") != null || !"READY".equals(graph.get("status"))
+            || !r.customerId().equals(graph.get("customer_id")) || !r.tenantId().equals(graph.get("tenant_id"))))
+            throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_WORKER_ACTIVE");
+        var gates = jdbc.queryForList("""
+            SELECT epoch,state FROM platform_target_retirement_gates WHERE deployment_id=? AND target_profile_id=? FOR UPDATE NOWAIT
+            """, r.deploymentId(), r.targetProfileId());
+        if (gates.size() != 1 || !"AVAILABLE".equals(gates.getFirst().get("state"))
+            || jdbc.queryForObject("SELECT COUNT(*) FROM platform_target_retirement_operations WHERE deployment_id=? AND target_profile_id=? AND state NOT IN ('COMPLETE','CANCELLED')",
+                Long.class, r.deploymentId(), r.targetProfileId()) != 0
+            || jdbc.queryForObject("SELECT COUNT(*) FROM platform_deployment_deletion_operations WHERE deployment_id=? AND status NOT IN ('COMPLETE','COMPLETED','CANCELLED')",
+                Long.class, r.deploymentId()) != 0)
+            throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_TARGET_FENCED");
+        return ((Number) gates.getFirst().get("epoch")).longValue();
+    }
+
+    CustomerStagingReturnContracts.Receipt customerReturnAuthority(Reservation r) {
+        String key = customerReturnKey(r);
+        if (jdbc.queryForList("SELECT record_key FROM deployment_admission_reviews WHERE kind='STAGING_RETURN' AND record_key=?",
+            String.class, key).isEmpty()) return null;
+        var receipt = verifiedReview("STAGING_RETURN", key, CustomerStagingReturnContracts.Receipt.class);
+        var claimed = receipt.claimed();
+        if (claimed == null || receipt.original() == null
+            || !CustomerStagingReturnContracts.ACKNOWLEDGEMENT.equals(receipt.request().acknowledgement())
+            || !r.id().equals(claimed.id()) || !r.generation().equals(claimed.generation())
+            || !r.customerId().equals(claimed.customerId()) || !r.tenantId().equals(claimed.tenantId())
+            || !r.deploymentId().equals(claimed.deploymentId()) || !r.targetProfileId().equals(claimed.targetProfileId())
+            || !Objects.equals(r.workerToken(), claimed.workerToken()) || claimed.workerToken() == null
+            || r.revision() < claimed.revision() || receipt.original().revision() + 1 != claimed.revision()
+            || !Objects.equals(r.expiresAt(), receipt.original().expiresAt())
+            || !Objects.equals(r.drainDeadline(), claimed.drainDeadline()) || !Objects.equals(r.recoveryUntil(), claimed.recoveryUntil())
+            || !r.manifestFingerprint().equals(claimed.manifestFingerprint()) || !r.bindingFingerprint().equals(claimed.bindingFingerprint()))
+            throw new AdmissionFailure(CONFLICT, "STAGING_RETURN_AUTHORITY_CHANGED");
+        return receipt;
+    }
+
+    private String customerReturnKey(Reservation r) {
+        return json.fingerprint(Map.of("reservation", r.id(), "generation", r.generation()));
+    }
+
     ExpiryWork claimExpiry(Fence fence, String actor, Instant requestedAt) {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
@@ -1944,7 +2072,7 @@ class AdmissionStore {
         if (r.workerToken() == null || r.drainDeadline() == null || r.recoveryUntil() == null)
             throw new AdmissionFailure(CONFLICT, "EXPIRY_NOT_CLAIMED");
         return new ExpiryWork(r.fence(), r.workerToken(), r.noticeCycle(), r.expiresAt(), r.drainDeadline(),
-            r.recoveryUntil(), "STAGING_INACTIVITY_EXPIRED");
+            r.recoveryUntil(), customerReturnAuthority(r) == null ? "STAGING_INACTIVITY_EXPIRED" : "CUSTOMER_STAGING_RETURN_REQUESTED");
     }
     Reservation handoff(ExpiryWork work, String retirementOperationId, String evidence, String actor, Instant now) {
         return locked(() -> {

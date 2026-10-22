@@ -82,6 +82,19 @@ public class CustomerStagingLifecycleService {
         return summary(result, operation);
     }
 
+    public Summary returnStaging(String offerId, String deploymentId, CustomerStagingReturnContracts.Request request) {
+        required(offerId, 64); required(deploymentId, 64);
+        var actor = entitlements.requireCustomerActor();
+        Reservation result = store.requestCustomerStagingReturn(actor.customerId(), offerId, deploymentId,
+            request, actor.userId(), reservation -> authorization.authorize(actor.customerId(),
+                new AuthorizationRequest(offerId, reservation.targetProfileId(), deploymentId, reservation.tenantId(),
+                    store.currentReleaseId(reservation), Operation.TARGET_RETIRE, request.operationKey(),
+                    Set.of(), null, null, null)));
+        return new Summary(result.id(), result.deploymentId(), result.targetProfileId(), TargetIntent.CUSTOMER_STAGING,
+            Operation.TARGET_RETIRE, result.state().name(), result.revision(), result.expiresAt(),
+            result.expiryState().name(), result.keepUntil(), result.occupiesActiveSlot(), result.chargedDemand());
+    }
+
     private Summary summary(Reservation value, Operation operation) {
         return new Summary(value.id(), value.deploymentId(), value.targetProfileId(), TargetIntent.CUSTOMER_STAGING,
             operation, value.state().name(), value.revision(), value.expiresAt(), value.expiryState().name(),

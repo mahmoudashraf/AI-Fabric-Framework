@@ -52,6 +52,7 @@ public final class AdmissionTargetRetirementSystemAuthorizer implements TargetRe
         if (key.size() != 2 || key.get(0).isBlank() || key.get(1).isBlank()) return "RETIREMENT_ACTOR_REVOKED";
         try {
             var reservation = admissions.require(key.get(0));
+            var customerReturn = admissions.customerReturnAuthority(reservation);
             var policy = admissions.reviewed("POLICY", reservation.policyId(),
                 AdmissionContracts.FleetPolicy.class);
             var operation = operations.findById(context.operationId()).orElse(null);
@@ -72,12 +73,14 @@ public final class AdmissionTargetRetirementSystemAuthorizer implements TargetRe
                 && reservation.drainDeadline().equals(context.drainDeadline())
                 && policy.restoreEvidenceReference().equals(context.retention().backupDecisionReference())
                 && reservation.recoveryUntil() != null && reservation.expiresAt() != null
-                && !reservation.expiresAt().isAfter(clock.instant());
+                && (!reservation.expiresAt().isAfter(clock.instant()) || customerReturn != null)
+                && (customerReturn == null || customerReturn.targetEpoch() == context.snapshot().targetEpoch());
             if (!exact) return "RETIREMENT_ACTOR_REVOKED";
             boolean nonDestructive = operation.getState()
                 == com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementContracts.State.PLANNED
                 || operation.getStep() == Step.DRAIN || operation.getStep() == Step.CANCEL_DRAIN;
             return nonDestructive || !clock.instant().isBefore(reservation.recoveryUntil())
+                || customerReturn != null && customerReturn.waivesRecoveryWindow()
                 ? null : "RECOVERY_WINDOW_NOT_ELAPSED";
         } catch (AdmissionFailure failure) {
             return "RETIREMENT_ACTOR_REVOKED";

@@ -6,6 +6,28 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 11:59 UTC Explicit Customer Staging Return Qualified
+
+The eight-file staging-return change passes78 focused checks/package, including
+nine real PostgreSQL cases applying all208 production migrations and the actual
+review-kind length16. Main reviewed the scope/fences/full-hold behavior and
+verified source copies match. It starts the existing retirement lifecycle;
+neither the request nor an optional explicit recovery waiver is evidence that
+drain/deletion happened. Original expiry/history/funding and full holds remain
+until actual lifecycle/readback. No hosted return has occurred.
+
+The original canonical fixture seed failure is retained only as a labeled
+excerpt because its log was overwritten; final78 reports are separate proof.
+A supplemental three-case migration check in the flat copy lacked the real
+monorepo runtime manifest; that full failure is retained and the unchanged check
+is running from the real monorepo. No product/test workaround was introduced.
+
+Runtime38 source `0d04fa633` is pushed; both image CI workflows pass. All530
+published runtime/product files match280 Central-only checks/47actualPG. Immutable
+runtime image inspection continues; it is not registered/deployed yet. Both
+live CPs remainc22/schema208/UP. Batch the qualified return and38 defaults into
+one next backend rollout, then the fresh customer journey. UI extraction LAST.
+
 ### 2026-10-22 11:48 UTC Published Framework And Central-Only Runtime
 
 Framework0.8.38 Central workflow39770400234 succeeded; BOM and all20 required

@@ -1,5 +1,22 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 11:59 UTC Normal Staging Return Qualified
+
+Customer-owned early return now qualifies78 checks/package, nine real PG cases
+through all208 canonical migrations; Main verified all8 changed files and2001
+tracked backend files match the qualified copy. Existing retirement workers
+still require real drain/readback; full holds and original expiry/history stay.
+Explicit recovery waiver does not fabricate cleanup. No hosted return yet.
+Initial fixture failure survives as labeled excerpt, not full overwritten log.
+Supplemental migration check's flat-layout missing-manifest failure is retained;
+the unchanged test runs from the real monorepo, with no workaround.
+
+Runtime38 source0d04fa633/image CIs PASS;280 Central-only checks/47actualPG and530
+source bindings verified. Image inspection ongoing, no hosted adoption. LiveCPs
+stillc22/208/UP; current37app DISABLED, production vector unbound, no newAI/write.
+Separate return commit then one combined backend rollout precede fresh38 normal
+customer setup. Source/business/S3/history stay external/preserved; UI LAST.
+
 ## 2026-10-22 11:48 UTC Framework Publication And Runtime Qualification
 
 Framework38 is published on Central (workflow39770400234 SUCCESS, BOM+20JARs
