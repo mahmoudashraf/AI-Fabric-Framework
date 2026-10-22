@@ -15,87 +15,10 @@ import type { MaxModeMode } from "@/constants";
 import type { AttachedItem, ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
-import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction, normalizeRuntimeDocument } from "@/chatResult";
 import { extractWorkspaceAuthenticationRequirement, dispatchWorkspaceAuthenticationRequirement } from "@/authenticationRequirement";
 import { getWidgetConfig } from "@/config";
 import { resolveChatRequestSemantics } from "@/requestSemantics";
-
-function firstString(...values: unknown[]) {
-  for (const value of values) {
-    if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return undefined;
-}
-
-function objectValue(value: unknown): Record<string, any> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
-}
-
-function normalizeRuntimeDocument(doc: any, idx: number, options?: { entityType?: string; idPrefix?: string }): Document {
-  const metadata = { ...objectValue(doc?.metadata) };
-  let title = firstString(doc?.title, doc?.name, doc?.label, metadata.title, metadata.name);
-  const content = firstString(doc?.content, doc?.contentText, doc?.text, doc?.summary, doc?.snippet, doc?.excerpt);
-
-  if (!title && content) {
-    const parts = content.split(" ");
-    const titleParts = parts
-      .slice(1, 8)
-      .filter(
-        (word: string) =>
-          !word.match(/^[A-Z]+-[A-Z]+-\d+$/) && !word.match(/^\d+\.\d+$/) && word.toLowerCase() !== "usd",
-      );
-    title = titleParts.join(" ") + (parts.length > 8 ? "..." : "");
-  }
-
-  let docType = firstString(doc?.type, metadata.vectorSpace, metadata.classification);
-  const entityType = options?.entityType || "document";
-  if (!docType) {
-    docType = entityType.includes(",") ? entityType.split(",")[0].trim() : entityType;
-  }
-
-  const imageUrl = firstString(
-    doc?.imageUrl,
-    doc?.image,
-    doc?.imageSrc,
-    doc?.featuredImage,
-    metadata.imageUrl,
-    metadata.image_url,
-    metadata.featuredImage,
-    metadata.featured_image,
-    metadata.image,
-  );
-  const imageAltText = firstString(doc?.imageAltText, doc?.altText, metadata.imageAltText, metadata.altText, metadata.image_alt_text);
-  const url = firstString(doc?.url, doc?.link, doc?.storefrontUrl, metadata.url, metadata.link, metadata.storefrontUrl);
-  const storefrontUrl = firstString(doc?.storefrontUrl, metadata.storefrontUrl, url);
-  const handle = firstString(doc?.handle, metadata.handle);
-
-  if (imageUrl && !metadata.imageUrl) metadata.imageUrl = imageUrl;
-  if (imageAltText && !metadata.imageAltText) metadata.imageAltText = imageAltText;
-  if (url && !metadata.url) metadata.url = url;
-  if (storefrontUrl && !metadata.storefrontUrl) metadata.storefrontUrl = storefrontUrl;
-  if (handle && !metadata.handle) metadata.handle = handle;
-
-  return {
-    id: firstString(doc?.id, doc?.sourceId, doc?.url, doc?.link, title) || `${options?.idPrefix || "doc"}-${idx}`,
-    title: title || `Document ${idx + 1}`,
-    content: content || "No content available",
-    type: docType || "document",
-    metadata,
-    imageUrl,
-    imageAltText,
-    url,
-    storefrontUrl,
-    handle,
-    product_variant_id: firstString(doc?.product_variant_id, metadata.product_variant_id, metadata.variantId, metadata.variant_id),
-    firstAvailableVariantTitle: firstString(doc?.firstAvailableVariantTitle, metadata.firstAvailableVariantTitle),
-    priceRange: firstString(doc?.priceRange, metadata.priceRange, metadata.price, metadata.amount),
-    availability: firstString(doc?.availability, metadata.availability, metadata.status),
-    score: typeof doc?.score === "number" ? doc.score : typeof metadata.score === "number" ? metadata.score : undefined,
-    similarity: typeof doc?.similarity === "number" ? doc.similarity : typeof metadata.similarity === "number" ? metadata.similarity : undefined,
-  };
-}
 
 export function useChatFlow({
   chatQuery,
@@ -294,21 +217,8 @@ export function useChatFlow({
           }
 
           if (resultType === "INFORMATION_PROVIDED" || resultType === "COMPOUND_HANDLED") {
-            const rawDocs =
-              data.sources ||
-              data.ragResponse?.documents ||
-              data.documents ||
-              data.result?.data?.documents ||
-              data.result?.data?.ragResponse?.documents ||
-              resultData.documents ||
-              resultData.ragResponse?.documents ||
-              [];
-
-            const entityType =
-              data.ragResponse?.entityType || data.result?.data?.ragResponse?.entityType || resultData.ragResponse?.entityType || "document";
-
-            if (rawDocs.length > 0) {
-              messageDocs = rawDocs.map((doc: any, idx: number) => normalizeRuntimeDocument(doc, idx, { entityType }));
+            if (resultData.documents?.length > 0) {
+              messageDocs = resultData.documents;
             }
           }
 
