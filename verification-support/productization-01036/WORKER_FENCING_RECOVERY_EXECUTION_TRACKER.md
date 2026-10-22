@@ -7,6 +7,39 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+### 22 October 01:32 UTC: Image Published, Staging Candidate Registered
+
+Product commit `b12d347d93d9f59e330a25654265aca74c83efc2` is pushed. Runtime
+CI39704281217 and backend CI39704281219 pass, UI skipped. Actual runtime image
+`sha256:d365cb9938a6df8600d6ed1150e0863922cc13896a36403da80e695d2df51675`
+matches all20 Central37 framework JARs and14 qualified changed classes. Inspection
+used a network-disabled unstarted local container, then removed it. Artifact
+`dsa-70fb8184` is registered/STAGING-approved through the normal production-CP
+catalogue API, not deployed or assigned. Registration/promotion intents are consumed.
+Root `/private/tmp/01044-combined-runtime-0837-20261022` contains exact image,
+source538-file binding,219 runtime/provider and120 backend qualification, plus47
+additional admission/artifact/migration checks (3 actualPG). The additional gate's
+one stale CURRENT-manifest assertion was corrected to37; historical migration
+assertions/rows remain unchanged and the failed report is retained.
+
+Main now has an authoritative read-only old-slot capture at
+`/private/tmp/01044-old-slot-cold-terminal-review-20261022`. Its five native AI
+resources are healthy and owned: runtime, connector, runtime PostgreSQL, Inbox,
+Inbox PostgreSQL. No customer business database or simulator belongs to this
+cleanup scope. The app is DRAFT, graphREADY43/no graphworker, reservation32 is
+OUTCOME_UNKNOWN/expiryCLAIMED, and no retirement operation exists. The old repair
+claim's fence and worker both differ from the current reservation; its deadline
+is past and a verified receipt exists. Do not rewrite that immutable history or
+mistake it for a currently authorized writer. External S3/vector bindings remain
+preserved. Nothing has been stopped/deleted or financially/capacity-settled.
+
+One bounded sidecar is preparing pure frozen-review validation/tests only, while
+Main owns capture, journal/execution integration and hosted work. This is NOT yet
+an exposed cleanup operation or proof of safe retirement. Already-expired claimed
+reservations are expected; a new bounded review and explicit recovery-window/
+AI-state-loss acknowledgement are separate. The requirements below still apply.
+Replacement and hosted acceptance remain open; UI extraction stays LAST.
+
 ### 22 October 01:12 UTC: Combined Runtime Qualified From Central
 
 Framework0.8.37 is published on Central; release workflow39701585250 SUCCESS.
