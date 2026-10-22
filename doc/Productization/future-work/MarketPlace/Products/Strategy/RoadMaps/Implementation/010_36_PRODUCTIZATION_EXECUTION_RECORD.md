@@ -6,6 +6,61 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 11:10 UTC Real Staging Deployed, Browser Acceptance Still Open
+
+The production customer's staging release `rel-3cdb8a2a` for `dep-d0fdcad7`
+is APPLIED_VERIFIED/PASSED. All three S3 policy sources are ACTIVEv1, external
+simulator stock is synchronized, and the Basic Inbox is READY. The Engage domain,
+consumer assignment and first activation passed. These are provisioning proofs,
+not completed customer acceptance. No customer inventory database was created.
+
+The first actual stock-plus-policy browser query failed: the model invented an
+unsupported policy action, and strict semantic recovery correctly rejected it.
+One real AI ingress was used; no business write occurred. A generic compiler
+projection now describes enabled knowledge sources and complete structured intent
+obligations in managed prompts without matching query text or adding fallbacks.
+It preserves customer guidance/raw drafts and immutable publication provenance.
+105 focused tests and package pass, including H2 publication persistence; no
+schema change or PostgreSQL verification claim. Publication/rollout is next.
+
+A separate canonical anonymous-auth boundary is being reproduced and qualified
+before testing a protected action. The Engage app was disabled through the normal
+owner API after fresh placement verification; its initial stale-placement409 is
+preserved. Do not reopen or claim signed-in-action isolation until this passes.
+Documents, deployment and Inbox remain intact. Clean framework37 worktree only;
+the user's unrelated primary-framework changes are untouched.
+
+The fresh production capacity sample ended11:03:37; the existing stage sample
+ended10:19. Refresh the normal expired fleet policy before admission, preserving
+all three reservations, retained storage and financial/physical limits. Production
+vector approval remains separate/pending. No vector transfer. Continue the basic
+browser journey, then independent production promotion/app switch; UI extraction
+remains LAST. Private evidence: `/private/tmp/01044-journey-0837-20261022`.
+
+### 2026-10-22 10:17 UTC Actual Compute Stop And Fresh Vector
+
+Both control planes verify15c5b0701/schema208/UP. The reviewed failed-pilot stop
+now has a successful normal Platform receipt: all five services stopped and
+compute released; storage/history remain, explicitly NOT drained or deleted.
+The restricted host adapter gained only running-container metadata, a subset of
+its existing all-container authority; no shell/data/deletion privileges changed.
+
+The real customer's latest published version is `ver-bfb3a31f`, including the
+Engage origin and Supabase issuer projected after app creation. Its deployment
+is `dep-d0fdcad7`; the Engage app is still DRAFT. Disposable old Free01 was
+replaced with fresh FREE `in03-135dad5ac76a80e`, same project/region, no running
+references, no source/S3/history changes or vector transfer. Production's exact
+Serverless replacement decision remains pending; staging proceeds independently.
+
+For conservative physical capacity, only the older f023 runtime/connector/Inbox
+applications were temporarily stopped, retaining their databases and all ledger
+charges. A new five-minute sample follows; the first sample is preserved. Swap
+is reported, not counted as capacity. No physical/funding ceiling or headroom is
+weakened to admit a candidate. Ordinary staging apply and hosted inventory,
+policies, action-time sign-in, action receipt and human handover are next. These
+and independent production promotion/app switch are NOT yet accepted. UI
+extraction remains LAST. Receipt root unchanged.
+
 ### 2026-10-22 09:43 UTC Corrected Setup And Canonical Schema Check
 
 The live stop review caught another real defect before native effects: internal

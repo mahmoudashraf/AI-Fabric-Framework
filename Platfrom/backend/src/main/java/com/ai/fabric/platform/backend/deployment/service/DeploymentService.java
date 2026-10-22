@@ -1454,7 +1454,7 @@ public class DeploymentService {
         version.setRoutingConfigJson(draft.getRoutingConfigJson());
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
-        version.setPromptConfigJson(draft.getPromptConfigJson());
+        version.setPromptConfigJson(compiled.promptArtifactJson());
         version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         version.setShellConfigJson(draft.getShellConfigJson());
         version.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());

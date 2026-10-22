@@ -1,5 +1,51 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 11:10 UTC Hosted Staging And First Browser Failure
+
+Current dep-d0fdcad7/ver-bfb3a31f/rel-3cdb8a2a is APPLIED_VERIFIED/PASSED.
+External stock sync, three ACTIVE S3 policy sources and READY Basic Inbox are
+real hosted results. Engage domain/assignment/activation passed, but browser
+acceptance did not: the first compound query invented an unsupported policy
+action and failed closed. One AI ingress, zero business writes. The failed run
+is retained, not replaced with a green report.
+
+Generic compiled knowledge-catalogue/structured-intent guidance qualifies105
+focused tests and package, no schema change. It exposes only source descriptions,
+not filters/handles/secrets, and preserves raw drafts and LLM semantic decisions.
+Publication/rollout is next. A separate canonical anonymous-principal auth concern
+is under bounded framework37 reproduction; no live protected write probe. The
+Engage app is now DISABLED through the owner API, retaining its deployment/data.
+First stale-placement409 and successful distinct-r2 receipts are both retained.
+
+No dealership business/inventory DB, S3 write or vector transfer. Three current
+reservations/retained storage stay charged. Fresh production baseline ended11:03;
+normal policy refresh is needed before the next admission. Production vector
+approval remains pending. UI extraction LAST; real customer browser journey and
+independent production promotion/app switch are still required.
+
+## 2026-10-22 10:17 UTC Basic Journey Prerequisites Advanced
+
+Both CPs verify15c5b0701/schema208/UP. Failed pilot dep7438 has a normal
+COMPUTE_STOPPED_STORAGE_RETAINED_NOT_DRAINED receipt after all five native
+services stopped; reservation34/RETAINED_EXTERNAL/SETTLED_RETAINED, storage and
+financial history preserved. The bounded running-only host metadata correction
+is verified without expanding shell/data/deletion authority.
+
+Current real customer uses dep-d0fdcad7/ten-64668d99 and latest ver-bfb3a31f
+with app origin/Supabase issuer, normal external source/action bindings and
+customer-owned S3. No dealership inventory/business database was created.
+Fresh free vector in03-135dad5ac76a80e replaces disposable old Free01 after
+both-host no-running-reference proof; production Serverless is unchanged.
+Independent source indexing, not vector transfer, remains the contract.
+
+Only the older f023 demo runtime/connector/Inbox apps were paused for physical
+capacity; databases and ledger charges remain. Fresh stage sampling and normal
+admission/apply continue. DRAFT Engage app is not hosted acceptance. Exact
+production vector decision is pending separately; no broad lifecycle/recovery
+expansion is required. Hosted inventory/policy, sign-in/protected action and
+handover, then production promotion/app switch, remain the critical path.
+UI extraction LAST. Private receipts: root01044-journey-0837-20261022.
+
 ## 2026-10-22 08:22 UTC Actual Customer Journey Advanced
 
 Production customer UI acceptance passes sign-in, new dealership offer acceptance/
