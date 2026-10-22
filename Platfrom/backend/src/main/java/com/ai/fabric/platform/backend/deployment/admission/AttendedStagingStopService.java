@@ -149,7 +149,7 @@ public class AttendedStagingStopService {
         Plan plan = requirePlan(reservationId, planId, command);
         var prior = optionalReceipt(planId);
         if (prior != null) return summary(plan, prior.claim(), prior);
-        Claim claim = store.reviewed("ATTENDED_STOP_CLAIM", planId, Claim.class);
+        Claim claim = store.reviewed("AST_CLAIM", planId, Claim.class);
         if (!claim.actorId().equals(actor()) || !claim.planFingerprint().equals(json.fingerprint(plan)))
             throw failure(CONFLICT, "ATTENDED_STOP_COMMAND_CHANGED");
         recheckRemote(plan, true);
@@ -169,14 +169,14 @@ public class AttendedStagingStopService {
 
     private Plan requirePlan(String reservationId, String id, Command command) {
         String actor = actor();
-        var plan = store.reviewed("ATTENDED_STOP_PLAN", id, Plan.class);
+        var plan = store.reviewed("AST_PLAN", id, Plan.class);
         if (!actor.equals(plan.actorId()) || !reservationId.equals(plan.review().expectation().fence().reservationId())
             || command == null || !json.fingerprint(plan).equals(command.fingerprint()))
             throw failure(CONFLICT, "ATTENDED_STOP_COMMAND_CHANGED");
         return plan;
     }
     private Receipt optionalReceipt(String id) {
-        var rows = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='ATTENDED_STOP_RECEIPT' AND record_key=?", String.class, id);
+        var rows = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='AST_RECEIPT' AND record_key=?", String.class, id);
         return rows.isEmpty() ? null : json.read(rows.getFirst(), Receipt.class);
     }
     private Summary summary(Plan plan, Claim claim, Receipt receipt) {

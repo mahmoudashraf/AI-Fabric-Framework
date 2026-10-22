@@ -61,20 +61,11 @@ class AttendedStagingStopPostgresTest extends AdmissionFixture {
             DATABASE.getUsername(), DATABASE.getPassword());
         mapper = new ObjectMapper().registerModule(new JavaTimeModule());
         json = new AdmissionJson(mapper);
-        new ResourceDatabasePopulator(
-            new ClassPathResource("db/test-migration/V120_13__durable_capacity_admission_and_staging_expiry_test.sql"),
-            new ClassPathResource("db/test-migration/V120_22_2__admission_allocation_authorizations_test.sql"))
-            .execute(dataSource);
+        org.flywaydb.core.Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         jdbc = new JdbcTemplate(dataSource);
-        // Only the retained-state and review-kind schema deltas used by these store methods.
-        jdbc.execute("ALTER TABLE deployment_admission_reviews ALTER COLUMN kind TYPE VARCHAR(32)");
-        jdbc.execute("ALTER TABLE deployment_capacity_reservations DROP CONSTRAINT deployment_capacity_reservations_state_check");
-        jdbc.execute("ALTER TABLE deployment_capacity_reservations ADD CONSTRAINT ck_admission_capacity_state "
-            + "CHECK (state IN ('RESERVED','PROVISIONING','ACTIVE','OUTCOME_UNKNOWN','CLEANUP_FAILED','RELEASED','RETAINED_EXTERNAL'))");
-        jdbc.execute("ALTER TABLE deployment_capacity_reservations DROP CONSTRAINT ck_admission_slot");
-        jdbc.execute("ALTER TABLE deployment_capacity_reservations ADD CONSTRAINT ck_admission_slot "
-            + "CHECK ((state IN ('RELEASED','RETAINED_EXTERNAL') AND current_slot IS NULL) "
-            + "OR (state NOT IN ('RELEASED','RETAINED_EXTERNAL') AND current_slot IS NOT NULL))");
+        assertThat(jdbc.queryForObject("SELECT character_maximum_length FROM information_schema.columns "
+            + "WHERE table_schema=current_schema() AND table_name='deployment_admission_reviews' AND column_name='kind'",
+            Integer.class)).isEqualTo(16);
         store = new AdmissionStore(jdbc, json, new DataSourceTransactionManager(dataSource), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -106,8 +97,8 @@ class AttendedStagingStopPostgresTest extends AdmissionFixture {
         })).isEqualTo(claim);
         assertThat(fenceClaims).hasValue(1);
         assertThat(store.require(original.id())).isEqualTo(claimed);
-        assertThat(store.reviewed("ATTENDED_STOP_PLAN", plan.id(), Plan.class)).isEqualTo(plan);
-        assertThat(store.reviewed("ATTENDED_STOP_CLAIM", plan.id(), Claim.class)).isEqualTo(claim);
+        assertThat(store.reviewed("AST_PLAN", plan.id(), Plan.class)).isEqualTo(plan);
+        assertThat(store.reviewed("AST_CLAIM", plan.id(), Claim.class)).isEqualTo(claim);
     }
 
     @Test void claimRevalidatesFreezeEligibilityInsteadOfTrustingAPayload() {
@@ -193,9 +184,9 @@ class AttendedStagingStopPostgresTest extends AdmissionFixture {
             }
             assertThat(after).isEqualTo(expected);
         }
-        assertThat(store.reviewed("ATTENDED_STOP_PLAN", plan.id(), Plan.class).review().capture().reservation())
+        assertThat(store.reviewed("AST_PLAN", plan.id(), Plan.class).review().capture().reservation())
             .isEqualTo(original);
-        assertThat(store.reviewed("ATTENDED_STOP_RECEIPT", plan.id(), Receipt.class)).isEqualTo(receipt);
+        assertThat(store.reviewed("AST_RECEIPT", plan.id(), Receipt.class)).isEqualTo(receipt);
         assertThat(jdbc.queryForList("SELECT event_type FROM deployment_admission_events ORDER BY revision", String.class))
             .containsExactly("FAILED_PILOT_CAPTURED", "ATTENDED_STOP_CLAIMED_NOT_DRAINED",
                 "COMPUTE_STOPPED_STORAGE_RETAINED_NOT_DRAINED");

@@ -6,6 +6,36 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 09:43 UTC Corrected Setup And Canonical Schema Check
+
+The live stop review caught another real defect before native effects: internal
+review names exceeded productionVARCHAR16. The old PostgreSQL fixture had
+widened this column, masking the mismatch. Internal names are now bounded
+AST_PLAN/AST_CLAIM/AST_RECEIPT. Production schema is unchanged. The revised
+PostgreSQL fixture applies all208 canonical Flyway migrations and asserts the
+actual16-character bound;141 focused checks/package pass, including19 actualPG.
+This fix awaits publication/rollout. Both CPs currently4ed5/schema208/UP. There
+has still been NO stop/claim/settlement or hosted acceptance of the new runtime.
+
+An independent setup correction preserves the wrong unused offer/history:
+the original canary helper seeded a new policy identifier where the contract
+requires the existing fleet compatibility anchor. A corrected immutable offer
+was published normally, and the REAL production customer UI passed onboarding
+again for fresh `dep-d0fdcad7`/`ten-64668d99` with `ver-30f0ae46`/framework0.8.37.
+Its Engage app is DRAFT at `https://northfield-live-journey.apps.loomai.pro`.
+S3 and external stock are bound; the existing external business receiver scopes
+the new deployment, not a per-deployment inventory database. No business write.
+An app-create409 from a copied helper's reused Idempotency-Key is preserved;
+a new explicit corrected command returned201. No product contract was weakened.
+
+DEFERRED edge: same-CP reuse of an empty vector binding created BEFORE any
+reservation has no current normal handoff path. Do not fabricate an admission
+or add a new recovery engine for this canary. The exact empty production
+Serverless one-for-one replacement question was sent to Required for production;
+main continues staging independently. No production vector replacement or free
+index replacement has occurred. User journey, ordinary APIs and independent
+indexing remain the acceptance criteria; UI extraction is LAST.
+
 ### 2026-10-22 09:14 UTC Basic Hosted Path Corrections
 
 Both CPs verify8f50ac1f2/schema208/UP with27 protected ownership/funding/catalogue

@@ -1600,7 +1600,7 @@ class AdmissionStore {
             AdmissionColdTerminationReview.freeze(plan.review().expectation(), plan.review().capture(),
                 plan.review().acknowledgement(), clock.instant());
             if (!actor.equals(plan.actorId())) throw new AdmissionFailure(FORBIDDEN, "ATTENDED_STOP_ACTOR_CHANGED");
-            review("ATTENDED_STOP_PLAN", plan.id(), plan, actor, clock.instant());
+            review("AST_PLAN", plan.id(), plan, actor, clock.instant());
             return null;
         });
     }
@@ -1610,7 +1610,7 @@ class AdmissionStore {
         return locked(() -> {
             Instant now = clock.instant();
             String fingerprint = json.fingerprint(plan);
-            var prior = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='ATTENDED_STOP_CLAIM' AND record_key=?", String.class, plan.id());
+            var prior = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='AST_CLAIM' AND record_key=?", String.class, plan.id());
             if (!prior.isEmpty()) {
                 var claim = json.read(prior.getFirst(), AttendedStagingStopContracts.Claim.class);
                 if (!claim.actorId().equals(actor) || !claim.planFingerprint().equals(fingerprint))
@@ -1623,12 +1623,12 @@ class AdmissionStore {
             if (!actor.equals(plan.actorId()) || !plan.expiresAt().isAfter(now))
                 throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_REVIEW_EXPIRED_OR_ACTOR_CHANGED");
             long epoch = claimTargetFence.get();
-            review("ATTENDED_STOP_PLAN", plan.id(), plan, actor, now);
+            review("AST_PLAN", plan.id(), plan, actor, now);
             Mutation m = new Mutation(r); m.evidence = "attended-staging-stop:" + plan.id();
             m.failure = "ATTENDED_STOP_NATIVE_READBACK_PENDING";
             Reservation claimed = save(r, m, "ATTENDED_STOP_CLAIMED_NOT_DRAINED", actor, now);
             var claim = new AttendedStagingStopContracts.Claim(plan.id(), fingerprint, actor, claimed.fence(), epoch);
-            review("ATTENDED_STOP_CLAIM", plan.id(), claim, actor, now);
+            review("AST_CLAIM", plan.id(), claim, actor, now);
             return claim;
         });
     }
@@ -1637,15 +1637,15 @@ class AdmissionStore {
         AttendedStagingStopContracts.StoppedReadback proof, String actor, Runnable recheckLocal) {
         return locked(() -> {
             Instant now = clock.instant();
-            var prior = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='ATTENDED_STOP_RECEIPT' AND record_key=?", String.class, claim.planId());
+            var prior = jdbc.queryForList("SELECT payload_json FROM deployment_admission_reviews WHERE kind='AST_RECEIPT' AND record_key=?", String.class, claim.planId());
             if (!prior.isEmpty()) {
                 var receipt = json.read(prior.getFirst(), AttendedStagingStopContracts.Receipt.class);
                 if (!receipt.claim().equals(claim) || !receipt.actorId().equals(actor))
                     throw new AdmissionFailure(CONFLICT, "ATTENDED_STOP_COMMAND_CHANGED");
                 return receipt;
             }
-            var stored = reviewed("ATTENDED_STOP_CLAIM", claim.planId(), AttendedStagingStopContracts.Claim.class);
-            var plan = reviewed("ATTENDED_STOP_PLAN", claim.planId(), AttendedStagingStopContracts.Plan.class);
+            var stored = reviewed("AST_CLAIM", claim.planId(), AttendedStagingStopContracts.Claim.class);
+            var plan = reviewed("AST_PLAN", claim.planId(), AttendedStagingStopContracts.Plan.class);
             if (!stored.equals(claim) || !actor.equals(claim.actorId()) || !plan.expiresAt().isAfter(now)
                 || proof == null || !claim.planId().equals(proof.planId())
                 || !claim.planFingerprint().equals(proof.planFingerprint()) || claim.targetEpoch() != proof.targetEpoch()
@@ -1678,7 +1678,7 @@ class AdmissionStore {
             jdbc.update("UPDATE deployment_admission_release_bindings SET state='COLD_STOPPED',updated_at=? WHERE reservation_id=? AND generation=? AND state='OUTCOME_UNKNOWN'",
                 time(now), r.id(), r.generation());
             var receipt = new AttendedStagingStopContracts.Receipt(plan.id(), actor, claim, proof, settled, now);
-            review("ATTENDED_STOP_RECEIPT", plan.id(), receipt, actor, now);
+            review("AST_RECEIPT", plan.id(), receipt, actor, now);
             return receipt;
         });
     }
