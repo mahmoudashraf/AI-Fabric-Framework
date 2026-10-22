@@ -71,11 +71,17 @@ public class TargetRetirementInventory {
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Snapshot capture(String deploymentId, String targetId, PlanRequest request, long epoch) {
-        return capture(deploymentId, targetId, request, epoch, null, true);
+        return capture(deploymentId, targetId, request, epoch, null, true, true);
+    }
+
+    /** Stop-only inventory: freeze storage, but grant no volume reclamation authority. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Snapshot captureRetainingStorage(String deploymentId, String targetId, PlanRequest request, long epoch) {
+        return capture(deploymentId, targetId, request, epoch, null, true, false);
     }
 
     private Snapshot capture(String deploymentId, String targetId, PlanRequest request, long epoch, Snapshot expected,
-                             boolean observeProvider) {
+                             boolean observeProvider, boolean reclaimStorage) {
         var deployment = deployments.findById(deploymentId).orElseThrow(() -> failure("DEPLOYMENT_MISSING"));
         if (deployment.getCustomerId() == null || deployment.getCustomerId().isBlank()
             || deployment.getTenantId() == null || deployment.getTenantId().isBlank()
@@ -111,23 +117,35 @@ public class TargetRetirementInventory {
         targetFields.put("resourceDefaults", json.read(target.getResourceDefaultsJson(), Object.class));
         var snapshot = new Snapshot(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, targetId,
             json.fingerprint(targetFields), epoch, selected, resources, request.consumers());
-        checkReferences(snapshot, request, observeProvider);
+        checkReferences(snapshot, request, observeProvider, reclaimStorage);
         return snapshot;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void recheck(Snapshot snapshot, PlanRequest request) {
-        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, true);
+        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, true, true);
         if (!json.fingerprint(snapshot).equals(json.fingerprint(current))) throw failure("SNAPSHOT_GENERATION_CHANGED");
     }
 
     @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
     public void recheckLocal(Snapshot snapshot, PlanRequest request) {
-        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, false);
+        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, false, true);
         if (!json.fingerprint(snapshot).equals(json.fingerprint(current))) throw failure("SNAPSHOT_GENERATION_CHANGED");
     }
 
-    private void checkReferences(Snapshot snapshot, PlanRequest request, boolean observeProvider) {
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void recheckRetainingStorage(Snapshot snapshot, PlanRequest request) {
+        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, true, false);
+        if (!json.fingerprint(snapshot).equals(json.fingerprint(current))) throw failure("SNAPSHOT_GENERATION_CHANGED");
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
+    public void recheckLocalRetainingStorage(Snapshot snapshot, PlanRequest request) {
+        var current = capture(snapshot.deploymentId(), snapshot.targetProfileId(), request, snapshot.targetEpoch(), snapshot, false, false);
+        if (!json.fingerprint(snapshot).equals(json.fingerprint(current))) throw failure("SNAPSHOT_GENERATION_CHANGED");
+    }
+
+    private void checkReferences(Snapshot snapshot, PlanRequest request, boolean observeProvider, boolean reclaimStorage) {
         var expected = snapshot.consumers().stream().collect(Collectors.toMap(ConsumerExpectation::consumerEntityId,
             ConsumerExpectation::expectedBindingRevision));
         Set<String> releaseIds = snapshot.releases().stream().map(ReleaseGeneration::releaseId).collect(Collectors.toSet());
@@ -174,7 +192,7 @@ public class TargetRetirementInventory {
                     throw failure("SHARED_RELEASE_REFERENCE");
             }
         }
-        requireExclusiveDatabaseVolumes(snapshot.resources(), allHandles, observeProvider);
+        if (reclaimStorage) requireExclusiveDatabaseVolumes(snapshot.resources(), allHandles, observeProvider);
         // Opaque provider/config/index/dependency references are proved by the mandatory interlock/participants.
     }
 

@@ -379,7 +379,12 @@ public class ProviderUsageAllowanceService {
             (rs, index) -> rs.getString(1), authorized.deployment().getCustomerId(), authorized.profile().getId(), authorized.profile().getEnvironmentName())
             .stream().map(this::requireActiveGrant).filter(row -> clock.instant().isBefore(row.grant().expiresAt())).toList();
         if (grants.isEmpty()) throw conflict("PROVIDER_USAGE_REVIEWED_GRANT_REQUIRED");
-        if (grants.size() != 1) throw conflict("PROVIDER_USAGE_REVIEWED_GRANT_AMBIGUOUS");
+        if (grants.size() != 1) {
+            // Automatic allocation consumes a whole grant, not the residual balance of an earlier deployment.
+            var unallocated = grants.stream().filter(row -> row.allocated().equals(new Limits(0, 0, 0))).toList();
+            if (unallocated.size() != 1) throw conflict("PROVIDER_USAGE_REVIEWED_GRANT_AMBIGUOUS");
+            return unallocated.getFirst();
+        }
         return grants.getFirst();
     }
 

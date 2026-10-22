@@ -156,6 +156,8 @@ class TargetRetirementInventoryTest {
         alias.setId("shared"); alias.setProviderType(DeploymentProviderType.COOLIFY); alias.setProviderResourceUuid("staging-app");
         when(handles.findAll()).thenReturn(List.of(handle, alias));
         assertThatThrownBy(this::capture).hasMessageContaining("SHARED_RESOURCE_REFERENCE");
+        assertThatThrownBy(() -> service.captureRetainingStorage("deployment", "staging", request, 0))
+            .hasMessageContaining("SHARED_RESOURCE_REFERENCE");
     }
     @Test void replacementOrMetadataBindingChangeInvalidatesSnapshotButObservationsDoNot() {
         var snapshot = capture();
@@ -185,6 +187,8 @@ class TargetRetirementInventoryTest {
             "staging-app", "runtime", null, "running:healthy", null, null, drifted)));
 
         assertThatThrownBy(() -> service.recheck(snapshot, request))
+            .hasMessageContaining("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
+        assertThatThrownBy(() -> service.captureRetainingStorage("deployment", "staging", request, 0))
             .hasMessageContaining("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
     }
     @Test void actualCoolifyNumericEnvironmentShapeRequiresScopedMembershipAndStableIdentity() {
@@ -349,6 +353,17 @@ class TargetRetirementInventoryTest {
                 null, false, new ObjectMapper().createObjectNode())));
 
         assertThatThrownBy(this::capture).hasMessageContaining("SHARED_PERSISTENT_VOLUME_REFERENCE");
+        clearInvocations(client);
+        var stopped = service.captureRetainingStorage("deployment", "staging", request, 0);
+        assertThat(stopped.resources().getFirst().volumes()).singleElement()
+            .satisfies(volume -> assertThat(volume.name()).isEqualTo("shared-volume"));
+        service.recheckRetainingStorage(stopped, request);
+        service.recheckLocalRetainingStorage(stopped, request);
+        verify(client, never()).listApplicationStorages(connection, "other-app");
+        when(client.listApplicationStorages(connection, "other-app")).thenThrow(
+            new CoolifyApiException("Unrelated stale application", 404, "/applications/other-app/storages"));
+        assertThatThrownBy(this::capture).isInstanceOf(CoolifyApiException.class);
+        assertThat(service.captureRetainingStorage("deployment", "staging", request, 0)).isEqualTo(stopped);
     }
     private DeploymentProviderResourceHandleEntity externalBinding(String resourceKind) {
         var binding = new DeploymentProviderResourceHandleEntity();

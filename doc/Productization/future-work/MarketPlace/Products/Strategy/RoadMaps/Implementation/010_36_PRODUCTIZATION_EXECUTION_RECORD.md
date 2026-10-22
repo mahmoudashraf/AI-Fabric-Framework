@@ -6,6 +6,37 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 09:14 UTC Basic Hosted Path Corrections
+
+Both CPs verify8f50ac1f2/schema208/UP with27 protected ownership/funding/catalogue
+projections, configuration and UI unchanged. Live stop review correctly rejected
+absent UUID fields; actual numeric Coolify environment mapping is now fixed and
+deployed. Its next review502 exposed an unrelated stale app storage404 in the
+generic deletion-exclusivity scan. The attended operation retains ALL storage:
+it now has explicit retaining-storage inventory/rechecks, still freezing native
+ownership, aliases, volumes, consumers, target/reservation fences and requiring
+actual provider-plus-host stopped proof. Generic deletion checks are unchanged.
+No native stop or compute settlement has occurred. Stale fleet metadata cleanup,
+automated terminal deletion and expired-review recovery remain DEFERRED.
+
+Before fresh apply, funding preflight found an already allocated old grant being
+counted as an available competing grant. Selection now requires exactly one
+wholly unallocated grant when multiple valid grants exist; old allocations and
+lifetime debit/history remain unchanged, genuine competing available grants
+remain ambiguous.345 focused checks/package pass, including94 actual PostgreSQL
+cases, with zero skips and noP1/P2 in independent bounded review. First fixture
+errors and live failed reviews are retained. These final backend-only corrections
+await publication/rollout; no framework/runtime/UI change is included.
+
+The new production vector binding is verified using native serving credentials.
+Free01 has NOT been replaced, new runtime/app remains unaccepted, and promotion
+is unproven. Production baseline passed a five-minute sample with no swap and
+low load; stage sampling starts after physically stopping the old pilot. Continue
+the ordinary customer staging apply, actual indexed inventory/policy, identity,
+protected action and Inbox journey, then independent production indexing/app
+switch. UI extraction stays LAST. Private evidence is in
+`/private/tmp/01044-journey-0837-20261022`.
+
 ### 2026-10-22 08:22 UTC Real Customer Configuration Accepted
 
 The production UI now passes real customer password sign-in, offer acceptance/

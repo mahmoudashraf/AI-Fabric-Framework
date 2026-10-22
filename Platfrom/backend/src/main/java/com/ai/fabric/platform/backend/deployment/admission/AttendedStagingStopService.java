@@ -85,7 +85,7 @@ public class AttendedStagingStopService {
         if (existingGate.size() > 1 || !existingGate.isEmpty() && !"AVAILABLE".equals(existingGate.getFirst().get("state")))
             throw failure(CONFLICT, "TARGET_RETIREMENT_FENCED");
         long epoch = existingGate.isEmpty() ? 0L : ((Number) existingGate.getFirst().get("epoch")).longValue();
-        var snapshot = inventory.capture(r.deploymentId(), r.targetProfileId(), retirementRequest(r, releases), epoch);
+        var snapshot = inventory.captureRetainingStorage(r.deploymentId(), r.targetProfileId(), retirementRequest(r, releases), epoch);
         var resources = new ArrayList<NativeResource>();
         for (var resource : snapshot.resources()) if (!resource.preserved()) {
             resources.add(observe(connection, resource.resourceKind(), resource.providerResourceUuid(),
@@ -186,14 +186,14 @@ public class AttendedStagingStopService {
     private void recheckRemote(Plan plan, boolean stopped) {
         var r = plan.review().capture().reservation();
         var connection = connection(r.targetProfileId());
-        inventory.recheck(plan.review().capture().snapshot(), retirementRequest(r, plan.review().capture().releaseBindings()));
+        inventory.recheckRetainingStorage(plan.review().capture().snapshot(), retirementRequest(r, plan.review().capture().releaseBindings()));
         for (var resource : plan.resources()) if (!resource.equals(observe(connection, resource.kind(), resource.uuid(), resource.marker(), stopped)))
             throw failure(CONFLICT, "ATTENDED_STOP_NATIVE_IDENTITY_CHANGED");
     }
     private void recheckLocal(Plan plan) {
         var r = plan.review().capture().reservation();
         requireUnusedFailedTarget(r);
-        inventory.recheckLocal(plan.review().capture().snapshot(), retirementRequest(r, plan.review().capture().releaseBindings()));
+        inventory.recheckLocalRetainingStorage(plan.review().capture().snapshot(), retirementRequest(r, plan.review().capture().releaseBindings()));
         var graph = graphs.find(r.deploymentId(), r.targetProfileId());
         if (plan.dependencyGraphId() == null) {
             if (graph.isPresent()) throw failure(CONFLICT, "ATTENDED_STOP_DEPENDENCY_CHANGED");

@@ -44,7 +44,7 @@ public final class AdmissionColdTerminationReview {
     public record Expectation(Fence fence, String customerId, String tenantId, String deploymentId,
                               String targetProfileId, String expiryWorkerToken) { }
 
-    /** Exclusive ownership includes native volumes and absence of foreign/shared business references. */
+    /** Native resources and their volume identities are frozen; this review grants no storage reclamation authority. */
     public record ServerCapture(String reference, Instant capturedAt, Instant validUntil,
                                 Reservation reservation, Snapshot snapshot, List<ReleaseBinding> releaseBindings,
                                 Placement nativePlacement, String projectUuid, String environmentUuid,

@@ -571,6 +571,32 @@ abstract class ProviderUsageAllowanceContract {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isZero();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void freshDeploymentUsesOneWholeUnallocatedGrantWithoutResettingAnOlderAllocation(boolean partial) {
+        var original = runtimeGrant(); service.approveGrant(original);
+        var caps = partial ? new Limits(1, 1, 1) : original.credits();
+        var old = service.allocate(new AllocationCommand(original.id(), "deployment", "target", caps,
+            original.binding(), original.rateCardReference(), ProviderUsageAllowanceCodec.sha256(secretValue.get())), r7("deployment"));
+        var before = service.readQuota(original.id());
+        var fresh = new ProviderUsageGrant("new-grant", "new-campaign", original.customerId(), original.targetProfileId(),
+            original.environment(), original.credits(), original.expiresAt(), original.binding(), original.rateCardReference(),
+            original.ownerApprovalEvidenceRef(), original.payerRef());
+        service.approveGrant(fresh); addDeployment("new"); authorizeRelease("new"); SecurityContextHolder.clearContext();
+        assertThat(service.findForAuthorizedRelease("release-new")).isEmpty();
+        var allocated = service.prepareForAuthorizedRelease("release-new");
+        assertThat(allocated.caps()).isEqualTo(fresh.credits());
+        assertThat(allocated.scope().deploymentId()).isEqualTo("new");
+        assertThat(service.prepareForAuthorizedRelease("release-new")).isEqualTo(allocated);
+        authenticate(PlatformRole.PLATFORM_ADMIN);
+        assertThat(service.readQuota(original.id())).isEqualTo(before);
+        assertThat(service.readAllocation(old.scope())).isEqualTo(old);
+        assertThat(service.readQuota(fresh.id()).lifetimeAllocated()).isEqualTo(fresh.credits());
+        assertThat(jdbc.queryForObject("SELECT grant_id FROM provider_usage_allocations WHERE approval_id=?",
+            String.class, allocated.approvalId())).isEqualTo(fresh.id());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(2);
+    }
+
     @Test void authorizedWorkerDeniesMissingBindingStaleGenerationAndDifferentReleaseScope() {
         service.approveGrant(runtimeGrant()); SecurityContextHolder.clearContext();
         assertThatThrownBy(() -> service.prepareForAuthorizedRelease("missing")).hasMessageContaining("RELEASE_REQUIRED");
@@ -898,6 +924,10 @@ abstract class ProviderUsageAllowanceContract {
             context.registerBean(JdbcTemplate.class, () -> jdbc);
             context.registerBean(PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
             context.registerBean(AdmissionJson.class);
+            context.registerBean(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class,
+                () -> mock(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class));
+            context.registerBean(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class,
+                () -> mock(com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.class));
             // Spring wires the package-private real store without exposing production-only test accessors.
             context.registerBean("admissionStore", Class.forName("com.ai.fabric.platform.backend.deployment.admission.AdmissionStore"));
             context.getBeanFactory().registerSingleton("deploymentService", runtime);
