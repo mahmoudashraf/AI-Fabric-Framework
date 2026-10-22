@@ -1,5 +1,15 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+Latest checkpoint, 22 October00:38UTC: both control planes verify `ee951bfaf`,
+schema208/UP. Pilot app ACTIVE, release APPLIED_VERIFIED/PASSED,3 S3 policies
+indexed. Separate zero-query real two-account auth/attachments/cancel/basic-mobile
+browser gate PASS. Full hosted chat/actions/handover, production promotion and UI
+extraction are still open. Funded RAG fix is published, not deployed; a narrowly
+qualified shared-transaction framework0.8.37 candidate awaits CI/release. See
+[010.44 execution](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md) and the
+bounded tracker for exact evidence/remaining gaps. UI extraction stays LAST;
+no business database or staging-to-production vector transfer is introduced.
+
 - **Basic-journey priority, 21 October 19:40 UTC:** zero-loss live upgrade is
   deferred for this disposable pilot, not made a prerequisite for its first
   usable session. An explicit cold-maintenance extension to the EXISTING repair

@@ -1,5 +1,21 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 00:38 UTC Hosted Identity Verified, Handover Fix Qualified
+
+The pilot app is ACTIVE, release APPLIED_VERIFIED/PASSED, graphREADY and all3
+customer-owned S3 policies ACTIVEv1. Both control planes verify `ee951bfaf`,
+schema208/UP, preserving configuration and26 protected projections. Separate
+zero-query browser checks pass real two-account login/logout, attachment clearing,
+pre-submit cancelled login/no replay and basic mobile keyboard fit. This is not
+full hosted chat/action/handover acceptance. Two AI attempts and direct handover
+remain honestly failed. The runtime advanced-RAG scope fix is published, not
+deployed. Actual PostgreSQL handover tests exposed a shared-transaction defect:
+framework0.8.37 candidate passes93 chat/22 external runtime tests (4 realPG), with
+CI still running and no release yet. Exact receipts, remaining limits and safe
+publication/adoption sequence are in the [bounded recovery tracker](../../../../../../../../verification-support/productization-01036/WORKER_FENCING_RECOVERY_EXECUTION_TRACKER.md).
+No business write, vector transfer or customer-owned business database was added.
+Promotion and reversible UI extraction remain open; extraction stays LAST.
+
 ## 2026-10-21 23:30 UTC Retained Runtime Setup Verified
 
 Both control planes now verify `8090fc1ed`, schema207/healthUP, unchanged

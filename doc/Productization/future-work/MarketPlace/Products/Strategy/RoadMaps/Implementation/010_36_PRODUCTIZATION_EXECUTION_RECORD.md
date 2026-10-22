@@ -6,6 +6,18 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 00:38 UTC Latest Boundary
+
+Both CPs now verify `ee951bfaf`/schema208/UP. Existing customer app is ACTIVE,
+its release APPLIED_VERIFIED/PASSED, and3 S3 policies are indexed. Independent
+zero-query real A/B login/logout, attachment isolation, cancelled-login and basic
+mobile keyboard checks PASS. Hosted chat/actions/handover and production promotion
+are NOT accepted: funded RAG correction is published but not deployed; a narrowly
+qualified shared-transaction framework0.8.37 fix awaits CI/publication. Failed
+runs remain failed, financial history/caps preserved, no business write/vector
+copy. Exact evidence and next commands are tracked in [010.44](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md)
+and the bounded recovery tracker. UI extraction remains LAST.
+
 ### 2026-10-21 Hosted Journey Priority
 
 The latest continuation is recorded in the [010.44 execution record](010_44_CUSTOMER_SYSTEM_BOUNDARY_EXECUTION_RECORD.md)

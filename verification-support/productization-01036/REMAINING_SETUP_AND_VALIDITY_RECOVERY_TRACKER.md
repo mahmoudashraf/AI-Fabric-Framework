@@ -6,6 +6,17 @@ extraction stays last. This is an execution tracker, not a new product direction
 
 ## Actual Boundary
 
+### Latest, 22 October 00:38 UTC
+
+Pilot ACTIVE / release APPLIED_VERIFIED /3 S3 sources ACTIVEv1. Both CPs
+`ee951bfaf`/schema208/UP. Zero-query A/B auth/attachment/cancel/basic-mobile
+browser gate PASS; full chat/action/handover acceptance and promotion remain open.
+Funded RAG fix published, not deployed. Direct handover exposes actual shared-JPA
+transaction defect; framework0.8.37 candidate93chat/22runtime/4realPG PASS, CI
+pending, not released. See [bounded tracker](WORKER_FENCING_RECOVERY_EXECUTION_TRACKER.md)
+for publication/adoption sequence, private receipt roots and deferred limitations.
+Do not replay consumed mutations, change funding history or copy vectors. UI LAST.
+
 ### Bounded Cold-Maintenance Integration, 21 October 19:40 UTC
 
 Existing repair/generation/owner-continuation paths are now wired locally, with

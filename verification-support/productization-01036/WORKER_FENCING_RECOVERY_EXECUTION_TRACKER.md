@@ -7,6 +7,50 @@ stays last. Main owns sequential integration and all live mutations.
 
 ## Priority Correction: First Usable Journey
 
+### 22 October 00:38 UTC: Auth Pass, Two Runtime Fixes
+
+Both control planes now verify `ee951bfaf`, schema208/UP, unchanged configuration
+and26 protected authority/financial/catalogue projections. Normal customer-owned
+preferences authorization is fixed. Stock-discovery1.1.0 now publishes explicit
+reviewed fixture filter vocabulary, without semantic matching or relaxing failed
+filters; current immutable offer still pins1.0.0. These changes are live, not proof
+that the hosted composition adopted the new metadata. Backend qualification16
+focused/10 actual PostgreSQL cases and packaging pass. Full receipt root:
+`/private/tmp/01044-customer-preferences-208-20261022`.
+
+Separate zero-AI browser auth gate PASS: two real Supabase identities sign in/out,
+attachments clear between identities, cancelled pre-submit login preserves the
+anonymous attachment without replay, and mobile dialog/composer/Tab checks fit.
+Evidence `/private/tmp/01044-nonpaid-auth-browser-20261022/runs/auth/report.safe.json`.
+No protected action, in-flight cancellation, expiry/revocation, cross-owner
+conversation challenge or complete accessibility audit is implied. The separate
+portal read-only report is still FAIL: expired-placement status reads409 and an
+automatic preferences PUT intentionally blocked by the read-only fence.
+
+The funded advanced-RAG synchronous executor fix is published in `10ec10c34`;
+runtime CI39695499680 and image7e3d42c8 pass, but it is not deployed. A separate
+zero-query direct-button handover failed500 before operator claim/write. Runtime
+and framework each created independent JDBC transaction managers beside host JPA.
+Runtime injection removes the500; actual PostgreSQL rollback tests then exposed
+framework control rows committing outside the host transaction. This is a real
+atomicity defect, not a reason to bypass transaction/isolation checks.
+
+Clean framework source `91e352784ea1424b8c2fcf8821e7a8686b48093b` fixes shared-manager
+wiring and adds real JPA commit/rollback regression coverage.93 chat tests and22
+external runtime cases (4 actual PostgreSQL) pass. Framework Build39700016105 is
+still running; no0.8.37 tag/release/Central publication yet. The original22 parked
+fencing files are excluded. Publish37 only after CI, verify Central before main
+push (demo push hooks), then qualify the combined product runtime from an empty
+Central cache. Runtime handover edits remain uncommitted until that dependency
+exists. Root `/private/tmp/01044-framework-0837-release-20261022` retains exact
+qualification and one-shot release helper; dispatch already consumed.
+
+Do not reopen failed browser runs or completed cold repair to install this image.
+Normal immutable composition/adoption remains to be reviewed. Token-only2M
+clarification remains pending; same12USD/50requests, no reset/refund. M6 remains
+unproven: current Qdrant offer is STAGING-only; production needs a promotable
+composition with independently indexed source data, not copied vectors. UI LAST.
+
 ### 23:45 UTC Browser Evidence And Bounded Retrieval Correction
 
 Normal consumer activation advances the binding to3 and the existing app is now
