@@ -6,6 +6,89 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 17:17 UTC Confirmed Action Exposes Trusted-Identity Contract Gap
+
+Browser-r5 uses a fresh real Supabase UI login, explicit filtered stock search,
+and the inventory card's Keep in context button. The authenticated action then
+returns CONFIRMATION_REQUIRED. Clicking Confirm normally sends Yes, confirm;
+the receiver rejects execution403 because verified session context is absent.
+External receipt count remains0. The receiver's strict ownership checks remain
+unchanged. No successful write/handover/production switch is claimed.
+
+Source diagnosis: framework0.8.38 ActionContext chooses the trusted-context
+auth resolver. That resolver treats the processed subject (here a conversation)
+as authsubject and drops verified runtime session/customer fields. Runtime
+metadata confirms a real authenticated session exists. This needs a scoped
+typed caller-auth contract fix, with initiator/processed-subject distinction,
+session/customer propagation and focused core/action/conversation isolation
+tests; never merge arbitrary client metadata or weaken the receiver. Necessary
+framework/runtime changes are in the critical customer path, unlike broader
+retirement or release-matrix work. No0.8.39 change/release is claimed yet.
+
+Additional preserved evidence: browser-r4 broad unfiltered search failed model
+bodyType contract validation after three repair attempts. The later explicit
+filtered query passed, NOT proof that the broad search is fixed. The browser
+test guard also blocked a normal suggestions POST after confirmation; this is
+separate from the receiver403 and should be allowed as a bounded read-only
+model request in the continuation. Do not repeat passed anonymous/login gates
+or conceal failed runs. Finish the action/HITL journey after the contract fix.
+
+### 2026-10-22 17:05 UTC Hosted Customer App Active, Browser Findings Retained
+
+The fresh customer deployment `dep-1a516e76` / `ver-30aa1f14` / `rel-5aeb9897`
+is APPLIED_VERIFIED/PASSED on customer staging with immutable runtime0.8.38.
+Its consumer binding revision2 and Engage installation are ACTIVE/ready at
+`https://northfield-ready.apps.loomai.pro`. Basic Inbox graph
+`dpg-c1193a17b4c241248507b7f2de511623` is READY; operator credential delivered
+through the normal customer API, secret retained privately. Three real S3
+policies are ACTIVE/indexed, zero source writes; external inventory sync reports
+six successful/completed records. No customer inventory/business DB was created.
+
+Browser-r3 verified compound stock+policy response, anonymous identity,
+conversation hydration/reload without replay, protected action-time sign-in,
+cancelled login, and real Supabase login without automatic action replay.
+Confirmation/write/handover/production switch remain OPEN. The next bounded
+browser run explicitly selects a vehicle AFTER sign-in using the real inventory
+renderer, then uses the canary identity's actual `loomai.pro` contact address.
+This is explicit UI input, not an injected internal ID or validation bypass.
+
+Two concrete findings are retained for focused follow-up, not hidden:
+
+- Cold-start readiness: connector sync started16:36 before the runtime provider
+  budget binding was initialized after provider provisioning. Initial indexing
+  work included INDEXING_RUNTIMEBUDGETBINDINGEXCEPTION/DEAD_LETTER; release still
+  passed16:46 and app activated before a successful projection existed. The
+  first browser request returned SOURCE_PROJECTION_NOT_READY. Scheduled900s
+  reconciliation completed six records16:51:24. Required correction: after the
+  existing authorized budget initialization, delegate initial source reconcile
+  to the deployment-local connector and require exact successful source/work
+  readback before READY/activation. Preserve historic failed work, hard budgets
+  and local data-plane ownership. Do not implement a Platform inventory fetcher,
+  change grant limits, or replace the result with an answer-only fallback.
+- Framework0.8.38 semantic-validation gap: tag source confirms
+  `ActionParameterSupport.isPlaceholderOrInstructionEcho` rejects every string
+  containing `required`, `optional`, `example` or `e.g`. A supplied
+  `journey-buyer@example.test` was returned in providedParameters but flagged
+  hardMissing=email even with WARN/provenanceBlocking=false. This is a false
+  positive and conflicts with010.33 philosophy; not a provenance rejection.
+  Preserve the test failure. Use the existing canary's real contact for the
+  remaining journey, NOT claim this framework defect fixed or weaken trusted
+  hidden-ID requirements. A scoped framework correction must respect explicit
+  schema validation and LLM-driven semantic decisions, with focused tests.
+
+Browser-r2 also retained a model-selected unnecessary target clarification for
+the broad inventory question. A bounded explicit USER clarification is allowed
+in the test driver and recorded; no product lexical routing or hidden fallback
+was added. Every browser run and failed response remains under
+`/private/tmp/01044-journey-0837-20261022/journey-0838/browser*`.
+
+Existing-infrastructure unblock is complete: BOTH control planes5ee5681c9/
+schema208/UP, old37 ordinary stopped-compute settlement receipt verified,
+storage/index/DB/dependency/funding/history preserved. Fresh reviewed capacity
+through18:12UTC retains unchanged physical/funding ceilings. No upgrade or
+owner input needed. Continue customer UI flow before broader remediation;
+UI extraction LAST. Do not claim full customer-journey acceptance yet.
+
 ### 2026-10-22 16:13 UTC Existing-Infrastructure Customer Journey Unblock
 
 No further owner answer or server upgrade is required. Main withdrew the optional
