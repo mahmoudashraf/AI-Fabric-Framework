@@ -8,6 +8,24 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-22 21:27 UTC Core Staging Customer Journey Passed; Promotion Configuration Gap
 
+22:03 continuation: both control planes now verified source6526c8516/schema208,
+image0396d7aa, with the explicit3600-second policy and exact target/offer identity,
+configuration and financial history preserved. The final20-test backend correction
+and generic citation assets are live; customer runtime image is unchanged. Fresh
+customer recheck vrf-b3ed91e1 PASSED. No production runtime has been applied yet.
+
+The second actual customer UI attempt exposed stale-placement command ordering:
+allocation listing requires current placement, but the UI probed placement only
+after listing. It made no promotion/provider mutation. The narrow functional UI
+correction refreshes placement first, caches the exact allocation choice, reprobes
+on retry without relisting, and refreshes dependent readbacks after planning.
+All40 scoped admission, assignment and AI-state-storage UI tests pass. This is
+functional wiring needed for the basic journey, not layout/editor extraction.
+Read-only history still requires fresh placement under existing policy; an
+explicit staging Verify placement is available in the current form. A dedicated
+customer release-recheck affordance remains to be completed in final UI wiring;
+normal exact-release API verification does not prove that button exists.
+
 Pre-execution inspection additionally found that normal full verification rechecks
 are stored as MANUAL_RERUN and become the release's current verification pointer,
 but the promotion gate accepted POST_APPLY only. Both invoke the same complete

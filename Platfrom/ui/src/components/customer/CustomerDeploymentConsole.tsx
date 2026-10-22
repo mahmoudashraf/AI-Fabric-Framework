@@ -720,11 +720,12 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
       })
       return { result, candidateScope }
     },
-    onSuccess: ({ result, candidateScope: reviewedScope }) => {
+    onSuccess: async ({ result, candidateScope: reviewedScope }) => {
       completeOperation('plan-production')
       setReviewedCandidateScope(reviewedScope)
       setPromotion(result)
       setNotice({ severity: 'info', message: result.message })
+      await invalidateCustomerState()
     },
   })
 

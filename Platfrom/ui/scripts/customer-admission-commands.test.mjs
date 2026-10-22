@@ -92,3 +92,45 @@ test('changed commands, ambiguous allocations, and unallocated releases fail bef
   }), /no current capacity/)
   assert.equal(state.reservations.length, 1)
 })
+
+test('placement is refreshed before the allocation list that requires current evidence', async () => {
+  const calls = []
+  let current = false
+  const commands = new CustomerAdmissionCommands({
+    probe: async () => { calls.push('probe'); current = true },
+    list: async () => { calls.push('list'); assert.equal(current, true); return [] },
+    reserve: async () => { calls.push('reserve'); return { id: 'allocation' } },
+  })
+  await commands.authorize('offer', 'deployment', {
+    targetProfileId: 'production', versionId: 'version', operation: 'PROMOTION_PLAN', operationKey: 'plan',
+  })
+  assert.deepEqual(calls, ['probe', 'list', 'reserve'])
+})
+
+test('a failed placement probe cannot list or reserve and the original operation can be reviewed again', async () => {
+  let fail = true
+  const calls = []
+  const commands = new CustomerAdmissionCommands({
+    probe: async () => { calls.push('probe'); if (fail) throw new Error('Placement unavailable') },
+    list: async () => { calls.push('list'); return [] },
+    reserve: async () => { calls.push('reserve'); return { id: 'allocation' } },
+  })
+  const request = { targetProfileId: 'production', versionId: 'version', operation: 'PROMOTION_PLAN', operationKey: 'plan' }
+  await assert.rejects(commands.authorize('offer', 'deployment', request), /Placement unavailable/)
+  assert.deepEqual(calls, ['probe'])
+  fail = false
+  await commands.authorize('offer', 'deployment', request)
+  assert.deepEqual(calls, ['probe', 'probe', 'list', 'reserve'])
+})
+
+test('lost response reprobes placement without relisting or changing the frozen allocation', async () => {
+  const { state, commands } = fixture()
+  state.loseResponse = true
+  const request = { targetProfileId: 'production', versionId: 'version', operation: 'PROMOTION_APPLY', operationKey: 'apply' }
+  await assert.rejects(commands.authorize('offer', 'deployment', request), /Connection lost/)
+  state.loseResponse = false
+  await commands.authorize('offer', 'deployment', request)
+  assert.equal(state.probes.length, 2)
+  assert.equal(state.lists, 1)
+  assert.deepEqual(state.reservations[0], state.reservations[1])
+})

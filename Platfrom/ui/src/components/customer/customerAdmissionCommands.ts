@@ -30,8 +30,10 @@ export class CustomerAdmissionCommands {
     const identity = JSON.stringify({ offerId, deploymentId, request })
     let prepared = this.requests.get(request.operationKey)
     if (prepared && prepared.identity !== identity) throw new Error('The admission command changed. Review it again.')
+    const reusedChoice = Boolean(prepared)
     if (!prepared) {
-      const choice = this.api.list(offerId, deploymentId, request.targetProfileId).then((allocations) => {
+      const choice = this.api.probe(offerId, request.targetProfileId)
+        .then(() => this.api.list(offerId, deploymentId, request.targetProfileId)).then((allocations) => {
         if (allocations.length > 1) throw new Error('Capacity allocations require reconciliation before this operation.')
         if (request.releaseId && allocations.length !== 1) throw new Error('The release has no current capacity allocation.')
         return { ...request, allocationId: allocations[0]?.id }
@@ -43,7 +45,7 @@ export class CustomerAdmissionCommands {
       this.requests.set(request.operationKey, prepared)
     }
     const command = await prepared.request
-    await this.api.probe(offerId, request.targetProfileId)
+    if (reusedChoice) await this.api.probe(offerId, request.targetProfileId)
     return this.api.reserve(offerId, deploymentId, command)
   }
 
