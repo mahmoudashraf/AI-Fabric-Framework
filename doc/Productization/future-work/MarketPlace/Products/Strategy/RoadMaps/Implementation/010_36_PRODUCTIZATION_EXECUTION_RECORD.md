@@ -8,6 +8,17 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-22 23:42 UTC Production Native Ready; S3 Input Blocks Acceptance
 
+23:48 prerequisite result: the original private AWS setup copy was recovered,
+but direct read-only AWS validation rejected its production pair with
+`InvalidClientTokenId` and `InvalidAccessKeyId`. Format alone is not sufficient.
+No valid replacement has been recovered. The exact current private-file-path
+question is now with the owner in Required for production; its sanitized record
+is `/private/tmp/01036-production-s3-credential-recovery-20261023.json`. No IAM,
+access-policy, source-object or secret-binding mutation was made by that lookup.
+Full production journey acceptance remains open, pending valid material and its
+authorized credential-bound release adoption. Do not describe the initial
+native deployment as green release acceptance or start final UI extraction.
+
 Production `rel-12f9b250` is provisioned, with runtime liveness and readiness both
 200/UP. Its first full post-apply run `vrf-7bbd013b` failed only the document
 connector readiness check. This is a canary-input error: the production setup
