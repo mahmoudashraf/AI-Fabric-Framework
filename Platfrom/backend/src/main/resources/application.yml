@@ -45,6 +45,7 @@ platform:
   current-phase: phase-21-public-provisioning-api
   ai-fabric:
     framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.41}
+    executor-rag-similarity-threshold: ${PLATFORM_EXECUTOR_RAG_SIMILARITY_THRESHOLD:0.5}
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
     ecommerce-demo:

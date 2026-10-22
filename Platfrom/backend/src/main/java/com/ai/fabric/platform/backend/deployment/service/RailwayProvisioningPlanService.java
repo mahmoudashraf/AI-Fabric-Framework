@@ -31,6 +31,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -70,6 +71,9 @@ public class RailwayProvisioningPlanService {
     private final VectorizationPlanRepository vectorizationPlanRepository;
     private final TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver;
     private final ObjectMapper objectMapper;
+
+    @Value("${platform.ai-fabric.executor-rag-similarity-threshold:0.5}")
+    private double executorRagSimilarityThreshold = 0.5;
 
     @Autowired(required = false)
     private ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
@@ -346,6 +350,16 @@ public class RailwayProvisioningPlanService {
             aiFabricFrameworkVersion
         ));
         String deploymentBehaviorType = behaviorConfig.path("type").asText("");
+        if ("CONVERSATIONAL".equals(deploymentBehaviorType)) {
+            if (!Double.isFinite(executorRagSimilarityThreshold)
+                || executorRagSimilarityThreshold < 0.0 || executorRagSimilarityThreshold > 1.0) {
+                throw new IllegalStateException("EXECUTOR_RAG_SIMILARITY_THRESHOLD_INVALID");
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_RAG_SIMILARITY_THRESHOLD",
+                Double.toString(executorRagSimilarityThreshold)
+            ));
+        }
         boolean structuredBehavior = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType)
             || "SMART_BRAIN".equals(deploymentBehaviorType);
         runtimeEnv.add(new RailwayEnvVarSummary(

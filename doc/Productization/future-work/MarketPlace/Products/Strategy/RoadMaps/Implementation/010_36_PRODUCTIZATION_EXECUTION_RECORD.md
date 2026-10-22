@@ -6,6 +6,103 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 20:34 UTC Confirmed External Action Pass And Remaining Customer Blockers
+
+The full browser gate correctly stopped at missing policy citations; no business
+write occurred in that run. Policy-only UI retrieval also returns no documents.
+The model selects the correct document source and native scoped query finds all3
+owned policies. Measured same-query provider scores are0.561 for warranty,0.556
+for delivery and0.438 for test-drive; executor's inherited0.60 rejects all. The
+existing0.45 belongs to the knowledge-specialist mode, not the chat executor.
+This is a calibration/configuration gap, not another framework-release defect.
+
+An explicitly separate partial browser run passed inventory, persisted reload,
+protected sign-in challenge/cancel, real Supabase sign-in without replay, UI item
+selection, confirmation and exactly ONE external receipt (count0->1). It then
+entered HUMAN_PENDING and accepted a human-only message without an AI call, but
+the Inbox queue stayed empty. Full journey acceptance and production promotion
+remain OPEN. Do not repeat that business action while continuing verification.
+
+Native diagnosis finds the connector worker still targeting the pre-provisioning
+runtime placeholder. The normal late-binding resolver omitted its channel-runtime
+URL key. A generic resolver correction and regression test now cover it. The
+previous binding/callback generation correction is correctly materialized.
+
+The second small Platform correction generates an explicit CONVERSATIONAL
+executor similarity policy: configurable via PLATFORM_EXECUTOR_RAG_SIMILARITY_THRESHOLD,
+default0.50, finite0..1. An explicit0.70 override remains respected. This preserves
+provider ranking, source/tenant/deployment ownership filters and active-version
+checks. It is neither semantic text matching nor an automatic lower-score fallback.
+Other behavior types/modes are unchanged.45 focused checks pass. Neither correction
+requires a framework/runtime image release. Next: backend-only rollout, exact
+reviewed materialization correction on the SAME canary, then resume its existing
+pending handover for an Inbox reply/AI return and prove actual policy citations.
+No new deployment, inventory DB, vector transfer or recovery engine is proposed.
+
+The two task-side diagnostic embedding calls each used11tokens; the first native
+probe incorrectly assumed512dimensions and was corrected to the actual1536. That
+diagnostic error is retained and is not described as a runtime embedding mismatch.
+Original failed gates/source attempts remain. UI extraction stays last.
+
+### 2026-10-22 19:58 UTC Customer Staging Applied And Engage Activated
+
+Normal owner admission/apply for dep-c09b23b4/ver-7da88543/rel-1c09be7e is now
+APPLIED_VERIFIED/PASSED. The initial post-apply verification correctly failed
+only the required document-active-source check before document indexing. Its
+failed receipt remains. After indexing, the normal exact-release recheck passed
+29 checks,0 failed,4 intentionally skipped; no health or admission check bypass.
+
+All3 customer S3 policies are ACTIVEv1 and all6 external-simulator vehicles are
+indexed/current. The initial stock sync reproduced the known budget-ordering gap:
+six work items failed closed before post-budget initialization. An explicit,
+recorded normal owner reconcile after initialization completed6/6 with0 failures.
+The original failed work/history remains. This is an assisted operational step,
+not a claim that automatic cold-source activation is fixed.
+
+Basic Inbox is READY, its operator credential delivered normally/private, and
+native runtime/connector BOTH have the same resolved generated binding/callback
+facts. The customer consumer assignment is revision2 to the verified staging
+release; Engage https://northfield-customer.apps.loomai.pro is ACTIVE/ready.
+Only AI-state PG/Inbox services were deployed; business inventory/actions remain
+external. Both new vector instances are RUNNING, production only configured/bound.
+No production runtime apply, vector-record transfer or customer S3 write occurred.
+
+The actual browser journey is running now. Full acceptance still requires actual
+policy citations, protected sign-in/cancel/no replay, a confirmed external receipt,
+Basic Inbox asynchronous reply and explicit return to AI, then independent
+production reindex/promotion/app switch. UI extraction remains last.
+
+### 2026-10-22 19:35 UTC Live Fixes And Real Customer Template Selection
+
+Combined source2d0d28452 is verified on staging and production control planes,
+schema208/UP, with27 protected configuration/history projections preserved.
+Runtime CI39837537828 and backend CI39837537832 passed. The immutable runtime
+image contains20 Central0.8.41 framework JARs, each byte-verified, and18 checked
+changed runtime classes. It is approved for STAGING, not yet customer-applied.
+
+The real CUSTOMER_ADMIN browser flow passed: password sign-in, accept/select the
+new dealership41 offer and create customer staging configuration dep-c09b23b4.
+Its frozen versionver-7da88543 uses41 and the real Supabase/app-origin contract.
+Engage https://northfield-customer.apps.loomai.pro is DRAFT, domain VERIFIED,
+not an active customer app yet. Both-target read-only customer S3 and external
+stock/action bindings are configured. The SAME external dealership business
+receiver/database authorizes the new scope and denies the old; no write occurred.
+
+The normal vector-binding API correctly refused already historically bound
+old38 clusters. No guard was weakened and no new lifecycle engine was added.
+Under the owner's disposable-data approval, exact BOTH-host no-running-reference
+proof preceded one-for-one Free and Serverless replacement in the same projects,
+region and resource types. Old handles/audit/storage-accounting history remains;
+no vector record transfer occurred. Production replacement is RUNNING/bound;
+staging Free replacement is still provisioning. Fixture replacement is not a
+claim that general used-customer-vector rebinding is implemented.
+
+Next remains ordinary staging admission/apply, actual indexed policy citations,
+one confirmed external receipt, Basic Inbox asynchronous reply/return, then
+independent production reindex/promotion/app assignment. The browser gate now
+requires an actual registered policy-source citation, not any inventory source.
+UI extraction remains last. Full journey acceptance is still OPEN.
+
 ### 2026-10-22 19:06 UTC Final Basic-Journey Corrections And Honest Acceptance State
 
 The owner reaffirmed the real customer journey as the only acceptance target.

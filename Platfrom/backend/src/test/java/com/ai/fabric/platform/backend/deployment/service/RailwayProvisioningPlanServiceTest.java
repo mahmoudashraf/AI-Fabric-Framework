@@ -40,6 +40,28 @@ import static org.mockito.Mockito.when;
 class RailwayProvisioningPlanServiceTest {
 
     @Test
+    void conversationalExecutorHasExplicitConfigurableProviderScorePolicy() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), new ObjectMapper());
+        var plan = service.buildPlan(deployment(), version(), null, "target-staging");
+        assertThat(envMap(plan.services().runtime().env())).containsEntry(
+            "AI_ORCHESTRATION_MODES_EXECUTOR_RAG_SIMILARITY_THRESHOLD", "0.5");
+        ReflectionTestUtils.setField(service, "executorRagSimilarityThreshold", 0.7);
+        assertThat(envMap(service.buildPlan(deployment(), version(), null, "target-staging").services().runtime().env()))
+            .containsEntry("AI_ORCHESTRATION_MODES_EXECUTOR_RAG_SIMILARITY_THRESHOLD", "0.7");
+        for (double invalid : new double[] { -0.1, 1.1, Double.NaN, Double.POSITIVE_INFINITY }) {
+            ReflectionTestUtils.setField(service, "executorRagSimilarityThreshold", invalid);
+            assertThatThrownBy(() -> service.buildPlan(deployment(), version(), null, "target-staging"))
+                .hasMessage("EXECUTOR_RAG_SIMILARITY_THRESHOLD_INVALID");
+        }
+    }
+
+    @Test
     void requiredTokenBindingProjectsOnlyTargetTokenReferenceAndRejectsInvalidResolution() throws Exception {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(

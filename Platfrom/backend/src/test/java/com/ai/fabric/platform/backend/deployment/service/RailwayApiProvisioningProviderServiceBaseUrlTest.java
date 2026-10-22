@@ -43,6 +43,15 @@ class RailwayApiProvisioningProviderServiceBaseUrlTest {
     }
 
     @Test
+    void resolveServiceBaseUrlReplacesConversationChannelPlanningPlaceholder() {
+        assertThat(RailwayApiProvisioningProvider.resolveServiceBaseUrl(
+            "REST_CONNECTOR_CONVERSATION_CHANNEL_RUNTIME_BASE_URL",
+            "https://assigned-runtime.example",
+            "https://assigned-connector.example"
+        )).isEqualTo("https://assigned-runtime.example");
+    }
+
+    @Test
     void resolveServiceBaseUrlReturnsNullForUnrelatedEnvKeys() {
         assertThat(RailwayApiProvisioningProvider.resolveServiceBaseUrl(
             "OPENAI_API_KEY",
