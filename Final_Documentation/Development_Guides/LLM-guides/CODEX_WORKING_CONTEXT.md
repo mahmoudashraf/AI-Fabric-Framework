@@ -8,6 +8,12 @@ Rules:
 - Prefer exact file paths, run IDs, and command names when they matter.
 - Ignore noisy/unrelated working tree files unless they block the task.
 
+## 2026-10-22 Hosted Journey Prerequisite, 08:53 UTC
+
+- BOTH CPs now acfc79d7/image d69aa6ca/schema208/UP, 27 protected projections/configuration/UI unchanged; stop-rollout receipts under `/private/tmp/01044-journey-0837-20261022/stop-rollout`. First attended-stop review409 before native effects; fresh diagnostic review also409 PROVIDER_RESOURCE_OWNERSHIP_CHANGED, zero persisted ATTENDED_STOP reviews. Keep failed intents; no stop/claim/compute settlement yet.
+- Actual Coolify details contain numeric environment_id20, not project/environment UUIDs. Existing strict retirement identity reader assumed absent fields. Narrow TargetRetirementInventory fix resolves via exact project-scoped environment GET, checks environment UUID, integral numeric ID AND native UUID membership; present conflicting UUIDs still fail. 187 focused checks/package PASS, including19 actualPG and new positive/negative actual-shape tests. No framework/runtime/UI/schema change. Publish/rollout this correction, then NEW reviewed stop plan; do not replay consumed diagnostic intents.
+- Existing owner-provided broader Zilliz management key read-only verified BOTH exact Free01 and production Serverless scopes; updated through normal audited Platform secret PUT on both CPs, backups private. It remains control-plane-only; native serving credentials separate. NO cluster deletion/create/bind yet. New app still DRAFT; hosted stage/promotion acceptance unproven. Continue the basic real customer journey, UI extraction LAST, no broad retirement/recovery expansion. Last Platform-Updates08:50UTC. All local qualification completed; no parallel agent running.
+
 ## 2026-10-22 Real Customer Journey, 08:22 UTC
 
 - Owner reaffirmed five-step hosted customer journey and approved any target-scoped token usage. Required for production independently recorded the pending 2M technical-token amendment as approved; prior usage/grants and $12/50-query accounting remain unchanged. No token question remains pending.

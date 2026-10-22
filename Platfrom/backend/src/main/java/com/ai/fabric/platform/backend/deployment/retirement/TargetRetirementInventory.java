@@ -439,6 +439,28 @@ public class TargetRetirementInventory {
         String projectUuid = first(text(raw, "/project_uuid"), text(raw, "/environment/project/uuid"));
         String environmentUuid = first(text(raw, "/environment_uuid"), text(raw, "/environment/uuid"));
         String destinationUuid = first(text(raw, "/destination_uuid"), text(raw, "/destination/uuid"));
+        if (projectUuid == null || environmentUuid == null) {
+            // Coolify resource details expose environment_id; resolve it through the scoped environment API.
+            var handle = handles.findById(expected.handleId()).orElseThrow(() -> failure("RESOURCE_MISSING"));
+            var target = targets.findById(handle.getTargetProfileId()).orElseThrow(() -> failure("TARGET_MISSING"));
+            var environment = client.getEnvironment(resolver.requireConnection(target), expected.projectUuid(),
+                expected.environmentUuid()).orElseThrow(() -> failure("PROVIDER_RESOURCE_OWNERSHIP_CHANGED"));
+            JsonNode numericId = raw.path("environment_id"), observedId = environment.raw().path("id");
+            String members = APPLICATION_KINDS.contains(expected.resourceKind()) ? "applications" : "postgresqls";
+            boolean member = false;
+            for (JsonNode resource : environment.raw().path(members)) {
+                if (Objects.equals(uuid, text(resource, "/uuid"))) member = true;
+            }
+            if (!Objects.equals(expected.environmentUuid(), environment.uuid())
+                || !Objects.equals(expected.projectUuid(), environment.projectUuid())
+                || !numericId.isIntegralNumber() || !numericId.canConvertToLong() || numericId.longValue() <= 0
+                || !observedId.isIntegralNumber() || !observedId.canConvertToLong()
+                || numericId.longValue() != observedId.longValue() || !member) {
+                throw failure("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
+            }
+            if (projectUuid == null) projectUuid = environment.projectUuid();
+            if (environmentUuid == null) environmentUuid = environment.uuid();
+        }
         if (!Objects.equals(expected.providerResourceUuid(), uuid)
             || !Objects.equals(expected.providerName(), name)
             || !Objects.equals(expected.deploymentMarker(), description)

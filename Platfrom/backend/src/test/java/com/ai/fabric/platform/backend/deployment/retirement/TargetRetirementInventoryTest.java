@@ -187,6 +187,39 @@ class TargetRetirementInventoryTest {
         assertThatThrownBy(() -> service.recheck(snapshot, request))
             .hasMessageContaining("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
     }
+    @Test void actualCoolifyNumericEnvironmentShapeRequiresScopedMembershipAndStableIdentity() {
+        var connection = resolver.requireConnection(target);
+        var raw = (com.fasterxml.jackson.databind.node.ObjectNode) client.getApplication(connection, "staging-app").orElseThrow().raw();
+        raw.remove(List.of("project_uuid", "environment_uuid"));
+        raw.put("environment_id", 20);
+        var environment = new ObjectMapper().createObjectNode();
+        environment.put("id", 20); environment.put("uuid", "environment");
+        environment.putArray("applications").addObject().put("uuid", "staging-app");
+        when(client.getEnvironment(connection, "project", "environment")).thenReturn(Optional.of(
+            new CoolifyEnvironmentSummary("environment", "staging", "project", null, environment)));
+        var snapshot = capture();
+        service.recheck(snapshot, request);
+        service.requireProviderIdentity(snapshot.resources().getFirst(), raw);
+        environment.put("id", 21);
+        assertThatThrownBy(this::capture).hasMessageContaining("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
+    }
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "wrong-uuid", "wrong-project", "not-a-member", "string-id", "zero-id", "wrong-declared-project"})
+    void numericEnvironmentMappingCannotInferOrIgnoreOwnership(String mutation) {
+        var connection = resolver.requireConnection(target);
+        var raw = (com.fasterxml.jackson.databind.node.ObjectNode) client.getApplication(connection, "staging-app").orElseThrow().raw();
+        raw.remove(List.of("project_uuid", "environment_uuid")); raw.put("environment_id", 20);
+        var environment = new ObjectMapper().createObjectNode(); environment.put("id", 20);
+        environment.putArray("applications").addObject().put("uuid", "not-a-member".equals(mutation) ? "other" : "staging-app");
+        if ("string-id".equals(mutation)) raw.put("environment_id", "20");
+        if ("zero-id".equals(mutation)) { raw.put("environment_id", 0); environment.put("id", 0); }
+        if ("wrong-declared-project".equals(mutation)) raw.put("project_uuid", "foreign");
+        when(client.getEnvironment(connection, "project", "environment")).thenReturn("missing".equals(mutation)
+            ? Optional.empty() : Optional.of(new CoolifyEnvironmentSummary(
+                "wrong-uuid".equals(mutation) ? "foreign" : "environment", "staging",
+                "wrong-project".equals(mutation) ? "foreign" : "project", null, environment)));
+        assertThatThrownBy(this::capture).hasMessageContaining("PROVIDER_RESOURCE_OWNERSHIP_CHANGED");
+    }
     @Test void unownedOrUnenumeratedConsumersAndForeignResourceReleaseFailClosed() {
         consumer.setCustomerId("foreign");
         assertThatThrownBy(this::capture).hasMessageContaining("CONSUMER_REVISION_CHANGED");
