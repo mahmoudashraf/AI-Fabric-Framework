@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 import static com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts.ExpiryState;
@@ -70,7 +71,7 @@ public final class AdmissionTargetRetirementSystemAuthorizer implements TargetRe
                 && reservation.targetProfileId().equals(context.snapshot().targetProfileId())
                 && reservation.workerToken() != null && !reservation.workerToken().isBlank()
                 && reservation.drainDeadline() != null
-                && reservation.drainDeadline().equals(context.drainDeadline())
+                && samePersistedDeadline(reservation.drainDeadline(), context.drainDeadline())
                 && policy.restoreEvidenceReference().equals(context.retention().backupDecisionReference())
                 && reservation.recoveryUntil() != null && reservation.expiresAt() != null
                 && (!reservation.expiresAt().isAfter(clock.instant()) || customerReturn != null)
@@ -85,5 +86,11 @@ public final class AdmissionTargetRetirementSystemAuthorizer implements TargetRe
         } catch (AdmissionFailure failure) {
             return "RETIREMENT_ACTOR_REVOKED";
         }
+    }
+
+    private static boolean samePersistedDeadline(Instant expected, Instant observed) {
+        // PostgreSQL/JDBC rounds TIMESTAMPTZ to microseconds; this is not a clock-skew allowance.
+        return expected.equals(observed)
+            || expected.plusNanos(500).truncatedTo(java.time.temporal.ChronoUnit.MICROS).equals(observed);
     }
 }

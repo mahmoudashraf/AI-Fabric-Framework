@@ -6,6 +6,29 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 13:20 UTC Exact Live Return Blockers, No Scope Expansion
+
+Both CPs now1fa352a18/schema208/UP. Storage404 correction is proven live:
+the pending old37 return has a real PLANNED operation, not a completed return.
+No native effects or capacity settlement. Its authority check exposed native
+PostgreSQL microsecond rounding; INDEX requires an explicit preservation review.
+Four-file correction retains exact scope, native timestamp precision, and admin
+review only before ANY plan effect. It does not rewrite the original plan or
+weaken started-plan/worker/gate checks. No new API/recovery engine/framework/UI.
+
+Final Main53-check package PASS, zero skips, including39 realPG methods through
+all208 migrations. Earlier test-fixture failures retained and corrected without
+loosening product constraints. New backend publication/rollout next, then normal
+review/drain/real readback. All full holds stay until that proof.
+
+The obsolete Qdrant pilot app/runtime/connector are paused under owner downtime
+approval; DB/storage and ledger remain. Fresh61-sample evidence supports the new
+reviewed policy through14:58:05, with unchanged physical/funding ceilings and
+2GiB stage headroom; swap never counts. Logical retained index slots are explicit.
+Fresh38 template/customer/Engage configuration and both-target integrations are
+ready, domain verified, but runtime38/AI/action/handover/promotion still OPEN.
+Continue only the five-step hosted journey; UI extraction LAST.
+
 ### 2026-10-22 12:40 UTC Customer Journey Blocker Qualified For Rollout
 
 Normal staging return is blocked before retirement persistence by an unrelated

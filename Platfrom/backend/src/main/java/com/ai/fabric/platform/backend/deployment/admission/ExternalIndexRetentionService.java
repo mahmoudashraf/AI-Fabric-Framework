@@ -69,15 +69,53 @@ public class ExternalIndexRetentionService {
         var r = admissions.require(policy.reservationId());
         admissions.approveIndexRetention(policy, principal.actorId(), Instant.now(), () -> {
             validateBinding(r, policy);
-            Integer planned = jdbc.queryForObject("SELECT COUNT(*) FROM platform_target_retirement_operations WHERE deployment_id=? AND target_profile_id=? AND operation_key=?",
-                Integer.class, r.deploymentId(), r.targetProfileId(), operationKey(r));
-            if (planned == null || planned != 0) throw new AdmissionFailure(CONFLICT, "INDEX_RETENTION_REVIEW_BEFORE_PLAN_REQUIRED");
+            requireUnstartedPlanIfPresent(r);
         });
         return admissions.indexRetentionAuthorization(r.id());
     }
 
-    public Policy requirePolicy(Context context) {
+    private void requireUnstartedPlanIfPresent(Reservation reservation) {
+        var permitted = jdbc.query("""
+            SELECT * FROM platform_target_retirement_operations
+             WHERE deployment_id=? AND target_profile_id=? AND operation_key=? FOR UPDATE NOWAIT
+            """, (rs, row) -> {
+            var request = retirementJson.read(rs.getString("request_json"), PlanRequest.class);
+            var snapshot = retirementJson.read(rs.getString("snapshot_json"), TargetRetirementContracts.Snapshot.class);
+            var progress = retirementJson.read(rs.getString("result_json"), Progress.class);
+            return "PLANNED".equals(rs.getString("state")) && "DRAIN".equals(rs.getString("step"))
+                && rs.getInt("attempt") == 0 && rs.getTimestamp("started_at") == null
+                && rs.getString("worker_token") == null && rs.getString("in_flight_effect") == null
+                && rs.getLong("fence_epoch") == 0 && progress != null && progress.effects().isEmpty()
+                && "system".equals(rs.getString("requested_by_actor_id")) && "SYSTEM".equals(rs.getString("requested_by_role"))
+                && reservation.customerId().equals(rs.getString("customer_id"))
+                && reservation.customerId().equals(snapshot.customerId()) && reservation.tenantId().equals(snapshot.tenantId())
+                && reservation.deploymentId().equals(snapshot.deploymentId()) && reservation.targetProfileId().equals(snapshot.targetProfileId())
+                && operationKey(reservation).equals(request.operationKey()) && request.retention() != null
+                && request.retention().decision() == RetentionDecision.RECLAIM && request.retention().externalIndexRetention() == null
+                && retirementJson.fingerprint(Map.of("request", request, "snapshot", snapshot)).equals(rs.getString("request_fingerprint"))
+                && Integer.valueOf(1).equals(jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM platform_target_retirement_gates
+                     WHERE deployment_id=? AND target_profile_id=? AND state='AVAILABLE' AND operation_id IS NULL AND epoch=?
+                    """, Integer.class, reservation.deploymentId(), reservation.targetProfileId(), snapshot.targetEpoch()));
+        }, reservation.deploymentId(), reservation.targetProfileId(), operationKey(reservation));
+        if (permitted.size() > 1 || !permitted.isEmpty() && !permitted.getFirst())
+            throw new AdmissionFailure(CONFLICT, "INDEX_RETENTION_REVIEW_BEFORE_EFFECT_REQUIRED");
+    }
+
+    private Authorization reviewedAuthorization(Context context) {
         Authorization authorization = context.retention().externalIndexRetention();
+        if (authorization != null) return authorization;
+        if (!"system".equals(context.requestedByActorId()) || !"SYSTEM".equals(context.requestedByRole())) return null;
+        String[] parts = context.operationKey().split(":", -1);
+        if (parts.length != 3 || !"admission-expiry".equals(parts[0])) return null;
+        Reservation reservation = admissions.require(parts[1]);
+        if (!parts[2].equals(reservation.generation()) || !operationKey(reservation).equals(context.operationKey())) return null;
+        // The explicit staff review is append-only; the unstarted plan itself remains immutable.
+        return admissions.indexRetentionAuthorization(reservation.id());
+    }
+
+    public Policy requirePolicy(Context context) {
+        Authorization authorization = reviewedAuthorization(context);
         if (authorization == null) throw failure("EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED");
         Policy policy = admissions.reviewed("INDEX_RETENTION", authorization.reservationId(), Policy.class);
         Reservation r = admissions.require(authorization.reservationId());

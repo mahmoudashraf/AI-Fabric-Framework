@@ -50,7 +50,7 @@ import static org.mockito.Mockito.*;
 
 /** Actual PostgreSQL/Flyway and transactions. Only runtime/provider I/O is synthetic. */
 @SpringBootTest(properties = {
-    "spring.flyway.locations=classpath:db/migration", "spring.flyway.target=203",
+    "spring.flyway.locations=classpath:db/migration", "spring.flyway.target=208",
     "platform.bootstrap.sample-enabled=false", "platform.bootstrap.ecommerce-demo.enabled=false",
     "platform.auth.bootstrap-admin-enabled=false", "platform.deployment.admission.release.worker-enabled=false",
     "platform.deployment.admission.lifecycle.worker-enabled=false",
@@ -215,6 +215,48 @@ class ExternalIndexRetentionPostgresIT {
         assertThat(retention.approve(policy)).isEqualTo(reviewed);
         assertThat(store.require(reservation.id()).revision()).isEqualTo(revision);
         assertThat(financialSnapshot()).isEqualTo(financial);
+    }
+
+    @Test void explicitReviewCanUnblockTheExactUnstartedPlanWithoutRewritingIt() {
+        planWithoutIndexReview();
+        var entity = operations.findById(operation.id()).orElseThrow();
+        var context = retirements.context(entity);
+        assertThatThrownBy(() -> retention.requirePolicy(context)).hasMessageContaining("EXTERNAL_VECTOR_INDEX_RETENTION_REQUIRED");
+        String planned = row("platform_target_retirement_operations", operation.id());
+        String financial = financialSnapshot();
+        long memory = store.require(reservation.id()).chargedDemand().amounts().get(Dimension.MEMORY_BYTES);
+
+        Authorization approved = retention.approve(policy);
+
+        assertThat(approved.reservationId()).isEqualTo(reservation.id());
+        assertThat(retention.requirePolicy(context)).isEqualTo(policy);
+        assertThat(row("platform_target_retirement_operations", operation.id())).isEqualTo(planned);
+        assertThat(store.require(reservation.id()).chargedDemand().amounts().get(Dimension.MEMORY_BYTES)).isEqualTo(memory);
+        assertThat(store.require(reservation.id()).chargedDemand().amounts().get(Dimension.INDEX_BYTES)).isEqualTo(500);
+        assertThat(financialSnapshot()).isEqualTo(financial);
+        assertThat(retention.approve(policy)).isEqualTo(approved);
+        verifyNoInteractions(indexes);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"queued", "started", "attempt", "worker", "effect", "gate", "epoch", "actor"})
+    void lateReviewNeverChangesAStartedBusyOrDifferentlyScopedPlan(String mutation) {
+        planWithoutIndexReview();
+        switch (mutation) {
+            case "queued" -> jdbc.update("UPDATE platform_target_retirement_operations SET state='QUEUED' WHERE id=?", operation.id());
+            case "started" -> jdbc.update("UPDATE platform_target_retirement_operations SET started_at=? WHERE id=?", time(), operation.id());
+            case "attempt" -> jdbc.update("UPDATE platform_target_retirement_operations SET attempt=1 WHERE id=?", operation.id());
+            case "worker" -> jdbc.update("UPDATE platform_target_retirement_operations SET worker_token='synthetic-worker' WHERE id=?", operation.id());
+            case "effect" -> jdbc.update("UPDATE platform_target_retirement_operations SET in_flight_effect='synthetic-effect' WHERE id=?", operation.id());
+            case "gate" -> jdbc.update("UPDATE platform_target_retirement_gates SET state='RETIRING',operation_id=? WHERE deployment_id=? AND target_profile_id=?", operation.id(), deploymentId, targetId);
+            case "epoch" -> jdbc.update("UPDATE platform_target_retirement_gates SET epoch=epoch+1 WHERE deployment_id=? AND target_profile_id=?", deploymentId, targetId);
+            case "actor" -> jdbc.update("UPDATE platform_target_retirement_operations SET requested_by_actor_id='foreign' WHERE id=?", operation.id());
+        }
+        String before = ledgerSnapshot();
+        assertThatThrownBy(() -> retention.approve(policy)).hasMessageContaining("INDEX_RETENTION_REVIEW_BEFORE_EFFECT_REQUIRED");
+        assertThat(ledgerSnapshot()).isEqualTo(before);
+        assertThat(store.indexRetentionAuthorization(reservation.id())).isNull();
+        verifyNoInteractions(indexes);
     }
 
     @ParameterizedTest @ValueSource(longs = {0, -1, 10_001})
@@ -392,17 +434,15 @@ class ExternalIndexRetentionPostgresIT {
     @Test void residualIndexQuotaSerializesConcurrentAdmissionsWithoutRefillingTheBudget() throws Exception {
         startRetirement(); for (int i = 0; i < 10; i++) worker.runNext(operation.id());
         store.settleRetained(reservation.fence(), settlementReadback(), "synthetic-settlement", clock.instant());
-        var previous = store.activePolicy();
-        var limit = with(with(vector(10_000), Dimension.ENVIRONMENTS, 1), Dimension.INDEXES, 2);
-        Budget b = new Budget(limit, vector(0), vector(0), "synthetic-tight-measurement", clock.instant().minusSeconds(1), clock.instant().plusSeconds(1000));
-        store.approvePolicy(new FleetPolicy("tight-" + suffix, b, Map.of(targetId, new TargetBudget(targetId, Intent.CUSTOMER_STAGING, placement, "synthetic-profile", b)),
-            previous.lifecycle(), previous.restoreEvidenceReference(), previous.privacyEvidenceReference(), previous.supportReference()), "synthetic-reviewer", clock.instant());
+        long remainingIndexes = store.activePolicy().targets().get(targetId).budget().measured().amounts().get(Dimension.INDEXES)
+            - store.require(reservation.id()).chargedDemand().amounts().get(Dimension.INDEXES);
+        var nextDemand = with(manifest.demand(), Dimension.INDEXES, remainingIndexes);
         String financial = financialSnapshot();
         CountDownLatch start = new CountDownLatch(1);
         var manifests = new ArrayList<Manifest>();
         for (int i = 0; i < 8; i++) {
             var next = new Manifest("next-" + i + "-" + suffix, "synthetic-next-" + i + "-" + suffix, version.getId(), version.getConfigHash(),
-                targetId, manifest.bindingFingerprint(), manifest.topologyReference(), manifest.demand(), manifest.prerequisiteReferences());
+                targetId, manifest.bindingFingerprint(), manifest.topologyReference(), nextDemand, manifest.prerequisiteReferences());
             store.approveManifest(next, "synthetic-reviewer", clock.instant()); manifests.add(next);
         }
         try (var pool = Executors.newFixedThreadPool(8)) {
@@ -416,7 +456,9 @@ class ExternalIndexRetentionPostgresIT {
             assertThat(accepted).isEqualTo(1);
         }
         assertThat(store.held()).hasSize(2);
-        assertThat(AdmissionRules.sum(store.held().stream().map(Reservation::chargedDemand).toList()).amounts().get(Dimension.INDEXES)).isEqualTo(2);
+        assertThat(AdmissionRules.sum(store.held().stream().map(Reservation::chargedDemand).toList()).amounts().get(Dimension.INDEXES))
+            .isEqualTo(store.activePolicy().targets().get(targetId).budget().measured().amounts().get(Dimension.INDEXES));
+        assertThat(store.require(reservation.id()).chargedDemand().amounts().get(Dimension.INDEXES)).isEqualTo(policy.indexes());
         assertThat(financialSnapshot()).isEqualTo(financial);
     }
 
@@ -538,6 +580,23 @@ class ExternalIndexRetentionPostgresIT {
         tables.forEach(table -> assertThat(table(schema + "." + table)).as(table).isEqualTo(before.get(table)));
         assertThat(count(schema + ".deployment_external_index_retention_receipts")).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + schema + ".deployment_admission_reviews WHERE kind='INDEX_RETENTION'", Long.class)).isZero();
+    }
+
+    private void planWithoutIndexReview() {
+        clock.advance(90);
+        for (NoticeWork work : store.noticeWork(reservation.fence(), "synthetic-notices", clock.instant()))
+            store.noticeDelivered(work, new NoticeDelivery(work.deliveryKey(), "synthetic-delivery", clock.instant()), "synthetic-notices", clock.instant());
+        reservation = store.require(reservation.id()); clock.advance(10);
+        ExpiryWork claim = store.claimExpiry(reservation.fence(), "synthetic-expiry", clock.instant());
+        reservation = store.require(reservation.id());
+        var request = new PlanRequest("admission-expiry:" + reservation.id() + ":" + reservation.generation(), List.of(releaseId), List.of(), claim.drainDeadline(),
+            new Retention(RetentionDecision.RECLAIM, null, null, "synthetic-restore"), "synthetic-staging-expiry");
+        SecurityContextHolder.clearContext();
+        try {
+            operation = retirements.planForAdmissionExpiry(deploymentId, targetId, reservation.id(), reservation.generation(), request);
+        } finally {
+            authenticate(PlatformRole.PLATFORM_ADMIN);
+        }
     }
 
     private void startRetirement() {

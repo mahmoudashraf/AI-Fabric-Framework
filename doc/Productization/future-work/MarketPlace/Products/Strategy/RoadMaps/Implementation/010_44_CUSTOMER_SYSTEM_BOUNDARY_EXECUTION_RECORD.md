@@ -1,5 +1,26 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 13:20 UTC Live Blocker Evidence And Bounded Correction
+
+Both CPs verify1fa352a18/schema208/UP. The storage404 fix is proven live:
+old37 return now has an actual PLANNED retirement37ebc9c9, no native effects.
+Full capacity remains charged. New exact blockers are PostgreSQL timestamp
+rounding in the authority comparison and a missing explicit index preservation
+review. Four-file correction preserves scope/fences, accepts only native
+microsecond rounding, and permits admin review only for an exact unstarted,
+no-effect SYSTEM admission plan. Existing plan/request/audit remain immutable;
+started/foreign/busy/uncertain cases still block. No new recovery engine/API.
+
+Final Main package53 unique PASS, zero failures/skips:39 realPG methods across
+the authority/retention suites, all208 migrations, plus handoff checks. Earlier
+fixture failures and all reports retained. Four-file publication/CP rollout next.
+Obsolete Qdrant pilot app disabled and only runtime/connector paused, DB/storage
+and FULL ledger retained. Fresh measured policy expires14:58:05, unchanged
+physical/funding ceilings/headroom, no swap credit. Explicit retained logical
+index slots remain charged. No new business DB, S3 write, vector transfer,
+nativeFree mutation, runtime38 admission or hosted38 browser acceptance yet.
+The five-step customer journey remains the only target; UI extraction LAST.
+
 ## 2026-10-22 12:40 UTC Narrow Retirement Inventory Correction Qualified
 
 The pre-persistence return failure reproduces an unrelated stale ACTIVE handle's
