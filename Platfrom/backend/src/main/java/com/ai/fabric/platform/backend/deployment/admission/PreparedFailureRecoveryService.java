@@ -50,7 +50,9 @@ public class PreparedFailureRecoveryService {
         var deployment = deployments.findById(deploymentId).orElseThrow(this::denied);
         if (!actor.customerId().equals(deployment.getCustomerId()) || !Objects.equals(reservation.tenantId(), deployment.getTenantId())) throw denied();
         // Recovery repairs admission only. It cannot satisfy or skip the next apply's fresh prerequisites.
-        var approved = boundary.prepareAdmission(deployment, reservation.targetProfileId(), Operation.APPLY, operationKey);
+        var operation = reservation.intent() == AdmissionContracts.Intent.CUSTOMER_PRODUCTION
+            ? Operation.PROMOTION_APPLY : Operation.APPLY;
+        var approved = boundary.prepareAdmission(deployment, reservation.targetProfileId(), operation, operationKey);
         if (approved == null || !offerId.equals(approved.context().offerId()) || !actor.customerId().equals(approved.context().customerId())) throw denied();
         var manifest = store.context(reservation).manifest();
         var version = versions.findById(manifest.versionId()).orElseThrow(this::denied);

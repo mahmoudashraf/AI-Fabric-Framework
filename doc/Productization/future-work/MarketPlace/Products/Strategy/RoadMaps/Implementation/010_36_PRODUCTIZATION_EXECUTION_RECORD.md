@@ -6,6 +6,59 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 22:48 UTC Actual Production Attempt; Pre-Provider Recovery Gap
+
+22:53 qualification: the combined backend package passed152 focused tests,
+including12 actual PostgreSQL cases, with zero failures/errors/skips. The
+earlier broader run's invalid null-target fixture is retained in the evidence;
+its corrected case now tests a valid conflicting release-owned handle. No
+production guard was weakened. Exact source/JAR/report hashes are recorded at
+`/private/tmp/01044-pre-provider-recovery-qualification`. Both corrections are
+ready for one backend-only rollout. Actual staging workspace loading was also
+rechecked successfully after the failed production attempt, without an AI query.
+Hosted recovery/recheck and resumed production apply remain unperformed.
+
+The real customer UI successfully reviewed and requested production release
+`rel-2a675e1d` using the original reservation, with no blocked or failed browser
+requests. Provisioning then stopped before native handles, managed dependencies
+or provider allowance allocation: an obsolete unused production grant and the
+current journey grant made selection ambiguous. The existing admin
+`void-unused` operation voided only the obsolete grant, preserving its history
+and the current approval. No customer app switch or production runtime exists;
+the staging app remains live. A scoped retirement-plan request was blocked by
+the held reservation and created no retirement operation or native effect.
+
+The existing prepared-recovery boundary did not support an allowance-selection
+failure before any managed graph, or another live target on the same deployment.
+A narrowly bounded correction is under local PostgreSQL qualification. It uses
+the exact execution error/control-flow contract and scoped ledger absence proof,
+not query-text matching or hidden semantic recovery. It retains staging, funding,
+limits, external bindings and failed history; the next apply stays explicit.
+The independent exact-release recheck correction has passed70 scoped tests and
+main review, allowing staging evidence to be refreshed without selecting the
+latest production attempt or overwriting that deployment projection. Combined
+qualification, backend rollout, safe recovery and production continuation are
+still pending. UI extraction remains last and not certified.
+
+### 2026-10-22 22:17 UTC Promotion UI Live; Same Customer Continues
+
+The functional placement-order correction `1a89ce26f` is now verified on both
+servers, UI image `sha256:1660d26e55fc09e0726e6b0a9d256f79803761c6120e3c6f633c19a027a3a62c`.
+Domains, environment and effective runtime configuration are unchanged. Backend
+and customer runtime remain on the already verified images; no extraction or
+navigation redesign was included. Rollout proof is under
+`/private/tmp/01044-placement-order-ui-rollout-20261022`.
+
+The same customer already has one reserved production allocation from the first
+normal promotion-plan admission. It will be reused, not duplicated. This makes
+the current held reservation count six, correcting the earlier five-count note.
+The next capacity-policy publication correctly rejected an unchanged staging
+measurement timestamp; that failed attempt changed no policy or allocation.
+One fresh read-only staging sample is running before normal customer UI
+promotion. Independent production indexing, app activation and live production
+workspace checks remain open. The customer release-recheck affordance and final
+UI extraction remain explicitly incomplete; no full self-service claim is made.
+
 ### 2026-10-22 21:27 UTC Core Staging Customer Journey Passed; Promotion Configuration Gap
 
 22:03 continuation: both control planes now verified source6526c8516/schema208,

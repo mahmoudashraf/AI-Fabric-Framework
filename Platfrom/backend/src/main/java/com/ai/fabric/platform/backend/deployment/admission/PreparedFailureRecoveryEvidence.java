@@ -29,6 +29,8 @@ final class PreparedFailureRecoveryEvidence {
     }
 
     PreparedFailureRecoveryContracts.Proof read(Reservation r, String releaseId, Manifest manifest) {
+        var early = new PreProviderAllowanceRecoveryEvidence(jdbc, json).readIfApplicable(r, releaseId, manifest);
+        if (early != null) return early;
         var inventory = new TreeMap<String, String>();
         var deployment = one("SELECT * FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", r.deploymentId());
         if (!r.customerId().equals(deployment.get("customer_id")) || !r.tenantId().equals(deployment.get("tenant_id"))

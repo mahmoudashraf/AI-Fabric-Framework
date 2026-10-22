@@ -744,8 +744,9 @@ public class DeploymentController {
 
     @PostMapping("/deployments/{deploymentId}/verification-runs/recheck")
     @ResponseStatus(HttpStatus.CREATED)
-    public DeploymentVerificationRunSummary rerunVerification(@PathVariable String deploymentId) {
-        return deploymentService.rerunVerification(deploymentId);
+    public DeploymentVerificationRunSummary rerunVerification(@PathVariable String deploymentId,
+                                                              @RequestParam(required = false) String releaseId) {
+        return deploymentService.rerunVerification(deploymentId, releaseId);
     }
 
     @PostMapping("/deployments/{deploymentId}/hosted-verifications")

@@ -42,6 +42,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactS
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactRole;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigationSummary;
@@ -152,6 +153,9 @@ public class DeploymentService {
 
     @Autowired
     private DeploymentDocumentBindingResolver documentBindingResolver;
+
+    @Autowired
+    private DeploymentTargetContextService deploymentTargetContexts;
 
     @Autowired
     private com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationResolver externalIntegrations;
@@ -2151,6 +2155,43 @@ public class DeploymentService {
                 NOT_FOUND,
                 "No applied release found for active version: " + version.getVersionLabel()
             ));
+        return rerunVerification(deployment, version, release, true);
+    }
+
+    @Transactional
+    public DeploymentVerificationRunSummary rerunVerification(String deploymentId, String releaseId) {
+        if (releaseId == null) {
+            return rerunVerification(deploymentId);
+        }
+        DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
+        assertNotArchived(deployment, "rerun verification");
+        if (!StringUtils.hasText(releaseId) || releaseId.trim().length() > 64) {
+            throw new ResponseStatusException(BAD_REQUEST, "releaseId is required and must not exceed 64 characters.");
+        }
+        DeploymentReleaseEntity release = releaseRepository.findById(releaseId.trim())
+            .filter(value -> deployment.getId().equals(value.getDeploymentId()))
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment release not found."));
+        DeploymentTargetReference target = new DeploymentTargetReference(
+            deployment.getId(), release.getTargetProfileId(), release.getId()
+        );
+        DeploymentTargetContextService.Context context = deploymentTargetContexts.resolve(
+            target.deploymentId(), target.targetProfileId(), target.releaseId(), true
+        );
+        offerBoundary.require(context.deployment(), target.targetProfileId(), target.releaseId(),
+            com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.VERIFY,
+            "verification-recheck-" + UUID.randomUUID(), Map.of(), null, null, null);
+
+        // Historical target evidence must not overwrite the deployment's current release projection.
+        boolean updateDeploymentProjection = context.version().getId().equals(deployment.getActiveVersionId())
+            && releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+                .map(latest -> context.release().getId().equals(latest.getId())).orElse(false);
+        return rerunVerification(context.deployment(), context.version(), context.release(), updateDeploymentProjection);
+    }
+
+    private DeploymentVerificationRunSummary rerunVerification(DeploymentEntity deployment,
+                                                                DeploymentVersionEntity version,
+                                                                DeploymentReleaseEntity release,
+                                                                boolean updateDeploymentProjection) {
         if (DeploymentReleaseRecoveryService.ACTIVE_RELEASE_STATUSES.contains(release.getStatus())
             || deploymentReleaseExecutionService.isApplyExecuting(release.getId())) {
             throw new ResponseStatusException(CONFLICT, "RELEASE_APPLY_IN_PROGRESS");
@@ -2160,14 +2201,15 @@ public class DeploymentService {
             deployment,
             version,
             release,
-            "MANUAL_RERUN"
+            "MANUAL_RERUN",
+            updateDeploymentProjection
         );
         platformAuditService.record(
             "VERIFICATION_RERUN_REQUESTED",
             "DEPLOYMENT_VERIFICATION_RUN",
             verificationRun.getId(),
             java.util.Map.of(
-                "deploymentId", deploymentId,
+                "deploymentId", deployment.getId(),
                 "releaseId", release.getId(),
                 "versionId", version.getId()
             )
@@ -2568,7 +2610,8 @@ public class DeploymentService {
     private DeploymentVerificationRunEntity runVerification(DeploymentEntity deployment,
                                                             DeploymentVersionEntity version,
                                                             DeploymentReleaseEntity release,
-                                                            String verificationType) {
+                                                            String verificationType,
+                                                            boolean updateDeploymentProjection) {
         DeploymentVerificationRunEntity verificationRun = deploymentReleaseVerificationService.verify(
             deployment,
             version,
@@ -2588,9 +2631,11 @@ public class DeploymentService {
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
 
-        deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
-        deployment.setUpdatedAt(Instant.now());
-        deploymentRepository.save(deployment);
+        if (updateDeploymentProjection) {
+            deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
+            deployment.setUpdatedAt(Instant.now());
+            deploymentRepository.save(deployment);
+        }
         return verificationRun;
     }
 

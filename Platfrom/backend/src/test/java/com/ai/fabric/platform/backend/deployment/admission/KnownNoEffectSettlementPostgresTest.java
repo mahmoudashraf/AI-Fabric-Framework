@@ -499,6 +499,82 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(count("deployment_admission_authorizations")).isEqualTo(1);
     }
 
+    @Test void allowanceSelectionFailureRecoveryPreservesOtherLiveTargetAndAllowsFreshApplyWithoutCreditMutation() {
+        allowanceSelectionFailure();
+        jdbc.update("UPDATE platform_deployments SET active_version_id='version',runtime_base_url='https://other-live-runtime.example',connector_base_url='https://other-live-connector.example' WHERE id='deployment'");
+        jdbc.update("INSERT INTO deployment_target_profiles(id,name,provider_type,environment_name,active,source_strategy,created_at,updated_at) VALUES ('other-target','Other','COOLIFY','staging',true,'IMAGE',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+        jdbc.update("INSERT INTO deployment_provider_resource_handles(id,deployment_id,target_profile_id,provider_type,resource_kind,provider_resource_uuid,status,metadata_json,created_at,updated_at) VALUES ('other-live-runtime','deployment','other-target','COOLIFY','APPLICATION','other-live-app','ACTIVE','{}',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+        var before = preparedPreserved(); var r = store.require(original.id());
+        var plan = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
+        assertThat(plan.boundary()).isEqualTo("COOLIFY_ALLOWANCE_SELECTION_FAILED_BEFORE_NATIVE_EFFECTS_V1");
+        assertThat(preparedPreserved()).isEqualTo(before);
+        var result = store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { });
+        assertThat(result.state()).isEqualTo(State.RESERVED); assertThat(result.retainedAllocationIds()).isEmpty();
+        assertThat(result.providerRetryPerformed()).isFalse(); assertThat(result.financialMutationPerformed()).isFalse();
+        assertThat(preparedPreserved()).isEqualTo(before);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("NO_EFFECT");
+        assertThat(store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).isEqualTo(result);
+        coordinator().observe("failed-release"); assertThat(store.require(r.id()).state()).isEqualTo(State.RESERVED);
+        var c = context("manifest");
+        store.reserve(c, new Reserve("explicit-fresh-apply", "manifest", scope("explicit-fresh-apply"), r.id()), evidence(c, NOW), "owner", NOW);
+        bind("fresh-release"); assertThat(store.currentReleaseId(store.require(r.id()))).isEqualTo("fresh-release");
+        assertThat(count("provider_usage_allocations")).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"other-error", "native-step", "native-handle", "release-owned-handle", "graph", "allocation", "nonterminal", "activity", "retirement", "foreign-target"})
+    void allowanceRecoveryRejectsUnprovenOrScopedEffectsWithoutWrites(String change) {
+        allowanceSelectionFailure();
+        switch (change) {
+            case "other-error", "native-step" -> {
+                var p = mapper.valueToTree(allowanceProgress());
+                if ("other-error".equals(change)) ((com.fasterxml.jackson.databind.node.ObjectNode) p.path("progress")).put("errorMessage", "PROVIDER_FAILURE");
+                else ((com.fasterxml.jackson.databind.node.ObjectNode) p.path("progress").path("steps").get(2)).put("key", "reconcile_coolify_runtime_application");
+                jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(p));
+            }
+            case "native-handle" -> jdbc.update("UPDATE deployment_provider_resource_handles SET resource_kind='APPLICATION' WHERE id='EXTERNAL_DOCUMENT_STORAGE_BINDING'");
+            case "release-owned-handle" -> jdbc.update("UPDATE deployment_provider_resource_handles SET release_id='failed-release' WHERE id='EXTERNAL_DOCUMENT_STORAGE_BINDING'");
+            case "graph" -> {
+                jdbc.update("INSERT INTO deployment_managed_dependency_specs(id,spec_json,fingerprint,reviewed_by,reviewed_at,active,review_reference) VALUES ('early-spec','{}',?,'staff',?,true,'synthetic-review')", "d".repeat(64), Timestamp.from(NOW));
+                jdbc.update("INSERT INTO deployment_managed_dependency_graphs(id,deployment_id,target_profile_id,customer_id,tenant_id,version_id,release_id,spec_ref,spec_fingerprint,binding_fingerprint,status,step,reservation_ref,spec_json,state_json,created_at,updated_at) VALUES ('early-graph','deployment',?,'customer','tenant','version','failed-release','early-spec',?,?,'PROVISIONED','RUNTIME_INITIALIZATION_REQUIRED',?,'{}','{}',?,?)", TARGET, "d".repeat(64), "c".repeat(64), original.id(), Timestamp.from(NOW), Timestamp.from(NOW));
+            }
+            case "allocation" -> allocation("unexpected-allocation", "deployment", original.id());
+            case "nonterminal" -> jdbc.update("UPDATE platform_deployment_releases SET status='PROVISIONING' WHERE id='failed-release'");
+            case "activity" -> jdbc.update("INSERT INTO deployment_admission_activity_watermarks VALUES (?,'failed-release','ACCEPTED_SESSION',1,?)", original.id(), Timestamp.from(NOW));
+            case "retirement" -> jdbc.update("INSERT INTO platform_target_retirement_operations(id,customer_id,deployment_id,target_profile_id,operation_key,request_fingerprint,requested_by_actor_id,requested_by_role,request_json,snapshot_json,result_json,state,step,drain_deadline,created_at,updated_at) VALUES ('early-retirement','customer','deployment',?,'retire','x','owner','CUSTOMER_ADMIN','{}','{}','{}','PLANNED','DRAIN',?,?,?)", TARGET, Timestamp.from(NOW), Timestamp.from(NOW), Timestamp.from(NOW));
+            case "foreign-target" -> jdbc.update("UPDATE platform_deployment_releases SET target_profile_id=NULL WHERE id='failed-release'");
+        }
+        var before = allRelevant(); var r = store.require(original.id());
+        assertThatThrownBy(() -> store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { })).isInstanceOf(RuntimeException.class);
+        assertThat(allRelevant()).isEqualTo(before); assertThat(store.require(r.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+    }
+
+    @Test void allowanceRecoveryRejectsChangedGrantAndLateNativeHistoryAtExecution() {
+        allowanceSelectionFailure(); var r = store.require(original.id());
+        var plan = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
+        jdbc.update("UPDATE provider_usage_grants SET lifecycle_status='VOID_UNUSED' WHERE id='grant'");
+        assertThatThrownBy(() -> store.recoverPreparedFailure("customer", "deployment", r.id(), plan.command(), "owner", value -> { })).hasMessageContaining("PROOF_CHANGED");
+        var current = store.planPreparedFailureRecovery("customer", "deployment", r.id(), preparedDraft(r.fence()), value -> { });
+        jdbc.update("UPDATE deployment_provider_resource_handles SET resource_kind='APPLICATION' WHERE id='EXTERNAL_DOCUMENT_STORAGE_BINDING'");
+        assertThatThrownBy(() -> store.recoverPreparedFailure("customer", "deployment", r.id(), current.command(), "owner", value -> { })).hasMessageContaining("ALLOWANCE_FAILURE_UNPROVEN");
+        assertThat(store.require(r.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+    }
+
+    private void allowanceSelectionFailure() {
+        jdbc.update("UPDATE deployment_admission_release_bindings SET state='QUEUED' WHERE release_id='failed-release'");
+        coordinator().beginProvisioning("failed-release");
+        jdbc.update("UPDATE platform_deployment_releases SET verification_status='SKIPPED',provisioning_details_json=? WHERE id='failed-release'", json.write(allowanceProgress()));
+        coordinator().observe("failed-release"); assertThat(store.require(original.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+    }
+
+    private Map<String, Object> allowanceProgress() {
+        var keys = List.of("queue_release", "preflight_verification", "prepare_apply", "apply_failed");
+        var statuses = List.of("QUEUED", "COMPLETED", "RUNNING", "FAILED");
+        var steps = java.util.stream.IntStream.range(0, keys.size()).mapToObj(i -> Map.of("key", keys.get(i), "status", statuses.get(i))).toList();
+        return Map.of("progress", Map.of("currentStepKey", "apply_failed", "currentStepStatus", "FAILED", "steps", steps,
+            "errorMessage", "409 CONFLICT \"PROVIDER_USAGE_REVIEWED_GRANT_AMBIGUOUS\""));
+    }
+
     @Test void preparedFailureRecoveryRetainsFundingGraphConfigurationAndFailedHistoryThenAllowsFreshApply() {
         preparedFailure();
         var before = preparedPreserved(); var r = store.require(original.id());
