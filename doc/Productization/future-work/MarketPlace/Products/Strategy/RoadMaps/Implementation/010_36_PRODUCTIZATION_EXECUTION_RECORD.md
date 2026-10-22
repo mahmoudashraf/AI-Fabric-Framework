@@ -6,6 +6,51 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 12:40 UTC Customer Journey Blocker Qualified For Rollout
+
+Normal staging return is blocked before retirement persistence by an unrelated
+stale native storage404. The two-file generic inventory fix requires positively
+confirmed parent absence in the exact target/server scope. Storage404 alone is
+not absence; present/unknown/forbidden/timeout/mismatched parents still block.
+Main final bounded package:109 unique PASS, zero skips;9 actual PostgreSQL cases
+apply ALL208 migrations. No framework/runtime/schema/UI change or broad cleanup.
+Commit/backend rollout next, then the existing customer return resumes normally.
+Full holds stay until real lifecycle/resource readback; no completion claim.
+
+Both-target external integrations, independent production read-only S3 prefix
+and fresh production vector binding are prepared for the verified38 customer.
+No production apply, source write, vector transfer or new business DB. Ordinary
+bounded new model grants use owner's current target-wide token approval; prior
+allocated usage/lifetime caps remain. An actually unused old production grant
+was voided through its supported audited API to prevent grant ambiguity.
+Actual customer template-selection/configuration UI proof is PASS. Hosted stage
+chat/policies/protected action/sign-in/handover, independent production/app switch
+remain OPEN. UI extraction LAST. No broader edge/recovery work is required.
+
+### 2026-10-22 12:25 UTC Actual Customer Configuration And Engage38
+
+Staging then production control-plane rollout verifies331806e3/schema208/UP,
+preserving27 critical projections/config/UI. Backend207 focused checks pass,
+including12 real PostgreSQL. Runtime38 is Central/source-byte verified and
+registered for STAGING as dsa-5a57a7e0; no hosted38 acceptance yet.
+
+The real production CUSTOMER_ADMIN UI passed password login, dealership38 offer
+acceptance/selection, placement verification and configuration creation. New
+dep-1a516e76/ten-5041f5b0, immutable ver-30aa1f14/framework38, real sign-in issuer
+and app origin, DRAFT northfield-ready Engage app. Customer S3 and stock/action
+bindings use normal APIs. The same external business receiver grants new scope
+and denies old; no business write or new business/inventory DB. Three meaningful
+policies remain in customer-owned read-only S3. No vector transfer on promotion.
+
+Old disabled37 allocation return accepted normally, now ACTIVE/CLAIMED4, with
+full demand retained. The hosted retirement worker fails before creating its
+operation; targeted read-only diagnosis is underway. Main continues the actual
+customer setup, not a new recovery engine. New runtime, capacity admission,
+stock+policy answer, protected sign-in/action, Inbox handover, independent
+production verification/app switch remain OPEN. UI extraction LAST. Evidence:
+/private/tmp/01044-journey-0837-20261022/journey-0838/customer-ui and private
+operation receipts. Preserve failures; do not replay consumed commands.
+
 ### 2026-10-22 11:59 UTC Explicit Customer Staging Return Qualified
 
 The eight-file staging-return change passes78 focused checks/package, including

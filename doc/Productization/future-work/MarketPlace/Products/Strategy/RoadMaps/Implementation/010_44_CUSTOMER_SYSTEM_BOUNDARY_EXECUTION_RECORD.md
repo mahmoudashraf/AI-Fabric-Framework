@@ -1,5 +1,46 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-22 12:40 UTC Narrow Retirement Inventory Correction Qualified
+
+The pre-persistence return failure reproduces an unrelated stale ACTIVE handle's
+storage404. Two-file correction excludes it from the volume reference scan only
+after exact scoped parent absence. Present/uncertain/mismatched parents and
+403/500/timeout still block. No stale-handle mutation, stop-only scan or fabricated
+drain. Main final package109 unique checks pass, zero skips, including9 realPG
+through all208 migrations. Backend-only publication/rollout next; return still
+CLAIMED/full demand. Evidence /private/tmp/01044-return-diagnosis-20261022 and
+root/journey-0838/return-fix-package.log.
+
+Fresh38 both-target stock/action and separate production read-only S3 bindings
+are configured. Production existing vector binding uses the fresh equivalent
+Serverless; not deployed. No source/business/S3 write or vector transfer.
+Owner-authorized bounded new model grants preserve old usage/lifetime caps.
+The demonstrably unused old production grant was normally voided, not refunded.
+Engage is DRAFT, browser acceptance/promotion remain OPEN. UI extraction LAST.
+
+## 2026-10-22 12:25 UTC Customer UI Path Reverified On Framework38
+
+Both control planes now verify331806e3/schema208/UP, with27 protected
+projections/config/UI unchanged. Backend207 checks include12 real PostgreSQL;
+the unchanged supplemental vector test passes from the actual monorepo.
+Runtime38 is inspected/registered STAGING as dsa-5a57a7e0, not yet deployed.
+
+Actual production-customer browser PASS: sign in, accept/select the dealership
+template and create staging configuration dep-1a516e76/ten-5041f5b0. Published
+ver-30aa1f14 freezes38 plus real Supabase/app origin. Engage northfield-ready
+is DRAFT. Customer read-only S3, simulator stock and existing external business
+receiver bindings are configured; new receiver scope grants and old denies.
+No deployment-owned business/inventory DB, new external business DB, business
+write, S3 write or vector copying. Source/offers/financial history preserved.
+
+The disabled37 canary's normal early return was accepted200, ACTIVE/CLAIMED4.
+The existing worker then fails closed before retirement creation; full capacity
+remains charged. A narrow read-only diagnosis runs in parallel while Main owns
+the sequential journey. No new runtime/admission or hosted browser acceptance
+is claimed. Resolve this critical-path blocker, then stage inventory/policies,
+sign-in/action/handover and independent production/app switch. UI LAST.
+Private proof: /private/tmp/01044-journey-0837-20261022/journey-0838.
+
 ## 2026-10-22 11:59 UTC Normal Staging Return Qualified
 
 Customer-owned early return now qualifies78 checks/package, nine real PG cases

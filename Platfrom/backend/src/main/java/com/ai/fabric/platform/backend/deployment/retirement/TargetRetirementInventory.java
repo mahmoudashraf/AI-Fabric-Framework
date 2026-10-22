@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyApiException;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationStorageSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -221,9 +222,26 @@ public class TargetRetirementInventory {
                     var target = targets.findById(other.getTargetProfileId())
                         .orElseThrow(() -> failure("DATABASE_VOLUME_REFERENCE_INVENTORY_UNPROVEN"));
                     var connection = resolver.requireConnection(target);
-                    var observed = APPLICATION_KINDS.contains(other.getResourceKind())
-                        ? client.listApplicationStorages(connection, other.getProviderResourceUuid())
-                        : client.listDatabaseStorages(connection, other.getProviderResourceUuid());
+                    List<CoolifyApplicationStorageSummary> observed;
+                    try {
+                        observed = APPLICATION_KINDS.contains(other.getResourceKind())
+                            ? client.listApplicationStorages(connection, other.getProviderResourceUuid())
+                            : client.listDatabaseStorages(connection, other.getProviderResourceUuid());
+                    } catch (CoolifyApiException ex) {
+                        if (ex.statusCode() != 404) throw ex;
+                        if (!Objects.equals(other.getTargetProfileId(), target.getId())
+                            || other.getProviderType() != target.getProviderType()
+                            || other.getProviderServerUuid() == null
+                            || !other.getProviderServerUuid().equals(connection.config().serverUuid())) {
+                            throw failure("DATABASE_VOLUME_REFERENCE_INVENTORY_UNPROVEN");
+                        }
+                        // A missing storage endpoint alone cannot prove that its parent is absent.
+                        boolean absent = APPLICATION_KINDS.contains(other.getResourceKind())
+                            ? client.getApplication(connection, other.getProviderResourceUuid()).isEmpty()
+                            : client.getDatabase(connection, other.getProviderResourceUuid()).isEmpty();
+                        if (!absent) throw ex;
+                        continue;
+                    }
                     boolean shared = observed.stream().filter(storage -> "persistent".equals(storage.type()))
                         .anyMatch(storage -> volume.storageUuid().equals(storage.uuid())
                             || volume.name().equals(storage.name()));

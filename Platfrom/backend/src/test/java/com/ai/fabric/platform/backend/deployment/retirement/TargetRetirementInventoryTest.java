@@ -362,8 +362,151 @@ class TargetRetirementInventoryTest {
         verify(client, never()).listApplicationStorages(connection, "other-app");
         when(client.listApplicationStorages(connection, "other-app")).thenThrow(
             new CoolifyApiException("Unrelated stale application", 404, "/applications/other-app/storages"));
+        when(client.getApplication(connection, "other-app")).thenReturn(Optional.of(new CoolifyApplicationSummary(
+            "other-app", "other", null, "running", null, null, new ObjectMapper().createObjectNode())));
         assertThatThrownBy(this::capture).isInstanceOf(CoolifyApiException.class);
         assertThat(service.captureRetainingStorage("deployment", "staging", request, 0)).isEqualTo(stopped);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"APPLICATION", "CONNECTOR_APPLICATION", "VECTORIZATION_RUNNER_APPLICATION", "RUNTIME_POSTGRES_DATABASE"})
+    void storage404RequiresExactScopedParentAbsenceWithoutChangingTheStaleHandle(String kind) {
+        var other = runtimeDatabaseWithOtherResource(kind);
+        var otherTarget = new DeploymentTargetProfileEntity();
+        otherTarget.setId("other-target"); otherTarget.setProviderType(DeploymentProviderType.COOLIFY);
+        other.setTargetProfileId(otherTarget.getId());
+        when(targets.findById(otherTarget.getId())).thenReturn(Optional.of(otherTarget));
+        var config = mock(CoolifyTargetProfileConfig.class);
+        when(config.serverUuid()).thenReturn("staging-server");
+        var connection = new CoolifyConnection("https://scoped-coolify.test", "scoped-private", config);
+        when(resolver.requireConnection(otherTarget)).thenReturn(connection);
+        storage404(other, connection);
+        if (kind.equals("RUNTIME_POSTGRES_DATABASE"))
+            when(client.getDatabase(connection, "other-resource")).thenReturn(Optional.empty());
+        else when(client.getApplication(connection, "other-resource")).thenReturn(Optional.empty());
+
+        var snapshot = capture();
+        service.recheck(snapshot, request);
+        assertThat(snapshot.resources().getFirst().volumes()).singleElement()
+            .satisfies(volume -> assertThat(volume.name()).isEqualTo("runtime-db-volume"));
+        if (kind.equals("RUNTIME_POSTGRES_DATABASE"))
+            verify(client, times(2)).getDatabase(connection, "other-resource");
+        else verify(client, times(2)).getApplication(connection, "other-resource");
+        clearInvocations(client);
+        service.recheckLocal(snapshot, request);
+        verifyNoInteractions(client);
+        assertThat(other.getStatus()).isEqualTo("ACTIVE");
+        assertThat(other.getVolumeDeletionIntentReceipt()).isNull();
+        assertThat(other.getVolumeReclamationReceipt()).isNull();
+        verify(handles, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"APPLICATION", "RUNTIME_POSTGRES_DATABASE"})
+    void storage404WithPresentOrMismatchedParentStillFailsClosed(String kind) {
+        var other = runtimeDatabaseWithOtherResource(kind);
+        var connection = resolver.requireConnection(target);
+        var storageFailure = storage404(other, connection);
+        for (String observedUuid : List.of("other-resource", "wrong-resource")) {
+            if (kind.equals("RUNTIME_POSTGRES_DATABASE"))
+                when(client.getDatabase(connection, "other-resource")).thenReturn(Optional.of(new CoolifyDatabaseSummary(
+                    observedUuid, "other", "running", "postgresql", "user", "database", new ObjectMapper().createObjectNode())));
+            else when(client.getApplication(connection, "other-resource")).thenReturn(Optional.of(new CoolifyApplicationSummary(
+                observedUuid, "other", null, "running", null, null, new ObjectMapper().createObjectNode())));
+            assertThatThrownBy(this::capture).isSameAs(storageFailure);
+        }
+        verify(handles, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"APPLICATION", "RUNTIME_POSTGRES_DATABASE"})
+    void storage404WithUnknownParentStillFailsClosed(String kind) {
+        var other = runtimeDatabaseWithOtherResource(kind);
+        var connection = resolver.requireConnection(target);
+        storage404(other, connection);
+        for (var parentFailure : List.of(
+            new CoolifyApiException("Parent readback forbidden", 403, "/parent"),
+            new CoolifyApiException("Parent readback unavailable", 500, "/parent"),
+            new CoolifyApiException("Parent readback timed out", 502, "/parent", new java.net.SocketTimeoutException()))) {
+            if (kind.equals("RUNTIME_POSTGRES_DATABASE"))
+                doThrow(parentFailure).when(client).getDatabase(connection, "other-resource");
+            else doThrow(parentFailure).when(client).getApplication(connection, "other-resource");
+            assertThatThrownBy(this::capture).isSameAs(parentFailure);
+        }
+        verify(handles, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 500, 502})
+    void non404StorageFailureNeverUsesParentAbsenceAsABypass(int status) {
+        runtimeDatabaseWithOtherResource("CONNECTOR_APPLICATION");
+        var connection = resolver.requireConnection(target);
+        var storageFailure = new CoolifyApiException("Storage readback unavailable", status,
+            "/applications/other-resource/storages");
+        when(client.listApplicationStorages(connection, "other-resource")).thenThrow(storageFailure);
+        when(client.getApplication(connection, "other-resource")).thenReturn(Optional.empty());
+        assertThatThrownBy(this::capture).isSameAs(storageFailure);
+        verify(client, never()).getApplication(connection, "other-resource");
+        verify(handles, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"target", "provider", "server"})
+    void storage404CannotConfirmAbsenceThroughMismatchedTargetScope(String mismatch) {
+        var other = runtimeDatabaseWithOtherResource("CONNECTOR_APPLICATION");
+        var connection = resolver.requireConnection(target);
+        var otherTarget = new DeploymentTargetProfileEntity();
+        otherTarget.setId("other-target"); otherTarget.setProviderType(DeploymentProviderType.COOLIFY);
+        other.setTargetProfileId(otherTarget.getId());
+        when(targets.findById(otherTarget.getId())).thenReturn(Optional.of(otherTarget));
+        when(resolver.requireConnection(otherTarget)).thenReturn(connection);
+        storage404(other, connection);
+        if (mismatch.equals("target")) otherTarget.setId("different-target");
+        if (mismatch.equals("provider")) otherTarget.setProviderType(null);
+        if (mismatch.equals("server")) when(connection.config().serverUuid()).thenReturn("different-server");
+        assertThatThrownBy(this::capture).hasMessageContaining("DATABASE_VOLUME_REFERENCE_INVENTORY_UNPROVEN");
+        verify(client, never()).getApplication(connection, "other-resource");
+        verify(handles, never()).save(any());
+    }
+
+    @Test void ownedDatabaseStorage404NeverBecomesAnEmptyVolumeInventory() {
+        runtimeDatabaseWithOtherResource("CONNECTOR_APPLICATION");
+        var connection = resolver.requireConnection(target);
+        var storageFailure = new CoolifyApiException("Owned storage missing", 404, "/databases/staging-db/storages");
+        when(client.listDatabaseStorages(connection, "staging-db")).thenThrow(storageFailure);
+        assertThatThrownBy(this::capture).isSameAs(storageFailure);
+        verify(client, never()).getApplication(connection, "other-resource");
+        verify(handles, never()).save(any());
+    }
+
+    private DeploymentProviderResourceHandleEntity runtimeDatabaseWithOtherResource(String kind) {
+        var connection = resolver.requireConnection(target);
+        handle.setResourceKind("RUNTIME_POSTGRES_DATABASE"); handle.setProviderResourceUuid("staging-db");
+        handle.setMetadataJson("{\"databaseName\":\"runtime-db\"}");
+        var raw = new ObjectMapper().createObjectNode();
+        raw.put("uuid", "staging-db"); raw.put("name", "runtime-db");
+        raw.put("description", "Durable runtime chat database for AI Fabric deployment deployment");
+        raw.put("server_uuid", "staging-server"); raw.put("project_uuid", "project");
+        raw.put("environment_uuid", "environment"); raw.put("destination_uuid", "destination");
+        when(client.getDatabase(connection, "staging-db")).thenReturn(Optional.of(new CoolifyDatabaseSummary(
+            "staging-db", "runtime-db", "running", "postgresql", "runtime_user", "runtime", raw)));
+        when(client.listDatabaseStorages(connection, "staging-db")).thenReturn(List.of(
+            new CoolifyApplicationStorageSummary("database-storage", "persistent", "runtime-db-volume",
+                "/var/lib/postgresql/data", null, false, new ObjectMapper().createObjectNode())));
+        var other = new DeploymentProviderResourceHandleEntity();
+        other.setId("other"); other.setProviderType(DeploymentProviderType.COOLIFY); other.setStatus("ACTIVE");
+        other.setResourceKind(kind); other.setProviderResourceUuid("other-resource");
+        other.setProviderServerUuid("staging-server"); other.setTargetProfileId("staging");
+        when(handles.findAll()).thenReturn(List.of(handle, other));
+        return other;
+    }
+
+    private CoolifyApiException storage404(DeploymentProviderResourceHandleEntity other, CoolifyConnection connection) {
+        var failure = new CoolifyApiException("Unrelated stale resource", 404, "/resource/other-resource/storages");
+        if (other.getResourceKind().equals("RUNTIME_POSTGRES_DATABASE"))
+            when(client.listDatabaseStorages(connection, "other-resource")).thenThrow(failure);
+        else when(client.listApplicationStorages(connection, "other-resource")).thenThrow(failure);
+        return failure;
     }
     private DeploymentProviderResourceHandleEntity externalBinding(String resourceKind) {
         var binding = new DeploymentProviderResourceHandleEntity();
