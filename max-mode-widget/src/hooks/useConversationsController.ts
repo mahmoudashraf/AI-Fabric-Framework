@@ -176,15 +176,16 @@ export function useConversationsController({
       return;
     }
     if (!isOpen || hasLoadedRecentConversation.current) return;
-    if (chatMessagesLength > 0) {
+    if (chatMessagesLength > 0 || currentConversationId) {
       hasLoadedRecentConversation.current = true;
       return;
     }
 
+    let cancelled = false;
     const loadRecentConversation = async () => {
       try {
         const convList = await listConversations();
-        if (convList.length === 0) return;
+        if (cancelled || convList.length === 0) return;
 
         const sorted = [...convList].sort((a, b) => {
           const dateA = new Date(a.lastInteractionAt || a.createdAt).getTime();
@@ -196,6 +197,8 @@ export function useConversationsController({
         if (!recentUnlocked) return;
 
         const data = await getConversation(recentUnlocked.id);
+        // A turn, selection or unmount supersedes background history restoration.
+        if (cancelled) return;
         const messages = toChatMessages(data, recentUnlocked.id);
 
         setChatMessages(messages);
@@ -208,12 +211,13 @@ export function useConversationsController({
         }
         console.error("Failed to load recent conversation:", error);
       } finally {
-        hasLoadedRecentConversation.current = true;
+        if (!cancelled) hasLoadedRecentConversation.current = true;
       }
     };
 
     void loadRecentConversation();
-  }, [chatMessagesLength, enabled, isOpen, isPersistenceHydrated, setChatMessages, setCurrentConversationId]);
+    return () => { cancelled = true; };
+  }, [chatMessagesLength, currentConversationId, enabled, isOpen, isPersistenceHydrated, setChatMessages, setCurrentConversationId]);
 
   return {
     isConversationsOpen,
