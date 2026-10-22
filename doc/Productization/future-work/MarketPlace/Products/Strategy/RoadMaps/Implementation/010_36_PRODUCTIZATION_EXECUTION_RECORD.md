@@ -6,6 +6,63 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 23:42 UTC Production Native Ready; S3 Input Blocks Acceptance
+
+Production `rel-12f9b250` is provisioned, with runtime liveness and readiness both
+200/UP. Its first full post-apply run `vrf-7bbd013b` failed only the document
+connector readiness check. This is a canary-input error: the production setup
+helper supplied `<pending>` credential markers from the private handoff rather
+than the separate real production S3 reader. The source type and binding identity
+match; no IAM-policy defect has been established. The earlier19October direct
+read proof covers both prefixes, but its temporary credential file is absent.
+The Required for production task is recovering valid private material or asking
+the owner for its location. The ignored handoff now explicitly warns against
+executing placeholder entries. Real keys must pass a read-only preflight before
+any new binding command; no source write or access-policy widening is needed.
+
+The release's binding evidence freezes credential revisions. A correction must
+use authorized binding adoption and a newly verified release. Do not overwrite
+the old snapshot, patch native credentials behind it, or bypass the failed gate.
+The provisioned production reservation remains fully charged as OUTCOME_UNKNOWN,
+revision9; readiness's missing-current-allocation message does not mean capacity
+has been released. General credential-repair/reapply eligibility after failed
+verification must be respected and verified, not assumed from the earlier
+pre-native recovery case.
+
+The production Basic Inbox graph is READY, and the real operator UI opened and
+read its empty queue with no mutation; its screenshot was visually reviewed.
+This does not yet prove a paired production human conversation. Stock's first
+cold sync retained six pre-initialization budget failures. The later explicit
+customer reconciliation was blocked by the template's S3 prerequisite, with no
+source mutation; no hidden retry was used. No production documents are indexed.
+Evidence: `production-s3-blocked-checkpoint.actual.json`,
+`production-inbox-readonly-ui.actual.json` and initial verification readback under
+`/private/tmp/01044-journey-0841-20261022`.
+
+The existing customer Engage app remains ACTIVE/ready on verified staging
+`rel-1c09be7e`; no production activation, vector transfer, repeated business
+write or full release acceptance is claimed. Final UI extraction remains last.
+
+### 2026-10-22 23:10 UTC Recovery Passed; Fresh Production Release Provisioning
+
+Backend correction `65753eb7b` is verified on both control planes, image
+`sha256:b07e27d6854cdf57017aa4b043d1faa3f7dd965e9309d1a05851a7d0f669f9e7`,
+schema208/healthy, with all27 protected projections and configuration preserved.
+CI39868286087 passed; only the backend image was built. Existing customer UI
+and runtime images were unchanged.
+
+Normal customer prepared-recovery plan/execute passed for failed production
+release `rel-2a675e1d`, preserving failed history, live staging, the same capacity
+reservation and all credits. No provider retry was hidden in recovery. Exact
+staging release recheck `vrf-f69ccc1d` then passed. The actual customer UI's new
+review/apply run passed with no blocked or failed API reads, creating production
+release `rel-12f9b250`. It is provisioning native runtime configuration, past the
+former grant-selection blocker. The app remains assigned to staging until
+production indexing and full verification pass. Evidence is under the same
+`/private/tmp/01044-journey-0841-20261022` root, `production-customer-ui-apply-r4`.
+Production acceptance, activation and workspace checks remain open; UI
+extraction remains last. No vector records or business databases are transferred.
+
 ### 2026-10-22 22:48 UTC Actual Production Attempt; Pre-Provider Recovery Gap
 
 22:53 qualification: the combined backend package passed152 focused tests,
