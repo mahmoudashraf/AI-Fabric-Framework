@@ -233,6 +233,10 @@ public class CustomerGoLiveReadinessService {
             exact(node, "consumerId", consumer.getConsumerId(), failures);
             exact(node, "versionId", version.getId(), failures);
             exact(node, "productionTargetProfileId", target.getId(), failures);
+            if (node.path("promotionEvidenceMaxAgeSeconds").asLong(-1)
+                != candidates.promotionEvidenceMaxAgeSeconds(target)) {
+                failures.add("Approved promotion evidence policy changed after candidate review.");
+            }
             if (expectedRevision < 0) failures.add("Frozen consumer binding revision is missing.");
             boolean beforeActivation = expectedRevision == consumer.getBindingRevision()
                 && node.path("stagingReleaseId").asText().equals(consumer.getBoundReleaseId());
@@ -458,9 +462,7 @@ public class CustomerGoLiveReadinessService {
     private Instant runExpiry(DeploymentVerificationRunEntity run, DeploymentTargetProfileEntity target) {
         if (run == null || run.getCompletedAt() == null) return null;
         try {
-            long seconds = mapper.readTree(target.getProviderConfigJson())
-                .path("promotionEvidenceMaxAgeSeconds").asLong(0);
-            return seconds > 0 ? run.getCompletedAt().plusSeconds(seconds) : null;
+            return run.getCompletedAt().plusSeconds(candidates.promotionEvidenceMaxAgeSeconds(target));
         } catch (Exception error) {
             return null;
         }

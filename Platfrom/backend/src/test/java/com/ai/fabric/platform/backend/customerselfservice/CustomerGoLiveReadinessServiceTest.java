@@ -88,7 +88,8 @@ class CustomerGoLiveReadinessServiceTest {
             .put("deploymentId", "deployment").put("customerId", "customer")
             .put("consumerId", "workspace").put("expectedBindingRevision", 3)
             .put("stagingReleaseId", "staging-release").put("stagingTargetProfileId", "staging")
-            .put("versionId", "version").put("productionTargetProfileId", "production").toString());
+            .put("versionId", "version").put("productionTargetProfileId", "production")
+            .put("promotionEvidenceMaxAgeSeconds", 3600).toString());
 
         consumer = new PlatformConsumerEntity();
         consumer.setId("consumer-entity"); consumer.setCustomerId("customer"); consumer.setConsumerId("workspace");
@@ -107,6 +108,7 @@ class CustomerGoLiveReadinessServiceTest {
         target.setProviderType(DeploymentProviderType.COOLIFY);
         target.setProviderConfigJson("{\"promotionEvidenceMaxAgeSeconds\":3600}");
         when(targets.findById("production")).thenReturn(Optional.of(target));
+        when(candidates.promotionEvidenceMaxAgeSeconds(any())).thenReturn(3600L);
         when(consumers.findByCustomerIdAndConsumerIdIgnoreCase("customer", "workspace"))
             .thenReturn(Optional.of(consumer));
 
@@ -171,6 +173,23 @@ class CustomerGoLiveReadinessServiceTest {
         assertThat(summary.items()).extracting("code").contains(
             "reviewed_composition", "production_connections", "knowledge_evidence", "experience_delivery",
             "security_behavior", "operations_ready", "integration_truth", "staging_disposition");
+        var run = verifications.findById("verification").orElseThrow();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("reviewed_composition"))
+            .singleElement().extracting("expiresAt").isEqualTo(run.getCompletedAt().plusSeconds(3600));
+    }
+
+    @Test
+    void policyChangeInvalidatesTheFrozenCandidateAndUsesTheSameExpiryPolicy() {
+        when(candidates.promotionEvidenceMaxAgeSeconds(any())).thenReturn(1800L);
+        var summary = service.project("offer", "deployment", "production-release", "workspace");
+        assertThat(summary.activationReady()).isFalse();
+        assertThat(summary.items()).filteredOn(item -> item.code().equals("reviewed_composition"))
+            .singleElement().satisfies(item -> {
+                assertThat(item.status()).isEqualTo(Status.BLOCKED);
+                assertThat(item.blocker()).contains("promotion evidence policy changed");
+                assertThat(item.expiresAt()).isEqualTo(verifications.findById("verification").orElseThrow()
+                    .getCompletedAt().plusSeconds(1800));
+            });
     }
 
     @Test

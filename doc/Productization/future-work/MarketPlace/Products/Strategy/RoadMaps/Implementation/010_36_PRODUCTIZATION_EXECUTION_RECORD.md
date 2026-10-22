@@ -6,6 +6,47 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 21:27 UTC Core Staging Customer Journey Passed; Promotion Configuration Gap
+
+The same customer app now proves current external stock plus both indexed S3
+delivery/warranty policies, real sign-in/cancel without replay, UI confirmation
+and exactly one external receipt, actual Basic Inbox reply, and authoritative
+return to AI followed by a grounded policy answer in the same conversation.
+Normal post-correction verification vrf-5fc9e227 PASSED for rel-1c09be7e.
+Evidence: /private/tmp/01044-journey-0841-20261022/stage-core-journey-accepted.actual.json.
+This is core journey acceptance, not full production or UI completion.
+
+The old human wait had expired under the configured15-minute policy during the
+configuration repair. Normal customer Chat History and Retry reopened the same
+handover, preserving expiry history. An operator return acknowledgement is
+asynchronous; the test now observes actual AI_ACTIVE before querying AI. The
+first premature query was correctly delivered to the human channel and was not
+silently replayed. A separate harness citation assertion was corrected to join
+exact source/document IDs to rich ragResponse.documents; no semantic or retrieval
+fallback was introduced. Original failed reports remain.
+
+The actual production CUSTOMER_ADMIN UI reached promotion review. Admission
+passed, but planning correctly stopped409 before provider effects because no
+operator-approved verification freshness age was configured. No production apply
+or assignment switch occurred. A narrow server-policy correction is qualified
+with19 focused tests: explicit operator configuration, default0/deny,60-second
+through7-day bounds, strict target override precedence, effective policy frozen
+into the candidate, and identical go-live expiry/drift validation. The reviewed
+next deployment will explicitly configure3600seconds without changing target or
+offer identity. It does not require a framework/runtime release or schema change.
+
+Fresh capacity policy expires22:18:10UTC, preserving all five reservations,
+retained storage, grants, headroom and financial history. The stage whole-host
+sample includes the current canary and is conservatively charged in addition to
+its ledger demand; it is not misrepresented as a candidate-free sample. Production
+will index its own approved source prefix into its separate namespace. No vectors
+will be copied from staging.
+
+One generic UI defect remains before final UI acceptance: citation cards currently
+prefer opaque references over returned rich document content. A bounded widget
+sidecar fixes exact-ID presentation only. Main owns sequential rollout and the
+same customer's production promotion/app switch. UI extraction remains LAST.
+
 ### 2026-10-22 20:34 UTC Confirmed External Action Pass And Remaining Customer Blockers
 
 The full browser gate correctly stopped at missing policy citations; no business

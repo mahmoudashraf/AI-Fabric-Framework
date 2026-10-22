@@ -92,6 +92,7 @@ platform:
       api-key: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY:}
       api-key-secret-name: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY_SECRET_NAME:LOOMAI_ASSIGNMENT_API_KEY}
   delivery:
+    promotion-evidence-max-age-seconds: ${PLATFORM_PROMOTION_EVIDENCE_MAX_AGE_SECONDS:0}
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
     artifact-url-ttl: ${PLATFORM_ARTIFACT_URL_TTL:3650d}

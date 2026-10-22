@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -95,5 +96,40 @@ class DeploymentPromotionCandidateServiceTest {
         assertThatThrownBy(() -> service.resolve(deployment, version, staging, production, consumer)).hasMessageContaining("stale");
         run.setCompletedAt(Instant.now().plusSeconds(100));
         assertThatThrownBy(() -> service.resolve(deployment, version, staging, production, consumer)).hasMessageContaining("stale");
+    }
+
+    @Test void explicitlyConfiguredOperatorPolicySupportsExistingFrozenTargetProfiles() {
+        production.setProviderConfigJson("{}");
+        ReflectionTestUtils.setField(service, "approvedPromotionEvidenceMaxAgeSeconds", 3600L);
+        var candidate = service.resolve(deployment, version, staging, production, consumer);
+        assertThat(candidate.path("promotionEvidenceMaxAgeSeconds").asLong()).isEqualTo(3600);
+        String fingerprint = service.fingerprint(candidate);
+        ReflectionTestUtils.setField(service, "approvedPromotionEvidenceMaxAgeSeconds", 1800L);
+        assertThat(service.fingerprint(service.resolve(deployment, version, staging, production, consumer)))
+            .isNotEqualTo(fingerprint);
+        run.setCompletedAt(Instant.now().minusSeconds(1801));
+        assertThatThrownBy(() -> service.resolve(deployment, version, staging, production, consumer))
+            .hasMessageContaining("stale");
+        assertThat(production.getProviderConfigJson()).isEqualTo("{}");
+    }
+
+    @Test void explicitTargetPolicyTakesPrecedenceAndInvalidValuesCannotUseOperatorDefault() {
+        ReflectionTestUtils.setField(service, "approvedPromotionEvidenceMaxAgeSeconds", 7200L);
+        assertThat(service.promotionEvidenceMaxAgeSeconds(production)).isEqualTo(3600);
+        for (String value : new String[] { "0", "59", "604801", "null", "\"3600\"", "3600.5", "{}" }) {
+            production.setProviderConfigJson("{\"promotionEvidenceMaxAgeSeconds\":" + value + "}");
+            assertThatThrownBy(() -> service.promotionEvidenceMaxAgeSeconds(production))
+                .as("invalid explicit policy %s", value).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        }
+    }
+
+    @Test void unapprovedOrOutOfBoundsOperatorPolicyRemainsClosed() {
+        production.setProviderConfigJson("{}");
+        for (long value : new long[] { 0, -1, 59, 604801, Long.MAX_VALUE }) {
+            ReflectionTestUtils.setField(service, "approvedPromotionEvidenceMaxAgeSeconds", value);
+            assertThatThrownBy(() -> service.promotionEvidenceMaxAgeSeconds(production)).hasMessageContaining("operator-approved");
+        }
+        production.setProviderConfigJson("[]");
+        assertThatThrownBy(() -> service.promotionEvidenceMaxAgeSeconds(production)).hasMessageContaining("unavailable");
     }
 }

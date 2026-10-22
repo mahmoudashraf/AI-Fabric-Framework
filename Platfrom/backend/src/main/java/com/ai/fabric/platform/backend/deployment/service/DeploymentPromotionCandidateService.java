@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -19,6 +20,8 @@ public class DeploymentPromotionCandidateService {
     private final DeploymentVerificationRunRepository verifications;
     private final DeploymentDocumentBindingResolver documentBindings;
     private final ObjectMapper mapper;
+    @Value("${platform.delivery.promotion-evidence-max-age-seconds:0}")
+    private long approvedPromotionEvidenceMaxAgeSeconds;
 
     public DeploymentPromotionCandidateService(DeploymentSourceArtifactService artifacts,
                                                DeploymentVerificationRunRepository verifications,
@@ -48,6 +51,7 @@ public class DeploymentPromotionCandidateService {
         result.put("sourceArtifactId", artifact.getId()); result.put("imageRepository", artifact.getImageRepository());
         result.put("imageDigest", artifact.getImageDigest()); result.put("capabilityManifestHash", artifact.getCapabilityManifestHash());
         result.put("stagingVerificationRunId", staging.getVerificationRunId());
+        result.put("promotionEvidenceMaxAgeSeconds", promotionEvidenceMaxAgeSeconds(production));
         result.put("productionTargetProfileId", production.getId());
         result.put("productionTargetFingerprint", DeploymentEvidenceFingerprint.hash(mapper, mapper.valueToTree(production)));
         result.set("productionDocumentBinding", documentBindings.snapshot(deployment, version, production.getId()));
@@ -56,11 +60,7 @@ public class DeploymentPromotionCandidateService {
 
     public void requireFreshVerification(DeploymentEntity deployment, DeploymentVersionEntity version,
                                          DeploymentReleaseEntity release, DeploymentTargetProfileEntity policy) {
-        long maxAge;
-        try {
-            maxAge = mapper.readTree(policy.getProviderConfigJson()).path("promotionEvidenceMaxAgeSeconds").asLong(0);
-        } catch (Exception error) { throw conflict("Promotion evidence policy is unavailable."); }
-        if (maxAge < 60 || maxAge > Duration.ofDays(7).toSeconds()) throw conflict("An operator-approved bounded promotion evidence age is required.");
+        long maxAge = promotionEvidenceMaxAgeSeconds(policy);
         var run = verifications.findById(required(release.getVerificationRunId(), "Candidate verification evidence is missing."))
             .orElseThrow(() -> conflict("Candidate verification evidence is missing."));
         Instant now = Instant.now();
@@ -70,6 +70,21 @@ public class DeploymentPromotionCandidateService {
             || run.getCompletedAt().plusSeconds(maxAge).isBefore(now)) {
             throw conflict("Candidate verification is stale, failed or does not belong to the selected release.");
         }
+    }
+
+    public long promotionEvidenceMaxAgeSeconds(DeploymentTargetProfileEntity policy) {
+        long maxAge = approvedPromotionEvidenceMaxAgeSeconds;
+        try {
+            var configuration = mapper.readTree(policy.getProviderConfigJson());
+            if (configuration == null || !configuration.isObject()) throw new IllegalArgumentException();
+            if (configuration.has("promotionEvidenceMaxAgeSeconds")) {
+                var explicit = configuration.get("promotionEvidenceMaxAgeSeconds");
+                if (!explicit.isIntegralNumber() || !explicit.canConvertToLong()) throw new IllegalArgumentException();
+                maxAge = explicit.longValue();
+            }
+        } catch (Exception error) { throw conflict("Promotion evidence policy is unavailable."); }
+        if (maxAge < 60 || maxAge > Duration.ofDays(7).toSeconds()) throw conflict("An operator-approved bounded promotion evidence age is required.");
+        return maxAge;
     }
 
     public String fingerprint(ObjectNode candidate) { return DeploymentEvidenceFingerprint.hash(mapper, candidate); }
