@@ -300,7 +300,7 @@ class DeploymentServiceApplyGuardTest {
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         deployment.setApprovalRequiredForApply(true);
         deployment.setBehaviorType("CONVERSATIONAL");
-        version.setAiFabricFrameworkVersion("0.8.38");
+        version.setAiFabricFrameworkVersion("0.8.40");
         version.setProviderConfigJson("""
             {"vectorStrategy":"milvus","vectorProvisioningMode":"EXTERNAL_EXISTING","vectorStoragePosture":"SHARED",
              "milvusExternalBindingRequired":true,"milvusAuthenticationType":"TOKEN"}

@@ -6,6 +6,51 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-22 18:13 UTC Basic Journey Exposes History And Inbox Wiring Gaps
+
+No full acceptance or production switch is claimed. The current staging38 app
+remains active and external business receipt count is still zero.
+
+Browser-r6 caught a background history request replacing the conversation after
+the user had started a new signed-in turn. The guard blocked the resulting
+handover to the unexpected old conversation. A generic widget cancellation fix
+now passes three real React/Chromium cases: an active turn is preserved, an
+explicit conversation selection is preserved, and idle restoration still works.
+Typecheck, embedded build, credential-broker and private-adapter regressions pass.
+The fix is not deployed yet and does not introduce dealership-specific behavior.
+
+Browser-r7 waited for restoration before input, preserving the race failure as
+unresolved live. Real HUMAN_PENDING admission and a human-only customer message
+were accepted. The Inbox did not receive the handover: its immutable dependency
+spec supplies generated binding/callback variables to the connector but not the
+runtime. The runtime therefore stores a literal unresolved binding placeholder.
+The corrected PG spec provides both consumers' variables; a provisioning guard
+now rejects missing managed references in each consuming service. All127 scoped
+Platform checks and13 direct spec checks pass. Existing H2/template/spec versions
+are not rewritten. A new reviewed template/spec is required for hosted proof.
+
+Caller-identity qualification now passes1,411 tests across all directly affected
+framework modules and64 runtime authentication/handover/manifest checks, including
+four real PostgreSQL cases. A39 publication attempt failed an obsolete assertion
+expecting the processed account at action preflight; its immutable tag is retained
+and it is not a published consumer release. Candidate40 source3da0591f corrects
+that assertion and preserves the processed subject separately. Central publication
+39828633349 is in progress. No hosted40 claim, receiver weakening, browser identity
+injection, semantic keyword rule or hidden decision fallback is introduced.
+
+Broader old offer/publication test fixtures fail15/39 because they load the new
+runtime manifest while pinning36 metadata; those failures are preserved rather
+than reported as passes. They are outside the new spec's13 passing cases. Other
+recorded gaps remain: cold-source activation before first successful indexing,
+placeholder-email false positive, broad-query model validation, and signed-in
+document retrieval returning a provider error. These are not silently accepted.
+
+Next remains the basic customer sequence: publish/verify exact runtime and
+Platform/widget fixes, use a newly reviewed immutable composition, confirm one
+external action, receive one Inbox reply and return to AI, then independently
+index and promote production and switch the app. UI extraction stays last.
+No inventory/business DB, vector transfer, S3 write or hardware resize is added.
+
 ### 2026-10-22 17:17 UTC Confirmed Action Exposes Trusted-Identity Contract Gap
 
 Browser-r5 uses a fresh real Supabase UI login, explicit filtered stock search,

@@ -371,7 +371,12 @@ public class ChatRuntimeController {
             auth.getGrantedScopes() == null ? Set.of() : Set.copyOf(auth.getGrantedScopes()),
             null,
             Instant.now()
-        );
+        ).withCallerIdentity(new ai.fabric.execution.context.ExecutionCallerIdentity(
+            auth.getSubjectType() == null ? null : auth.getSubjectType().name(),
+            auth.getAuthMode() == null ? null : auth.getAuthMode().name(),
+            auth.getCallerType() == null ? null : auth.getCallerType().name(),
+            auth.getSessionId(), auth.getCustomerId(), auth.getIssuer(), auth.getAudiences(), auth.getExpiresAt()
+        ));
     }
 
     private void rejectLegacyQueryWhenConversationControlEnabled() {

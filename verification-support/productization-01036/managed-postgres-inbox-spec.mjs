@@ -49,6 +49,11 @@ export function buildPostgresInboxSpec(artifacts) {
   service.environment.BASIC_INBOX_JDBC_URL = {kind: "DATABASE_JDBC"};
   service.environment.BASIC_INBOX_JDBC_USERNAME = {kind: "DATABASE_USERNAME"};
   service.environment.BASIC_INBOX_JDBC_PASSWORD = {kind: "SECRET", reference: "inbox-db"};
+  for (const name of ["MANAGED_INBOX_BINDING_ID", "MANAGED_INBOX_CALLBACK_SIGNING_SECRET"]) {
+    const binding = spec.runtimeEnvironment.find(value => value.target === "CONNECTOR" && value.name === name);
+    assert.ok(binding, "INBOX_SHARED_BINDING_REQUIRED:" + name);
+    spec.runtimeEnvironment.push({...structuredClone(binding), target: "RUNTIME"});
+  }
   return spec;
 }
 

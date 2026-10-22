@@ -7,7 +7,7 @@ import {buildPostgresInboxSpec, INBOX_POSTGRES_IMAGE, postgresInboxCapacity, req
 import {buildManagedDependencySpec} from "../simulated-dealership-managed-spec.mjs";
 import {inboxArtifact, packageInput} from "./fixtures/managed-postgres-inbox-publication-fixture.mjs";
 
-test("new PG spec changes only AI Inbox persistence and leaves the immutable H2 builder/template intact", () => {
+test("new PG spec supplies shared Inbox identity to both consumers and leaves the old H2 template intact", () => {
   const artifact = inboxArtifact(), before = structuredClone(artifact);
   const old = buildManagedDependencySpec({inbox: artifact}, {managedInbox: true});
   const originalBytes = readFileSync(new URL("../../../product-services/basic-loomai-inbox-service/deployment/managed-dependency-spec.template.json", import.meta.url), "utf8");
@@ -20,7 +20,13 @@ test("new PG spec changes only AI Inbox persistence and leaves the immutable H2 
   assert.deepEqual(spec.services[0].environment.BASIC_INBOX_JDBC_URL, {kind: "DATABASE_JDBC"});
   assert.deepEqual(spec.services[0].environment.BASIC_INBOX_JDBC_USERNAME, {kind: "DATABASE_USERNAME"});
   assert.deepEqual(spec.services[0].environment.BASIC_INBOX_JDBC_PASSWORD, {kind: "SECRET", reference: "inbox-db"});
-  assert.deepEqual(spec.runtimeEnvironment, old.runtimeEnvironment);
+  assert.deepEqual(spec.runtimeEnvironment.filter(value => value.target === "CONNECTOR"), old.runtimeEnvironment);
+  const runtimeBindings = spec.runtimeEnvironment.filter(value => value.target === "RUNTIME");
+  assert.deepEqual(runtimeBindings.map(value => value.name).sort(),
+    ["MANAGED_INBOX_BINDING_ID", "MANAGED_INBOX_CALLBACK_SIGNING_SECRET"]);
+  for (const binding of runtimeBindings) {
+    assert.deepEqual(binding.value, old.runtimeEnvironment.find(value => value.name === binding.name).value);
+  }
   assert.deepEqual(artifact, before);
   assert.deepEqual(buildManagedDependencySpec({inbox: artifact}, {managedInbox: true}), old);
   assert.equal(old.services[0].database, null);

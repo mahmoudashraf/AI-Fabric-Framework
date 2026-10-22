@@ -786,15 +786,24 @@ public class RailwayProvisioningPlanService {
 
     private void addManagedDependencyEnvironment(List<RailwayEnvVarSummary> environment,
                                                   java.util.Map<String, String> additions) {
-        if (additions == null || additions.isEmpty()) return;
         java.util.Set<String> existing = environment.stream().map(RailwayEnvVarSummary::key)
             .collect(java.util.stream.Collectors.toSet());
-        additions.forEach((key, value) -> {
+        (additions == null ? java.util.Map.<String, String>of() : additions).forEach((key, value) -> {
             if (!existing.add(key)) {
                 throw new IllegalStateException("Managed dependency environment conflicts with reviewed runtime configuration: " + key);
             }
             environment.add(new RailwayEnvVarSummary(key, value));
         });
+        var reference = java.util.regex.Pattern.compile("\\$\\{(MANAGED_[A-Z0-9_]{1,119})}");
+        for (var variable : environment) {
+            if (variable.value() == null) continue;
+            var matcher = reference.matcher(variable.value());
+            while (matcher.find()) {
+                if (!existing.contains(matcher.group(1))) {
+                    throw new IllegalStateException("DEPENDENCY_RUNTIME_BINDING_MISSING:" + matcher.group(1));
+                }
+            }
+        }
     }
 
     private String artifactServiceSignedStrategy() {

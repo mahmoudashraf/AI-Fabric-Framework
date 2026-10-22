@@ -50,6 +50,30 @@ class ChatRuntimeControllerCanonicalPrincipalTest {
     }
 
     @Test
+    void signedInCallerSessionAndCustomerAreDistinctFromTheProcessedConversation() {
+        var auth = identity(RuntimeAuthSubjectType.END_USER, RuntimeAuthCallerType.PUBLIC_BROWSER).getAuthContext()
+            .toBuilder().subjectId("verified-user").sessionId("verified-session").customerId("customer-1")
+            .issuer("verified-issuer").audiences(List.of("runtime"))
+            .expiresAt(java.time.Instant.parse("2026-10-23T12:00:00Z")).build();
+        var trusted = context(RuntimeResolvedIdentity.builder().authContext(auth).build(),
+            turn("tenant-1", "dep-1", "verified-user"));
+        var projected = ai.fabric.intent.orchestration.OrchestrationAuthContextResolver.from(trusted);
+        assertThat(trusted.subject().subjectId()).isEqualTo("chat-1");
+        assertThat(projected.getSubjectId()).isEqualTo("verified-user");
+        assertThat(projected.getSessionId()).isEqualTo("verified-session");
+        assertThat(projected.getCustomerId()).isEqualTo("customer-1");
+        assertThat(projected.getTenantId()).isEqualTo("tenant-1");
+        assertThat(projected.getDeploymentId()).isEqualTo("dep-1");
+        assertThat(projected.getSubjectType()).isEqualTo("END_USER");
+        assertThat(projected.getAuthMode()).isEqualTo("PUBLIC_RUNTIME_AUTHENTICATED");
+        assertThat(projected.getCallerType()).isEqualTo("PUBLIC_BROWSER");
+        assertThat(projected.getIssuer()).isEqualTo("verified-issuer");
+        assertThat(projected.getAudiences()).containsExactly("runtime");
+        assertThat(projected.getExpiresAt()).isEqualTo("2026-10-23T12:00:00Z");
+        assertThat(projected.getGrantedScopes()).containsExactly("chat:query");
+    }
+
+    @Test
     void verifiedBackendRetainsServicePrincipal() {
         var trusted = context(identity(RuntimeAuthSubjectType.END_USER, RuntimeAuthCallerType.TRUSTED_BACKEND),
             turn("tenant-1", "dep-1", "session-1"));

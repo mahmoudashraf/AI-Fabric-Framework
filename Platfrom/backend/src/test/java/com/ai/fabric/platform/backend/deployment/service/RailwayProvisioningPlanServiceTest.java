@@ -393,7 +393,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
-            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.38")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.8.40")
             .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
@@ -2449,7 +2449,7 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
-    void buildPlanResolvesManagedConversationChannelBindingsWithoutTreatingThemAsPlatformSecrets() {
+    void buildPlanRequiresManagedConversationBindingsInEachConsumingService() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
             new DeploymentArtifactBundleSummary(
@@ -2473,6 +2473,8 @@ class RailwayProvisioningPlanServiceTest {
                 Map.of("MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}"),
                 Map.of(
                     "MANAGED_INBOX_BASE_URL", "https://owned-inbox.example",
+                    "MANAGED_INBOX_BINDING_ID", "owned-inbox-binding",
+                    "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}",
                     "MANAGED_INBOX_API_KEY", "${secret:owned-inbox-api}",
                     "MANAGED_INBOX_WEBHOOK_SIGNING_SECRET", "${secret:owned-inbox-webhook}"
                 )
@@ -2488,7 +2490,7 @@ class RailwayProvisioningPlanServiceTest {
               "executionExtensions": ["CONVERSATION_HANDOVER"],
               "conversationHandover": {
                 "enabled": true,
-                "channelBindingId": "basic-loomai-inbox",
+                "channelBindingId": "${MANAGED_INBOX_BINDING_ID}",
                 "intake": {"anonymousAllowed": true, "fields": []},
                 "channel": {
                   "providerBaseUrl": "${MANAGED_INBOX_BASE_URL}",
@@ -2500,6 +2502,21 @@ class RailwayProvisioningPlanServiceTest {
             }
             """);
 
+        assertThatThrownBy(() -> service.buildPlan(
+            deployment(), handoverVersion, null, "dtp-staging", "a".repeat(64)
+        )).isInstanceOf(IllegalStateException.class)
+            .hasMessage("DEPENDENCY_RUNTIME_BINDING_MISSING:MANAGED_INBOX_BINDING_ID");
+        when(resolver.resolve("dep-123", "dtp-staging", "ver-123", "a".repeat(64))).thenReturn(
+            new ManagedDependencyLifecycleService.RuntimeEnvironmentProjection(
+                Map.of("MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}",
+                    "MANAGED_INBOX_BINDING_ID", "owned-inbox-binding"),
+                Map.of("MANAGED_INBOX_BASE_URL", "https://owned-inbox.example",
+                    "MANAGED_INBOX_BINDING_ID", "owned-inbox-binding",
+                    "MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}",
+                    "MANAGED_INBOX_API_KEY", "${secret:owned-inbox-api}",
+                    "MANAGED_INBOX_WEBHOOK_SIGNING_SECRET", "${secret:owned-inbox-webhook}")
+            )
+        );
         RailwayProvisioningPlanSummary plan = service.buildPlan(
             deployment(), handoverVersion, null, "dtp-staging", "a".repeat(64)
         );
@@ -2507,6 +2524,7 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("MANAGED_INBOX_BINDING_ID", "owned-inbox-binding")
             .containsEntry("MANAGED_INBOX_CALLBACK_SIGNING_SECRET", "${secret:owned-inbox-callback}")
             .containsEntry(
                 "LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET",
@@ -2639,7 +2657,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
-        version.setAiFabricFrameworkVersion("0.8.38");
+        version.setAiFabricFrameworkVersion("0.8.40");
         version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
@@ -2666,7 +2684,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
             {
-              "aiFabricFrameworkVersion": "0.8.38",
+              "aiFabricFrameworkVersion": "0.8.40",
               "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
               "entityConfigHash": "entity-hash-123"
             }
