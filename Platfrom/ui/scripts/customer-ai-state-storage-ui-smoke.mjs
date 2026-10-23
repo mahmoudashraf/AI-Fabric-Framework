@@ -5,7 +5,7 @@ import { createServer } from 'vite'
 import { chromium } from 'playwright'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const output = '/private/tmp/01044-ai-state-storage-functional-ui-20261020/browser'
+const output = process.env.CUSTOMER_STORAGE_UI_OUTPUT ?? `/private/tmp/01045-publish-storage-ui-${Date.now()}`
 await mkdir(output, { recursive: true })
 const workspaceId = '\0storage-workspace.js', entryId = '\0storage-entry.jsx'
 const server = await createServer({ root, configFile: false, envFile: false, cacheDir: output+'/vite-cache',
@@ -47,7 +47,7 @@ const offer = (id, modes) => ({ id, name: id, fingerprint: 'pin-'+id, templateId
 })
 const version = id => ({ id: 'v-'+id, deploymentId: id, versionLabel: 'v1', status: 'PUBLISHED', configHash: 'hash-'+id })
 
-async function fixture({ invalidMode = false } = {}) {
+async function fixture({ invalidMode = false, probeDenied = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 1100 } }), page = await context.newPage()
   const state = { calls: [], errors: [], holdBootstrap: false, holdBinding: false, holdDraft: false, pending: [], escaped: [] }
   const offers = [offer('offer-a', ['MANAGED_POSTGRES', 'CUSTOMER_POSTGRES']), offer('offer-b', ['MANAGED_POSTGRES'])]
@@ -67,7 +67,9 @@ async function fixture({ invalidMode = false } = {}) {
     if (path === '/api/customer-self-service/deployments') return json(route, deployments)
     if (path === '/api/platform/customers/customer/consumers') return json(route, [])
     if (path === '/api/platform/preferences') return json(route, body ?? {})
-    if (path.endsWith('/placement-evidence')) return json(route, { id: 'placement', intent: 'CUSTOMER_STAGING' })
+    if (path.endsWith('/placement-evidence')) return probeDenied
+      ? json(route, { message: 'Placement verification denied' }, 409)
+      : json(route, { id: 'placement', intent: 'CUSTOMER_STAGING' })
     const draft = /^\/api\/deployments\/(dep-[ab])\/draft$/.exec(path)
     if (draft) {
       const reply = () => json(route, { id: 'draft-'+draft[1], deploymentId: draft[1], revisionNumber: 1,
@@ -148,6 +150,9 @@ try {
     const request = publish.state.calls.find(c => c.method === 'POST' && c.path.endsWith('/versions'))
     assert.deepEqual(Object.keys(request.body).sort(), ['expectedEntitlementRevision', 'operationKey', 'targetProfileId'])
     assert.equal(request.body.targetProfileId, 'staging')
+    const probe = publish.state.calls.find(c => c.method === 'POST' && c.path.endsWith('/placement-evidence'))
+    assert.equal(probe.path, '/api/customer-self-service/catalogue/offer-a/targets/staging/placement-evidence')
+    assert.ok(publish.state.calls.indexOf(probe) < publish.state.calls.indexOf(request))
     await publish.page.getByText('Customer AI-state PostgreSQL', { exact: true }).waitFor()
     await publish.page.screenshot({ path: output+'/desktop.png', fullPage: true })
     await publish.page.setViewportSize({ width: 390, height: 844 })
@@ -155,6 +160,16 @@ try {
     passed += 1
     console.log('Passed: saved BYO mode survives unrelated creation choice and exact publish body')
   } finally { await publish.close() }
+
+  const denied = await fixture({ probeDenied: true })
+  try {
+    assert.equal(denied.state.calls.some(c => c.method === 'POST' && c.path.endsWith('/placement-evidence')), false)
+    await denied.page.getByRole('button', { name: 'Publish current configuration', exact: true }).click()
+    await denied.page.getByRole('alert').filter({ hasText: 'Placement verification denied' }).waitFor()
+    assert.equal(denied.state.calls.some(c => c.method === 'POST' && c.path.endsWith('/versions')), false)
+    passed += 1
+    console.log('Passed: failed explicit placement check blocks publish without a background probe or retry')
+  } finally { await denied.close() }
 
   const bind = await fixture()
   try {

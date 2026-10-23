@@ -1,0 +1,55 @@
+{
+  "startedAt": "2026-10-23T22:14:04.183Z",
+  "mode": "publish",
+  "status": "STOPPED_NOT_ACCEPTED",
+  "calls": [
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/login"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/platform/preferences"
+    },
+    {
+      "method": "POST",
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/deployments/dep-c09b23b4/versions"
+    }
+  ],
+  "blocked": [],
+  "errors": [],
+  "buttons": [
+    {
+      "label": "",
+      "disabled": false
+    },
+    {
+      "label": "Publish current configuration",
+      "disabled": false
+    },
+    {
+      "label": "Deploy to customer staging",
+      "disabled": true
+    },
+    {
+      "label": "Keep staging available",
+      "disabled": true
+    },
+    {
+      "label": "Previous",
+      "disabled": false
+    },
+    {
+      "label": "Next stage",
+      "disabled": false
+    }
+  ],
+  "command": {
+    "status": 409,
+    "code": "PLACEMENT_EVIDENCE_STALE",
+    "message": "PLACEMENT_EVIDENCE_STALE"
+  },
+  "phase": "command-publish",
+  "error": "publish failed with 409 PLACEMENT_EVIDENCE_STALE",
+  "finishedAt": "2026-10-23T22:14:09.556Z"
+}

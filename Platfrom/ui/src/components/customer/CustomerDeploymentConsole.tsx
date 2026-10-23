@@ -286,7 +286,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
     }
   } catch (error) { storedStorageError = errorText(error) }
   const publishGuard = useScopedOneTimeValue<boolean>(JSON.stringify([session.actorId, session.authenticationMode, customerId, selectedDeploymentId,
-    selectedOffer?.fingerprint, selectedOffer?.entitlement.revision, storageDraft.data?.id, storageDraft.data?.updatedAt]))
+    selectedOffer?.id, selectedOffer?.fingerprint, selectedOffer?.entitlement.revision,
+    selectedDeployment?.bootstrapTargetProfileId, storageDraft.data?.id, storageDraft.data?.updatedAt]))
 
   useEffect(() => {
     if (!selectedOfferId && !requestedOfferId && offers.length > 0) setSelectedOfferId(offers[0].id)
@@ -546,11 +547,16 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
 
   const publish = useMutation({
     mutationFn: async ({ token }: { token: symbol }) => {
+      if (!selectedOffer || !selectedDeployment?.bootstrapTargetProfileId || !publishGuard.publish(token, true)) {
+        throw new Error('Select the current reviewed deployment before publishing.')
+      }
       const identity = { deploymentId: selectedDeployment!.deploymentId,
         targetProfileId: selectedDeployment!.bootstrapTargetProfileId,
         revision: selectedOffer!.entitlement.revision, draftId: storageDraft.data?.id,
         draftRevision: storageDraft.data?.revisionNumber, storageMode: savedStorageMode }
       const key = operationKey('publish-version', identity)
+      await probeCustomerOfferTargetPlacement(selectedOffer.id, selectedDeployment.bootstrapTargetProfileId)
+      if (!publishGuard.publish(token, true)) throw new Error('Configuration changed. Refresh before publishing.')
       const result = requiresStorageChoice
         ? await publishStoredAiStateStorage({ draft: fetchDeploymentDraft, publish: publishCustomerDeploymentVersion },
           selectedOffer!, customerId, selectedDeployment!, storageDraft.data!, key, () => publishGuard.publish(token, true))

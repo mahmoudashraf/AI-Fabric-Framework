@@ -443,13 +443,13 @@ no renewal/probe or write-policy weakening. Earlier failed run is preserved.
 Keep this a narrow product usability/
 authorization task, not a capacity/recovery/infrastructure-management redesign.
 Record harder edge cases as follow-ups; no full framework matrix for UI changes.
-New bounded continuity follow-up from M3: creating/removing an unrelated app
+Owner-accepted operational limitation from M3: creating/removing an unrelated app
 hostname temporarily makes an unchanged existing hostname fail APP_DELIVERY
 because the route store requires the entire shared generation to be current.
-Public bootstrap/manifest use that readiness. Preserve current authority and
-removal checks while qualifying unchanged-host continuity; do not solve this by
-blind polling, a false ready state or a new recovery subsystem. Source analysis
-and the observed readiness interruption are in the execution record.
+Public bootstrap/manifest use that readiness. The owner explicitly accepts the
+brief propagation window; it is not a defect/blocker for this release and does
+not require a routing change. Preserve the observation, current authority and
+removal checks. Continue M4 rather than opening a routing/recovery workstream.
 Done means a real customer completes the supported dealership/simulator journey
 without staff database edits or unadvertised configuration steps. Representative
 main cases suffice; do not attempt every possible integration/edge case.

@@ -11,10 +11,10 @@ below is retained; it does not close these product-composition milestones.
   inspectors, both themes/mobile and unchanged assignment; staging staff preserved.
 - M2 LIVE UI PATH VERIFIED: concise product task navigation reuses existing
   simulator/storage/assignment/setup controls. Fresh full customer commands open.
-- M3 SUPPORTED SAVED COMMANDS LIVE VERIFIED / CONTINUITY FOLLOW-UP: product-linked Engage setup, exact
+- M3 SUPPORTED SAVED COMMANDS LIVE VERIFIED: product-linked Engage setup, exact
   customer assignment, real create/reload/edit/reload/delete and visible failures.
   Arbitrary branding/auth/tool edits outside reviewed profiles are not enabled.
-- M4 PENDING: fresh new-UI staging-to-production customer journey.
+- M4 IN PROGRESS: fresh new-UI staging-to-production customer journey.
 - M5 PARTIAL: scoped daily task links and live policy/sync/handover reads exist;
   necessary daily edit/refresh commands are not freshly qualified through this UI.
 - M6 PARTIAL: bounded read-expiry prerequisite live and verified; owner visual
@@ -23,6 +23,41 @@ below is retained; it does not close these product-composition milestones.
 
 Each phase must record changes, actual checks, source/publication status and a
 review link. No generic management/recovery/draining workstreams are authorized.
+
+### Owner Decision - Accept Domain Propagation; Proceed With M4
+
+The owner accepts the brief shared-domain readiness interruption as a current
+operational limitation, not a defect or release blocker. The observation below
+is retained for accuracy, but its proposed M6 correction is no longer required.
+Do not open a routing workstream. Resume one fresh reviewed immutable version,
+customer staging verification, explicit same-app assignment, production review/
+deployment/verification and explicit activation through the customer console.
+Keep external business writes, old bookings and unrelated resource cleanup out
+of this phase. No vector/conversation transfer or compatibility machinery.
+
+### M4 - Publish Preflight Gap Source Qualification
+
+The first new-UI publication attempt against the exact owned configuration
+returned409 `PLACEMENT_EVIDENCE_STALE`. No version or release was created and
+the live production assignment is unchanged. The publish handler now refreshes
+the existing exact offer/bootstrap-target placement check only after an explicit
+Publish command, then rechecks its account/deployment/offer/draft scope token.
+Existing storage/draft comparison and all backend authorization remain intact.
+No automatic retry, admission reservation or provider/runtime effect is added.
+
+Qualification: build passes;20 storage/admission model tests and6 actual source
+UI scenarios pass, including failed-probe/no-publication and changed-scope denial.
+The old `smoke:customer-workspace --customer-layout` harness still expects the
+superseded My deployments heading on the resource overview; it times out before
+commands. Retain that result as an obsolete-harness gap, not a product pass.
+Current source-component publish tests and customer scope checks are the relevant
+bounded regressions for this change. Publication and hosted rerun follow.
+
+The existing staging allocation is expiry-CLAIMED, with a PLANNED automatic
+retirement blocked on retained external index/participant inventory. Its target
+is correctly mutation-fenced. A bounded read-only side investigation is checking
+existing supported fixture release/fresh-deployment options; it is not authorized
+to redesign retirement or mutate the current customer assignment.
 
 ### M3 - Saved-App Qualification In Progress
 
