@@ -118,7 +118,7 @@ final class ReapplyBeforeRuntimeStopEvidence {
         authorization(inventory, "priorAuthorization", priorBinding, r, priorManifest);
         inventory.put("priorManifest", json.fingerprint(priorManifestRow));
 
-        var handles = rows("SELECT * FROM deployment_provider_resource_handles WHERE deployment_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId());
+        var handles = rows("SELECT * FROM deployment_provider_resource_handles WHERE deployment_id=? AND target_profile_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId(), r.targetProfileId());
         var nativeHandles = handles.stream().filter(h -> !PreservedExternalBindingKinds.isPreserved((String) h.get("resource_kind"))).toList();
         if (!nativeHandles.stream().map(h -> (String) h.get("resource_kind")).sorted().toList()
             .equals(List.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE"))) fail("NATIVE_INVENTORY_CHANGED");

@@ -194,7 +194,11 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
     }
 
     @Test void verifiedColdRestartOfUnassignedSameVersionCanResumeWithoutInventingAPriorVerifiedRelease() {
-        var proof = prepareVerifiedColdMaintenance(true); var before = preserved();
+        var proof = prepareVerifiedColdMaintenance(true);
+        jdbc.update("INSERT INTO deployment_target_profiles(id,name,provider_type,environment_name,active,source_strategy,created_at,updated_at) VALUES ('other-target','Other target','COOLIFY','staging',true,'IMAGE',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+        jdbc.update("INSERT INTO deployment_provider_resource_handles(id,deployment_id,target_profile_id,provider_type,resource_kind,provider_resource_uuid,status,metadata_json,created_at,updated_at) VALUES ('other-runtime','deployment','other-target','COOLIFY','APPLICATION','other-runtime-uuid','RUNNING_HEALTHY','{}',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+        var other = jdbc.queryForMap("SELECT * FROM deployment_provider_resource_handles WHERE id='other-runtime'");
+        var before = preserved();
         var prior = row("platform_deployment_releases", "prior-release");
         var plan = plan();
         assertThat(plan.boundary()).isEqualTo(FailedApplyRetryContracts.COLD_MAINTENANCE_BOUNDARY);
@@ -202,6 +206,7 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         assertThat(receipt.financialMutationPerformed()).isFalse();
         assertThat(preserved()).isEqualTo(before);
         assertThat(row("platform_deployment_releases", "prior-release")).isEqualTo(prior);
+        assertThat(jdbc.queryForMap("SELECT * FROM deployment_provider_resource_handles WHERE id='other-runtime'")).isEqualTo(other);
         assertThat(store.releaseBinding("prior-release").state()).isEqualTo("SUPERSEDED");
         assertThat(store.require(failed.id()).chargedDemand()).isEqualTo(failed.chargedDemand());
         verify(provider, times(2)).coldMaintenanceReapplyReadback(proof);

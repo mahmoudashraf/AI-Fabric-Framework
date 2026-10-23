@@ -113,7 +113,7 @@ public class RuntimeArtifactRepairEvidence {
         if (cold) coldMaintenance.graph(graph, graphState, prior, releaseId);
         else RuntimeArtifactRepairDependencyEligibility.require((String) graph.get("status"), (String) graph.get("step"),
             (String) graph.get("failure_code"), graphState);
-        var handles = rows("SELECT * FROM deployment_provider_resource_handles WHERE deployment_id=? ORDER BY id FOR UPDATE NOWAIT", deploymentId);
+        var handles = rows("SELECT * FROM deployment_provider_resource_handles WHERE deployment_id=? AND target_profile_id=? ORDER BY id FOR UPDATE NOWAIT", deploymentId, r.targetProfileId());
         var nativeHandles = handles.stream().filter(v -> !PreservedExternalBindingKinds.isPreserved((String) v.get("resource_kind"))).toList();
         if (!nativeHandles.stream().map(v -> (String) v.get("resource_kind")).sorted().toList()
             .equals(List.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_POSTGRES_DATABASE"))) fail("OWNED_PG_REQUIRED");

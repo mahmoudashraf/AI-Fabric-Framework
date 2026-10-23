@@ -8,6 +8,14 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-23 Customer Journey Continuation
 
+01:38 UTC final qualification remains244/55actualPG, all pass. The existing
+maintenance and retry inventory queries now select the exact target: this real
+deployment has both staging and production resources. The added PostgreSQL
+regression verifies that the other target is untouched. Final evidence is at
+`/private/tmp/01044-cold-production-final-qualification/qualification.actual.json`.
+The intermediate52e5b5ce5 image is intentionally not deployed; only the combined
+target-scoped correction will roll out. No hosted maintenance effect yet.
+
 01:29 UTC qualification: 244 focused checks pass, including55 real PostgreSQL
 cases, zero failures/errors/skips. Nine source/test files support the explicit
 same-image cold restart of the unassigned failed production generation while
