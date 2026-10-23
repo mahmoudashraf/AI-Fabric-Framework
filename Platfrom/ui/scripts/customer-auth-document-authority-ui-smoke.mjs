@@ -38,7 +38,7 @@ async function scenario(name, documents, action) {
   const page = await context.newPage()
   page.setDefaultTimeout(10_000)
   const state = { session: documents ? structuredClone(owner) : structuredClone(anonymous), offer: offer(), calls: [], escaped: [], errors: [],
-    holdOffer: false, offerReplies: [], holdSession: false, sessionReplies: [], bindings: [binding], rejectWrite: false }
+    holdOffer: false, offerReplies: [], holdSession: false, sessionReplies: [], bindings: [binding], rejectWrite: false, stalePlacement: false }
   journals.push(state)
   page.on('pageerror', error => state.errors.push(error.stack))
   page.on('dialog', dialog => dialog.accept())
@@ -66,10 +66,16 @@ async function scenario(name, documents, action) {
     if (path.endsWith('/marketplace-installs')) return json([{ id: 'install', pluginId: 'mkp-data-document-knowledge-s3', config: { documentStorageBindingRef: 'slot:document-storage' } }])
     if (path === '/api/deployments/dep/releases') return json([])
     if (path === '/api/deployments/dep/document-storage-bindings') return json(state.bindings)
+    if (path === '/api/customer-self-service/catalogue/offer/targets/stage/placement-evidence') {
+      assert.equal(method, 'POST')
+      state.stalePlacement = false
+      return json({ id: 'fresh-placement', intent: 'CUSTOMER_STAGING' })
+    }
     if (path.endsWith('/document-storage-binding') || path.endsWith('/document-storage-binding/revoke')) {
       assert.equal(method, 'POST'); assert.equal(body.expectedEntitlementRevision, 7)
       assert.equal(body.targetProfileId, 'stage'); assert.equal(body.bindingSlotId, 'document-storage')
       assert.equal('authorizationEntitlementRevision' in body, false)
+      if (state.stalePlacement) return json({ errorCode: 'PLACEMENT_EVIDENCE_STALE', message: 'Storage placement proof expired.' }, 409)
       if (state.rejectWrite) return json({ success: false, errorCode: 'ENTITLEMENT_CHANGED', message: 'Synthetic current revision conflict' }, 409)
       if (path.endsWith('/revoke')) { state.bindings = []; return json({}) }
       return json({ binding })
@@ -189,6 +195,25 @@ try {
     await page.waitForTimeout(250)
     assert.equal(writes().length, 1)
   })
+  await scenario('expired-storage-placement-explicit-refresh-no-write-replay', true, async ({ page, state, writes }) => {
+    await prepareBinding(page); state.stalePlacement = true
+    await saveButton(page).click()
+    await page.getByText('Storage placement proof expired.', { exact: true }).waitFor()
+    assert.equal(writes().length, 1)
+    await page.getByRole('button', { name: 'Verify storage target placement', exact: true }).click()
+    await page.getByText('Storage target placement verified.', { exact: true }).waitFor()
+    assert.equal(writes().length, 1, 'Placement refresh must not retry the rejected credential write')
+    await saveButton(page).click()
+    await page.getByText('Storage binding saved.', { exact: true }).waitFor()
+    assert.equal(writes().length, 2)
+  })
+  await scenario('placement-refresh-rechecks-current-authority', true, async ({ page, state, writes }) => {
+    await prepareBinding(page); state.offer.entitlement.revision = 8
+    await page.getByRole('button', { name: 'Verify storage target placement', exact: true }).click()
+    await page.getByText('Document-storage authority changed. Refresh the current reviewed offer before submitting.', { exact: true }).waitFor()
+    assert.equal(state.calls.filter(call => call.path.endsWith('/placement-evidence')).length, 0)
+    assert.equal(writes().length, 0)
+  })
   for (const pin of sourcePins) assert.equal(hash(await readFile(`${root}/${pin.path}`)), pin.sha256, `Source drift: ${pin.path}`)
 } catch (error) { failure = { message: error.message, stack: error.stack }; process.exitCode = 1; console.error(error.stack) }
 finally {
@@ -196,7 +221,7 @@ finally {
   if (server) { await server.close(); cleanup.serverClosed = !server.httpServer?.listening }
   cleanup.contexts = contexts
   const proof = { phase: 'ACTUAL_AUTH_AND_DOCUMENT_AUTHORITY_UI', status: failure ? 'FAIL' : 'PASS', startedAt,
-    finishedAt: new Date().toISOString(), plannedScenarios: 6, results, failure, cleanup, sourcePins,
+    finishedAt: new Date().toISOString(), plannedScenarios: 8, results, failure, cleanup, sourcePins,
     nonLoopbackAttempts: journals.flatMap(item => item.escaped), allApiRequestsIntercepted: true, noHostedActions: true,
     limits: 'Actual UI/provider/API with synthetic loopback normal owner endpoints; not hosted/backend/P5/P6 acceptance.' }
   if (!cleanup.browserClosed || !cleanup.serverClosed || contexts !== 0) { proof.status = 'FAIL'; process.exitCode = 1 }

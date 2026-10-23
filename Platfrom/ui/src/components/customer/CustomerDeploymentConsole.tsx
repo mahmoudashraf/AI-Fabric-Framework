@@ -354,6 +354,12 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
   const selectedConsumer = deploymentConsumers.find((consumer) => consumer.consumerId === selectedConsumerId)
     ?? deploymentConsumers[0]
     ?? null
+  const readinessGuard = useScopedOneTimeValue<boolean>(JSON.stringify([
+    session.actorId, session.authenticationMode, customerId, selectedOffer?.id,
+    selectedOffer?.fingerprint, selectedOffer?.entitlement.revision, selectedDeploymentId,
+    productionRelease?.id, productionRelease?.deploymentVersionId, productionRelease?.targetProfileId,
+    selectedConsumer?.consumerId, selectedConsumer?.bindingRevision,
+  ]))
   const configurationCandidate: CustomerAssignmentConfigurationScope | null = selectedOffer && selectedDeployment && selectedConsumer
     ? { actorId: session.actorId ?? '', authenticationMode: session.authenticationMode, customerId,
       offer: selectedOffer, deployment: selectedDeployment, consumer: selectedConsumer } : null
@@ -758,6 +764,31 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
     },
   })
 
+  const refreshProductionReadiness = useMutation({
+    mutationFn: async ({ token }: { token: symbol }) => {
+      if (!readinessGuard.publish(token, true) || !selectedOffer || !productionRelease
+        || !selectedConsumer || !releaseReady(productionRelease)) {
+        throw new Error('Select the current verified production release and customer app before refreshing readiness.')
+      }
+      const key = operationKey('refresh-production-readiness', {
+        deploymentId: selectedDeploymentId, releaseId: productionRelease.id,
+        consumerId: selectedConsumer.consumerId, bindingRevision: selectedConsumer.bindingRevision,
+      })
+      return admissionCommands.current.authorize(selectedOffer.id, selectedDeploymentId, {
+        targetProfileId: productionRelease.targetProfileId!,
+        versionId: productionRelease.deploymentVersionId, releaseId: productionRelease.id,
+        operation: 'ACTIVATE', operationKey: key,
+      })
+    },
+    onSuccess: async (_, input) => {
+      completeOperation('refresh-production-readiness')
+      if (readinessGuard.publish(input.token, true)) {
+        setNotice({ severity: 'success', message: 'Production connection evidence refreshed. No app assignment was changed.' })
+      }
+      await invalidateCustomerState()
+    },
+  })
+
   const activateProduction = useMutation({
     mutationFn: async () => {
       const identity = { deploymentId: selectedDeploymentId, releaseId: productionRelease!.id,
@@ -849,6 +880,7 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
     || (publish.variables?.token === publishGuard.capture() ? publish.error : null)
     || (configureAssignment.variables?.token === configurationGuard.capture() ? configureAssignment.error : null)
     || stagingApply.error || createConsumer.error || bindConsumerToStaging.error || planPromotion.error || applyProduction.error
+    || (refreshProductionReadiness.variables?.token === readinessGuard.capture() ? refreshProductionReadiness.error : null)
     || activateProduction.error || rollbackProduction.error || extendStaging.error
 
   if (catalogueQuery.isLoading || portfolioQuery.isLoading || invitationsQuery.isLoading) {
@@ -1045,6 +1077,13 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Candidate-bound evidence is calculated by the Platform. It cannot be completed manually or reused for a different release.
               </Typography>
+              {releaseReady(productionRelease) && selectedConsumer ? (
+                <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} sx={{ mb: 2 }}
+                  disabled={!selectedOffer || refreshProductionReadiness.isPending || activateProduction.isPending}
+                  onClick={() => refreshProductionReadiness.mutate({ token: readinessGuard.capture() })}>
+                  Refresh production readiness
+                </Button>
+              ) : null}
               {!productionRelease ? (
                 <Alert severity="info">Deploy the reviewed production candidate to create its go-live evidence record.</Alert>
               ) : goLiveReadinessQuery.isLoading ? (

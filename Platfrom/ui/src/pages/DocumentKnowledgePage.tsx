@@ -65,6 +65,7 @@ import {
   fetchDocumentStorageBindings,
   indexDocumentSource,
   previewDocumentSource,
+  probeCustomerOfferTargetPlacement,
   reconcileDocumentSource,
   refreshDocumentSource,
   registerDocumentSource,
@@ -368,6 +369,23 @@ export function DocumentKnowledgePage() {
     ])
   }
 
+  const placementRefresh = useMutation({
+    mutationFn: async (input: { scope: CustomerDocumentStorageScope; authorityKey: string }) => {
+      const { scope } = input
+      await requireFreshCustomerDocumentStorageScope(scope, {
+        session: fetchPlatformAuthSession, offer: fetchCustomerSelfServiceOffer,
+        deployments: fetchCustomerDeploymentPortfolio,
+      }, () => bindingAuthority.current.key === input.authorityKey
+        && bindingAuthority.current.target === scope.targetProfileId)
+      return probeCustomerOfferTargetPlacement(scope.offerId, scope.targetProfileId)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customer-self-service-catalogue', customerId] })
+    },
+  })
+  const placementRefreshCurrent = placementRefresh.variables?.authorityKey === bindingAuthorityKey
+    && placementRefresh.variables.scope.targetProfileId === bindingForm.targetProfileId
+
   const saveBindingMutation = useMutation({
     mutationFn: async (input: {
       deploymentId: string; form: BindingForm; useTargetBindingSlot: boolean
@@ -658,6 +676,19 @@ export function DocumentKnowledgePage() {
           ) : null}
           {customerSelfService && !customerStorageSlot && !customerCatalogueQuery.isLoading ? (
             <Alert severity="error">This reviewed offer does not allow a customer-owned document-storage binding.</Alert>
+          ) : null}
+          {customerSelfService ? (
+            <Stack spacing={1} alignItems="flex-start">
+              <Button size="small" variant="outlined" startIcon={<RefreshRoundedIcon />}
+                disabled={!canAdmin || !customerBindScope || placementRefresh.isPending || saveBindingMutation.isPending}
+                onClick={() => customerBindScope && placementRefresh.mutate({
+                  scope: customerBindScope, authorityKey: bindingAuthorityKey,
+                })}>
+                Verify storage target placement
+              </Button>
+              {placementRefreshCurrent && placementRefresh.isError ? <Alert severity="error">{errorText(placementRefresh.error)}</Alert> : null}
+              {placementRefreshCurrent && placementRefresh.isSuccess ? <Alert severity="success">Storage target placement verified.</Alert> : null}
+            </Stack>
           ) : null}
 
           {bindingForm.connectorType === 'MOUNTED_FOLDER' ? (
