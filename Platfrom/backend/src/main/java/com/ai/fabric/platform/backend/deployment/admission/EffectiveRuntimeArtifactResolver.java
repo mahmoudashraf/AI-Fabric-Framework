@@ -27,7 +27,8 @@ public class EffectiveRuntimeArtifactResolver {
         requireRelease(release, repair);
         var replacement = artifacts.require(repair.replacement().artifactId());
         if (!compatibility.pin(original).equals(repair.original()) || !compatibility.pin(replacement).equals(repair.replacement())) fail();
-        compatibility.requireCompatible(original, replacement);
+        compatibility.requireCompatible(original, replacement,
+            repair.finalNativeInventory().containsKey("coldMaintenanceReceipt") ? Mode.COLD_MAINTENANCE_REAPPLY : Mode.FULL_DRAIN);
         return replacement;
     }
     public VerifiedRepair verifiedRepair(String releaseId) { return journal.verifiedRepair(releaseId); }

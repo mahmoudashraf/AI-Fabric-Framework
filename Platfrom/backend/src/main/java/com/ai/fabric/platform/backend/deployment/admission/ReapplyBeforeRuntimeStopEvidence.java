@@ -50,6 +50,7 @@ final class ReapplyBeforeRuntimeStopEvidence {
             || !text(deployment.get("connector_base_url")) || !r.demand().equals(manifest.demand())) fail("ACTIVE_DEPLOYMENT_REQUIRED");
         inventory.put("deployment", json.fingerprint(deployment));
         var release = one("SELECT * FROM platform_deployment_releases WHERE id=? FOR UPDATE NOWAIT", releaseId);
+        boolean coldPreflight = cold && "409 CONFLICT \"RUNTIME_ARTIFACT_REPAIR_DISTINCT_REVIEWED_REPLACEMENT_REQUIRED\"".equals(release.get("error_message"));
         if (!r.deploymentId().equals(release.get("deployment_id")) || !r.targetProfileId().equals(release.get("target_profile_id"))
             || !manifest.versionId().equals(release.get("deployment_version_id")) || !"COOLIFY".equals(release.get("provider_type"))
             || !"FAILED".equals(release.get("status")) || !"FAILED".equals(release.get("provisioning_status"))
@@ -67,13 +68,21 @@ final class ReapplyBeforeRuntimeStopEvidence {
                 || !manifest.versionId().equals(scope.versionId()) || !manifest.versionConfigHash().equals(scope.versionConfigHash())
                 || !Objects.equals(release.get("runtime_authority_fingerprint"), scope.authorityFingerprint())
                 || !Objects.equals(release.get("source_artifact_id"), repair.original().artifactId())
-                || !"RUNTIME_GENERATION_DRAIN_INCOMPLETE".equals(release.get("error_message"))
+                || !coldPreflight && !"RUNTIME_GENERATION_DRAIN_INCOMPLETE".equals(release.get("error_message"))
                 || !json.write(checkpoint.coldMaintenanceReceipt()).equals(repair.finalNativeInventory().get("coldMaintenanceReceipt")))
                 fail("VERIFIED_COLD_MAINTENANCE_REQUIRED");
             inventory.put("coldMaintenanceRepair", json.write(repair));
             inventory.put("coldMaintenanceCheckpoint", json.fingerprint(checkpoint));
         }
-        requireProgress(tree(release.get("provisioning_details_json")), cold);
+        var details = tree(release.get("provisioning_details_json"));
+        if (coldPreflight) {
+            var history = details.path("retryHistory");
+            if (!history.isArray() || history.isEmpty()) fail("CONTROL_FLOW_UNPROVEN");
+            var previous = history.get(history.size() - 1);
+            if (!"RUNTIME_GENERATION_DRAIN_INCOMPLETE".equals(previous.path("errorMessage").asText())) fail("CONTROL_FLOW_UNPROVEN");
+            requireProgress(json.read(json.write(Map.of("progress", previous.path("progress"))), JsonNode.class), true, false);
+        }
+        requireProgress(details, cold, coldPreflight);
         inventory.put("release", json.fingerprint(release));
 
         var bindings = rows("SELECT * FROM deployment_admission_release_bindings WHERE deployment_id=? AND target_profile_id=? ORDER BY release_id FOR UPDATE NOWAIT",
@@ -233,14 +242,15 @@ final class ReapplyBeforeRuntimeStopEvidence {
             if (!expected.getValue().equals(binding.get(expected.getKey()))) fail("BINDING_CHANGED");
         }
     }
-    private void requireProgress(JsonNode details, boolean cold) {
+    private void requireProgress(JsonNode details, boolean cold, boolean preflightOnly) {
         var progress = details.path("progress"); var steps = progress.path("steps");
+        var expectedSteps = preflightOnly ? List.of("queue_release", "preflight_verification", "prepare_apply", "apply_failed") : STEPS;
         var fields = new java.util.HashSet<String>(); details.fieldNames().forEachRemaining(fields::add);
         if (!details.isObject() || !(cold ? java.util.Set.of("progress", "retryHistory").containsAll(fields) : details.size() == 1)
             || !"apply_failed".equals(progress.path("currentStepKey").asText())
-            || !"FAILED".equals(progress.path("currentStepStatus").asText()) || !steps.isArray() || steps.size() != STEPS.size()) fail("CONTROL_FLOW_UNPROVEN");
-        for (int i = 0; i < STEPS.size(); i++) {
-            String key = STEPS.get(i), status = switch (key) {
+            || !"FAILED".equals(progress.path("currentStepStatus").asText()) || !steps.isArray() || steps.size() != expectedSteps.size()) fail("CONTROL_FLOW_UNPROVEN");
+        for (int i = 0; i < expectedSteps.size(); i++) {
+            String key = expectedSteps.get(i), status = switch (key) {
                 case "queue_release" -> "QUEUED"; case "prepare_apply" -> "RUNNING"; case "apply_failed" -> "FAILED"; default -> "COMPLETED";
             };
             if (!key.equals(steps.get(i).path("key").asText()) || !status.equals(steps.get(i).path("status").asText())) fail("CONTROL_FLOW_UNPROVEN");

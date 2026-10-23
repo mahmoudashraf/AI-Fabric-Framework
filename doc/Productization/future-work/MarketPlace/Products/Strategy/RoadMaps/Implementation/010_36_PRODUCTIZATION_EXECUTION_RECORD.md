@@ -8,6 +8,24 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-23 Customer Journey Continuation
 
+02:26 UTC: cold maintenance is fully VERIFIED, all nine effects confirmed,
+runtime generation8c ACTIVE and all three containers healthy. Source858e96b6b
+is verified on both control planes, preserving schema208/configuration and27
+protected projections. The first authorized normal retry then failed before
+provider work: the effective-artifact caller still used the strict image-change
+compatibility method. This was our missed integration point, not a new framework
+gap. Native resources remain healthy and the original failure history is intact.
+
+Four-file correction qualifies45 focused checks/four actual PostgreSQL cases.
+Only a sealed verified cold receipt can select the same image. Continuation of
+this exact pre-provider failure requires the original drain-failure history and
+unchanged verified scope; provider-effect/missing-history cases are rejected.
+Evidence: `/private/tmp/01044-cold-effective-artifact-qualification`.
+Publishing/rollout and a fresh retry command follow. The consumed first command
+must not be replayed. Capacity evidence is expiring, so read-only r6 measurements
+run in parallel with qualification; no limits, resources or funding are changed.
+Production indexing/app switch and final UI extraction remain open.
+
 02:03 UTC: physical-stop cold generation adoption is confirmed by the runtime.
 The new generation is ACTIVE; Inbox/connector resumption and repair verification
 are next. The runtime startup's429 status poll was reconciled against the exact

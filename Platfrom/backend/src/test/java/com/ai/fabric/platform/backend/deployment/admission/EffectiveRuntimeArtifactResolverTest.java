@@ -42,6 +42,18 @@ class EffectiveRuntimeArtifactResolverTest {
         assertThat(resolver.permitsConnectorJob("release", "connector-app", "runtime-job", "reviewed/runtime", "sha256-" + "a".repeat(64), Instant.EPOCH, Instant.EPOCH, "finished")).isFalse();
         assertThat(resolver.permitsConnectorJob("release", "connector-app", "connector-job", "reviewed/runtime", "sha256-" + "b".repeat(64), Instant.EPOCH, Instant.EPOCH, "finished")).isFalse();
     }
+    @Test void verifiedColdSameImageReceiptKeepsItsModeThroughEffectiveArtifactSelection() {
+        var old = proof();
+        var proof = new VerifiedRepair(old.planId(), old.planFingerprint(), old.scope(), old.original(), old.original(),
+            old.applicationUuid(), old.deploymentJobUuid(), old.jobCreatedAt(), old.jobFinishedAt(), old.connectorJob(), old.wallet(),
+            old.finalLocalFingerprints(), Map.of("coldMaintenanceReceipt", "sealed-runtime-cold-receipt"), old.verifiedAt());
+        var original = new DeploymentSourceArtifactEntity();
+        when(artifacts.require("original")).thenReturn(original);
+        when(compatibility.pin(original)).thenReturn(proof.original());
+        when(journal.verifiedRepair("release")).thenReturn(proof);
+        assertThat(resolver.resolve(release())).isSameAs(original);
+        verify(compatibility).requireCompatible(original, original, Mode.COLD_MAINTENANCE_REAPPLY);
+    }
     @Test void successorReleaseReceivesNoImplicitApproval() {
         var successor = release(); successor.setId("successor"); when(journal.hasClaim("successor")).thenReturn(false);
         var original = new DeploymentSourceArtifactEntity(); when(artifacts.require("original")).thenReturn(original);

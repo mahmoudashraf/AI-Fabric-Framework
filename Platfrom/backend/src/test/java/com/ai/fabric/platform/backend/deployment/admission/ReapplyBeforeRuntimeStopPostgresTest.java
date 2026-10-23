@@ -234,6 +234,45 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         assertThat(allState()).isEqualTo(before); verifyNoInteractions(provider, generations, execution);
     }
 
+    @Test void verifiedColdPreflightRejectionCanContinueWithoutRepeatingMaintenance() {
+        prepareColdPreflightRejection();
+        var before = preserved(); var plan = plan();
+        assertThat(plan.boundary()).isEqualTo(FailedApplyRetryContracts.COLD_MAINTENANCE_BOUNDARY);
+        api.retry("offer", "deployment", failed.id(), plan.command());
+        assertThat(preserved()).isEqualTo(before);
+        verify(execution, times(1)).executeApply("deployment", "version", "failed-release");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missingHistory", "providerStep"})
+    void coldPreflightContinuationRejectsMissingHistoryOrAnyProviderStep(String invalid) {
+        prepareColdPreflightRejection();
+        var details = (ObjectNode) json.read(jdbc.queryForObject("SELECT provisioning_details_json FROM platform_deployment_releases WHERE id='failed-release'", String.class), com.fasterxml.jackson.databind.JsonNode.class);
+        if (invalid.equals("missingHistory")) details.remove("retryHistory");
+        else details.withObject("/progress").withArray("steps").insert(3, mapper.createObjectNode().put("key", "coolify_preflight").put("status", "COMPLETED"));
+        jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(details));
+        var before = allState();
+        assertThatThrownBy(this::plan).isInstanceOf(AdmissionFailure.class);
+        assertThat(allState()).isEqualTo(before); verifyNoInteractions(execution);
+    }
+
+    private void prepareColdPreflightRejection() {
+        prepareVerifiedColdMaintenance(true);
+        var original = progress();
+        var details = mapper.createObjectNode();
+        var progress = details.putObject("progress");
+        progress.put("currentStepKey", "apply_failed").put("currentStepStatus", "FAILED");
+        var steps = progress.putArray("steps");
+        for (String key : List.of("queue_release", "preflight_verification", "prepare_apply", "apply_failed")) {
+            steps.addObject().put("key", key).put("status", switch (key) {
+                case "queue_release" -> "QUEUED"; case "prepare_apply" -> "RUNNING"; case "apply_failed" -> "FAILED"; default -> "COMPLETED";
+            });
+        }
+        details.putArray("retryHistory").addObject().put("errorMessage", "RUNTIME_GENERATION_DRAIN_INCOMPLETE")
+            .set("progress", original.path("progress"));
+        jdbc.update("UPDATE platform_deployment_releases SET error_message=?,provisioning_details_json=? WHERE id='failed-release'",
+            "409 CONFLICT \"RUNTIME_ARTIFACT_REPAIR_DISTINCT_REVIEWED_REPLACEMENT_REQUIRED\"", json.write(details));
+    }
+
     private void prepareUnassignedVerificationFailure() {
         jdbc.update("UPDATE platform_deployment_releases SET deployment_version_id='version',status='APPLIED_VERIFICATION_FAILED',verification_status='FAILED' WHERE id='prior-release'");
         jdbc.update("UPDATE platform_runtime_authority_snapshots SET version_id='version' WHERE release_id='prior-release'");
