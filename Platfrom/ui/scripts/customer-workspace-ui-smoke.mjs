@@ -137,6 +137,10 @@ try {
         blockers: productionReady ? [] : ['Production connection proof expired.'] })
       return
     }
+    if (path === '/api/deployments/deployment-one/human-reviews') {
+      await json(route, { message: 'Action review is unavailable in this fixture.' }, 400)
+      return
+    }
     if (lifecycle && path === '/api/deployments/deployment-one/practical-promotion/activate-production-consumer') {
       const body = requireAuthorization(request, 'ACTIVATE', 'production-target', 'production-release')
       assert.equal(body.expectedBindingRevision, consumers[0].bindingRevision)
@@ -388,6 +392,15 @@ try {
   await page.getByText('Production consumer activated.', { exact: true }).first().waitFor()
   assert.deepEqual(lifecycleCalls, ['APP_CONFIGURE', 'APPLY', 'ACTIVATE', 'PROMOTION_PLAN', 'PROMOTION_APPLY', 'ACTIVATE'])
   assert.equal(allocations.size, 2, 'planning, applying, and activation must reuse each target allocation')
+  await page.setViewportSize({ width: 390, height: 844 })
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true,
+    'The complete production lifecycle dashboard must fit the mobile viewport')
+  const steps = await page.locator('.MuiStepper-root').evaluate(element => element.getBoundingClientRect().right)
+  assert.ok(steps <= 391, 'The lifecycle indicator must not overflow the page')
+  await page.goto(`${uiBaseUrl}/human-review?deploymentId=deployment-one`, { waitUntil: 'networkidle' })
+  await page.getByText('Action review is unavailable in this fixture.', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Inbox clear', { exact: true }).count(), 0,
+    'An unavailable review inbox must never appear successfully empty')
   if (unhandledPaths.size > 0) {
     throw new Error(`Customer smoke received unhandled API calls: ${[...unhandledPaths].sort().join(', ')}`)
   }

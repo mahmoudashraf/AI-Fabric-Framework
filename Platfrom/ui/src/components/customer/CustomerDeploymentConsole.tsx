@@ -1061,8 +1061,10 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
             </Stack>
 
             <Stepper activeStep={activeStep} alternativeLabel>
-              {['Configure', 'Publish', 'Stage', 'Verify', 'Produce', 'Activate'].map((label) => (
-                <Step key={label}><StepLabel>{label}</StepLabel></Step>
+              {['Set up', 'Publish', 'Stage', 'Verify', 'Deploy', 'Activate'].map((label) => (
+                <Step key={label} sx={{ minWidth: 0, px: 0.5 }}>
+                  <StepLabel sx={{ '& .MuiStepLabel-label': { fontSize: 12, overflowWrap: 'anywhere' } }}>{label}</StepLabel>
+                </Step>
               ))}
             </Stepper>
 
@@ -1070,8 +1072,8 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
                 <Typography variant="h6">Production readiness and go-live</Typography>
                 {goLiveReadiness ? (
-                  <Chip size="small" label={goLiveReadiness.activationReady ? 'Ready to activate' : 'Activation blocked'}
-                    color={goLiveReadiness.activationReady ? 'success' : 'warning'} />
+                  <Chip size="small" label={productionActive ? 'Production active' : goLiveReadiness.activationReady ? 'Ready to activate' : 'Activation blocked'}
+                    color={productionActive || goLiveReadiness.activationReady ? 'success' : 'warning'} />
                 ) : null}
               </Stack>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

@@ -438,7 +438,7 @@ export function AIWorkspacesPage() {
             Publish reviewed one-script experiences that resolve each consumer&apos;s assigned runtime.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ maxWidth: '100%' }}>
           {customerScopeLocked ? (
             <Chip label={auth.session?.customerName ?? customer?.name ?? 'My customer account'} variant="outlined" />
           ) : (
@@ -448,7 +448,7 @@ export function AIWorkspacesPage() {
               label="Customer"
               value={customerId}
               onChange={(event) => { setCustomerId(event.target.value); setSelected(null) }}
-              sx={{ minWidth: 260 }}
+              sx={{ minWidth: 260, maxWidth: '100%' }}
             >
               {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
             </TextField>
@@ -727,7 +727,7 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
   })
   const snippet = `<script\n  async\n  src="${getPlatformApiBaseUrl()}/api/public/ai-workspace/install.js"\n  data-installation-id="${installation.installationId}">\n</script>`
   return (
-    <Box>
+    <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 750 }}>{installation.displayName}</Typography>
@@ -738,7 +738,7 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
         <Button startIcon={<RefreshRoundedIcon />} onClick={() => void refresh()}>Refresh readiness</Button>
       </Stack>
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
-        <Paper variant="outlined" sx={{ p: 2.5, flex: 1, borderRadius: 1 }}>
+        <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
             <Typography variant="subtitle2">{installation.deliveryMode === 'standalone' ? 'AI app address' : 'Installation script'}</Typography>
             <Tooltip title={installation.deliveryMode === 'standalone' ? 'Copy app address' : 'Copy installation script'}>
@@ -784,7 +784,7 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
             </>
           )}
         </Paper>
-        <Paper variant="outlined" sx={{ p: 2.5, flex: 1, borderRadius: 1 }}>
+        <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Readiness</Typography>
           <Stack spacing={1}>
             {installation.readinessChecks.map((check) => (

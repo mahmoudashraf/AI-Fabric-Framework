@@ -133,7 +133,7 @@ export function HumanReviewPage() {
 
       {inboxQuery.isLoading ? (
         <Box sx={{ minHeight: 240, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
-      ) : tasks.length === 0 && selectedDeploymentId ? (
+      ) : inboxQuery.isSuccess && tasks.length === 0 && selectedDeploymentId ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
           <TaskAltRoundedIcon color="success" sx={{ fontSize: 42 }} />
           <Typography variant="h6" sx={{ mt: 1 }}>Inbox clear</Typography>

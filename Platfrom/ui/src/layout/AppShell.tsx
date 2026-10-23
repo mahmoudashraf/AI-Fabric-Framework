@@ -310,7 +310,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
           </Toolbar>
         </AppBar>
         {!customerWorkspace ? <DeploymentWorkspaceHeader /> : null}
-        <Box component="main" sx={{ p: { xs: 2, md: 3.5 } }}>
+        <Box component="main" sx={{ p: 3.5 }}>
           {showUnresolvedDeploymentState ? <DeploymentWorkspaceUnresolvedState /> : children}
         </Box>
       </Box>
