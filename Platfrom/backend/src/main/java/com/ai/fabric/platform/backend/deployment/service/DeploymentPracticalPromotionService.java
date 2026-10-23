@@ -225,8 +225,17 @@ public class DeploymentPracticalPromotionService {
         PromotionContext context = requirePromotionContext(deployment.getId(), new DeploymentPracticalPromotionRequest(
             consumer.getConsumerId(), request.expectedBindingRevision(), stagingReleaseId,
             productionRelease.getTargetProfileId(), null, null));
-        if (!context.candidateFingerprint().equals(productionRelease.getPromotionCandidateFingerprint())
-            || !context.candidateFingerprint().equals(DeploymentEvidenceFingerprint.hash(objectMapper, frozen))
+        String frozenVerificationRunId = frozen.path("stagingVerificationRunId").asText();
+        String currentVerificationRunId = context.candidate().path("stagingVerificationRunId").asText();
+        if (!StringUtils.hasText(frozenVerificationRunId) || !StringUtils.hasText(currentVerificationRunId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Production release does not match the frozen promotion candidate.");
+        }
+        // Candidate resolution already requires fresh proof for the exact staging release.
+        ObjectNode comparableCandidate = context.candidate().deepCopy();
+        comparableCandidate.put("stagingVerificationRunId", frozenVerificationRunId);
+        String comparableFingerprint = DeploymentEvidenceFingerprint.hash(objectMapper, comparableCandidate);
+        if (!comparableFingerprint.equals(productionRelease.getPromotionCandidateFingerprint())
+            || !comparableFingerprint.equals(DeploymentEvidenceFingerprint.hash(objectMapper, frozen))
             || !context.version().getId().equals(productionRelease.getDeploymentVersionId())
             || !context.stagingRelease().getSourceArtifactId().equals(productionRelease.getSourceArtifactId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Production release does not match the frozen promotion candidate.");
@@ -270,6 +279,7 @@ public class DeploymentPracticalPromotionService {
             auditDetails(
                 "deploymentId", deployment.getId(),
                 "productionReleaseId", productionRelease.getId(),
+                "candidateFingerprint", productionRelease.getPromotionCandidateFingerprint(),
                 "previousDeploymentId", previousDeploymentId,
                 "previousReleaseId", previousReleaseId,
                 "resourceLifecycleChanges", lifecycleChanges.size()
@@ -288,7 +298,7 @@ public class DeploymentPracticalPromotionService {
             productionRelease.getStatus(),
             updatedConsumer,
             lifecycleChanges,
-            context.candidateFingerprint()
+            productionRelease.getPromotionCandidateFingerprint()
         );
     }
 

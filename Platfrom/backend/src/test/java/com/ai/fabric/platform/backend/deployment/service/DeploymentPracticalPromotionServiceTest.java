@@ -4,7 +4,9 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifactEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPracticalPromotionActivationRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPracticalPromotionRequest;
@@ -13,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderRe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromotionCommandRepository;
 import com.ai.fabric.platform.backend.deployment.admission.AdmissionPromotionRetirementScheduler;
@@ -34,10 +37,12 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
@@ -119,9 +124,10 @@ class DeploymentPracticalPromotionServiceTest {
         );
         PlatformConsumerEntity consumer = consumer("customer-production", deployment.getCustomerId(), deployment.getId(), "rel-staging");
         consumer.setBoundTargetProfileId("dtp-coolify-prod-staging");
-        productionRelease.setPromotionCandidateJson("{\"stagingReleaseId\":\"rel-staging\"}");
+        productionRelease.setPromotionCandidateJson("{\"stagingReleaseId\":\"rel-staging\",\"stagingVerificationRunId\":\"vrf-original\"}");
         productionRelease.setPromotionCandidateFingerprint(DeploymentEvidenceFingerprint.hash(new ObjectMapper(),
-            new ObjectMapper().createObjectNode().put("stagingReleaseId", "rel-staging")));
+            new ObjectMapper().createObjectNode().put("stagingReleaseId", "rel-staging")
+                .put("stagingVerificationRunId", "vrf-original")));
         var staging = release("rel-staging", deployment.getId(), "ver-1", "dtp-coolify-prod-staging", "APPLIED_VERIFIED", "PASSED");
         DeploymentProviderResourceHandleEntity productionHandle = handle("h-prod", deployment.getId(), productionRelease.getId(), "dtp-coolify-production", "ACTIVE");
         DeploymentProviderResourceHandleEntity previousHandle = handle("h-old", deployment.getId(), "rel-staging", "dtp-coolify-prod-staging", "ACTIVE");
@@ -211,7 +217,156 @@ class DeploymentPracticalPromotionServiceTest {
             deployment.getId(), "dtp-coolify-prod-staging", "activate-operation");
     }
 
+    @Test
+    void activateProductionConsumerAcceptsFreshLaterStagingVerificationWithoutChangingFrozenCandidate() {
+        ActivationFixture activation = activationFixture();
+        String frozenJson = activation.production().getPromotionCandidateJson();
+        String frozenFingerprint = activation.production().getPromotionCandidateFingerprint();
+
+        var summary = activation.fixture().service.activateProductionConsumer(
+            activation.deployment().getId(),
+            new DeploymentPracticalPromotionActivationRequest(
+                activation.production().getId(), "customer-production", false, "activate", 0L, "activate-renewed-proof")
+        );
+
+        assertThat(summary.status()).isEqualTo("PRODUCTION_CONSUMER_ACTIVATED");
+        assertThat(summary.consumer().boundReleaseId()).isEqualTo(activation.production().getId());
+        assertThat(summary.candidateFingerprint()).isEqualTo(frozenFingerprint);
+        assertThat(activation.production().getPromotionCandidateJson()).isEqualTo(frozenJson);
+        assertThat(activation.production().getPromotionCandidateFingerprint()).isEqualTo(frozenFingerprint);
+        assertThat(activation.staging().getVerificationRunId()).isEqualTo("vrf-later");
+        verify(activation.fixture().goLiveReadiness)
+            .requireActivationReady(activation.deployment(), activation.production(), activation.consumer());
+        verify(activation.fixture().auditService).record(
+            eq("DEPLOYMENT_PRACTICAL_PRODUCTION_CONSUMER_ACTIVATED"),
+            eq("PLATFORM_CONSUMER"), eq(activation.consumer().getConsumerId()),
+            argThat(details -> frozenFingerprint.equals(details.get("candidateFingerprint")))
+        );
+    }
+
+    @Test
+    void activateProductionConsumerRejectsConfigDriftDespiteFreshLaterStagingVerification() {
+        ActivationFixture activation = activationFixture();
+        String frozenJson = activation.production().getPromotionCandidateJson();
+        String frozenFingerprint = activation.production().getPromotionCandidateFingerprint();
+        activation.version().setConfigHash("changed-config");
+
+        assertThatThrownBy(() -> activation.fixture().service.activateProductionConsumer(
+            activation.deployment().getId(),
+            new DeploymentPracticalPromotionActivationRequest(
+                activation.production().getId(), "customer-production", false, "activate", 0L, "activate-changed-config")
+        )).isInstanceOf(ResponseStatusException.class).hasMessageContaining("frozen promotion candidate");
+
+        assertThat(activation.production().getPromotionCandidateJson()).isEqualTo(frozenJson);
+        assertThat(activation.production().getPromotionCandidateFingerprint()).isEqualTo(frozenFingerprint);
+        verifyNoInteractions(activation.fixture().consumerService, activation.fixture().goLiveReadiness);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void activateProductionConsumerRejectsStaleStagingOrProductionVerification(boolean staleStaging) {
+        ActivationFixture activation = activationFixture();
+        var staleRun = staleStaging ? activation.stagingVerification() : activation.productionVerification();
+        staleRun.setCompletedAt(Instant.now().minusSeconds(3601));
+
+        assertThatThrownBy(() -> activation.fixture().service.activateProductionConsumer(
+            activation.deployment().getId(),
+            new DeploymentPracticalPromotionActivationRequest(
+                activation.production().getId(), "customer-production", false, "activate", 0L, "activate-stale-proof")
+        )).isInstanceOf(ResponseStatusException.class).hasMessageContaining("stale");
+
+        verifyNoInteractions(activation.fixture().consumerService, activation.fixture().goLiveReadiness);
+    }
+
+    private ActivationFixture activationFixture() {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        var artifacts = mock(DeploymentSourceArtifactService.class);
+        var verifications = mock(DeploymentVerificationRunRepository.class);
+        var documentBindings = mock(DeploymentDocumentBindingResolver.class);
+        var candidates = new DeploymentPromotionCandidateService(artifacts, verifications, documentBindings, mapper);
+        TestFixture fixture = fixture(candidates);
+        DeploymentEntity deployment = deployment();
+        DeploymentVersionEntity version = version("ver-1", deployment.getId());
+        version.setConfigHash("reviewed-config");
+        var staging = release("rel-staging", deployment.getId(), version.getId(),
+            "dtp-coolify-prod-staging", "APPLIED_VERIFIED", "PASSED");
+        var production = release("rel-prod", deployment.getId(), version.getId(),
+            "dtp-coolify-production", "APPLIED_VERIFIED", "PASSED");
+        var consumer = consumer("customer-production", deployment.getCustomerId(), deployment.getId(), staging.getId());
+        consumer.setBoundTargetProfileId(staging.getTargetProfileId());
+        var productionTarget = targetProfile(production.getTargetProfileId(), "production");
+        productionTarget.setProviderConfigJson("{\"promotionEvidenceMaxAgeSeconds\":3600}");
+        var artifact = new DeploymentSourceArtifactEntity();
+        artifact.setId(staging.getSourceArtifactId());
+        artifact.setImageRepository("reviewed/runtime");
+        artifact.setImageDigest("sha256:" + "a".repeat(64));
+        artifact.setCapabilityManifestHash("reviewed-capabilities");
+        when(artifacts.require(artifact.getId())).thenReturn(artifact);
+        when(documentBindings.snapshot(deployment, version, productionTarget.getId()))
+            .thenReturn(mapper.createObjectNode().put("bindingRevision", 1));
+
+        var originalVerification = verification("vrf-original", staging, "POST_APPLY");
+        staging.setVerificationRunId(originalVerification.getId());
+        when(verifications.findById(originalVerification.getId())).thenReturn(Optional.of(originalVerification));
+        var frozen = candidates.resolve(deployment, version, staging, productionTarget, consumer);
+        production.setPromotionCandidateJson(frozen.toString());
+        production.setPromotionCandidateFingerprint(candidates.fingerprint(frozen));
+        originalVerification.setCompletedAt(Instant.now().minusSeconds(7200));
+        var stagingVerification = verification("vrf-later", staging, "MANUAL_RERUN");
+        staging.setVerificationRunId(stagingVerification.getId());
+        when(verifications.findById(stagingVerification.getId())).thenReturn(Optional.of(stagingVerification));
+        var productionVerification = verification("vrf-production", production, "POST_APPLY");
+        production.setVerificationRunId(productionVerification.getId());
+        when(verifications.findById(productionVerification.getId())).thenReturn(Optional.of(productionVerification));
+
+        when(fixture.deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(fixture.deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+        when(fixture.versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(fixture.releaseRepository.findById(staging.getId())).thenReturn(Optional.of(staging));
+        when(fixture.releaseRepository.findById(production.getId())).thenReturn(Optional.of(production));
+        when(fixture.targetProfileRepository.findById(staging.getTargetProfileId()))
+            .thenReturn(Optional.of(targetProfile(staging.getTargetProfileId(), "staging")));
+        when(fixture.targetProfileRepository.findById(productionTarget.getId())).thenReturn(Optional.of(productionTarget));
+        when(fixture.consumerRepository.findByCustomerIdAndConsumerIdIgnoreCase(deployment.getCustomerId(), consumer.getConsumerId()))
+            .thenReturn(Optional.of(consumer));
+        when(fixture.consumerRepository.findBindingForUpdate(deployment.getCustomerId(), consumer.getConsumerId()))
+            .thenReturn(Optional.of(consumer));
+        when(fixture.consumerService.updateBindingForTrustedPromotion(
+            eq(deployment.getCustomerId()), eq(consumer.getConsumerId()), eq(deployment.getId()), eq(production.getId()),
+            eq(production.getTargetProfileId()), eq("activate"), eq(0L), anyString()
+        )).thenReturn(new PlatformConsumerSummary(
+            consumer.getConsumerId(), consumer.getCustomerId(), consumer.getDisplayName(), null, "ACTIVE",
+            deployment.getId(), deployment.getName(), "production", "ACTIVE", production.getId(), production.getStatus(),
+            production.getTargetProfileId(), Instant.now(), Instant.now(), Instant.now(), 1L
+        ));
+        return new ActivationFixture(fixture, deployment, version, staging, production, consumer,
+            stagingVerification, productionVerification);
+    }
+
+    private DeploymentVerificationRunEntity verification(String id, DeploymentReleaseEntity release, String type) {
+        var run = new DeploymentVerificationRunEntity();
+        run.setId(id);
+        run.setDeploymentId(release.getDeploymentId());
+        run.setDeploymentVersionId(release.getDeploymentVersionId());
+        run.setReleaseId(release.getId());
+        run.setVerificationType(type);
+        run.setStatus("PASSED");
+        run.setCompletedAt(Instant.now().minusSeconds(60));
+        return run;
+    }
+
     private TestFixture fixture() {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        var candidates = mock(DeploymentPromotionCandidateService.class);
+        var candidate = mapper.createObjectNode().put("stagingReleaseId", "rel-staging")
+            .put("stagingVerificationRunId", "vrf-original");
+        when(candidates.resolve(any(), any(), any(), any(), any())).thenReturn(candidate);
+        when(candidates.fingerprint(any())).thenAnswer(invocation ->
+            DeploymentEvidenceFingerprint.hash(mapper, invocation.getArgument(0)));
+        return fixture(candidates);
+    }
+
+    private TestFixture fixture(DeploymentPromotionCandidateService candidates) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
@@ -223,10 +378,6 @@ class DeploymentPracticalPromotionServiceTest {
         PlatformCustomerConsumerService consumerService = mock(PlatformCustomerConsumerService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        var candidates = mock(DeploymentPromotionCandidateService.class);
-        var candidate = mapper.createObjectNode().put("stagingReleaseId", "rel-staging");
-        when(candidates.resolve(any(), any(), any(), any(), any())).thenReturn(candidate);
-        when(candidates.fingerprint(any())).thenReturn(DeploymentEvidenceFingerprint.hash(mapper, candidate));
         var commands = new DeploymentPromotionCommandService(mock(DeploymentPromotionCommandRepository.class), consumerRepository, mapper);
         var retirementScheduler = mock(AdmissionPromotionRetirementScheduler.class);
         var goLiveReadiness = mock(CustomerGoLiveReadinessService.class);
@@ -259,6 +410,7 @@ class DeploymentPracticalPromotionServiceTest {
             consumerRepository,
             deploymentAccessService,
             consumerService,
+            auditService,
             retirementScheduler,
             goLiveReadiness
         );
@@ -357,6 +509,18 @@ class DeploymentPracticalPromotionServiceTest {
         return handle;
     }
 
+    private record ActivationFixture(
+        TestFixture fixture,
+        DeploymentEntity deployment,
+        DeploymentVersionEntity version,
+        DeploymentReleaseEntity staging,
+        DeploymentReleaseEntity production,
+        PlatformConsumerEntity consumer,
+        DeploymentVerificationRunEntity stagingVerification,
+        DeploymentVerificationRunEntity productionVerification
+    ) {
+    }
+
     private record TestFixture(
         DeploymentPracticalPromotionService service,
         DeploymentRepository deploymentRepository,
@@ -367,6 +531,7 @@ class DeploymentPracticalPromotionServiceTest {
         PlatformConsumerRepository consumerRepository,
         DeploymentAccessService deploymentAccessService,
         PlatformCustomerConsumerService consumerService,
+        PlatformAuditService auditService,
         AdmissionPromotionRetirementScheduler retirementScheduler,
         CustomerGoLiveReadinessService goLiveReadiness
     ) {

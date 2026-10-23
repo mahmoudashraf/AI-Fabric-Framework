@@ -8,6 +8,33 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-23 Customer Journey Continuation
 
+02:03 UTC: physical-stop cold generation adoption is confirmed by the runtime.
+The new generation is ACTIVE; Inbox/connector resumption and repair verification
+are next. The runtime startup's429 status poll was reconciled against the exact
+healthy start, with no duplicate deploy. Staging recheck of the SAME release
+passed as `vrf-9f5e8b6f`; no customer binding changed.
+
+A normal promotion gap was identified before app activation: renewing staging
+verification after its one-hour age limit changed the regenerated candidate's
+run ID, incorrectly demanding another production deployment. A two-file fix
+allows only this independently verified same-release proof renewal. All immutable
+configuration/ownership/image checks and freshness remain mandatory; original
+frozen JSON/hash remain unchanged and are retained in response/audit. Main
+qualification:24 focused checks pass, including real candidate freshness and
+config-drift tests. No framework change. The fix is not hosted yet, and will
+roll out only after the native maintenance/apply work finishes.
+
+01:50 UTC hosted: both control planes verify5dc6936ac/schema208/UP, immutable
+backend d594de42, with27 protected projections/configuration/funding preserved.
+The existing reviewed maintenance plan is claimed. Connector, Inbox and runtime
+physical stops are CONFIRMED, not claimed as graceful drain. PATCH_IMAGE next
+hit a Coolify HTTP429 during inventory read and is unconfirmed; original intent
+is retained. Cooldown then read-only reconciliation, not command replay. No
+replacement deploy/adoption yet; staging remains assigned and serving normally.
+Evidence: `cold-production-rollout` and `cold-production-replacement` under the
+0841 journey root. Continue the existing plan, then normal exact-release retry
+and production integration acceptance. UI extraction remains last.
+
 01:38 UTC final qualification remains244/55actualPG, all pass. The existing
 maintenance and retry inventory queries now select the exact target: this real
 deployment has both staging and production resources. The added PostgreSQL
