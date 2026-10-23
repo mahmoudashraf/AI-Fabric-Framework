@@ -109,6 +109,7 @@ import { createAssignmentConfigurationIntents, canStartAssignmentIntent, type As
 import { useDeploymentWorkspace } from '../../workspace/DeploymentWorkspaceContext'
 import { useScopedOneTimeValue } from '../../hooks/useScopedOneTimeValue'
 import { CustomerAiStateStorageBinding } from './CustomerAiStateStorageBinding'
+import { CustomerExternalIntegrationBindings } from './CustomerExternalIntegrationBindings'
 import { aiStateStorageLabels, aiStateStorageModes, customerStorageBootstrapRequest,
   publishStoredAiStateStorage, storedAiStateStorageMode } from './customerAiStateStorage'
 import { CustomerAdvancedSection, useCustomerEditorSection } from './CustomerDetailSections'
@@ -1113,12 +1114,18 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
               <Typography variant="h6" sx={{ mb: 1.5 }}>Required connections</Typography>
               {selectedOffer.bindingSlots.length ? selectedOffer.bindingSlots.map(slot => <Stack key={slot.id} direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
                 <Box><Typography variant="body2" fontWeight={600}>{slot.kind.replace(/_/g, ' ')}</Typography><Typography variant="caption" color="text.secondary">{slot.id} / {slot.supportedProfileIds.length} reviewed profiles</Typography></Box>
-                {['CUSTOMER_S3', 'EXTERNAL_SERVICE', 'INBOX_OPERATOR'].includes(slot.kind)
+                {slot.kind === 'EXTERNAL_SERVICE' ? <Button href="#approved-connections">Set up</Button> : ['CUSTOMER_S3', 'INBOX_OPERATOR'].includes(slot.kind)
                   ? <Button component={RouterLink} to={`${slot.kind === 'CUSTOMER_S3' ? '/document-knowledge' : '/integrations'}?deploymentId=${encodeURIComponent(selectedDeploymentId)}&view=manage`}>Review</Button>
                   : <Typography variant="caption" color="text.secondary">Reviewed offer binding</Typography>}
               </Stack>) : <Typography variant="body2" color="text.secondary">No connection slots are declared by this offer.</Typography>}
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>Required connections are declared by the offer. Their presence here is not proof of readiness; publication and release verification remain authoritative.</Typography>
             </Box> : null}
+
+            <Box sx={{ display: guided && !['configure', 'staging'].includes(step) ? 'none' : undefined }}>
+              <CustomerExternalIntegrationBindings key={JSON.stringify([session.actorId, customerId, selectedOffer.id,
+                selectedOffer.fingerprint, selectedOffer.entitlement.revision, selectedDeploymentId])}
+                session={session} offer={selectedOffer} deployment={selectedDeployment} version={latestVersion} />
+            </Box>
 
             <Box sx={{ display: showStep('production') ? undefined : 'none' }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>

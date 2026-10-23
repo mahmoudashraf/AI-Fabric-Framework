@@ -5,7 +5,7 @@ import ts from 'typescript'
 
 const source = await readFile(new URL('../src/components/customer/customerDocumentStorageScope.ts', import.meta.url), 'utf8')
 const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
-const { customerDocumentStorageScope: scope, requireFreshCustomerDocumentStorageScope: fresh } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+const { customerDocumentStorageScope: scope, requireFreshCustomerDocumentStorageScope: fresh, hasReviewedDocumentStorageInstall } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 function fixture() {
   const session = { authenticated: true, actorId: 'owner', customerId: 'customer', role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION' }
   const deployment = { deploymentId: 'dep', tenantId: 'tenant', offerId: 'offer', offerFingerprint: 'pin', authorizationEntitlementRevision: 2 }
@@ -17,6 +17,14 @@ function fixture() {
     bindingSlotId: 'slot', operation: 'BINDING_REPLACE', selectedProfileId: 'reviewed' }
   return { input, api: { session: async () => session, deployments: async () => [deployment], offer: async () => offer } }
 }
+
+test('reviewed optional document install may be configured before its first binding enables it', () => {
+  const offer = { bindingSlots: [{ kind: 'CUSTOMER_S3', pluginId: 'documents', supportedProfileIds: ['s3'] }] }
+  assert.equal(hasReviewedDocumentStorageInstall(offer, [{ pluginId: 'documents', status: 'DISABLED' }]), true)
+  assert.equal(hasReviewedDocumentStorageInstall(offer, [{ pluginId: 'unreviewed', status: 'ENABLED' }]), false)
+  assert.equal(hasReviewedDocumentStorageInstall(null, [{ pluginId: 'documents' }]), false)
+  assert.equal(hasReviewedDocumentStorageInstall({ bindingSlots: [{ ...offer.bindingSlots[0], supportedProfileIds: [] }] }, [{ pluginId: 'documents' }]), false)
+})
 
 test('bind and revoke capture current reviewed entitlement, never historical bootstrap revision', async () => {
   const f = fixture()

@@ -1,4 +1,9 @@
-import type { CustomerDeploymentSummary, CustomerOfferSummary, DeploymentSummary, PlatformAuthSessionSummary } from '../../api/platformApi'
+import type { CustomerDeploymentSummary, CustomerOfferSummary, DeploymentMarketplaceInstallSummary, DeploymentSummary, PlatformAuthSessionSummary } from '../../api/platformApi'
+
+export function hasReviewedDocumentStorageInstall(offer: CustomerOfferSummary | null, installs: DeploymentMarketplaceInstallSummary[]) {
+  return Boolean(offer?.bindingSlots.some(slot => slot.kind === 'CUSTOMER_S3' && slot.supportedProfileIds.length > 0
+    && slot.pluginId && installs.some(install => install.pluginId === slot.pluginId)))
+}
 
 export type CustomerDocumentStorageScope = {
   actorId: string; authenticationMode: 'SESSION'; customerId: string

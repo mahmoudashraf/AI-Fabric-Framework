@@ -70,6 +70,26 @@ contract and rerun green. Pending UI adds only reviewed connection choices and
 write-only credentials; focused source checks10 model/5 browser scenarios pass.
 These are not hosted M4 promotion acceptance. No framework change or release.
 
+M4 connection setup UI SOURCE QUALIFIED: approved connection target/slot/profile,
+read-only reviewed endpoint/account values, write-only required credentials,
+visible failures, explicit retry with unchanged operation key and confirmed
+revocation. Scope/version/account changes discard credential forms and stop late
+preflights. No raw YAML, arbitrary endpoint authoring or domain-specific UI.
+The document page now exposes the existing S3 binding form when the reviewed
+offer maps to an installed optional document plugin, even before that plugin is
+enabled. The existing bind service alone enables/resolves that exact install.
+
+Build PASS (existing bundle/runtime-script warnings);10 connection/storage model
+checks,6 actual-component connection scenarios,6 publication/storage UI scenarios
+and18 existing customer scope regressions PASS. Synthetic loopback fixtures only,
+not hosted acceptance. Source browser output:
+`/private/tmp/01045-m4-connections-1792796265057/report.actual.json`.
+Initial fixture failures were virtual-JSX import analysis and an overly exact MUI
+accessible-name selector; fixed in the harness, not hidden as product passes.
+Hosted runner now accepts a DRAFT app only in pre-activation stages and records
+the publication response's actual `versionId` field. Neither adjustment dispatches
+or replays a command. Pending clean UI publication and live S3/app/setup checks.
+
 The first new-UI publication attempt against the exact owned configuration
 returned409 `PLACEMENT_EVIDENCE_STALE`. No version or release was created and
 the live production assignment is unchanged. The publish handler now refreshes

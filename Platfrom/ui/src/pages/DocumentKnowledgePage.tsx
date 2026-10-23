@@ -84,7 +84,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
-import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope,
+import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope, hasReviewedDocumentStorageInstall,
   type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
 
 const DOCUMENT_PLUGIN_IDS = new Set([
@@ -327,7 +327,8 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
     return (profilesQuery.data ?? []).filter((profile) => profile.active)
   }, [customerOffer?.targets, customerSelfService, profilesQuery.data])
 
-  const documentConfigured = workspace?.documentKnowledgeConfigured ?? dataset != null
+  const documentConfigured = (workspace?.documentKnowledgeConfigured ?? dataset != null)
+    || (customerSelfService && hasReviewedDocumentStorageInstall(customerOffer, installsQuery.data ?? []))
   const documentLive = !!selectedRelease && !!targetQuery.data?.documentDatasetIds.length
   const canAdmin = workspace?.access.canAdmin ?? false
   const canOperate = workspace?.access.canOperate ?? false

@@ -80,7 +80,10 @@ try {
   const session = await get('/api/platform/auth/session')
   assert.equal(session.role, 'CUSTOMER_ADMIN'); assert.equal(session.customerId, args.customer)
   const app = await get(appPath)
-  assert.equal(app.status, 'ACTIVE'); assert.equal(app.deploymentId, args.deployment)
+  if (['inspect', 'publish', 'stage', 'observe-stage', 'bind-stage'].includes(args.mode)) {
+    assert.ok(['DRAFT', 'ACTIVE'].includes(app.status))
+  } else assert.equal(app.status, 'ACTIVE')
+  assert.equal(app.deploymentId, args.deployment)
   const deployments = await get('/api/customer-self-service/deployments')
   const deployment = deployments.find(item => item.deploymentId === args.deployment)
   assert.equal(deployment.offerId, args.offer)
@@ -167,11 +170,12 @@ try {
     const response = await responsePromise
     const body = await response.json()
     save(`${args.mode}.response.private`, { status: response.status(), body })
-    report.command = { status: response.status(), id: body.id, code: body.code ?? body.errorCode,
+    report.command = { status: response.status(), id: body.id ?? body.versionId, code: body.code ?? body.errorCode,
       message: body.message, statusName: body.status }
     assert.ok(response.ok(), `${args.mode} failed with ${response.status()} ${body.code ?? body.errorCode ?? body.message ?? ''}`)
     if (args.mode === 'publish') {
-      state.versionId = body.id
+      assert.ok(typeof body.versionId === 'string' && body.versionId.length > 0)
+      state.versionId = body.versionId
       writeFileSync(`${args.root}/state.json`, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 })
     }
     await page.waitForLoadState('networkidle')

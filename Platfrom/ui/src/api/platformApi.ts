@@ -7638,6 +7638,13 @@ export type CustomerExternalIntegrationScope = {
   selectedProfileId: string
 }
 
+export type CustomerExternalIntegrationApprovalOption = CustomerExternalIntegrationScope & {
+  id: string
+  config: Record<string, string>
+  accountScope: Record<string, string>
+  reviewReference: string
+}
+
 export type CustomerExternalIntegrationBindRequest = CustomerExternalIntegrationScope & {
   approvalId: string
   expectedEntitlementRevision: number
@@ -8083,6 +8090,14 @@ export function fetchCustomerExternalIntegration(
   const params = new URLSearchParams(scope)
   return request<CustomerExternalIntegrationSummary>(
     `${customerOfferDeploymentPath(offerId, deploymentId)}/external-integrations?${params.toString()}`,
+  )
+}
+
+export function fetchCustomerExternalIntegrationApprovals(
+  offerId: string, deploymentId: string, scope: CustomerExternalIntegrationScope,
+) {
+  return request<CustomerExternalIntegrationApprovalOption[]>(
+    `${customerOfferDeploymentPath(offerId, deploymentId)}/external-integrations/approvals?${new URLSearchParams(scope)}`,
   )
 }
 
