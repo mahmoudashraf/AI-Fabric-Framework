@@ -6,6 +6,30 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-23 02:43 UTC Cold Continuation Accepted
+
+Both control planes now verify backend `d873be629e216b39ad8fff093043df1c8da0e1df`,
+immutable image `sha256:05f599e14552c6846758d41d09a1b2147cfd4f02723de6557a8a4832f4561037`,
+schema208 and healthy status. CI39889622352 succeeded; the UI was not rebuilt.
+All27 protected configuration/ownership/funding projections were preserved.
+The focused caller correction passed45 tests, including four actual PostgreSQL
+cases; no framework release or semantic decision workaround was introduced.
+
+The fresh owner retry for the SAME `rel-8c7930cc` was accepted with
+`APPLY_REQUESTED` and `financialMutationPerformed=false`. It has passed the
+effective-artifact check and is provisioning. Original failed attempts remain
+in history; the consumed earlier retry is not replayed. Cold maintenance itself
+is fully verified, not represented as a successful graceful drain.
+
+The measured r6 policy is published and valid until04:29:03UTC. No additional
+capacity service, vector transfer, funding reset or customer business database
+was created. The SAME Engage app remains assigned to staging, revision2.
+Production source indexing, full verification, app activation and workspace
+acceptance are still open. UI extraction remains last. Evidence is under
+`/private/tmp/01044-journey-0841-20261022/`, particularly
+`cold-effective-artifact-rollout`, `production-cold-retry-r2-*` and
+`promotion-capacity-r6-verified.actual.json`. Hetzner access stays open as agreed.
+
 ### 2026-10-23 Customer Journey Continuation
 
 02:26 UTC: cold maintenance is fully VERIFIED, all nine effects confirmed,
