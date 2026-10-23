@@ -23,6 +23,28 @@ below is retained; it does not close these product-composition milestones.
 Each phase must record changes, actual checks, source/publication status and a
 review link. No generic management/recovery/draining workstreams are authorized.
 
+### M3 - Saved-App Qualification In Progress
+
+2026-10-23 20:36 UTC: a real CUSTOMER_ADMIN attempted to create a clearly labelled
+temporary draft through the published UI. The backend correctly rejected it with
+`409 PLACEMENT_EVIDENCE_STALE`; no app was created or assignment changed. The form
+did not refresh the existing placement check and rendered save errors behind its
+dialog. This is an app-command integration gap, not a reason to relax authority.
+
+Bounded UI correction: refresh the exact owned assignment's reviewed target only
+when an explicit create/edit/activate/disable/delete command is submitted. Reuse
+the existing placement endpoint, preserve backend guards and idempotency, and stop
+before dispatch if account/assignment/entitlement changes while checking. Failed
+checks and saves remain visible inside the dialog with its draft intact. No
+automatic retries, capacity admission, deployment command, backend/framework
+change or background placement renewal. Other app commands are disabled while a
+command is pending. Staff continues through its existing authorization path.
+
+Eleven focused model tests and the actual-component denied-check/error/retry suite
+pass; the UI build passes with its existing bundle warning. Publication and the
+real create/reload/edit/reload/delete journey follow. The existing live app must
+remain ACTIVE on its exact production assignment throughout this M3 check.
+
 ### M1 - Product Home Source Qualification
 
 2026-10-23 18:48 UTC: added product-led Home using explicit reviewed experience-pack

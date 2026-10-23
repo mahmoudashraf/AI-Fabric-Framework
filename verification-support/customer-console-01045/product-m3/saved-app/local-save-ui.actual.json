@@ -1,0 +1,62 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "NO_AUTOMATIC_PROBE_DENIED_CHECK_NO_WRITE_VISIBLE_ERROR_DRAFT_RETAINED",
+      "status": "PASS"
+    },
+    {
+      "name": "EXPLICIT_RETRY_SAME_KEY_EXACT_TARGET_NO_ADMISSION_OR_DEPLOYMENT",
+      "status": "PASS"
+    }
+  ],
+  "calls": [
+    {
+      "path": "/api/platform/customers",
+      "method": "GET"
+    },
+    {
+      "path": "/api/platform/ai-workspaces/catalog",
+      "method": "GET"
+    },
+    {
+      "path": "/api/platform/customers/customer/ai-workspace-installations",
+      "method": "GET"
+    },
+    {
+      "path": "/api/customer-self-service/catalogue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/customer-self-service/deployments",
+      "method": "GET"
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer/targets/production/placement-evidence",
+      "method": "POST"
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer/targets/production/placement-evidence",
+      "method": "POST"
+    },
+    {
+      "path": "/api/platform/customers/customer/ai-workspace-installations",
+      "method": "POST",
+      "key": "f5723eac-1ad3-41cb-b8b4-34d92457450c"
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer/targets/production/placement-evidence",
+      "method": "POST"
+    },
+    {
+      "path": "/api/platform/customers/customer/ai-workspace-installations",
+      "method": "POST",
+      "key": "f5723eac-1ad3-41cb-b8b4-34d92457450c"
+    },
+    {
+      "path": "/api/platform/customers/customer/ai-workspace-installations",
+      "method": "GET"
+    }
+  ],
+  "errors": []
+}

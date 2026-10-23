@@ -1,0 +1,19 @@
+{
+  "startedAt": "2026-10-23T20:36:26.631Z",
+  "status": "FAIL",
+  "checks": [],
+  "commands": [
+    {
+      "method": "POST",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations",
+      "status": 409,
+      "code": "PLACEMENT_EVIDENCE_STALE",
+      "message": "PLACEMENT_EVIDENCE_STALE"
+    }
+  ],
+  "blocked": [],
+  "errors": [],
+  "cleanupRequired": null,
+  "error": "UI command POST /api/platform/customers/cus-9fd67f55/ai-workspace-installations failed: 409 PLACEMENT_EVIDENCE_STALE",
+  "finishedAt": "2026-10-23T20:36:32.079Z"
+}

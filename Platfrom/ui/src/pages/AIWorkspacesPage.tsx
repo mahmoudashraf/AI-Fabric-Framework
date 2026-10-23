@@ -46,6 +46,7 @@ import {
   fetchCustomerSelfServiceCatalogue,
   fetchPlatformCustomers,
   getPlatformApiBaseUrl,
+  probeCustomerOfferTargetPlacement,
   type AIWorkspaceInstallationSummary,
   type PlatformCustomerSummary,
   type SaveAIWorkspaceInstallationRequest,
@@ -56,6 +57,7 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { resolveReviewedWorkspaceProfiles, reviewedWorkspaceRequest } from './aiWorkspaceReviewedProfiles'
 import { CustomerAdvancedSection, CustomerEditorDepthSwitch, CustomerEditorNotices, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 import { customerEngageSelection } from '../components/customer/customerEngageSelection'
+import { prepareCustomerEngageCommand, type CustomerEngageCommandContext } from '../components/customer/customerEngageCommands'
 
 type FormState = {
   packCode: string
@@ -146,6 +148,9 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   const initialSelection = useRef('')
   const [selectionError, setSelectionError] = useState<string | null>(null)
   const saveCommand = useRef<{ identity: string; key: string } | null>(null)
+  const commandContext = useRef<CustomerEngageCommandContext | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
   const customersQuery = useQuery({ queryKey: ['platform-customers'], queryFn: fetchPlatformCustomers })
   const catalogQuery = useQuery({ queryKey: ['ai-workspace-catalog'], queryFn: fetchAIWorkspaceCatalog })
@@ -157,16 +162,25 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   const offersQuery = useQuery({
     queryKey: ['customer-self-service-catalogue', customerId],
     queryFn: fetchCustomerSelfServiceCatalogue,
-    enabled: customerScopeLocked && Boolean(customerId) && editing != null,
+    enabled: customerScopeLocked && Boolean(customerId),
   })
   const portfolioQuery = useQuery({
     queryKey: ['customer-deployment-portfolio', customerId],
     queryFn: fetchCustomerDeploymentPortfolio,
-    enabled: customerScopeLocked && Boolean(customerId) && editing != null,
+    enabled: customerScopeLocked && Boolean(customerId),
   })
 
   const customers = customersQuery.data ?? []
   const customer = customers.find((item) => item.id === customerId) ?? null
+  commandContext.current = customerScopeLocked && offersQuery.isSuccess && portfolioQuery.isSuccess
+    && customersQuery.isSuccess && !offersQuery.isFetching && !portfolioQuery.isFetching && !customersQuery.isFetching
+    ? { actorId: auth.session?.actorId, customerId, consumers: customer?.consumers ?? [],
+      offers: offersQuery.data, deployments: portfolioQuery.data } : null
+  const prepareCommand = async (consumerIds: string | string[]) => {
+    if (customerScopeLocked) await prepareCustomerEngageCommand(
+      () => mounted.current ? commandContext.current : null, consumerIds, probeCustomerOfferTargetPlacement,
+    )
+  }
   const installations = installationsQuery.data ?? []
   useEffect(() => {
     if (!initialInstallationId || !installationsQuery.isSuccess) return
@@ -233,9 +247,14 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   }
 
   const saveMutation = useMutation({
-    mutationFn: ({ payload, operationKey }: { payload: SaveAIWorkspaceInstallationRequest; operationKey: string }) => editing === 'new'
-      ? createAIWorkspaceInstallation(customerId, payload, operationKey)
-      : updateAIWorkspaceInstallation(customerId, editing!.installationId, payload, operationKey),
+    mutationFn: async ({ payload, operationKey }: { payload: SaveAIWorkspaceInstallationRequest; operationKey: string }) => {
+      const installationId = editing === 'new' ? null : editing?.installationId
+      if (editing == null) throw new Error('Open an app configuration before saving.')
+      await prepareCommand(editing !== 'new' && editing.consumerId
+        ? [editing.consumerId, payload.consumerId] : payload.consumerId)
+      return installationId ? updateAIWorkspaceInstallation(customerId, installationId, payload, operationKey)
+        : createAIWorkspaceInstallation(customerId, payload, operationKey)
+    },
     onSuccess: async (installation) => {
       saveCommand.current = null
       setNotice(`AI Workspace ${installation.displayName} saved.`)
@@ -246,8 +265,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   })
 
   const activateMutation = useMutation({
-    mutationFn: ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) =>
-      activateAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey),
+    mutationFn: async ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) => {
+      await prepareCommand(installation.consumerId ?? '')
+      return activateAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey)
+    },
     onSuccess: async (installation) => {
       setNotice(`AI Workspace ${installation.displayName} activated.`)
       setSelected(installation)
@@ -256,8 +277,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   })
 
   const disableMutation = useMutation({
-    mutationFn: ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) =>
-      disableAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey),
+    mutationFn: async ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) => {
+      await prepareCommand(installation.consumerId ?? '')
+      return disableAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey)
+    },
     onSuccess: async (installation) => {
       setNotice(`AI Workspace ${installation.displayName} disabled.`)
       setSelected(installation)
@@ -266,8 +289,10 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) =>
-      deleteAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey),
+    mutationFn: async ({ installation, operationKey }: { installation: AIWorkspaceInstallationSummary; operationKey: string }) => {
+      await prepareCommand(installation.consumerId ?? '')
+      return deleteAIWorkspaceInstallation(installation.customerId, installation.installationId, operationKey)
+    },
     onSuccess: async () => {
       setNotice('Draft AI Workspace deleted.')
       setSelected(null)
@@ -276,6 +301,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   })
 
   const openCreate = () => {
+    saveMutation.reset()
     saveCommand.current = null
     const firstProfile = catalog?.connectionProfiles.find((profile) => profile.mode === defaultForm.connectionMode)
     const selection = customerScopeLocked ? customerEngageSelection(customer?.consumers ?? [], customerId, initialConsumerId)
@@ -291,6 +317,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   }
 
   const openEdit = (installation: AIWorkspaceInstallationSummary) => {
+    saveMutation.reset()
     saveCommand.current = null
     const config = installation.configuration ?? {}
     const dealer = config.dealer ?? {}
@@ -447,6 +474,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
   }
 
   const operationError = saveMutation.error || activateMutation.error || disableMutation.error || deleteMutation.error
+  const appCommandPending = saveMutation.isPending || activateMutation.isPending || disableMutation.isPending || deleteMutation.isPending
   const requestDestructive = (command: 'disable' | 'delete', installation: AIWorkspaceInstallationSummary) => {
     if (customerScopeLocked) setPendingDestructive({ command, installation, actorId: auth.session?.actorId })
     else if (command === 'disable') disableMutation.mutate({ installation, operationKey: crypto.randomUUID() })
@@ -457,11 +485,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
     && item.status === pendingDestructive.installation.status)
   const pendingCurrent = Boolean(pendingInstallation && pendingDestructive?.actorId === auth.session?.actorId)
   const installationActions = (installation: AIWorkspaceInstallationSummary) => <>
-    <Tooltip title="Edit"><span><IconButton aria-label="Edit app" size="small" disabled={installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
+    <Tooltip title="Edit"><span><IconButton aria-label="Edit app" size="small" disabled={appCommandPending || installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
     {installation.status === 'ACTIVE' ? (
-      detailSection !== 'configuration' ? <Tooltip title="Disable"><IconButton aria-label="Disable app" size="small" onClick={() => requestDestructive('disable', installation)}><PauseCircleOutlineRoundedIcon /></IconButton></Tooltip> : null
-    ) : <Tooltip title="Activate"><span><IconButton aria-label="Activate app" size="small" disabled={!installation.ready} onClick={() => activateMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>}
-    {installation.status === 'DRAFT' && detailSection !== 'configuration' ? <Tooltip title="Delete draft"><IconButton aria-label="Delete draft app" size="small" color="error" onClick={() => requestDestructive('delete', installation)}><DeleteOutlineRoundedIcon /></IconButton></Tooltip> : null}
+      detailSection !== 'configuration' ? <Tooltip title="Disable"><span><IconButton aria-label="Disable app" size="small" disabled={appCommandPending} onClick={() => requestDestructive('disable', installation)}><PauseCircleOutlineRoundedIcon /></IconButton></span></Tooltip> : null
+    ) : <Tooltip title="Activate"><span><IconButton aria-label="Activate app" size="small" disabled={appCommandPending || !installation.ready} onClick={() => activateMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>}
+    {installation.status === 'DRAFT' && detailSection !== 'configuration' ? <Tooltip title="Delete draft"><span><IconButton aria-label="Delete draft app" size="small" color="error" disabled={appCommandPending} onClick={() => requestDestructive('delete', installation)}><DeleteOutlineRoundedIcon /></IconButton></span></Tooltip> : null}
   </>
 
   return (
@@ -488,7 +516,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
               {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
             </TextField>
           )}
-          {!focused ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!customer || !catalog?.assetsReady}>
+          {!focused ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={appCommandPending || !customer || !catalog?.assetsReady}>
             Create AI App
           </Button> : null}
         </Stack>
@@ -497,7 +525,7 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
       {notice && <Alert severity="success" onClose={() => setNotice(null)}>{notice}</Alert>}
       {initialInstallationId && selectionError ? <Alert severity="error">{selectionError}</Alert> : null}
       {initialInstallationId && installationsQuery.isError ? <Alert severity="error">{errorText(installationsQuery.error)}</Alert> : null}
-      {operationError && <Alert severity="error">{errorText(operationError)}</Alert>}
+      {operationError && !(editing != null && operationError === saveMutation.error) && <Alert severity="error">{errorText(operationError)}</Alert>}
       {catalog && !catalog.assetsReady && <Alert severity="warning">Workspace assets are not release-ready: {catalog.assetStatus}</Alert>}
 
       {focused && selected ? <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}><Typography fontWeight={600}>{selected.displayName}</Typography><Box>{installationActions(selected)}</Box></Stack> : null}
@@ -564,12 +592,12 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
 
       {selected && <WorkspaceDetails installation={selected} refresh={invalidate} />}
 
-      <Dialog open={editing != null} onClose={() => setEditing(null)} maxWidth="md" fullWidth>
+      <Dialog open={editing != null} onClose={saveMutation.isPending ? undefined : () => setEditing(null)} maxWidth="md" fullWidth>
         <DialogTitle>{editing === 'new' ? 'Create AI App' : 'Edit AI App'}</DialogTitle>
         <DialogContent dividers>
           <CustomerEditorNotices />
           <CustomerEditorDepthSwitch label="App configuration depth" />
-          <Stack spacing={2.5}>
+          <Stack component="fieldset" disabled={saveMutation.isPending} spacing={2.5} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
             <Alert severity="info">
               The installation ID is a public locator. Provider credentials, private assertions and runtime keys remain server-side.
             </Alert>
@@ -737,10 +765,11 @@ export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: {
               </>
             ) : null}
             {configurationError ? <Alert severity="error">{configurationError}</Alert> : null}
+            {saveMutation.error ? <Alert severity="error">{errorText(saveMutation.error)}</Alert> : null}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditing(null)}>Cancel</Button>
+          <Button disabled={saveMutation.isPending} onClick={() => setEditing(null)}>Cancel</Button>
           <Button variant="contained" onClick={submit} disabled={saveMutation.isPending || !form.displayName.trim() || !form.consumerId
             || (effectiveDeliveryMode === 'standalone' && !form.appSlug.trim())
             || (customerScopeLocked
