@@ -65,3 +65,42 @@ export async function verifyProductHome({ browser, base, output, report }) {
   report.checks.push({ scenario: 'm1-explicit-offer-selection-first-use-revocation-and-read-error', status: 'PASS' })
   await page.close()
 }
+
+export async function verifyProductTasks({ browser, base, output, report }) {
+  const noResourceCommands = async page => assert.deepEqual((await page.evaluate(() => window.previewRequests))
+    .filter(request => request.method !== 'GET' && !(request.method === 'PUT' && request.path === '/api/platform/preferences')), [])
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  page.on('pageerror', error => report.errors.push(error.message))
+  const selection = 'resourceKind=deployment&resourceId=preview-deployment&deploymentId=preview-deployment'
+  await page.goto(`${base}/?state=tasks#/deployments?${selection}`)
+  const tasks = page.getByRole('region', { name: 'Product setup and operations', exact: true })
+  await tasks.waitFor()
+  const href = async name => new URL(await tasks.getByRole('link', { name, exact: true }).getAttribute('href'), 'https://fixture.test').hash
+  assert.equal((await href('Continue setup')).includes('deploymentId=preview-deployment&step=configure'), true)
+  assert.equal((await href('Connect document storage')).includes('/document-knowledge?deploymentId=preview-deployment&view=manage'), true)
+  assert.equal(await tasks.getByRole('link', { name: 'Policies & documents', exact: true }).getAttribute('aria-disabled'), 'true')
+  await tasks.getByRole('combobox', { name: /^Working environment/ }).click()
+  await page.getByRole('option', { name: 'Production / preview-production-release', exact: true }).click()
+  await page.waitForFunction(() => [...document.querySelectorAll('a')].some(link => link.textContent === 'Policies & documents'
+    && link.getAttribute('href')?.includes('releaseId=preview-production-release') && link.getAttribute('aria-disabled') !== 'true'))
+  assert.equal((await href('Policies & documents')).includes('deploymentId=preview-deployment&releaseId=preview-production-release'), true)
+  assert.equal((await href('Synchronization')).includes('deploymentId=preview-deployment&releaseId=preview-production-release'), true)
+  assert.equal((await href('Human support')).includes('deploymentId=preview-deployment&releaseId=preview-production-release'), true)
+  await settle(page)
+  await page.screenshot({ path: `${output}/m2-product-tasks.png`, fullPage: false })
+  await tasks.getByRole('link', { name: 'Policies & documents', exact: true }).click()
+  await page.getByRole('button', { name: 'Collection and delivery policy', exact: false }).waitFor()
+  await noResourceCommands(page)
+  await page.goBack()
+  await tasks.getByRole('link', { name: 'Review go-live', exact: true }).click()
+  await page.getByRole('heading', { name: 'Production promotion', exact: true }).waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Engage assignment', exact: true }).isVisible(), false)
+  await noResourceCommands(page)
+  await page.goto(`${base}/#/deployments?${selection}`)
+  await tasks.getByRole('link', { name: 'Continue setup', exact: true }).waitFor()
+  assert.equal(await tasks.getByRole('link', { name: 'Connect document storage', exact: true }).count(), 0)
+  assert.equal(await tasks.getByRole('link', { name: 'Configure data connection', exact: true }).count(), 0)
+  await noResourceCommands(page)
+  report.checks.push({ scenario: 'm2-product-task-links-exact-release-required-slots-shared-setup-and-no-commands', status: 'PASS', localDisplayPreferencesOnly: true, hostedJourney: false })
+  await page.close()
+}

@@ -7,9 +7,10 @@ Date: 2026-10-23. Plan: [010.45](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI
 Owner requested phased, tracked implementation. Existing source/live evidence
 below is retained; it does not close these product-composition milestones.
 
-- M1 SOURCE QUALIFIED / PUBLICATION PENDING: product-focused Home over existing
-  owned offers/apps/resources; model, actual-component, scope and staff checks pass.
-- M2 PENDING: concise dealership setup using existing simulator/storage controls.
+- M1 LIVE VERIFIED: source `e798d09d0` on both servers; real customer Home,
+  inspectors, both themes/mobile and unchanged assignment; staging staff preserved.
+- M2 SOURCE PATH QUALIFIED / PUBLICATION PENDING: concise product task navigation
+  reuses existing simulator/storage/assignment/setup controls; hosted commands open.
 - M3 REUSE / QUALIFICATION PENDING: product-linked Engage setup and supported edits.
 - M4 PENDING: fresh new-UI staging-to-production customer journey.
 - M5 PENDING: product-scoped day-to-day tasks using existing components.
@@ -59,6 +60,39 @@ remain required. Wrong owners, revoked access, drift and every ordinary write/
 source command stay denied as before. No silent placement renewal, TTL change,
 capacity measurement, recovery mechanism or framework change. No schema change.
 Publication/live qualification remains pending and does not close M6.
+
+### M1 - Published And Live Verified
+
+2026-10-23 19:02 UTC: source `e798d09d0e92a2039ce40bff95881165e747e772`,
+UI-only CI40006673188 passed (backend skipped). Image
+`sha256:41311b111792739b575374c227941e59a0babbef72dab07bc41bef8b17ed2dca`
+is verified on staging job`apybymfkfiijjupre088ne5b` and production
+job`tgd5mh9bahecx604r7x2l1s8`. Domains/environment/runtime configuration preserved.
+Actual customer Home grouping/inspector/light-dark/mobile and logout passed with
+zero failed reads, browser errors or resource commands. Current app row version,
+assignment and release unchanged. Staging real staff API-key login/30 entries
+also passed. Evidence: `verification-support/customer-console-01045/product-m1/hosted/`.
+Live review: https://console.loomai.pro/home (customer session).
+
+### M2 - Joined Product Task Path Source Qualified
+
+2026-10-23 19:06 UTC: added `CustomerProductTasks.tsx` to the existing deployment
+inspector. Only declared external-service/S3/inbox binding kinds contribute those
+tasks; labels do not grant capabilities. Continue setup, assignment, staging test
+and go-live reuse the same current editors/commands. Operational task links are
+disabled until an exact owned target release is selected; no latest-release
+fallback. Existing errors, release facts and same-account depth controls remain.
+No new business DB, bridge, workflow engine or customer command.
+
+Build and20 actual-component scenarios/37 viewport captures pass, as do18 scope
+regressions. M2 test permits only a local display-preference PUT; all resource
+commands remain forbidden by its transport. One early run treated this expected
+navigation preference as a resource command; another read href before its render
+committed. Tests now assert the actual scoped link and separately exclude only
+the known preference request. Product guards unchanged. Evidence:
+`verification-support/customer-console-01045/product-m2/source-ui-acceptance.actual.json`.
+Review: https://normally-solar-educated-stickers.trycloudflare.com/phase-m2/index.html?state=tasks#/deployments?resourceKind=deployment&resourceId=preview-deployment&deploymentId=preview-deployment
+(offline). M2 source publication/live path checks and M4 full commands remain open.
 
 ## Current Scope
 

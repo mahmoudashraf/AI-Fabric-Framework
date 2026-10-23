@@ -12,6 +12,7 @@ import { appResource, deploymentResource, releaseEnvironment, releaseIssues, saf
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
 import { CustomerProductHome } from './CustomerProductHome'
+import { CustomerProductTasks } from './CustomerProductTasks'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -95,6 +96,9 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       <CustomerDetailSections key={`${selected.kind}:${selected.id}`} preferenceKey={selected.kind}
         overview={<Stack spacing={2.5}>
       <ResourceFacts facts={selected.facts} />
+      {selected.kind === 'deployment' && offer && !props.releaseLoading && !props.releaseError ? <CustomerProductTasks
+        deploymentId={selected.id} offer={offer} releases={props.releases} selectedReleaseId={selectedReleaseId}
+        onSelectRelease={releaseId => { const next = new URLSearchParams(location.search); if (releaseId) next.set('releaseId', releaseId); else next.delete('releaseId'); navigate({ pathname: location.pathname, search: next.toString() }) }} /> : null}
       <Box><Typography fontWeight={600} sx={{ mb: 1.5 }}>Target releases</Typography>
         {props.releaseLoading ? <CircularProgress size={20} aria-label="Loading target releases" /> : visibleReleases.length ? <Stack spacing={1.5}>{visibleReleases.map(release => <Box key={release.id} sx={{ borderLeft: 2, borderColor: 'divider', pl: 1.5 }}>
           <Typography variant="body2" fontWeight={600}>{releaseEnvironment(release, offer)}</Typography><Typography variant="caption" color="text.secondary">{release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>

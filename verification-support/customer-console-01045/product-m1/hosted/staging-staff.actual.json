@@ -1,0 +1,52 @@
+{
+  "at": "2026-10-23T19:00:43.568Z",
+  "environment": "staging",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "REAL_STAFF_API_KEY_LOGIN_EXISTING_SHELL",
+      "navigationEntries": 30,
+      "destinations": [
+        "/deployments",
+        "/overview",
+        "/behavior",
+        "/actions",
+        "/approvals",
+        "/customers",
+        "/ai-workspaces",
+        "/knowledge",
+        "/marketplace",
+        "/inference-services",
+        "/product-services",
+        "/partner-privileges",
+        "/shopify-package-profiles",
+        "/shopify-launch-readiness",
+        "/shopify-readiness-audit",
+        "/shopify-stores",
+        "/thinker-resolver",
+        "/poc",
+        "/prompts",
+        "/providers",
+        "/runtime-artifacts",
+        "/security",
+        "/verification",
+        "/verification-ops",
+        "/vectorization",
+        "/revisions",
+        "/diagnostics",
+        "/notifications",
+        "/platform-diagnostics",
+        "/users"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "LOGOUT_NO_RESOURCE_MUTATIONS",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "blockedCommands": [],
+  "failedReads": [],
+  "finishedAt": "2026-10-23T19:00:48.081Z"
+}

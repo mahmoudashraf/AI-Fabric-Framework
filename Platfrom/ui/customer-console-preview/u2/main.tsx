@@ -25,6 +25,11 @@ const owner = { enabled:true,authenticated:true,actorId:'preview-owner',displayN
 const offer = { id:'preview-offer',name:shopify?'Shopping experience':'Dealership experience',templateId:'preview-template',templateVersionId:'preview-template-v1',fingerprint:'preview-fingerprint',entitlement:{id:'preview-entitlement',offerId:'preview-offer',customerId:'preview-customer',ownerUserId:'preview-owner',status:'ACTIVE',revision:1,expiresAt:'2099-01-01T00:00:00Z'},targets:[{id:'preview-staging',intent:'CUSTOMER_STAGING',readiness:'READY',capabilities:[],limits:{},blockers:[]},{id:'preview-production',intent:'CUSTOMER_PRODUCTION',readiness:'READY',capabilities:[],limits:{},blockers:[]}],permissions:[],settings:[],bindingSlots:[],workspaceProfiles:[{id:'preview-workspace-profile',label:'Reviewed fixture experience',interaction:{packCode:shopify?'shopify-shopping-workspace':'dealership'},theme:null,authentication:{}}],externalIntegrationProfiles:[],documentAudiences:[],blockers:[] }
 const offers = scenario.get('state') === 'multiple-offers' ? [offer, { ...offer, id:'preview-offer-two', name:'Second reviewed template', entitlement:{...offer.entitlement,offerId:'preview-offer-two'} }] : [offer]
 if (scenario.get('state') === 'revoked') offer.entitlement.status = 'REVOKED'
+if (scenario.get('state') === 'tasks') Object.assign(offer, { bindingSlots: [
+  { id: 'inventory', kind: 'EXTERNAL_SERVICE', supportedProfileIds: [] },
+  { id: 'policies', kind: 'CUSTOMER_S3', supportedProfileIds: [] },
+  { id: 'support', kind: 'INBOX_OPERATOR', supportedProfileIds: [] },
+] })
 const portfolio = empty ? [] : [{deploymentId:'preview-deployment',name:deployment,environmentName:'Customer staging',status:'ACTIVE',tenantId:'preview-tenant',offerId:offer.id,bootstrapTargetProfileId:'preview-staging',offerFingerprint:offer.fingerprint,authorizationEntitlementRevision:1,activeVersionId:'preview-version',createdAt:observed}]
 if (scenario.get('state') === 'scope-mismatch') portfolio.push({ ...portfolio[0], deploymentId: 'preview-other-deployment', name: 'Other owned deployment' })
 const release = { id:'preview-production-release',deploymentId:'preview-deployment',deploymentVersionId:'preview-version',status:'APPLIED_VERIFIED',verificationStatus:'PASSED',provisioningStatus:'ACTIVE',provisioningTarget:'preview-production',targetProfileId:'preview-production',providerType:'COOLIFY',sourceArtifactId:'preview-artifact',providerResourceHandleId:null,currentStepKey:null,currentStepDescription:null,errorMessage:null,verificationRunId:'preview-verification',provisioningDetails:null,createdAt:observed,appliedAt:observed,updatedAt:observed }
@@ -35,6 +40,7 @@ if (scenario.get('state') === 'history') {
   apps.push({ ...apps[0], id:'old-app', installationId:'old-app', displayName:'Old disabled app', status:'DISABLED', readinessChecks:[{code:'OLD_BINDING',status:'BLOCKED',message:'Old draft binding missing'}] })
 }
 const requests: Array<{method:string;path:string}> = []
+let taskPreferences: Record<string, unknown> = {}
 const targetPath = '/api/deployments/preview-deployment/targets/preview-production/releases/preview-production-release'
 const offerDeploymentPath = '/api/customer-self-service/catalogue/preview-offer/deployments/preview-deployment'
 const source = {sourceId:'preview-policy',datasetId:'preview-documents',displayName:shopify?'Returns and delivery policy':'Collection and delivery policy',objectLocatorDigest:'fixture-digest',connectorType:'S3_COMPATIBLE_OBJECT_STORAGE',connectorBindingRef:'preview-storage',mediaType:'text/plain',contentLength:2400,candidateVersion:2,activeVersion:1,providerRevisionFingerprint:'fixture-revision',providerVersionDigest:null,etagDigest:null,providerLastModified:observed,visibility:'public',status:'ACTIVE',failureCode:null,failureMessage:null,updatedAt:observed}
@@ -45,6 +51,10 @@ window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin)
   const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
   requests.push({method,path:url.pathname})
+  if (scenario.get('state') === 'tasks' && method === 'PUT' && url.pathname === '/api/platform/preferences') {
+    taskPreferences = JSON.parse(String(init?.body ?? '{}'))
+    return new Response(JSON.stringify(taskPreferences), { headers: { 'Content-Type': 'application/json' } })
+  }
   if (method !== 'GET') return new Response(JSON.stringify({message:'Offline read-only preview: no mutation is permitted.'}),{status:405,headers:{'Content-Type':'application/json'}})
   let value: unknown
   if(url.pathname==='/api/platform/auth/session')value=owner
@@ -54,7 +64,7 @@ window.fetch = async (input, init) => {
   else if(url.pathname==='/api/deployments/preview-deployment/releases')value=scenario.get('state')==='release-error'?null:[release]
   else if(url.pathname==='/api/platform/customers')value=[{id:'preview-customer',name:account,status:'ACTIVE',tenants:[],consumers:[{consumerId:'preview-consumer',displayName:appName,customerId:'preview-customer',status:'ACTIVE',boundDeploymentId:'preview-deployment',boundReleaseId:release.id,boundTargetProfileId:'preview-production',bindingRevision:1}]}]
   else if(url.pathname==='/api/platform/ai-workspaces/catalog')value={assetsReady:true,assetStatus:'REVIEW_FIXTURE',experiencePacks:[],connectionProfiles:[],authenticationProfiles:[]}
-  else if(url.pathname==='/api/platform/preferences')value={}
+  else if(url.pathname==='/api/platform/preferences')value=taskPreferences
   else if(url.pathname==='/api/customer-self-service/invitations')value=[]
   else if(url.pathname==='/api/platform/customers/preview-customer/consumers')value=[{id:'preview-consumer-entity',consumerId:'preview-consumer',displayName:appName,customerId:'preview-customer',status:'ACTIVE',boundDeploymentId:'preview-deployment',boundReleaseId:release.id,boundTargetProfileId:'preview-production',boundReleaseStatus:release.status,bindingRevision:1}]
   else if(url.pathname==='/api/deployments/preview-deployment/versions')value=[]

@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-23T19:02:20.783Z",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "LIVE_PRODUCT_HOME_GROUPING_INSPECTOR_BOTH_THEMES_MOBILE",
+      "status": "PASS"
+    },
+    {
+      "name": "APP_ASSIGNMENT_AND_CONFIGURATION_UNCHANGED",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "blocked": [],
+  "failures": [],
+  "finishedAt": "2026-10-23T19:02:25.581Z"
+}

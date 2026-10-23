@@ -1,7 +1,7 @@
 import { build } from 'vite'
 import { fileURLToPath } from 'node:url'
 
-const phase=['u2','u3','u4','u5','u6','m1'].includes(process.argv[2]) ? process.argv[2] : 'u1'
+const phase=['u2','u3','u4','u5','u6','m1','m2'].includes(process.argv[2]) ? process.argv[2] : 'u1'
 await build({
   root: fileURLToPath(new URL(phase!=='u1'?'../customer-console-preview/u2/':'../customer-console-preview/', import.meta.url)),
   configFile: false, envFile: false, base: './',

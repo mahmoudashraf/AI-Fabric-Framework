@@ -338,7 +338,7 @@ Status baseline: recorded source430b875a7 and hosted UI checks of23 October,
 not a new live verification performed by this documentation amendment. Existing
 010.36 hosted behaviour is distinguished from acceptance through the NEW UI.
 
-#### M1 - Product-Focused Home - SOURCE QUALIFIED / PUBLICATION PENDING
+#### M1 - Product-Focused Home - LIVE VERIFIED
 
 Goal: start with Dealership AI or Engage Apps, see existing products/apps, open
 the experience and understand the next important issue.
@@ -349,8 +349,9 @@ metadata, Engage Apps entry, exact-offer setup links, current app/deployment lin
 and separately inspectable inactive deployments/app drafts. Active app warnings
 remain visible. No offer version is selected by name or guessed recency. Local
 model checks, customer scope regressions, staff parity and actual-component
-desktop/mobile/both-theme checks pass. Publication/live proof is tracked separately
-in the execution record. Shopify fixtures preserve reuse, not a delivered M7.
+desktop/mobile/both-theme checks pass. Source `e798d09d0` is published on both
+servers; real customer Home/inspector/theme/mobile and staging staff checks pass.
+App assignment/configuration unchanged. Shopify fixtures preserve reuse, not M7.
 Done when customers can enter/resume their product without a broad infrastructure
 menu. This is a presentation change over existing resources, not a new entity.
 
@@ -362,8 +363,12 @@ Already: entitled template and guided deployment setup, simulator-backed invento
 integration, customer-owned S3 policy indexing, app/assignment configuration.
 Last hosted reads confirmed3 ACTIVE policies and1 inventory source; earlier
 010.36 proved the underlying customer journey.
-Remaining: join existing steps into concise product-focused setup, expose only
-needed connection contributions, and verify the path with a customer session.
+Implemented source: a product task list in each owned deployment inspector links
+existing setup, declared connection/storage editors, Engage assignment, staging
+and go-live stages. Operational tasks require an explicit target release and keep
+that exact scope in navigation. No new commands or duplicated forms. Local build,
+20 actual-component scenarios and18 scope checks pass. Publication and the fresh
+customer command journey remain pending; no mock completes that hosted gate.
 Finish the simulator path first; real AutoTrader partner approval/credentials
 remain a separate integration gate, not a reason to invent another bridge.
 
