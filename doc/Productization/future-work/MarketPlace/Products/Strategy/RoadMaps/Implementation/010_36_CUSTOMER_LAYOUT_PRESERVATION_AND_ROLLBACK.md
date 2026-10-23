@@ -110,5 +110,29 @@ The previous UI was verified against this exact production deployment immediatel
 before the layout series. A later live post-layout rollback rehearsal is not
 claimed by this source/compatibility evidence.
 
-Final customer visual approval and hosted layout verification remain open until
-their separate execution receipts are recorded.
+## Final Hosted Verification
+
+23 October04:15UTC: final layout source
+`e12d9e571761297ce7e509a35de15c1daff29f4d`, immutable image
+`sha256:ea100732145a3c60d26c026b0d0a2172a963e0ff6f22a184943a0f45cf87bb64`,
+is VERIFIED on staging and production. CI39898095450 succeeded/UI only.
+Production job `nnrzgh3nsedqvhvgm8fzpt4p`; staging job
+`limu783qk4cmqgg4rdx1akv8`. Runtime config, domains and app assignment are
+preserved. No backend, customer runtime, template or data mutation was performed.
+
+The actual production customer browser passes all seven views at desktop1440
+and mobile390x844, staff-route denial, explicit placement/readiness refresh,
+keyboard focus and logout. Optional governed Action Reviews is NOT enabled by
+this pilot's active extensions; its unavailable400 remains visible and cannot
+render as a successful empty inbox. This does not affect verified conversation
+handover/Basic Inbox. Initial stale409 reads and earlier failed mobile runs are
+retained, not hidden. Final committed-source parity preserves374 API contracts,
+all staff paths and39 mapped capability destinations.
+
+Receipt hashes and exact evidence scope are preserved in the
+[sanitized acceptance record](../../../../../../../../verification-support/productization-01036/customer-journey-acceptance-20261023.json).
+Hosted verification is complete for this bounded scope. User visual/workflow
+approval and a post-layout live rollback rehearsal are still open. The previous
+functional UI was verified against this same production app before layout;
+that compatibility result is not a later rollback rehearsal or certification of
+every destructive staff operation.

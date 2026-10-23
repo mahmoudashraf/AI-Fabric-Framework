@@ -1,0 +1,139 @@
+{
+  "recordedAt": "2026-10-23T04:21:13Z",
+  "scope": "010.36_BASIC_CUSTOMER_JOURNEY_AND_CUSTOMER_UI",
+  "status": "HOSTED_PILOT_PASS_WITH_EXPLICIT_EXCLUSIONS",
+  "generalAvailabilityCertified": false,
+  "platform": {
+    "branch": "Platform-V11",
+    "backendSource": "d873be629e216b39ad8fff093043df1c8da0e1df",
+    "backendImage": "sha256:05f599e14552c6846758d41d09a1b2147cfd4f02723de6557a8a4832f4561037",
+    "schema": 208,
+    "frameworkVersion": "0.8.41",
+    "uiSource": "e12d9e571761297ce7e509a35de15c1daff29f4d",
+    "uiImage": "sha256:ea100732145a3c60d26c026b0d0a2172a963e0ff6f22a184943a0f45cf87bb64",
+    "uiCiRun": "39898095450",
+    "uiCiResult": "SUCCESS_BACKEND_SKIPPED",
+    "consoleUrl": "https://console.loomai.pro"
+  },
+  "journey": {
+    "customerRole": "CUSTOMER_ADMIN",
+    "deploymentId": "dep-c09b23b4",
+    "publishedVersionId": "ver-7da88543",
+    "marketplaceVersionId": "mkv-988ec909",
+    "templateVersion": "1.6.0",
+    "offerId": "offer-engage-dealership-0841-20261022",
+    "installationId": "awi_pub_1856a86a95848d165c5cfb2aa8df790d",
+    "experiencePackCode": "dealership",
+    "experiencePackVersion": "1.1.0",
+    "installationAssignmentRevision": "sha256:0d2bfa4a9ffeac63a29fb0e737a2a1bc6b11847c8f9385b560424afbb6e7d5d3",
+    "assignmentRevisionIsOpaque": true,
+    "appUrl": "https://northfield-customer.apps.loomai.pro",
+    "stagingReleaseId": "rel-1c09be7e",
+    "productionReleaseId": "rel-8c7930cc",
+    "productionReleaseStatus": "APPLIED_VERIFIED_ACTIVE_PASSED",
+    "productionVerificationRun": "vrf-6cfc8bf8",
+    "stagingVerificationRenewal": "vrf-1d88421a",
+    "sameAppPromoted": true,
+    "productionStockRecordsIndependentlyIndexed": 6,
+    "productionActiveS3Policies": 3,
+    "sourceObjectWrites": 0,
+    "vectorRecordTransfer": false,
+    "deploymentOwnedBusinessDatabaseCreated": false,
+    "realSupabaseSignIn": true,
+    "cancelledLoginNoActionReplay": true,
+    "confirmedExternalBusinessReceiptsTotal": 1,
+    "productionBusinessWrites": 0,
+    "humanMessageBypassesAi": true,
+    "basicInboxReplyArrivesAsynchronously": true,
+    "explicitReturnToAiInSameConversation": true,
+    "providerIntegration": "EXPLICITLY_LABELLED_SIMULATOR_NOT_LIVE_AUTOTRADER"
+  },
+  "uiRollouts": {
+    "staging": {
+      "status": "VERIFIED",
+      "coolifyJobId": "limu783qk4cmqgg4rdx1akv8",
+      "receiptSha256": "16e4c295d79c3b0e19f764fc420c2356b6ef2680654ae4dc6aa20228bbb7edbb"
+    },
+    "production": {
+      "status": "VERIFIED",
+      "coolifyJobId": "nnrzgh3nsedqvhvgm8fzpt4p",
+      "receiptSha256": "51751b0471a3abf6f0631da332e212c9a3283235e723df1179e2500fbb9fa2f7"
+    },
+    "configurationDomainsAndApiRuntimeConfigPreserved": true,
+    "backendAndCustomerRuntimeMutationPerformed": false
+  },
+  "hostedUi": {
+    "finishedAt": "2026-10-23T04:15:04.374Z",
+    "status": "PASS_WITH_OPTIONAL_ACTION_REVIEW_DISABLED",
+    "reportSha256": "d611cea4d6ed7cd5b1fb6642fec49a3a94f11952331e4a403188a376890d50ed",
+    "sevenCustomerViewsPassed": [
+      "deployments", "ai-workspaces", "document-knowledge", "integrations",
+      "human-review", "notifications", "users"
+    ],
+    "desktopWidth": 1440,
+    "mobileViewport": {"width": 390, "height": 844},
+    "allSevenMobilePageWidthsFit": true,
+    "staffRouteRedirectPassed": true,
+    "keyboardFocusRestored": true,
+    "logoutPassed": true,
+    "appAssignmentPreserved": true,
+    "explicitPlacementAndProductionReadinessRefreshPassed": true,
+    "initialStalePlacement409ReadsRetained": 4,
+    "optionalActionReview400ReadRetained": true,
+    "activeExtensions": ["CONVERSATION_HANDOVER"],
+    "humanReviewExtensionEnabled": false,
+    "unavailableActionReviewsNotRenderedAsSuccessfulEmptyInbox": true
+  },
+  "staffPreservation": {
+    "sourceParityStatus": "PASS",
+    "parityReceiptSha256": "b20d22011dc4d56143bb1c3bda5775890565a2ebb3b259608958629f7bf81451",
+    "apiExportsPreserved": 374,
+    "staffCapabilityDestinationsMapped": 39,
+    "staffRoutesAndDeploymentScopeUnchanged": true,
+    "roleNavigationCases": {"PLATFORM_ADMIN": 33, "PLATFORM_OPERATOR": 18, "CUSTOMER_ADMIN": 7},
+    "everyDestructiveStaffActionFreshlyExecuted": false,
+    "rollbackUiSource": "d3f7f9a90f7a629869871181869dd9e86ccb5a16",
+    "rollbackUiImage": "sha256:bc181aa01ec6752f19ac68b7baccfbf0a89ab0bce85157fc064d62539f80b347",
+    "rollbackUiVerifiedAgainstSameProductionDeploymentBeforeLayout": true,
+    "postLayoutLiveRollbackRehearsalPerformed": false,
+    "ownerVisualApprovalReceived": false
+  },
+  "qualityReview": {
+    "broadPolicyQueryBelowUnchangedThreshold": true,
+    "scores": [0.4533989727, 0.4592683911],
+    "threshold": 0.5,
+    "routingAndScopedDocumentAvailabilityConfirmed": true,
+    "preparationDurationDefectClaimWithdrawn": true,
+    "reason": "Policy specifies delivery lead time after preparation, not preparation duration.",
+    "originalFailedRunsAndInterpretationsPreserved": true,
+    "hiddenSemanticFallbackOrTextMatchingIntroduced": false
+  },
+  "capacityEvidence": {
+    "policyId": "01036-0841-production-activation-r6-20261023",
+    "verificationStatus": "PASS",
+    "recordedValidUntil": "2026-10-23T04:29:03Z",
+    "reservationsGrantAndFinancialHistoryUnchanged": true,
+    "historicalAdmissionEvidenceNotFreshAuthorityForFutureOperations": true,
+    "readOnlyServerSnapshotAt": "2026-10-23T03:46:38.787Z",
+    "staging": {"cpuCount": 8, "load1m": 1.73, "availableRamMiB": 10141, "diskUsedPercent": 41, "runningContainers": 28},
+    "production": {"cpuCount": 4, "load1m": 0.61, "availableRamMiB": 10708, "diskUsedPercent": 15, "runningContainers": 24},
+    "containerCountsAreNotAppOrDatabaseCounts": true,
+    "serverStatusSnapshotIsNotAdmissionEvidence": true
+  },
+  "remainingExclusions": [
+    "Owner visual/workflow approval",
+    "Post-layout live rollback rehearsal",
+    "Broad-query retrieval threshold calibration and wider semantic-quality sampling",
+    "Optional governed action-review extension approval lifecycle",
+    "Complete staging retention/retirement and unsupported graceful worker-fencing paths",
+    "Fresh full-platform matrix, Shopify private-query regression and all staff write operations",
+    "Unrestricted market-ready or general-availability certification"
+  ],
+  "privateEvidenceRoots": [
+    "/private/tmp/01044-journey-0841-20261022",
+    "/private/tmp/01044-customer-layout-mobile-ui-rollout-20261023",
+    "/private/tmp/01044-customer-layout-ui-live-r4-20261023",
+    "/private/tmp/01044-customer-layout-final-source-20261023"
+  ],
+  "credentialMaterialIncluded": false
+}

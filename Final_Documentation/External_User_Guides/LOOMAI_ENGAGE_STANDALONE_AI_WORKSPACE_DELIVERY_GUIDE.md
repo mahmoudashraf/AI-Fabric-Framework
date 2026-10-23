@@ -1,6 +1,6 @@
 # LoomAI Engage Standalone AI Workspace Delivery Guide
 
-**Audience:** Platform operators, customer implementation teams, and security reviewers
+**Audience:** Invited customer administrators, Platform operators, implementation teams, and security reviewers
 **Product:** LoomAI Engage
 **Technical contract:** AI Workspace installation manifest v2
 
@@ -30,6 +30,63 @@ choice does not create a second AI execution engine.
 
 Shopify's private adapter remains supported. Do not replace it with anonymous
 runtime access merely because the standalone shell also exists.
+
+## Customer Self-Service Portal
+
+Invited customer administrators sign in to `https://console.loomai.pro` with
+their own password-backed Platform session. This account is separate from the
+Supabase identity used by visitors inside an Engage app. Shared staff API keys
+are not a customer sign-in mechanism.
+
+1. In **My Deployments**, accept the reviewed offer, select its customer-staging
+   target, verify placement and create the deployment configuration. Optional
+   managed PostgreSQL holds AI conversation/execution state; it does not host
+   dealership inventory, leads or another customer business system.
+2. Supply the offer's approved external integrations and document storage.
+   **Knowledge** uses your read-only S3-compatible storage and target-specific
+   prefix. Use **Verify storage target placement** if placement evidence expires,
+   then explicitly save the binding. Verification never automatically retries a
+   rejected credential save. Mounted folders are for approved small/demo data,
+   not a LoomAI-managed customer object-storage product.
+3. Publish the reviewed configuration and deploy to customer staging. Open
+   **My Engage Apps** to create the app from the offer's approved configuration,
+   verify its address and connect it to the verified staging assignment. App
+   branding and experience configuration use the existing installation editor.
+4. Use **Manage deployment** to select the resource before opening Knowledge,
+   **Inbox & Integrations**, or another deployment-scoped view. Navigation keeps
+   the selected deployment in its URL; do not substitute another deployment or
+   target release when investigating a failure.
+5. Test the app's indexed knowledge, sign-in/protected capabilities, confirmed
+   actions and human handover as applicable. The Basic Inbox is reached through
+   **Inbox & Integrations** with separately authorized operator credentials.
+   **Action Reviews** concerns governed action approval, not human-chat replies.
+   It is available only when the deployment enables the corresponding review
+   extension. An unavailable/error response must not be read as an empty inbox;
+   conversation handover can be enabled independently.
+6. Review and deploy the production candidate from **My Deployments**. Production
+   uses its own integration/storage bindings and independently builds its index.
+   Staging vector records and visitor conversations are not transferred.
+7. Read the go-live checklist. Use **Refresh production readiness** to renew
+   time-limited connection evidence before **Activate production**. Refresh does
+   not deploy anything, switch an app, or extend its capacity allocation. Only
+   explicit activation changes the app's assignment to the verified production
+   release; the installation and app URL stay the same.
+
+**Notifications** shows customer-staging expiry/retention/cleanup notices.
+**Account & Team** uses the existing customer-scoped account administration.
+Staff infrastructure routes are not part of this customer workspace. On mobile,
+open the navigation menu; Escape closes it and restores keyboard focus.
+
+Customer staging has a bounded lifetime. After promotion, explicitly choose an
+allowed retention window or retirement and inspect its actual result. A blocked
+drain or cleanup is not evidence that resources were reclaimed; request operator
+assistance for a documented unsupported retirement case. UI layout rollback does
+not roll back deployments, source bindings, indexes or app assignments.
+
+The dealership pilot may use the explicitly labelled external provider
+simulator. This does not claim production AutoTrader access or authorize the AI
+to call an unrestricted public vehicle search. The shared-frontend operation
+instructions below are for Platform operators, not required customer tasks.
 
 ## 1. Operate The Shared Frontend
 

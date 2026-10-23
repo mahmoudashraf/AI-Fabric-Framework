@@ -1,14 +1,29 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
-Current checkpoint,23October03:34UTC: the basic production customer journey is
-proven on0.8.41. Same app promoted from verified staging to independently indexed
-production; stock/policy citations, real sign-in, one confirmed external request,
-human reply and explicit AI return are evidenced. Two answer-quality findings
-remain recorded, not hidden. Separate readiness/storage-refresh functional UI is
-verified live on both servers. Customer layout is now the final UI-only phase,
-not yet hosted or customer-approved. The frozen staff inventory and rollback
-boundary are in [customer layout preservation](010_36_CUSTOMER_LAYOUT_PRESERVATION_AND_ROLLBACK.md).
-Earlier checkpoint entries below are historical; the execution record is current.
+Current checkpoint, 23 October 04:21 UTC: the basic customer journey AND final
+customer UI are verified live on staging and production. The SAME Engage app
+was promoted from verified staging to independently indexed production on
+AI Fabric 0.8.41. Stock/policy citations, real sign-in, cancelled-login/no replay,
+one confirmed external request, asynchronous human reply and explicit AI return
+are evidenced. UI `e12d9e571` is deployed on both servers; all seven hosted
+customer views fit mobile, with keyboard, staff-route denial, logout and unchanged
+app-assignment checks passing. Shared configuration editors/APIs are reused.
+
+This is hosted pilot acceptance, NOT full P7/general-availability certification.
+User visual approval and a post-layout live rollback rehearsal remain open.
+Broad-query retrieval calibration, full retirement/worker fencing and wider
+regressions are documented follow-ups under the owner's basic-journey priority;
+do not restart them as prerequisites for presenting the finished UI. Optional
+Action Reviews is truthfully unavailable because this pilot enables conversation
+handover, not the HUMAN_REVIEW extension. Earlier preparation-duration defect
+language is superseded: the policy gives delivery lead time AFTER preparation,
+not preparation duration. No confirmed generation defect follows from abstention.
+
+See the [sanitized acceptance record](../../../../../../../../verification-support/productization-01036/customer-journey-acceptance-20261023.json),
+[execution record](010_36_PRODUCTIZATION_EXECUTION_RECORD.md), and
+[customer layout preservation](010_36_CUSTOMER_LAYOUT_PRESERVATION_AND_ROLLBACK.md).
+All earlier checkpoint entries below are historical, not instructions to replay
+completed deployments, renewals or app activation.
 
 Latest build checkpoint,22October01:12UTC: AI Fabric0.8.37 published on Central;
 combined runtime219 focused cases (at least40 realPG), all20 Central JARs and
@@ -1837,7 +1852,14 @@ and verify them. Passing documentation review alone does not close P0.
 
 **P6. Extract shared editors and compose the customer UI last.**
 
-- [ ] Extract the reusable configuration sections and reuse them in staff and
+Hosted checkpoint, 23 October: implementation is deployed on both servers after
+the core non-layout journey passed. Shared editors, seven customer views,
+mobile/keyboard checks and staff source/role parity pass. Composite closure
+items below remain unchecked where they include visual approval, full retirement
+or a post-layout live rollback rehearsal; implementation must not be confused
+with those outstanding acceptance tasks.
+
+- [x] Extract the reusable configuration sections and reuse them in staff and
   customer views within `Platfrom/ui`, using the same APIs/models/validation.
   No copied configuration editors or portal-specific persistence.
 - [ ] Compose My Deployments, My Engage Apps, conditional Inbox, and Account &
@@ -1850,7 +1872,7 @@ and verify them. Passing documentation review alone does not close P0.
 - [ ] Verify shared staff/customer editor regressions, route/ownership denial,
   responsive keyboard/accessibility behavior, and obtain the user's visual/
   workflow review before customer-portal closure.
-- [ ] Map STAFF-001 through STAFF-039 and the frozen controls/API ledger to
+- [x] Map STAFF-001 through STAFF-039 and the frozen controls/API ledger to
   retained/moved staff UI and role-aware browser evidence. Resolve every
   missing/unverified capability or obtain an explicit approved removal.
 
@@ -1863,7 +1885,7 @@ and verify them. Passing documentation review alone does not close P0.
 - [ ] Verify the full customer go-live checklist including successful activation,
   visible outstanding drain/cleanup, scoped reclamation or entitled retention,
   and unchanged app/configuration/assignment after presentation-only rollback.
-- [ ] Record source/image/template/pack/installation identities, source and
+- [x] Record source/image/template/pack/installation identities, source and
   target releases, verification IDs, assignment revisions, real provider/auth
   proof, browser results, capacity, and remaining exclusions in sanitized
   evidence; update customer/admin guides and plan/context status.

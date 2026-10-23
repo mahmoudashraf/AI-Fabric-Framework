@@ -1,5 +1,18 @@
 # 010.44 Customer-System Boundary Execution Record
 
+## 2026-10-23 04:21 UTC Current Boundary: Journey And Customer UI Live
+
+The basic production-owned customer journey now passes through staging,
+independent production indexing, same-app promotion, real authentication,
+confirmed external request, Basic Inbox reply and explicit AI return. Final
+customer UI e12d9e571 is verified on both servers; backend remains d873be629 /
+schema208, framework0.8.41. No deployment-owned inventory/business DB or vector
+transfer was introduced. The final source/hosted evidence, corrected semantic
+interpretation and explicitly deferred broader scope are in the
+[010.36 execution record](010_36_PRODUCTIZATION_EXECUTION_RECORD.md).
+Earlier open/provisioning checkpoints below are historical. Do not replay their
+consumed operations or restart deferred recovery/fencing work before UI review.
+
 ## 2026-10-22 15:26 UTC Bounded Operational Unblock, Journey Preflight PASS
 
 Both CPs verify d8da08aed/schema208/UP,27 critical projections/config/UI/history

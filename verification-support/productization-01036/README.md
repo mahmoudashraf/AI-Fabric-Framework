@@ -1,5 +1,22 @@
 # 010.36 Productization Verification
 
+## Current Hosted Acceptance, 23 October
+
+The basic production-customer journey and final customer UI are verified live.
+Use [the sanitized acceptance record](customer-journey-acceptance-20261023.json)
+for exact immutable versions, jobs, receipt hashes, passed scope and exclusions.
+The SAME Engage app is on independently indexed production; no staging vector
+records were copied and no deployment-owned inventory/business DB was created.
+The dealership pack is1.1.0, runtime AI Fabric0.8.41, final UIe12d9e571.
+
+Seven hosted customer views, real sign-in, confirmed external request, Basic
+Inbox asynchronous reply, explicit AI return and same-app promotion pass.
+User visual approval, a post-layout live rollback rehearsal, broad-query
+calibration, complete retirement/fencing and wider regressions remain separate;
+P7/general-availability certification is not claimed. Optional governed Action
+Reviews is not enabled on this pilot, independently of conversation handover.
+Earlier open-operation checkpoints below are historical, not replay commands.
+
 ## Current 010.44 Ownership Boundary
 
 The bundled simulator/engagement-receiver/business-PostgreSQL composition is

@@ -6,6 +6,80 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-23 04:21 UTC Core Journey And Final Customer UI Live
+
+The owner's five-step basic journey is now implemented and hosted verified,
+including the final UI-only phase. The SAME app at
+`https://northfield-customer.apps.loomai.pro` serves verified production release
+`rel-8c7930cc`, version `ver-7da88543`, template1.6.0 / `mkv-988ec909`, offer
+`offer-engage-dealership-0841-20261022`, installation
+`awi_pub_1856a86a95848d165c5cfb2aa8df790d`. Staging release `rel-1c09be7e`
+and production independently index their own sources; no vector records or
+conversations were transferred. Production has six simulator stock records and
+three ACTIVE customer-owned S3 policies. Exactly ONE external business receipt
+was created during staging acceptance; subsequent production verification
+created none. The simulator is not a claim of live AutoTrader authorization.
+
+Final UI commit `e12d9e571761297ce7e509a35de15c1daff29f4d`, image
+`sha256:ea100732145a3c60d26c026b0d0a2172a963e0ff6f22a184943a0f45cf87bb64`,
+is VERIFIED on both servers. CI39898095450 succeeded/UI only/backend skipped.
+Native jobs: staging `limu783qk4cmqgg4rdx1akv8`, production
+`nnrzgh3nsedqvhvgm8fzpt4p`. Domains, saved/effective configuration and API runtime
+configuration were preserved; no backend/customer-runtime mutation occurred.
+Both backends remain `d873be629` / image05f599e1 / schema208, runtime0.8.41.
+The isolated layout series is `a697fd695` plus `e12d9e571`; functional UI baseline
+`d3f7f9a90` remains the immutable UI-only rollback target.
+
+Actual production CUSTOMER_ADMIN browser gate finished04:15UTC:
+`PASS_WITH_OPTIONAL_ACTION_REVIEW_DISABLED`. All seven customer views fit a
+390x844 phone viewport; desktop1440, staff-route redirection, keyboard focus,
+logout and unchanged app assignment pass. Four initial stale-placement409 reads
+are retained, then explicit normal UI placement/readiness refresh and reload
+pass without extending capacity, switching the app or replaying a credential
+save. An Action Reviews400 is retained: active version enables
+CONVERSATION_HANDOVER, NOT HUMAN_REVIEW. The UI truthfully displays unavailable,
+not a successful empty inbox. Actual Basic Inbox human conversation/reply/AI
+return is independently proven and is not that optional action-approval feature.
+
+Source parity preserves all374 API exports/contracts, deployment scope, staff
+route paths and39 capability destinations. Role fixtures pass33 admin/18
+operator/seven customer navigation entries; build,13 admission/storage unit
+cases, eight auth/storage browser scenarios,18 scope regressions, customer
+promotion/mobile lifecycle and app-editor smoke also pass. These are not a
+fresh execution of every destructive staff action. Original failed harness and
+mobile runs remain available; no failures were erased or labelled successful.
+
+**Semantic-review correction:** the earlier03:10 entry incorrectly described
+three working days as a preparation-duration fact. The actual policy says
+"Allow three working days after payment and vehicle preparation." That is
+delivery lead time, not preparation duration; the model may correctly abstain
+when asked the latter. The confirmed-generation-defect claim is withdrawn in
+`production-core-journey-semantic-review-r2.actual.json`; original evidence is
+unchanged. The original broad-query retrieval limit remains: scores0.453-0.459
+fall below the unchanged0.5 threshold despite correct source selection. No
+hidden fallback, semantic text matching, threshold change or framework patch
+was introduced to force a pass.
+
+Current sanitized evidence and receipt hashes:
+[customer-journey-acceptance-20261023.json](../../../../../../../../verification-support/productization-01036/customer-journey-acceptance-20261023.json).
+Private roots: `/private/tmp/01044-customer-layout-mobile-ui-rollout-20261023`,
+`/private/tmp/01044-customer-layout-ui-live-r4-20261023`, and
+`/private/tmp/01044-customer-layout-final-source-20261023`.
+
+**Remaining scope, not hidden:** user visual/workflow approval; a post-layout
+live UI rollback rehearsal; broad-query calibration; optional action-review
+lifecycle; complete staging-retirement/retention and unsupported graceful
+worker-fencing paths; full-platform/Shopify private-query/all-staff-write
+regressions. P7/unrestricted market certification is NOT closed. The previous
+UI was verified against the SAME production deployment before layout, not
+rolled back afterward. No further backend/framework/recovery stream is running.
+Hetzner access remains open under the owner's explicit completion/review policy.
+
+Read-only server snapshot03:46UTC: staging8CPU load1.73, available RAM10141MiB,
+disk41%; production4CPU load0.61, available RAM10708MiB, disk15%. There are28/24
+running containers, NOT app/database counts. These are status observations,
+not new admission evidence. UI builds were scoped in CI; no fleet-wide rebuild.
+
 ### 2026-10-23 03:34 UTC Functional UI Verified; Customer Layout Last
 
 Separate functional commit `d3f7f9a90` is pushed; CI39894435610 succeeded/UI only,
