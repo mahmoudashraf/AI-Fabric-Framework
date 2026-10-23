@@ -11,7 +11,8 @@ below is retained; it does not close these product-composition milestones.
   inspectors, both themes/mobile and unchanged assignment; staging staff preserved.
 - M2 SOURCE PATH QUALIFIED / PUBLICATION PENDING: concise product task navigation
   reuses existing simulator/storage/assignment/setup controls; hosted commands open.
-- M3 REUSE / QUALIFICATION PENDING: product-linked Engage setup and supported edits.
+- M3 SOURCE PATH QUALIFIED / HOSTED SAVE PENDING: product-linked Engage setup,
+  exact customer assignment and explicit choice when several assignments exist.
 - M4 PENDING: fresh new-UI staging-to-production customer journey.
 - M5 PENDING: product-scoped day-to-day tasks using existing components.
 - M6 IN PROGRESS (bounded prerequisite): separate operational-read access from
@@ -93,6 +94,39 @@ the known preference request. Product guards unchanged. Evidence:
 `verification-support/customer-console-01045/product-m2/source-ui-acceptance.actual.json`.
 Review: https://normally-solar-educated-stickers.trycloudflare.com/phase-m2/index.html?state=tasks#/deployments?resourceKind=deployment&resourceId=preview-deployment&deploymentId=preview-deployment
 (offline). M2 source publication/live path checks and M4 full commands remain open.
+
+### M3 - Product-Linked Engage Creation Source Qualified
+
+2026-10-23 19:17 UTC: the existing assignment editor now opens Engage management
+with its explicit consumer ID. Customer creation preserves that exact active,
+owned assignment; multiple unscoped choices start empty, and unknown/foreign/
+disabled requests produce a visible error without selecting another assignment.
+Staff defaults and all reviewed-profile/backend authorization remain unchanged.
+Reuses the existing form for branding, tools, access, scripts and app addresses;
+no duplicate editor or new customer role. Explicit dropdown changes clear stale
+selection errors. Active apps still require the existing disable/edit lifecycle.
+
+Production build,4 selection-model tests,21 actual-component scenarios with both
+themes/basic mobile,18 scope regressions and staff33/18 parity pass. Test-only
+fixes: inspect the select's real value rather than MUI's zero-width blank label;
+cancel each dialog before testing the next route. No authority guard changed.
+Evidence: `verification-support/customer-console-01045/product-m3/`.
+Source publication and live supported save/edit qualification remain open; a
+disabled Save in a no-permission fixture is NOT proof of a live saved edit.
+
+### M6 - First Read Fix Live; Two Target Lists Still Open
+
+Backend `32325ef26` / CI40007401973 / image`80426168...` is deployed and verified
+on staging and production, schema208/configuration/owned resources unchanged.
+Real production reads now pass for3 ACTIVE policy documents,1 inventory source
+and reachable/enabled human handover using already-expired placement evidence;
+no renewal occurred. However the wider UI run is NOT_ACCEPTED: admission-history
+and staging-retirement list GETs still return409 in setup. Optional uninstalled
+action-review400s are separate and remain truthfully visible. The original run
+is retained in `verification-support/customer-console-01045/operational-read-fix/`.
+Bounded follow-up is in progress for just those owned-target status reads. It must
+retain current ownership/entitlement/reviewed target validation and fresh write
+authorization; no TTL workaround or recovery/drain/capacity redesign.
 
 ## Current Scope
 

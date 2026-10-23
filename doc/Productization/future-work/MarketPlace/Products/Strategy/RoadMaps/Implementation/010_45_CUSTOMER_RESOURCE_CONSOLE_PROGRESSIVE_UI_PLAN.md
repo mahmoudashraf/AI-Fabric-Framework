@@ -383,6 +383,9 @@ existing production app assignment are qualified.
 Remaining: customer-friendly product-linked entry/copy and bounded verification
 of actual supported branding/tools/access edits. Read-only acceptance did not
 live-test every branding field or save path. Reuse the existing app service.
+Product-linked creation is now source-qualified: exact requested assignment,
+explicit choice for multiple active assignments, visible unknown/foreign denial.
+4 model and21 actual-component scenarios pass. Hosted saves/edits remain open.
 
 #### M4 - Test And Go Live - PARTIAL
 
@@ -414,7 +417,10 @@ dealership/Shopify fixtures, UI publication to both servers, nine real customer
 views/both themes, retained drafts, release locking, basic mobile and logout.
 Remaining: the M2-M5 journey, owner visual acceptance and the bounded existing
 UI rollback check. Resolve recurring15-minute placement expiry on operational
-reads; a manual refresh is not that fix. Keep this a narrow product usability/
+reads; a manual refresh is not that fix. First fix is live for documents,
+integrations and handover. The wider run found admission-history/retirement-list
+reads still expiry-gated; its result remains NOT_ACCEPTED pending the bounded
+follow-up. Keep this a narrow product usability/
 authorization task, not a capacity/recovery/infrastructure-management redesign.
 Record harder edge cases as follow-ups; no full framework matrix for UI changes.
 Done means a real customer completes the supported dealership/simulator journey

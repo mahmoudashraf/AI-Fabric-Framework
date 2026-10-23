@@ -104,3 +104,26 @@ export async function verifyProductTasks({ browser, base, output, report }) {
   report.checks.push({ scenario: 'm2-product-task-links-exact-release-required-slots-shared-setup-and-no-commands', status: 'PASS', localDisplayPreferencesOnly: true, hostedJourney: false })
   await page.close()
 }
+
+export async function verifyEngageCreation({ browser, base, output, report }) {
+  const page = await browser.newPage()
+  page.on('pageerror', error => report.errors.push(error.message))
+  for (const requested of ['', 'preview-consumer-two', 'unavailable-assignment']) {
+    await page.goto(`${base}/?state=multiple-assignments#/ai-workspaces?view=manage${requested ? `&consumerId=${requested}` : ''}`)
+    await page.getByRole('button', { name: 'Create AI App', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create AI App', exact: true })
+    await dialog.waitFor()
+    const assignment = dialog.getByRole('combobox', { name: /^Consumer/ })
+    const selectedId = await assignment.evaluate(element => element.parentElement.querySelector('input')?.value)
+    assert.equal(selectedId, requested === 'preview-consumer-two' ? requested : '', 'Ambiguous/unknown scope must not select the first assignment')
+    if (requested === 'preview-consumer-two') assert.equal((await assignment.innerText()).includes('Second product assignment'), true)
+    if (requested === 'unavailable-assignment') await dialog.getByRole('alert').filter({ hasText: 'no replacement was selected' }).waitFor()
+    assert.equal(await dialog.getByRole('button', { name: 'Save draft', exact: true }).isDisabled(), true)
+    await noCommands(page)
+    await page.screenshot({ path: `${output}/m3-create-${requested || 'explicit-choice'}.png`, fullPage: false })
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+  }
+  report.checks.push({ scenario: 'm3-exact-customer-app-assignment-ambiguous-and-unknown-no-fallback-no-command', status: 'PASS', hostedSave: false })
+  await page.close()
+}

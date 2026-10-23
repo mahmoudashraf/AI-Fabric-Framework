@@ -92,6 +92,9 @@ window.fetch = async (input, init) => {
     support.connector.status.rejectedCallbackCount = 1
     support.connector.status.recentCallbacks = [{ eventId: 'fixture-callback', eventType: 'MESSAGE', errorClass: 'INVALID_SIGNATURE' }]
   }
+  if (scenario.get('state') === 'multiple-assignments' && url.pathname === '/api/platform/customers' && Array.isArray(value)) {
+    value[0].consumers.push({ ...value[0].consumers[0], consumerId: 'preview-consumer-two', displayName: 'Second product assignment' })
+  }
   return new Response(JSON.stringify(value ?? {message:'This read is unavailable in the current offline scenario.'}),{status:value==null?503:200,headers:{'Content-Type':'application/json'}})
 }
 const client=new QueryClient({defaultOptions:{queries:{retry:false,staleTime:60000}}})

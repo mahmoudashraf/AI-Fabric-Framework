@@ -55,6 +55,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { resolveReviewedWorkspaceProfiles, reviewedWorkspaceRequest } from './aiWorkspaceReviewedProfiles'
 import { CustomerAdvancedSection, CustomerEditorDepthSwitch, CustomerEditorNotices, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
+import { customerEngageSelection } from '../components/customer/customerEngageSelection'
 
 type FormState = {
   packCode: string
@@ -128,7 +129,7 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialInstallationId }: { initialInstallationId?: string } = {}) {
+export function AIWorkspacesPage({ initialInstallationId, initialConsumerId }: { initialInstallationId?: string; initialConsumerId?: string } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const customerScopeLocked = auth.session?.role === 'CUSTOMER_ADMIN'
@@ -277,14 +278,16 @@ export function AIWorkspacesPage({ initialInstallationId }: { initialInstallatio
   const openCreate = () => {
     saveCommand.current = null
     const firstProfile = catalog?.connectionProfiles.find((profile) => profile.mode === defaultForm.connectionMode)
+    const selection = customerScopeLocked ? customerEngageSelection(customer?.consumers ?? [], customerId, initialConsumerId)
+      : { consumerId: customer?.consumers.find(consumer => consumer.status === 'ACTIVE')?.consumerId ?? '', error: null }
     setForm({
       ...defaultForm,
-      consumerId: customer?.consumers.find((consumer) => consumer.status === 'ACTIVE')?.consumerId ?? '',
+      consumerId: selection.consumerId,
       profileCode: firstProfile?.code ?? defaultForm.profileCode,
     })
     setEditing('new')
     setReviewedProfileId('')
-    setConfigurationError(null)
+    setConfigurationError(selection.error)
   }
 
   const openEdit = (installation: AIWorkspaceInstallationSummary) => {
@@ -572,7 +575,7 @@ export function AIWorkspacesPage({ initialInstallationId }: { initialInstallatio
             </Alert>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField fullWidth label="Workspace name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
-              <TextField select fullWidth label="Consumer" value={form.consumerId} onChange={(e) => setForm({ ...form, consumerId: e.target.value })}>
+              <TextField select fullWidth label="Consumer" value={form.consumerId} onChange={(e) => { setForm({ ...form, consumerId: e.target.value }); setConfigurationError(null) }}>
                 {(customer?.consumers ?? []).filter((consumer) => consumer.status === 'ACTIVE').map((consumer) => (
                   <MenuItem key={consumer.consumerId} value={consumer.consumerId}>{consumer.displayName} ({consumer.consumerId})</MenuItem>
                 ))}

@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { resolve, sep } from 'node:path'
 import assert from 'node:assert/strict'
 import { verifyAdvancedViews } from './customer-console-advanced-checks.mjs'
-import { verifyProductHome, verifyProductTasks } from './customer-product-home-checks.mjs'
+import { verifyProductHome, verifyProductTasks, verifyEngageCreation } from './customer-product-home-checks.mjs'
 
-const phase=['u3','u4','u5','u6','m1','m2'].includes(process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE) ? process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE : 'u2'
-const advanced = ['u6','m1','m2'].includes(phase)
+const phase=['u3','u4','u5','u6','m1','m2','m3'].includes(process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE) ? process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE : 'u2'
+const advanced = ['u6','m1','m2','m3'].includes(phase)
 const root=fileURLToPath(new URL(`../../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/designs/010_45_customer_console/phase-${phase}/`,import.meta.url))
 const output=process.env.CUSTOMER_U2_OUTPUT ?? `/private/tmp/01045-${phase}-`+Date.now()
 await mkdir(output,{recursive:true})
@@ -76,8 +76,8 @@ try{
   const page=await browser.newPage()
   page.on('pageerror',e=>report.errors.push(e.message))
   await page.goto(base+'/?state=first#/home')
-  await page.getByRole('heading',{name:['m1','m2'].includes(phase)?'Your products':'Choose a starting template',exact:true}).waitFor()
-  await page.getByRole('link',{name:['m1','m2'].includes(phase)?'Set up Dealership AI':'Open setup',exact:true}).waitFor()
+  await page.getByRole('heading',{name:['m1','m2','m3'].includes(phase)?'Your products':'Choose a starting template',exact:true}).waitFor()
+  await page.getByRole('link',{name:['m1','m2','m3'].includes(phase)?'Set up Dealership AI':'Open setup',exact:true}).waitFor()
   assert.equal(await page.getByRole('navigation',{name:'Customer navigation'}).getByRole('link').count(),4)
   report.checks.push({scenario:'first-setup',status:'PASS'})
   await page.goto(base+'/?state=apps-error#/home')
@@ -160,7 +160,7 @@ try{
     report.checks.push({scenario:'knowledge-connections-exact-target-shared-editor-secrets-read-error-and-foreign-scope',status:'PASS'})
     await knowledge.close()
   }
-  if(['u4','u5','u6','m1','m2'].includes(phase)){
+  if(['u4','u5','u6','m1','m2','m3'].includes(phase)){
     const journey=await browser.newPage()
     journey.on('pageerror',e=>report.errors.push(e.message))
     await journey.goto(base+'/#/deployments?view=setup&deploymentId=preview-deployment&step=configure')
@@ -221,8 +221,9 @@ try{
   }
   if(advanced){
     await verifyAdvancedViews({browser,base,output,report})
-    if(['m1','m2'].includes(phase))await verifyProductHome({browser,base,output,report})
-    if(phase==='m2')await verifyProductTasks({browser,base,output,report})
+    if(['m1','m2','m3'].includes(phase))await verifyProductHome({browser,base,output,report})
+    if(['m2','m3'].includes(phase))await verifyProductTasks({browser,base,output,report})
+    if(phase==='m3')await verifyEngageCreation({browser,base,output,report})
     const views=[['home','Your workspace'],['deployments','Deployments'],['ai-workspaces','Engage apps'],['document-knowledge?deploymentId=preview-deployment&releaseId=preview-production-release','Knowledge & data'],['integrations?deploymentId=preview-deployment&releaseId=preview-production-release','Connections'],['human-support?deploymentId=preview-deployment&releaseId=preview-production-release','Human support'],['human-review?deploymentId=preview-deployment','Action reviews'],['notifications','Customer staging notices'],['users','Account & team']]
     const context=await browser.newContext()
     const acceptance=await context.newPage()

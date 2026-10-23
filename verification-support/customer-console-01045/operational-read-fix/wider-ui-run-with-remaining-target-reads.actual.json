@@ -1,0 +1,119 @@
+{
+  "at": "2026-10-23T19:15:16.050Z",
+  "environment": "production",
+  "status": "NOT_ACCEPTED",
+  "checks": [
+    {
+      "name": "LIVE_CUSTOMER_PAGE_home",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_deployments",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_ai-workspaces",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_ACTIVE_DOCUMENT_SOURCE_READ",
+      "status": "PASS",
+      "sources": 3
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_document-knowledge",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_INTEGRATION_SOURCE_READ",
+      "status": "PASS",
+      "sources": 1
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_integrations",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_HANDOVER_RUNTIME_AND_CONNECTOR_READ",
+      "status": "PASS"
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_human-support",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_human-review",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_notifications",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "LIVE_CUSTOMER_PAGE_users",
+      "status": "PASS",
+      "bothThemes": true
+    },
+    {
+      "name": "SAME_CUSTOMER_ADVANCED_DRAFT_THEME_AND_DISCARD",
+      "status": "PASS"
+    },
+    {
+      "name": "EMBEDDED_RELEASE_CANNOT_DRIFT",
+      "status": "PASS"
+    },
+    {
+      "name": "BASIC_MOBILE_STAFF_DENIED_ASSIGNMENT_UNCHANGED",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "blockedCommands": [],
+  "failedReads": [
+    {
+      "path": "/api/deployments/dep-c09b23b4/human-reviews",
+      "status": 400
+    },
+    {
+      "path": "/api/deployments/dep-c09b23b4/human-reviews",
+      "status": 400
+    },
+    {
+      "path": "/api/deployments/dep-c09b23b4/human-reviews",
+      "status": 400
+    },
+    {
+      "path": "/api/deployments/dep-c09b23b4/human-reviews",
+      "status": 400
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/deployments/dep-c09b23b4/admission-reservations",
+      "status": 409
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/deployments/dep-c09b23b4/retirements",
+      "status": 409
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/deployments/dep-c09b23b4/admission-reservations",
+      "status": 409
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/deployments/dep-c09b23b4/retirements",
+      "status": 409
+    }
+  ],
+  "failure": {
+    "phase": "logout",
+    "message": "Unexpected live operational read failures"
+  },
+  "finishedAt": "2026-10-23T19:15:58.475Z"
+}

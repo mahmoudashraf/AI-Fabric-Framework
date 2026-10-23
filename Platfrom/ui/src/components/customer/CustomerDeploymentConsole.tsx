@@ -1328,6 +1328,8 @@ export function CustomerDeploymentConsole({ session, guided = false }: { session
                   )}
                   {selectedConsumer ? (
                     <Stack spacing={1}>
+                      <Button component={RouterLink} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', consumerId: selectedConsumer.consumerId })}`}
+                        startIcon={<ForumRoundedIcon />} sx={{ alignSelf: 'flex-start' }}>Manage Engage apps for this assignment</Button>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={`Revision ${selectedConsumer.bindingRevision}`} variant="outlined" />
                         <Chip label={selectedConsumer.boundTargetProfileId ?? 'No target'} variant="outlined" />

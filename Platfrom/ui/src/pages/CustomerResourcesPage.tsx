@@ -17,7 +17,7 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
   }
   const view = new URLSearchParams(location.search).get('view')
   if (view === 'manage' || view === 'setup') {
-    if (mode === 'apps') return <AIWorkspacesPage />
+    if (mode === 'apps') return <AIWorkspacesPage initialConsumerId={new URLSearchParams(location.search).get('consumerId') ?? undefined} />
     return view === 'setup' ? <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
       : <CustomerDeploymentConsole session={session} />
   }
