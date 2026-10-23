@@ -368,7 +368,9 @@ existing setup, declared connection/storage editors, Engage assignment, staging
 and go-live stages. Operational tasks require an explicit target release and keep
 that exact scope in navigation. No new commands or duplicated forms. Local build,
 20 actual-component scenarios and18 scope checks pass. Publication and the fresh
-customer command journey remain pending; no mock completes that hosted gate.
+customer command journey are separate gates; M2/M3 UI source `b18189c2c` is now
+live on both servers. Exact-release task/policy navigation passed with a real
+customer. The fresh customer command journey remains open.
 Finish the simulator path first; real AutoTrader partner approval/credentials
 remain a separate integration gate, not a reason to invent another bridge.
 
@@ -386,6 +388,9 @@ live-test every branding field or save path. Reuse the existing app service.
 Product-linked creation is now source-qualified: exact requested assignment,
 explicit choice for multiple active assignments, visible unknown/foreign denial.
 4 model and21 actual-component scenarios pass. Hosted saves/edits remain open.
+UI source `b18189c2c` is live on both servers. Actual customer explicit-assignment
+and unavailable-assignment creation/cancel checks pass without resource changes;
+these do not count as a successful save.
 
 #### M4 - Test And Go Live - PARTIAL
 
@@ -407,7 +412,8 @@ entry, app management, failure notices and safe release selection. Hosted reads
 proved documents, inventory integration and reachable human handover; the
 UI-only run did not replay a booking or a human conversation.
 Remaining: organize useful tasks around each product, verify necessary daily
-edits, and remove status-read friction. Generic Behaviour management, full audit
+edits, and remove status-read friction. Product-scoped task links and real policy/
+sync/handover reads are now available; live daily edits remain open. Generic Behaviour management, full audit
 and universal integration editors are NOT prerequisites.
 
 #### M6 - Verify And Close This Product Release - PARTIAL
@@ -415,12 +421,12 @@ and universal integration editors are NOT prerequisites.
 Already: clean build,18 customer scope regressions, staff parity, offline
 dealership/Shopify fixtures, UI publication to both servers, nine real customer
 views/both themes, retained drafts, release locking, basic mobile and logout.
-Remaining: the M2-M5 journey, owner visual acceptance and the bounded existing
-UI rollback check. Resolve recurring15-minute placement expiry on operational
-reads; a manual refresh is not that fix. First fix is live for documents,
-integrations and handover. The wider run found admission-history/retirement-list
-reads still expiry-gated; its result remains NOT_ACCEPTED pending the bounded
-follow-up. Keep this a narrow product usability/
+Remaining: the M2-M5 command journey, owner visual acceptance and the bounded
+existing UI rollback check. Recurring15-minute operational-read expiry is now
+resolved by backend`c82bb707d`, live on both servers. Final wider customer UI run
+passes with only the explicitly unavailable optional action-review extension;
+no renewal/probe or write-policy weakening. Earlier failed run is preserved.
+Keep this a narrow product usability/
 authorization task, not a capacity/recovery/infrastructure-management redesign.
 Record harder edge cases as follow-ups; no full framework matrix for UI changes.
 Done means a real customer completes the supported dealership/simulator journey

@@ -1,0 +1,19 @@
+{
+  "recordedAt": "2026-10-23T19:26:46Z",
+  "source": "c82bb707de1d33695afea166e3bacd1988ee8496",
+  "status": "PASS",
+  "scope": "Focused Platform operational and owned-target read authorization",
+  "command": "mvn -f Platfrom/backend/pom.xml -Dtest=CustomerOperationalReadAuthorizationTest,CustomerSelfServiceAuthorizationServiceTest,CustomerAdmissionReservationServiceTest,CustomerTargetRetirementServiceTest,CustomerTargetRetirementControllerTest,CustomerTargetPlacementServiceTest,DeploymentDocumentKnowledgeOperationsServiceTest,DeploymentIntegrationOperationsServiceTest,DeploymentTargetContextServiceTest test",
+  "tests": 316,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "logSha256": "64e8065e105268065a0b2663760f36595ef7073f52f16bd874dda936d55a48e1",
+  "historicalIdentityAllowedOnlyForExplicitReadEntrypoints": true,
+  "currentCustomerEntitlementAndScopeStillRequired": true,
+  "ordinaryWritesStillRequireFreshPlacement": true,
+  "automaticRenewalOrProbeAdded": false,
+  "schemaChanged": false,
+  "frameworkChanged": false,
+  "hostedVerificationIncluded": false
+}

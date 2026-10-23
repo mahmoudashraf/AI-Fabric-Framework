@@ -7,16 +7,17 @@ Date: 2026-10-23. Plan: [010.45](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI
 Owner requested phased, tracked implementation. Existing source/live evidence
 below is retained; it does not close these product-composition milestones.
 
-- M1 LIVE VERIFIED: source `e798d09d0` on both servers; real customer Home,
+- M1 LIVE VERIFIED: delivered at`e798d09d0`, now included in`b18189c2c` on both servers; real customer Home,
   inspectors, both themes/mobile and unchanged assignment; staging staff preserved.
-- M2 SOURCE PATH QUALIFIED / PUBLICATION PENDING: concise product task navigation
-  reuses existing simulator/storage/assignment/setup controls; hosted commands open.
-- M3 SOURCE PATH QUALIFIED / HOSTED SAVE PENDING: product-linked Engage setup,
+- M2 LIVE UI PATH VERIFIED: concise product task navigation reuses existing
+  simulator/storage/assignment/setup controls. Fresh full customer commands open.
+- M3 LIVE UI PATH VERIFIED / HOSTED SAVE PENDING: product-linked Engage setup,
   exact customer assignment and explicit choice when several assignments exist.
 - M4 PENDING: fresh new-UI staging-to-production customer journey.
-- M5 PENDING: product-scoped day-to-day tasks using existing components.
-- M6 IN PROGRESS (bounded prerequisite): separate operational-read access from
-  expired placement admission proofs; preserve all write/ownership protections.
+- M5 PARTIAL: scoped daily task links and live policy/sync/handover reads exist;
+  necessary daily edit/refresh commands are not freshly qualified through this UI.
+- M6 PARTIAL: bounded read-expiry prerequisite live and verified; owner visual
+  acceptance, new-UI command journey and bounded rollback closure remain open.
 - M7 DEFERRED: Shopify product onboarding after dealership/Engage acceptance.
 
 Each phase must record changes, actual checks, source/publication status and a
@@ -139,6 +140,58 @@ paths remain unchanged/fresh-gated. No mutation, renewal, probe or schema change
 Main review and combined focused rerun:316 tests, zero failures/errors/skips,
 covering both read fixes and prior placement/document/integration/context cases.
 Publication/live rerun follows; the prior NOT_ACCEPTED report is not overwritten.
+
+### M2/M3 - Published And Live UI Path Verified
+
+2026-10-23 19:31 UTC: separate commits M2`243df0a85` and M3`b18189c2c` are pushed.
+M2 was first verified on staging; M3 combines both into one production rollout
+to avoid an extra restart. UI-only CI40010704268 passed, backend skipped. Exact
+M3 image`sha256:c9d0af4da6c5d755b1f4c7bc4de4785a1797b75c4928f5e052496ca20eb01b89`
+is verified on staging job`g10ey9l9bs1cp01wzdrl1ig7` and production
+job`g14j5apmlgdj8955vwumccaa`. Domains/environment/runtime configuration preserved.
+
+Actual customer check: choose exact Production release; all three daily links
+retain deployment/release; policies open with3 ACTIVE sources; app creation keeps
+the explicitly requested assignment; unavailable assignment stays empty with a
+visible error. Both creation dialogs cancelled. Home/inspector/both themes/mobile
+still pass. Zero failed reads, browser errors or blocked resource commands in
+this bounded run; app assignment/configuration/row version unchanged. This is
+NOT a saved app edit, a new deployment or a fresh promotion. Staff source hashes
+still exactly match the pre-U1 baseline;33/18 local parity passed.
+
+Evidence: `verification-support/customer-console-01045/product-m3/hosted/`.
+Live: https://console.loomai.pro/home . Offline phase links are in the phone
+gallery: https://normally-solar-educated-stickers.trycloudflare.com/gallery.html .
+
+Next main phase: M4 customer command journey and M3 saved-edit qualification,
+followed by necessary M5 operations and M6 visual/rollback closure. Reuse existing
+010.36 pilot evidence as context, not as a fresh new-UI command result. Do not
+repeat the already-consumed test-drive receipt or create another recovery/capacity
+project. Shopify M7 remains deliberately deferred.
+
+### M6 - Read Prerequisite Published And Wider Console Check Passed
+
+2026-10-23 19:41 UTC: backend`c82bb707de1d33695afea166e3bacd1988ee8496`,
+backend-only CI40011575659 passed (UI skipped), exact image
+`sha256:9cf38c36186fd769095630fbbc28a34e506f70d0f15d38c07dfedfe7c37b7057`
+verified on staging job`ampnpar3ax0g0ctxustb8jcd` and production
+job`tjsi3azjwgoprb2owtzmsiif`. Schema208, provider configuration, current app/
+consumer/offer/deployment/version records unchanged. No customer-runtime rollout.
+
+Fresh wider customer UI run passes all9 views/both themes,3 policy sources,
+1 inventory source, enabled/reachable handover, retained Advanced drafts, locked
+release selection, basic mobile, staff-route denial and logout. The prior409
+admission/retirement reads no longer fail, with no placement renewal/probe.
+Result`PASS_WITH_OPTIONAL_ACTION_REVIEW_UNAVAILABLE`:4 expected400 responses for
+the uninstalled action-review extension remain visible, not a fabricated empty
+review inbox. Zero browser errors or blocked resource commands. Latest real
+staging staff login/navigation/logout also passes. Earlier failed runs retained.
+
+Evidence: `verification-support/customer-console-01045/operational-read-fix/`.
+This closes the bounded status-read prerequisite, NOT M4 saved commands/promotion,
+M5 daily edits, owner visual acceptance, post-layout rollback or GA certification.
+No further status-read investigation is needed unless a new concrete failure is
+observed. Continue the product journey, not broader lifecycle infrastructure work.
 
 ## Current Scope
 

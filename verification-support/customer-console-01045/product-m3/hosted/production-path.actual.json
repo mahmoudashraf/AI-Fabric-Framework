@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-23T19:31:32.135Z",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "LIVE_PRODUCT_TASKS_EXACT_ENVIRONMENT_AND_POLICY_NAVIGATION",
+      "status": "PASS",
+      "sources": 3
+    },
+    {
+      "name": "LIVE_SCOPED_APP_CREATION_AND_UNKNOWN_ASSIGNMENT_CANCELLED",
+      "status": "PASS",
+      "savedEdit": false
+    },
+    {
+      "name": "LIVE_PRODUCT_HOME_GROUPING_INSPECTOR_BOTH_THEMES_MOBILE",
+      "status": "PASS"
+    },
+    {
+      "name": "APP_ASSIGNMENT_AND_CONFIGURATION_UNCHANGED",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "blocked": [],
+  "failures": [],
+  "finishedAt": "2026-10-23T19:31:42.102Z"
+}
