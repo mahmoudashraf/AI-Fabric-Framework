@@ -1,0 +1,76 @@
+{
+  "observedAt": "2026-10-23T23:21:14.499Z",
+  "status": "PASS_CONFIGURATION_ONLY_M4_JOURNEY_NOT_COMPLETE",
+  "backend": {
+    "source": "0404500475b2c644545be9ac0e45f175f46824f1",
+    "image": "sha256:e8372be005930f58583da84985e723de05c0776f844a04fe863624723b8ca15e",
+    "ciRunId": 40036670549,
+    "stagingJob": "cm8nqt1y3nkdu0szujeka4al",
+    "productionJob": "fz6kq6advpqt3j5v72sh616l",
+    "bothVerified": true,
+    "schema": "208",
+    "configurationAndOwnedResourcesPreserved": true
+  },
+  "ui": {
+    "source": "820aace6c6e23af27ec85a99a97f4b95e77dcadc",
+    "image": "sha256:06e20f36058c0d0c2cb4177c46bc8bec51f007e6bbc36df3f82c8bc1d536f191",
+    "ciRunId": 40036985216,
+    "stagingJob": "mm9dh8z2uxqh0e9muvygk0ox",
+    "productionJob": "bz1dqk520t0n8ws0xaln6rkf",
+    "bothVerified": true,
+    "domainsEnvironmentAndRuntimeConfigPreserved": true
+  },
+  "qualification": {
+    "backendFocusedTests": 31,
+    "backendIncludesRealPostgres": true,
+    "modelChecks": 10,
+    "connectionUiScenarios": 6,
+    "publicationStorageUiScenarios": 6,
+    "existingCustomerScopeScenarios": 18,
+    "uiBuild": "PASS",
+    "knownBuildWarnings": ["Existing bundle size", "Existing runtime-config script bundling notice"],
+    "stagingStaffBrowser": "PASS",
+    "visibleStaffDestinations": 30,
+    "staffApiKeyDeniedCustomerApprovalEndpoint": true
+  },
+  "customerJourney": {
+    "deploymentId": "dep-c43bce9d",
+    "consumerId": "northfield-m4-20261023",
+    "appId": "awi_pub_3d630e8031652b1c0b05691eff3bc760",
+    "appStatus": "DRAFT",
+    "versionId": "ver-99ac495c",
+    "publicationHttpStatus": 200,
+    "stagingStorageBindingHttpStatus": 200,
+    "productionStorageBindingHttpStatus": 200,
+    "storageBindingsAfterReload": 2,
+    "documentPluginEnabledThroughExistingBindingService": true,
+    "staffApiApprovalsForExistingReviewedDemoServices": 4,
+    "customerUiExternalBindings": 4,
+    "externalBindingsReadBackConfiguredAfterReload": true,
+    "missingApprovalWarningVerifiedBeforeStaffApproval": true,
+    "writeOnlyCredentialFieldsClearAfterBinding": true,
+    "browserErrors": 0,
+    "unexpectedCommands": 0,
+    "newCustomerRuntimeReleases": 0,
+    "newProviderResources": 0,
+    "externalBusinessWrites": 0,
+    "sourceFileWrites": 0,
+    "providerRuntimeVerification": false,
+    "productionActivation": false
+  },
+  "preservedProduction": {
+    "appId": "awi_pub_1856a86a95848d165c5cfb2aa8df790d",
+    "status": "ACTIVE",
+    "releaseId": "rel-8c7930cc",
+    "assignmentAndAppRevisionUnchanged": true
+  },
+  "remainingGate": "Eligible unused external staging vector connection or explicit free-only provisioning approval is pending in Required for production. Separate production resource approval remains separate. No deployment or cluster reassignment may be inferred from this report.",
+  "privateEvidenceRoot": "/private/tmp/01045-m4-fresh-customer-r2-20261023",
+  "priorFailures": [
+    "Original old-deployment publication rejected stale placement without creating a version; retained separately.",
+    "Initial storage UI attempt hid optional disabled document capability; zero writes; corrected and rerun.",
+    "Initial local UI harness JSX and exact MUI label selectors corrected; not counted as product passes.",
+    "Existing missing-binding HTTP409 assertion updated to deliberate authorized HTTP404 contract and rerun."
+  ],
+  "frameworkOrCustomerRuntimeSourceChanged": false
+}

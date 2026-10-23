@@ -15,6 +15,8 @@ below is retained; it does not close these product-composition milestones.
   customer assignment, real create/reload/edit/reload/delete and visible failures.
   Arbitrary branding/auth/tool edits outside reviewed profiles are not enabled.
 - M4 IN PROGRESS: fresh new-UI staging-to-production customer journey.
+  Configuration/publication live verified; new runtime verification and promotion
+  await eligible external staging vector material or explicit provisioning approval.
 - M5 PARTIAL: scoped daily task links and live policy/sync/handover reads exist;
   necessary daily edit/refresh commands are not freshly qualified through this UI.
 - M6 PARTIAL: bounded read-expiry prerequisite live and verified; owner visual
@@ -36,6 +38,58 @@ Keep external business writes, old bookings and unrelated resource cleanup out
 of this phase. No vector/conversation transfer or compatibility machinery.
 
 ### M4 - Publish Preflight Gap Source Qualification
+
+#### Latest Hosted Checkpoint - 2026-10-23 23:21 UTC
+
+Backend `0404500475b2c644545be9ac0e45f175f46824f1` and UI
+`820aace6c6e23af27ec85a99a97f4b95e77dcadc` are committed, pushed and LIVE VERIFIED
+on staging and production. Backend-only CI40036670549 and UI-only CI40036985216
+passed; immutable image/source chains verified. Both backends UP/schema208,
+owned resource projections unchanged; UI domains/env/runtime configuration
+preserved. Native jobs are consumed; do not replay. Exact image/job references
+are in `verification-support/customer-console-01045/product-m4/configuration-live.actual.json`.
+Staging actual staff login/30 destinations/logout PASS; customer approval-options
+endpoint denies staff API-key with403 as intended. Staff layout is unchanged.
+
+Real CUSTOMER_ADMIN saved stage S3 `dsh-df37ac9b-6d8` and production S3
+`dsh-850dcdb8-f8f` (both200), enabling only the reviewed optional document plugin
+through the existing bind service. One publication200 created `ver-99ac495c`.
+The customer then bound both reviewed external services in both target scopes
+through the new UI (four200s); all four CONFIGURED summaries and both storage
+bindings survived reload. The empty-approval warning was verified before each
+normal staff approval. Credentials are write-only and clear after saving.
+
+Staff used FOUR ordinary approval API commands for the existing same-customer
+simulator/business endpoints, scoped to the new version, before customer binding.
+This is a real operator prerequisite of the existing reviewed contract, not
+unattended self-service or customer authority to approve arbitrary endpoints.
+No direct database writes, new external services, source uploads, business actions,
+vector copying or customer-runtime/framework changes. Provider/runtime integration
+is NOT newly verified by a successful binding. Existing production app remains
+ACTIVE on `rel-8c7930cc`, same assignment/app revision. Fresh app remains DRAFT;
+fresh deployment has zero releases/admissions. M4 is NOT closed.
+
+Review: https://console.loomai.pro/deployments?view=setup&step=configure&deploymentId=dep-c43bce9d
+
+Remaining exact prerequisite: eligible unused external staging vector connection,
+or explicit free-only cluster provisioning approval in Required for production.
+That chat still reports PENDING; no provider resource was provisioned/reassigned.
+Production resource approval is separate. Do not revisit expired old-target
+retirement/draining to avoid this prerequisite. Once supplied: bind vector using
+the supported contract, stage this same version once, verify the customer app,
+review/promote this version and explicitly activate the same app in production.
+Do not replay consumed S3, publication, approval or binding intents.
+
+Local midnight removed older temporary helpers/credential input; original helper
+was restored byte-for-byte to SHA256 `7c03decc3552fdf51c3268eefcb86175fe4b94a62ebff0fd14ee9ef506267824`
+and the existing customer credential recovered from its original delivered artifact.
+No reset/new account. Durable private copies now live under
+`/Users/mahmoudashraf/.codex/private/loomai-m4/` (0700/0600); no secrets committed.
+S3 reads the durable ignored private handover directly. Private fresh command
+receipts remain `/private/tmp/01045-m4-fresh-customer-r2-20261023`; durable sanitized
+checkpoint above preserves the completed operations if temporary files expire.
+
+#### Source Qualification And Earlier Attempts
 
 2026-10-23 22:56 UTC checkpoint: publication preflight fix `c743ee574` is
 LIVE VERIFIED on both UI apps, UI-only CI40033185708/backend skipped, image

@@ -417,6 +417,21 @@ Remaining: one fresh complete journey through the new product-focused UI; U4's
 hosted gate remains open. Reuse existing promotion/cold replacement without
 adding recovery, draining, parallel-version operation or vector copying.
 
+2026-10-23 23:21 UTC: fresh customer configuration is LIVE VERIFIED, not a full
+M4 pass. Through the real customer UI: configuration-only dealership deployment,
+staging assignment, draft Engage app, two independent customer-owned S3 bindings,
+one published immutable version, and approved stock/business-service credentials
+for both targets. Reload confirms persisted bindings and enabled document plugin.
+Two narrow setup UI gaps were fixed and deployed to both control planes; the
+existing production workspace remains unchanged. External service approval is a
+version-scoped staff API prerequisite, followed by customer-owned credential
+binding, not automatic customer self-approval. No staff database writes were used.
+Eligible unused external staging vector material/explicit free-only provisioning
+approval is pending in Required for production. No native customer release or
+production activation has occurred. Resume deployment/verification/promotion only
+after that prerequisite; do not reopen old target recovery or reuse a bound cluster.
+See the execution record and `product-m4/configuration-live.actual.json` evidence.
+
 #### M5 - Product-Scoped Daily Operations - PARTIAL
 
 Goal: open app/inbox, update policies, inspect synchronization/important failures,
