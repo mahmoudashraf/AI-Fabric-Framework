@@ -28,7 +28,12 @@ public final class RuntimeArtifactRepairContracts {
     }
     public record ColdMaintenanceAcknowledgement(String previousReleaseId, String approvalReference,
                                                   boolean acceptInMemoryStateLoss) { }
-    public record ColdPriorRuntime(String releaseId, String versionId, String authorityFingerprint) { }
+    public record ColdPriorRuntime(String releaseId, String versionId, String authorityFingerprint,
+                                   boolean unassignedVerificationFailure) {
+        public ColdPriorRuntime(String releaseId, String versionId, String authorityFingerprint) {
+            this(releaseId, versionId, authorityFingerprint, false);
+        }
+    }
 
     public static List<Effect> effects(Mode mode) {
         if (mode == Mode.COLD_MAINTENANCE_REAPPLY) {

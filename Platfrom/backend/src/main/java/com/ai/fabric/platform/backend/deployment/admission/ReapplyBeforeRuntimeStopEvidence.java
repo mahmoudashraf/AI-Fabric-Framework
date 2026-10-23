@@ -38,11 +38,14 @@ final class ReapplyBeforeRuntimeStopEvidence {
         RuntimeArtifactRepairContracts.VerifiedRepair repair,
         com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Checkpoint checkpoint) {
         boolean cold = repair != null;
+        var coldPrior = cold && repair.finalLocalFingerprints().containsKey("coldPriorRuntime")
+            ? json.read(repair.finalLocalFingerprints().get("coldPriorRuntime"), RuntimeArtifactRepairContracts.ColdPriorRuntime.class) : null;
+        boolean unassigned = coldPrior != null && coldPrior.unassignedVerificationFailure();
         var inventory = new TreeMap<String, String>();
         var deployment = one("SELECT * FROM platform_deployments WHERE id=? FOR UPDATE NOWAIT", r.deploymentId());
         String priorVersionId = (String) deployment.get("active_version_id");
         if (!r.customerId().equals(deployment.get("customer_id")) || !r.tenantId().equals(deployment.get("tenant_id"))
-            || !text(priorVersionId) || manifest.versionId().equals(priorVersionId) || deployment.get("archived_at") != null
+            || !text(priorVersionId) || !unassigned && manifest.versionId().equals(priorVersionId) || deployment.get("archived_at") != null
             || !"APPLY_FAILED".equals(deployment.get("status")) || !text(deployment.get("runtime_base_url"))
             || !text(deployment.get("connector_base_url")) || !r.demand().equals(manifest.demand())) fail("ACTIVE_DEPLOYMENT_REQUIRED");
         inventory.put("deployment", json.fingerprint(deployment));
@@ -78,19 +81,19 @@ final class ReapplyBeforeRuntimeStopEvidence {
         var current = exact(bindings, "release_id", releaseId);
         requireBinding(current, r, manifest.versionId(), manifest.versionConfigHash(), "OUTCOME_UNKNOWN");
         var active = bindings.stream().filter(b -> "ACTIVE".equals(b.get("state"))).toList();
-        if (active.size() != 1) fail("PRIOR_ACTIVE_RELEASE_REQUIRED");
-        var priorBinding = active.getFirst();
+        if (unassigned ? !active.isEmpty() : active.size() != 1) fail("PRIOR_ACTIVE_RELEASE_REQUIRED");
+        var priorBinding = unassigned ? exact(bindings, "release_id", coldPrior.releaseId()) : active.getFirst();
         String priorId = (String) priorBinding.get("release_id");
         if (cold && (!priorId.equals(checkpoint.priorRuntime().releaseId())
             || !priorId.equals(repair.scope().priorRuntimeReleaseId()))) fail("COLD_PRIOR_BINDING_CHANGED");
         var priorVersion = one("SELECT * FROM platform_deployment_versions WHERE id=? FOR UPDATE NOWAIT", priorVersionId);
         if (!r.deploymentId().equals(priorVersion.get("deployment_id")) || !"PUBLISHED".equals(priorVersion.get("status"))) fail("PRIOR_VERSION_CHANGED");
-        requireBinding(priorBinding, r, priorVersionId, (String) priorVersion.get("config_hash"), "ACTIVE");
+        requireBinding(priorBinding, r, priorVersionId, (String) priorVersion.get("config_hash"), unassigned ? "SUPERSEDED" : "ACTIVE");
         var prior = one("SELECT * FROM platform_deployment_releases WHERE id=? FOR UPDATE NOWAIT", priorId);
         if (!r.deploymentId().equals(prior.get("deployment_id")) || !r.targetProfileId().equals(prior.get("target_profile_id"))
             || !priorVersionId.equals(prior.get("deployment_version_id")) || !"COOLIFY".equals(prior.get("provider_type"))
-            || !"APPLIED_VERIFIED".equals(prior.get("status")) || !"ACTIVE".equals(prior.get("provisioning_status"))
-            || !"PASSED".equals(prior.get("verification_status")) || prior.get("applied_at") == null
+            || !(unassigned ? "APPLIED_VERIFICATION_FAILED" : "APPLIED_VERIFIED").equals(prior.get("status")) || !"ACTIVE".equals(prior.get("provisioning_status"))
+            || !(unassigned ? "FAILED" : "PASSED").equals(prior.get("verification_status")) || prior.get("applied_at") == null
             || !instant(prior.get("created_at")).isBefore(instant(release.get("created_at")))) fail("PRIOR_VERIFIED_RELEASE_REQUIRED");
         if (bindings.stream().anyMatch(b -> !releaseId.equals(b.get("release_id")) && !priorId.equals(b.get("release_id"))
             && !List.of("NO_EFFECT", "SUPERSEDED").contains(b.get("state")))) fail("OTHER_RELEASE_UNSETTLED");
@@ -132,10 +135,15 @@ final class ReapplyBeforeRuntimeStopEvidence {
         inventory.put("handles", json.fingerprint(handles));
         inventory.put("nativeKinds", json.write(List.of("APPLICATION", "CONNECTOR_APPLICATION", "RUNTIME_GENERATION", "RUNTIME_POSTGRES_DATABASE")));
         var consumers = rows("SELECT * FROM platform_consumers WHERE bound_deployment_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId());
-        if (consumers.isEmpty() || consumers.stream().anyMatch(c -> !r.customerId().equals(c.get("customer_id"))
-            || !priorId.equals(c.get("bound_release_id")) || !r.targetProfileId().equals(c.get("bound_target_profile_id")))) fail("PRIOR_CONSUMER_CHANGED");
+        if ((!unassigned && consumers.isEmpty()) || consumers.stream().anyMatch(c -> !r.customerId().equals(c.get("customer_id"))
+            || (unassigned ? r.targetProfileId().equals(c.get("bound_target_profile_id")) || priorId.equals(c.get("bound_release_id"))
+                || releaseId.equals(c.get("bound_release_id"))
+                : !priorId.equals(c.get("bound_release_id")) || !r.targetProfileId().equals(c.get("bound_target_profile_id"))))) fail("PRIOR_CONSUMER_CHANGED");
         inventory.put("consumers", json.fingerprint(consumers));
-        inventory.put("consumerHistory", json.fingerprint(rows("SELECT * FROM platform_consumer_binding_history WHERE to_deployment_id=? OR from_deployment_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId(), r.deploymentId())));
+        var history = rows("SELECT * FROM platform_consumer_binding_history WHERE to_deployment_id=? OR from_deployment_id=? ORDER BY id FOR UPDATE NOWAIT", r.deploymentId(), r.deploymentId());
+        if (unassigned && history.stream().anyMatch(row -> priorId.equals(row.get("to_release_id")) || priorId.equals(row.get("from_release_id"))
+            || releaseId.equals(row.get("to_release_id")) || releaseId.equals(row.get("from_release_id")))) fail("PRIOR_CONSUMER_CHANGED");
+        inventory.put("consumerHistory", json.fingerprint(history));
         inventory.put("installations", json.fingerprint(rows("SELECT i.* FROM ai_workspace_installations i JOIN platform_consumers c ON c.id=i.consumer_entity_id WHERE c.bound_deployment_id=? ORDER BY i.id FOR UPDATE OF i NOWAIT", r.deploymentId())));
         requireInbox(inventory, r, release, manifest, cold);
 

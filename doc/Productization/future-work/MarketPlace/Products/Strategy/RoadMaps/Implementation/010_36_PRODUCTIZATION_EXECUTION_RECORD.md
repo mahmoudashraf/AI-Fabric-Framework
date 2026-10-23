@@ -8,6 +8,45 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-23 Customer Journey Continuation
 
+01:29 UTC qualification: 244 focused checks pass, including55 real PostgreSQL
+cases, zero failures/errors/skips. Nine source/test files support the explicit
+same-image cold restart of the unassigned failed production generation while
+preserving existing verified-staging maintenance. Physical stop/readback and
+runtime adoption are still required; no fake graceful-drain result. Initial
+fixture failures are retained and corrected without weakening product guards.
+Evidence: `/private/tmp/01044-cold-production-qualification/qualification.actual.json`.
+Publication and hosted use follow; production acceptance is not yet claimed.
+
+01:24 UTC update: valid production S3 credentials were saved through the actual
+customer UI. New production release `rel-8c7930cc` subsequently failed at the
+graceful generation-drain gate: zero observed work, but unsupported indexing and
+specialist worker fencing. The old runtime is DRAINING; production connector and
+Inbox are quiesced/stopped, databases retained. The Engage app remains on verified
+customer staging. This is NOT a successful drain or completed production journey.
+
+The owner explicitly chose attended cold replacement with downtime. The existing
+maintenance mechanism is being narrowly aligned to an unassigned verification-
+failed production predecessor and an unchanged immutable image. Failed history,
+full capacity holds, usage high-water and external services remain preserved.
+No framework release, new recovery engine or seamless replacement is in scope.
+After qualification: physically stop/verify, adopt the corrected generation,
+resume the exact apply, independently index production sources, verify and switch
+the same app. UI extraction remains last. Do not replay consumed r5 apply commands.
+
+Final backend `eb1d27aa5` is now verified on both control planes, schema208,
+image `sha256:f39806ad8c8126c9e6cd6e1fbb452116e789600f1da0d8a68c13c489414bf53c`.
+All27 protected projections and configuration remain intact. The functional
+customer-command UI is also verified on both servers; no extraction is included.
+Production catalogue readback is200 and includes the current offer. The storage
+UI reached the binding command and correctly rejected stale placement evidence
+without changing credentials. Normal customer placement refresh is complete;
+the next explicit UI save is underway. The app still points at verified staging.
+
+Keep for the final UI phase: Document Knowledge should reuse the customer target
+placement-refresh control so the customer can resolve that visible stale-proof
+error without leaving the view. This is a functional UI follow-up, not grounds
+to relax the server check or start another release before promotion acceptance.
+
 Actual customer storage UI testing also exposed a catalogue defect at midnight:
 an expired historical entitlement caused the whole catalogue to return403,
 although the current offer remains active until25October. A minimal discovery

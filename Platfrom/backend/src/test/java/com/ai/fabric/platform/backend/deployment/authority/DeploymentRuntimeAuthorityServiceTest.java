@@ -119,7 +119,31 @@ class DeploymentRuntimeAuthorityServiceTest {
             .hasMessageContaining("authority is required");
     }
 
+    @Test void reviewedUnassignedVerificationFailureCanOnlyReadThePriorGeneration() throws Exception {
+        coldRepairAuthority(true, true);
+        var prior = releases.findById("cold-prior").orElseThrow();
+        prior.setStatus("APPLIED_VERIFICATION_FAILED"); prior.setVerificationStatus("FAILED");
+        var headers = service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan");
+        var body = payload(headers.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7));
+        assertThat(body.path("scopes").toString()).doesNotContain(":write");
+        prior.setProvisioningStatus("FAILED");
+        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan"))
+            .hasMessageContaining("Prior cold-maintenance authority changed");
+    }
+
+    @Test void ordinaryColdPlanCannotTreatVerificationFailureAsAVerifiedRuntime() {
+        coldRepairAuthority(true);
+        var prior = releases.findById("cold-prior").orElseThrow();
+        prior.setStatus("APPLIED_VERIFICATION_FAILED"); prior.setVerificationStatus("FAILED");
+        assertThatThrownBy(() -> service.issueRuntimeArtifactRepairPriorReadHeaders("cold-plan"))
+            .hasMessageContaining("Prior cold-maintenance authority changed");
+    }
+
     private com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence coldRepairAuthority(boolean consent) {
+        return coldRepairAuthority(consent, false);
+    }
+
+    private com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence coldRepairAuthority(boolean consent, boolean unassigned) {
         principal(com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN);
         var prior = release("staging", "cold-prior");
         var priorRelease = releases.findById("cold-prior").orElseThrow();
@@ -139,7 +163,7 @@ class DeploymentRuntimeAuthorityServiceTest {
         var codec = new com.ai.fabric.platform.backend.deployment.admission.AdmissionJson(mapper);
         var local = new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.LocalEvidence(scope, request, original, original,
             Map.of("coldPriorRuntime", codec.write(new com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.ColdPriorRuntime(
-                "cold-prior", "version-1", prior.fingerprint()))), Instant.now().plusSeconds(300), Instant.now().plusSeconds(1800));
+                "cold-prior", "version-1", prior.fingerprint(), unassigned))), Instant.now().plusSeconds(300), Instant.now().plusSeconds(1800));
         var journal = mock(com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairJournal.class);
         when(journal.authorityEvidence(eq("cold-plan"), eq("staff"), anyBoolean())).thenReturn(local);
         var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory(); beans.registerSingleton("repairs", journal);

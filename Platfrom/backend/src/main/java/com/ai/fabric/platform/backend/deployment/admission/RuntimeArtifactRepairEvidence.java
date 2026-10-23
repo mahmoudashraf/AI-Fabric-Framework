@@ -123,7 +123,7 @@ public class RuntimeArtifactRepairEvidence {
                     || handle.get("provider_resource_uuid") == null)) fail("HANDLE_SCOPE_CHANGED");
         var original = artifacts.require(composition.runtimeArtifactId(definition));
         if (!original.getId().equals(release.get("source_artifact_id"))) fail("ORIGINAL_ARTIFACT_CHANGED");
-        var replacement = artifacts.require(request.replacementArtifactId()); compatibility.requireCompatible(original, replacement);
+        var replacement = artifacts.require(request.replacementArtifactId()); compatibility.requireCompatible(original, replacement, request.mode());
         compatibility.requireTargetChannel(replacement, r.intent());
         if (cold) compatibility.requireColdMaintenance(replacement);
         if (request.mode() == Mode.IDLE_CHECKPOINT_COLD_RESTART) {

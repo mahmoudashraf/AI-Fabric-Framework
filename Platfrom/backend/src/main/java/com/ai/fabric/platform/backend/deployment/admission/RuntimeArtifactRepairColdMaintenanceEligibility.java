@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import static com.ai.fabric.platform.backend.deployment.admission.RuntimeArtifactRepairContracts.*;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-/** Attended staging maintenance for a failed conversational reapply, not automatic recovery. */
+/** Attended replacement of a conversational runtime, never automatic recovery or successful drain. */
 @Component
 public final class RuntimeArtifactRepairColdMaintenanceEligibility {
     private final JdbcTemplate jdbc;
@@ -31,21 +31,23 @@ public final class RuntimeArtifactRepairColdMaintenanceEligibility {
         if (request.mode() != Mode.COLD_MAINTENANCE_REAPPLY || acknowledgement == null
             || !acknowledgement.acceptInMemoryStateLoss() || !text(acknowledgement.approvalReference())
             || acknowledgement.approvalReference().length() > 255 || !text(acknowledgement.previousReleaseId())
-            || reservation.intent() != AdmissionContracts.Intent.CUSTOMER_STAGING
+            || !List.of(AdmissionContracts.Intent.CUSTOMER_STAGING, AdmissionContracts.Intent.CUSTOMER_PRODUCTION).contains(reservation.intent())
             || !"RUNTIME_GENERATION_DRAIN_INCOMPLETE".equals(failed.get("error_message"))
             || failed.get("runtime_generation_transition_state") != null
             || failed.get("runtime_generation_transition_json") != null
-            || failed.get("runtime_generation_transition_fingerprint") != null) fail("EXPLICIT_STAGING_MAINTENANCE_REQUIRED");
+            || failed.get("runtime_generation_transition_fingerprint") != null) fail("EXPLICIT_MAINTENANCE_REQUIRED");
         var prior = one("SELECT * FROM platform_deployment_releases WHERE id=? FOR UPDATE NOWAIT",
             acknowledgement.previousReleaseId());
         String priorVersionId = (String) prior.get("deployment_version_id");
+        boolean unassigned = "APPLIED_VERIFICATION_FAILED".equals(prior.get("status"))
+            && "FAILED".equals(prior.get("verification_status"));
         if (!reservation.deploymentId().equals(prior.get("deployment_id"))
             || !reservation.targetProfileId().equals(prior.get("target_profile_id"))
             || !Objects.equals(deployment.get("active_version_id"), priorVersionId)
-            || Objects.equals(failed.get("deployment_version_id"), priorVersionId)
-            || !"APPLIED_VERIFIED".equals(prior.get("status"))
+            || !unassigned && Objects.equals(failed.get("deployment_version_id"), priorVersionId)
+            || !unassigned && !"APPLIED_VERIFIED".equals(prior.get("status"))
             || !"ACTIVE".equals(prior.get("provisioning_status"))
-            || !"PASSED".equals(prior.get("verification_status"))
+            || !unassigned && !"PASSED".equals(prior.get("verification_status"))
             || !"COOLIFY".equals(prior.get("provider_type"))
             || !text((String) failed.get("source_artifact_id"))
             || !Objects.equals(failed.get("source_artifact_id"), prior.get("source_artifact_id"))
@@ -62,19 +64,30 @@ public final class RuntimeArtifactRepairColdMaintenanceEligibility {
         var bindings = jdbc.queryForList("SELECT * FROM deployment_admission_release_bindings WHERE deployment_id=? AND target_profile_id=? ORDER BY release_id FOR UPDATE NOWAIT",
             reservation.deploymentId(), reservation.targetProfileId());
         var active = bindings.stream().filter(row -> "ACTIVE".equals(row.get("state"))).toList();
-        if (active.size() != 1 || !prior.get("id").equals(active.getFirst().get("release_id"))
-            || !reservation.id().equals(active.getFirst().get("reservation_id"))
-            || !reservation.generation().equals(active.getFirst().get("generation"))) fail("PRIOR_ALLOCATION_CHANGED");
+        var priorBindings = bindings.stream().filter(row -> prior.get("id").equals(row.get("release_id"))).toList();
+        if (priorBindings.size() != 1 || !reservation.id().equals(priorBindings.getFirst().get("reservation_id"))
+            || !reservation.generation().equals(priorBindings.getFirst().get("generation"))
+            || bindings.stream().anyMatch(row -> !prior.get("id").equals(row.get("release_id"))
+                && !failed.get("id").equals(row.get("release_id")) && !List.of("NO_EFFECT", "SUPERSEDED").contains(row.get("state")))
+            || (unassigned ? !active.isEmpty() || !"SUPERSEDED".equals(priorBindings.getFirst().get("state"))
+                : active.size() != 1 || !prior.get("id").equals(active.getFirst().get("release_id")))) fail("PRIOR_ALLOCATION_CHANGED");
         var consumers = jdbc.queryForList("SELECT * FROM platform_consumers WHERE bound_deployment_id=? ORDER BY id FOR UPDATE NOWAIT",
             reservation.deploymentId());
-        if (consumers.isEmpty() || consumers.stream().anyMatch(row -> !reservation.customerId().equals(row.get("customer_id"))
-            || !prior.get("id").equals(row.get("bound_release_id"))
-            || !reservation.targetProfileId().equals(row.get("bound_target_profile_id")))) fail("PRIOR_CONSUMER_CHANGED");
+        if ((!unassigned && consumers.isEmpty()) || consumers.stream().anyMatch(row -> !reservation.customerId().equals(row.get("customer_id"))
+            || (unassigned ? reservation.targetProfileId().equals(row.get("bound_target_profile_id"))
+                || prior.get("id").equals(row.get("bound_release_id")) || failed.get("id").equals(row.get("bound_release_id"))
+                : !prior.get("id").equals(row.get("bound_release_id"))
+                    || !reservation.targetProfileId().equals(row.get("bound_target_profile_id"))))) fail("PRIOR_CONSUMER_CHANGED");
+        var history = jdbc.queryForList("SELECT * FROM platform_consumer_binding_history WHERE to_deployment_id=? OR from_deployment_id=? ORDER BY id FOR UPDATE NOWAIT",
+            reservation.deploymentId(), reservation.deploymentId());
+        if (unassigned && history.stream().anyMatch(row -> prior.get("id").equals(row.get("to_release_id"))
+            || prior.get("id").equals(row.get("from_release_id")) || failed.get("id").equals(row.get("to_release_id"))
+            || failed.get("id").equals(row.get("from_release_id")))) fail("PRIOR_CONSUMER_CHANGED");
         var installations = jdbc.queryForList("SELECT i.* FROM ai_workspace_installations i JOIN platform_consumers c ON c.id=i.consumer_entity_id WHERE c.bound_deployment_id=? ORDER BY i.id FOR UPDATE OF i NOWAIT",
             reservation.deploymentId());
         if (installations.stream().anyMatch(row -> !reservation.customerId().equals(row.get("customer_id"))
-            || !"DRAFT".equals(row.get("status")) || !row.containsKey("activated_at")
-            || row.get("activated_at") != null)) fail("UNACTIVATED_WORKSPACE_REQUIRED");
+            || !unassigned && (!"DRAFT".equals(row.get("status")) || !row.containsKey("activated_at")
+                || row.get("activated_at") != null))) fail("UNACTIVATED_WORKSPACE_REQUIRED");
         var authority = one("SELECT * FROM platform_runtime_authority_snapshots WHERE release_id=? FOR UPDATE NOWAIT", prior.get("id"));
         String authorityFingerprint = (String) prior.get("runtime_authority_fingerprint");
         if (!text(authorityFingerprint) || !authorityFingerprint.matches("[a-f0-9]{64}")
@@ -82,16 +95,14 @@ public final class RuntimeArtifactRepairColdMaintenanceEligibility {
             || !reservation.targetProfileId().equals(authority.get("target_profile_id"))
             || !priorVersionId.equals(authority.get("version_id"))
             || !authorityFingerprint.equals(authority.get("fingerprint"))) fail("PRIOR_AUTHORITY_CHANGED");
-        var result = new ColdPriorRuntime((String) prior.get("id"), priorVersionId, authorityFingerprint);
+        var result = new ColdPriorRuntime((String) prior.get("id"), priorVersionId, authorityFingerprint, unassigned);
         fingerprints.put("coldPriorRuntime", json.write(result));
         fingerprints.put("coldPriorRelease", json.fingerprint(prior));
         fingerprints.put("coldPriorVersion", json.fingerprint(priorVersion));
         fingerprints.put("coldPriorAuthority", json.fingerprint(authority));
         fingerprints.put("coldConsumers", json.fingerprint(consumers));
         fingerprints.put("coldInstallations", json.fingerprint(installations));
-        fingerprints.put("coldConsumerHistory", json.fingerprint(jdbc.queryForList(
-            "SELECT * FROM platform_consumer_binding_history WHERE to_deployment_id=? OR from_deployment_id=? ORDER BY id FOR UPDATE NOWAIT",
-            reservation.deploymentId(), reservation.deploymentId())));
+        fingerprints.put("coldConsumerHistory", json.fingerprint(history));
         return result;
     }
 

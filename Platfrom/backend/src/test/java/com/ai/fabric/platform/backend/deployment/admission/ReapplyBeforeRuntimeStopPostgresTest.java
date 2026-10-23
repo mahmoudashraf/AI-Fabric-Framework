@@ -180,6 +180,72 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         assertThat(details.path("retryHistory").get(0).path("errorMessage").asText()).isEqualTo("original-first-attempt");
     }
 
+    @Test void productionColdEligibilityAcceptsUnassignedVerificationFailureAndPreservesTheExistingWorkspace() {
+        prepareColdMaintenance(); prepareUnassignedVerificationFailure();
+        var reservation = mapper.valueToTree(failed);
+        ((ObjectNode) reservation).put("intent", "CUSTOMER_PRODUCTION");
+        failed = json.read(json.write(reservation), Reservation.class);
+        var before = allState();
+        var prior = coldEligibility(new TreeMap<>(), coldRequest(true));
+        assertThat(prior.unassignedVerificationFailure()).isTrue();
+        assertThat(prior.versionId()).isEqualTo("version");
+        assertThat(allState()).isEqualTo(before);
+        verifyNoInteractions(provider, generations, execution);
+    }
+
+    @Test void verifiedColdRestartOfUnassignedSameVersionCanResumeWithoutInventingAPriorVerifiedRelease() {
+        var proof = prepareVerifiedColdMaintenance(true); var before = preserved();
+        var prior = row("platform_deployment_releases", "prior-release");
+        var plan = plan();
+        assertThat(plan.boundary()).isEqualTo(FailedApplyRetryContracts.COLD_MAINTENANCE_BOUNDARY);
+        var receipt = api.retry("offer", "deployment", failed.id(), plan.command());
+        assertThat(receipt.financialMutationPerformed()).isFalse();
+        assertThat(preserved()).isEqualTo(before);
+        assertThat(row("platform_deployment_releases", "prior-release")).isEqualTo(prior);
+        assertThat(store.releaseBinding("prior-release").state()).isEqualTo("SUPERSEDED");
+        assertThat(store.require(failed.id()).chargedDemand()).isEqualTo(failed.chargedDemand());
+        verify(provider, times(2)).coldMaintenanceReapplyReadback(proof);
+        verify(generations, never()).requireActiveForReapply(any(), any(), anyString(), anyString());
+        verify(execution, times(1)).executeApply("deployment", "version", "failed-release");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"assignedPrior", "assignedTarget", "foreignCustomer", "otherUnsettled", "missingSupersession", "notProvisioned"})
+    void unassignedColdRestartRejectsUnprovenOrServingTargets(String change) {
+        prepareColdMaintenance(); prepareUnassignedVerificationFailure();
+        switch (change) {
+            case "assignedPrior" -> jdbc.update("UPDATE platform_consumers SET bound_release_id='prior-release' WHERE id='consumer'");
+            case "assignedTarget" -> jdbc.update("UPDATE platform_consumers SET bound_target_profile_id=? WHERE id='consumer'", TARGET);
+            case "foreignCustomer" -> {
+                jdbc.update("INSERT INTO platform_customers(id,name,slug,status,created_at,updated_at) VALUES ('foreign','Foreign','foreign-cold','ACTIVE',?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
+                jdbc.update("UPDATE platform_consumers SET customer_id='foreign' WHERE id='consumer'");
+            }
+            case "otherUnsettled" -> jdbc.update("UPDATE deployment_admission_release_bindings SET state='OUTCOME_UNKNOWN' WHERE release_id='prior-release'");
+            case "missingSupersession" -> jdbc.update("UPDATE deployment_admission_release_bindings SET state='ACTIVE' WHERE release_id='prior-release'");
+            case "notProvisioned" -> jdbc.update("UPDATE platform_deployment_releases SET provisioning_status='FAILED' WHERE id='prior-release'");
+            default -> throw new AssertionError(change);
+        }
+        var before = allState();
+        assertThatThrownBy(() -> coldEligibility(new TreeMap<>(), coldRequest(true))).isInstanceOf(AdmissionFailure.class);
+        assertThat(allState()).isEqualTo(before); verifyNoInteractions(provider, generations, execution);
+    }
+
+    private void prepareUnassignedVerificationFailure() {
+        jdbc.update("UPDATE platform_deployment_releases SET deployment_version_id='version',status='APPLIED_VERIFICATION_FAILED',verification_status='FAILED' WHERE id='prior-release'");
+        jdbc.update("UPDATE platform_runtime_authority_snapshots SET version_id='version' WHERE release_id='prior-release'");
+        jdbc.update("UPDATE platform_deployments SET active_version_id='version' WHERE id='deployment'");
+        jdbc.update("UPDATE deployment_admission_release_bindings SET state='SUPERSEDED',version_id='version',version_config_hash='version-hash' WHERE release_id='prior-release'");
+        var manifest = manifestFor("prior-manifest", "version");
+        jdbc.update("UPDATE deployment_admission_reviews SET payload_json=?,fingerprint=? WHERE kind='MANIFEST' AND record_key='prior-manifest'", json.write(manifest), json.fingerprint(manifest));
+        var authorization = (ObjectNode) mapper.valueToTree(json.read(jdbc.queryForObject(
+            "SELECT payload_json FROM deployment_admission_authorizations WHERE operation_key='initial-apply'", String.class), AuthorizationReceipt.class));
+        authorization.put("manifestFingerprint", json.fingerprint(manifest));
+        jdbc.update("UPDATE deployment_admission_authorizations SET payload_json=? WHERE operation_key='initial-apply'", json.write(authorization));
+        jdbc.update("UPDATE provider_usage_allocations SET payload_json=? WHERE approval_id='wallet'",
+            json.write(Map.of("initialAdmission", Map.of("reservationId", failed.id(), "generation", failed.generation(), "versionId", "version"))));
+        jdbc.update("UPDATE platform_consumers SET bound_release_id=NULL,bound_target_profile_id=NULL WHERE id='consumer'");
+        jdbc.update("UPDATE ai_workspace_installations SET status='ACTIVE',activated_at=? WHERE id='workspace'", Timestamp.from(NOW));
+    }
+
     @ParameterizedTest @ValueSource(strings = {"epoch", "checkpointReceipt", "dependencyDrift"})
     void coldContinuationRejectsChangedProofOrGenerationWithoutDispatch(String change) {
         prepareVerifiedColdMaintenance();
@@ -197,7 +263,14 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
     }
 
     private RuntimeArtifactRepairContracts.VerifiedRepair prepareVerifiedColdMaintenance() {
+        return prepareVerifiedColdMaintenance(false);
+    }
+
+    private RuntimeArtifactRepairContracts.VerifiedRepair prepareVerifiedColdMaintenance(boolean unassigned) {
         prepareColdMaintenance();
+        if (unassigned) prepareUnassignedVerificationFailure();
+        var local = new TreeMap<String, String>();
+        coldEligibility(local, coldRequest(true));
         var failedDetails = progress(); failedDetails.putArray("retryHistory").addObject().put("errorMessage", "original-first-attempt");
         jdbc.update("UPDATE platform_deployment_releases SET provisioning_details_json=? WHERE id='failed-release'", json.write(failedDetails));
         var previous = new RuntimeGenerationTransitionContracts.Readback(
@@ -219,7 +292,7 @@ class ReapplyBeforeRuntimeStopPostgresTest extends AdmissionFixture {
         var replacement = new RuntimeArtifactRepairContracts.ArtifactPin("replacement", "new", "runtime", "sha256:" + "b".repeat(64), "b".repeat(40), "new-build", "staging", "manifest2");
         var graph = jdbc.queryForMap("SELECT * FROM deployment_managed_dependency_graphs WHERE id='graph'");
         var proof = new RuntimeArtifactRepairContracts.VerifiedRepair("cold-plan", "plan-hash", scope, original, replacement,
-            "native-APPLICATION", "cold-runtime-job", NOW, NOW, null, null, Map.of(),
+            "native-APPLICATION", "cold-runtime-job", NOW, NOW, null, null, local,
             Map.of("coldMaintenanceReceipt", json.write(cold), "dependencyGraph", json.fingerprint(graph)), NOW);
         var checkpoint = new com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Checkpoint(
             com.ai.fabric.platform.backend.deployment.generation.RuntimeGenerationCheckpointService.Phase.COLD_ADOPTED,

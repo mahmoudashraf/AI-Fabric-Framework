@@ -49,7 +49,12 @@ public final class RuntimeArtifactRepairCompatibility {
         fail("COLD_MAINTENANCE_CONTRACT_REQUIRED");
     }
     public void requireCompatible(DeploymentSourceArtifactEntity original, DeploymentSourceArtifactEntity replacement) {
+        requireCompatible(original, replacement, Mode.FULL_DRAIN);
+    }
+    public void requireCompatible(DeploymentSourceArtifactEntity original, DeploymentSourceArtifactEntity replacement, Mode mode) {
         var beforePin = pin(original); var afterPin = pin(replacement);
+        if (mode == Mode.COLD_MAINTENANCE_REAPPLY && beforePin.artifactId().equals(afterPin.artifactId())
+            && beforePin.equals(afterPin)) return;
         if (beforePin.artifactId().equals(afterPin.artifactId()) || beforePin.digest().equals(afterPin.digest())) fail("DISTINCT_REVIEWED_REPLACEMENT_REQUIRED");
         var before = manifests.read(original.getCapabilityManifestJson());
         var after = manifests.read(replacement.getCapabilityManifestJson());

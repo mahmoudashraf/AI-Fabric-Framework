@@ -368,8 +368,10 @@ public class DeploymentRuntimeAuthorityService {
             } catch (Exception exception) { throw conflict("Prior cold-maintenance authority is unavailable."); }
             var priorRelease = workerRelease(prior.releaseId());
             var priorSnapshot = snapshots.findByReleaseId(prior.releaseId()).orElseThrow();
-            if (!"APPLIED_VERIFIED".equals(priorRelease.getStatus()) || !"ACTIVE".equals(priorRelease.getProvisioningStatus())
-                || !"PASSED".equals(priorRelease.getVerificationStatus())
+            boolean priorStatusMatches = prior.unassignedVerificationFailure()
+                ? "APPLIED_VERIFICATION_FAILED".equals(priorRelease.getStatus()) && "FAILED".equals(priorRelease.getVerificationStatus())
+                : "APPLIED_VERIFIED".equals(priorRelease.getStatus()) && "PASSED".equals(priorRelease.getVerificationStatus());
+            if (!priorStatusMatches || !"ACTIVE".equals(priorRelease.getProvisioningStatus())
                 || !scope.deploymentId().equals(priorRelease.getDeploymentId())
                 || !scope.targetProfileId().equals(priorRelease.getTargetProfileId())
                 || !prior.versionId().equals(priorRelease.getDeploymentVersionId())
