@@ -6,6 +6,43 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-23 03:10 UTC Production Integration Journey Proven
+
+The SAME production release `rel-8c7930cc` is APPLIED_VERIFIED/ACTIVE/PASSED.
+Independent production indexing completed six simulator vehicles and three
+ACTIVE customer-owned S3 policies, with zero source-object writes/vector copies.
+The full recheck passed as `vrf-6cfc8bf8`; refreshed staging proof is
+`vrf-1d88421a`. Basic Inbox is READY and retained its existing operator credential.
+
+Actual customer UI activation passed with no failed API reads or blocked calls.
+The SAME `northfield-customer.apps.loomai.pro` installation now resolves to
+production; installation/URL preserved and assignment revision advanced.
+The actual production browser proves stock+policy citations, real Supabase
+sign-in/private conversation, human-message202 without AI, Basic Inbox claim
+and asynchronous reply, explicit authoritative AI_ACTIVE, and AI continuation
+in the SAME conversation. Desktop/mobile screenshots were inspected. Total
+external business receipts remain exactly ONE; no production business request
+was added. Evidence: `production-core-journey-reviewed.actual.json` and
+`production-workspace-ui-r6` under the0841 root.
+
+This is **integration acceptance, not perfect answer-quality certification**.
+The original r5 browser run remains failed: a broad optimized policy query
+scored0.453-0.459 below the unchanged0.5 cutoff. Direct native diagnostic proof
+confirmed correct LLM source routing and scoped documents. Specific questions
+retrieve the policies, but generation also omits the three-working-day
+preparation fact despite its presence in the retrieved document. Keep both
+quality findings for calibration/completeness work; no semantic text matching,
+hidden fallback, threshold change or framework release was used to conceal them.
+
+One functional UI gap is confirmed: the go-live panel disables Activate when
+the original prerequisite proof expires, although authorization at activation
+would renew it. The existing customer admission API renewed that exact ACTIVE
+allocation, preserving its expiry and funding, before actual UI activation.
+Add an explicit readiness-refresh control and the previously recorded S3
+placement refresh BEFORE the independently reversible customer-shell series.
+Post-activation retention/retirement and broader graceful worker fencing remain
+documented follow-ups; do not restart those streams before the basic UI work.
+
 ### 2026-10-23 02:43 UTC Cold Continuation Accepted
 
 Both control planes now verify backend `d873be629e216b39ad8fff093043df1c8da0e1df`,
