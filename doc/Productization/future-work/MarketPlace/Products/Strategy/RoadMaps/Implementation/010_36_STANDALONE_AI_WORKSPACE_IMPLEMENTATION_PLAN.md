@@ -1,5 +1,15 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+Current checkpoint,23October03:34UTC: the basic production customer journey is
+proven on0.8.41. Same app promoted from verified staging to independently indexed
+production; stock/policy citations, real sign-in, one confirmed external request,
+human reply and explicit AI return are evidenced. Two answer-quality findings
+remain recorded, not hidden. Separate readiness/storage-refresh functional UI is
+verified live on both servers. Customer layout is now the final UI-only phase,
+not yet hosted or customer-approved. The frozen staff inventory and rollback
+boundary are in [customer layout preservation](010_36_CUSTOMER_LAYOUT_PRESERVATION_AND_ROLLBACK.md).
+Earlier checkpoint entries below are historical; the execution record is current.
+
 Latest build checkpoint,22October01:12UTC: AI Fabric0.8.37 published on Central;
 combined runtime219 focused cases (at least40 realPG), all20 Central JARs and
 packaged version37 verified. Backend defaults/compiler120 tests/package PASS.

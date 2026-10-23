@@ -6,6 +6,26 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-23 03:34 UTC Functional UI Verified; Customer Layout Last
+
+Separate functional commit `d3f7f9a90` is pushed; CI39894435610 succeeded/UI only,
+backend skipped. Imagebc181aa0 is verified on both servers, preserving domains,
+runtime configuration and customer data-plane state. The real production owner
+browser passed both refresh controls, with assignment/allocation/expiry unchanged.
+Evidence: `/private/tmp/01044-readiness-ui-live-r2-20261023/report.actual.json`.
+Local gates passed13 admission/storage unit checks, eight auth/storage browser
+scenarios,18 scope scenarios and the customer staging/promotion UI flow.
+
+The frozen pre-layout inventory was generated from exact committed functional
+source, not the dirty working tree. It preserves37 routes/34 navigation entries,
+70 source files/1,685 controls and374 API exports. STAFF-001..039 destinations and
+the independently reversible UI boundary are recorded in the dedicated
+[preservation review](010_36_CUSTOMER_LAYOUT_PRESERVATION_AND_ROLLBACK.md).
+Local customer-shell checks pass33 admin/18 operator/seven customer navigation
+entries plus mobile keyboard/focus behavior. The new layout is not hosted yet;
+only its isolated UI publication/verification and customer visual review remain
+for that phase. No backend/framework/retirement work was restarted.
+
 ### 2026-10-23 03:10 UTC Production Integration Journey Proven
 
 The SAME production release `rel-8c7930cc` is APPLIED_VERIFIED/ACTIVE/PASSED.
