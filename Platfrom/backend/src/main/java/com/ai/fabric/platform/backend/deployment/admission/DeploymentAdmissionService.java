@@ -115,8 +115,22 @@ public class DeploymentAdmissionService {
             ? store.context(deployment.getCustomerId(), deployment.getTenantId(), deploymentId, manifest.id())
             : store.context(owned(deploymentId, command.allocationId(), true), manifest.id());
         PrerequisiteReadback evidence = validateAdmission(deployment, context);
+        ResourceReadback verificationReapply = null;
+        if (customerScoped && command.allocationId() != null) {
+            var allocation = owned(deploymentId, command.allocationId(), true);
+            if (allocation.state() == State.OUTCOME_UNKNOWN
+                && !allocation.manifestFingerprint().equals(context.manifestFingerprint())
+                && java.util.Set.of(
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.PROMOTION_PLAN,
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.PROMOTION_APPLY,
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.APPLY
+                ).contains(command.customerContext().operation())) {
+                verificationReapply = one(resourceSources, "RESOURCE_READBACK_ADAPTER_REQUIRED")
+                    .readForVerificationReapply(new ReadbackContext(allocation, context.policy(), null));
+            }
+        }
         // Slow provider/prerequisite reads are above, never inside the ledger transaction.
-        return store.reserve(context, command, evidence, actor(), Instant.now(), () -> localGuard(deploymentId, context));
+        return store.reserve(context, command, evidence, actor(), Instant.now(), () -> localGuard(deploymentId, context), verificationReapply);
     }
     public Reservation status(String deploymentId, String reservationId) {
         return owned(deploymentId, reservationId, false);

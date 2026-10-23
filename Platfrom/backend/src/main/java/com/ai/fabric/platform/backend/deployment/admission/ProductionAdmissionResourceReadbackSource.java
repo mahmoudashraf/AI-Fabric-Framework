@@ -111,12 +111,26 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         if (target == null) throw failure(CONFLICT, "STALE_RESOURCE_GENERATION");
         var profile = requirePlacement(reservation, target);
         return reservation.retirementOperationId() == null
-            ? active(context, target, profile)
+            ? active(context, target, profile, false)
             : retired(context, target);
     }
 
+    @Override
+    public ResourceReadback readForVerificationReapply(ReadbackContext context) {
+        if (context == null || context.reservation() == null || context.policy() == null)
+            throw failure(PRECONDITION_FAILED, "RESOURCE_READBACK_CONTEXT_REQUIRED");
+        var reservation = context.reservation();
+        if (reservation.state() != AdmissionContracts.State.OUTCOME_UNKNOWN || reservation.workerToken() != null
+            || reservation.retirementOperationId() != null || reservation.expiryState() != ExpiryState.CURRENT)
+            throw failure(PRECONDITION_FAILED, "VERIFICATION_REAPPLY_STATE_UNPROVEN");
+        var target = context.policy().targets().get(reservation.targetProfileId());
+        if (target == null) throw failure(CONFLICT, "STALE_RESOURCE_GENERATION");
+        return active(context, target, requirePlacement(reservation, target), true);
+    }
+
     private ResourceReadback active(ReadbackContext context, TargetBudget target,
-                                    com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity profile) {
+                                    com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity profile,
+                                    boolean verificationReapply) {
         Reservation reservation = context.reservation();
         Manifest manifest = admissions.reviewed("MANIFEST", reservation.manifestId(), Manifest.class);
         if (!reservation.manifestFingerprint().equals(json.fingerprint(manifest))
@@ -138,7 +152,7 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
         List<DeploymentReleaseEntity> matches = targetReleases.stream().filter(release ->
             manifest.versionId().equals(release.getDeploymentVersionId())
                 && (boundReleaseId == null || boundReleaseId.equals(release.getId()))
-                && "APPLIED_VERIFIED".equals(release.getStatus())
+                && (verificationReapply ? "APPLIED_VERIFICATION_FAILED" : "APPLIED_VERIFIED").equals(release.getStatus())
                 && "ACTIVE".equals(release.getProvisioningStatus())
                 && release.getProviderType() == DeploymentProviderType.COOLIFY
                 && release.getRuntimeAuthorityFingerprint() != null
@@ -146,6 +160,10 @@ final class ProductionAdmissionResourceReadbackSource implements AdmissionResour
             .toList();
         if (matches.size() != 1) throw failure(PRECONDITION_FAILED, "ACTIVE_RELEASE_UNPROVEN");
         DeploymentReleaseEntity exactRelease = matches.getFirst();
+        if (verificationReapply && (boundReleaseId == null
+            || !"FAILED".equals(exactRelease.getVerificationStatus())
+            || assignments(reservation, Set.of(exactRelease.getId())) != 0))
+            throw failure(PRECONDITION_FAILED, "VERIFICATION_REAPPLY_UNASSIGNED_RELEASE_REQUIRED");
 
         List<DeploymentProviderResourceHandleEntity> owned = handles
             .findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(reservation.deploymentId(), reservation.targetProfileId())

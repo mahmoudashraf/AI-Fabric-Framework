@@ -6,6 +6,35 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ## Execution Gates
 
+### 2026-10-23 Customer Journey Continuation
+
+The owner supplied a replacement key for the existing dedicated production S3
+reader through Required for production. Fresh read-only AWS identity, bucket
+versioning-status and production-prefix listing checks passed. The previous
+request for an old credential file is closed. No IAM, bucket or object changes
+were made. Current private material is referenced only in ignored auth notes.
+
+The remaining blocking basic customer case is correcting source credentials
+after native provisioning succeeded but verification failed. A narrowly scoped
+change to existing admission and Review/Deploy is in qualification: fresh native
+inventory, exact ownership and no production assignment are required before a
+new release can reuse the held allocation. The old release stays failed and its
+snapshots remain immutable. Capacity, funding and original history are retained;
+verification and consumer activation are not waived. No new recovery endpoint,
+service, framework release or UI extraction is included.
+
+Focused qualification now passes **210 backend tests**, including **10 actual
+PostgreSQL cases**, and **8 customer command tests**. It covers the existing
+promotion, readiness, provider-budget and runtime-generation boundaries as well
+as the correction. The PostgreSQL run caught an overlong review-kind code and a
+test-fixture column mistake; both were corrected without changing schema or
+weakening guards. Earlier failed logs are retained. The qualified package and
+source hashes are under `/private/tmp/01044-verification-reapply-qualification`.
+The new production reader independently reads all three encrypted policy files;
+no object, IAM or bucket mutation occurred. This is still not a passing hosted
+correction; staging remains the app's assigned deployment until source rollout,
+normal credential binding, a new release and full production verification pass.
+
 ### 2026-10-22 23:42 UTC Production Native Ready; S3 Input Blocks Acceptance
 
 23:48 prerequisite result: the original private AWS setup copy was recovered,

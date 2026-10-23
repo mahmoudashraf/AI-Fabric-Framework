@@ -357,6 +357,10 @@ class AdmissionStore {
         return reserve(checked, command, evidence, actor, now, () -> { });
     }
     Reservation reserve(AdmissionContext checked, Reserve command, PrerequisiteReadback evidence, String actor, Instant requestedAt, Runnable localGuard) {
+        return reserve(checked, command, evidence, actor, requestedAt, localGuard, null);
+    }
+    Reservation reserve(AdmissionContext checked, Reserve command, PrerequisiteReadback evidence, String actor,
+                        Instant requestedAt, Runnable localGuard, ResourceReadback verificationReapplyReadback) {
         return locked(() -> {
             Instant now = effectiveTime(requestedAt);
             if (command.allocationId() != null) {
@@ -389,6 +393,12 @@ class AdmissionStore {
                     == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.STAGING_EXTEND
                     || command.customerContext().operation() == com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.Operation.STAGING_RETAIN);
                 boolean reviewedReapply = !allocation.manifestFingerprint().equals(current.manifestFingerprint());
+                boolean verificationReapply = reviewedReapply && allocation.state() == State.OUTCOME_UNKNOWN;
+                if (verificationReapply && verificationReapplyReadback != null) {
+                    var proof = verificationReapplyEvidence().capture(allocation, releaseBinding(currentReleaseId(allocation)),
+                        reviewed("MANIFEST", allocation.manifestId(), Manifest.class), verificationReapplyReadback, current.policy(), now);
+                    review("VFY_REAPPLY", fingerprint, proof, actor, now);
+                }
                 if (reviewedReapply) requireReviewedReapply(allocation, current, command, now);
                 else {
                     requireUsableAllocation(allocation, current, now, lifecycleExtension);
@@ -405,6 +415,7 @@ class AdmissionStore {
                 persistAuthorization(refresh.build(allocation, now), current, command, fingerprint, now);
                 if (reviewedReapply) {
                     review("REAPPLY_PROOF", fingerprint, evidence, actor, now);
+                    if (verificationReapply) return allocation;
                     // Planning must not replace the still-active release's manifest or readback.
                     return save(allocation, new Mutation(allocation), "ALLOCATION_REAPPLY_PLANNED", actor, now);
                 }
@@ -447,22 +458,24 @@ class AdmissionStore {
         }
         requireEffectivePolicy(allocation, current);
         AdmissionContext previous = context(allocation);
-        requireUsableAllocation(allocation, previous, now);
-        if (allocation.state() != State.ACTIVE || allocation.failureCode() != null || allocation.retirementOperationId() != null
+        boolean verificationReapply = allocation.state() == State.OUTCOME_UNKNOWN;
+        if (verificationReapply) requireVerificationReapply(allocation, current, command, now);
+        else requireUsableAllocation(allocation, previous, now);
+        if ((!verificationReapply && allocation.state() != State.ACTIVE) || allocation.failureCode() != null || allocation.retirementOperationId() != null
             || allocation.drainDeadline() != null || allocation.recoveryUntil() != null) {
             throw new AdmissionFailure(CONFLICT, "ALLOCATION_REAPPLY_REQUIRES_IDLE_ACTIVE");
         }
-        if (previous.manifest().versionId().equals(current.manifest().versionId())
+        if ((!verificationReapply && previous.manifest().versionId().equals(current.manifest().versionId()))
             || !previous.manifest().topologyReference().equals(current.manifest().topologyReference())) {
             throw new AdmissionFailure(CONFLICT, "ALLOCATION_REAPPLY_REQUIRES_NEW_REVIEWED_VERSION");
         }
         // Reapply reuses the held envelope, never credits old resources or silently resizes a live allocation.
         within(current.manifest().demand(), allocation.demand(), "ALLOCATION_REAPPLY_CAPACITY_REVIEW_REQUIRED");
-        requireApplyIdle(allocation, command);
+        requireApplyIdle(allocation, command, verificationReapply);
         String releaseId = currentReleaseId(allocation);
         if (releaseId == null) throw new AdmissionFailure(CONFLICT, "ALLOCATION_REAPPLY_ACTIVE_RELEASE_REQUIRED");
         jdbc.queryForObject("SELECT release_id FROM deployment_admission_release_bindings WHERE release_id=? FOR UPDATE", String.class, releaseId);
-        activeCustomerReleaseReservation(allocation.customerId(), allocation.tenantId(), allocation.deploymentId(), releaseId);
+        currentCustomerReleaseReservation(allocation.customerId(), allocation.tenantId(), allocation.deploymentId(), releaseId, verificationReapply);
         var binding = releaseBinding(releaseId);
         var admitted = authorizationRows(allocation.customerId(), allocation.deploymentId(), allocation.targetProfileId(),
             binding.authorizationKey()).getFirst().command().customerContext();
@@ -486,6 +499,9 @@ class AdmissionStore {
     }
 
     private void requireApplyIdle(Reservation allocation, Reserve command) {
+        requireApplyIdle(allocation, command, false);
+    }
+    private void requireApplyIdle(Reservation allocation, Reserve command, boolean verificationReapply) {
         if (command.customerContext() == null || !applyOperation(command.customerContext().operation())) return;
         Long pending = jdbc.queryForObject("""
             SELECT COUNT(*) FROM deployment_admission_authorizations a
@@ -497,9 +513,21 @@ class AdmissionStore {
             reviewed("MANIFEST", command.manifestId(), Manifest.class).versionId(), command.operationKey());
         if (pending == null || pending > 0) throw new AdmissionFailure(CONFLICT, "ALLOCATION_APPLY_ALREADY_AUTHORIZED");
         String releaseId = currentReleaseId(allocation);
-        if (releaseId != null && !"ACTIVE".equals(releaseBinding(releaseId).state())) {
+        if (releaseId != null && !"ACTIVE".equals(releaseBinding(releaseId).state())
+            && !(verificationReapply && "OUTCOME_UNKNOWN".equals(releaseBinding(releaseId).state()))) {
             throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_ALREADY_IN_PROGRESS");
         }
+    }
+
+    private ProvisionedVerificationReapplyEvidence verificationReapplyEvidence() {
+        return new ProvisionedVerificationReapplyEvidence(jdbc, json);
+    }
+
+    private void requireVerificationReapply(Reservation allocation, AdmissionContext candidate, Reserve command, Instant now) {
+        String key = commandFingerprint(candidate.customerId(), candidate.tenantId(), candidate.deploymentId(), candidate.manifest(), command);
+        var proof = verifiedReview("VFY_REAPPLY", key, ProvisionedVerificationReapplyEvidence.Proof.class);
+        verificationReapplyEvidence().validate(allocation, releaseBinding(currentReleaseId(allocation)),
+            reviewed("MANIFEST", allocation.manifestId(), Manifest.class), proof, candidate.policy(), now);
     }
 
     private void requireUsableAllocation(Reservation reservation, AdmissionContext current, Instant now) {
@@ -783,6 +811,7 @@ class AdmissionStore {
         Mutation projection = new Mutation(allocation);
         projection.manifestId = candidate.manifest().id(); projection.manifestFingerprint = candidate.manifestFingerprint();
         projection.bindingFingerprint = candidate.manifest().bindingFingerprint(); projection.prerequisiteReadback = proof;
+        if (allocation.state() == State.OUTCOME_UNKNOWN) projection.state = State.ACTIVE;
         return projection.build(allocation, now, allocation.revision());
     }
     private void validateCustomerScope(AdmissionContext current, Reserve command) {
@@ -936,9 +965,14 @@ class AdmissionStore {
     }
 
     Reservation activeCustomerReleaseReservation(String customerId, String tenantId, String deploymentId, String releaseId) {
+        return currentCustomerReleaseReservation(customerId, tenantId, deploymentId, releaseId, false);
+    }
+    private Reservation currentCustomerReleaseReservation(String customerId, String tenantId, String deploymentId,
+                                                          String releaseId, boolean verificationReapply) {
         ReleaseBinding binding = releaseBinding(releaseId);
         if (binding == null || !customerId.equals(binding.customerId()) || !tenantId.equals(binding.tenantId())
-            || !deploymentId.equals(binding.deploymentId()) || !"ACTIVE".equals(binding.state())) {
+            || !deploymentId.equals(binding.deploymentId())
+            || !(verificationReapply ? "OUTCOME_UNKNOWN" : "ACTIVE").equals(binding.state())) {
             throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVE_RELEASE_ALLOCATION_REQUIRED");
         }
         Reservation reservation = require(binding.reservationId());
@@ -961,7 +995,8 @@ class AdmissionStore {
             || !receipt.requestFingerprint().equals(commandFingerprint(customerId, tenantId, deploymentId, manifest, command))
             || !customerId.equals(scope.customerId()) || !tenantId.equals(scope.tenantId())
             || !deploymentId.equals(scope.deploymentId()) || !binding.targetProfileId().equals(scope.targetProfileId())
-            || !binding.authorizationKey().equals(scope.operationKey()) || reservation.state() != State.ACTIVE
+            || !binding.authorizationKey().equals(scope.operationKey())
+            || reservation.state() != (verificationReapply ? State.OUTCOME_UNKNOWN : State.ACTIVE)
             || reservation.expiryState() != ExpiryState.CURRENT || !reservation.expiresAt().isAfter(clock.instant())
             || reservation.workerToken() != null || reservation.failureCode() != null) {
             throw new AdmissionFailure(PRECONDITION_FAILED, "ACTIVE_RELEASE_ALLOCATION_INVALID");
@@ -1002,7 +1037,9 @@ class AdmissionStore {
         requireCustomerAuthorization(authorized, effectiveCustomerContext(authorized, receipt));
         if (initialEvidenceRenewal(authorized, receipt) != null) prerequisites(current, authorized.prerequisiteReadback(), clock.instant());
         String currentRelease = currentReleaseId(allocation);
-        if (currentRelease != null && !"ACTIVE".equals(releaseBinding(currentRelease).state())) {
+        boolean verificationReapply = allocation.state() == State.OUTCOME_UNKNOWN
+            && !allocation.manifestFingerprint().equals(authorized.manifestFingerprint());
+        if (currentRelease != null && !"ACTIVE".equals(releaseBinding(currentRelease).state()) && !verificationReapply) {
             throw new AdmissionFailure(CONFLICT, "ALLOCATION_RELEASE_ALREADY_IN_PROGRESS");
         }
         if (!version.getId().equals(current.manifest().versionId()) || !version.getConfigHash().equals(current.manifest().versionConfigHash())) {
@@ -1012,6 +1049,10 @@ class AdmissionStore {
             Mutation committed = new Mutation(allocation);
             committed.manifestId = authorized.manifestId(); committed.manifestFingerprint = authorized.manifestFingerprint();
             committed.bindingFingerprint = authorized.bindingFingerprint(); committed.prerequisiteReadback = authorized.prerequisiteReadback();
+            if (verificationReapply) {
+                committed.state = State.PROVISIONING;
+                releaseBindingState(currentRelease, "SUPERSEDED");
+            }
             allocation = save(allocation, committed, "ALLOCATION_REVIEWED_VERSION_COMMITTED", "system:admission-apply", clock.instant());
         }
         jdbc.update("""

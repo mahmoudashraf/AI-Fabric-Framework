@@ -23,6 +23,8 @@ test('reviewed new versions may replace a settled release but not duplicate or i
     assert.equal(canApplyReviewedVersion('version-one', { ...release, status }), true)
   }
   assert.equal(canApplyReviewedVersion('version-two', { ...release, verificationStatus: 'FAILED' }), false)
+  assert.equal(canApplyReviewedVersion('version-one', { ...release, status: 'APPLIED_VERIFICATION_FAILED', verificationStatus: 'FAILED' }), true)
+  assert.equal(canApplyReviewedVersion('version-one', { ...release, status: 'APPLIED_VERIFICATION_FAILED', provisioningStatus: 'RUNNING' }), false)
 })
 
 function fixture() {

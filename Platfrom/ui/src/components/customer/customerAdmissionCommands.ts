@@ -7,6 +7,7 @@ import type {
 export function canApplyReviewedVersion(versionId: string | null | undefined, release: DeploymentReleaseSummary | null) {
   if (!versionId) return false
   if (!release || ['FAILED', 'PRE_APPLY_BLOCKED'].includes(release.status)) return true
+  if (release.status === 'APPLIED_VERIFICATION_FAILED' && release.provisioningStatus === 'ACTIVE') return true
   return release.status === 'APPLIED_VERIFIED' && release.verificationStatus === 'PASSED'
     && release.provisioningStatus === 'ACTIVE' && release.deploymentVersionId !== versionId
 }

@@ -521,6 +521,105 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(count("provider_usage_allocations")).isZero();
     }
 
+    @Test void verificationFailureCanReviewCorrectedBindingWithoutSettlingOrRewritingFailedRelease() {
+        var held = provisionedVerificationFailure();
+        var failedBefore = jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id='failed-release'");
+        String grantsBefore = rows("provider_usage_grants"), fundingBefore = rows("provider_usage_allowance_events");
+        var candidate = correctedDocumentManifest();
+        var command = new Reserve("correct-source-apply", candidate.manifest().id(), scope("correct-source-apply"), held.id());
+        var reviewed = store.reserve(candidate, command, evidence(candidate, NOW), "owner", NOW,
+            () -> { }, verificationReapplyReadback(held, NOW));
+        assertThat(reviewed).isEqualTo(held);
+        assertThat(store.require(held.id()).state()).isEqualTo(State.OUTCOME_UNKNOWN);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("OUTCOME_UNKNOWN");
+        store.requireCustomerAuthorization(reviewed, command.customerContext());
+        assertThatThrownBy(() -> store.activeCustomerReleaseReservation("customer", "tenant", "deployment", "failed-release"))
+            .hasMessageContaining("ACTIVE_RELEASE_ALLOCATION_REQUIRED");
+        assertThat(store.reserve(candidate, command, evidence(candidate, NOW), "owner", NOW)).isEqualTo(held);
+
+        bind("corrected-release");
+        var replacement = store.require(held.id());
+        assertThat(replacement.state()).isEqualTo(State.PROVISIONING);
+        assertThat(replacement.manifestId()).isEqualTo(candidate.manifest().id());
+        assertThat(replacement.id()).isEqualTo(held.id());
+        assertThat(replacement.generation()).isEqualTo(held.generation());
+        assertThat(replacement.expiresAt()).isEqualTo(held.expiresAt());
+        assertThat(replacement.chargedDemand()).isEqualTo(held.chargedDemand());
+        assertThat(store.held()).containsExactly(replacement);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("SUPERSEDED");
+        assertThat(store.releaseBinding("corrected-release").state()).isEqualTo("QUEUED");
+        assertThat(jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id='failed-release'")).isEqualTo(failedBefore);
+        assertThat(rows("provider_usage_grants")).isEqualTo(grantsBefore);
+        assertThat(rows("provider_usage_allowance_events")).isEqualTo(fundingBefore);
+        coordinator().observe("failed-release");
+        assertThat(store.require(held.id())).isEqualTo(replacement);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing", "stale", "assigned", "nonterminal", "not-provisioned", "foreign-target", "wrong-fence", "worker"})
+    void verificationReapplyRequiresFreshUnassignedExactProvisionedResources(String invalid) {
+        var held = provisionedVerificationFailure();
+        var candidate = correctedDocumentManifest();
+        ResourceReadback readback = verificationReapplyReadback(held, "stale".equals(invalid) ? NOW.minusSeconds(120) : NOW);
+        switch (invalid) {
+            case "missing" -> readback = null;
+            case "assigned" -> {
+                jdbc.update("INSERT INTO platform_consumers(id,consumer_id,customer_id,display_name,status,binding_revision,row_version,bound_deployment_id,bound_target_profile_id,bound_release_id,created_at,updated_at) VALUES ('bound-consumer','bound','customer','Bound','ACTIVE',0,0,'deployment',?,'failed-release',?,?)", TARGET, Timestamp.from(NOW), Timestamp.from(NOW));
+            }
+            case "nonterminal" -> jdbc.update("UPDATE platform_deployment_releases SET status='VERIFYING' WHERE id='failed-release'");
+            case "not-provisioned" -> jdbc.update("UPDATE platform_deployment_releases SET provisioning_status='FAILED' WHERE id='failed-release'");
+            case "foreign-target" -> jdbc.update("UPDATE platform_deployment_releases SET target_profile_id='foreign' WHERE id='failed-release'");
+            case "wrong-fence" -> readback = new ResourceReadback(held.id(), "foreign-generation", held.revision(), null,
+                held.manifestFingerprint(), held.bindingFingerprint(), STAGING, NOW, "foreign-native-proof", true, true, false,
+                false, false, false, 0, null, null, null, null);
+            case "worker" -> {
+                var payload = mapper.valueToTree(held);
+                ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("workerToken", "claimed-worker");
+                jdbc.update("UPDATE deployment_capacity_reservations SET payload_json=? WHERE id=?", json.write(payload), held.id());
+            }
+        }
+        var before = allRelevant();
+        ResourceReadback supplied = readback;
+        assertThatThrownBy(() -> store.reserve(candidate,
+            new Reserve("invalid-source-reapply", candidate.manifest().id(), scope("invalid-source-reapply"), held.id()),
+            evidence(candidate, NOW), "owner", NOW, () -> { }, supplied)).isInstanceOf(RuntimeException.class);
+        assertThat(allRelevant()).isEqualTo(before);
+    }
+
+    @Test void verificationReapplyRejectsTerminalEvidenceDriftBeforeBindingTheNewRelease() {
+        var held = provisionedVerificationFailure();
+        var candidate = correctedDocumentManifest();
+        var command = new Reserve("correct-source-apply", candidate.manifest().id(), scope("correct-source-apply"), held.id());
+        store.reserve(candidate, command, evidence(candidate, NOW), "owner", NOW,
+            () -> { }, verificationReapplyReadback(held, NOW));
+        jdbc.update("UPDATE platform_deployment_releases SET verification_status='PASSED' WHERE id='failed-release'");
+        assertThatThrownBy(() -> bind("corrected-release")).isInstanceOf(AdmissionFailure.class);
+        assertThat(store.require(held.id())).isEqualTo(held);
+        assertThat(store.releaseBinding("failed-release").state()).isEqualTo("OUTCOME_UNKNOWN");
+        assertThat(store.releaseBinding("corrected-release")).isNull();
+    }
+
+    private Reservation provisionedVerificationFailure() {
+        var held = store.require(original.id());
+        jdbc.update("UPDATE deployment_admission_release_bindings SET state='OUTCOME_UNKNOWN' WHERE release_id='failed-release'");
+        jdbc.update("UPDATE platform_deployment_releases SET status='APPLIED_VERIFICATION_FAILED',provisioning_status='ACTIVE',verification_status='FAILED',provider_resource_handle_id='runtime-handle',runtime_authority_fingerprint=? WHERE id='failed-release'", "a".repeat(64));
+        return store.outcome(held.fence(), State.OUTCOME_UNKNOWN, "post-apply-verification-failed", "worker", NOW);
+    }
+
+    private AdmissionContext correctedDocumentManifest() {
+        var prior = store.reviewed("MANIFEST", "manifest", Manifest.class);
+        var refs = new HashSet<>(prior.prerequisiteReferences()); refs.add("document-binding:corrected-revision");
+        store.approveManifest(new Manifest("corrected-source-manifest", prior.deploymentId(), prior.versionId(), prior.versionConfigHash(),
+            prior.targetProfileId(), prior.bindingFingerprint(), prior.topologyReference(), prior.demand(), refs,
+            prior.customerPrerequisiteReferences()), "staff", NOW);
+        return store.context(store.require(original.id()), "corrected-source-manifest");
+    }
+
+    private ResourceReadback verificationReapplyReadback(Reservation held, java.time.Instant observedAt) {
+        return new ResourceReadback(held.id(), held.generation(), held.revision(), null, held.manifestFingerprint(),
+            held.bindingFingerprint(), STAGING, observedAt, "exact-native-running-evidence", true, true, false,
+            false, false, false, 0, null, null, null, null);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"other-error", "native-step", "native-handle", "release-owned-handle", "graph", "allocation", "nonterminal", "activity", "retirement", "foreign-target"})
     void allowanceRecoveryRejectsUnprovenOrScopedEffectsWithoutWrites(String change) {
