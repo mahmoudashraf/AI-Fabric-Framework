@@ -1,0 +1,91 @@
+{
+  "scope": "OFFLINE_DESIGN_PREVIEW_NOT_LIVE_ACCEPTANCE",
+  "status": "PASS",
+  "pages": [
+    {
+      "page": "home",
+      "desktop": "PASS",
+      "screenshot": "screenshots/home-operating.png",
+      "inspector": null,
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "deployments",
+      "desktop": "PASS",
+      "screenshot": "screenshots/deployments-inspector.png",
+      "inspector": "runtime",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "apps",
+      "desktop": "PASS",
+      "screenshot": "screenshots/engage-app-inspector.png",
+      "inspector": "app",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "knowledge",
+      "desktop": "PASS",
+      "screenshot": "screenshots/knowledge-inspector.png",
+      "inspector": "delivery",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "connections",
+      "desktop": "PASS",
+      "screenshot": "screenshots/connections-inspector.png",
+      "inspector": "provider",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "support",
+      "desktop": "PASS",
+      "screenshot": "screenshots/human-support-inspector.png",
+      "inspector": "conversation",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "reviews",
+      "desktop": "PASS",
+      "screenshot": "screenshots/action-review-inspector.png",
+      "inspector": "review",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "behaviors",
+      "desktop": "PASS",
+      "screenshot": "screenshots/behaviours-inspector.png",
+      "inspector": "brain",
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "activity",
+      "desktop": "PASS",
+      "screenshot": "screenshots/activity-alerts.png",
+      "inspector": null,
+      "basicMobile": "PASS"
+    },
+    {
+      "page": "team",
+      "desktop": "PASS",
+      "screenshot": "screenshots/account-team.png",
+      "inspector": null,
+      "basicMobile": "PASS"
+    }
+  ],
+  "checks": [
+    "Handover contact configuration, approved behaviour plan and explicit action-decision preview are represented separately.",
+    "First setup has four navigation items and a three-step creation preview; Escape closes dialog.",
+    "Production promotion keeps a failed prerequisite blocking activation; no simulated success bypass.",
+    "App warning, configuration tab, local-only save, expanded inspector, Escape and search work.",
+    "Target and resource survive reload, closing and browser Back without selecting another environment.",
+    "Disabled review capability is absent from navigation and has an honest direct-link state.",
+    "Compact laptop1280x800 resource/inspector layout fits.",
+    "Basic mobile390px navigation and full-width inspector work; all ten page widths fit. No full mobile/accessibility certification.",
+    "All ten desktop layouts also fit dark mode; choice survives navigation. Three dark screenshots exported.",
+    "26 gallery screenshots load from disk without external requests."
+  ],
+  "errors": [],
+  "networkRequests": [],
+  "finishedAt": "2026-10-23T12:24:20.782Z"
+}

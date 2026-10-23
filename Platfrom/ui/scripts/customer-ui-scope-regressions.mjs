@@ -67,7 +67,7 @@ const release = (deploymentId, targetProfileId, suffix) => ({
 })
 const releases = id => [release(id, 'staging', 's1'), release(id, 'staging', 's2'), release(id, 'production', 'p1')]
 
-async function fixture({ initial = 'deployments?deploymentId=deployment-b', preferred = 'deployment-a', placementBlocker = null,
+async function fixture({ initial = 'deployments?view=manage&deploymentId=deployment-b', preferred = 'deployment-a', placementBlocker = null,
   failSelectionSave = false } = {}) {
   const context = await browser.newContext()
   const page = await context.newPage()
@@ -107,6 +107,7 @@ async function fixture({ initial = 'deployments?deploymentId=deployment-b', pref
     }
     if (path === '/api/customer-self-service/invitations') return json(route, [])
     if (path === '/api/platform/customers/customer-one/consumers') return json(route, [])
+    if (path === '/api/platform/customers/customer-one/ai-workspace-installations') return json(route, [])
     if (path === '/api/customer-self-service/deployments') return json(route, deployments)
     if (path === '/api/customer-self-service/catalogue') {
       catalogueReads += 1
@@ -237,21 +238,21 @@ try {
     const { page } = navigation
     await selectedConsole(page, 'b')
     await page.waitForFunction(() => document.querySelector('a[href="/integrations?deploymentId=deployment-b"]'))
-    const sidebar = page.getByRole('list').first()
-    assert.equal(await sidebar.getByRole('link', { name: 'Knowledge', exact: true }).getAttribute('href'), '/document-knowledge?deploymentId=deployment-b')
-    assert.equal(await sidebar.getByRole('link', { name: 'Inbox & Integrations', exact: true }).getAttribute('href'), '/integrations?deploymentId=deployment-b')
+    const sidebar = page.getByRole('navigation', { name: 'Customer navigation' })
+    assert.equal(await sidebar.getByRole('link', { name: 'Knowledge & data', exact: true }).getAttribute('href'), '/document-knowledge?deploymentId=deployment-b')
+    assert.equal(await sidebar.getByRole('link', { name: 'Connections', exact: true }).getAttribute('href'), '/integrations?deploymentId=deployment-b')
     await page.getByRole('heading', { name: 'Workspace A', exact: true, level: 6 }).locator('..').locator('..').locator('..')
       .getByRole('button', { name: 'Manage deployment' }).click()
     await selectedConsole(page, 'a')
-    assert.equal(await sidebar.getByRole('link', { name: 'Knowledge', exact: true }).getAttribute('href'), '/document-knowledge?deploymentId=deployment-a')
+    assert.equal(await sidebar.getByRole('link', { name: 'Knowledge & data', exact: true }).getAttribute('href'), '/document-knowledge?deploymentId=deployment-a')
     await page.goBack()
     await selectedConsole(page, 'b')
     await page.goForward()
     await selectedConsole(page, 'a')
     await page.reload({ waitUntil: 'networkidle' })
     await selectedConsole(page, 'a')
-    await page.getByRole('list').first().getByRole('link', { name: 'Inbox & Integrations', exact: true }).click()
-    await page.getByRole('heading', { name: 'External integrations', exact: true }).waitFor()
+    await sidebar.getByRole('link', { name: 'Connections', exact: true }).click()
+    await page.getByRole('heading', { name: 'Connections', exact: true }).waitFor()
     await page.goBack()
     await selectedConsole(page, 'a')
     assert.ok(navigation.calls.some(call => call.path === '/api/platform/preferences' && call.method === 'PUT'
@@ -260,7 +261,7 @@ try {
     console.log('Passed: deep link, shared sidebar, selection persistence, reload, Back/Forward and return navigation')
   } finally { await navigation.close() }
 
-  const preferred = await fixture({ initial: 'deployments', preferred: 'deployment-b' })
+  const preferred = await fixture({ initial: 'deployments?view=manage', preferred: 'deployment-b' })
   try { await selectedConsole(preferred.page, 'b'); passed += 1; console.log('Passed: saved workspace preference seeds a missing URL selection') }
   finally { await preferred.close() }
 
@@ -276,7 +277,7 @@ try {
     console.log('Passed: selection persistence failure is visible and retryable without changing resource scope')
   } finally { await retrySelection.close() }
 
-  const missing = await fixture({ initial: 'deployments?deploymentId=foreign-or-missing' })
+  const missing = await fixture({ initial: 'deployments?view=manage&deploymentId=foreign-or-missing' })
   try {
     await missing.page.getByText(/requested deployment is unavailable/).waitFor()
     assert.equal(await missing.page.getByRole('heading', { level: 5 }).count(), 0)
@@ -305,7 +306,7 @@ try {
   }
 
   for (const change of ['release', 'target', 'deployment', 'actor']) {
-    const current = await fixture({ initial: 'integrations?deploymentId=deployment-a' })
+    const current = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a' })
     try {
       const { page } = current
       await selectRelease(page, 'deployment-a-s1')
@@ -314,7 +315,7 @@ try {
       assert.deepEqual(current.errors, [], 'No render or API error may accompany credential delivery')
       if (change === 'release' || change === 'target') await selectRelease(page, change === 'release' ? 'deployment-a-s2' : 'deployment-a-p1')
       else if (change === 'deployment') {
-        await spaNavigate(page, '/integrations?deploymentId=deployment-b')
+        await spaNavigate(page, '/integrations?view=manage&deploymentId=deployment-b')
         await selectRelease(page, 'deployment-b-s1')
       } else {
         current.setActor('owner-two')
@@ -329,7 +330,7 @@ try {
   }
 
   for (const change of ['release', 'target', 'deployment', 'actor', 'round-trip']) {
-    const current = await fixture({ initial: 'integrations?deploymentId=deployment-a' })
+    const current = await fixture({ initial: 'integrations?view=manage&deploymentId=deployment-a' })
     try {
       const { page } = current
       await selectRelease(page, 'deployment-a-s1')
@@ -338,7 +339,7 @@ try {
       await current.deliveryRequested
       assert.equal(current.pending.length, 1, 'The response must still be pending at scope transition')
       if (change === 'deployment') {
-        await spaNavigate(page, '/integrations?deploymentId=deployment-b')
+        await spaNavigate(page, '/integrations?view=manage&deploymentId=deployment-b')
         await selectRelease(page, 'deployment-b-s1')
       } else if (change === 'actor') {
         current.setActor('owner-two')

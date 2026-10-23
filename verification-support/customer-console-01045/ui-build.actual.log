@@ -1,0 +1,18 @@
+
+> ai-enablement-platform-ui@0.1.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+<script src="/runtime-config.js"> in "/index.html" can't be bundled without type="module" attribute
+transforming...
+✓ 1172 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                    0.38 kB │ gzip:   0.26 kB
+dist/assets/index-B2LklhXP.js  2,132.10 kB │ gzip: 536.59 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 11.29s

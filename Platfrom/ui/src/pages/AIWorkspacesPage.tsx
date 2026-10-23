@@ -54,6 +54,7 @@ import {
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { resolveReviewedWorkspaceProfiles, reviewedWorkspaceRequest } from './aiWorkspaceReviewedProfiles'
+import { CustomerAdvancedSection, CustomerEditorDepthSwitch, CustomerEditorNotices, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 
 type FormState = {
   packCode: string
@@ -127,10 +128,12 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage() {
+export function AIWorkspacesPage({ initialInstallationId }: { initialInstallationId?: string } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const customerScopeLocked = auth.session?.role === 'CUSTOMER_ADMIN'
+  const detailSection = useCustomerEditorSection()
+  const focused = Boolean(initialInstallationId && customerScopeLocked && detailSection)
   const [customerId, setCustomerId] = useState(() => customerScopeLocked ? (auth.session?.customerId ?? '') : '')
   const [selected, setSelected] = useState<AIWorkspaceInstallationSummary | null>(null)
   const [editing, setEditing] = useState<AIWorkspaceInstallationSummary | 'new' | null>(null)
@@ -138,6 +141,9 @@ export function AIWorkspacesPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [reviewedProfileId, setReviewedProfileId] = useState('')
   const [configurationError, setConfigurationError] = useState<string | null>(null)
+  const [pendingDestructive, setPendingDestructive] = useState<{ command: 'disable' | 'delete'; installation: AIWorkspaceInstallationSummary; actorId: string | null | undefined } | null>(null)
+  const initialSelection = useRef('')
+  const [selectionError, setSelectionError] = useState<string | null>(null)
   const saveCommand = useRef<{ identity: string; key: string } | null>(null)
 
   const customersQuery = useQuery({ queryKey: ['platform-customers'], queryFn: fetchPlatformCustomers })
@@ -161,6 +167,16 @@ export function AIWorkspacesPage() {
   const customers = customersQuery.data ?? []
   const customer = customers.find((item) => item.id === customerId) ?? null
   const installations = installationsQuery.data ?? []
+  useEffect(() => {
+    if (!initialInstallationId || !installationsQuery.isSuccess) return
+    const scope = JSON.stringify([customerId, initialInstallationId])
+    if (initialSelection.current === scope) return
+    initialSelection.current = scope
+    const requested = installations.find(item => item.installationId === initialInstallationId
+      && item.customerId === customerId)
+    setSelected(requested ?? null)
+    setSelectionError(requested ? null : 'The requested app is not available in this customer account. No other app was selected.')
+  }, [customerId, initialInstallationId, installations, installationsQuery.isSuccess])
   const catalog = catalogQuery.data
   const compatibleProfiles = useMemo(
     () => (catalog?.connectionProfiles ?? []).filter((profile) => profile.mode === form.connectionMode),
@@ -428,6 +444,22 @@ export function AIWorkspacesPage() {
   }
 
   const operationError = saveMutation.error || activateMutation.error || disableMutation.error || deleteMutation.error
+  const requestDestructive = (command: 'disable' | 'delete', installation: AIWorkspaceInstallationSummary) => {
+    if (customerScopeLocked) setPendingDestructive({ command, installation, actorId: auth.session?.actorId })
+    else if (command === 'disable') disableMutation.mutate({ installation, operationKey: crypto.randomUUID() })
+    else deleteMutation.mutate({ installation, operationKey: crypto.randomUUID() })
+  }
+  const pendingInstallation = installations.find(item => item.installationId === pendingDestructive?.installation.installationId
+    && item.customerId === customerId && item.rowVersion === pendingDestructive.installation.rowVersion
+    && item.status === pendingDestructive.installation.status)
+  const pendingCurrent = Boolean(pendingInstallation && pendingDestructive?.actorId === auth.session?.actorId)
+  const installationActions = (installation: AIWorkspaceInstallationSummary) => <>
+    <Tooltip title="Edit"><span><IconButton aria-label="Edit app" size="small" disabled={installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
+    {installation.status === 'ACTIVE' ? (
+      detailSection !== 'configuration' ? <Tooltip title="Disable"><IconButton aria-label="Disable app" size="small" onClick={() => requestDestructive('disable', installation)}><PauseCircleOutlineRoundedIcon /></IconButton></Tooltip> : null
+    ) : <Tooltip title="Activate"><span><IconButton aria-label="Activate app" size="small" disabled={!installation.ready} onClick={() => activateMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>}
+    {installation.status === 'DRAFT' && detailSection !== 'configuration' ? <Tooltip title="Delete draft"><IconButton aria-label="Delete draft app" size="small" color="error" onClick={() => requestDestructive('delete', installation)}><DeleteOutlineRoundedIcon /></IconButton></Tooltip> : null}
+  </>
 
   return (
     <Stack spacing={3}>
@@ -453,17 +485,20 @@ export function AIWorkspacesPage() {
               {customers.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
             </TextField>
           )}
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!customer || !catalog?.assetsReady}>
+          {!focused ? <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!customer || !catalog?.assetsReady}>
             Create AI App
-          </Button>
+          </Button> : null}
         </Stack>
       </Stack>
 
       {notice && <Alert severity="success" onClose={() => setNotice(null)}>{notice}</Alert>}
+      {initialInstallationId && selectionError ? <Alert severity="error">{selectionError}</Alert> : null}
+      {initialInstallationId && installationsQuery.isError ? <Alert severity="error">{errorText(installationsQuery.error)}</Alert> : null}
       {operationError && <Alert severity="error">{errorText(operationError)}</Alert>}
       {catalog && !catalog.assetsReady && <Alert severity="warning">Workspace assets are not release-ready: {catalog.assetStatus}</Alert>}
 
-      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}>
+      {focused && selected ? <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}><Typography fontWeight={600}>{selected.displayName}</Typography><Box>{installationActions(selected)}</Box></Stack> : null}
+      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, display: focused ? 'none' : undefined }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -513,19 +548,11 @@ export function AIWorkspacesPage() {
                 </TableCell>
                 <TableCell>{installation.allowedOrigins.length}</TableCell>
                 <TableCell align="right" onClick={(event) => event.stopPropagation()}>
-                  <Tooltip title="Edit"><span><IconButton size="small" disabled={installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
-                  {installation.status === 'ACTIVE' ? (
-                    <Tooltip title="Disable"><IconButton size="small" onClick={() => disableMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PauseCircleOutlineRoundedIcon /></IconButton></Tooltip>
-                  ) : (
-                    <Tooltip title="Activate"><span><IconButton size="small" disabled={!installation.ready} onClick={() => activateMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><PlayCircleOutlineRoundedIcon /></IconButton></span></Tooltip>
-                  )}
-                  {installation.status === 'DRAFT' && (
-                    <Tooltip title="Delete draft"><IconButton size="small" color="error" onClick={() => deleteMutation.mutate({ installation, operationKey: crypto.randomUUID() })}><DeleteOutlineRoundedIcon /></IconButton></Tooltip>
-                  )}
+                  {installationActions(installation)}
                 </TableCell>
               </TableRow>
             ))}
-            {!installationsQuery.isLoading && installations.length === 0 && (
+            {!installationsQuery.isLoading && installations.length === 0 && (!initialInstallationId || installationsQuery.isSuccess) && (
               <TableRow><TableCell colSpan={8}><Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No AI Workspace installations for this customer.</Typography></TableCell></TableRow>
             )}
           </TableBody>
@@ -537,6 +564,8 @@ export function AIWorkspacesPage() {
       <Dialog open={editing != null} onClose={() => setEditing(null)} maxWidth="md" fullWidth>
         <DialogTitle>{editing === 'new' ? 'Create AI App' : 'Edit AI App'}</DialogTitle>
         <DialogContent dividers>
+          <CustomerEditorNotices />
+          <CustomerEditorDepthSwitch label="App configuration depth" />
           <Stack spacing={2.5}>
             <Alert severity="info">
               The installation ID is a public locator. Provider credentials, private assertions and runtime keys remain server-side.
@@ -582,6 +611,11 @@ export function AIWorkspacesPage() {
                     <Tooltip title={reviewedProfile.themeProfileId}><Chip label="Reviewed theme" variant="outlined" /></Tooltip>
                   </Stack>
                 ) : null}
+                {reviewedProfile ? <CustomerAdvancedSection><Stack spacing={0.5}>
+                  <Typography variant="caption" color="text.secondary">Interaction profile: {reviewedProfile.interactionProfileId}</Typography>
+                  <Typography variant="caption" color="text.secondary">Authentication profile: {reviewedProfile.authProfileId}</Typography>
+                  <Typography variant="caption" color="text.secondary">Theme profile: {reviewedProfile.themeProfileId}</Typography>
+                </Stack></CustomerAdvancedSection> : null}
               </Stack>
             ) : null}
             {!customerScopeLocked ? (
@@ -714,11 +748,22 @@ export function AIWorkspacesPage() {
                   || (!form.supabaseEmailPassword && !form.supabaseMagicLink))))}>Save draft</Button>
         </DialogActions>
       </Dialog>
+      {customerScopeLocked ? <Dialog open={Boolean(pendingDestructive)} onClose={() => setPendingDestructive(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{pendingDestructive?.command === 'delete' ? 'Delete draft app?' : 'Disable app?'}</DialogTitle>
+        <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? 'This removes the selected draft installation. It does not delete its deployment or customer data.' : 'This disables the selected app installation. It does not stop or delete its deployment.'}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
+        <DialogActions><Button onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={!pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
+          if (!pendingCurrent || !pendingInstallation || !pendingDestructive) return
+          if (pendingDestructive.command === 'delete') deleteMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })
+          else disableMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })
+          setPendingDestructive(null)
+        }}>Confirm</Button></DialogActions>
+      </Dialog> : null}
     </Stack>
   )
 }
 
 function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void> }) {
+  const customerView = usePlatformAuth().session?.role === 'CUSTOMER_ADMIN'
   const [copied, setCopied] = useState(false)
   const verifyMutation = useMutation({
     mutationFn: ({ hostname, operationKey }: { hostname: string; operationKey: string }) =>
@@ -731,9 +776,9 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 750 }}>{installation.displayName}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <CustomerAdvancedSection><Typography variant="body2" color="text.secondary">
             Assigned deployment {installation.deploymentId ?? 'unavailable'} · release {installation.releaseId ?? 'unavailable'}
-          </Typography>
+          </Typography></CustomerAdvancedSection>
         </Box>
         <Button startIcon={<RefreshRoundedIcon />} onClick={() => void refresh()}>Refresh readiness</Button>
       </Stack>
@@ -779,7 +824,7 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
             </>
           ) : (
             <>
-              <Box component="pre" sx={{ m: 0, p: 2, bgcolor: 'grey.950', color: 'grey.100', borderRadius: 1, overflowX: 'auto', fontSize: 12 }}>{snippet}</Box>
+              <Box component="pre" sx={{ m: 0, p: 2, bgcolor: customerView ? 'action.hover' : 'grey.950', color: customerView ? 'text.primary' : 'grey.100', borderRadius: 1, overflowX: 'auto', fontSize: 12 }}>{snippet}</Box>
               <Typography variant="caption" color={copied ? 'success.main' : 'text.secondary'}>{copied ? 'Copied.' : 'Use this exact script on an approved origin.'}</Typography>
             </>
           )}
@@ -796,9 +841,9 @@ function WorkspaceDetails({ installation, refresh }: { installation: AIWorkspace
           </Stack>
         </Paper>
       </Stack>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, fontFamily: 'monospace' }}>
+      <CustomerAdvancedSection><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, fontFamily: 'monospace' }}>
         Assignment revision: {installation.assignmentRevision ?? 'unavailable'}
-      </Typography>
+      </Typography></CustomerAdvancedSection>
     </Box>
   )
 }

@@ -2,6 +2,11 @@ import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/ma
 import { usePlatformAuth } from './auth/PlatformAuthProvider'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
+import { CustomerConsoleShell } from './layout/CustomerConsoleShell'
+import { CustomerResourcesPage } from './pages/CustomerResourcesPage'
+import { CustomerKnowledgeConnectionsPage } from './pages/CustomerKnowledgeConnectionsPage'
+import { CustomerActionReviewsPage } from './pages/CustomerActionReviewsPage'
+import { CustomerAccountPage } from './pages/CustomerAccountPage'
 import { ActionsPage } from './pages/ActionsPage'
 import { AIWorkspacesPage } from './pages/AIWorkspacesPage'
 import { BehaviorPage } from './pages/BehaviorPage'
@@ -44,6 +49,7 @@ import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceCont
 export default function App() {
   const auth = usePlatformAuth()
   const customerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
+  const Shell = customerWorkspace ? CustomerConsoleShell : AppShell
 
   if (auth.isLoading) {
     return (
@@ -91,19 +97,23 @@ export default function App() {
   }
 
   return (
-    <DeploymentWorkspaceProvider key={auth.session?.actorId ?? auth.session?.customerId ?? 'platform-operator'}>
-      <AppShell session={auth.session} onSignOut={auth.signOut}>
+    <DeploymentWorkspaceProvider key={customerWorkspace ? `customer:${auth.session?.actorId}:${auth.session?.customerId}` : auth.session?.actorId ?? auth.session?.customerId ?? 'platform-operator'}>
+      <Shell session={auth.session} onSignOut={auth.signOut}>
         <Routes>
-          <Route path="/" element={<Navigate to="/deployments" replace />} />
+          <Route path="/" element={<Navigate to={customerWorkspace ? '/home' : '/deployments'} replace />} />
           {customerWorkspace ? (
             <>
-              <Route path="/deployments" element={<DeploymentsPage />} />
-              <Route path="/ai-workspaces" element={<AIWorkspacesPage />} />
-              <Route path="/document-knowledge" element={<DocumentKnowledgePage />} />
-              <Route path="/integrations" element={<IntegrationsPage />} />
-              <Route path="/human-review" element={<HumanReviewPage />} />
+              <Route path="/home" element={<CustomerResourcesPage mode="home" />} />
+              <Route path="/deployments" element={<CustomerResourcesPage mode="deployments" />} />
+              <Route path="/ai-workspaces" element={<CustomerResourcesPage mode="apps" />} />
+              <Route path="/document-knowledge" element={<CustomerKnowledgeConnectionsPage mode="knowledge" />} />
+              <Route path="/integrations" element={<CustomerKnowledgeConnectionsPage mode="connections" />} />
+              <Route path="/human-support" element={<CustomerKnowledgeConnectionsPage mode="human" />} />
+              <Route path="/human-review" element={<CustomerActionReviewsPage />} />
+              <Route path="/behavior" element={<Alert severity="warning">Behaviour management is not available under the customer console contract. Staff-only configuration is not exposed.</Alert>} />
+              <Route path="/behavior-operations" element={<Alert severity="warning">Behaviour operations are not available under the customer console contract. No staff operation was requested.</Alert>} />
               <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/users" element={<UsersPage />} />
+              <Route path="/users" element={<CustomerAccountPage />} />
               <Route path="*" element={<Navigate to="/deployments" replace />} />
             </>
           ) : (
@@ -147,7 +157,7 @@ export default function App() {
             </>
           )}
         </Routes>
-      </AppShell>
+      </Shell>
     </DeploymentWorkspaceProvider>
   )
 }

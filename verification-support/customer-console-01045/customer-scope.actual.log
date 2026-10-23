@@ -1,0 +1,19 @@
+Passed: retained render handler cannot obtain a newer token (cross-scope)
+Passed: retained render handler cannot obtain a newer token (ABA)
+Passed: retained render handler cannot obtain a newer token (delayed-ABA)
+Passed: deep link, shared sidebar, selection persistence, reload, Back/Forward and return navigation
+Passed: saved workspace preference seeds a missing URL selection
+Passed: selection persistence failure is visible and retryable without changing resource scope
+Passed: explicit unknown deployment does not silently select or operate another resource
+Passed: PLACEMENT_EVIDENCE_REQUIRED can be reverified and refreshed before creation is enabled
+Passed: PLACEMENT_EVIDENCE_STALE can be reverified and refreshed before creation is enabled
+Passed: delivered credential clears on release change
+Passed: delivered credential clears on target change
+Passed: delivered credential clears on deployment change
+Passed: delivered credential clears on actor change
+Passed: delayed completion is discarded after release
+Passed: delayed completion is discarded after target
+Passed: delayed completion is discarded after deployment
+Passed: delayed completion is discarded after actor
+Passed: delayed completion is discarded after round-trip
+Customer UI scope regressions: 18 scenarios passed. Local mocked APIs only.

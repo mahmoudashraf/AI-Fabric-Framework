@@ -36,6 +36,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/behavior': 'Behavior',
   '/behavior-operations': 'Behavior Runs',
   '/human-review': 'Human Review',
+  '/human-support': 'Human support',
   '/activity': 'Activity',
   '/actions': 'Actions',
   '/approvals': 'Approvals',

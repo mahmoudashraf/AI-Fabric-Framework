@@ -1,0 +1,84 @@
+{
+  "status": "PASS",
+  "scope": "U6_ACTUAL_CUSTOMER_RESOURCE_READS_WITH_OFFLINE_TRANSPORT",
+  "checks": [
+    {
+      "product": "dealership",
+      "status": "PASS",
+      "readOnlyMethods": true,
+      "warningsVisible": true,
+      "privateModePreserved": true,
+      "urlReloadBack": true,
+      "basicMobile": true
+    },
+    {
+      "product": "shopify",
+      "status": "PASS",
+      "readOnlyMethods": true,
+      "warningsVisible": true,
+      "privateModePreserved": true,
+      "urlReloadBack": true,
+      "basicMobile": true
+    },
+    {
+      "scenario": "first-setup",
+      "status": "PASS"
+    },
+    {
+      "scenario": "failed-read-not-empty-success",
+      "status": "PASS"
+    },
+    {
+      "scenario": "unknown-resource-no-fallback-or-fetch",
+      "status": "PASS"
+    },
+    {
+      "scenario": "failed-release-not-zero-releases",
+      "status": "PASS"
+    },
+    {
+      "scenario": "exact-release-selection-no-replacement",
+      "status": "PASS"
+    },
+    {
+      "scenario": "shared-editor-exact-selection-theme-back-keep-close",
+      "status": "PASS",
+      "configurationFieldsCopied": false
+    },
+    {
+      "scenario": "knowledge-connections-exact-target-shared-editor-secrets-read-error-and-foreign-scope",
+      "status": "PASS"
+    },
+    {
+      "scenario": "guided-setup-stages-retain-forms-no-commands-blocked-activation-exit-protection",
+      "status": "PASS",
+      "hostedPromotionProof": false
+    },
+    {
+      "scenario": "human-support-installed-only-error-states-review-notice-no-false-success-staff-behaviour-denied",
+      "status": "PASS"
+    },
+    {
+      "scenario": "advanced-dealership-same-account-retained-draft-no-authority-escalation-no-replay",
+      "status": "PASS"
+    },
+    {
+      "scenario": "advanced-shopify-same-account-retained-draft-no-authority-escalation-no-replay",
+      "status": "PASS"
+    },
+    {
+      "scenario": "advanced-documents-connections-retained-inputs-write-only-secrets-scoped-command-denial",
+      "status": "PASS"
+    },
+    {
+      "scenario": "nine-customer-views-two-desktop-sizes-both-themes-long-mobile-resource",
+      "status": "PASS",
+      "screenshots": 37,
+      "formalAccessibilityAudit": false,
+      "hosted": false
+    }
+  ],
+  "errors": [],
+  "escaped": [],
+  "finishedAt": "2026-10-23T16:45:04.474Z"
+}

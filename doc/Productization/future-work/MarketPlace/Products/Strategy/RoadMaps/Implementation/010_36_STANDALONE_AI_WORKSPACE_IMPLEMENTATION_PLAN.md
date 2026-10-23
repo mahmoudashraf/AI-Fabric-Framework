@@ -1,5 +1,14 @@
 # 010.36 LoomAI Engage Standalone App Implementation Plan
 
+Customer UI design amendment, 23 October: the next customer-only visual direction
+is the [010.45 progressive resource console](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI_PLAN.md),
+with Railway/Coolify-inspired resource views, warning-first sliding inspectors
+and progressively disclosed capability pages. Admin/operator layout stays as-is.
+Desktop is first-class; mobile navigation is basic and formal accessibility
+certification is deferred. This is a DESIGN proposal, not another deployed UI.
+It supersedes the earlier AWS-inspired CUSTOMER appearance/acceptance emphasis,
+not the verified backend, shared editor contracts or rollback boundary below.
+
 Current checkpoint, 23 October 04:21 UTC: the basic customer journey AND final
 customer UI are verified live on staging and production. The SAME Engage app
 was promoted from verified staging to independently indexed production on
@@ -1635,6 +1644,11 @@ and idempotency. Preserve shared validation, cache invalidation, unsaved-change
 handling, and errors instead of reimplementing them for customer pages.
 
 ### 10.9 AWS-Inspired Layout And Resource Model
+
+Historical appearance direction: superseded for the next CUSTOMER layout by
+[010.45](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI_PLAN.md). The resource
+ownership, shared React/MUI stack and backend/UI separation remain valid. Staff
+layout is preserved and is not part of this new design proposal.
 
 Use the **AWS Management Console UI layout and Cloudscape design system** as
 inspiration for a quiet, resource-oriented operational console. Borrow the

@@ -82,7 +82,7 @@ function statusChipColor(status: string): 'success' | 'warning' | 'default' {
   return 'default'
 }
 
-export function UsersPage() {
+export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
@@ -291,7 +291,7 @@ export function UsersPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
+      {!embedded ? <Box>
         <Chip label="User Access" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
           Unified access administration
@@ -301,7 +301,7 @@ export function UsersPage() {
             ? 'Manage platform identity and deployment visibility from one workspace. Pick a deployment in the header to see which users can access it, adjust their deployment role, and inspect each operator\'s broader access footprint.'
             : 'Manage customer-scoped administrator accounts inside your customer boundary. These users inherit deployment control from customer scope rather than per-deployment assignment.'}
         </Typography>
-      </Box>
+      </Box> : null}
 
       {notice ? <Alert severity="success">{notice}</Alert> : null}
       {usersQuery.error instanceof Error ? <Alert severity="error">{usersQuery.error.message}</Alert> : null}

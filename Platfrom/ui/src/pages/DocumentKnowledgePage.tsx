@@ -83,6 +83,7 @@ import {
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope,
   type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
 
@@ -189,8 +190,9 @@ function sameTarget(target: DeploymentTargetReference | undefined, current: Depl
     && target?.releaseId === current.releaseId
 }
 
-export function DocumentKnowledgePage() {
+export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId = '' }: { initialReleaseId?: string; initialSourceId?: string } = {}) {
   const auth = usePlatformAuth()
+  const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const customerSelfService = auth.session?.role === 'CUSTOMER_ADMIN'
@@ -198,8 +200,8 @@ export function DocumentKnowledgePage() {
   const [useTargetBindingSlot, setUseTargetBindingSlot] = useState(false)
   const [customerStorageProfileId, setCustomerStorageProfileId] = useState('')
   const [bindingForm, setBindingForm] = useState<BindingForm>(emptyBindingForm)
-  const [selectedSourceId, setSelectedSourceId] = useState('')
-  const [selectedReleaseId, setSelectedReleaseId] = useState('')
+  const [selectedSourceId, setSelectedSourceId] = useState(initialSourceId)
+  const [selectedReleaseId, setSelectedReleaseId] = useState(initialReleaseId)
   const releasesQuery = useQuery({
     queryKey: ['deployment-releases', selectedDeploymentId],
     queryFn: () => fetchDeploymentReleases(selectedDeploymentId),
@@ -221,11 +223,11 @@ export function DocumentKnowledgePage() {
     retry: false,
   })
   useEffect(() => {
-    setSelectedReleaseId('')
-  }, [selectedDeploymentId])
+    setSelectedReleaseId(initialReleaseId)
+  }, [selectedDeploymentId, initialReleaseId])
   useEffect(() => {
-    setSelectedSourceId('')
-  }, [selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId])
+    setSelectedSourceId(initialSourceId)
+  }, [selectedDeploymentId, targetReference.targetProfileId, selectedReleaseId, initialSourceId])
   const [retrievalQuery, setRetrievalQuery] = useState('Summarize the approved document evidence.')
   const [removalSelection, setRemovalSelection] = useState<{
     target: DeploymentTargetReference; source: DocumentSourceSummary
@@ -739,7 +741,7 @@ export function DocumentKnowledgePage() {
                   <TextField fullWidth size="small" type="password" label="Session token (optional)" value={bindingForm.sessionToken} disabled={!canAdmin}
                     onChange={(event) => setBindingForm((current) => ({ ...current, sessionToken: event.target.value }))} />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid item xs={12} sx={{ display: detailSection === 'configuration' ? 'none' : undefined }}>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                     <FormControlLabel control={<Checkbox checked={bindingForm.pathStyleAccess} onChange={(event) => setBindingForm((current) => ({ ...current, pathStyleAccess: event.target.checked }))} />} label="Path-style access" />
                     <FormControlLabel control={<Checkbox checked={bindingForm.objectVersioningAvailable} onChange={(event) => setBindingForm((current) => ({ ...current, objectVersioningAvailable: event.target.checked }))} />} label="Object versioning available" />
@@ -938,7 +940,8 @@ export function DocumentKnowledgePage() {
                 </Stack>
               ) : null}
 
-              {(detailQuery.data?.manifests ?? []).length > 0 ? (
+              {detailSection ? (detailQuery.data?.manifests ?? []).filter(manifest => manifest.failureCode).map(manifest => <Alert key={manifest.manifestId} severity="error">Document version {manifest.sourceVersion}: {manifest.failureCode}{manifest.failureMessage ? ` / ${manifest.failureMessage}` : ''}</Alert>) : null}
+              {(detailQuery.data?.manifests ?? []).length > 0 ? <CustomerAdvancedSection>
                 <TableContainer>
                   <Table size="small">
                     <TableHead><TableRow><TableCell>Version</TableCell><TableCell>State</TableCell><TableCell>Chunks</TableCell><TableCell>Index work</TableCell><TableCell>Delete work</TableCell><TableCell>Failure</TableCell></TableRow></TableHead>
@@ -956,7 +959,7 @@ export function DocumentKnowledgePage() {
                     </TableBody>
                   </Table>
                 </TableContainer>
-              ) : null}
+              </CustomerAdvancedSection> : null}
             </>
           ) : null}
         </Stack>
@@ -989,7 +992,8 @@ export function DocumentKnowledgePage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      {detailSection === 'configuration' && (retentionQuery.isError || (retentionCurrent && retentionMutation.isError)) ? <Alert severity="error">{errorText(retentionQuery.error || retentionMutation.error)}</Alert> : null}
+      <Paper variant="outlined" sx={{ p: 2.5, display: detailSection === 'configuration' ? 'none' : undefined }}>
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
             <Box>

@@ -30,13 +30,15 @@ import {
   Step,
   StepLabel,
   Stepper,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   acceptCustomerSelfServiceInvitation,
   activateCustomerDeploymentStagingConsumer,
@@ -109,6 +111,7 @@ import { useScopedOneTimeValue } from '../../hooks/useScopedOneTimeValue'
 import { CustomerAiStateStorageBinding } from './CustomerAiStateStorageBinding'
 import { aiStateStorageLabels, aiStateStorageModes, customerStorageBootstrapRequest,
   publishStoredAiStateStorage, storedAiStateStorageMode } from './customerAiStateStorage'
+import { CustomerAdvancedSection, useCustomerEditorSection } from './CustomerDetailSections'
 
 type Notice = { severity: 'success' | 'info' | 'warning' | 'error'; message: string }
 type ConfigureAssignmentInput = { scope: CustomerAssignmentConfigurationScope
@@ -155,8 +158,25 @@ function lifecycleStep(
   return 0
 }
 
-export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSessionSummary }) {
+const journeySteps = [
+  { id: 'template', label: 'Template' },
+  { id: 'configure', label: 'Configure' },
+  { id: 'staging', label: 'Customer staging' },
+  { id: 'production', label: 'Production' },
+  { id: 'retention', label: 'Staging retention' },
+] as const
+
+export function CustomerDeploymentConsole({ session, guided = false }: { session: PlatformAuthSessionSummary; guided?: boolean }) {
   const queryClient = useQueryClient()
+  const detailSection = useCustomerEditorSection()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const journeyParams = new URLSearchParams(location.search)
+  const requestedOfferId = journeyParams.get('offerId') ?? ''
+  const requestedStep = journeyParams.get('step')
+  const step = journeySteps.find(item => item.id === requestedStep)?.id ?? (journeyParams.has('deploymentId') ? 'configure' : 'template')
+  const selectStep = (id: string) => { const next = new URLSearchParams(location.search); next.set('step', id); navigate({ pathname: location.pathname, search: next.toString() }) }
+  const showStep = (id: string) => !guided || step === id
   const { requestedDeploymentId, setSelectedDeploymentId } = useDeploymentWorkspace()
   const operationKeys = useRef(new Map<string, { identity: string; key: string }>())
   const admissionCommands = useRef(new CustomerAdmissionCommands({
@@ -178,7 +198,7 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
     operationKeys.current.delete(scope)
   })
   const customerId = session.customerId ?? ''
-  const [selectedOfferId, setSelectedOfferId] = useState('')
+  const [selectedOfferId, setSelectedOfferId] = useState(requestedOfferId)
   const [selectedTargetProfileId, setSelectedTargetProfileId] = useState('')
   const [selectedProductionTargetProfileId, setSelectedProductionTargetProfileId] = useState('')
   const [deploymentName, setDeploymentName] = useState('')
@@ -269,17 +289,18 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
     selectedOffer?.fingerprint, selectedOffer?.entitlement.revision, storageDraft.data?.id, storageDraft.data?.updatedAt]))
 
   useEffect(() => {
-    if (!selectedOfferId && offers.length > 0) setSelectedOfferId(offers[0].id)
-  }, [offers, selectedOfferId])
+    if (!selectedOfferId && !requestedOfferId && offers.length > 0) setSelectedOfferId(offers[0].id)
+  }, [offers, selectedOfferId, requestedOfferId])
 
   useEffect(() => {
+    if (guided && step === 'template') return
     if (requestedDeploymentId || !portfolioQuery.isSuccess || !deployments.length
       || !(preferencesQuery.isSuccess || preferencesQuery.isError)) return
     const preferred = preferencesQuery.data?.deploymentWorkspace?.lastDeploymentId
     const initial = deployments.find((deployment) => deployment.deploymentId === preferred)
       ?? deployments.find((deployment) => deployment.status !== 'DRAFT') ?? deployments[0]
     setSelectedDeploymentId(initial.deploymentId)
-  }, [deployments, requestedDeploymentId, portfolioQuery.isSuccess, preferencesQuery.data,
+  }, [guided, step, deployments, requestedDeploymentId, portfolioQuery.isSuccess, preferencesQuery.data,
     preferencesQuery.isSuccess, preferencesQuery.isError, setSelectedDeploymentId])
 
   useEffect(() => {
@@ -891,11 +912,24 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
     <Stack spacing={3}>
       <Box>
         <Chip label="Customer workspace" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>My deployments</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>{guided ? 'Deployment setup' : 'My deployments'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 900 }}>
           Create an isolated customer-staging deployment from a reviewed product offer, verify it, and promote the same immutable version to production.
         </Typography>
       </Box>
+
+      {guided ? <>
+        <Tabs value={step} onChange={(_, value: string) => selectStep(value)} variant="scrollable" scrollButtons="auto" aria-label="Deployment setup stages">
+          {journeySteps.map(item => <Tab key={item.id} value={item.id} label={item.label} disabled={item.id !== 'template' && !selectedDeployment} />)}
+        </Tabs>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
+          <TextField select size="small" label="Deployment being configured" value={selectedDeploymentId} onChange={event => setSelectedDeploymentId(event.target.value)} sx={{ minWidth: 260 }}>
+            <MenuItem value="">Choose an existing deployment</MenuItem>{deployments.map(item => <MenuItem key={item.deploymentId} value={item.deploymentId}>{item.name}</MenuItem>)}
+          </TextField>
+          {!detailSection ? <Button component={RouterLink} to={`${location.pathname}?${new URLSearchParams({ view: 'manage', ...(selectedDeploymentId ? { deploymentId: selectedDeploymentId } : {}) })}`}>All setup controls</Button> : null}
+        </Stack>
+        {requestedStep && !journeySteps.some(item => item.id === requestedStep) ? <Alert severity="warning">The requested setup stage is not supported. No operation was started.</Alert> : null}
+      </> : null}
 
       {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.message}</Alert> : null}
       {activeError ? <Alert severity="error">{errorText(activeError)}</Alert> : null}
@@ -931,7 +965,7 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
         </Alert>
       ))}
 
-      <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <Paper variant="outlined" sx={{ p: 2.5, display: showStep('template') ? undefined : 'none' }}>
         <Stack spacing={2}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 750 }}>Create from a reviewed offer</Typography>
@@ -973,18 +1007,19 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
             </Grid> : null}
           </Grid>
           {storageChoiceError ? <Alert severity="error">{storageChoiceError}</Alert> : null}
+          {requestedOfferId && catalogueQuery.isSuccess && !creationOffer ? <Alert severity="error">The requested template offer is not available in this account. No alternative offer was selected.</Alert> : null}
           {creationOffer?.blockers.length ? <Alert severity="warning">{creationOffer.blockers.join(' · ')}</Alert> : null}
           {creationTarget?.blockers.length ? (
             <Alert severity="warning">{creationTarget.readiness} · {creationTarget.blockers.join(' · ')}</Alert>
           ) : null}
-          {creationOffer ? (
+          {creationOffer ? <CustomerAdvancedSection>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={`Template ${creationOffer.templateId}`} variant="outlined" />
               <Chip label={`${creationOffer.targets.length} reviewed targets`} variant="outlined" />
               <Chip label={`${creationOffer.bindingSlots.length} binding slots`} variant="outlined" />
               <Chip label={`Staging expiry ${creationStagingTargets[0]?.limits.stagingExpiryHours ?? 0}h`} variant="outlined" />
             </Stack>
-          ) : null}
+          </CustomerAdvancedSection> : null}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
             <Button
               variant="outlined" startIcon={<CloudDoneRoundedIcon />}
@@ -1008,7 +1043,7 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
         </Stack>
       </Paper>
 
-      <Grid container spacing={2}>
+      <Grid container spacing={2} sx={{ display: guided ? 'none' : undefined }}>
         {deployments.map((deployment) => (
           <Grid item xs={12} md={6} key={deployment.deploymentId}>
             <Card
@@ -1042,7 +1077,7 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
       </Grid>
 
       {selectedDeployment && selectedOffer ? (
-        <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Paper variant="outlined" sx={{ p: guided ? 0 : 2.5, border: guided ? 0 : undefined, bgcolor: guided ? 'transparent' : undefined, display: guided && step === 'template' ? 'none' : undefined }}>
           <Stack spacing={3}>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
               <Box>
@@ -1060,15 +1095,26 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               </Stack>
             </Stack>
 
-            <Stepper activeStep={activeStep} alternativeLabel>
+            {!guided ? <Stepper activeStep={activeStep} alternativeLabel>
               {['Set up', 'Publish', 'Stage', 'Verify', 'Deploy', 'Activate'].map((label) => (
                 <Step key={label} sx={{ minWidth: 0, px: 0.5 }}>
                   <StepLabel sx={{ '& .MuiStepLabel-label': { fontSize: 12, overflowWrap: 'anywhere' } }}>{label}</StepLabel>
                 </Step>
               ))}
-            </Stepper>
+            </Stepper> : null}
 
-            <Box>
+            {guided && step === 'configure' ? <Box>
+              <Typography variant="h6" sx={{ mb: 1.5 }}>Required connections</Typography>
+              {selectedOffer.bindingSlots.length ? selectedOffer.bindingSlots.map(slot => <Stack key={slot.id} direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
+                <Box><Typography variant="body2" fontWeight={600}>{slot.kind.replace(/_/g, ' ')}</Typography><Typography variant="caption" color="text.secondary">{slot.id} / {slot.supportedProfileIds.length} reviewed profiles</Typography></Box>
+                {['CUSTOMER_S3', 'EXTERNAL_SERVICE', 'INBOX_OPERATOR'].includes(slot.kind)
+                  ? <Button component={RouterLink} to={`${slot.kind === 'CUSTOMER_S3' ? '/document-knowledge' : '/integrations'}?deploymentId=${encodeURIComponent(selectedDeploymentId)}&view=manage`}>Review</Button>
+                  : <Typography variant="caption" color="text.secondary">Reviewed offer binding</Typography>}
+              </Stack>) : <Typography variant="body2" color="text.secondary">No connection slots are declared by this offer.</Typography>}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>Required connections are declared by the offer. Their presence here is not proof of readiness; publication and release verification remain authoritative.</Typography>
+            </Box> : null}
+
+            <Box sx={{ display: showStep('production') ? undefined : 'none' }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
                 <Typography variant="h6">Production readiness and go-live</Typography>
                 {goLiveReadiness ? (
@@ -1130,9 +1176,9 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               )}
             </Box>
 
-            <Divider />
+            {!guided ? <Divider /> : null}
             <Grid container spacing={3}>
-              <Grid item xs={12} lg={6}>
+              <Grid item xs={12} lg={guided ? 12 : 6} sx={{ display: showStep('staging') ? undefined : 'none' }}>
                 <Stack spacing={2}>
                   <Typography variant="h6">Staging release</Typography>
                   {requiresStorageChoice ? <>
@@ -1251,7 +1297,7 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
                 </Stack>
               </Grid>
 
-              <Grid item xs={12} lg={6}>
+              <Grid item xs={12} lg={guided ? 12 : 6} sx={{ display: showStep('configure') ? undefined : 'none' }}>
                 <Stack spacing={2}>
                   <Typography variant="h6">Engage assignment</Typography>
                   {deploymentConsumers.length > 0 ? (
@@ -1376,8 +1422,8 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               </Grid>
             </Grid>
 
-            <Divider />
-            <Stack spacing={2}>
+            {!guided ? <Divider /> : null}
+            <Stack spacing={2} sx={{ display: showStep('production') ? undefined : 'none' }}>
               <Typography variant="h6">Production promotion</Typography>
               <Typography variant="body2" color="text.secondary">
                 The app remains on staging until the production release passes verification and you explicitly activate it.
@@ -1432,8 +1478,8 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               {reviewedPromotion ? <Alert severity={reviewedPromotion.status.includes('FAILED') ? 'error' : 'info'}>{reviewedPromotion.message}</Alert> : null}
             </Stack>
 
-            <Divider />
-            <Stack spacing={2}>
+            {!guided ? <Divider /> : null}
+            <Stack spacing={2} sx={{ display: showStep('retention') ? undefined : 'none' }}>
               <Typography variant="h6">Customer-staging closure</Typography>
               <Typography variant="body2" color="text.secondary">
                 Production activation schedules the admitted staging environment for bounded, auditable retirement. Retain it for an entitled recovery window when rollback access is still required; the admission lifecycle owns drain and resource reconciliation.
@@ -1478,8 +1524,8 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
               ) : null}
             </Stack>
 
-            <Divider />
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
+            {!guided ? <Divider /> : null}
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }} sx={{ display: showStep('retention') ? undefined : 'none' }}>
               <Stack direction="row" spacing={1} alignItems="center">
                 {releaseReady(productionRelease) && selectedConsumer?.boundReleaseId === productionRelease?.id
                   ? <CheckCircleRoundedIcon color="success" />
@@ -1502,6 +1548,18 @@ export function CustomerDeploymentConsole({ session }: { session: PlatformAuthSe
       {deployments.length === 0 && offers.length === 0 ? (
         <Alert severity="warning">No active reviewed product offer is available for this customer.</Alert>
       ) : null}
+      {guided ? <Stack direction="row" justifyContent="space-between" spacing={2}>
+        <Button disabled={step === 'template'} onClick={() => selectStep(journeySteps[Math.max(0, journeySteps.findIndex(item => item.id === step) - 1)].id)}>Previous</Button>
+        <Button variant="outlined" disabled={!selectedDeployment || step === 'retention'} onClick={() => selectStep(journeySteps[Math.min(journeySteps.length - 1, journeySteps.findIndex(item => item.id === step) + 1)].id)}>Next stage</Button>
+      </Stack> : null}
+      {detailSection && selectedDeployment ? <CustomerAdvancedSection><Stack spacing={1} sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
+        <Typography variant="h6">Deployment references</Typography>
+        {[
+          ['Deployment', selectedDeploymentId], ['Offer', selectedDeployment.offerId],
+          ['Offer revision', selectedDeployment.offerFingerprint], ['Published version', latestVersion?.id ?? 'Not published'],
+          ['Staging release', stagingRelease?.id ?? 'Not deployed'], ['Production release', productionRelease?.id ?? 'Not deployed'],
+        ].map(([label,value]) => <Typography key={label} variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{label}: {value}</Typography>)}
+      </Stack></CustomerAdvancedSection> : null}
     </Stack>
   )
 }

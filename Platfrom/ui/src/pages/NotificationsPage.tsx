@@ -81,7 +81,7 @@ function CustomerNotificationsPage() {
         <Alert severity="error">{noticesQuery.error instanceof Error ? noticesQuery.error.message : 'Failed to load notices.'}</Alert>
       ) : null}
       {noticesQuery.isLoading ? <Typography color="text.secondary">Loading notices…</Typography> : null}
-      {!noticesQuery.isLoading && notices.length === 0 ? (
+      {noticesQuery.isSuccess && notices.length === 0 ? (
         <Alert severity="success">No customer-staging lifecycle notices require attention.</Alert>
       ) : null}
       <Grid container spacing={2}>

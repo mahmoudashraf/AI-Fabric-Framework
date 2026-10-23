@@ -53,7 +53,7 @@ function statusColor(status: string): 'success' | 'warning' | 'error' | 'info' |
   }
 }
 
-export function HumanReviewPage() {
+export function HumanReviewPage({ title = 'Human Review' }: { title?: string } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const { selectedDeploymentId } = useDeploymentWorkspace()
@@ -97,7 +97,7 @@ export function HumanReviewPage() {
   if (!customerReviewer) {
     return (
       <Stack spacing={2}>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>Human Review</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>{title}</Typography>
         <Alert severity="info">
           Sign in with a customer administrator session to access this deployment's review inbox.
         </Alert>
@@ -110,7 +110,7 @@ export function HumanReviewPage() {
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
           <Chip label="Customer authority" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>Human Review</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>{title}</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
             Governed action proposals awaiting an authorized customer decision.
           </Typography>

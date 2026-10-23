@@ -49,6 +49,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useScopedOneTimeValue } from '../hooks/useScopedOneTimeValue'
+import { CustomerAdvancedSection, useCustomerEditorSection } from '../components/customer/CustomerDetailSections'
 
 function statusColor(value: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
   const status = (value ?? '').toUpperCase()
@@ -68,11 +69,12 @@ function errorText(value: unknown): string {
   return value instanceof Error ? value.message : 'Integration operation failed.'
 }
 
-export function IntegrationsPage() {
+export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false }: { initialReleaseId?: string; handoverOnly?: boolean } = {}) {
   const auth = usePlatformAuth()
+  const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
-  const [selectedReleaseId, setSelectedReleaseId] = useState('')
+  const [selectedReleaseId, setSelectedReleaseId] = useState(initialReleaseId)
   const [operatorName, setOperatorName] = useState('')
   const [operatorSlot, setOperatorSlot] = useState('')
   const customerSelfService = auth.session?.role === 'CUSTOMER_ADMIN'
@@ -100,13 +102,13 @@ export function IntegrationsPage() {
   const deliveredCredential = credential.value
   const operatorScope = () => ({ ...target, token: credential.capture() })
   useEffect(() => {
-    setSelectedReleaseId('')
-  }, [selectedDeploymentId])
+    setSelectedReleaseId(initialReleaseId)
+  }, [selectedDeploymentId, initialReleaseId])
   useEffect(() => {
-    if (!selectedReleaseId && availableReleases.length === 1) {
+    if (!initialReleaseId && !selectedReleaseId && availableReleases.length === 1) {
       setSelectedReleaseId(availableReleases[0].id)
     }
-  }, [availableReleases, selectedReleaseId])
+  }, [availableReleases, selectedReleaseId, initialReleaseId])
 
   const targetQuery = useQuery({
     queryKey: ['deployment-target-context', selectedDeploymentId, target.targetProfileId, target.releaseId],
@@ -114,7 +116,7 @@ export function IntegrationsPage() {
     enabled: !!selectedRelease,
     retry: false,
   })
-  const dataLive = targetQuery.data?.externalIntegrationConfigured ?? false
+  const dataLive = !handoverOnly && (targetQuery.data?.externalIntegrationConfigured ?? false)
   const handoverLive = targetQuery.data?.conversationHandoverConfigured ?? false
   const live = dataLive || handoverLive
 
@@ -224,7 +226,7 @@ export function IntegrationsPage() {
     return (
       <Stack spacing={3}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 750 }}>External integrations</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>
           <Typography color="text.secondary">
             Deployment-local provider connections, trusted resource bindings, live synchronization, and signed inbound events.
           </Typography>
@@ -247,7 +249,7 @@ export function IntegrationsPage() {
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 750 }}>External integrations</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 750 }}>{handoverOnly ? 'Human support' : 'External integrations'}</Typography>
           <Typography color="text.secondary">
             Safe operational state from the selected deployment. Credentials and provider payloads are never returned here.
           </Typography>
@@ -317,6 +319,8 @@ export function IntegrationsPage() {
       {replay.error ? <Alert severity="error">{errorText(replay.error)}</Alert> : null}
       {retryDispatch.error ? <Alert severity="error">{errorText(retryDispatch.error)}</Alert> : null}
       {expireHandover.error ? <Alert severity="error">{errorText(expireHandover.error)}</Alert> : null}
+      {detailSection ? overview.data?.sources.filter(source => source.state.errorClass).map(source => <Alert key={source.sourceId} severity="error">{source.sourceId}: {source.state.errorMessage ?? source.state.errorClass}</Alert>) : null}
+      {detailSection ? overview.data?.webhooks.filter(webhook => webhook.counts.deadLetter > 0 || webhook.counts.rejected > 0).map(webhook => <Alert key={webhook.sourceId} severity="warning">{webhook.sourceId}: {webhook.counts.rejected} rejected events / {webhook.counts.deadLetter} dead-letter events. Review inbound events in Advanced.</Alert>) : null}
 
       {customerSelfService && selectedRelease && handoverLive ? (
         <Paper variant="outlined" sx={{ p: 2.5 }}>
@@ -398,6 +402,7 @@ export function IntegrationsPage() {
 
       {overview.data ? (
         <>
+          <CustomerAdvancedSection>
           <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} divider={<Divider flexItem orientation="vertical" />}>
               <Box sx={{ minWidth: 180 }}>
@@ -467,6 +472,8 @@ export function IntegrationsPage() {
             </TableContainer>
           </Box>
 
+          </CustomerAdvancedSection>
+
           <Box>
             <Typography variant="h6" sx={{ mb: 1.5 }}>Live data sources</Typography>
             <TableContainer component={Paper} variant="outlined">
@@ -518,7 +525,7 @@ export function IntegrationsPage() {
             </TableContainer>
           </Box>
 
-          <Box>
+          <CustomerAdvancedSection><Box>
             <Typography variant="h6" sx={{ mb: 1.5 }}>Inbound events</Typography>
             {overview.data.webhooks.length === 0 ? (
               <Alert severity="info">This composition does not declare an inbound provider webhook.</Alert>
@@ -562,14 +569,14 @@ export function IntegrationsPage() {
                 />
               </Paper>
             ))}
-          </Box>
+          </Box></CustomerAdvancedSection>
         </>
       ) : null}
     </Stack>
   )
 }
 
-function ConversationHandoverOperations({
+export function ConversationHandoverOperations({
   value,
   canOperate,
   busy,
@@ -583,6 +590,7 @@ function ConversationHandoverOperations({
   onExpire: (handoverId: string) => void
 }) {
   const callbackStatus = value.connector.status
+  const detailSection = useCustomerEditorSection()
   return (
     <Box>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 1.5 }}>
@@ -624,6 +632,10 @@ function ConversationHandoverOperations({
         </Stack>
       </Paper>
 
+      {detailSection ? value.runtime.recentDispatches.filter(dispatch => dispatch.failureCode).map(dispatch => <Alert key={dispatch.dispatchId} severity="warning">{dispatch.dispatchType}: {dispatch.failureCode}. Delivery evidence and recovery controls are in Advanced.</Alert>) : null}
+      {detailSection && !value.connector.reachable ? <Alert severity="error">The conversation connector is unavailable.</Alert> : null}
+      {detailSection ? callbackStatus?.recentCallbacks.filter(callback => callback.errorClass).map(callback => <Alert key={callback.eventId} severity="warning">Conversation callback {callback.eventType}: {callback.errorClass}</Alert>) : null}
+      <CustomerAdvancedSection>
       <Typography variant="subtitle1" sx={{ mb: 1 }}>Delivery queue</Typography>
       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
         <Table size="small">
@@ -705,6 +717,7 @@ function ConversationHandoverOperations({
           </Table>
         </TableContainer>
       )}
+      </CustomerAdvancedSection>
     </Box>
   )
 }

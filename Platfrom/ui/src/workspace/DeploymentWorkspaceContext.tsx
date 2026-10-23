@@ -17,6 +17,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/behavior',
   '/behavior-operations',
   '/human-review',
+  '/human-support',
   '/activity',
   '/actions',
   '/approvals',
