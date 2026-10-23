@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 
 import static com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.*;
 import static org.assertj.core.api.Assertions.*;
@@ -67,6 +68,46 @@ import static org.mockito.Mockito.*;
 @Testcontainers
 class ExternalIntegrationPostgresTest {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @Test void approvalOptionsQueryUsesExactScopeAndReadStillVerifiesStoredIntegrity() throws Exception {
+        try (var fixture = new DatabaseFixture()) {
+            var f = fixture.f;
+            var scope = new Scope("offer-generic", f.deployment.getCustomerId(), f.deployment.getTenantId(), f.deployment.getId(),
+                f.version.getId(), f.target.getId(), f.profile.bindingSlotId(), f.profile.id());
+            assertThat(fixture.store.approvals(scope)).isEmpty();
+            var approved = fixture.approve();
+            var original = fixture.store.approval(approved.id()).orElseThrow().value();
+            int index = 0;
+            for (UnaryOperator<Scope> change : List.<UnaryOperator<Scope>>of(
+                s -> new Scope("other-offer", s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+                s -> new Scope(s.offerId(), "other-customer", s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+                s -> new Scope(s.offerId(), s.customerId(), "other-tenant", s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+                s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), "other-deployment", s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+                s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), "other-version", s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+                s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), "other-target", s.bindingSlotId(), s.profileId()),
+                s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), "other-slot", s.profileId()),
+                s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), "other-profile"))) {
+                var foreignScope = change.apply(scope);
+                fixture.jdbc.update("insert into platform_deployments values (?) on conflict do nothing", foreignScope.deploymentId());
+                fixture.jdbc.update("insert into platform_deployment_versions values (?) on conflict do nothing", foreignScope.versionId());
+                fixture.jdbc.update("insert into deployment_target_profiles values (?) on conflict do nothing", foreignScope.targetProfileId());
+                var foreign = new Approval("foreign-" + index, foreignScope, original.offerFingerprint(), original.versionConfigHash(),
+                    original.targetFingerprint(), original.profile(), original.config(), original.accountScope(), original.reviewReference(),
+                    original.reviewedBy(), "foreign-operation-" + index++, original.requestFingerprint());
+                fixture.store.insertApproval(foreign, f.integrity.seal(foreign));
+            }
+            assertThat(fixture.store.approvals(scope)).extracting(row -> row.value().id()).containsExactly(approved.id());
+            assertThat(fixture.service.approvals("offer-generic", scope.deploymentId(), scope.versionId(), scope.targetProfileId(),
+                scope.bindingSlotId(), scope.profileId())).containsExactly(new ApprovalOption(original.id(), scope.versionId(),
+                scope.targetProfileId(), scope.bindingSlotId(), scope.profileId(), original.config(), original.accountScope(), original.reviewReference()));
+            assertThat(fixture.count("deployment_external_integration_bindings")).isZero();
+            assertThat(fixture.count("platform_secrets")).isZero();
+            assertThat(fixture.count("platform_customer_entitlement_commands")).isZero();
+            fixture.jdbc.update("update deployment_external_integration_approvals set integrity_mac=? where id=?", "0".repeat(64), approved.id());
+            assertThatThrownBy(() -> fixture.service.approvals("offer-generic", scope.deploymentId(), scope.versionId(), scope.targetProfileId(),
+                scope.bindingSlotId(), scope.profileId())).hasMessageContaining("INTEGRITY");
+        }
+    }
 
     @Test void fullRealFlywayChainIncludes199AndPreservesParentCommandTypesWithoutSeedingBindings() throws Exception {
         String schema = "chain_" + UUID.randomUUID().toString().replace("-", "");

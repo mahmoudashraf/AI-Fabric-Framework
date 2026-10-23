@@ -6,6 +6,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 import static com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.*;
@@ -36,6 +37,13 @@ public class ExternalIntegrationController {
     public Summary read(@PathVariable String offerId, @PathVariable String deploymentId, @RequestParam String versionId,
                         @RequestParam String targetProfileId, @RequestParam String bindingSlotId, @RequestParam String selectedProfileId) {
         return service.read(offerId, deploymentId, versionId, targetProfileId, bindingSlotId, selectedProfileId);
+    }
+    @GetMapping("/catalogue/{offerId}/deployments/{deploymentId}/external-integrations/approvals")
+    @PreAuthorize("hasRole('CUSTOMER_ADMIN')")
+    public List<ApprovalOption> approvals(@PathVariable String offerId, @PathVariable String deploymentId,
+                                         @RequestParam String versionId, @RequestParam String targetProfileId,
+                                         @RequestParam String bindingSlotId, @RequestParam String selectedProfileId) {
+        return service.approvals(offerId, deploymentId, versionId, targetProfileId, bindingSlotId, selectedProfileId);
     }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)

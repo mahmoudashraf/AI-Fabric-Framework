@@ -37,6 +37,39 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 ### M4 - Publish Preflight Gap Source Qualification
 
+2026-10-23 22:56 UTC checkpoint: publication preflight fix `c743ee574` is
+LIVE VERIFIED on both UI apps, UI-only CI40033185708/backend skipped, image
+`sha256:68981c8ad5a6d26d81f10a5296dd5b13b81caf4996d112eb3ca90eac5d62f747`.
+Staging job `sb8dwy0ib9lh784ll6fnu541` and production
+`jmvmrewebymlr72o5wdk8zxl` are consumed and verified, not replayable.
+
+The old staging target is expiry-CLAIMED and mutation-fenced; no retirement or
+recovery work was opened. The real customer UI created fresh configuration-only
+`dep-c43bce9d` (managed AI-state, not a business database), assignment
+`northfield-m4-20261023`, and DRAFT app `awi_pub_3d630e8031652b1c0b05691eff3bc760`
+with slug `northfield-m4`. Current production Northfield remains unchanged.
+Private receipts: `/private/tmp/01045-m4-fresh-customer-r2-20261023`.
+
+Fresh setup exposed two bounded M4 UI gaps: the optional document install is
+disabled until its first storage binding, while its page hid that binding form;
+and external integration binding APIs had no pre-deploy customer control. Storage
+attempt stopped before writes. No eligible unused external vector cluster was
+found; Required for production holds a pending owner question. No cluster was
+purchased, provisioned or reassigned. Continue other setup while awaiting material.
+
+Backend prerequisite SOURCE QUALIFIED (not yet live): exact owner/version/target/
+slot/profile approval-options GET projects only eight reviewed public fields,
+reusing entitlement/placement/integrity/composition checks. No credential values,
+secret references, integrity seals or staff identity are returned. Authorized
+missing-binding GET is now 404, rather than 409, so the UI can distinguish absence
+without interpreting error text; all other conflicts remain errors. No schema or
+mutation-authority change. Main qualification:31 tests pass, zero failures/errors/
+skips, including actual PostgreSQL scope/integrity test. The initial run retained
+one expected-status regression (old409 assertion); updated to the deliberate404
+contract and rerun green. Pending UI adds only reviewed connection choices and
+write-only credentials; focused source checks10 model/5 browser scenarios pass.
+These are not hosted M4 promotion acceptance. No framework change or release.
+
 The first new-UI publication attempt against the exact owned configuration
 returned409 `PLACEMENT_EVIDENCE_STALE`. No version or release was created and
 the live production assignment is unchanged. The publish handler now refreshes

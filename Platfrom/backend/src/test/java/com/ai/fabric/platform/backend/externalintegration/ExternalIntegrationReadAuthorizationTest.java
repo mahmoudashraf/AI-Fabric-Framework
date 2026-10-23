@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
@@ -44,6 +45,128 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ExternalIntegrationReadAuthorizationTest {
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
+
+    @Test void absentBindingIsNotFoundOnlyAfterExactScopeAuthorization() throws Exception {
+        var r = new ReadFixture(false);
+        assertThatThrownBy(r::read).isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class,
+            error -> assertThat(error.getStatusCode().value()).isEqualTo(404));
+        verify(r.f.store).binding(r.f.deployment.getId(), r.f.version.getId(), r.f.target.getId(), r.f.profile.bindingSlotId());
+        r.assertNoEffects();
+    }
+
+    @Test void approvalOptionsExposeOnlyPublicReviewedFieldsWithoutBindingOrCredentialEffects() throws Exception {
+        var r = new ReadFixture(false);
+        var approval = r.approvalOption();
+        String response = r.mvc.perform(r.optionsRequest()).andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(approval.id()))
+            .andExpect(jsonPath("$[0].config.endpointUrl").value("https://provider.example.com/actions"))
+            .andExpect(jsonPath("$[0].accountScope.externalAccount").value("reviewed-account"))
+            .andReturn().getResponse().getContentAsString();
+        var fields = r.f.mapper.readTree(response).get(0);
+        assertThat(fields.size()).isEqualTo(8);
+        assertThat(r.f.codec.read(response, ApprovalOption[].class)).containsExactly(new ApprovalOption(approval.id(),
+            r.f.version.getId(), r.f.target.getId(), r.f.profile.bindingSlotId(), r.f.profile.id(),
+            approval.config(), approval.accountScope(), approval.reviewReference()));
+        assertThat(response).doesNotContain("synthetic-customer-key", "synthetic-integration-signing-key", "apiKey",
+            "integrity", "seal", "requestFingerprint", "reviewedBy", "secretReferences", "secretRevisions",
+            "secretFields", "MANAGED_EXTERNAL_INTEGRATION", "operationKey", "offerFingerprint",
+            "private-reviewer", "private-operation", "private-request-fingerprint", r.f.integrity.seal(approval));
+        verify(r.f.store).approvals(approval.scope());
+        var request = ArgumentCaptor.forClass(AuthorizationRequest.class);
+        verify(r.authorization).authorize(eq(r.customer.getId()), request.capture());
+        assertThat(request.getValue().operation()).isEqualTo(Operation.READ);
+        assertThat(request.getValue().bindingSlotId()).isNull();
+        assertThat(request.getValue().selectedProfileId()).isNull();
+        verify(r.composition).requireVersion(any(Definition.class), same(r.f.version));
+        verify(r.placement).requireFreshEvidence(same(r.f.target), eq(TargetIntent.CUSTOMER_STAGING));
+        r.assertNoEffects();
+    }
+
+    @Test void missingApprovalReturnsEmptyOnlyAfterNormalReadAuthorization() throws Exception {
+        var r = new ReadFixture(false);
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) r.f.mapper.valueToTree(r.f.definition);
+        tree.set("operations", r.f.mapper.valueToTree(Set.of(Operation.READ)));
+        r.publish(r.f.mapper.treeToValue(tree, Definition.class), true);
+        r.mvc.perform(r.optionsRequest()).andExpect(status().isOk()).andExpect(content().json("[]"));
+        verify(r.authorization, never()).authorize(anyString(), argThat(request -> request.operation() != Operation.READ));
+        verify(r.f.store).approvals(any(Scope.class));
+        r.assertNoEffects();
+    }
+
+    @Test void approvalOptionsKeepOwnerEntitlementPlacementAndReviewedSelectionGates() throws Exception {
+        for (String fault : List.of("owner", "customer", "tenant", "offer", "revoked", "expired", "placement", "version", "target", "slot", "profile")) {
+            var r = new ReadFixture(false);
+            switch (fault) {
+                case "owner" -> r.f.grant.setOwnerUserId("another-owner");
+                case "customer" -> r.f.deployment.setCustomerId("another-customer");
+                case "tenant" -> r.f.deployment.setTenantId("another-tenant");
+                case "offer" -> when(r.f.associations.findById(r.f.deployment.getId())).thenReturn(Optional.empty());
+                case "revoked" -> r.f.grant.setStatus(EntitlementStatus.REVOKED);
+                case "expired" -> r.f.grant.setExpiresAt(Instant.now().minusSeconds(1));
+                case "placement" -> doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.conflict(
+                    com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.PLACEMENT_EVIDENCE_STALE))
+                    .when(r.placement).requireFreshEvidence(any(), any());
+                case "version" -> r.f.version.setStatus("DRAFT");
+                case "target" -> r.f.target.setEnvironmentName("changed-environment");
+                case "slot", "profile" -> { }
+            }
+            assertThatThrownBy(() -> r.service.approvals("offer-generic", r.f.deployment.getId(), r.f.version.getId(),
+                r.f.target.getId(), fault.equals("slot") ? "foreign-slot" : r.f.profile.bindingSlotId(),
+                fault.equals("profile") ? "foreign-profile" : r.f.profile.id())).as(fault).isNotNull();
+            verify(r.f.store, never()).approvals(any(Scope.class));
+            r.assertNoEffects();
+        }
+    }
+
+    @Test void approvalOptionsRejectTamperedOrStaleRowsInsteadOfReturningPartialResults() throws Exception {
+        for (String fault : List.of("integrity", "offer", "version", "target", "profile", "config")) {
+            var r = new ReadFixture(false);
+            var original = r.approvalOption();
+            var changed = new Approval(original.id(), original.scope(),
+                fault.equals("offer") ? "stale-offer" : original.offerFingerprint(),
+                fault.equals("version") ? "stale-version" : original.versionConfigHash(),
+                fault.equals("target") ? "stale-target" : original.targetFingerprint(),
+                fault.equals("profile") ? new Profile(original.profile().schemaVersion(), "foreign-profile",
+                    original.profile().bindingSlotId(), original.profile().pluginId(), original.profile().pluginVersionId(),
+                    original.profile().manifestSha256(), original.profile().targetProfileIds(), original.profile().configFields(),
+                    original.profile().secretFields(), original.profile().endpointFields(), original.profile().accountScopeFields(),
+                    original.profile().allowedHosts()) : original.profile(),
+                fault.equals("config") ? Map.of("endpointUrl", "https://unreviewed.example.com") : original.config(),
+                original.accountScope(), original.reviewReference(), original.reviewedBy(), original.operationKey(), original.requestFingerprint());
+            var rows = List.of(
+                new ExternalIntegrationStore.Row<>(original, r.f.integrity.seal(original), "APPROVED", 0),
+                new ExternalIntegrationStore.Row<>(changed, fault.equals("integrity") ? "0".repeat(64) : r.f.integrity.seal(changed), "APPROVED", 0));
+            when(r.f.store.approvals(original.scope())).thenReturn(rows);
+            assertThatThrownBy(r::options).as(fault).hasMessageContaining(switch (fault) {
+                case "integrity" -> "INTEGRITY";
+                case "config" -> "ENDPOINT";
+                default -> "APPROVAL_STALE_OR_FOREIGN";
+            });
+            r.assertNoEffects();
+        }
+    }
+
+    @Test void signedApprovalCannotCrossAnyRequestedScopeDimension() throws Exception {
+        for (UnaryOperator<Scope> change : List.<UnaryOperator<Scope>>of(
+            s -> new Scope("other-offer", s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+            s -> new Scope(s.offerId(), "other-customer", s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+            s -> new Scope(s.offerId(), s.customerId(), "other-tenant", s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+            s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), "other-deployment", s.versionId(), s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+            s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), "other-version", s.targetProfileId(), s.bindingSlotId(), s.profileId()),
+            s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), "other-target", s.bindingSlotId(), s.profileId()),
+            s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), "other-slot", s.profileId()),
+            s -> new Scope(s.offerId(), s.customerId(), s.tenantId(), s.deploymentId(), s.versionId(), s.targetProfileId(), s.bindingSlotId(), "other-profile"))) {
+            var r = new ReadFixture(false);
+            var original = r.approvalOption();
+            var foreign = new Approval(original.id(), change.apply(original.scope()), original.offerFingerprint(), original.versionConfigHash(),
+                original.targetFingerprint(), original.profile(), original.config(), original.accountScope(), original.reviewReference(),
+                original.reviewedBy(), original.operationKey(), original.requestFingerprint());
+            var row = new ExternalIntegrationStore.Row<>(foreign, r.f.integrity.seal(foreign), "APPROVED", 0);
+            when(r.f.store.approvals(original.scope())).thenReturn(List.of(row));
+            assertThatThrownBy(r::options).hasMessageContaining("APPROVAL_STALE_OR_FOREIGN");
+            r.assertNoEffects();
+        }
+    }
 
     @Test void customerSummaryUsesRealReadAuthorizationAndStillRequiresExactPublishedExternalSelection() throws Exception {
         var r = new ReadFixture(true);
@@ -78,8 +201,8 @@ class ExternalIntegrationReadAuthorizationTest {
         r.assertNoEffects();
 
         var missing = new ReadFixture(false);
-        missing.mvc.perform(missing.request()).andExpect(status().isConflict())
-            .andExpect(jsonPath("$.errorCode").value("CONFLICT"))
+        missing.mvc.perform(missing.request()).andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"))
             .andExpect(jsonPath("$.message").value("EXTERNAL_INTEGRATION_BINDING_REQUIRED"));
         missing.assertNoEffects();
     }
@@ -347,6 +470,20 @@ class ExternalIntegrationReadAuthorizationTest {
                 f.deployment.getId(), customer.getId(), tenant.getId(), offerId, f.target.getId(), offer.getFingerprint(), 3, "bootstrap", Instant.now())));
         }
         Summary read() { return service.read("offer-generic", f.deployment.getId(), f.version.getId(), f.target.getId(), f.profile.bindingSlotId(), f.profile.id()); }
+        List<ApprovalOption> options() { return service.approvals("offer-generic", f.deployment.getId(), f.version.getId(), f.target.getId(), f.profile.bindingSlotId(), f.profile.id()); }
+        MockHttpServletRequestBuilder optionsRequest() { return get("/api/customer-self-service/catalogue/offer-generic/deployments/"
+            + f.deployment.getId() + "/external-integrations/approvals").param("versionId", f.version.getId())
+            .param("targetProfileId", f.target.getId()).param("bindingSlotId", f.profile.bindingSlotId()).param("selectedProfileId", f.profile.id()); }
+        Approval approvalOption() {
+            var approval = new Approval("approval-option", new Scope("offer-generic", customer.getId(), tenant.getId(), f.deployment.getId(),
+                f.version.getId(), f.target.getId(), f.profile.bindingSlotId(), f.profile.id()), f.codec.hash(f.definition), f.version.getConfigHash(),
+                com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileIdentity.fingerprint(f.mapper, f.target),
+                f.profile, Map.of("endpointUrl", "https://provider.example.com/actions"), Map.of("externalAccount", "reviewed-account"),
+                "review-ticket", "private-reviewer", "private-operation", "private-request-fingerprint");
+            var row = new ExternalIntegrationStore.Row<>(approval, f.integrity.seal(approval), "APPROVED", 0);
+            when(f.store.approvals(approval.scope())).thenReturn(List.of(row));
+            return approval;
+        }
         MockHttpServletRequestBuilder request() { return request(f.target.getId(), f.profile.bindingSlotId(), f.profile.id()); }
         MockHttpServletRequestBuilder request(String targetId, String slotId, String profileId) {
             return get("/api/customer-self-service/catalogue/offer-generic/deployments/" + f.deployment.getId() + "/external-integrations")

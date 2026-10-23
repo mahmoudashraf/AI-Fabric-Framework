@@ -53,6 +53,11 @@ public final class ExternalIntegrationContracts {
                            String operationKey, String requestFingerprint) {
         public Approval { config = Map.copyOf(config); accountScope = Map.copyOf(accountScope); }
     }
+    public record ApprovalOption(String id, String versionId, String targetProfileId, String bindingSlotId,
+                                 String selectedProfileId, Map<String, String> config,
+                                 Map<String, String> accountScope, String reviewReference) {
+        public ApprovalOption { config = Map.copyOf(config); accountScope = Map.copyOf(accountScope); }
+    }
     public record Binding(String id, Scope scope, String approvalId, Map<String, String> secretReferences,
                           Map<String, String> secretRevisions) {
         public Binding { secretReferences = Map.copyOf(secretReferences); secretRevisions = Map.copyOf(secretRevisions); }

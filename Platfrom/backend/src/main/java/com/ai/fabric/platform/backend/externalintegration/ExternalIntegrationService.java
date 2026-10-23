@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -161,10 +162,27 @@ public class ExternalIntegrationService {
         var deployment = deployments.findById(deploymentId).filter(value -> actor.customerId().equals(value.getCustomerId()))
             .orElseThrow(() -> conflict("RESOURCE_SCOPE_MISMATCH"));
         var context = context(offerId, deployment, versionId, targetId, slotId, profileId, "external-integration-read", Operation.READ);
-        var row = store.binding(deploymentId, versionId, targetId, slotId).orElseThrow(() -> conflict("BINDING_REQUIRED"));
+        var row = store.binding(deploymentId, versionId, targetId, slotId).orElseThrow(() ->
+            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND,
+                "EXTERNAL_INTEGRATION_BINDING_REQUIRED"));
         integrity.require(bindingEvidence(row.value(), row.status(), row.revision()), row.integrity());
         if (!context.scope().equals(row.value().scope())) throw conflict("RESOURCE_SCOPE_MISMATCH");
         return summary(row.value(), row.status(), row.revision());
+    }
+
+    @Transactional
+    public List<ApprovalOption> approvals(String offerId, String deploymentId, String versionId, String targetId, String slotId, String profileId) {
+        var actor = entitlements.requireCustomerActor();
+        var deployment = deployments.findById(deploymentId).filter(value -> actor.customerId().equals(value.getCustomerId()))
+            .orElseThrow(() -> conflict("RESOURCE_SCOPE_MISMATCH"));
+        var context = context(offerId, deployment, versionId, targetId, slotId, profileId, "external-integration-approvals-read", Operation.READ);
+        return store.approvals(context.scope()).stream().map(row -> {
+            integrity.require(row.value(), row.integrity());
+            var approval = row.value();
+            requireApproval(context, approval);
+            return new ApprovalOption(approval.id(), approval.scope().versionId(), approval.scope().targetProfileId(),
+                approval.scope().bindingSlotId(), approval.scope().profileId(), approval.config(), approval.accountScope(), approval.reviewReference());
+        }).toList();
     }
 
     private Context context(String offerId, DeploymentEntity deployment, String versionId, String targetId,

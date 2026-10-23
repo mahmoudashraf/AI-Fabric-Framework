@@ -14,11 +14,15 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
+import java.util.Map;
+
 import static com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationContracts.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ExternalIntegrationControllerTest {
@@ -105,6 +109,41 @@ class ExternalIntegrationControllerTest {
             verify(service).read("offer", "dep", "version", "target", "slot", "profile");
             verifyNoMoreInteractions(service);
         }
+    }
+
+    @Test void approvalOptionsRequireCustomerRoleAndForwardEveryScopeField() {
+        try (var context = new AnnotationConfigApplicationContext(SecurityConfig.class)) {
+            var controller = context.getBean(ExternalIntegrationController.class);
+            var service = context.getBean(ExternalIntegrationService.class);
+            var options = List.of(new ApprovalOption("approval", "version", "target", "slot", "profile",
+                Map.of("endpointUrl", "https://provider.example.com"), Map.of("account", "reviewed"), "review"));
+            when(service.approvals("offer", "dep", "version", "target", "slot", "profile")).thenReturn(options);
+            SecurityContextHolder.clearContext();
+            assertThatThrownBy(() -> controller.approvals("offer", "dep", "version", "target", "slot", "profile"))
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+            for (var role : new PlatformRole[]{PlatformRole.PLATFORM_ADMIN, PlatformRole.PLATFORM_OPERATOR, PlatformRole.PUBLIC_API_CLIENT}) {
+                ExternalIntegrationFixture.authenticate(role, "non-customer");
+                assertThatThrownBy(() -> controller.approvals("offer", "dep", "version", "target", "slot", "profile"))
+                    .isInstanceOf(AccessDeniedException.class);
+            }
+            verifyNoInteractions(service);
+            ExternalIntegrationFixture.authenticate(PlatformRole.CUSTOMER_ADMIN, "customer");
+            assertThat(controller.approvals("offer", "dep", "version", "target", "slot", "profile")).isEqualTo(options);
+            verify(service).approvals("offer", "dep", "version", "target", "slot", "profile");
+            verifyNoMoreInteractions(service);
+        }
+    }
+
+    @Test void approvalOptionsHttpRequiresAllFourSelectionParameters() throws Exception {
+        var service = mock(ExternalIntegrationService.class);
+        var mvc = MockMvcBuilders.standaloneSetup(new ExternalIntegrationController(service)).build();
+        var parameters = Map.of("versionId", "version", "targetProfileId", "target", "bindingSlotId", "slot", "selectedProfileId", "profile");
+        for (String missing : parameters.keySet()) {
+            var request = get("/api/customer-self-service/catalogue/offer/deployments/dep/external-integrations/approvals");
+            parameters.forEach((key, value) -> { if (!key.equals(missing)) request.param(key, value); });
+            mvc.perform(request).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(service);
     }
     @Configuration @EnableMethodSecurity static class SecurityConfig {
         @Bean ExternalIntegrationService service() { return mock(ExternalIntegrationService.class); }

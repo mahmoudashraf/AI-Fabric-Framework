@@ -29,6 +29,20 @@ public class ExternalIntegrationStore {
         return one(jdbc.query("select evidence_json,integrity_mac from deployment_external_integration_approvals where deployment_id=? and operation_key=?",
             (rs, n) -> new Row<>(codec.read(rs.getString(1), Approval.class), rs.getString(2), "APPROVED", 0), deploymentId, key));
     }
+    public List<Row<Approval>> approvals(Scope scope) {
+        return jdbc.query("""
+            select evidence_json,integrity_mac from deployment_external_integration_approvals
+             where deployment_id=? and version_id=? and target_profile_id=?
+               and cast(evidence_json as jsonb)->'scope'->>'offerId'=?
+               and cast(evidence_json as jsonb)->'scope'->>'customerId'=?
+               and cast(evidence_json as jsonb)->'scope'->>'tenantId'=?
+               and cast(evidence_json as jsonb)->'scope'->>'bindingSlotId'=?
+               and cast(evidence_json as jsonb)->'scope'->>'profileId'=?
+             order by created_at,id
+            """, (rs, n) -> new Row<>(codec.read(rs.getString(1), Approval.class), rs.getString(2), "APPROVED", 0),
+            scope.deploymentId(), scope.versionId(), scope.targetProfileId(), scope.offerId(), scope.customerId(),
+            scope.tenantId(), scope.bindingSlotId(), scope.profileId());
+    }
     public void insertApproval(Approval approval, String mac) {
         jdbc.update("insert into deployment_external_integration_approvals(id,deployment_id,version_id,target_profile_id,operation_key,evidence_json,integrity_mac) values (?,?,?,?,?,?,?)",
             approval.id(), approval.scope().deploymentId(), approval.scope().versionId(), approval.scope().targetProfileId(),
