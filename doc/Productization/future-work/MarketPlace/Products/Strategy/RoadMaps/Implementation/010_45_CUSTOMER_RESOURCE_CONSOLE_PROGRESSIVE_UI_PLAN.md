@@ -4,16 +4,21 @@ Date: 2026-10-23. Status: SUPPORTED CUSTOMER UI IMPLEMENTED AND DEPLOYED TO BOTH
 SERVERS; LIVE UI CHECKS PASSED WITH DOCUMENTED OPERATIONAL CAVEATS.
 Owner visual acceptance, a new full promotion replay and live rollback rehearsal
 remain distinct from the UI checks. See the execution record for exact limits.
+Owner scope refinement: the remaining delivery is PRODUCT-ORIENTED, using
+milestones M1-M7 in section6. The deployed resource console is its reusable
+foundation, not a requirement to expose every backend capability as a page.
 Parent: [010.36](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md).
 Actual phase status and evidence: [execution record](010_45_CUSTOMER_RESOURCE_CONSOLE_EXECUTION_RECORD.md).
 
 ## 1. Decision And Scope
 
-Create a customer-only, resource-oriented console inspired by Railway and
-Coolify. The customer sees deployments, Engage apps and important connected
-capabilities, selects one, and inspects its status and problems in a sliding
-right-hand panel. Configuration is secondary to understanding what is running,
-what needs attention and what to do next.
+Create a customer-only, product-oriented console using the Railway/Coolify
+resource presentation already implemented. Customers start with Dealership AI
+(AutoTrader integration) or Engage Apps; Shopify AI follows later. Inside a
+product they see its apps, deployment/environment, relevant knowledge and
+connections, and inspect status/problems in a sliding panel. Configuration is
+secondary to understanding what is running, what needs attention and what to do
+next. A backend feature does not automatically deserve a customer navigation item.
 
 This proposal replaces the AWS-inspired CUSTOMER layout direction in010.36
 section10.9. It does not replace the resource model, shared APIs/editors, security
@@ -59,6 +64,27 @@ UI plan. The existing LoomAI staff interface is not the customer's Advanced view
 
 The goal is one progressively detailed customer console with access to its
 supported capabilities, not separate basic/technical portals or copied forms.
+
+### Product-Oriented Release Boundary
+
+The next milestones simplify the existing UI; they do not introduce another
+configuration engine, product database, permission system or deployment workflow.
+Compose the product experience from existing reviewed templates, plugins,
+deployments and Engage installations. Keep the same customer identity and shared
+editors; product-specific onboarding may contribute a bounded step where needed.
+
+Dealership AI and Engage Apps are the current customer entry points. An Engage
+app can deliver a dealership experience OR be used independently; do not impose
+a new one-to-one product/app relationship. Shopify is a later milestone, not a
+currently qualified customer-console launch claim. Clearly distinguish the
+AutoTrader simulator from a real partner-authorized connection.
+
+Do not expand this release into generic Behaviour management, a comprehensive
+audit centre, universal integration editors, infrastructure topology, recovery
+dashboards or worker-draining controls. Reuse an existing authorized function
+only when a concrete product journey needs it. Record difficult edge cases for
+later instead of making them new release workstreams. Critical failures still
+remain visible, and ordinary ownership/secret/destructive-action protections stay.
 
 ### First setup
 
@@ -125,6 +151,18 @@ deployment, app authentication or customer data ownership.
 
 ## 3. Information Architecture
 
+Product-oriented target (M1-M5): product-led Home/entry points, Engage apps, and
+Account & team form the simple starting navigation. Dealership setup and daily
+operations reveal only that product's relevant knowledge, connection, human
+support and environment controls. Exact labels/grouping can be refined without
+new backend entities or separate dealership/Shopify consoles.
+
+The inventory below describes the reusable resource views already implemented;
+it is NOT a requirement to show all of them globally or simultaneously. Existing
+deep links and authorized advanced settings must remain reachable when grouping
+them under a product. Generic Behaviour/audit/editor expansion is outside this
+product release unless a specific M1-M6 acceptance case requires a bounded part.
+
 Primary navigation:
 
 - Home: next step, affected resources, health and most recent operation.
@@ -187,6 +225,10 @@ cross-customer/target changes clear or fence incompatible drafts as today.
 ## 5. Page Layout Contracts
 
 ### Home
+
+M1 now governs this layout: product entry/resume and the active product's real
+issues come first. Reuse the existing resource views below inside that grouping;
+do not create another global resource dashboard beside a new product dashboard.
 
 First-use version: welcome, template choices and short setup steps. Operating
 version: issues first, a compact deployment/app resource map, then recent relevant
@@ -251,6 +293,9 @@ prototype enables a separate fictional review fixture to show the intended page.
 
 ### Behaviours
 
+Future design reference, deferred from the M1-M6 product release. Existing
+customer-capable operation APIs do not require a generic Behaviour page now.
+
 Resource list: installed Conversational, Specialist team or Smart Brain profile,
 trigger/entrypoint, readiness and latest known run. Inspector: approved definition,
 limits, specialist/plan composition and scoped execution history. Parallel and
@@ -285,9 +330,117 @@ existing operation IDs and current evidence. No staging vector/conversation copy
 Show staging retention/expiry limitations honestly rather than a fake completed
 cleanup checklist. No new wizard-state engine or silently extended allocation.
 
-## 6. Phased Implementation
+## 6. Product Milestones And Implementation History
 
-### U0 - Approve The Visual Contract
+### Current Product-Oriented Delivery Milestones
+
+Status baseline: recorded source430b875a7 and hosted UI checks of23 October,
+not a new live verification performed by this documentation amendment. Existing
+010.36 hosted behaviour is distinguished from acceptance through the NEW UI.
+
+#### M1 - Product-Focused Home - SOURCE QUALIFIED / PUBLICATION PENDING
+
+Goal: start with Dealership AI or Engage Apps, see existing products/apps, open
+the experience and understand the next important issue.
+Already: deployment/app Home, first-use entitled template choices, resource
+inspectors, app addresses/readiness, errors and both themes are live.
+Implemented: product-led entry points grouped by explicit reviewed experience-pack
+metadata, Engage Apps entry, exact-offer setup links, current app/deployment links,
+and separately inspectable inactive deployments/app drafts. Active app warnings
+remain visible. No offer version is selected by name or guessed recency. Local
+model checks, customer scope regressions, staff parity and actual-component
+desktop/mobile/both-theme checks pass. Publication/live proof is tracked separately
+in the execution record. Shopify fixtures preserve reuse, not a delivered M7.
+Done when customers can enter/resume their product without a broad infrastructure
+menu. This is a presentation change over existing resources, not a new entity.
+
+#### M2 - Guided Dealership Setup - PARTIAL
+
+Goal: dealership template -> AutoTrader/simulator -> policies -> create/link
+Engage app -> preview. No dealership business database is created.
+Already: entitled template and guided deployment setup, simulator-backed inventory
+integration, customer-owned S3 policy indexing, app/assignment configuration.
+Last hosted reads confirmed3 ACTIVE policies and1 inventory source; earlier
+010.36 proved the underlying customer journey.
+Remaining: join existing steps into concise product-focused setup, expose only
+needed connection contributions, and verify the path with a customer session.
+Finish the simulator path first; real AutoTrader partner approval/credentials
+remain a separate integration gate, not a reason to invent another bridge.
+
+#### M3 - Engage App Management - MOSTLY IMPLEMENTED
+
+Goal: create/link an app, use approved branding/tools/access settings, preview
+it, obtain its script or standalone address, and understand connection problems.
+Already: shared creation/configuration, reviewed experience/auth profiles,
+domains, installation/standalone delivery, assignment/readiness, guarded editors.
+Same-account Configuration/Advanced, retained drafts, both themes and the
+existing production app assignment are qualified.
+Remaining: customer-friendly product-linked entry/copy and bounded verification
+of actual supported branding/tools/access edits. Read-only acceptance did not
+live-test every branding field or save path. Reuse the existing app service.
+
+#### M4 - Test And Go Live - PARTIAL
+
+Goal: open customer staging, try inventory/policies/actions/human handover,
+understand blockers, then explicitly promote and switch the same app.
+Already: guided staging/production steps, candidate/readiness checks, explicit
+activation and independent production indexing. The underlying same-app
+staging-to-production journey passed earlier010.36 acceptance.
+Remaining: one fresh complete journey through the new product-focused UI; U4's
+hosted gate remains open. Reuse existing promotion/cold replacement without
+adding recovery, draining, parallel-version operation or vector copying.
+
+#### M5 - Product-Scoped Daily Operations - PARTIAL
+
+Goal: open app/inbox, update policies, inspect synchronization/important failures,
+and manage supported branding/access from the relevant product.
+Already: Knowledge/Connections controls and inspectors, Human support/Inbox
+entry, app management, failure notices and safe release selection. Hosted reads
+proved documents, inventory integration and reachable human handover; the
+UI-only run did not replay a booking or a human conversation.
+Remaining: organize useful tasks around each product, verify necessary daily
+edits, and remove status-read friction. Generic Behaviour management, full audit
+and universal integration editors are NOT prerequisites.
+
+#### M6 - Verify And Close This Product Release - PARTIAL
+
+Already: clean build,18 customer scope regressions, staff parity, offline
+dealership/Shopify fixtures, UI publication to both servers, nine real customer
+views/both themes, retained drafts, release locking, basic mobile and logout.
+Remaining: the M2-M5 journey, owner visual acceptance and the bounded existing
+UI rollback check. Resolve recurring15-minute placement expiry on operational
+reads; a manual refresh is not that fix. Keep this a narrow product usability/
+authorization task, not a capacity/recovery/infrastructure-management redesign.
+Record harder edge cases as follow-ups; no full framework matrix for UI changes.
+Done means a real customer completes the supported dealership/simulator journey
+without staff database edits or unadvertised configuration steps. Representative
+main cases suffice; do not attempt every possible integration/edge case.
+
+#### M7 - Add Shopify To The Same Console - LATER
+
+Already: Shopify integration/private-adapter foundations and reusable Engage
+components; offline fixtures preserve the different private access mode.
+Remaining: customer installation/store connection, product setup and shopping
+settings using the same M1-M5 patterns, then a bounded live Shopify journey.
+Fixtures are not proof this milestone is delivered. Do not rebuild existing
+Shopify backend capabilities just to provide product-oriented UI.
+
+### Delivery Order And Stop Rule
+
+Use M1 -> M2/M3 -> M4 -> M5 -> M6, finishing existing portions by reuse, not
+reimplementation. M7 follows dealership/Engage acceptance. Do not open parallel
+workstreams for deferred generic management pages. A blocker needs an exact
+product acceptance case and the smallest fix. Staff layout stays unchanged.
+Status must distinguish implemented source, live reads and completed customer
+commands; neither mocks nor an older UI run closes a new journey gate.
+
+### Earlier U-Phases: Foundation And Existing Gates
+
+U0-U6 retain source/history and technical acceptance mapping. They do not
+override M1-M7's current product scope. Broader prototype capability layouts are
+future references, not a release backlog to implement now.
+
+#### U0 - Approve The Visual Contract
 
 Deliver this prototype, page/state coverage and data-contract map. Review first
 setup, populated resource view, warning-first app/deployment inspectors and
@@ -297,7 +450,7 @@ Include light/dark previews and dealership/Shopify fixtures. The initial light
 dealership direction was accepted by the owner; remaining visual refinements
 are not permission to change staff UI or weaken customer access.
 
-### U1 - Isolate The Customer Shell
+#### U1 - Isolate The Customer Shell
 
 Add a CUSTOMER_ADMIN-only shell/composition boundary under existing auth. Retain
 the current staff AppShell, routes, theme and side effects unchanged. Define
@@ -307,7 +460,7 @@ comparison, existing customer denial/scope tests and desktop shell smoke pass.
 Add the customer-scoped Light / Dark / System theme provider and device preference
 without changing the staff provider, global palette or authentication.
 
-### U2 - Read-Only Resource Home, Deployments And Apps
+#### U2 - Read-Only Resource Home, Deployments And Apps
 
 Compose actual customer-owned deployment/release/app reads into the resource
 overview/list. Prioritize issues and assignment evidence. Add first-setup and
@@ -317,7 +470,7 @@ deep-link/Back/target changes work and no read triggers a mutation.
 Resource adapters must pass both dealership and Shopify/generic fixture cases;
 no domain-specific branching belongs in the shared shell or inspector.
 
-### U3 - Bring Shared Configuration Into Inspectors
+#### U3 - Bring Shared Configuration Into Inspectors
 
 Reuse existing Engage and deployment settings in focused tabs. Add Knowledge/
 Connections inspectors with safe binding summaries, explicit save/discard and
@@ -330,7 +483,7 @@ do not treat the staff console as Advanced. Qualify discoverability and retained
 drafts without changing role/session or widening backend authority. The owner's
 clarification is a presentation acceptance item, not a new role implementation.
 
-### U4 - Guided Creation And Go-Live
+#### U4 - Guided Creation And Go-Live
 
 Compose the existing customer template/prerequisite/apply/verify/activate steps.
 Keep current proof-renewal controls explicit. Connect issues to the exact
@@ -338,17 +491,18 @@ configuration step without automatically replaying an operation. Gate: one
 complete supported customer staging -> production -> same-app journey through
 the new UI, with existing readiness/authority and independent indexing intact.
 
-### U5 - Capability-Specific Customer Views
+#### U5 - Capability-Specific Customer Views
 
 Add Human support, Action reviews and Behaviours only as authorized and installed.
 Keep Human support separate from action approvals. Prove capability visibility
-and direct-link denial independently. Any missing customer Behaviour or channel
-summary authority is a SEPARATE bounded backend contract change, not a layout
-permission bypass. Deliver supported read-only projections first; unavailable
-operations are deferred explicitly. No framework release is required by this
-visual plan alone.
+and direct-link denial independently. Customer exposure must use verified
+ownership checks, not a layout permission bypass. Some Behaviour APIs ALREADY
+accept CUSTOMER_ADMIN; unexposed pages do not prove a missing backend contract.
+Only a confirmed missing operation warrants a bounded backend change. Generic
+Behaviour management is deferred from M1-M6, not a prerequisite for their
+release. No framework release is required by this visual plan alone.
 
-### U6 - Desktop Acceptance And Reversible Publication
+#### U6 - Desktop Acceptance And Reversible Publication
 
 Test desktop1440x900 and compact laptop1280x800 as first-class. Verify all pages,
 drawers, long values, warning/error/unknown/loading states, first setup, multiple
@@ -415,9 +569,18 @@ no trapped/hidden destructive commands. This is not a new release-blocking audit
   connection configuration. DATA/index and document state must stay distinct.
 - `pages/HumanReviewPage.tsx` is governed action review, not live agent chat.
 - `pages/BehaviorPage.tsx` and `BehaviorOperationsPage.tsx` exist on staff routes;
-  safe CUSTOMER_ADMIN exposure is NOT implemented by their existence.
+  safe CUSTOMER_ADMIN UI exposure is NOT implemented by their existence.
+  `DeploymentBehaviorOperationsController` already accepts CUSTOMER_ADMIN and its
+  service checks deployment ownership/operator access. Readiness approvals remain
+  staff-only. Do not describe all Behaviour APIs as missing or staff-only.
 - `pages/NotificationsPage.tsx` customer branch currently exposes staging
   lifecycle notices, not a complete per-customer activity/audit aggregate.
+  `/api/deployments/{deploymentId}/activity` already checks deployment access in
+  `DeploymentActivityService`; a full cross-resource aggregate is a different,
+  deferred scope. Reuse a bounded existing feed if a product needs it.
+- Declared offer binding slots do not imply a customer form exists for every
+  kind. Inspect and reuse slot-specific editors/APIs before claiming a backend
+  gap; implement only contributions needed for the selected product.
 - `workspace/DeploymentWorkspaceContext.tsx`, editor buffers and `platformApi.ts`
   remain authoritative shared context/models; no second configuration store.
 
@@ -435,6 +598,8 @@ because the prototype depicts a fictional future projection.
 - No new billing service, universal observability backend, operator chat backend,
   drag/drop infrastructure provisioning or unrestricted service marketplace.
 - No simultaneous legacy/new runtime support or graceful-worker-fencing expansion.
+- No generic Behaviour-management centre, full audit centre, universal connector
+  editor, topology canvas or recovery dashboard as an M1-M6 release requirement.
 - No production deployment until this design is reviewed and implementation is
   explicitly started.
 

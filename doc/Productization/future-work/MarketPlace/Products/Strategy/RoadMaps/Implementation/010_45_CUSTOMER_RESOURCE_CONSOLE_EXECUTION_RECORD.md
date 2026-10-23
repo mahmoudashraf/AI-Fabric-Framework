@@ -2,6 +2,52 @@
 
 Date: 2026-10-23. Plan: [010.45](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI_PLAN.md).
 
+## Current Product-Milestone Execution
+
+Owner requested phased, tracked implementation. Existing source/live evidence
+below is retained; it does not close these product-composition milestones.
+
+- M1 SOURCE QUALIFIED / PUBLICATION PENDING: product-focused Home over existing
+  owned offers/apps/resources; model, actual-component, scope and staff checks pass.
+- M2 PENDING: concise dealership setup using existing simulator/storage controls.
+- M3 REUSE / QUALIFICATION PENDING: product-linked Engage setup and supported edits.
+- M4 PENDING: fresh new-UI staging-to-production customer journey.
+- M5 PENDING: product-scoped day-to-day tasks using existing components.
+- M6 IN PROGRESS (bounded prerequisite): separate operational-read access from
+  expired placement admission proofs; preserve all write/ownership protections.
+- M7 DEFERRED: Shopify product onboarding after dealership/Engage acceptance.
+
+Each phase must record changes, actual checks, source/publication status and a
+review link. No generic management/recovery/draining workstreams are authorized.
+
+### M1 - Product Home Source Qualification
+
+2026-10-23 18:48 UTC: added product-led Home using explicit reviewed experience-pack
+codes, not deployment names or keyword matching. Multiple offers remain explicit
+choices; no latest-version inference. Existing active resources link to the same
+inspectors/apps. Draft/disabled/unused resources remain inspectable in a separate
+history section, while active app issues stay visible. No new entity, permissions,
+request or configuration service was introduced. Staff shell/theme unchanged.
+
+Checks: production build;6 model tests;18 customer-scope regressions;33 admin/18
+operator parity; actual-component suite with19 scenarios and37 viewport acceptance
+screenshots plus M1 light/dark/mobile captures. Zero browser errors or escaped
+requests. The first mobile assertion measured an inspector's closing animation;
+it now waits for the panel to be hidden and the resize transition to settle.
+A second assertion counted before async catalogue loading; it now waits for the
+actual heading. A scope-suite timeout under concurrent local load passed on rerun.
+No product guard was weakened. Original failed logs remain in `/private/tmp/01045-m1-*`.
+
+Source report: `verification-support/customer-console-01045/product-m1/`.
+Review: https://normally-solar-educated-stickers.trycloudflare.com/phase-m1/index.html
+(offline fixture transport, not production acceptance). Commit/publication and
+live M1 results follow in a separate entry; M2-M6 are not closed by these tests.
+
+M6 prerequisite source is also ready for main review: bounded operational GETs
+retain current ownership/entitlement/reviewed target checks without requiring a
+fresh admission lease. All writes/source commands still require fresh evidence.
+207 focused backend tests pass; no backend publication or live effect yet.
+
 ## Current Scope
 
 Customer-only implementation. Admin/operator `AppShell.tsx` and
@@ -197,9 +243,10 @@ that scope to clear prior selection/decision state.
 Customer Activity still exposes the existing staging lifecycle notices, not a
 promised complete audit stream. Fixed its failed-read state so it cannot also
 display a green empty-success notice. Account/team retains existing scoped
-controls. Behaviour management has no safe customer contract: no navigation is
-offered, direct links deny without staff API reads, and the missing projection
-is deferred rather than granting authority through a UI change.
+controls. Behaviour pages were not exposed or qualified in the new customer UI:
+no navigation is offered and direct links deny without requesting those pages'
+APIs. The later code-inspection correction below confirms customer-capable APIs
+already exist; this omission is not evidence of a blanket missing contract.
 
 U5 fixtures pass installed/uninstalled Human support, failed support reads,
 denied review reads, failed notices without false success, and denied staff
@@ -313,6 +360,30 @@ Staff AppShell/theme SHA256 still match the pre-extraction baseline. UI-only
 rollback remains the prior live `e12d9e571761297ce7e509a35de15c1daff29f4d` image;
 no post-layout live rollback rehearsal was performed in this request.
 
+## Product-Oriented Scope Amendment
+
+The owner wants a small product-focused console, not another generic management
+surface comparable in scope to the earlier recovery/draining work. Section6 of
+the canonical010.45 plan now tracks M1-M7: product Home, dealership setup, Engage
+management, test/go-live, daily operations, bounded release closure, then Shopify.
+Existing U0-U6 source work remains the reusable foundation and evidence; the new
+milestones are not all newly completed just because those components exist.
+
+Already delivered: resource Home/inspectors/themes, reviewed dealership setup
+and simulator integration, S3 policy indexing, Engage editors/delivery, guided
+staging/promotion controls and Human support. Remaining work is focused product
+composition, required edit/journey verification and placement-read usability.
+No app/backend change or fresh live run is performed by this plan amendment.
+
+Correction to the earlier blanket contract-gap claim: Behaviour operations
+already accept CUSTOMER_ADMIN with deployment access checks; the existing
+deployment activity API checks ownership too. Their missing new-console exposure
+is not proof of missing backend APIs. Full Behaviour management, a unified audit
+centre and universal integration editors are deferred as PRODUCT SCOPE, not
+declared backend blockers. Inspect any required editor/operation individually.
+Only concrete blockers to M1-M6 justify a narrow addition; do not reopen broad
+configuration, recovery, draining or infrastructure workstreams.
+
 ## Remaining Acceptance And Follow-Ups
 
 - U4 HOSTED GATE OPEN: verify the actual supported customer staging/go-live
@@ -324,16 +395,19 @@ no post-layout live rollback rehearsal was performed in this request.
 - Existing15-minute placement-freshness coupling on operational reads needs a
   separate backend/UX decision. Do not call this release full market readiness.
 
-## Explicitly Deferred Capability Contracts
+## Deferred Product Scope, Not Blanket Missing-API Claims
 
-- Customer Behaviour definition/operations projection and mutations: staff-only
-  APIs are not reused as customer authority.
-- Unified customer audit/activity aggregation: current lifecycle notices are
-  retained and labelled accurately.
+- Generic customer Behaviour UI: existing customer-capable APIs can be reused if
+  a concrete product needs a bounded operation; internal readiness approvals stay
+  staff-only. No full Behaviour management centre is needed for M1-M6.
+- Unified customer audit/activity aggregation: current lifecycle notices and the
+  existing deployment activity reader are not a complete cross-resource audit
+  centre; that expansion is not required for this product release.
 - Offer binding slots without an existing customer editor: do not invent a
   self-service secret/profile form from identifiers alone. Existing reviewed
   bindings and backend readiness stay authoritative. New integration onboarding
-  UX must preserve profile approval and exact target/version authorization.
+  UX must preserve profile approval and exact target/version authorization. Reuse
+  existing editors first and add only the selected product's required contribution.
 
 Phone review uses a temporary public, unauthenticated Cloudflare tunnel from
 the owner's Mac. It serves only allowlisted design/build assets. The Mac must

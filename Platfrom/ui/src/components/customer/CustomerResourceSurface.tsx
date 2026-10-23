@@ -11,6 +11,7 @@ import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, Custome
 import { appResource, deploymentResource, releaseEnvironment, releaseIssues, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
+import { CustomerProductHome } from './CustomerProductHome'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -72,7 +73,6 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   }
   const cards = props.mode === 'home' ? allResources : props.mode === 'apps' ? appCards : deploymentCards
   const filtered = cards.filter(item => item.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
-  const issues = allResources.flatMap(resource => resource.issues.map(issue => ({ resource, issue })))
   const setupPath = props.mode === 'apps' ? '/ai-workspaces?view=manage' : '/deployments?view=setup&step=template'
   const resourceNotices = selected ? <Stack spacing={1}>
     {selected.issues.map(issue => <Alert key={issue.code} severity={issue.severity}>{issue.message}</Alert>)}
@@ -113,13 +113,12 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   return <Box sx={{ display: 'flex', m: { xs: -2, md: -3.5 }, minHeight: 'calc(100vh - 62px)' }}>
     <Box sx={{ p: { xs: 2, md: 3.5 }, flex: 1, minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-        <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Deployments, experiences and the items that need your attention.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : 'Your deployment configurations and verified target releases.'}</Typography></Box>
-        <Button component={RouterLink} to={setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : 'Create deployment'}</Button>
+        <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : 'Your deployment configurations and verified target releases.'}</Typography></Box>
+        {props.mode !== 'home' ? <Button component={RouterLink} to={setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : 'Create deployment'}</Button> : null}
       </Stack>
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
       {props.loading ? <CircularProgress aria-label="Loading customer resources" /> : null}
-      {props.mode === 'home' && issues.length ? <Stack spacing={1} sx={{ mb: 3 }}>{issues.slice(0,5).map(({resource,issue}) => <Alert key={`${resource.id}:${issue.code}`} severity={issue.severity} action={<Button onClick={() => open(resource)}>Inspect</Button>}><strong>{resource.name}</strong>: {issue.message}</Alert>)}</Stack> : null}
-      {!props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
+      {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
         <Typography variant="h6" sx={{ mb: 2 }}>Choose a starting template</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>{props.offers.map(item => <Card key={item.id}><CardContent><Typography fontWeight={600}>{item.name}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>{item.targets.length} reviewed targets</Typography><Button component={RouterLink} to={`/deployments?view=setup&step=template&offerId=${encodeURIComponent(item.id)}`} sx={{ mt: 2 }}>Open setup</Button></CardContent></Card>)}</Box>
         {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in deployment setup.</Alert> : null}

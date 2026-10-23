@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { resolve, sep } from 'node:path'
 import assert from 'node:assert/strict'
 import { verifyAdvancedViews } from './customer-console-advanced-checks.mjs'
+import { verifyProductHome } from './customer-product-home-checks.mjs'
 
-const phase=['u3','u4','u5','u6'].includes(process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE) ? process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE : 'u2'
+const phase=['u3','u4','u5','u6','m1'].includes(process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE) ? process.env.CUSTOMER_RESOURCE_PREVIEW_PHASE : 'u2'
+const advanced = ['u6','m1'].includes(phase)
 const root=fileURLToPath(new URL(`../../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/designs/010_45_customer_console/phase-${phase}/`,import.meta.url))
 const output=process.env.CUSTOMER_U2_OUTPUT ?? `/private/tmp/01045-${phase}-`+Date.now()
 await mkdir(output,{recursive:true})
@@ -74,8 +76,8 @@ try{
   const page=await browser.newPage()
   page.on('pageerror',e=>report.errors.push(e.message))
   await page.goto(base+'/?state=first#/home')
-  await page.getByRole('heading',{name:'Choose a starting template',exact:true}).waitFor()
-  await page.getByRole('link',{name:'Open setup',exact:true}).waitFor()
+  await page.getByRole('heading',{name:phase==='m1'?'Your products':'Choose a starting template',exact:true}).waitFor()
+  await page.getByRole('link',{name:phase==='m1'?'Set up Dealership AI':'Open setup',exact:true}).waitFor()
   assert.equal(await page.getByRole('navigation',{name:'Customer navigation'}).getByRole('link').count(),4)
   report.checks.push({scenario:'first-setup',status:'PASS'})
   await page.goto(base+'/?state=apps-error#/home')
@@ -134,7 +136,7 @@ try{
     await knowledge.getByRole('heading',{name:'Knowledge & data',exact:true}).waitFor()
     await knowledge.getByRole('button').filter({hasText:'Collection and delivery policy'}).first().click()
     await knowledge.getByRole('complementary',{name:'Document details'}).waitFor()
-    if(phase==='u6')await knowledge.getByRole('complementary',{name:'Document details'}).getByRole('tab',{name:'Configuration',exact:true}).click()
+    if(advanced)await knowledge.getByRole('complementary',{name:'Document details'}).getByRole('tab',{name:'Configuration',exact:true}).click()
     await knowledge.getByRole('button',{name:'Manage document',exact:true}).click()
     await knowledge.getByRole('heading',{name:'Document Knowledge',exact:true}).waitFor()
     assert.equal(await knowledge.getByRole('textbox',{name:'Secret key',exact:true}).inputValue(),'')
@@ -158,7 +160,7 @@ try{
     report.checks.push({scenario:'knowledge-connections-exact-target-shared-editor-secrets-read-error-and-foreign-scope',status:'PASS'})
     await knowledge.close()
   }
-  if(['u4','u5','u6'].includes(phase)){
+  if(['u4','u5','u6','m1'].includes(phase)){
     const journey=await browser.newPage()
     journey.on('pageerror',e=>report.errors.push(e.message))
     await journey.goto(base+'/#/deployments?view=setup&deploymentId=preview-deployment&step=configure')
@@ -187,14 +189,14 @@ try{
     report.checks.push({scenario:'guided-setup-stages-retain-forms-no-commands-blocked-activation-exit-protection',status:'PASS',hostedPromotionProof:false})
     await journey.close()
   }
-  if(['u5','u6'].includes(phase)){
+  if(['u5','u6','m1'].includes(phase)){
     const support=await browser.newPage()
     support.on('pageerror',e=>report.errors.push(e.message))
     const target='deploymentId=preview-deployment&releaseId=preview-production-release'
     await support.goto(base+'/#/human-support?'+target)
     await support.getByRole('heading',{name:'Human support',exact:true}).waitFor()
     await support.getByRole('heading',{name:'Conversation handover',exact:true}).waitFor()
-    await (phase==='u6' ? support.getByRole('tabpanel',{name:'overview resource details'}) : support).getByText('HUMAN_ACTIVE 1',{exact:true}).waitFor()
+    await (advanced ? support.getByRole('tabpanel',{name:'overview resource details'}) : support).getByText('HUMAN_ACTIVE 1',{exact:true}).waitFor()
     await support.getByRole('navigation',{name:'Customer navigation'}).getByRole('link',{name:'Human support',exact:true}).waitFor()
     await support.screenshot({path:output+'/human-support-summary.png',fullPage:false})
     await support.goto(base+'/?state=no-support#/human-support?'+target)
@@ -217,8 +219,9 @@ try{
     report.checks.push({scenario:'human-support-installed-only-error-states-review-notice-no-false-success-staff-behaviour-denied',status:'PASS'})
     await support.close()
   }
-  if(phase==='u6'){
+  if(advanced){
     await verifyAdvancedViews({browser,base,output,report})
+    if(phase==='m1')await verifyProductHome({browser,base,output,report})
     const views=[['home','Your workspace'],['deployments','Deployments'],['ai-workspaces','Engage apps'],['document-knowledge?deploymentId=preview-deployment&releaseId=preview-production-release','Knowledge & data'],['integrations?deploymentId=preview-deployment&releaseId=preview-production-release','Connections'],['human-support?deploymentId=preview-deployment&releaseId=preview-production-release','Human support'],['human-review?deploymentId=preview-deployment','Action reviews'],['notifications','Customer staging notices'],['users','Account & team']]
     const context=await browser.newContext()
     const acceptance=await context.newPage()
