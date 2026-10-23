@@ -11,7 +11,10 @@
     "smoke:phase18": "node scripts/phase18-ui-smoke.mjs",
     "smoke:phase19": "node scripts/phase19-ui-auth-smoke.mjs",
     "smoke:phase20": "node scripts/phase20-ui-lifecycle-smoke.mjs",
-    "smoke:ai-workspace": "node scripts/ai-workspace-ui-smoke.mjs"
+    "smoke:ai-workspace": "node scripts/ai-workspace-ui-smoke.mjs",
+    "smoke:customer-workspace": "node scripts/customer-workspace-ui-smoke.mjs --customer-layout",
+    "smoke:customer-layout": "node scripts/customer-layout-parity-smoke.mjs",
+    "smoke:customer-scope": "node scripts/customer-ui-scope-regressions.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

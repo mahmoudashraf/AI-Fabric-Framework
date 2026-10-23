@@ -20,6 +20,7 @@ import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded'
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import PrecisionManufacturingRoundedIcon from '@mui/icons-material/PrecisionManufacturingRounded'
@@ -36,6 +37,7 @@ import {
   Chip,
   Divider,
   Drawer,
+  IconButton,
   List,
   ListItemButton,
   ListItemIcon,
@@ -43,8 +45,10 @@ import {
   Stack,
   Toolbar,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
 import { DeploymentWorkspaceHeader } from '../components/DeploymentWorkspaceHeader'
@@ -54,18 +58,18 @@ import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/
 const drawerWidth = 280
 
 const navItems = [
-  { label: 'Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
+  { label: 'Deployments', customerLabel: 'My Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
   { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Behavior', path: '/behavior', icon: <AccountTreeRoundedIcon /> },
   { label: 'Behavior Runs', path: '/behavior-operations', icon: <HubRoundedIcon />, behaviorOperationsOnly: true },
-  { label: 'Human Review', path: '/human-review', icon: <FactCheckRoundedIcon />, customerReviewerOnly: true },
+  { label: 'Human Review', customerLabel: 'Action Reviews', path: '/human-review', icon: <FactCheckRoundedIcon />, customerReviewerOnly: true },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
-  { label: 'AI Workspaces', path: '/ai-workspaces', icon: <WidgetsRoundedIcon />, customerManagement: true },
+  { label: 'AI Workspaces', customerLabel: 'My Engage Apps', path: '/ai-workspaces', icon: <WidgetsRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
-  { label: 'Document Knowledge', path: '/document-knowledge', icon: <DescriptionRoundedIcon />, documentKnowledgeOnly: true },
-  { label: 'External Integrations', path: '/integrations', icon: <CableRoundedIcon />, externalIntegrationOnly: true },
+  { label: 'Document Knowledge', customerLabel: 'Knowledge', path: '/document-knowledge', icon: <DescriptionRoundedIcon />, documentKnowledgeOnly: true },
+  { label: 'External Integrations', customerLabel: 'Inbox & Integrations', path: '/integrations', icon: <CableRoundedIcon />, externalIntegrationOnly: true },
   { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
   { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'Product Services', path: '/product-services', icon: <PrecisionManufacturingRoundedIcon />, platformAdminOnly: true },
@@ -85,9 +89,19 @@ const navItems = [
   { label: 'Vectorization', path: '/vectorization', icon: <AutoFixHighRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
-  { label: 'Notifications', path: '/notifications', icon: <NotificationsActiveRoundedIcon />, platformAdminOnly: true },
+  { label: 'Notifications', path: '/notifications', icon: <NotificationsActiveRoundedIcon />, notificationsOnly: true },
   { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, platformAdminOnly: true },
-  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, userDirectory: true },
+  { label: 'User Access', customerLabel: 'Account & Team', path: '/users', icon: <ManageAccountsRoundedIcon />, userDirectory: true },
+]
+
+const customerNavigation = [
+  '/deployments',
+  '/ai-workspaces',
+  '/document-knowledge',
+  '/integrations',
+  '/human-review',
+  '/notifications',
+  '/users',
 ]
 
 type AppShellProps = {
@@ -99,42 +113,58 @@ type AppShellProps = {
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
   const workspace = useDeploymentWorkspace()
+  const compactNavigation = useMediaQuery(useTheme().breakpoints.down('md'))
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
   const showUnresolvedDeploymentState = workspace.isScopedPage
     && !workspace.deploymentsLoading
     && workspace.unresolvedRequestedDeploymentId != null
+  const customerWorkspace = session?.role === 'CUSTOMER_ADMIN'
   const visibleNavItems = navItems.filter((item) => {
+    if (customerWorkspace && !customerNavigation.includes(item.path)) return false
     if (item.behaviorOperationsOnly) {
       return ['AGENTIC_SPECIALIST_TEAM', 'SMART_BRAIN'].includes(
         workspace.selectedDeploymentSummary?.behaviorType ?? '',
       )
     }
     if (item.documentKnowledgeOnly) {
-      return workspace.workspace?.documentKnowledgeConfigured ?? false
+      return customerWorkspace || (workspace.workspace?.documentKnowledgeConfigured ?? false)
     }
     if (item.externalIntegrationOnly) {
-      return workspace.workspace?.externalIntegrationConfigured ?? false
+      return customerWorkspace
+        || (workspace.workspace?.externalIntegrationConfigured ?? false)
+        || (workspace.workspace?.conversationHandoverConfigured ?? false)
+    }
+    if (item.notificationsOnly) {
+      return session?.enabled
+        ? session.canManageUsers || session.role === 'CUSTOMER_ADMIN'
+        : true
     }
     if (item.platformAdminOnly) {
       return session?.enabled ? session.canManageUsers : true
     }
     if (item.customerManagement) {
-      return session?.enabled ? session.canManageCustomers : true
+      return customerWorkspace || (session?.enabled ? session.canManageCustomers : true)
     }
     if (item.userDirectory) {
-      return session?.enabled ? session.canManageUserDirectory : true
+      return customerWorkspace || (session?.enabled ? session.canManageUserDirectory : true)
     }
     if (item.customerReviewerOnly) {
       return session?.role === 'CUSTOMER_ADMIN' && session.authenticationMode === 'SESSION'
     }
     return true
-  })
+  }).sort((left, right) => customerWorkspace
+    ? customerNavigation.indexOf(left.path) - customerNavigation.indexOf(right.path)
+    : 0)
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Drawer
-        variant="permanent"
+        id="platform-navigation"
+        variant={compactNavigation ? 'temporary' : 'permanent'}
+        open={!compactNavigation || mobileNavigationOpen}
+        onClose={() => setMobileNavigationOpen(false)}
         sx={{
-          width: drawerWidth,
+          width: { xs: 0, md: drawerWidth },
           flexShrink: 0,
           '& .MuiDrawer-paper': {
             width: drawerWidth,
@@ -164,15 +194,15 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
               </Box>
               <Box>
                 <Typography variant="h6" sx={{ color: 'common.white', lineHeight: 1.1 }}>
-                  AI Enablement
+                  {customerWorkspace ? 'LoomAI Platform' : 'AI Enablement'}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'grey.400' }}>
-                  Control Plane
+                  {customerWorkspace ? 'Customer workspace' : 'Control Plane'}
                 </Typography>
               </Box>
             </Stack>
             <Chip
-              label="Phase 21 Public API"
+              label={customerWorkspace ? 'Self-service' : 'Phase 21 Public API'}
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
@@ -191,6 +221,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
                 key={item.path}
                 component={Link}
                 to={target}
+                onClick={() => setMobileNavigationOpen(false)}
                 selected={active}
                 sx={{
                   borderRadius: 2,
@@ -208,14 +239,14 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
                 }}
               >
                 <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.label} />
+                <ListItemText primary={customerWorkspace && item.customerLabel ? item.customerLabel : item.label} />
               </ListItemButton>
             )
           })}
         </List>
       </Drawer>
 
-      <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         <AppBar
           position="sticky"
           elevation={0}
@@ -228,22 +259,30 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
           }}
         >
           <Toolbar sx={{ minHeight: 72 }}>
+            {compactNavigation ? (
+              <IconButton aria-label="Open navigation" aria-controls="platform-navigation"
+                aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(true)} sx={{ mr: 1 }}>
+                <MenuRoundedIcon />
+              </IconButton>
+            ) : null}
             <Stack
               direction={{ xs: 'column', md: 'row' }}
               spacing={2}
               justifyContent="space-between"
               alignItems={{ xs: 'flex-start', md: 'center' }}
-              sx={{ width: '100%' }}
+              sx={{ width: '100%', minWidth: 0 }}
             >
               <Stack spacing={0.25}>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Configurable AI Enablement Platform
+                  {customerWorkspace ? 'LoomAI Platform' : 'Configurable AI Enablement Platform'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Runtime and connector remain immutable. Configuration is versioned and released from the platform.
+                  {customerWorkspace
+                    ? session.customerName ?? 'Customer account'
+                    : 'Runtime and connector remain immutable. Configuration is versioned and released from the platform.'}
                 </Typography>
               </Stack>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ maxWidth: '100%' }}>
                 {session?.enabled ? (
                   <>
                     <Chip
@@ -251,7 +290,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
                       color={session.role === 'PLATFORM_ADMIN' ? 'secondary' : 'primary'}
                       variant="outlined"
                     />
-                    <Chip label={session.displayName ?? session.actorId ?? 'unknown'} variant="outlined" />
+                    <Chip label={session.displayName ?? session.actorId ?? 'unknown'} variant="outlined" sx={{ maxWidth: '100%' }} />
                     <Chip label={session.authenticationMode ?? 'AUTH'} variant="outlined" />
                     <Button
                       variant="outlined"
@@ -270,8 +309,8 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
             </Stack>
           </Toolbar>
         </AppBar>
-        <DeploymentWorkspaceHeader />
-        <Box component="main" sx={{ p: 3.5 }}>
+        {!customerWorkspace ? <DeploymentWorkspaceHeader /> : null}
+        <Box component="main" sx={{ p: { xs: 2, md: 3.5 } }}>
           {showUnresolvedDeploymentState ? <DeploymentWorkspaceUnresolvedState /> : children}
         </Box>
       </Box>

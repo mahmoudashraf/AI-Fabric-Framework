@@ -43,6 +43,7 @@ import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceCont
 
 export default function App() {
   const auth = usePlatformAuth()
+  const customerWorkspace = auth.session?.role === 'CUSTOMER_ADMIN'
 
   if (auth.isLoading) {
     return (
@@ -94,42 +95,57 @@ export default function App() {
       <AppShell session={auth.session} onSignOut={auth.signOut}>
         <Routes>
           <Route path="/" element={<Navigate to="/deployments" replace />} />
-          <Route path="/deployments" element={<DeploymentsPage />} />
-          <Route path="/overview" element={<OverviewPage />} />
-          <Route path="/activity" element={<ActivityPage />} />
-          <Route path="/actions" element={<ActionsPage />} />
-          <Route path="/ai-workspaces" element={<AIWorkspacesPage />} />
-          <Route path="/behavior" element={<BehaviorPage />} />
-          <Route path="/behavior-operations" element={<BehaviorOperationsPage />} />
-          <Route path="/human-review" element={<HumanReviewPage />} />
-          <Route path="/approvals" element={<ApprovalsPage />} />
-          <Route path="/customers" element={<CustomersPage />} />
-          <Route path="/access" element={<AccessPage />} />
-          <Route path="/knowledge" element={<KnowledgePage />} />
-          <Route path="/document-knowledge" element={<DocumentKnowledgePage />} />
-          <Route path="/integrations" element={<IntegrationsPage />} />
-          <Route path="/marketplace" element={<MarketplacePage />} />
-          <Route path="/inference-services" element={<InferenceServicesPage />} />
-          <Route path="/product-services" element={<ProductServicesPage />} />
-          <Route path="/partner-privileges" element={<PartnerPrivilegesPage />} />
-          <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
-          <Route path="/shopify-launch-readiness" element={<ShopifyLaunchReadinessPage />} />
-          <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
-          <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
-          <Route path="/thinker-resolver" element={<ThinkerResolverPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/poc" element={<PocPage />} />
-          <Route path="/prompts" element={<PromptsPage />} />
-          <Route path="/providers" element={<ProvidersPage />} />
-          <Route path="/security" element={<SecurityPage />} />
-          <Route path="/verification" element={<VerificationPage />} />
-          <Route path="/verification-ops" element={<VerificationOpsPage />} />
-          <Route path="/vectorization" element={<VectorizationPage />} />
-          <Route path="/revisions" element={<RevisionsPage />} />
-          <Route path="/runtime-artifacts" element={<RuntimeArtifactsPage />} />
-          <Route path="/diagnostics" element={<DiagnosticsPage />} />
-          <Route path="/platform-diagnostics" element={<PlatformDiagnosticsPage />} />
-          <Route path="/users" element={<UsersPage />} />
+          {customerWorkspace ? (
+            <>
+              <Route path="/deployments" element={<DeploymentsPage />} />
+              <Route path="/ai-workspaces" element={<AIWorkspacesPage />} />
+              <Route path="/document-knowledge" element={<DocumentKnowledgePage />} />
+              <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route path="/human-review" element={<HumanReviewPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/users" element={<UsersPage />} />
+              <Route path="*" element={<Navigate to="/deployments" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/deployments" element={<DeploymentsPage />} />
+              <Route path="/overview" element={<OverviewPage />} />
+              <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/actions" element={<ActionsPage />} />
+              <Route path="/ai-workspaces" element={<AIWorkspacesPage />} />
+              <Route path="/behavior" element={<BehaviorPage />} />
+              <Route path="/behavior-operations" element={<BehaviorOperationsPage />} />
+              <Route path="/human-review" element={<HumanReviewPage />} />
+              <Route path="/approvals" element={<ApprovalsPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/access" element={<AccessPage />} />
+              <Route path="/knowledge" element={<KnowledgePage />} />
+              <Route path="/document-knowledge" element={<DocumentKnowledgePage />} />
+              <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route path="/marketplace" element={<MarketplacePage />} />
+              <Route path="/inference-services" element={<InferenceServicesPage />} />
+              <Route path="/product-services" element={<ProductServicesPage />} />
+              <Route path="/partner-privileges" element={<PartnerPrivilegesPage />} />
+              <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
+              <Route path="/shopify-launch-readiness" element={<ShopifyLaunchReadinessPage />} />
+              <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
+              <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
+              <Route path="/thinker-resolver" element={<ThinkerResolverPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/poc" element={<PocPage />} />
+              <Route path="/prompts" element={<PromptsPage />} />
+              <Route path="/providers" element={<ProvidersPage />} />
+              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/verification" element={<VerificationPage />} />
+              <Route path="/verification-ops" element={<VerificationOpsPage />} />
+              <Route path="/vectorization" element={<VectorizationPage />} />
+              <Route path="/revisions" element={<RevisionsPage />} />
+              <Route path="/runtime-artifacts" element={<RuntimeArtifactsPage />} />
+              <Route path="/diagnostics" element={<DiagnosticsPage />} />
+              <Route path="/platform-diagnostics" element={<PlatformDiagnosticsPage />} />
+              <Route path="/users" element={<UsersPage />} />
+            </>
+          )}
         </Routes>
       </AppShell>
     </DeploymentWorkspaceProvider>

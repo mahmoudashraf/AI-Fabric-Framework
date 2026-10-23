@@ -16,9 +16,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  fetchCustomerAdmissionNotices,
   fetchDeploymentDeletionNotifications,
   retriggerRunningDeploymentDeletionOperation,
   type DeploymentDeletionOperationSummary,
+  type PlatformAuthSessionSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
@@ -53,6 +55,63 @@ function renderDetailObject(value: unknown): string {
 
 export function NotificationsPage() {
   const auth = usePlatformAuth()
+  if (auth.session?.role === 'CUSTOMER_ADMIN') {
+    return <CustomerNotificationsPage />
+  }
+  return <PlatformNotificationsPage session={auth.session} />
+}
+
+function CustomerNotificationsPage() {
+  const noticesQuery = useQuery({
+    queryKey: ['customer-admission-notices'],
+    queryFn: () => fetchCustomerAdmissionNotices(100),
+    refetchInterval: 15_000,
+  })
+  const notices = noticesQuery.data ?? []
+  return (
+    <Stack spacing={3}>
+      <Box>
+        <Chip label="Notifications" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>Customer staging notices</Typography>
+        <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 860 }}>
+          Expiry, retention, and cleanup notices for your admitted customer-staging environments.
+        </Typography>
+      </Box>
+      {noticesQuery.isError ? (
+        <Alert severity="error">{noticesQuery.error instanceof Error ? noticesQuery.error.message : 'Failed to load notices.'}</Alert>
+      ) : null}
+      {noticesQuery.isLoading ? <Typography color="text.secondary">Loading notices…</Typography> : null}
+      {!noticesQuery.isLoading && notices.length === 0 ? (
+        <Alert severity="success">No customer-staging lifecycle notices require attention.</Alert>
+      ) : null}
+      <Grid container spacing={2}>
+        {notices.map((notice) => (
+          <Grid item xs={12} md={6} key={notice.deliveryKey}>
+            <Card variant="outlined" sx={{ height: '100%' }}>
+              <CardContent>
+                <Stack spacing={1.25}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip label={notice.noticeCycle.replace(/_/g, ' ')} color="warning" size="small" />
+                    <Chip label={notice.payload.channel.replace(/_/g, ' ')} variant="outlined" size="small" />
+                  </Stack>
+                  <Typography sx={{ fontWeight: 700 }}>{notice.payload.deploymentId}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Target {notice.payload.targetProfileId} expires {formatTimestamp(notice.payload.expiresAt)}.
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Published {formatTimestamp(notice.publishedAt)}
+                  </Typography>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    </Stack>
+  )
+}
+
+function PlatformNotificationsPage({ session }: { session: PlatformAuthSessionSummary | null }) {
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedOperationId, setSelectedOperationId] = useState('')
@@ -61,7 +120,7 @@ export function NotificationsPage() {
   const notificationsQuery = useQuery({
     queryKey: ['deployment-deletion-notifications', statusFilter],
     queryFn: () => fetchDeploymentDeletionNotifications(statusFilter === 'ALL' ? undefined : statusFilter, 100),
-    enabled: auth.session?.canManageUsers ?? false,
+    enabled: session?.canManageUsers ?? false,
     refetchInterval: 5000,
   })
 
@@ -99,7 +158,7 @@ export function NotificationsPage() {
     },
   })
 
-  if (!auth.session?.canManageUsers) {
+  if (!session?.canManageUsers) {
     return (
       <Alert severity="warning">
         Notifications are reserved for platform administrators because they include destructive cleanup and deletion execution details.
