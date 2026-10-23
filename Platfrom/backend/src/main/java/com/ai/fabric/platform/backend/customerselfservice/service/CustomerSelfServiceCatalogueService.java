@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.time.Instant;
 import java.util.List;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.*;
@@ -34,8 +35,10 @@ public class CustomerSelfServiceCatalogueService {
     @Transactional(readOnly = true)
     public List<OfferSummary> catalogue() {
         var actor = access.requireCustomerActor();
+        var now = Instant.now();
         return entitlements.findByCustomerIdOrderByCreatedAtAsc(actor.customerId()).stream()
             .filter(entity -> entity.getStatus() == EntitlementStatus.ACTIVE && actor.userId().equals(entity.getOwnerUserId()))
+            .filter(entity -> entity.getExpiresAt() != null && entity.getExpiresAt().isAfter(now))
             .map(entity -> offer(entity.getOfferId())).toList();
     }
 

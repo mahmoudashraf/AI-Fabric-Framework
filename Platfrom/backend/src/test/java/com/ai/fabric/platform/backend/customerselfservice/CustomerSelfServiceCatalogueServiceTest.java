@@ -28,8 +28,9 @@ class CustomerSelfServiceCatalogueServiceTest {
     private final CustomerReviewedCompositionService composition = mock(CustomerReviewedCompositionService.class);
     private final DeploymentTargetProfileRepository profiles = mock(DeploymentTargetProfileRepository.class);
     private final CustomerTargetPlacementService placement = mock(CustomerTargetPlacementService.class);
+    private final CustomerOfferEntitlementRepository grants = mock(CustomerOfferEntitlementRepository.class);
     private final CustomerSelfServiceCatalogueService catalogue = new CustomerSelfServiceCatalogueService(access,
-        mock(CustomerOfferEntitlementRepository.class), profiles, composition, placement);
+        grants, profiles, composition, placement);
     private Definition definition;
 
     @BeforeEach void setUp() {
@@ -54,6 +55,41 @@ class CustomerSelfServiceCatalogueServiceTest {
         assertThat(result.blockers()).contains(UNENTITLED_TARGET.name());
         verify(access).requireEntitlement("customer", "offer", "owner", false);
         verifyNoInteractions(placement);
+    }
+
+    @Test void expiredHistoricalOfferCannotBlockTheCurrentCustomerCatalogue() {
+        var valid = grant("offer", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        var expired = grant("old-offer", EntitlementStatus.ACTIVE, "owner", Instant.now().minusSeconds(1));
+        var revoked = grant("revoked", EntitlementStatus.REVOKED, "owner", Instant.now().plusSeconds(3600));
+        var invited = grant("invited", EntitlementStatus.INVITED, "owner", Instant.now().plusSeconds(3600));
+        var foreignOwner = grant("foreign-owner", EntitlementStatus.ACTIVE, "another-owner", Instant.now().plusSeconds(3600));
+        var missingExpiry = grant("missing-expiry", EntitlementStatus.ACTIVE, "owner", null);
+        when(grants.findByCustomerIdOrderByCreatedAtAsc("customer"))
+            .thenReturn(List.of(expired, valid, revoked, invited, foreignOwner, missingExpiry));
+
+        assertThat(catalogue.catalogue()).extracting(OfferSummary::id).containsExactly("offer");
+
+        verify(access).requireEntitlement("customer", "offer", "owner", false);
+        for (String id : List.of("old-offer", "revoked", "invited", "foreign-owner", "missing-expiry"))
+            verify(access, never()).requireEntitlement("customer", id, "owner", false);
+        assertThat(expired.getStatus()).isEqualTo(EntitlementStatus.ACTIVE);
+        assertThat(expired.getExpiresAt()).isBefore(Instant.now());
+    }
+
+    @Test void catalogueStillRequiresFreshAuthorizationForEveryUnexpiredOffer() {
+        when(grants.findByCustomerIdOrderByCreatedAtAsc("customer"))
+            .thenReturn(List.of(grant("offer", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600))));
+        when(access.requireEntitlement("customer", "offer", "owner", false)).thenThrow(deny(ENTITLEMENT_REVOKED));
+
+        assertThatThrownBy(catalogue::catalogue).hasMessageContaining(ENTITLEMENT_REVOKED.name());
+        verify(access, never()).requireOffer(anyString());
+    }
+
+    private CustomerOfferEntitlementEntity grant(String offerId, EntitlementStatus status, String owner, Instant expiresAt) {
+        var entity = new CustomerOfferEntitlementEntity();
+        entity.setCustomerId("customer"); entity.setOfferId(offerId); entity.setOwnerUserId(owner);
+        entity.setStatus(status); entity.setExpiresAt(expiresAt);
+        return entity;
     }
 
     @ParameterizedTest @EnumSource(value = Code.class, names = {

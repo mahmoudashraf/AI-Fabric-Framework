@@ -8,6 +8,25 @@ Source baseline: `5206acd97423ee857b5a60c1fe370633bf3fd5a9`.
 
 ### 2026-10-23 Customer Journey Continuation
 
+Actual customer storage UI testing also exposed a catalogue defect at midnight:
+an expired historical entitlement caused the whole catalogue to return403,
+although the current offer remains active until25October. A minimal discovery
+filter now omits expired offers and preserves the ordinary per-offer permission
+check. Direct expired/revoked operations still deny; no entitlement or history
+was changed. The final combined package passes **281 backend tests**, including
+**10 actual PostgreSQL cases**, plus **8 UI command tests**. Its exact source,
+reports and JAR are frozen in
+`/private/tmp/01044-verification-reapply-catalogue-qualification`.
+
+The earlier correction commit37da4bb93 built both images successfully. Its UI
+rollout is separate; its backend staging plan was prepared but never dispatched
+and is superseded by the catalogue correction. Do not execute that old plan.
+The real UI attempts made no storage-binding change. A fresh two-server measured
+policy is published through the normal staff API, valid until02:26UTC, preserving
+all six held reservations, financial history, ceilings and headroom. No new
+capacity service, resource allocation or customer-business infrastructure was
+added. Hosted production acceptance remains open.
+
 The owner supplied a replacement key for the existing dedicated production S3
 reader through Required for production. Fresh read-only AWS identity, bucket
 versioning-status and production-prefix listing checks passed. The previous
