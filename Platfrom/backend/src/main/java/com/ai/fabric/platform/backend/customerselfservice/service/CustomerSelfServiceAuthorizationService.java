@@ -79,6 +79,16 @@ public class CustomerSelfServiceAuthorizationService {
         return authorize(customerId, request, EvidenceMode.OPERATIONAL_READ);
     }
 
+    /** Pure target status/list reads require an existing owned deployment and its reviewed offer target. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Authorization authorizeOwnedTargetRead(String customerId, AuthorizationRequest request) {
+        if (request == null || request.operation() != Operation.READ) throw deny(OPERATION_FORBIDDEN);
+        if (blank(request.deploymentId()) || blank(request.targetProfileId()) || request.releaseId() != null) {
+            throw deny(RESOURCE_SCOPE_MISMATCH);
+        }
+        return authorize(customerId, request, EvidenceMode.OPERATIONAL_READ);
+    }
+
     /**
      * Validate the exact customer command before its admission reservation exists. This is intentionally
      * limited to operations whose permission row requires admission evidence; every other authorization

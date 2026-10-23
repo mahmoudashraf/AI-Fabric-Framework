@@ -18,6 +18,8 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -43,12 +45,13 @@ class CustomerTargetRetirementServiceTest {
     private final PlatformConsumerRepository consumers = mock(PlatformConsumerRepository.class);
     private final TargetRetirementOperationRepository operations = mock(TargetRetirementOperationRepository.class);
     private final TargetRetirementService retirements = mock(TargetRetirementService.class);
+    private final TargetRetirementStore retirementStore = mock(TargetRetirementStore.class);
     private final DeploymentAdmissionService admissions = mock(DeploymentAdmissionService.class);
     private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
     private final EntityManager entityManager = mock(EntityManager.class);
     private final CustomerOfferCodec codec = CustomerOfferTestFixtures.codec();
     private final CustomerTargetRetirementService service = new CustomerTargetRetirementService(entitlements, authorization,
-        associations, deployments, releases, consumers, operations, retirements, admissions, codec, entityManager, transactions);
+        associations, deployments, releases, consumers, operations, retirements, retirementStore, admissions, codec, entityManager, transactions);
     private final Instant deadline = Instant.now().plusSeconds(3600);
     private final Retention retention = new Retention(RetentionDecision.RECLAIM, null, null, "rebuild-from-source");
     private boolean preparing;
@@ -78,6 +81,14 @@ class CustomerTargetRetirementServiceTest {
         when(admissions.activeCustomerReservations("deployment", "staging-target")).thenReturn(List.of());
         when(authorization.authorize(eq("customer"), any())).thenAnswer(call -> {
             assertThat(preparing).as("offer authorization must run in the preparation transaction").isTrue();
+            return null;
+        });
+        when(authorization.authorizeOwnedTargetRead(eq("customer"), any())).thenAnswer(call -> {
+            assertThat(preparing).as("target read authorization must run in the preparation transaction").isTrue();
+            return null;
+        });
+        when(authorization.authorizeOperationalRead(eq("customer"), any())).thenAnswer(call -> {
+            assertThat(preparing).as("release read authorization must run in the preparation transaction").isTrue();
             return null;
         });
         when(retirements.plan(eq("deployment"), eq("staging-target"), any())).thenAnswer(call -> {
@@ -240,16 +251,18 @@ class CustomerTargetRetirementServiceTest {
         var operation = operation();
         operation.setRequestedByActorId("system"); operation.setRequestedByRole("SYSTEM");
         when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation));
-        when(retirements.status("deployment", "staging-target", "retirement")).thenAnswer(call -> {
-            assertThat(preparing).isFalse();
+        when(retirementStore.summary(operation)).thenAnswer(call -> {
+            assertThat(preparing).as("status projects only the authorized locked row").isTrue();
             return result(frozen());
         });
         var actual = service.status("offer", "deployment", "retirement");
         assertThat(actual.id()).isEqualTo("retirement");
         assertThat(codec.write(actual)).doesNotContain("consumer-z", "snapshot", "providerResourceUuid", "operationKey");
         verify(entityManager).refresh(operation);
-        verify(authorization).authorize(eq("customer"), argThat(command -> command.operation() == Operation.READ
+        verifyNoInteractions(retirements);
+        verify(authorization).authorizeOperationalRead(eq("customer"), argThat(command -> command.operation() == Operation.READ
             && "stage-release".equals(command.releaseId()) && "staging-target".equals(command.targetProfileId())));
+        verify(authorization, never()).authorize(any(), any());
         var lockOrder = inOrder(deployments, operations);
         lockOrder.verify(deployments).findByIdForUpdate("deployment");
         lockOrder.verify(operations).findForUpdate("retirement");
@@ -260,13 +273,18 @@ class CustomerTargetRetirementServiceTest {
         when(operations.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("deployment", "staging-target"))
             .thenReturn(List.of(operation));
         when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation));
-        when(retirements.status("deployment", "staging-target", "retirement")).thenReturn(result(frozen()));
+        when(retirementStore.summary(operation)).thenReturn(result(frozen()));
         assertThat(service.list("offer", "deployment", "staging-target")).singleElement()
             .satisfies(value -> assertThat(value.id()).isEqualTo("retirement"));
-        verify(authorization).authorize(eq("customer"), argThat(command -> command.operation() == Operation.READ
-            && command.releaseId() == null && "staging-target".equals(command.targetProfileId())));
+        verify(authorization).authorizeOwnedTargetRead(eq("customer"), argThat(command -> command.operation() == Operation.READ
+            && command.releaseId() == null && "staging-target".equals(command.targetProfileId())
+            && "deployment".equals(command.deploymentId()) && "tenant".equals(command.tenantId())
+            && "offer".equals(command.offerId())));
+        verify(authorization).authorizeOperationalRead(eq("customer"), argThat(command -> command.operation() == Operation.READ
+            && "stage-release".equals(command.releaseId()) && "staging-target".equals(command.targetProfileId())));
+        verify(authorization, never()).authorize(any(), any());
         verify(operations).findForUpdate("retirement");
-        verifyNoInteractions(consumers);
+        verifyNoInteractions(consumers, retirements);
     }
 
     @Test void listFailsClosedWhenAnOperationDisappearsAfterDiscovery() {
@@ -282,6 +300,71 @@ class CustomerTargetRetirementServiceTest {
             .thenReturn(List.of(operation));
         assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.list("offer", "deployment", "staging-target"));
         verifyNoInteractions(retirements);
+    }
+
+    @Test void targetListsAndExactStatusUseReadAuthorizationWhileAllRetirementCommandsRemainFreshGated() {
+        when(authorization.authorize(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.conflict(PLACEMENT_EVIDENCE_STALE));
+        var operation = operation();
+        when(operations.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("deployment", "staging-target"))
+            .thenReturn(List.of(operation));
+        when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation));
+        when(retirementStore.summary(operation)).thenReturn(result(frozen()));
+
+        assertThat(service.list("offer", "deployment", "staging-target")).hasSize(1);
+        assertThat(service.status("offer", "deployment", "retirement").id()).isEqualTo("retirement");
+        verify(authorization).authorizeOwnedTargetRead(eq("customer"), any());
+        verify(authorization, times(2)).authorizeOperationalRead(eq("customer"), any());
+
+        assertCode(PLACEMENT_EVIDENCE_STALE, () -> service.plan("offer", "deployment", request("Finished staging")));
+        for (String action : List.of("execute", "retry", "cancel")) {
+            assertCode(PLACEMENT_EVIDENCE_STALE, () -> command(action, "planned-fingerprint"));
+        }
+        verify(authorization, times(4)).authorize(eq("customer"), argThat(request -> request.operation() == Operation.TARGET_RETIRE));
+        verify(retirements, never()).plan(any(), any(), any());
+        verify(retirements, never()).execute(any(), any(), any(), any());
+        verify(retirements, never()).retry(any(), any(), any(), any());
+        verify(retirements, never()).cancel(any(), any(), any(), any());
+        verify(retirements, never()).status(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CustomerSelfServiceException.Code.class, names = {
+        "ENTITLEMENT_REVOKED", "REVIEWED_COMPOSITION_CHANGED", "UNENTITLED_TARGET", "PLACEMENT_DENIED"})
+    void targetListAndExactStatusPropagateCurrentReadDenials(CustomerSelfServiceException.Code code) {
+        when(authorization.authorizeOwnedTargetRead(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.deny(code));
+        when(authorization.authorizeOperationalRead(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.deny(code));
+        when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation()));
+
+        assertCode(code, () -> service.list("offer", "deployment", "staging-target"));
+        assertCode(code, () -> service.status("offer", "deployment", "retirement"));
+        verify(operations, never()).findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(any(), any());
+        verifyNoInteractions(retirements, retirementStore);
+    }
+
+    @Test void listRechecksEveryFrozenReleaseAndRejectsWrongTargetRows() {
+        var operation = operation();
+        var request = new TargetRetirementContracts.PlanRequest("retire-key", List.of("stage-release", "second-release"),
+            List.of(), deadline, retention, "Finished staging");
+        operation.setRequestJson(codec.write(request));
+        release("second-release", "staging-target");
+        when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation));
+        when(operations.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("deployment", "staging-target"))
+            .thenReturn(List.of(operation));
+        when(retirementStore.summary(operation)).thenReturn(result(request));
+
+        assertThat(service.list("offer", "deployment", "staging-target")).hasSize(1);
+        verify(authorization).authorizeOperationalRead(eq("customer"), argThat(value -> "stage-release".equals(value.releaseId())));
+        verify(authorization).authorizeOperationalRead(eq("customer"), argThat(value -> "second-release".equals(value.releaseId())));
+
+        clearInvocations(retirements, retirementStore);
+        release("second-release", "production-target");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.list("offer", "deployment", "staging-target"));
+        operation.setTargetProfileId("production-target");
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> service.list("offer", "deployment", "staging-target"));
+        verifyNoInteractions(retirements, retirementStore);
     }
 
     @Test void everyCommandUsesTheLockedTargetAndFrozenFingerprintAfterPreparationCommits() {
@@ -305,7 +388,7 @@ class CustomerTargetRetirementServiceTest {
         operation.setRequestedByActorId("system:admission-lifecycle");
         operation.setRequestedByRole("SYSTEM");
         when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation));
-        when(retirements.status("deployment", "staging-target", "retirement")).thenReturn(result(frozen()));
+        when(retirementStore.summary(operation)).thenReturn(result(frozen()));
 
         assertThat(service.status("offer", "deployment", "retirement").customerCommandsAllowed()).isFalse();
         assertCode(ADMISSION_LIFECYCLE_REQUIRED,
@@ -352,6 +435,7 @@ class CustomerTargetRetirementServiceTest {
     @Test void existingOperationRoutesRequireCurrentCustomerScopeAssociationAndEntitlement() {
         when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation()));
         doThrow(CustomerSelfServiceException.deny(ENTITLEMENT_REVOKED)).when(authorization).authorize(any(), any());
+        doThrow(CustomerSelfServiceException.deny(ENTITLEMENT_REVOKED)).when(authorization).authorizeOperationalRead(any(), any());
         assertCode(ENTITLEMENT_REVOKED, () -> service.status("offer", "deployment", "retirement"));
         for (String action : List.of("execute", "retry", "cancel")) {
             assertCode(ENTITLEMENT_REVOKED, () -> command(action, "planned-fingerprint"));
@@ -383,14 +467,14 @@ class CustomerTargetRetirementServiceTest {
         verify(retirements, never()).retry(any(), any(), any(), any());
     }
 
-    @Test void responseFingerprintIsCheckedAfterTheGenericCommandReturns() {
+    @Test void responseFingerprintIsCheckedBeforeProjectingTheStatus() {
         when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation()));
         var expected = result(frozen());
         var changed = new TargetRetirementContracts.Summary(expected.id(), expected.deploymentId(), expected.targetProfileId(),
             expected.customerId(), expected.operationKey(), "changed-fingerprint", expected.state(), expected.step(), expected.snapshot(),
             expected.drainDeadline(), expected.retention(), expected.attempt(), expected.nextRetryAt(), expected.errorCode(), expected.result(),
             expected.consumesCapacity(), expected.inFlightEffect(), expected.createdAt(), expected.startedAt(), expected.completedAt(), expected.updatedAt());
-        when(retirements.status(any(), any(), any())).thenReturn(changed);
+        when(retirementStore.summary(any())).thenReturn(changed);
         assertCode(REVISION_CONFLICT, () -> service.status("offer", "deployment", "retirement"));
     }
 

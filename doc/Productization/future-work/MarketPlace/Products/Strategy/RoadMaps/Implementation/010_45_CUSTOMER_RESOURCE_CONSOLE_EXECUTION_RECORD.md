@@ -128,6 +128,18 @@ Bounded follow-up is in progress for just those owned-target status reads. It mu
 retain current ownership/entitlement/reviewed target validation and fresh write
 authorization; no TTL workaround or recovery/drain/capacity redesign.
 
+### M6 - Target Read Follow-Up Source Qualified
+
+2026-10-23 19:26 UTC: the two customer lifecycle list/status readers now use a
+separate READ-only owned-target authorization entry when no release is applicable.
+Existing-release reads still require an explicit release. Retirement status
+projects the already-authorized locked ledger row through the existing summary
+mapper, retaining customer-safe projection and fingerprint checks; generic command
+paths remain unchanged/fresh-gated. No mutation, renewal, probe or schema change.
+Main review and combined focused rerun:316 tests, zero failures/errors/skips,
+covering both read fixes and prior placement/document/integration/context cases.
+Publication/live rerun follows; the prior NOT_ACCEPTED report is not overwritten.
+
 ## Current Scope
 
 Customer-only implementation. Admin/operator `AppShell.tsx` and

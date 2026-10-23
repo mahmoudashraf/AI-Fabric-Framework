@@ -123,7 +123,7 @@ public class CustomerAdmissionReservationService {
         if (blank(targetProfileId, 64)) throw deny(RESOURCE_SCOPE_MISMATCH);
         Boolean authorized = preparation.execute(status -> {
             requireAssociation(offerId, deployment);
-            authorization.authorize(customerId, new AuthorizationRequest(offerId, targetProfileId,
+            authorization.authorizeOwnedTargetRead(customerId, new AuthorizationRequest(offerId, targetProfileId,
                 deployment.getId(), deployment.getTenantId(), null, Operation.READ, null, Set.of(), null, null, null));
             return Boolean.TRUE;
         });

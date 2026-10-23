@@ -22,6 +22,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -30,7 +32,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.List;
 
-import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.RESOURCE_SCOPE_MISMATCH;
+import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -164,6 +166,57 @@ class CustomerAdmissionReservationServiceTest {
     }
 
     @Test
+    void targetReadsUseOnlyTheReadEntryPointWhileReservationCommandsRemainFreshGated() {
+        when(authorization.authorize(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.conflict(PLACEMENT_EVIDENCE_STALE));
+        when(authorization.prepareAdmission(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.conflict(PLACEMENT_EVIDENCE_STALE));
+
+        assertThat(service.status("offer", "deployment", "reservation").id()).isEqualTo("reservation");
+        assertThat(service.list("offer", "deployment", "staging-target")).hasSize(1);
+        verify(authorization, times(2)).authorizeOwnedTargetRead(eq("customer"), any());
+        verify(authorization, never()).authorize(any(), any());
+        verify(authorization, never()).authorizeOperationalRead(any(), any());
+
+        assertThatThrownBy(() -> service.reserve("offer", "deployment", request()))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(PLACEMENT_EVIDENCE_STALE));
+        assertThatThrownBy(() -> service.refreshEvidence("offer", "deployment", "reservation", refreshRequest(0)))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(PLACEMENT_EVIDENCE_STALE));
+        verifyNoInteractions(manifests);
+        verify(admissions, never()).reserveCustomer(any(), any(), any());
+        verify(admissions, never()).refreshCustomerEvidence(any(), any(), any(), anyLong(), any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CustomerSelfServiceException.Code.class, names = {
+        "ENTITLEMENT_REVOKED", "REVIEWED_COMPOSITION_CHANGED", "UNENTITLED_TARGET", "PLACEMENT_DENIED"})
+    void listAndStatusPropagateTargetReadDenialsWithoutProjectingInventory(CustomerSelfServiceException.Code code) {
+        when(authorization.authorizeOwnedTargetRead(eq("customer"), any()))
+            .thenThrow(CustomerSelfServiceException.deny(code));
+
+        assertThatThrownBy(() -> service.list("offer", "deployment", "staging-target"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class, error -> assertThat(error.code()).isEqualTo(code));
+        assertThatThrownBy(() -> service.status("offer", "deployment", "reservation"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class, error -> assertThat(error.code()).isEqualTo(code));
+        verify(admissions, never()).activeCustomerReservations(any(), any());
+        verifyNoInteractions(manifests);
+    }
+
+    @Test
+    void foreignDeploymentCannotReachEitherReadAuthorizationOrInventory() {
+        deployment.setCustomerId("foreign");
+        assertThatThrownBy(() -> service.list("offer", "deployment", "staging-target"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
+        assertThatThrownBy(() -> service.status("offer", "deployment", "reservation"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class,
+                error -> assertThat(error.code()).isEqualTo(RESOURCE_SCOPE_MISMATCH));
+        verifyNoInteractions(authorization, admissions);
+    }
+
+    @Test
     void refreshesTheOriginalApplyEvidenceAfterAuthorizationTransactionEnds() {
         var reservation = admissions.status("deployment", "reservation");
         when(admissions.refreshCustomerEvidence(eq("deployment"), eq("version"), eq("reservation"), eq(0L), any()))
@@ -216,14 +269,17 @@ class CustomerAdmissionReservationServiceTest {
 
     private void verifyReadAuthorization(String targetProfileId) {
         ArgumentCaptor<AuthorizationRequest> request = ArgumentCaptor.forClass(AuthorizationRequest.class);
-        verify(authorization, atLeastOnce()).authorize(eq("customer"), request.capture());
+        verify(authorization, atLeastOnce()).authorizeOwnedTargetRead(eq("customer"), request.capture());
         assertThat(request.getAllValues()).anySatisfy(value -> {
             assertThat(value.offerId()).isEqualTo("offer");
             assertThat(value.deploymentId()).isEqualTo("deployment");
             assertThat(value.tenantId()).isEqualTo("tenant");
             assertThat(value.targetProfileId()).isEqualTo(targetProfileId);
+            assertThat(value.releaseId()).isNull();
             assertThat(value.operation()).isEqualTo(Operation.READ);
         });
+        verify(authorization, never()).authorize(any(), any());
+        verify(authorization, never()).authorizeOperationalRead(any(), any());
         verify(transactions, atLeastOnce()).commit(any());
     }
 

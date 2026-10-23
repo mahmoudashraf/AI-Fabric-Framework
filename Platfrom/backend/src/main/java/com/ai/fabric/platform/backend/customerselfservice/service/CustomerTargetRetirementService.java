@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementCont
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationRepository;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementOperationEntity;
 import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementService;
+import com.ai.fabric.platform.backend.deployment.retirement.TargetRetirementStore;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -45,6 +46,7 @@ public class CustomerTargetRetirementService {
     private final PlatformConsumerRepository consumers;
     private final TargetRetirementOperationRepository operations;
     private final TargetRetirementService retirements;
+    private final TargetRetirementStore retirementStore;
     private final DeploymentAdmissionService admissions;
     private final CustomerOfferCodec codec;
     private final EntityManager entityManager;
@@ -58,6 +60,7 @@ public class CustomerTargetRetirementService {
                                            PlatformConsumerRepository consumers,
                                            TargetRetirementOperationRepository operations,
                                            TargetRetirementService retirements,
+                                           TargetRetirementStore retirementStore,
                                            DeploymentAdmissionService admissions,
                                            CustomerOfferCodec codec,
                                            EntityManager entityManager,
@@ -70,6 +73,7 @@ public class CustomerTargetRetirementService {
         this.consumers = consumers;
         this.operations = operations;
         this.retirements = retirements;
+        this.retirementStore = retirementStore;
         this.admissions = admissions;
         this.codec = codec;
         this.entityManager = entityManager;
@@ -114,7 +118,7 @@ public class CustomerTargetRetirementService {
 
     public Summary status(String offerId, String deploymentId, String operationId) {
         var scope = prepareOperation(offerId, deploymentId, operationId, null, false);
-        var result = retirements.status(deploymentId, scope.targetProfileId(), operationId);
+        var result = scope.readResult();
         requireResult(scope, result);
         return summary(result, scope.customerCommandsAllowed());
     }
@@ -167,8 +171,10 @@ public class CustomerTargetRetirementService {
                 authorizeOperation(actor.customerId(), offerId, deployment, operation.getTargetProfileId(), releaseId,
                     operation.getOperationKey(), mutate ? Operation.TARGET_RETIRE : Operation.READ);
             }
+            // Project the authorized locked row; the generic status route intentionally remains fresh-gated.
             return new OperationScope(actor.customerId(), deploymentId, operation.getTargetProfileId(),
-                operationId, operation.getRequestFingerprint(), "CUSTOMER_ADMIN".equals(operation.getRequestedByRole()));
+                operationId, operation.getRequestFingerprint(), "CUSTOMER_ADMIN".equals(operation.getRequestedByRole()),
+                mutate ? null : retirementStore.summary(operation));
         });
         if (scope == null) throw deny(RESOURCE_SCOPE_MISMATCH);
         return scope;
@@ -176,8 +182,12 @@ public class CustomerTargetRetirementService {
 
     private void authorizeOperation(String customerId, String offerId, DeploymentEntity deployment,
                                     String targetProfileId, String releaseId, String operationKey, Operation operation) {
-        authorization.authorize(customerId, new AuthorizationRequest(offerId, targetProfileId, deployment.getId(),
-            deployment.getTenantId(), releaseId, operation, operationKey, Set.of(), null, null, null));
+        var request = new AuthorizationRequest(offerId, targetProfileId, deployment.getId(),
+            deployment.getTenantId(), releaseId, operation, operationKey, Set.of(), null, null, null);
+        if (operation == Operation.READ) {
+            if (releaseId == null) authorization.authorizeOwnedTargetRead(customerId, request);
+            else authorization.authorizeOperationalRead(customerId, request);
+        } else authorization.authorize(customerId, request);
     }
 
     private void requireOperationScope(String customerId, String deploymentId, TargetRetirementOperationEntity operation) {
@@ -213,7 +223,8 @@ public class CustomerTargetRetirementService {
 
     private enum CommandKind { EXECUTE, RETRY, CANCEL }
     private record OperationScope(String customerId, String deploymentId, String targetProfileId,
-                                  String operationId, String requestFingerprint, boolean customerCommandsAllowed) { }
+                                  String operationId, String requestFingerprint, boolean customerCommandsAllowed,
+                                  TargetRetirementContracts.Summary readResult) { }
 
     private TargetRetirementContracts.PlanRequest prepare(String customerId, String offerId, String deploymentId,
                                                           PlanRequest request) {

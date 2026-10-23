@@ -7,9 +7,14 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
 import com.ai.fabric.platform.backend.customerselfservice.repository.*;
 import com.ai.fabric.platform.backend.customerselfservice.service.*;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionContracts;
+import com.ai.fabric.platform.backend.deployment.admission.AdmissionTargetLifecycleInterlock;
+import com.ai.fabric.platform.backend.deployment.admission.CustomerAdmissionManifestService;
+import com.ai.fabric.platform.backend.deployment.admission.DeploymentAdmissionService;
 import com.ai.fabric.platform.backend.deployment.entity.*;
 import com.ai.fabric.platform.backend.deployment.dependency.ManagedDependencyArtifactPolicy;
 import com.ai.fabric.platform.backend.deployment.repository.*;
+import com.ai.fabric.platform.backend.deployment.retirement.*;
 import com.ai.fabric.platform.backend.deployment.service.*;
 import com.ai.fabric.platform.backend.externalintegration.ExternalIntegrationPolicy;
 import com.ai.fabric.platform.backend.marketplace.repository.*;
@@ -23,15 +28,21 @@ import com.ai.fabric.platform.backend.tenant.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Validator;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.*;
 import static org.assertj.core.api.Assertions.*;
@@ -57,6 +68,7 @@ class CustomerOperationalReadAuthorizationTest {
     private final CustomerOfferCodec codec = new CustomerOfferCodec(mapper);
     private CustomerReviewedCompositionService composition;
     private CustomerSelfServiceAuthorizationService authorization;
+    private CustomerOfferEntitlementService entitlements;
     private CustomerSelfServiceOperationBoundary boundary;
     private CustomerOfferEntitlementEntity grant;
     private CustomerOfferEntity offer;
@@ -113,7 +125,7 @@ class CustomerOperationalReadAuthorizationTest {
         var version = new DeploymentVersionEntity(); version.setId("version"); version.setDeploymentId(deployment.getId());
         when(versions.findById(version.getId())).thenReturn(Optional.of(version));
         var customerAccess = new PlatformCustomerAccessService(users, customers);
-        var entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
+        entitlements = new CustomerOfferEntitlementService(offers, grants, mock(CustomerEntitlementCommandRepository.class),
             customerAccess, customers, users, codec, composition, placement, profiles, mock(PlatformAuditService.class));
         var access = new DeploymentAccessService(mock(DeploymentAssignmentRepository.class), mock(PublicApiDeploymentRepository.class), users, customerAccess);
         authorization = new CustomerSelfServiceAuthorizationService(entitlements, composition, placement, deployments, releases, versions,
@@ -144,11 +156,102 @@ class CustomerOperationalReadAuthorizationTest {
         assertThat(stagingProof.getExpiresAt()).isBefore(Instant.now());
     }
 
-    @ParameterizedTest @ValueSource(strings = {"anonymous", "api-key", "disabled-owner", "foreign-owner", "foreign-customer",
-        "foreign-tenant", "disabled-tenant", "revoked", "expired", "missing-association", "offer-fingerprint",
-        "read-not-offered", "foreign-release", "wrong-target", "foreign-version", "unreviewed-version",
-        "unreviewed-composition", "profile-drift", "inactive-profile", "missing-proof"})
-    void staleReadStillDeniesCurrentAuthorityScopeAndIdentityFailures(String fault) throws Exception {
+    @ParameterizedTest @EnumSource(TargetIntent.class)
+    void expiredPlacementAllowsAnOwnedReviewedTargetReadWithoutAReleaseOrProbe(TargetIntent intent) {
+        String target = intent == TargetIntent.CUSTOMER_STAGING ? "staging-target" : "production-target";
+        Instant checkedAt = stagingProof.getCheckedAt();
+        Instant expiresAt = stagingProof.getExpiresAt();
+        var approved = authorization.authorizeOwnedTargetRead("customer", targetReadRequest(target));
+
+        assertThat(approved.context().operation()).isEqualTo(Operation.READ);
+        assertThat(approved.context().customerId()).isEqualTo("customer");
+        assertThat(approved.context().deploymentId()).isEqualTo("deployment");
+        assertThat(approved.context().tenantId()).isEqualTo("tenant");
+        assertThat(approved.context().targetProfileId()).isEqualTo(target);
+        assertThat(approved.context().releaseId()).isNull();
+        assertThat(approved.context().entitlementRevision()).isEqualTo(2);
+        assertThat(approved.context().placementEvidenceId()).isEqualTo("proof-" + target);
+        verify(composition).validate(definition);
+        verifyNoInteractions(releases, versions, resolver, client, providers);
+        verify(evidence, never()).saveAndFlush(any());
+        assertThat(stagingProof.getCheckedAt()).isEqualTo(checkedAt);
+        assertThat(stagingProof.getExpiresAt()).isEqualTo(expiresAt).isBefore(Instant.now());
+    }
+
+    @Test void staleCustomerListsAndExactStatusesUseRealAuthorizationAndPureLedgerProjection() {
+        var transactions = mock(PlatformTransactionManager.class);
+        when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        var admissions = mock(DeploymentAdmissionService.class);
+        var reservation = mock(AdmissionContracts.Reservation.class);
+        when(reservation.id()).thenReturn("reservation");
+        when(reservation.deploymentId()).thenReturn("deployment");
+        when(reservation.targetProfileId()).thenReturn("staging-target");
+        when(reservation.intent()).thenReturn(AdmissionContracts.Intent.CUSTOMER_STAGING);
+        when(reservation.customerOperation()).thenReturn(Operation.APPLY);
+        when(reservation.state()).thenReturn(AdmissionContracts.State.RESERVED);
+        when(reservation.expiryState()).thenReturn(AdmissionContracts.ExpiryState.CURRENT);
+        when(reservation.updatedAt()).thenReturn(Instant.now());
+        when(admissions.status("deployment", "reservation")).thenReturn(reservation);
+        when(admissions.activeCustomerReservations("deployment", "staging-target")).thenReturn(List.of(reservation));
+        var manifests = mock(CustomerAdmissionManifestService.class);
+        var admissionService = new CustomerAdmissionReservationService(entitlements, authorization, deployments, versions,
+            releases, associations, manifests, admissions, transactions);
+
+        assertThat(admissionService.list("offer", "deployment", "staging-target")).singleElement()
+            .satisfies(value -> assertThat(value.id()).isEqualTo("reservation"));
+        assertThat(admissionService.status("offer", "deployment", "reservation").id()).isEqualTo("reservation");
+
+        var operations = mock(TargetRetirementOperationRepository.class);
+        var retirementJson = new TargetRetirementJson(mapper);
+        var request = new TargetRetirementContracts.PlanRequest("retire-key", List.of("release"), List.of(),
+            Instant.now().plusSeconds(3600), new TargetRetirementContracts.Retention(
+                TargetRetirementContracts.RetentionDecision.RECLAIM, null, null, "reviewed-rebuild"), "Finished staging");
+        var operation = new TargetRetirementOperationEntity();
+        operation.setId("retirement"); operation.setCustomerId("customer"); operation.setDeploymentId("deployment");
+        operation.setTargetProfileId("staging-target"); operation.setOperationKey("retire-key");
+        operation.setRequestFingerprint("retire-fingerprint"); operation.setRequestJson(retirementJson.write(request));
+        operation.setRequestedByRole("CUSTOMER_ADMIN"); operation.setState(TargetRetirementContracts.State.PLANNED);
+        operation.setSnapshotJson(retirementJson.write(new TargetRetirementContracts.Snapshot(
+            "customer", "tenant", "deployment", "staging-target", "generation", 1, List.of(), List.of(), List.of())));
+        operation.setResultJson(retirementJson.write(new TargetRetirementContracts.Progress(Map.of(), List.of("DRAIN_PENDING"))));
+        when(operations.findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc("deployment", "staging-target"))
+            .thenReturn(List.of(operation));
+        when(operations.findForUpdate("retirement")).thenReturn(Optional.of(operation));
+        when(deployments.findByIdForUpdate("deployment")).thenReturn(Optional.of(deployment));
+        var retirements = mock(TargetRetirementService.class);
+        var retirementStore = new TargetRetirementStore(operations, mock(TargetRetirementGateService.class),
+            mock(TargetRetirementGateRepository.class), mock(TargetRetirementInventory.class), retirementJson,
+            mock(PlatformAuditService.class), mock(AdmissionTargetLifecycleInterlock.class), transactions);
+        var retirementService = new CustomerTargetRetirementService(entitlements, authorization, associations,
+            deployments, releases, mock(PlatformConsumerRepository.class), operations, retirements, retirementStore,
+            admissions, codec, mock(EntityManager.class), transactions);
+
+        assertThat(retirementService.list("offer", "deployment", "staging-target")).singleElement()
+            .satisfies(value -> assertThat(value.id()).isEqualTo("retirement"));
+        assertThat(retirementService.status("offer", "deployment", "retirement").blockers()).containsExactly("DRAIN_PENDING");
+        assertCode(PLACEMENT_EVIDENCE_STALE, () -> boundary.require(deployment, "staging-target", null,
+            Operation.READ, null, Map.of(), null, null, null));
+        verifyNoInteractions(manifests, retirements, resolver, client, providers);
+        verify(evidence, never()).saveAndFlush(any());
+        verify(operations, never()).save(any());
+        verify(operations, never()).saveAndFlush(any());
+    }
+
+    private static Stream<Arguments> staleReadFaults() {
+        var common = Stream.of("anonymous", "api-key", "disabled-owner", "foreign-owner", "foreign-customer",
+            "foreign-tenant", "disabled-tenant", "revoked", "expired", "missing-association", "offer-fingerprint",
+            "read-not-offered", "unreviewed-composition", "profile-drift", "inactive-profile", "missing-proof",
+            "missing-deployment", "archived-deployment", "unreviewed-template", "source-override", "unentitled-target",
+            "proof-target", "proof-intent", "proof-fingerprint", "proof-server", "proof-address", "proof-destination",
+            "proof-future", "proof-interval")
+            .flatMap(fault -> Stream.of(Arguments.of(false, fault), Arguments.of(true, fault)));
+        var releaseOnly = Stream.of("foreign-release", "wrong-target", "foreign-version", "unreviewed-version")
+            .map(fault -> Arguments.of(false, fault));
+        return Stream.concat(common, releaseOnly);
+    }
+
+    @ParameterizedTest @MethodSource("staleReadFaults")
+    void staleReadStillDeniesCurrentAuthorityScopeAndIdentityFailures(boolean targetRead, String fault) throws Exception {
         var expected = switch (fault) {
             case "anonymous" -> { SecurityContextHolder.clearContext(); yield ACTIVE_CUSTOMER_SCOPE_REQUIRED; }
             case "api-key" -> {
@@ -163,6 +266,17 @@ class CustomerOperationalReadAuthorizationTest {
                 yield INVITE_OWNER_MISMATCH;
             }
             case "foreign-customer" -> { deployment.setCustomerId("foreign"); yield RESOURCE_SCOPE_MISMATCH; }
+            case "missing-deployment" -> { when(deployments.findById("deployment")).thenReturn(Optional.empty()); yield RESOURCE_SCOPE_MISMATCH; }
+            case "archived-deployment" -> { deployment.setStatus("ARCHIVED"); yield RESOURCE_SCOPE_MISMATCH; }
+            case "unreviewed-template" -> { deployment.setTemplateId("unreviewed"); yield RESOURCE_SCOPE_MISMATCH; }
+            case "source-override" -> { deployment.setSourceRepositoryOverride("unreviewed"); yield RESOURCE_SCOPE_MISMATCH; }
+            case "unentitled-target" -> {
+                ObjectNode tree = mapper.valueToTree(definition); tree.set("targets", mapper.valueToTree(List.of(definition.targets().get(1))));
+                var changed = mapper.treeToValue(tree, Definition.class);
+                when(offers.findById("offer")).thenReturn(Optional.of(new CustomerOfferEntity("offer", codec.write(changed),
+                    codec.hash(changed), "review", "admin", Instant.now())));
+                yield UNENTITLED_TARGET;
+            }
             case "foreign-tenant" -> { tenant.setCustomerId("foreign"); yield RESOURCE_SCOPE_MISMATCH; }
             case "disabled-tenant" -> { tenant.setStatus("DISABLED"); yield RESOURCE_SCOPE_MISMATCH; }
             case "revoked" -> { grant.setStatus(EntitlementStatus.REVOKED); yield ENTITLEMENT_REVOKED; }
@@ -193,10 +307,28 @@ class CustomerOperationalReadAuthorizationTest {
                 when(evidence.findFirstByTargetProfileIdAndIntentAndProfileFingerprintOrderByCheckedAtDesc(any(), any(), any())).thenReturn(Optional.empty());
                 yield PLACEMENT_EVIDENCE_REQUIRED;
             }
+            case "proof-target", "proof-intent", "proof-fingerprint", "proof-server", "proof-address", "proof-destination",
+                "proof-future", "proof-interval" -> {
+                var invalid = new CustomerPlacementEvidenceEntity("invalid-proof",
+                    fault.equals("proof-target") ? "production-target" : stagingProof.getTargetProfileId(),
+                    fault.equals("proof-intent") ? TargetIntent.CUSTOMER_PRODUCTION : stagingProof.getIntent(),
+                    fault.equals("proof-fingerprint") ? "changed" : stagingProof.getProfileFingerprint(),
+                    fault.equals("proof-server") ? "foreign-server" : stagingProof.getServerUuid(),
+                    fault.equals("proof-address") ? "foreign-address" : stagingProof.getServerAddress(),
+                    fault.equals("proof-destination") ? "foreign-destination" : stagingProof.getDestinationUuid(),
+                    fault.equals("proof-future") ? Instant.now().plusSeconds(60) : stagingProof.getCheckedAt(),
+                    fault.equals("proof-interval") ? stagingProof.getCheckedAt() : stagingProof.getExpiresAt());
+                when(evidence.findFirstByTargetProfileIdAndIntentAndProfileFingerprintOrderByCheckedAtDesc(any(), any(), any()))
+                    .thenReturn(Optional.of(invalid));
+                yield PLACEMENT_DENIED;
+            }
             default -> throw new IllegalArgumentException(fault);
         };
 
-        assertCode(expected, () -> boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.PUBLIC));
+        assertCode(expected, () -> {
+            if (targetRead) authorization.authorizeOwnedTargetRead("customer", targetReadRequest("staging-target"));
+            else boundary.requireOperationalRead(deployment, "staging-target", "release", DocumentAudience.PUBLIC);
+        });
         verifyNoInteractions(resolver, client, providers);
         verify(evidence, never()).saveAndFlush(any());
     }
@@ -211,7 +343,28 @@ class CustomerOperationalReadAuthorizationTest {
     @ParameterizedTest @EnumSource(value = Operation.class, mode = EnumSource.Mode.EXCLUDE, names = "READ")
     void operationalReadEntryPointCannotAuthorizeAnyOtherOperation(Operation operation) {
         assertCode(OPERATION_FORBIDDEN, () -> authorization.authorizeOperationalRead("customer", request(operation)));
+        assertCode(OPERATION_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", request(operation)));
         verifyNoInteractions(evidence, resolver, client, providers);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing-deployment", "blank-deployment", "missing-target", "blank-target", "release", "blank-release"})
+    void ownedTargetReadRequiresExplicitDeploymentAndTargetWithoutARelease(String fault) {
+        assertCode(RESOURCE_SCOPE_MISMATCH, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
+            "offer", fault.equals("missing-target") ? null : fault.equals("blank-target") ? " " : "staging-target",
+            fault.equals("missing-deployment") ? null : fault.equals("blank-deployment") ? " " : "deployment", "tenant",
+            fault.equals("release") ? "release" : fault.equals("blank-release") ? " " : null,
+            Operation.READ, null, Set.of(), null, null, null)));
+        verifyNoInteractions(evidence, resolver, client, providers);
+    }
+
+    @Test void ownedTargetReadCannotWidenSettingsBindingsOrAudience() {
+        assertCode(OPERATION_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", null));
+        assertCode(SETTING_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
+            "offer", "staging-target", "deployment", "tenant", null, Operation.READ, null, Set.of(Setting.APP_TITLE), null, null, null)));
+        assertCode(BINDING_SLOT_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
+            "offer", "staging-target", "deployment", "tenant", null, Operation.READ, null, Set.of(), "document-storage", "reviewed-s3", null)));
+        assertCode(SETTING_FORBIDDEN, () -> authorization.authorizeOwnedTargetRead("customer", new AuthorizationRequest(
+            "offer", "staging-target", "deployment", "tenant", null, Operation.READ, null, Set.of(), null, null, DocumentAudience.AUTHENTICATED)));
     }
 
     @Test void operationalReadRequiresExplicitReleaseAndCannotWidenSettingsBindingsOrAudience() {
@@ -225,6 +378,11 @@ class CustomerOperationalReadAuthorizationTest {
 
     private Authorization read() {
         return boundary.requireOperationalRead(deployment, release.getTargetProfileId(), "release", DocumentAudience.PUBLIC);
+    }
+
+    private AuthorizationRequest targetReadRequest(String targetProfileId) {
+        return new AuthorizationRequest("offer", targetProfileId, "deployment", "tenant", null,
+            Operation.READ, null, Set.of(), null, null, null);
     }
 
     private AuthorizationRequest request(Operation operation) {
