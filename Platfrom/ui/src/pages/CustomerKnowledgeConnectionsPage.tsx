@@ -12,7 +12,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { CustomerConfigurationPanel } from '../components/customer/CustomerConfigurationPanel'
 import { DocumentKnowledgePage } from './DocumentKnowledgePage'
-import { IntegrationsPage, ConversationHandoverOperations } from './IntegrationsPage'
+import { IntegrationsPage, ConversationHandoverOperations, ConversationHandoverDeliveryNotices } from './IntegrationsPage'
 import { safeCustomerAppUrl } from '../components/customer/customerResourceModels'
 import { CustomerDetailSections, type CustomerEditorSection } from '../components/customer/CustomerDetailSections'
 
@@ -125,6 +125,7 @@ function CustomerKnowledgeConnectionsReads({ mode, customerId }: { mode: 'knowle
       {handover.data?.success ? <>
         {!handover.data.connector.reachable ? <Alert severity="error">The conversation connector is unavailable.</Alert> : null}
         {!handover.data.runtime.enabled ? <Alert severity="warning">Conversation handover is disabled in the runtime.</Alert> : null}
+        <ConversationHandoverDeliveryNotices value={handover.data} />
         <CustomerDetailSections key={target.releaseId} preferenceKey="human-support"
           overview={<Stack spacing={2}><Typography variant="h6">Conversation handover</Typography><Typography variant="body2">{handover.data.runtime.enabled ? 'Enabled' : 'Disabled'} / {handover.data.connector.reachable ? 'Connector reachable' : 'Connector unavailable'}</Typography><Stack direction="row" gap={1} flexWrap="wrap">{Object.entries(handover.data.runtime.handoverCounts).map(([status,count]) => <Chip key={status} size="small" label={`${status} ${count}`} />)}</Stack>{safeCustomerAppUrl(handover.data.operatorConsoleUrl ?? null) ? <Button component="a" href={safeCustomerAppUrl(handover.data.operatorConsoleUrl ?? null)!} target="_blank" rel="noopener noreferrer">Operator inbox</Button> : null}</Stack>}
           configuration={<Box><Button onClick={() => configure()}>Manage channel and operators</Button></Box>}
@@ -132,7 +133,7 @@ function CustomerKnowledgeConnectionsReads({ mode, customerId }: { mode: 'knowle
       </> : null}
     </> : null}
     <CustomerConfigurationPanel open={editorOpen} title={`${deployment?.name ?? ''} / ${title}`} scopeKey={`${mode}:${customerId}:${target.deploymentId}:${target.targetProfileId}:${target.releaseId}`} initialSection={params.get('editorSection') === 'advanced' ? 'advanced' : 'configuration'} notices={<Stack spacing={1} sx={{ mb: 2 }}>{errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{selectedSource?.failureMessage ? <Alert severity="error">{selectedSource.failureMessage}</Alert> : null}{selectedConnection?.state.errorMessage ? <Alert severity="error">{selectedConnection.state.errorMessage}</Alert> : null}{mode === 'human' && handover.data && !handover.data.connector.reachable ? <Alert severity="error">The conversation connector is unavailable.</Alert> : null}</Stack>} onClose={closeConfiguration}>
-      {editorOpen ? mode === 'knowledge' ? <DocumentKnowledgePage key={`${target.deploymentId}:${target.releaseId}`} initialReleaseId={target.releaseId} initialSourceId={selectedSource?.sourceId} /> : <IntegrationsPage key={`${target.deploymentId}:${target.releaseId}`} initialReleaseId={target.releaseId} handoverOnly={mode === 'human'} /> : null}
+      {editorOpen ? mode === 'knowledge' ? <DocumentKnowledgePage key={`${target.deploymentId}:${target.releaseId}`} initialReleaseId={target.releaseId} initialSourceId={selectedSource?.sourceId} lockReleaseSelection /> : <IntegrationsPage key={`${target.deploymentId}:${target.releaseId}`} initialReleaseId={target.releaseId} handoverOnly={mode === 'human'} lockReleaseSelection /> : null}
     </CustomerConfigurationPanel>
   </Stack>
 }

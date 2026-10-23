@@ -67,6 +67,7 @@ export async function verifyAdvancedViews({ browser, base, output, report }) {
   const target = 'deploymentId=preview-deployment&releaseId=preview-production-release'
   await page.goto(`${base}/?editable=1#/document-knowledge?${target}&sourceId=preview-policy&editor=configuration`)
   await page.getByRole('heading', { name: 'Document Knowledge', exact: true }).waitFor()
+  assert.equal(await page.getByRole('combobox', { name: /^Target release/ }).last().isDisabled(), true, 'Embedded editor must retain the guarded outer release')
   const proof = page.getByRole('textbox', { name: 'Proof query', exact: true })
   const secret = page.getByRole('textbox', { name: 'Secret key', exact: true })
   await proof.fill('Keep this unsaved query across view switches')
@@ -92,6 +93,7 @@ export async function verifyAdvancedViews({ browser, base, output, report }) {
   connection.on('pageerror', error => report.errors.push(error.message))
   await connection.goto(`${base}/#/integrations?${target}&editor=configuration&editorSection=advanced`)
   await connection.getByRole('heading', { name: 'Connection and authority', exact: true }).waitFor()
+  assert.equal(await connection.getByRole('combobox', { name: /^Target release/ }).last().isDisabled(), true)
   const connectionDepth = connection.getByRole('tablist', { name: 'Configuration depth', exact: true })
   await connectionDepth.getByRole('tab', { name: 'Configuration', exact: true }).click()
   assert.equal(await connection.getByRole('heading', { name: 'Connection and authority', exact: true }).count(), 0)
@@ -101,4 +103,25 @@ export async function verifyAdvancedViews({ browser, base, output, report }) {
   await noCommands(connection)
   report.checks.push({ scenario: 'advanced-documents-connections-retained-inputs-write-only-secrets-scoped-command-denial', status: 'PASS' })
   await connection.close()
+
+  const scoped = await browser.newPage()
+  scoped.on('pageerror', error => report.errors.push(error.message))
+  await scoped.goto(`${base}/?state=scope-mismatch#/deployments?resourceKind=deployment&resourceId=preview-deployment&deploymentId=preview-other-deployment&editor=configuration`)
+  await scoped.getByRole('alert').filter({ hasText: 'Configuration scope does not match the inspected resource' }).waitFor()
+  assert.equal(await scoped.getByRole('tablist', { name: 'Configuration depth', exact: true }).count(), 0)
+  assert.equal((await scoped.evaluate(() => window.previewRequests)).filter(request => request.path.endsWith('/preview-other-deployment/versions')).length, 0)
+  await noCommands(scoped)
+  await scoped.close()
+
+  const support = await browser.newPage()
+  support.on('pageerror', error => report.errors.push(error.message))
+  await support.goto(`${base}/?state=delivery-failure#/human-support?${target}`)
+  for (const name of ['Overview', 'Configuration', 'Advanced']) {
+    await support.getByRole('tab', { name, exact: true }).click()
+    await support.getByRole('alert').filter({ hasText: 'PROVIDER_UNAVAILABLE' }).waitFor()
+    await support.getByRole('alert').filter({ hasText: 'INVALID_SIGNATURE' }).waitFor()
+  }
+  await noCommands(support)
+  report.checks.push({ scenario: 'review-scope-mismatch-denied-embedded-release-locked-critical-delivery-failures-visible', status: 'PASS' })
+  await support.close()
 }

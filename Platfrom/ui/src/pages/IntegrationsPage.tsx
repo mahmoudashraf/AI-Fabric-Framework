@@ -69,7 +69,7 @@ function errorText(value: unknown): string {
   return value instanceof Error ? value.message : 'Integration operation failed.'
 }
 
-export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false }: { initialReleaseId?: string; handoverOnly?: boolean } = {}) {
+export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false, lockReleaseSelection = false }: { initialReleaseId?: string; handoverOnly?: boolean; lockReleaseSelection?: boolean } = {}) {
   const auth = usePlatformAuth()
   const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
@@ -282,8 +282,8 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false }
           fullWidth
           label="Target release"
           value={selectedReleaseId}
-          onChange={(event) => setSelectedReleaseId(event.target.value)}
-          disabled={releasesQuery.isLoading}
+          onChange={(event) => { if (!lockReleaseSelection) setSelectedReleaseId(event.target.value) }}
+          disabled={releasesQuery.isLoading || lockReleaseSelection}
           helperText="Integration commands and status are scoped to this exact provisioned target and release."
         >
           <MenuItem value="">Select a provisioned target release</MenuItem>
@@ -576,6 +576,15 @@ export function IntegrationsPage({ initialReleaseId = '', handoverOnly = false }
   )
 }
 
+export function ConversationHandoverDeliveryNotices({ value }: { value: ConversationHandoverOperationsOverview }) {
+  return <Stack spacing={1}>
+    {Object.entries(value.runtime.dispatchCounts).filter(([status, count]) => count > 0 && ['FAILED', 'DEAD', 'REJECTED', 'DEAD_LETTER'].includes(status)).map(([status, count]) => <Alert key={status} severity="warning">Human-support delivery: {count} {status}. Review delivery evidence in Advanced.</Alert>)}
+    {value.runtime.recentDispatches.filter(dispatch => dispatch.failureCode).map(dispatch => <Alert key={dispatch.dispatchId} severity="warning">{dispatch.dispatchType}: {dispatch.failureCode}. Delivery evidence and recovery controls are in Advanced.</Alert>)}
+    {value.connector.status?.rejectedCallbackCount ? <Alert severity="warning">Human-support provider callbacks: {value.connector.status.rejectedCallbackCount} rejected.</Alert> : null}
+    {value.connector.status?.recentCallbacks.filter(callback => callback.errorClass).map(callback => <Alert key={callback.eventId} severity="warning">Conversation callback {callback.eventType}: {callback.errorClass}</Alert>)}
+  </Stack>
+}
+
 export function ConversationHandoverOperations({
   value,
   canOperate,
@@ -632,9 +641,8 @@ export function ConversationHandoverOperations({
         </Stack>
       </Paper>
 
-      {detailSection ? value.runtime.recentDispatches.filter(dispatch => dispatch.failureCode).map(dispatch => <Alert key={dispatch.dispatchId} severity="warning">{dispatch.dispatchType}: {dispatch.failureCode}. Delivery evidence and recovery controls are in Advanced.</Alert>) : null}
+      {detailSection ? <ConversationHandoverDeliveryNotices value={value} /> : null}
       {detailSection && !value.connector.reachable ? <Alert severity="error">The conversation connector is unavailable.</Alert> : null}
-      {detailSection ? callbackStatus?.recentCallbacks.filter(callback => callback.errorClass).map(callback => <Alert key={callback.eventId} severity="warning">Conversation callback {callback.eventType}: {callback.errorClass}</Alert>) : null}
       <CustomerAdvancedSection>
       <Typography variant="subtitle1" sx={{ mb: 1 }}>Delivery queue</Typography>
       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>

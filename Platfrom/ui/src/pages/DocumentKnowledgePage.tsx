@@ -190,7 +190,7 @@ function sameTarget(target: DeploymentTargetReference | undefined, current: Depl
     && target?.releaseId === current.releaseId
 }
 
-export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId = '' }: { initialReleaseId?: string; initialSourceId?: string } = {}) {
+export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId = '', lockReleaseSelection = false }: { initialReleaseId?: string; initialSourceId?: string; lockReleaseSelection?: boolean } = {}) {
   const auth = usePlatformAuth()
   const detailSection = useCustomerEditorSection()
   const queryClient = useQueryClient()
@@ -616,8 +616,9 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
         </Stack>
       </Stack>
 
-      <TextField select fullWidth size="small" label="Target release" value={selectedReleaseId}
+      <TextField select fullWidth size="small" label="Target release" value={selectedReleaseId} disabled={lockReleaseSelection}
         onChange={(event) => {
+          if (lockReleaseSelection) return
           setSelectedReleaseId(event.target.value)
           setSelectedSourceId('')
           setRegistrationSelection(null)

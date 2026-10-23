@@ -46,6 +46,25 @@ a selector matching both visible and intentionally mounted hidden support text;
 the assertion was scoped to the visible panel, without changing product guards.
 Original failure remains `/private/tmp/01045-advanced-check.log`.
 
+### Pre-Publication Review Corrections
+
+First scoped source `f39fe0caa` is committed/pushed; UI-only CI39990587287 passed,
+backend skipped. That image was NOT deployed: focused review found three P2 UI
+scope/presentation defects. The follow-up rejects an editor URL whose inspected
+resource and deployment differ, locks an embedded document/integration release
+to the guarded outer selection, and shows handover delivery/callback failures
+outside all section tabs. Staff release selection remains unchanged. New tests
+use two owned deployments, disabled inner selectors and failed delivery evidence.
+
+The corrected actual-component suite passed17:03 UTC with zero errors/escaped
+requests and37 viewport screenshots;18 scope regressions, staff33/18 parity and
+full UI build also pass. Its first run had a test-only exact-name mismatch because
+MUI includes the selected release in the combobox name; the assertion now matches
+the label prefix and still requires the selector to be disabled. Original result
+retained at `/private/tmp/01045-reviewed-browser.log`. Corrected source publication
+and actual hosted checks follow; no resource command or native deployment has
+occurred at this checkpoint.
+
 ## U0 - Complete Design Artifacts
 
 Product-generalization and Shopify private-adapter requirements are explicit.

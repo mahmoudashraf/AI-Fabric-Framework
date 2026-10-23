@@ -41,7 +41,10 @@ function CustomerResourceReads({ mode, session }: { mode: 'home' | 'deployments'
   })
   const errors = [portfolio, offers, installations].flatMap(query => query.isError ? [query.error instanceof Error ? query.error.message : 'Resource data could not be loaded.'] : [])
   const selectedApp = resourceKind === 'app' ? apps.find(app => app.installationId === resourceId) : null
-  const configuration = params.get('editor') === 'configuration'
+  const configurationRequested = params.get('editor') === 'configuration'
+  const configurationScopeMismatch = Boolean(configurationRequested && deploymentId && params.get('deploymentId') !== deploymentId)
+  if (configurationScopeMismatch) errors.push('Configuration scope does not match the inspected resource. Close the resource and reopen its configuration; no editor or command was opened.')
+  const configuration = configurationRequested && !configurationScopeMismatch
     ? selectedApp ? <AIWorkspacesPage key={`${customerId}:${selectedApp.installationId}`} initialInstallationId={selectedApp.installationId} />
       : resourceKind === 'deployment' && deploymentId ? <CustomerDeploymentConsole key={`${customerId}:${deploymentId}`} session={session} guided /> : null
     : null
