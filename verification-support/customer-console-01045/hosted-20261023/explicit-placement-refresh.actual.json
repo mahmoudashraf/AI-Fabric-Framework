@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-23T17:19:23.592Z",
+  "status": "PASS",
+  "refreshed": [
+    {
+      "target": "dtp-coolify-production-behavior",
+      "status": 200,
+      "checkedAt": "2026-10-23T17:19:28.432020563Z",
+      "expiresAt": "2026-10-23T17:34:28.432020563Z"
+    },
+    {
+      "target": "dtp-coolify-staging-behavior",
+      "status": 200,
+      "checkedAt": "2026-10-23T17:19:30.167865858Z",
+      "expiresAt": "2026-10-23T17:34:30.167865858Z"
+    }
+  ],
+  "commands": [
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/login"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/platform/preferences"
+    },
+    {
+      "method": "POST",
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/targets/dtp-coolify-production-behavior/placement-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/targets/dtp-coolify-staging-behavior/placement-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/logout"
+    }
+  ],
+  "blocked": [],
+  "errors": [],
+  "appAssignmentUnchanged": true,
+  "finishedAt": "2026-10-23T17:19:31.313Z"
+}

@@ -5,7 +5,10 @@ is the [010.45 progressive resource console](010_45_CUSTOMER_RESOURCE_CONSOLE_PR
 with Railway/Coolify-inspired resource views, warning-first sliding inspectors
 and progressively disclosed capability pages. Admin/operator layout stays as-is.
 Desktop is first-class; mobile navigation is basic and formal accessibility
-certification is deferred. This is a DESIGN proposal, not another deployed UI.
+certification is deferred. The supported010.45 UI is now deployed on both servers
+at source430b875a7; its live checks, operational caveats and remaining visual/
+rollback acceptance are tracked in the010.45 execution record. This supersedes
+only the appearance/source of the earlier UI checkpoint below.
 It supersedes the earlier AWS-inspired CUSTOMER appearance/acceptance emphasis,
 not the verified backend, shared editor contracts or rollback boundary below.
 

@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-23T17:17:05.328Z",
+  "scope": "READ_ONLY_NO_RESOURCE_COMMANDS",
+  "observations": [
+    {
+      "path": "/api/deployments/dep-c09b23b4/targets/dtp-coolify-production-behavior/releases/rel-8c7930cc/document-knowledge/sources",
+      "status": 409,
+      "code": "PLACEMENT_EVIDENCE_STALE",
+      "message": "PLACEMENT_EVIDENCE_STALE"
+    },
+    {
+      "path": "/api/deployments/dep-c09b23b4/targets/dtp-coolify-production-behavior/releases/rel-8c7930cc/integrations",
+      "status": 409,
+      "code": "PLACEMENT_EVIDENCE_STALE",
+      "message": "PLACEMENT_EVIDENCE_STALE"
+    },
+    {
+      "path": "/api/deployments/dep-c09b23b4/targets/dtp-coolify-production-behavior/releases/rel-8c7930cc/integrations/conversation-handover",
+      "status": 409,
+      "code": "PLACEMENT_EVIDENCE_STALE",
+      "message": "PLACEMENT_EVIDENCE_STALE"
+    },
+    {
+      "path": "/api/deployments/dep-c09b23b4/human-reviews",
+      "status": 400,
+      "code": "BAD_REQUEST",
+      "message": "Human Review is not enabled on the active deployment version."
+    },
+    {
+      "path": "/api/customer-self-service/catalogue/offer-engage-dealership-0841-20261022/deployments/dep-c09b23b4/retirements",
+      "status": 401,
+      "code": "UNAUTHORIZED",
+      "message": "Unauthorized."
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 # 010.45 Progressive Customer Resource Console UI Plan
 
-Date: 2026-10-23. Status: U1-U5 CUSTOMER UI SOURCE IMPLEMENTED; LOCAL ACCEPTANCE
-PASSED. HOSTED ACCEPTANCE AND PUBLICATION REMAIN OPEN.
+Date: 2026-10-23. Status: SUPPORTED CUSTOMER UI IMPLEMENTED AND DEPLOYED TO BOTH
+SERVERS; LIVE UI CHECKS PASSED WITH DOCUMENTED OPERATIONAL CAVEATS.
+Owner visual acceptance, a new full promotion replay and live rollback rehearsal
+remain distinct from the UI checks. See the execution record for exact limits.
 Parent: [010.36](010_36_STANDALONE_AI_WORKSPACE_IMPLEMENTATION_PLAN.md).
 Actual phase status and evidence: [execution record](010_45_CUSTOMER_RESOURCE_CONSOLE_EXECUTION_RECORD.md).
 

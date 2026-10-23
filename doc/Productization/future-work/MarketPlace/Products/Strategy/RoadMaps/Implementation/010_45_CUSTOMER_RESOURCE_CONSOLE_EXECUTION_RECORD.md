@@ -209,7 +209,7 @@ incorrect handover route; fixed ONLY the fixture to match the existing API's
 Passing log `/private/tmp/01045-u5-check2.log` (2026-10-23T13:35:26Z).
 Review build: `designs/010_45_customer_console/phase-u5/index.html`.
 
-## U6 - Local Acceptance Passed; Hosted Publication Open
+## U6 - Local Acceptance Checkpoint Before Hosted Publication
 
 Full production UI build and TypeScript pass. The current Vite bundle warning
 is about the existing single-chunk application size (about 2.13 MB uncompressed,
@@ -237,18 +237,92 @@ unrelated owner changes such as RuntimeArtifactsPage's default must be excluded
 from a scoped UI publication. They were not reverted or staged.
 
 Latest review build: `designs/010_45_customer_console/phase-u6/index.html`.
-The gallery links every retained phase. U6 HOSTED gate remains OPEN: owner visual
+The gallery links every retained phase. At this checkpoint the U6 HOSTED gate was OPEN: owner visual
 review, clean scoped source publication, UI-only staging rollout, actual customer
 journey, production rollout and independent rollback verification. No current
-production/staging UI, backend, runtime, customer assignment or data changed.
+production/staging UI, backend, runtime, customer assignment or data had changed.
 No framework release/test matrix is required for this visual-only work.
 
-## Remaining Phases
+## UI-Only Publication And Live Acceptance - 17:21 UTC
+
+The owner explicitly requested commit, deployment and live verification. Source
+`f39fe0caa` and corrective `430b875a73502e0829372c7ba89916489e7f0be7` are committed
+and pushed on Platform-V11. CI39992178465 passed/UI-only/backend skipped. The
+corrected clean Git-source build passes, excluding the owner's unrelated
+RuntimeArtifactsPage edit. The FIRST image was never deployed.
+
+Both UI apps now serve image
+`sha256:b12869b659112baa3eeb7b418c1f382aa6bc83823ba35a9fb26edadb1f68f9a5`,
+with native revision/digest and healthy container checks. Staging job
+`vt7fjo6kcfku1xqla3qagfpn`, production job `k130t9llayxp0ju90pkv5068`, both
+finished. Saved/effective environment, domains and runtime API configuration
+are preserved. No backend/framework/customer-runtime deployment occurred.
+
+Live URLs:
+- Production customer/staff console: https://console.loomai.pro/home
+- Staging console: https://loomai-platform-ui.46.224.145.148.sslip.io
+
+Actual staging staff API-key sign-in, existing navigation and logout pass with
+zero API/browser errors. The live account exposes30 entries because it has no
+selected capability-enabled workspace; the first harness incorrectly assumed
+the full33-entry fixture. Corrected harness waits for loaded navigation and
+checks critical existing destinations/role separation. No product change was
+made to satisfy that assertion; original failed run is retained privately.
+
+The real production CUSTOMER_ADMIN password session passes nine pages in both
+themes, same-account retained draft/depth/theme/discard checks, locked embedded
+release, basic390px navigation, staff-route denial and logout. Readbacks confirm
+all3 ACTIVE policy documents,1 integration source, and enabled handover with a
+reachable connector. The same production app/release/revision/URL/status remains
+unchanged. No business action, handover conversation, admission reservation,
+binding write, production switch or deployment command was replayed.
+
+Final result is **PASS_WITH_OPTIONAL_ACTION_REVIEW_UNAVAILABLE**, not an
+unqualified full-platform green. The active template includes conversation
+handover, not HUMAN_REVIEW; that separate action-approval API truthfully returns
+400. The UI retains its unavailable/error state rather than an empty-success
+inbox. Human-support operational reads themselves pass.
+
+### Existing Placement-Freshness Caveat
+
+Initial live rendering checks passed, but operational source/integration/handover
+reads returned409 `PLACEMENT_EVIDENCE_STALE`. This was not ignored in acceptance.
+Using the existing **Verify storage target placement** UI, the owner session
+explicitly refreshed the SAME production and staging target checks (two200
+responses). App assignment stayed unchanged, no infrastructure was created.
+The final strengthened run requires successful operational reads and permits
+only the documented optional action-review400. It passed17:21:21 UTC with zero
+browser errors or blocked resource commands.
+
+The placement checks currently last15 minutes (this refresh expires17:34 UTC).
+Expiry can therefore recur on read-only customer pages; this is an EXISTING
+backend authorization/usability follow-up, not solved by this visual release.
+Review separating ownership-checked operational reads from short-lived placement
+admission proofs, or a clearly authorized renewal contract. Do not silently
+auto-renew, extend policies or weaken guards in the UI. Original stale-read
+evidence and the explicit refresh are retained in the durable hosted record.
+The diagnostic retirement GET without its required target selector returned401;
+that incomplete diagnostic is not treated as a session regression or acceptance
+proof. The final normal target-scoped UI reads pass.
+
+Sanitized live reports: `verification-support/customer-console-01045/hosted-20261023/`.
+Private screenshots/session-independent helper journals remain under
+`/private/tmp/01045-hosted-production-1792776040807/` and
+`/private/tmp/01045-ui-rollout-20261023/`; no passwords/cookies were committed.
+Staff AppShell/theme SHA256 still match the pre-extraction baseline. UI-only
+rollback remains the prior live `e12d9e571761297ce7e509a35de15c1daff29f4d` image;
+no post-layout live rollback rehearsal was performed in this request.
+
+## Remaining Acceptance And Follow-Ups
 
 - U4 HOSTED GATE OPEN: verify the actual supported customer staging/go-live
   journey through the published UI without substituting fixture results.
-- U6 OPEN: desktop/theme/real customer acceptance, independent UI rollback and
-  reviewed staging/production publication. No live redesign is claimed yet.
+- U6 LIVE UI CHECKS/PUBLICATION PASSED: owner visual acceptance and a live
+  post-layout UI rollback rehearsal remain open. Broader end-to-end actions,
+  sign-in/handover conversation and a new staging-to-production promotion were
+  not replayed for this UI-only request; earlier010.36 evidence remains distinct.
+- Existing15-minute placement-freshness coupling on operational reads needs a
+  separate backend/UX decision. Do not call this release full market readiness.
 
 ## Explicitly Deferred Capability Contracts
 

@@ -1,0 +1,15 @@
+{
+  "source": "430b875a73502e0829372c7ba89916489e7f0be7",
+  "image": "ghcr.io/mahmoudashraf/loomai-platform-ui",
+  "digest": "sha256:b12869b659112baa3eeb7b418c1f382aa6bc83823ba35a9fb26edadb1f68f9a5",
+  "ciRunId": 39992178465,
+  "ciUrl": "https://github.com/mahmoudashraf/AI-Fabric-Framework/actions/runs/39992178465",
+  "ciConclusion": "success",
+  "uiJobConclusion": "success",
+  "backendJobConclusion": "skipped",
+  "registryManifestConfigAndRevisionVerified": true,
+  "cleanGitSourceBuildPassed": true,
+  "firstSourceF39Deployed": false,
+  "backendOrCustomerRuntimeDeploymentPerformed": false,
+  "postLayoutRollbackRehearsed": false
+}
