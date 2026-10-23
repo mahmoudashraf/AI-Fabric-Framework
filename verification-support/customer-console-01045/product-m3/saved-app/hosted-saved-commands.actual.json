@@ -1,0 +1,48 @@
+{
+  "startedAt": "2026-10-23T20:56:54.467Z",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "REAL_CUSTOMER_CREATE_RELOAD_EDIT_RELOAD",
+      "status": "PASS",
+      "primaryAppChanged": false
+    },
+    {
+      "name": "DELETE_CANCEL_CONFIRM_OWN_DRAFT_ONLY",
+      "status": "PASS"
+    },
+    {
+      "name": "PRIMARY_APP_ASSIGNMENT_AND_ALL_EXISTING_APPS_PRESERVED",
+      "status": "PASS"
+    },
+    {
+      "name": "SECURITY_DRAFT_ORIGINS_RESTORED_PUBLISHED_RELEASES_UNCHANGED",
+      "status": "PASS"
+    }
+  ],
+  "commands": [
+    {
+      "method": "POST",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations",
+      "status": 201,
+      "installationId": "awi_pub_dad9dcfe9864a307dc6f74763a56e45f"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations/awi_pub_dad9dcfe9864a307dc6f74763a56e45f",
+      "status": 200,
+      "installationId": "awi_pub_dad9dcfe9864a307dc6f74763a56e45f"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations/awi_pub_dad9dcfe9864a307dc6f74763a56e45f",
+      "status": 204,
+      "installationId": "awi_pub_dad9dcfe9864a307dc6f74763a56e45f"
+    }
+  ],
+  "blocked": [],
+  "errors": [],
+  "cleanupRequired": null,
+  "observations": [],
+  "finishedAt": "2026-10-23T20:57:04.802Z"
+}

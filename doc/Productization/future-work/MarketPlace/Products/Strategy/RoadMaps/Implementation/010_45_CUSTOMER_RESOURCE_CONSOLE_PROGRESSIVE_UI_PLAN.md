@@ -374,7 +374,7 @@ customer. The fresh customer command journey remains open.
 Finish the simulator path first; real AutoTrader partner approval/credentials
 remain a separate integration gate, not a reason to invent another bridge.
 
-#### M3 - Engage App Management - MOSTLY IMPLEMENTED
+#### M3 - Engage App Management - SAVED COMMANDS LIVE VERIFIED
 
 Goal: create/link an app, use approved branding/tools/access settings, preview
 it, obtain its script or standalone address, and understand connection problems.
@@ -391,6 +391,20 @@ explicit choice for multiple active assignments, visible unknown/foreign denial.
 UI source `b18189c2c` is live on both servers. Actual customer explicit-assignment
 and unavailable-assignment creation/cancel checks pass without resource changes;
 these do not count as a successful save.
+
+Next delivery `7a1c41598` is now live on both servers: app commands explicitly
+refresh the existing exact-target placement check and show failures inside the
+dialog with inputs retained. Backend authority is unchanged. Real customer
+create/reload/edit/reload/delete passes using a temporary draft; cleanup and the
+existing app/assignment/published releases are verified. Security origin changes
+remain in the editable deployment draft, and the existing hostname route worker
+briefly propagates changes before readiness returns. See the execution record
+for both original failures and the passing results. Customer edits stay within
+the reviewed profile/allowed app fields; arbitrary branding/tools/auth JSON is
+not newly enabled. New-app activation belongs to M4. Representative supported
+saves are proven, not every domain/profile option or uninterrupted delivery
+during a shared-domain change. The newly observed shared-generation readiness
+coupling is explicitly tracked under M6; the original app is currently ready.
 
 #### M4 - Test And Go Live - PARTIAL
 
@@ -429,6 +443,13 @@ no renewal/probe or write-policy weakening. Earlier failed run is preserved.
 Keep this a narrow product usability/
 authorization task, not a capacity/recovery/infrastructure-management redesign.
 Record harder edge cases as follow-ups; no full framework matrix for UI changes.
+New bounded continuity follow-up from M3: creating/removing an unrelated app
+hostname temporarily makes an unchanged existing hostname fail APP_DELIVERY
+because the route store requires the entire shared generation to be current.
+Public bootstrap/manifest use that readiness. Preserve current authority and
+removal checks while qualifying unchanged-host continuity; do not solve this by
+blind polling, a false ready state or a new recovery subsystem. Source analysis
+and the observed readiness interruption are in the execution record.
 Done means a real customer completes the supported dealership/simulator journey
 without staff database edits or unadvertised configuration steps. Representative
 main cases suffice; do not attempt every possible integration/edge case.

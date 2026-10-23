@@ -79,12 +79,18 @@ try {
   assert.equal(session.role, 'CUSTOMER_ADMIN'); assert.equal(session.customerId, values.customer)
   original = await get(primaryPath)
   assert.equal(original.status, 'ACTIVE')
+  assert.equal(original.ready, true, 'Begin only when the existing app is ready')
   consumerId = original.consumerId
   const portfolio = await get('/api/customer-self-service/deployments')
   const deployment = portfolio.find(item => item.deploymentId === original.deploymentId)
   assert.ok(deployment)
   offerId = deployment.offerId
   const appBefore = await get(collection)
+  const draftPath = `/api/deployments/${original.deploymentId}/draft`
+  const draftBefore = await get(draftPath)
+  assert.ok(draftBefore.securityConfig && typeof draftBefore.securityConfig === 'object', 'A real security draft is required')
+  const releasesPath = `/api/deployments/${original.deploymentId}/releases`
+  const releasesBefore = await get(releasesPath)
   const customerSnapshot = async () => (await get('/api/platform/customers')).find(customer => customer.id === values.customer)
   const consumerBefore = await customerSnapshot()
   targetId = consumerBefore.consumers.find(consumer => consumer.consumerId === consumerId)?.boundTargetProfileId
@@ -123,16 +129,38 @@ try {
   assert.equal((await get(`${collection}/${createdId}`)).status, 'DRAFT')
   await row.getByRole('button', { name: 'Delete draft app', exact: true }).click()
   await command('DELETE', `${collection}/${createdId}`, () => confirmation.getByRole('button', { name: 'Confirm', exact: true }).click())
+  report.cleanupRequired = null
+  checkpoint()
   await row.waitFor({ state: 'hidden' })
   const appAfter = await get(collection)
   assert.deepEqual(appAfter.map(app => app.installationId).sort(), appBefore.map(app => app.installationId).sort())
-  const after = await get(primaryPath)
+  let after = await get(primaryPath)
+  const deadline = Date.now() + 180000
+  while (!after.ready && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    after = await get(primaryPath)
+  }
+  assert.equal(after.ready, true, 'The existing app must regain readiness after domain propagation')
   for (const key of ['installationId', 'displayName', 'status', 'rowVersion', 'configuration', 'authConfiguration',
     'consumerId', 'deploymentId', 'releaseId', 'assignmentRevision', 'appUrl', 'allowedOrigins']) assert.deepEqual(after[key], original[key], key)
-  assert.deepEqual(await customerSnapshot(), consumerBefore)
-  report.cleanupRequired = null
+  const consumerAfter = await customerSnapshot()
+  // App origins are projected into the editable deployment draft, not its published release.
+  const authority = customer => ({ ...customer, consumers: customer.consumers.map(({ boundDeploymentStatus, ...item }) => item) })
+  assert.deepEqual(authority(consumerAfter), authority(consumerBefore))
+  report.observations = consumerAfter.consumers.flatMap(consumer => {
+    const previous = consumerBefore.consumers.find(item => item.consumerId === consumer.consumerId)
+    if (consumer.boundDeploymentStatus === previous.boundDeploymentStatus) return []
+    assert.equal(consumer.boundDeploymentId, original.deploymentId)
+    assert.equal(previous.boundDeploymentStatus, 'ACTIVE'); assert.equal(consumer.boundDeploymentStatus, 'DRAFT')
+    return [{ consumerId: consumer.consumerId, field: 'boundDeploymentStatus',
+      before: previous.boundDeploymentStatus, after: consumer.boundDeploymentStatus, reason: 'EDITABLE_SECURITY_DRAFT_PROJECTED_NOT_DEPLOYED' }]
+  })
+  const draftAfter = await get(draftPath)
+  assert.deepEqual(draftAfter.securityConfig, draftBefore.securityConfig, 'Temporary origins must be removed from the editable draft')
+  assert.deepEqual(await get(releasesPath), releasesBefore, 'No release may be deployed or reverified by this app-only test')
   report.checks.push({ name: 'DELETE_CANCEL_CONFIRM_OWN_DRAFT_ONLY', status: 'PASS' },
-    { name: 'PRIMARY_APP_ASSIGNMENT_AND_ALL_EXISTING_APPS_PRESERVED', status: 'PASS' })
+    { name: 'PRIMARY_APP_ASSIGNMENT_AND_ALL_EXISTING_APPS_PRESERVED', status: 'PASS' },
+    { name: 'SECURITY_DRAFT_ORIGINS_RESTORED_PUBLISHED_RELEASES_UNCHANGED', status: 'PASS' })
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   await page.getByLabel('Email', { exact: true }).waitFor()
   assert.deepEqual(report.blocked, []); assert.deepEqual(report.errors, [])

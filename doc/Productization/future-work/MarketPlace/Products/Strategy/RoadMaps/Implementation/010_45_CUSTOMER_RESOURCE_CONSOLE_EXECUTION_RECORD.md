@@ -11,8 +11,9 @@ below is retained; it does not close these product-composition milestones.
   inspectors, both themes/mobile and unchanged assignment; staging staff preserved.
 - M2 LIVE UI PATH VERIFIED: concise product task navigation reuses existing
   simulator/storage/assignment/setup controls. Fresh full customer commands open.
-- M3 LIVE UI PATH VERIFIED / HOSTED SAVE PENDING: product-linked Engage setup,
-  exact customer assignment and explicit choice when several assignments exist.
+- M3 SUPPORTED SAVED COMMANDS LIVE VERIFIED / CONTINUITY FOLLOW-UP: product-linked Engage setup, exact
+  customer assignment, real create/reload/edit/reload/delete and visible failures.
+  Arbitrary branding/auth/tool edits outside reviewed profiles are not enabled.
 - M4 PENDING: fresh new-UI staging-to-production customer journey.
 - M5 PARTIAL: scoped daily task links and live policy/sync/handover reads exist;
   necessary daily edit/refresh commands are not freshly qualified through this UI.
@@ -44,6 +45,67 @@ Eleven focused model tests and the actual-component denied-check/error/retry sui
 pass; the UI build passes with its existing bundle warning. Publication and the
 real create/reload/edit/reload/delete journey follow. The existing live app must
 remain ACTIVE on its exact production assignment throughout this M3 check.
+
+### M3 - Saved-App Flow Published And Live Verified
+
+2026-10-23 21:02 UTC: source `7a1c41598e7fdeba6694b90d1e39aa69e17116ca`
+is pushed; UI-only CI `40021896499` passed with backend skipped. Exact image
+`sha256:6e84fb1dd749f5205445e8ee816452f02c804061428ed91ba8ee5732be1525d7`
+is verified on staging job `rzia3yf7dhh96o2qy9inpjmz` and production job
+`af8a4ybe9nzfaetmdjmq8qx4`. Domains, environment and API runtime configuration
+preserved. Backend/framework/runtime images unchanged. Staff login/30 destinations
+and the wider nine-view customer check pass (only the existing uninstalled
+action-review extension returns its expected four400s). Local qualification:
+11 focused model tests, actual save/error/retry component tests,18 scope cases,
+20 broader customer UI scenarios and staff workspace smoke. Build passes.
+
+Real production CUSTOMER_ADMIN commands: create201, reload, edit200, reload,
+delete-cancel (draft retained), delete-confirm204. Temporary apps from both runs
+are deleted; the existing app's fields, row version, assignment, release and
+origins are unchanged. No booking or consumer activation was replayed. These
+checks use the approved offer profile; arbitrary theme/tool/authentication JSON
+is deliberately not exposed to customer accounts. More profile choices are an
+offer/configuration concern, not a second customer configuration engine.
+
+The first post-fix run's final assertion expected the whole customer projection
+to remain byte-identical. This incorrectly included `boundDeploymentStatus`:
+the existing app service intentionally projects draft app origins into the next
+editable security configuration, marking deployment configuration DRAFT. The
+published releases do not change. Original failed report retained. The corrected
+test explicitly checks customer/consumer authority, original app fields, exact
+published release records and restoration of the security draft after deletion.
+It does not suppress arbitrary status changes. A later read confirms the real
+security object exists, no temporary origin/app remains, and the original app is
+ACTIVE/ready on `rel-8c7930cc`.
+
+Adding/removing a standalone hostname also invokes the EXISTING shared Engage
+route worker. During propagation APP_DELIVERY briefly reports unavailable;
+generation13 is now IDLE/applied13 with no error and readiness is restored. This
+is not a customer-runtime redeploy or data transfer. The reusable test now waits
+for bounded readiness convergence before finishing; no write is retried. Its
+latest guard/wait additions were syntax-checked, not a third hosted write replay.
+
+Important M6 follow-up, not waived by that wait: route availability is currently
+gated by the whole shared route generation. `AIWorkspaceRouteStore.isApplied`
+requires global IDLE/current generation even for an unchanged existing hostname;
+public manifest/bootstrap also require that readiness. Therefore adding/deleting
+an unrelated standalone draft can temporarily block new loads of an existing
+app while the shared route worker propagates. The observed symptom was the
+original app's APP_DELIVERY check becoming BLOCKED; the public-load impact is
+supported by the owning code, not a concurrent browser trace. Existing browser
+conversations were not re-tested during that window. This deserves a bounded
+per-host continuity correction/verification, not another routing/recovery system.
+No backend correction was made in this UI phase. Do not describe readiness polling
+as fixing that shared-generation coupling or claim uninterrupted delivery.
+
+Evidence: `verification-support/customer-console-01045/product-m3/saved-app/`.
+Review: https://console.loomai.pro/ai-workspaces . M4 fresh staging-to-production
+commands remain OPEN. Both current runtime liveness endpoints returned200/UP;
+the existing go-live screen correctly reports expired candidate/admission/
+verification evidence and does not allow another deployment of the same already
+verified version. This read-only inspection is NOT a fresh promotion. Use one
+new reviewed immutable version for that phase; do not invent a recovery/drain
+project or copy vectors. M5/M6 and owner visual acceptance remain separate.
 
 ### M1 - Product Home Source Qualification
 

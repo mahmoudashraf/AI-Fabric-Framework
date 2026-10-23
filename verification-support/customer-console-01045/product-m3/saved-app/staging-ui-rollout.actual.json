@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T20:51:51.930Z",
+  "environment": "staging",
+  "source": "7a1c41598e7fdeba6694b90d1e39aa69e17116ca",
+  "image": "sha256:6e84fb1dd749f5205445e8ee816452f02c804061428ed91ba8ee5732be1525d7",
+  "jobId": "rzia3yf7dhh96o2qy9inpjmz",
+  "status": "PASS",
+  "domainsAndEnvironmentPreserved": true,
+  "runtimeConfigurationPreserved": true,
+  "backendOrCustomerRuntimeMutation": false
+}

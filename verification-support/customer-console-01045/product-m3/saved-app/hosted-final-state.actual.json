@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-23T21:05:17.965Z",
+  "primary": {
+    "installationId": "awi_pub_1856a86a95848d165c5cfb2aa8df790d",
+    "status": "ACTIVE",
+    "ready": true,
+    "releaseId": "rel-8c7930cc",
+    "blocked": []
+  },
+  "temporaryAppsRemain": false,
+  "securityDraftIsObject": true,
+  "temporaryOriginsRemain": false,
+  "routes": [
+    {
+      "generation": 13,
+      "appliedGeneration": 13,
+      "phase": "IDLE",
+      "errorCode": null
+    }
+  ],
+  "sharedHostnameContinuityNotCertified": true
+}

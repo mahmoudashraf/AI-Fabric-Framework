@@ -1,0 +1,36 @@
+{
+  "startedAt": "2026-10-23T20:54:34.553Z",
+  "status": "FAIL",
+  "checks": [
+    {
+      "name": "REAL_CUSTOMER_CREATE_RELOAD_EDIT_RELOAD",
+      "status": "PASS",
+      "primaryAppChanged": false
+    }
+  ],
+  "commands": [
+    {
+      "method": "POST",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations",
+      "status": 201,
+      "installationId": "awi_pub_dd870f41fa21d174563a6ab89987eccd"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations/awi_pub_dd870f41fa21d174563a6ab89987eccd",
+      "status": 200,
+      "installationId": "awi_pub_dd870f41fa21d174563a6ab89987eccd"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/platform/customers/cus-9fd67f55/ai-workspace-installations/awi_pub_dd870f41fa21d174563a6ab89987eccd",
+      "status": 204,
+      "installationId": "awi_pub_dd870f41fa21d174563a6ab89987eccd"
+    }
+  ],
+  "blocked": [],
+  "errors": [],
+  "cleanupRequired": "awi_pub_dd870f41fa21d174563a6ab89987eccd",
+  "error": "Expected values to be strictly deep-equal:\n+ actual - expected ... Lines skipped\n\n  {\n    consumerCount: 6,\n...\n        boundDeploymentId: 'dep-c09b23b4',\n        boundDeploymentName: 'Northfield customer journey 0.8.41',\n+       boundDeploymentStatus: 'DRAFT',\n-       boundDeploymentStatus: 'ACTIVE',\n        boundReleaseId: 'rel-8c7930cc',\n...\n    ],\n    updatedAt: '2026-10-19T13:25:16.246290Z'\n  }",
+  "finishedAt": "2026-10-23T20:54:44.798Z"
+}

@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T20:54:33.846Z",
+  "environment": "production",
+  "source": "7a1c41598e7fdeba6694b90d1e39aa69e17116ca",
+  "image": "sha256:6e84fb1dd749f5205445e8ee816452f02c804061428ed91ba8ee5732be1525d7",
+  "jobId": "af8a4ybe9nzfaetmdjmq8qx4",
+  "status": "PASS",
+  "domainsAndEnvironmentPreserved": true,
+  "runtimeConfigurationPreserved": true,
+  "backendOrCustomerRuntimeMutation": false
+}
