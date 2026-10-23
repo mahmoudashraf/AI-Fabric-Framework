@@ -246,6 +246,10 @@ public class DeploymentDocumentKnowledgeOperationsService {
             sourcePrerequisites.ensureFresh(target, operation, operationKey, Set.copyOf(audiences));
         }
         for (DocumentAudience audience : audiences) {
+            if (!mutate && operation == Operation.READ) {
+                offerBoundary.requireOperationalRead(deployment, target.targetProfileId(), target.releaseId(), audience);
+                continue;
+            }
             Map<Setting, JsonNode> settings = operation == Operation.SOURCE_INDEX || operation == Operation.SOURCE_REFRESH
                 ? Map.of(Setting.DOCUMENT_AUDIENCE, objectMapper.getNodeFactory().textNode(audience.name())) : Map.of();
             offerBoundary.require(deployment, target.targetProfileId(), target.releaseId(), operation,

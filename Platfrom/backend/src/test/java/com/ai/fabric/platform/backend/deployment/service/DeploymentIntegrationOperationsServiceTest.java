@@ -72,6 +72,8 @@ class DeploymentIntegrationOperationsServiceTest {
         assertThat(path.get()).isEqualTo("/api/admin/connector/integrations");
         assertThat(trustedKey.get()).isEqualTo("target-bound-key");
         verify(targetContexts).resolve("dep-1", "target-1", "rel-1", false);
+        verify(offerBoundary).requireOperationalRead(any(), eq("target-1"), eq("rel-1"), org.mockito.ArgumentMatchers.isNull());
+        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(runtimeAuthority).issuePlatformProxyHeaders(
             "dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONNECTOR_READ), Duration.ofMinutes(5)
@@ -230,6 +232,8 @@ class DeploymentIntegrationOperationsServiceTest {
             "/api/admin/conversation-handover/overview",
             "/api/admin/connector/conversation-channel"
         );
+        verify(offerBoundary).requireOperationalRead(any(), eq("target-1"), eq("rel-1"), org.mockito.ArgumentMatchers.isNull());
+        verify(offerBoundary, never()).requireBindingKind(any(), any(), any(), any(), any(), any());
         verify(runtimeAuthority, org.mockito.Mockito.times(2)).issuePlatformProxyHeaders(
             "dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_CONVERSATION_HANDOVER_READ), Duration.ofMinutes(5)

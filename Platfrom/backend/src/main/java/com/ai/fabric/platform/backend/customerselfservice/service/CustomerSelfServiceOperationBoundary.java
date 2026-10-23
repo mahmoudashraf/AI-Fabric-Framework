@@ -42,6 +42,19 @@ public class CustomerSelfServiceOperationBoundary {
     public Authorization require(DeploymentEntity deployment, String targetProfileId, String releaseId,
                                  Operation operation, String operationKey, Map<Setting, JsonNode> values,
                                  String bindingSlotId, String selectedProfileId, DocumentAudience audience) {
+        return require(deployment, targetProfileId, releaseId, operation, operationKey, values,
+            bindingSlotId, selectedProfileId, audience, false);
+    }
+
+    @Transactional
+    public Authorization requireOperationalRead(DeploymentEntity deployment, String targetProfileId, String releaseId,
+                                               DocumentAudience audience) {
+        return require(deployment, targetProfileId, releaseId, Operation.READ, null, Map.of(), null, null, audience, true);
+    }
+
+    private Authorization require(DeploymentEntity deployment, String targetProfileId, String releaseId,
+                                  Operation operation, String operationKey, Map<Setting, JsonNode> values,
+                                  String bindingSlotId, String selectedProfileId, DocumentAudience audience, boolean operationalRead) {
         var association = associations.findById(deployment.getId());
         if (association.isEmpty()) {
             var principal = PlatformSecurityContext.currentPrincipal();
@@ -49,9 +62,11 @@ public class CustomerSelfServiceOperationBoundary {
             return null;
         }
         Map<Setting, JsonNode> settings = values == null ? Map.of() : Map.copyOf(values);
-        var approved = authorization.authorize(deployment.getCustomerId(), new AuthorizationRequest(
+        var request = new AuthorizationRequest(
             association.get().getOfferId(), targetProfileId, deployment.getId(), deployment.getTenantId(), releaseId,
-            operation, operationKey, settings.keySet(), bindingSlotId, selectedProfileId, audience));
+            operation, operationKey, settings.keySet(), bindingSlotId, selectedProfileId, audience);
+        var approved = operationalRead ? authorization.authorizeOperationalRead(deployment.getCustomerId(), request)
+            : authorization.authorize(deployment.getCustomerId(), request);
         authorization.validateSettings(approved, new SettingsPatch(settings));
         return approved;
     }

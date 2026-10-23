@@ -90,17 +90,31 @@ public class CustomerTargetPlacementService {
         return validateEvidence(profile, intent, composition.profileFingerprint(profile), evidence);
     }
 
+    /** Existing-runtime reads need recorded trusted identity, not a current admission/preflight lease. */
+    public CustomerPlacementEvidenceEntity requireOperationalReadEvidence(DeploymentTargetProfileEntity profile, TargetIntent intent) {
+        trusted(intent);
+        String fingerprint = composition.profileFingerprint(profile);
+        var evidence = evidenceRepository.findFirstByTargetProfileIdAndIntentAndProfileFingerprintOrderByCheckedAtDesc(profile.getId(), intent, fingerprint)
+            .orElseThrow(() -> conflict(PLACEMENT_EVIDENCE_REQUIRED));
+        return validateHistoricalIdentity(profile, intent, fingerprint, evidence);
+    }
+
     /** Historical provenance is usable only alongside fresh evidence for the identical trusted placement. */
     public CustomerPlacementEvidenceEntity requireEvidenceIdentity(DeploymentTargetProfileEntity profile, TargetIntent intent,
         String id, String freshEvidenceId) {
         var fresh = requireEvidenceById(profile, intent, freshEvidenceId);
         if (blank(id)) throw conflict(PLACEMENT_EVIDENCE_REQUIRED);
         var original = evidenceRepository.findById(id).orElseThrow(() -> conflict(PLACEMENT_EVIDENCE_REQUIRED));
-        validateIdentity(profile, intent, fresh.getProfileFingerprint(), original);
-        if (original.getCheckedAt() == null || original.getExpiresAt() == null
-            || original.getCheckedAt().isAfter(Instant.now()) || !original.getExpiresAt().isAfter(original.getCheckedAt()))
+        return validateHistoricalIdentity(profile, intent, fresh.getProfileFingerprint(), original);
+    }
+
+    private CustomerPlacementEvidenceEntity validateHistoricalIdentity(DeploymentTargetProfileEntity profile, TargetIntent intent,
+        String fingerprint, CustomerPlacementEvidenceEntity evidence) {
+        validateIdentity(profile, intent, fingerprint, evidence);
+        if (evidence.getCheckedAt() == null || evidence.getExpiresAt() == null
+            || evidence.getCheckedAt().isAfter(Instant.now()) || !evidence.getExpiresAt().isAfter(evidence.getCheckedAt()))
             throw conflict(PLACEMENT_DENIED);
-        return original;
+        return evidence;
     }
 
     private CustomerPlacementEvidenceEntity validateEvidence(DeploymentTargetProfileEntity profile, TargetIntent intent,

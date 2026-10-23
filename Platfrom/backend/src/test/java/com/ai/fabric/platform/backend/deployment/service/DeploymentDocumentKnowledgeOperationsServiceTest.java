@@ -105,9 +105,9 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         var result = "connector".equals(operation) ? service().connectorStatus(target) : service().list(target);
 
         assertThat(result.statusCode()).isEqualTo(200);
-        verify(offerBoundary).require(any(), eq("target-1"), eq("rel-1"), eq(Operation.READ),
-            org.mockito.ArgumentMatchers.isNull(), eq(java.util.Map.of()), any(), any(), eq(DocumentAudience.PUBLIC));
-        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
+        verify(offerBoundary).requireOperationalRead(any(), eq("target-1"), eq("rel-1"), eq(DocumentAudience.PUBLIC));
+        verify(offerBoundary, never()).requireOperationalRead(any(), any(), any(), eq(DocumentAudience.AUTHENTICATED));
+        verify(offerBoundary, never()).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
         org.mockito.Mockito.verifyNoInteractions(sourcePrerequisites);
         verify(runtimeAuthority).issuePlatformProxyHeaders("dep-1", "target-1", "rel-1", "sha256:authority-1",
             List.of("documents:read"), Duration.ofMinutes(5));
@@ -178,7 +178,7 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         when(offerBoundary.reviewedDocumentAudiences(any())).thenReturn(java.util.Set.of());
         org.mockito.Mockito.doThrow(com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.deny(
             com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code.SETTING_FORBIDDEN))
-            .when(offerBoundary).require(any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .when(offerBoundary).requireOperationalRead(any(), any(), any(), any());
 
         assertThatThrownBy(() -> service().list(target)).hasMessageContaining("SETTING_FORBIDDEN");
 

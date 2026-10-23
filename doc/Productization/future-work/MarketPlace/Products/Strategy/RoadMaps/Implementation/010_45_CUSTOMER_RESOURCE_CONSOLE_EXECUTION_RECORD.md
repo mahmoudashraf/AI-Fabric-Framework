@@ -48,12 +48,26 @@ retain current ownership/entitlement/reviewed target checks without requiring a
 fresh admission lease. All writes/source commands still require fresh evidence.
 207 focused backend tests pass; no backend publication or live effect yet.
 
+### M6 - Operational Read Prerequisite Source Qualified
+
+2026-10-23 18:53 UTC: main review and rerun confirm207 tests passing, no failures,
+errors or skips. Exact existing-release operational GETs in document/integration/
+handover services use recorded trusted placement identity without requiring its
+15-minute admission lease to remain fresh. Current customer ownership, active
+entitlement, reviewed composition, target/release identity and prerequisites
+remain required. Wrong owners, revoked access, drift and every ordinary write/
+source command stay denied as before. No silent placement renewal, TTL change,
+capacity measurement, recovery mechanism or framework change. No schema change.
+Publication/live qualification remains pending and does not close M6.
+
 ## Current Scope
 
 Customer-only implementation. Admin/operator `AppShell.tsx` and
 `platformTheme.ts` remain byte-identical to the pre-U1 baseline. No backend,
 framework, authentication relaxation or customer business-system provision is
-part of these source phases. UI-only staging publication follows local
+part of these source phases. The separately reviewed M6 prerequisite changes only
+which placement timestamp an owned existing-release read requires; current
+authorization and write freshness remain enforced. UI-only staging publication follows local
 qualification; hosted and production acceptance remain separate gates. Review
 links use an explicitly labelled offline fixture transport, not live customer
 data or production proof.

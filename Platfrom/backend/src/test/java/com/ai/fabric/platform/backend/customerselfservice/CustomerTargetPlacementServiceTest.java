@@ -175,6 +175,62 @@ class CustomerTargetPlacementServiceTest {
             .isInstanceOfSatisfying(CustomerSelfServiceException.class, ex -> assertThat(ex.code()).isEqualTo(PLACEMENT_EVIDENCE_STALE));
     }
 
+    @Test void operationalReadsAcceptOnlyRecordedIdentityWithoutRenewingItsExpiredLease() {
+        var old = proof("profile-hash", "stage-server", "46.224.145.148", "destination",
+            Instant.now().minusSeconds(3600), Instant.now().minusSeconds(3540));
+        cached(old);
+
+        assertThat(service.requireOperationalReadEvidence(profile, TargetIntent.CUSTOMER_STAGING)).isSameAs(old);
+        assertCachedCode(PLACEMENT_EVIDENCE_STALE);
+        assertThat(old.getExpiresAt()).isBefore(Instant.now());
+        verifyNoInteractions(resolver, client);
+        verify(evidenceRepository, never()).saveAndFlush(any());
+        cached(null);
+        assertReadCode(PLACEMENT_EVIDENCE_REQUIRED);
+    }
+
+    @Test void expiredReadIdentityNeverAuthorizesForeignFingerprintTargetIntentOrPhysicalPlacement() {
+        var oldTime = Instant.now().minusSeconds(3600);
+        for (var old : List.of(
+            proof("old-profile", "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)),
+            proof("profile-hash", "other-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)),
+            proof("profile-hash", "stage-server", "foreign-address", "destination", oldTime, oldTime.plusSeconds(60)),
+            proof("profile-hash", "stage-server", "46.224.145.148", "foreign-destination", oldTime, oldTime.plusSeconds(60)),
+            new CustomerPlacementEvidenceEntity("evidence", "foreign-profile", TargetIntent.CUSTOMER_STAGING, "profile-hash",
+                "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)),
+            new CustomerPlacementEvidenceEntity("evidence", profile.getId(), TargetIntent.CUSTOMER_PRODUCTION, "profile-hash",
+                "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)))) {
+            cached(old);
+            assertReadCode(PLACEMENT_DENIED);
+        }
+        verifyNoInteractions(resolver, client);
+    }
+
+    @Test void operationalReadStillRequiresActiveProfileCurrentTrustedConfigurationAndGenuineProofTimes() {
+        var oldTime = Instant.now().minusSeconds(3600);
+        cached(proof("profile-hash", "stage-server", "46.224.145.148", "destination", oldTime, oldTime.plusSeconds(60)));
+        profile.setActive(false);
+        assertReadCode(PLACEMENT_DENIED);
+        profile.setActive(true);
+        profile.setProviderType(DeploymentProviderType.RAILWAY_STUB);
+        assertReadCode(PLACEMENT_DENIED);
+        profile.setProviderType(DeploymentProviderType.COOLIFY);
+        profile.setProviderConfigJson("{\"serverUuid\":\"other-server\",\"destinationUuid\":\"destination\"}");
+        assertReadCode(PLACEMENT_DENIED);
+        profile.setProviderConfigJson("{\"serverUuid\":\"stage-server\",\"destinationUuid\":\"other-destination\"}");
+        assertReadCode(PLACEMENT_DENIED);
+        profile.setProviderConfigJson("{\"serverUuid\":\"stage-server\",\"destinationUuid\":\"destination\"}");
+        for (var invalid : List.of(
+            proof("profile-hash", "stage-server", "46.224.145.148", "destination", null, oldTime),
+            proof("profile-hash", "stage-server", "46.224.145.148", "destination", oldTime, null),
+            proof("profile-hash", "stage-server", "46.224.145.148", "destination", oldTime, oldTime),
+            proof("profile-hash", "stage-server", "46.224.145.148", "destination", Instant.now().plusSeconds(30), Instant.now().plusSeconds(60)))) {
+            cached(invalid);
+            assertReadCode(PLACEMENT_DENIED);
+        }
+        verifyNoInteractions(resolver, client);
+    }
+
     @Test void historicalIdentityNeverSubstitutesForMissingStaleOrForeignCurrentEvidence() {
         var old = proof("profile-hash", "stage-server", "46.224.145.148", "destination",
             Instant.now().minusSeconds(900), Instant.now().minusSeconds(840));
@@ -210,6 +266,11 @@ class CustomerTargetPlacementServiceTest {
 
     private void assertIdentityCode(CustomerSelfServiceException.Code code) {
         assertThatThrownBy(() -> service.requireEvidenceIdentity(profile, TargetIntent.CUSTOMER_STAGING, "evidence", "fresh"))
+            .isInstanceOfSatisfying(CustomerSelfServiceException.class, ex -> assertThat(ex.code()).isEqualTo(code));
+    }
+
+    private void assertReadCode(CustomerSelfServiceException.Code code) {
+        assertThatThrownBy(() -> service.requireOperationalReadEvidence(profile, TargetIntent.CUSTOMER_STAGING))
             .isInstanceOfSatisfying(CustomerSelfServiceException.class, ex -> assertThat(ex.code()).isEqualTo(code));
     }
 

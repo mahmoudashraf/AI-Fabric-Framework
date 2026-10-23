@@ -193,7 +193,9 @@ public class DeploymentIntegrationOperationsService {
                 : "Conversation Handover";
             throw new ResponseStatusException(BAD_REQUEST, "The selected release version does not claim " + label + ".");
         }
-        if (operation == Operation.INBOX_OPERATOR_DELIVER) {
+        if (!mutate && operation == Operation.READ) {
+            offerBoundary.requireOperationalRead(context.deployment(), target.targetProfileId(), target.releaseId(), null);
+        } else if (operation == Operation.INBOX_OPERATOR_DELIVER) {
             offerBoundary.requireBindingKind(context.deployment(), target.targetProfileId(), target.releaseId(),
                 operation, operationKey, BindingKind.INBOX_OPERATOR);
         } else {

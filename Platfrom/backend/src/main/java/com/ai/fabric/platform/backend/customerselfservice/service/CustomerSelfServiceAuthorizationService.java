@@ -28,7 +28,7 @@ import static com.ai.fabric.platform.backend.customerselfservice.model.CustomerS
 
 @Service
 public class CustomerSelfServiceAuthorizationService {
-    private enum EvidenceMode { REQUIRED, ADMISSION_PREPARATION, SOURCE_REFRESH }
+    private enum EvidenceMode { REQUIRED, ADMISSION_PREPARATION, SOURCE_REFRESH, OPERATIONAL_READ }
     private final CustomerOfferEntitlementService entitlements;
     private final CustomerReviewedCompositionService composition;
     private final CustomerTargetPlacementService placement;
@@ -69,6 +69,14 @@ public class CustomerSelfServiceAuthorizationService {
     @Transactional(propagation = Propagation.MANDATORY)
     public Authorization authorize(String customerId, AuthorizationRequest request) {
         return authorize(customerId, request, EvidenceMode.REQUIRED);
+    }
+
+    /** Only pure reads of an explicit existing release may use historical placement identity. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Authorization authorizeOperationalRead(String customerId, AuthorizationRequest request) {
+        if (request == null || request.operation() != Operation.READ) throw deny(OPERATION_FORBIDDEN);
+        if (blank(request.releaseId())) throw deny(RESOURCE_SCOPE_MISMATCH);
+        return authorize(customerId, request, EvidenceMode.OPERATIONAL_READ);
     }
 
     /**
@@ -165,8 +173,11 @@ public class CustomerSelfServiceAuthorizationService {
         composition.validate(definition);
         var profile = profiles.findById(target.targetProfileId()).orElseThrow(() -> deny(UNENTITLED_TARGET));
         composition.requireProfile(profile, target);
-        var placementEvidence = evidenceMode == EvidenceMode.SOURCE_REFRESH ? null
-            : placement.requireFreshEvidence(profile, target.intent());
+        var placementEvidence = switch (evidenceMode) {
+            case SOURCE_REFRESH -> null;
+            case OPERATIONAL_READ -> placement.requireOperationalReadEvidence(profile, target.intent());
+            default -> placement.requireFreshEvidence(profile, target.intent());
+        };
         if (request.operation() != Operation.READ && request.operation() != Operation.TEMPLATE_SELECT
             && request.operation() != Operation.SOURCE_DISCOVER && request.operation() != Operation.SOURCE_PREVIEW) {
             entitlements.requireOperationKey(request.operationKey());
@@ -175,7 +186,8 @@ public class CustomerSelfServiceAuthorizationService {
             request.releaseId(), target.targetProfileId(), target.intent(), offer.getId(), offer.getFingerprint(),
             entitlement.getRevision(), placementEvidence == null ? null : placementEvidence.getId(),
             request.operation(), request.operationKey(), definition.limits(), definition.topology());
-        if (evidenceMode == EvidenceMode.REQUIRED) requirePrerequisites(context, requiredPrerequisites(definition, row));
+        if (evidenceMode == EvidenceMode.REQUIRED || evidenceMode == EvidenceMode.OPERATIONAL_READ)
+            requirePrerequisites(context, requiredPrerequisites(definition, row));
         return new Authorization(context, definition);
     }
 
