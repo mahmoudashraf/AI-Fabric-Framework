@@ -1,8 +1,53 @@
 # Dealership Product Quality Review
 
-Date: 24 October 2026. Status: **NEEDS IMPROVEMENT**.
+Started: 24 October 2026. Latest review: 25 October 2026.
+Status: **NEEDS IMPROVEMENT**.
 
-## Latest: Projection Verified Live, Semantic Quality Still Unstable
+## 25 October: Post-Separation Recheck
+
+The separation task reported its final hosted customer journey and cleanup
+complete. Main independently confirmed both control planes healthy on backend
+`c840f7a58e64651f1fe4b8d0b2d06a9a8187d736`, both existing quality services
+healthy, and both published browser assets still matching their SRI hashes.
+The owner's pause-until-separation condition is satisfied.
+
+Without changing settings, images, sources or assignments, main reran an
+11-question subset through the published widget and live anonymous runtime
+routes. The run completed on 25 October at 00:35:51 BST: **6 PASS, 1 PARTIAL,
+4 FAIL** after manual answer/evidence review. All responses were HTTP200;
+there were no browser errors, blocked requests or successful business writes.
+This subset is not another full20 and its counts must not be compared as an
+overall improvement or regression against the full20.
+
+- PASS: current electric stock, warranty, both compound stock/delivery clause
+  orders, real vehicle-card selection and broad browsing after context removal.
+- PARTIAL: all-stock exposes six cards but supplies only five detailed vehicle
+  records to generation, with explicit evidence truncation.
+- FAIL: lowest-mileage follow-up asks for a knowledge domain despite four
+  history messages; standalone delivery omits known handover requirements;
+  selected vehicle plus policies displays clarification and `Search completed.`
+  without the requested synthesis; informational booking asks for a domain.
+
+The compound status projection remains visibly correct: actual DOM assertions
+and screenshot inspection show two sanitized child outcomes, including the
+failed child. A truthful failure presentation is not an answer-quality pass.
+The compound delivery answers correctly used25-mile coverage, three working
+days after payment/preparation and photo ID; they did not invent a delivery fee.
+
+Exact reviewed evidence is in
+[the post-separation qualification](evidence/2026-10-25-post-separation-quality.json).
+The preserved canary still runs Runtime473/framework0.8.41; this is an answer
+recheck with the separated control planes, not a claim that main upgraded or
+qualified the newer target-owned-document Runtime. That separate hosted proof
+belongs to01046. Historical failed canary release and manual-host limitations
+remain unchanged; no managed Engage installation acceptance is claimed here.
+
+The three proposed framework prompt/planner/evidence-budget changes remain
+unimplemented pending owner approval. The partial-compound synthesis finding
+remains separately recorded, not silently added to that approval. No further
+query runner, build or rollout is running after this checkpoint.
+
+## 24 October: Projection Verified Live, Semantic Quality Still Unstable
 
 The staging source/digest/schema210 and protected configuration/assignment/
 funding hashes are verified after the asset rollout. The new first-party widget
