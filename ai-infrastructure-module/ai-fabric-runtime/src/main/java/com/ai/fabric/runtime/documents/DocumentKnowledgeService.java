@@ -156,11 +156,11 @@ public class DocumentKnowledgeService {
                 safeProviderRevision(object.etag()),
                 object.lastModified(),
                 object.providerRevisionFingerprint(),
-                sourceRepository.findByLogicalSourceKey(logicalKey(
+                registeredSource(
                     boundary,
                     allowedDatasetId,
                     object.objectReference()
-                )).map(DocumentSourceEntity::getId).orElse(null)
+                ).map(DocumentSourceEntity::getId).orElse(null)
             ))
             .toList();
         return new DiscoveryResult(sources, page.nextCursor());
@@ -188,7 +188,7 @@ public class DocumentKnowledgeService {
 
         SourceObject object = normalizeAndValidate(connector.stat(normalized.objectReference()));
         String logicalKey = logicalKey(boundary, normalized.datasetId(), object.objectReference());
-        Optional<DocumentSourceEntity> existing = sourceRepository.findByLogicalSourceKey(logicalKey);
+        Optional<DocumentSourceEntity> existing = registeredSource(boundary, normalized.datasetId(), object.objectReference());
         if (existing.isPresent()) {
             DocumentSourceEntity source = existing.get();
             if (!claimed || source.getStatus() != DocumentSourceEntity.Status.DELETED) {
@@ -214,7 +214,8 @@ public class DocumentKnowledgeService {
         source.setTargetProfileId(boundary.targetProfileId());
         source.setReleaseId(boundary.releaseId());
         source.setConnectorType(connector.type().name());
-        source.setConnectorBindingRef(bounded(properties.getConnector().getBindingRef(), 128));
+        source.setConnectorBindingRef(required(properties.getConnector().getBindingRef(), "connector bindingRef", 128));
+        source.setConnectorScopeDigest(DocumentSourceScope.storageDigest(properties, objectMapper));
         source.setObjectLocator(object.objectReference());
         source.setObjectLocatorDigest(DocumentConnectorSupport.sha256(object.objectReference()));
         source.setDisplayName(object.displayName());
@@ -236,9 +237,10 @@ public class DocumentKnowledgeService {
     public synchronized List<SourceSummary> list(RuntimeResolvedIdentity identity) {
         Boundary boundary = requireBoundary(identity);
         List<DocumentSourceEntity> sources = sourceRepository
-            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdOrderByUpdatedAtDesc(
-                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId());
-        return sources.stream().map(this::toSummary).toList();
+            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
+                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId());
+        return sources.stream().filter(source -> DocumentSourceScope.permits(boundary, properties, objectMapper, source))
+            .map(this::toSummary).toList();
     }
 
     public synchronized SourceDetail detail(RuntimeResolvedIdentity identity, String sourceId) {
@@ -492,7 +494,7 @@ public class DocumentKnowledgeService {
                 .entityType(properties.getEntityType())
                 .limit(Math.min(100, limit * 5))
                 .threshold(0.0d)
-                .metadata(boundary.metadata())
+                .metadata(boundary.ownerMetadata())
                 .build()
         );
         List<RetrievalEvidence> evidence = response == null || response.getResults() == null
@@ -501,8 +503,8 @@ public class DocumentKnowledgeService {
                 .map(this::toRetrievalEvidence)
                 .filter(Objects::nonNull)
                 .filter(item -> StringUtils.hasText(item.sourceId()))
-                .filter(item -> activeVersionFilter.accepts(item.metadata()))
-                .filter(item -> boundary.matches(item.metadata()))
+                .filter(item -> activeVersionFilter.accepts(properties.getEntityType(), item.metadata()))
+                .filter(item -> boundary.matchesOwner(item.metadata()))
                 .limit(limit)
                 .toList();
         return new RetrievalProof(
@@ -546,8 +548,8 @@ public class DocumentKnowledgeService {
         );
         LinkedHashSet<String> sourceIds = new LinkedHashSet<>();
         Boundary boundary = runtimeIdentity.requireConfiguredBoundary();
-        manifestRepository.findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStateIn(
-            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), pendingStates
+        manifestRepository.findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndStateIn(
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), pendingStates
         ).forEach(manifest -> sourceIds.add(manifest.getSourceId()));
         sourceIds.stream().limit(100).forEach(sourceId -> ownedSource(boundary, sourceId)
             .ifPresent(source -> reconcileSource(source, false)));
@@ -558,12 +560,11 @@ public class DocumentKnowledgeService {
         Instant commandCutoff = now().minus(retention(properties.getCommandRetention(), "command retention"));
         PageRequest batch = PageRequest.of(0, retentionBatchSize());
         List<DocumentManifestEntity> candidates = manifestRepository
-            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
+            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
                 boundary.tenantId(),
                 boundary.customerId(),
                 boundary.deploymentId(),
                 boundary.targetProfileId(),
-                boundary.releaseId(),
                 DocumentManifestEntity.State.DELETED,
                 evidenceCutoff,
                 batch
@@ -584,8 +585,8 @@ public class DocumentKnowledgeService {
             manifestsDeleted++;
         }
         long commandsDeleted = commandRepository
-            .deleteByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndCreatedAtBefore(
-                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), commandCutoff
+            .deleteByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndCreatedAtBefore(
+                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), commandCutoff
             );
         RetentionCleanupResult result = new RetentionCleanupResult(
             scope,
@@ -754,6 +755,10 @@ public class DocumentKnowledgeService {
     }
 
     private PreparedDocument prepare(DocumentSourceEntity source) {
+        Boundary boundary = runtimeIdentity.requireConfiguredBoundary();
+        if (!DocumentSourceScope.permits(boundary, properties, objectMapper, source)) {
+            throw new EntityNotFoundException("Document source was not found in the configured storage scope.");
+        }
         SourceObject current = normalizeAndValidate(connector.stat(source.getObjectLocator()));
         if (!Objects.equals(current.providerRevisionFingerprint(), source.getProviderRevisionFingerprint())) {
             throw conflict("The external document revision changed. Refresh the source before preview or indexing.");
@@ -808,8 +813,13 @@ public class DocumentKnowledgeService {
                 .occurredAt(now());
             metadata.forEach(options::metadata);
             DocumentIngestionPlan plan = planningAdapter.plan(reader, options.build());
-            Boundary boundary = runtimeIdentity.requireConfiguredBoundary();
-            if (plan.chunks().stream().anyMatch(chunk -> !boundary.matches(chunk.indexDocument().vectorMetadata()))) {
+            if (plan.chunks().stream().anyMatch(chunk -> {
+                Map<String, Object> vectorMetadata = chunk.indexDocument().vectorMetadata();
+                return !boundary.matchesOwner(vectorMetadata)
+                    || !source.getReleaseId().equals(vectorMetadata.get("releaseId"))
+                    || !source.getId().equals(vectorMetadata.get(DocumentMetadataKeys.SOURCE_ID))
+                    || !source.getDatasetId().equals(vectorMetadata.get("datasetId"));
+            })) {
                 throw new DocumentKnowledgeException(
                     "DOCUMENT_INDEX_SCOPE_INVALID", HttpStatus.SERVICE_UNAVAILABLE,
                     "Document preparation did not preserve runtime ownership metadata."
@@ -1297,8 +1307,8 @@ public class DocumentKnowledgeService {
     }
 
     private void enforceRegistrationLimits(Boundary boundary, long bytes) {
-        long sourceCount = sourceRepository.countByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStatusNot(
-            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId(), DocumentSourceEntity.Status.DELETED
+        long sourceCount = sourceRepository.countByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndStatusNot(
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), DocumentSourceEntity.Status.DELETED
         );
         if (sourceCount >= properties.getPolicy().getMaxSources()) {
             throw new DocumentKnowledgeException(
@@ -1308,7 +1318,7 @@ public class DocumentKnowledgeService {
             );
         }
         long currentBytes = sourceRepository.sumContentLengthForBoundary(
-            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId());
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId());
         if (currentBytes + bytes > properties.getPolicy().getMaxTotalIndexedBytes()) {
             throw new DocumentKnowledgeException(
                 "DOCUMENT_BYTE_LIMIT_EXCEEDED",
@@ -1325,8 +1335,29 @@ public class DocumentKnowledgeService {
     }
 
     private Optional<DocumentSourceEntity> ownedSource(Boundary boundary, String sourceId) {
-        return sourceRepository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseId(
-            sourceId, boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), boundary.releaseId());
+        return sourceRepository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileId(
+            sourceId, boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId())
+            .filter(source -> DocumentSourceScope.permits(boundary, properties, objectMapper, source));
+    }
+
+    private Optional<DocumentSourceEntity> registeredSource(Boundary boundary, String datasetId, String reference) {
+        // Typed ownership also finds existing release-bearing keys without rewriting source or vector IDs.
+        List<DocumentSourceEntity> candidates = sourceRepository
+            .findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndDatasetIdAndConnectorTypeAndConnectorBindingRefAndObjectLocatorDigest(
+                boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(), datasetId,
+                connector.type().name(), required(properties.getConnector().getBindingRef(), "connector bindingRef", 128),
+                DocumentConnectorSupport.sha256(reference))
+            .stream().filter(source -> reference.equals(source.getObjectLocator())).toList();
+        if (candidates.stream().anyMatch(source -> !StringUtils.hasText(source.getConnectorScopeDigest()))) {
+            throw new DocumentKnowledgeException("DOCUMENT_SOURCE_SCOPE_UNVERIFIED", HttpStatus.CONFLICT,
+                "Historical document storage identity is unverified; use a fresh deployment rather than adopting its registration.");
+        }
+        candidates = candidates.stream()
+            .filter(source -> DocumentSourceScope.permits(boundary, properties, objectMapper, source)).toList();
+        if (candidates.size() > 1) {
+            throw conflict("Multiple document registrations exist for this target and source binding; explicit reconciliation is required.");
+        }
+        return candidates.stream().findFirst();
     }
 
     private void requireMutable(DocumentSourceEntity source) {
@@ -1514,10 +1545,11 @@ public class DocumentKnowledgeService {
     }
 
     private String logicalKey(Boundary boundary, String datasetId, String reference) {
-        return DocumentConnectorSupport.sha256(
-            boundary.tenantId() + "|" + boundary.customerId() + "|" + boundary.deploymentId()
-                + "|" + boundary.targetProfileId() + "|" + boundary.releaseId() + "|" + datasetId + "|" + reference
-        );
+        return DocumentConnectorSupport.sha256(writeJson(List.of(
+            boundary.tenantId(), boundary.customerId(), boundary.deploymentId(), boundary.targetProfileId(),
+            datasetId, connector.type().name(), required(properties.getConnector().getBindingRef(), "connector bindingRef", 128),
+            DocumentSourceScope.storageDigest(properties, objectMapper), reference
+        )));
     }
 
     private String datasetHandleRef(String datasetId) {

@@ -56,6 +56,9 @@ public class DocumentSourceEntity {
     @Column(name = "connector_binding_ref", length = 128)
     private String connectorBindingRef;
 
+    @Column(name = "connector_scope_digest", length = 64)
+    private String connectorScopeDigest;
+
     @Column(name = "object_locator", nullable = false, length = 1024)
     private String objectLocator;
 

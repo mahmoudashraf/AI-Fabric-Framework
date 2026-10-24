@@ -15,6 +15,32 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DocumentTargetReleaseOwnershipMigrationTest {
 
     @Test
+    void physicalScopeMigrationOnlyAddsNullableEvidenceAndPreservesAllExistingOwnershipHistory() {
+        var source = database();
+        apply(source, "V9__loomai_document_ingestion.sql");
+        apply(source, "V17__document_target_release_ownership.sql");
+        var jdbc = new JdbcTemplate(source);
+        insertOwnedSource(jdbc, "source-a", "staging", "release-a");
+        insertManifest(jdbc, "manifest-a", "source-a", "staging", "release-a");
+        insertCommand(jdbc, "command-a", "staging", "release-a");
+        var sourcesBefore = jdbc.queryForList("SELECT * FROM loomai_document_source");
+        var manifestsBefore = jdbc.queryForList("SELECT * FROM loomai_document_manifest");
+        var commandsBefore = jdbc.queryForList("SELECT * FROM loomai_document_command");
+
+        apply(source, "V22__document_storage_scope.sql");
+
+        var sourcesAfter = jdbc.queryForList("SELECT * FROM loomai_document_source");
+        assertThat(sourcesAfter).singleElement().satisfies(row -> assertThat(row.remove("CONNECTOR_SCOPE_DIGEST")).isNull());
+        assertThat(sourcesAfter).isEqualTo(sourcesBefore);
+        assertThat(jdbc.queryForList("SELECT * FROM loomai_document_manifest")).isEqualTo(manifestsBefore);
+        assertThat(jdbc.queryForList("SELECT * FROM loomai_document_command")).isEqualTo(commandsBefore);
+        insertCommand(jdbc, "command-b", "staging", "release-b");
+        insertOwnedSource(jdbc, "fk-control", "staging", "release-a");
+        assertThatThrownBy(() -> insertManifest(jdbc, "wrong-origin", "fk-control", "staging", "release-b"))
+            .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("FK_DOCUMENT_MANIFEST_OWNER");
+    }
+
+    @Test
     void legacyRowsRemainUnownedAndCannotClaimTheNewRuntimeGeneration() {
         var source = database();
         apply(source, "V9__loomai_document_ingestion.sql");

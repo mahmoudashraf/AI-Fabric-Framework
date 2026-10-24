@@ -17,12 +17,11 @@ public interface DocumentCommandRepository extends JpaRepository<DocumentCommand
         String idempotencyKey
     );
 
-    long deleteByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndCreatedAtBefore(
+    long deleteByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndCreatedAtBefore(
         String tenantId,
         String customerId,
         String deploymentId,
         String targetProfileId,
-        String releaseId,
         Instant cutoff
     );
 }

@@ -451,6 +451,79 @@ tenant/deployment/target namespace. No old binding is rewritten, no vector recor
 are transferred and no foreign target or credential rotation is implicitly allowed.
 This is required for a real version upgrade, not an automatic recovery mechanism.
 
+**Control-plane rollout:** Commit `ae74bc747e67ea0c663fd65f7ca3967f6498258c`
+passed backend-image CI run `40127937705`; the unchanged UI image was skipped.
+Both staging and production now run
+`ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:4a669b9fd837a931237f2fcd46973d7f653a181d98476d8e570bf5a68b6b7dda`.
+Each server passed public health, native image/source identity, live JAR package
+absence, required core-class presence and unchanged V210 schema checks. Native
+configuration/environment and original financial/consumer/app row hashes were
+preserved. Receipts are in the private `loomai-separation-01046/full-core-rollout/`
+directory. The separate operations-service image is unchanged.
+
+The first isolated hosted customer proof used `dep-988e0159`, with app
+`awi_pub_a31b70ccefa149ac93f8f4df30d0cbb2` and initial staging release
+`rel-190b46ed`. Both operations-service containers were stopped throughout its
+customer journey; both control planes remained healthy. Customer-console draft
+creation, app creation, published configuration, scoped S3 bindings, external
+service bindings and fresh per-target vector bindings passed without legacy
+placement/reservation requests. Three approved policies were indexed; rechecking
+that same release passed without a waiver. The full seven-send workspace run passed
+bootstrap, compound inventory/policy evidence, reload, protected-action challenge,
+cancelled login, real Supabase login, actual vehicle selection, one explicit
+confirmation/one external synthetic receipt, human-message AI bypass, asynchronous
+Inbox reply, authorized return to AI and subsequent policy citation. Semantic
+answer review remains distinct from this bounded technical result.
+
+**Cold-path defect found, not hidden:** A new published configuration produced
+`rel-b64021c4`. Its first apply was rejected before release creation because external
+connection approvals are version-scoped. Explicit staff review and customer binding
+of the unchanged connections preceded a new apply command; the rejected request was
+not replayed or erased. Native cold replacement then completed, retaining the exact
+AI-state PostgreSQL container and mounts. Verification correctly failed because the
+new release saw zero active document sources. Read-only PostgreSQL evidence proved
+all three original registrations remained `ACTIVE`: the old LoomAI runtime catalog
+and document eligibility were partitioned by release ID. No documents were blindly
+re-indexed and this attempt is not counted as a green cold upgrade.
+
+The narrow correction belongs to LoomAI runtime, not the AI Fabric framework:
+document state must be owned by tenant/customer/deployment/target and a trusted
+physical storage identity, while current-release authorization and origin-release
+provenance remain strict. It includes additive storage-scope evidence, active-version
+retrieval eligibility, pending-work continuation, target-local quotas and safe
+retention. Legacy rows without trusted storage evidence are not automatically
+adopted; the owner permits fresh data. No universal legacy migration, offer-upgrade
+engine or framework release is being introduced. Independent review also identified
+an exact-integral numeric metadata compatibility case (`1.0` from Pinecone), which
+is receiving focused regression coverage before publication.
+
+The first proof's old offer pins its runtime immutably. It will not be changed
+behind that approval: the corrected image needs a fresh reviewed offer/customer
+proof. The old proof is archived and its app/consumer disabled. Its six containers,
+three volumes and two temporary vector stores are confirmed absent; one unused
+anonymous volume was removed only after exact prior ownership and zero attachments
+were verified. Evidence, the external synthetic receipt and audit metadata remain.
+Both optional services are restored healthy. At `2026-10-24T21:11Z`, original
+financial/consumer/app hashes still matched on both control planes; this proof
+created zero financial allocations and zero capacity reservations. The original
+dealership quality canary, external business database and customer S3 objects were
+not changed. Corrected-runtime publication, fresh hosted acceptance and final
+cleanup remain open above.
+
+**Runtime correction source complete:** The document catalog now retains source
+identity and active versions across same-target releases. The additive runtime
+migration `V22__document_storage_scope.sql` stores trusted storage-scope evidence;
+unverified historical rows are not silently adopted. Current owner, target,
+connector type/binding, physical storage identity, permitted dataset/handle and
+active source version are checked for ordinary and proof retrieval. Existing
+source/manifest origin-release provenance and database ownership constraints remain;
+command idempotency stays release-scoped. Credential rotation is excluded from the
+physical storage identity. Focused verification passed 63 tests across ten suites,
+with zero failures/errors/skips; the final nine-test active-version-filter rerun
+also passed after the Pinecone exact-integral numeric fix. These overlapping runs
+are not summed. No framework dependency version changed. Hosted acceptance of the
+corrected immutable runtime image remains required.
+
 - [x] Source-based architecture/coupling analysis and bounded inventory completed.
 - [x] Current provisioning bug distinguished from admission/funding aftermath.
 - [x] Manual-first scope, optional module boundary, provider-use modes and later service contract drafted.

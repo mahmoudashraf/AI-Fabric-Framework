@@ -9,16 +9,20 @@ import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import ai.fabric.rag.source.SearchSource;
 import com.ai.fabric.runtime.documents.DocumentActiveVersionFilter;
+import com.ai.fabric.runtime.documents.DocumentKnowledgeProperties;
 import com.ai.fabric.runtime.documents.DocumentRuntimeIdentity;
 import com.ai.fabric.runtime.documents.entity.DocumentSourceEntity;
 import com.ai.fabric.runtime.documents.repository.DocumentSourceRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.security.MessageDigest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,22 +34,53 @@ import static org.mockito.Mockito.when;
 class DocumentGenerationSearchIsolationTest {
 
     @Test
-    void privateAndSharedIndexAdaptersEnforceGenerationOwnershipInEverySearchMode() {
+    void privateAndSharedIndexAdaptersRetainTargetDocumentsAndDenyUnownedEvidenceInEverySearchMode() throws Exception {
         var repository = mock(DocumentSourceRepository.class);
         var identity = new DocumentRuntimeIdentity("tenant", "customer", "deployment", "staging", "release-b");
-        var owned = new DocumentSourceEntity();
-        owned.setActiveSourceVersion(1L);
-        owned.setStatus(DocumentSourceEntity.Status.ACTIVE);
-        when(repository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseId(
-            "doc-current", "tenant", "customer", "deployment", "staging", "release-b")).thenReturn(Optional.of(owned));
-        var filter = new DocumentActiveVersionFilter(repository, identity, "document");
+        var properties = new DocumentKnowledgeProperties();
+        properties.getConnector().setType(DocumentKnowledgeProperties.ConnectorType.S3_COMPATIBLE_OBJECT_STORAGE);
+        properties.getConnector().setBindingRef("binding-a");
+        properties.getConnector().getS3().setEndpoint("https://storage.example.test");
+        properties.getConnector().getS3().setBucket("customer-bucket");
+        properties.getConnector().getS3().setPrefix("approved/");
+        properties.setDatasetHandleRefsJson("{\"document-knowledge\":\"handle-a\"}");
+        var mapper = new ObjectMapper();
+        String scopeDigest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(mapper.writeValueAsBytes(
+            List.of("S3_COMPATIBLE_OBJECT_STORAGE", "https://storage.example.test:443", "us-east-1", "customer-bucket", "approved/"))));
+        for (String id : List.of("doc-retained", "doc-current", "doc-deleted")) {
+            var owned = new DocumentSourceEntity();
+            owned.setId(id);
+            owned.setTenantId("tenant");
+            owned.setCustomerId("customer");
+            owned.setDeploymentId("deployment");
+            owned.setTargetProfileId("staging");
+            owned.setReleaseId("doc-current".equals(id) ? "release-b" : "release-a");
+            owned.setDatasetId("document-knowledge");
+            owned.setConnectorType("S3_COMPATIBLE_OBJECT_STORAGE");
+            owned.setConnectorBindingRef("binding-a");
+            owned.setConnectorScopeDigest(scopeDigest);
+            owned.setActiveSourceVersion(1L);
+            owned.setStatus("doc-deleted".equals(id) ? DocumentSourceEntity.Status.DELETED : DocumentSourceEntity.Status.ACTIVE);
+            when(repository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileId(
+                id, "tenant", "customer", "deployment", "staging")).thenReturn(Optional.of(owned));
+        }
+        var filter = new DocumentActiveVersionFilter(repository, identity, properties, mapper);
         var search = mock(AISearchService.class);
         var vectors = mock(VectorDatabaseService.class);
         List<Map<String, Object>> hits = new ArrayList<>();
-        hits.add(hit("doc-old", "staging", "release-a"));
+        hits.add(hit("doc-retained", "staging", "release-a"));
         hits.add(hit("doc-production", "production", "release-b"));
         hits.add(hit("doc-old-with-forged-metadata", "staging", "release-b"));
         hits.add(hit("doc-current", "staging", "release-b"));
+        hits.add(hit("doc-deleted", "staging", "release-a"));
+        hits.add(hit("doc-retained", "staging", "release-b"));
+        for (Map.Entry<String, Object> invalid : Map.<String, Object>of(
+            DocumentMetadataKeys.SOURCE_VERSION, 2L, "datasetId", "foreign-dataset",
+            "knowledgeSourceHandleRef", "foreign-handle", "deploymentId", "foreign-deployment").entrySet()) {
+            var metadata = new LinkedHashMap<>((Map<String, Object>) hit("doc-retained", "staging", "release-a").get("metadata"));
+            metadata.put(invalid.getKey(), invalid.getValue());
+            hits.add(Map.of("id", "invalid-" + invalid.getKey(), "score", 0.99d, "metadata", metadata));
+        }
         Map<String, Object> unowned = new LinkedHashMap<>(identity.requireConfiguredBoundary().metadata());
         unowned.put(DocumentMetadataKeys.SOURCE_ID, "doc-legacy");
         unowned.put(DocumentMetadataKeys.SOURCE_VERSION, 1L);
@@ -58,8 +93,9 @@ class DocumentGenerationSearchIsolationTest {
         when(vectors.hybridSearch(anyList(), anyString(), any(AISearchRequest.class))).thenReturn(response);
 
         var source = ResolvedKnowledgeSource.builder().id("documents").type("deployment-private-vector")
-            .adapterType("deployment-private-vector").entityType("document").enabled(true)
-            .filters(Map.of("tenantId", "tenant", "customerId", "customer", "deploymentId", "deployment")).build();
+            .adapterType("deployment-private-vector").entityType("document").handleRef("handle-a").enabled(true)
+            .filters(Map.of("tenantId", "tenant", "customerId", "customer", "deploymentId", "deployment",
+                "targetProfileId", "staging")).build();
         List<SearchSource> adapters = List.of(new DeploymentPrivateVectorSearchSource(source, search, vectors, filter),
             new SharedIndexSearchSource(source, search, vectors, filter));
         for (SearchSource adapter : adapters) {
@@ -69,7 +105,7 @@ class DocumentGenerationSearchIsolationTest {
                 RAGRequest.builder().query("delivery").enableContextualSearch(true).build())) {
                 var result = adapter.search(List.of(0.1d), mode,
                     AISearchRequest.builder().query("delivery").entityType("document").limit(5).build());
-                assertThat(result.getResults()).extracting(row -> row.get("id")).containsExactly("doc-current");
+                assertThat(result.getResults()).extracting(row -> row.get("id")).containsExactly("doc-retained", "doc-current");
                 assertThat(result.getResults().getFirst().get("score")).isEqualTo(0.9d);
             }
         }
@@ -80,6 +116,8 @@ class DocumentGenerationSearchIsolationTest {
         var metadata = new LinkedHashMap<>(identity.requireConfiguredBoundary().metadata());
         metadata.put(DocumentMetadataKeys.SOURCE_ID, sourceId);
         metadata.put(DocumentMetadataKeys.SOURCE_VERSION, 1L);
+        metadata.put("datasetId", "document-knowledge");
+        metadata.put("knowledgeSourceHandleRef", "handle-a");
         return Map.of("id", sourceId, "score", 0.9d, "metadata", metadata);
     }
 }

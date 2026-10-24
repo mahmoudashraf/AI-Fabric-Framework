@@ -11,6 +11,20 @@ import java.util.Locale;
 
 final class DocumentConnectorSupport {
 
+    static String normalizePrefix(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim().replace('\\', '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.contains("../") || normalized.equals("..") || normalized.contains("://")) {
+            throw invalid("Configured S3 prefix is invalid.");
+        }
+        return normalized.endsWith("/") ? normalized : normalized + "/";
+    }
+
     private DocumentConnectorSupport() {
     }
 

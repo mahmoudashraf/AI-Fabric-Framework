@@ -39,6 +39,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -64,6 +65,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -163,6 +166,7 @@ class DocumentKnowledgeServiceLifecycleTest {
         );
 
         documentProperties = properties();
+        documentProperties.getConnector().getMountedFolder().setRoot(sourceRoot.toString());
         documentConnector = new MountedFolderDocumentSourceConnector(
             sourceRoot,
             "dsh-test-binding",
@@ -190,7 +194,7 @@ class DocumentKnowledgeServiceLifecycleTest {
             queueAdapter,
             workQuery,
             coreService,
-            new DocumentActiveVersionFilter(sourceRepository, runtimeIdentity, "document"),
+            new DocumentActiveVersionFilter(sourceRepository, runtimeIdentity, documentProperties, new ObjectMapper()),
             runtimeIdentity,
             new ObjectMapper(),
             CLOCK
@@ -333,6 +337,7 @@ class DocumentKnowledgeServiceLifecycleTest {
         service.reconcile(tenantA(), source.sourceId(), "reconcile-replacement-v1");
         List<String> oldEntityIds = entityIds(first);
         queuedDocuments.clear();
+        service = generation("staging", "release-b");
 
         writeSource("policy.txt", "Version two policy evidence with owner approval. ".repeat(35), 2);
         var refreshed = service.refresh(tenantA(), source.sourceId(), "refresh-replacement-v2");
@@ -376,6 +381,7 @@ class DocumentKnowledgeServiceLifecycleTest {
         var first = service.index(tenantA(), source.sourceId(), "index-failed-v1");
         complete(indexWorkIds(first));
         service.reconcile(tenantA(), source.sourceId(), "reconcile-failed-v1");
+        service = generation("staging", "release-b");
 
         writeSource("failure-policy.txt", "Candidate version two evidence. ".repeat(35), 2);
         service.refresh(tenantA(), source.sourceId(), "refresh-failed-v2");
@@ -477,6 +483,7 @@ class DocumentKnowledgeServiceLifecycleTest {
         commandRepository.findAll().forEach(command -> command.setCreatedAt(expired));
         commandRepository.flush();
 
+        service = generation("staging", "release-b");
         var result = service.cleanupRetention(tenantA());
 
         assertThat(result.scope()).isEqualTo("VERIFIED_BOUNDARY");
@@ -527,52 +534,219 @@ class DocumentKnowledgeServiceLifecycleTest {
     }
 
     @Test
-    void registrationDiscoveryAndCommandKeysAreOwnedByTheExactRuntimeGeneration() throws Exception {
-        writeSource("shared-policy.txt", "The same customer object is independently indexed by each release.", 1);
-        List<DocumentKnowledgeService> generations = List.of(service,
-            generation("staging", "release-b"), generation("production", "release-a"));
-        List<String> ids = new ArrayList<>();
+    void coldReleaseReusesRegistrationDiscoveryAndTargetLimitsWhileOtherTargetsStaySeparate() throws Exception {
+        writeSource("shared-policy.txt", "The same target retains its registered customer document across cold releases.", 1);
         documentProperties.getPolicy().setMaxSources(1);
         documentProperties.getPolicy().setMaxTotalIndexedBytes(Files.size(sourceRoot.resolve("shared-policy.txt")));
+        var original = register("shared-policy.txt", "same-register-key");
+        var cold = generation("staging", "release-b");
 
-        for (DocumentKnowledgeService generation : generations) {
-            var source = register(generation, "shared-policy.txt", "same-register-key");
-            ids.add(source.sourceId());
-            assertThat(register(generation, "shared-policy.txt", "same-register-key").sourceId()).isEqualTo(source.sourceId());
-            assertThat(generation.list(tenantA())).extracting(DocumentKnowledgeService.SourceSummary::sourceId)
-                .containsExactly(source.sourceId());
-            assertThat(generation.discover(tenantA(), "document-knowledge", null, 10).sources())
-                .extracting(DocumentKnowledgeService.DiscoveredSource::registeredSourceId).containsExactly(source.sourceId());
-        }
-        assertThat(ids).doesNotHaveDuplicates();
-        assertThat(commandRepository.count()).isEqualTo(3);
+        assertThat(cold.list(tenantA())).extracting(DocumentKnowledgeService.SourceSummary::sourceId)
+            .containsExactly(original.sourceId());
+        assertThat(cold.discover(tenantA(), "document-knowledge", null, 10).sources())
+            .extracting(DocumentKnowledgeService.DiscoveredSource::registeredSourceId).containsExactly(original.sourceId());
+        assertThat(register(cold, "shared-policy.txt", "same-register-key").sourceId()).isEqualTo(original.sourceId());
+        assertThat(register(cold, "shared-policy.txt", "new-release-command").sourceId()).isEqualTo(original.sourceId());
+        var production = register(generation("production", "release-a"), "shared-policy.txt", "same-register-key");
+        assertThat(production.sourceId()).isNotEqualTo(original.sourceId());
+        assertThat(sourceRepository.count()).isEqualTo(2);
+        assertThat(commandRepository.count()).isEqualTo(4);
+        assertThat(sourceRepository.findById(original.sourceId())).get()
+            .satisfies(source -> assertThat(source.getReleaseId()).isEqualTo("release-a"));
+        assertThat(commandRepository.findAll()).anySatisfy(command -> {
+            assertThat(command.getIdempotencyKey()).isEqualTo("new-release-command");
+            assertThat(command.getReleaseId()).isEqualTo("release-b");
+        });
         assertThat(commandRepository.findAll()).allSatisfy(command -> {
             assertThat(command.getCustomerId()).isEqualTo("customer-a");
             assertThat(command.getTargetProfileId()).isNotBlank();
             assertThat(command.getReleaseId()).isNotBlank();
         });
+
+        writeSource("second.txt", "Another target-owned source", 1);
+        assertThatThrownBy(() -> register(cold, "second.txt", "over-target-limit"))
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(error -> ((DocumentKnowledgeException) error).code()).isEqualTo("DOCUMENT_SOURCE_LIMIT_EXCEEDED");
+        documentProperties.getPolicy().setMaxSources(20);
+        assertThatThrownBy(() -> register(cold, "second.txt", "over-target-byte-limit"))
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(error -> ((DocumentKnowledgeException) error).code()).isEqualTo("DOCUMENT_BYTE_LIMIT_EXCEEDED");
     }
 
     @Test
-    void otherReleasesAndTargetsCannotDetailPreviewOrMutateAnOwnedSource() throws Exception {
+    void coldRegistrationReusesHistoricalReleaseBearingKeysWithoutChangingIdsOrProvenance() throws Exception {
+        writeSource("historical.txt", "Existing registered source evidence", 1);
+        var registered = register("historical.txt", "original-register");
+        var source = sourceRepository.findById(registered.sourceId()).orElseThrow();
+        String historicalKey = DocumentConnectorSupport.sha256(
+            "tenant-a|customer-a|deployment-a|staging|release-a|document-knowledge|historical.txt");
+        source.setLogicalSourceKey(historicalKey);
+        sourceRepository.saveAndFlush(source);
+        var cold = generation("staging", "release-b");
+
+        assertThat(register(cold, "historical.txt", "cold-register").sourceId()).isEqualTo(registered.sourceId());
+        assertThat(cold.discover(tenantA(), "document-knowledge", null, 10).sources())
+            .extracting(DocumentKnowledgeService.DiscoveredSource::registeredSourceId).containsExactly(registered.sourceId());
+        assertThat(sourceRepository.count()).isEqualTo(1);
+        assertThat(sourceRepository.findById(registered.sourceId())).get().satisfies(row -> {
+            assertThat(row.getLogicalSourceKey()).isEqualTo(historicalKey);
+            assertThat(row.getReleaseId()).isEqualTo("release-a");
+        });
+    }
+
+    @Test
+    void ambiguousHistoricalRegistrationsFailClosedInsteadOfChoosingTheLatestRelease() throws Exception {
+        writeSource("duplicate.txt", "Ambiguous persisted registrations require explicit reconciliation", 1);
+        var registered = register("duplicate.txt", "original-register");
+        var original = sourceRepository.findById(registered.sourceId()).orElseThrow();
+        var duplicate = new DocumentSourceEntity();
+        BeanUtils.copyProperties(original, duplicate, "id", "logicalSourceKey", "rowVersion");
+        duplicate.setId("doc-historical-duplicate");
+        duplicate.setLogicalSourceKey(DocumentConnectorSupport.sha256("historical-release-b-key"));
+        duplicate.setReleaseId("release-b");
+        duplicate.setUpdatedAt(CLOCK.instant().plusSeconds(60));
+        sourceRepository.saveAndFlush(duplicate);
+        var cold = generation("staging", "release-c");
+
+        assertThatThrownBy(() -> register(cold, "duplicate.txt", "cold-register"))
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(error -> ((DocumentKnowledgeException) error).code()).isEqualTo("DOCUMENT_LIFECYCLE_CONFLICT");
+        assertThatThrownBy(() -> cold.discover(tenantA(), "document-knowledge", null, 10))
+            .isInstanceOf(DocumentKnowledgeException.class);
+        assertThat(sourceRepository.count()).isEqualTo(2);
+        assertThat(queuedDocuments).isEmpty();
+    }
+
+    @Test
+    void coldReleaseCommandsRetainReleaseScopedIdempotencyAndCurrentAuthorizationProvenance() throws Exception {
+        writeSource("idempotent-cold.txt", "Original revision", 1);
+        var source = register("idempotent-cold.txt", "register-idempotent-cold");
+        assertThat(service.refresh(tenantA(), source.sourceId(), "refresh-stable-key").outcome()).isEqualTo("UNCHANGED");
+        var cold = generation("staging", "release-b");
+        assertThat(cold.refresh(tenantA(), source.sourceId(), "refresh-stable-key").outcome()).isEqualTo("UNCHANGED");
+        writeSource("idempotent-cold.txt", "New revision after cold replacement", 2);
+        var replay = cold.refresh(tenantA(), source.sourceId(), "refresh-stable-key");
+        assertThat(replay.outcome()).isEqualTo("IDEMPOTENT_REPLAY");
+        assertThat(replay.source().candidateVersion()).isEqualTo(1L);
+        var refreshed = cold.refresh(tenantA(), source.sourceId(), "fresh-release-command");
+        assertThat(refreshed.outcome()).isEqualTo("CHANGED");
+        assertThat(refreshed.source().candidateVersion()).isEqualTo(2L);
+        assertThat(commandRepository.findAll()).anySatisfy(command -> {
+            assertThat(command.getIdempotencyKey()).isEqualTo("fresh-release-command");
+            assertThat(command.getReleaseId()).isEqualTo("release-b");
+        });
+        register(cold, "idempotent-cold.txt", "register-idempotent-cold");
+        assertThatThrownBy(() -> register(cold, "idempotent-cold.txt", "register-idempotent-cold",
+            Map.of("sourceCategory", "changed-command"))).isInstanceOf(DocumentKnowledgeException.class);
+    }
+
+    @Test
+    void coldReleaseRejectsChangedBindingTypeAndRemovedDatasetBeforeAnyLifecycleEffect() throws Exception {
+        writeSource("binding-private.txt", "Bound to the exact configured document source", 1);
+        var source = register("binding-private.txt", "register-binding");
+        var pending = service.index(tenantA(), source.sourceId(), "index-binding");
+        complete(indexWorkIds(pending));
+        int queueBefore = queuedDocuments.size();
+        long commandsBefore = commandRepository.count();
+        var cold = generation("staging", "release-b");
+        documentProperties.getConnector().setBindingRef("different-binding");
+
+        assertThat(cold.list(tenantA())).isEmpty();
+        assertThatThrownBy(() -> cold.detail(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> cold.preview(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> cold.refresh(tenantA(), source.sourceId(), "foreign-refresh")).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> cold.index(tenantA(), source.sourceId(), "foreign-index")).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> cold.removeIndex(tenantA(), source.sourceId(), "foreign-delete")).isInstanceOf(EntityNotFoundException.class);
+        cold.reconcilePending();
+        assertThat(sourceRepository.findById(source.sourceId())).get()
+            .satisfies(row -> assertThat(row.getActiveSourceVersion()).isNull());
+        documentProperties.getConnector().setBindingRef("dsh-test-binding");
+        documentProperties.getConnector().setType(DocumentKnowledgeProperties.ConnectorType.S3_COMPATIBLE_OBJECT_STORAGE);
+        assertThatThrownBy(() -> cold.reconcile(tenantA(), source.sourceId(), "foreign-reconcile"))
+            .isInstanceOf(EntityNotFoundException.class);
+        documentProperties.getConnector().setType(DocumentKnowledgeProperties.ConnectorType.MOUNTED_FOLDER);
+        documentProperties.setAllowedDatasetIds(List.of("different-dataset"));
+        assertThat(cold.list(tenantA())).isEmpty();
+        assertThatThrownBy(() -> cold.detail(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+        assertThat(commandRepository.count()).isEqualTo(commandsBefore);
+        assertThat(queuedDocuments).hasSize(queueBefore);
+    }
+
+    @Test
+    void sameBindingIdCannotAuthorizeReadingOrReconcilingADifferentPhysicalRoot() throws Exception {
+        writeSource("root-private.txt", "Do not reinterpret a relative object locator under another physical root", 1);
+        var source = register("root-private.txt", "register-root");
+        var pending = service.index(tenantA(), source.sourceId(), "index-root");
+        complete(indexWorkIds(pending));
+        int queuedBefore = queuedDocuments.size();
+        long commandsBefore = commandRepository.count();
+        documentConnector = spy(documentConnector);
+        documentProperties.getConnector().getMountedFolder().setRoot(Files.createDirectory(testRoot.resolve("other-root")).toString());
+        var cold = generation("staging", "release-b");
+
+        assertThat(cold.list(tenantA())).isEmpty();
+        assertThatThrownBy(() -> cold.preview(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> cold.refresh(tenantA(), source.sourceId(), "changed-root-refresh"))
+            .isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> cold.index(tenantA(), source.sourceId(), "changed-root-index"))
+            .isInstanceOf(EntityNotFoundException.class);
+        cold.reconcilePending();
+        verify(documentConnector, never()).stat(any(String.class));
+        assertThat(commandRepository.count()).isEqualTo(commandsBefore);
+        assertThat(queuedDocuments).hasSize(queuedBefore);
+        assertThat(sourceRepository.findById(source.sourceId())).get()
+            .satisfies(row -> assertThat(row.getActiveSourceVersion()).isNull());
+    }
+
+    @Test
+    void historicalRowsWithoutTrustedPhysicalScopeRemainUnmodifiedAndCannotBeAdopted() throws Exception {
+        writeSource("unverified-history.txt", "No physical source attestation was recorded by the old runtime", 1);
+        var source = register("unverified-history.txt", "register-history");
+        var row = sourceRepository.findById(source.sourceId()).orElseThrow();
+        row.setConnectorScopeDigest(null);
+        sourceRepository.saveAndFlush(row);
+        var cold = generation("staging", "release-b");
+
+        assertThat(cold.list(tenantA())).isEmpty();
+        assertThatThrownBy(() -> cold.preview(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> register(cold, "unverified-history.txt", "new-history-register"))
+            .isInstanceOf(DocumentKnowledgeException.class)
+            .extracting(error -> ((DocumentKnowledgeException) error).code()).isEqualTo("DOCUMENT_SOURCE_SCOPE_UNVERIFIED");
+        assertThat(sourceRepository.count()).isEqualTo(1);
+        assertThat(sourceRepository.findById(source.sourceId())).get().satisfies(preserved -> {
+            assertThat(preserved.getConnectorScopeDigest()).isNull();
+            assertThat(preserved.getReleaseId()).isEqualTo("release-a");
+        });
+        assertThat(queuedDocuments).isEmpty();
+    }
+
+    @Test
+    void otherTargetsTenantsCustomersAndDeploymentsCannotDetailPreviewOrMutateAnOwnedSource() throws Exception {
         writeSource("generation-private.txt", "Private document lifecycle evidence", 1);
         var source = register("generation-private.txt", "register-private");
         var pending = service.index(tenantA(), source.sourceId(), "index-private");
         long commandsBefore = commandRepository.count();
         int queueBefore = queuedDocuments.size();
 
-        for (DocumentKnowledgeService other : List.of(generation("staging", "release-b"), generation("production", "release-a"))) {
-            assertThat(other.list(tenantA())).isEmpty();
-            assertThat(other.discover(tenantA(), "document-knowledge", null, 10).sources().getFirst().registeredSourceId()).isNull();
-            assertThatThrownBy(() -> other.detail(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
-            assertThatThrownBy(() -> other.preview(tenantA(), source.sourceId())).isInstanceOf(EntityNotFoundException.class);
-            assertThatThrownBy(() -> other.refresh(tenantA(), source.sourceId(), "foreign-refresh")).isInstanceOf(EntityNotFoundException.class);
-            assertThatThrownBy(() -> other.index(tenantA(), source.sourceId(), "foreign-index")).isInstanceOf(EntityNotFoundException.class);
-            assertThatThrownBy(() -> other.reconcile(tenantA(), source.sourceId(), "foreign-reconcile")).isInstanceOf(EntityNotFoundException.class);
-            assertThatThrownBy(() -> other.removeIndex(tenantA(), source.sourceId(), "foreign-delete")).isInstanceOf(EntityNotFoundException.class);
-            assertThat(other.detail(tenantA(), register(other, "generation-private.txt", "own-register").sourceId()).manifests()).isEmpty();
+        List<DocumentKnowledgeService> isolated = List.of(generation("production", "release-a"),
+            newService(new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-b", "staging", "release-b")),
+            newService(new DocumentRuntimeIdentity("tenant-b", "customer-a", "deployment-a", "staging", "release-b")),
+            newService(new DocumentRuntimeIdentity("tenant-a", "customer-b", "deployment-a", "staging", "release-b")));
+        List<RuntimeResolvedIdentity> identities = List.of(tenantA(), deploymentB(), tenantB(),
+            identity("tenant-a", "customer-b", "deployment-a"));
+        for (int index = 0; index < isolated.size(); index++) {
+            var other = isolated.get(index);
+            var identity = identities.get(index);
+            assertThat(other.list(identity)).isEmpty();
+            assertThat(other.discover(identity, "document-knowledge", null, 10).sources().getFirst().registeredSourceId()).isNull();
+            assertThatThrownBy(() -> other.detail(identity, source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.preview(identity, source.sourceId())).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.refresh(identity, source.sourceId(), "foreign-refresh")).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.index(identity, source.sourceId(), "foreign-index")).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.reconcile(identity, source.sourceId(), "foreign-reconcile")).isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> other.removeIndex(identity, source.sourceId(), "foreign-delete")).isInstanceOf(EntityNotFoundException.class);
         }
-        assertThat(commandRepository.count()).isEqualTo(commandsBefore + 2);
+        assertThat(commandRepository.count()).isEqualTo(commandsBefore);
         assertThat(queuedDocuments).hasSize(queueBefore);
         assertThat(service.detail(tenantA(), source.sourceId()).manifests()).hasSize(1);
         assertThat(manifestRepository.findById(pending.manifest().manifestId())).get().satisfies(manifest -> {
@@ -582,23 +756,24 @@ class DocumentKnowledgeServiceLifecycleTest {
     }
 
     @Test
-    void scheduledReconciliationCannotActivateOrDeleteAnotherGeneration() throws Exception {
-        writeSource("scheduled-policy.txt", "Only the runtime owning this work may reconcile it.", 1);
+    void coldReleaseReconcilesAndRetainsTargetWorkWithoutTouchingOtherTargets() throws Exception {
+        Path customerObject = writeSource("scheduled-policy.txt", "The current runtime reconciles persisted target work.", 1);
         var source = register("scheduled-policy.txt", "register-scheduled");
         var pending = service.index(tenantA(), source.sourceId(), "index-scheduled");
         complete(indexWorkIds(pending));
         var nextGeneration = generation("staging", "release-b");
 
-        nextGeneration.reconcilePending();
+        var otherTarget = generation("production", "release-b");
+        otherTarget.reconcilePending();
         assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("INDEXING");
-        service.reconcilePending();
+        nextGeneration.reconcilePending();
         assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("ACTIVE");
 
         var deletion = service.removeIndex(tenantA(), source.sourceId(), "delete-scheduled");
         complete(deleteWorkIds(deletion.manifest()));
-        nextGeneration.reconcilePending();
+        otherTarget.reconcilePending();
         assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("DELETING");
-        service.reconcilePending();
+        nextGeneration.reconcilePending();
         assertThat(service.detail(tenantA(), source.sourceId()).source().status()).isEqualTo("DELETED");
 
         Instant expired = CLOCK.instant().minus(Duration.ofDays(31));
@@ -608,47 +783,65 @@ class DocumentKnowledgeServiceLifecycleTest {
         commandRepository.findAll().forEach(command -> command.setCreatedAt(expired));
         commandRepository.flush();
 
-        assertThat(nextGeneration.cleanupRetention(tenantA()).manifestsDeleted()).isZero();
-        nextGeneration.cleanupRetentionScheduled();
+        assertThat(otherTarget.cleanupRetention(tenantA()).manifestsDeleted()).isZero();
+        otherTarget.cleanupRetentionScheduled();
         assertThat(manifestRepository.findById(manifest.getManifestId())).isPresent();
         assertThat(commandRepository.count()).isPositive();
-        service.cleanupRetentionScheduled();
+        nextGeneration.cleanupRetentionScheduled();
         assertThat(manifestRepository.findById(manifest.getManifestId())).isEmpty();
         assertThat(commandRepository.count()).isZero();
+        assertThat(customerObject).exists();
+        assertThat(sourceRepository.findById(source.sourceId())).get()
+            .satisfies(row -> assertThat(row.getReleaseId()).isEqualTo("release-a"));
     }
 
     @Test
-    void retrievalProofFiltersMixedProviderHitsByTrustedTargetAndRelease() throws Exception {
+    void coldReleaseRetrievalProofRetainsExactPriorSourceIdsAndOriginProvenance() throws Exception {
         writeSource("retrieval-policy.txt", "Delivery is arranged through the dealership team.", 1);
         var nextIdentity = new DocumentRuntimeIdentity("tenant-a", "customer-a", "deployment-a", "staging", "release-b");
         var nextGeneration = newService(nextIdentity);
         var previous = register("retrieval-policy.txt", "same-key");
-        var current = register(nextGeneration, "retrieval-policy.txt", "same-key");
         var previousWork = service.index(tenantA(), previous.sourceId(), "same-index-key");
-        var currentWork = nextGeneration.index(tenantA(), current.sourceId(), "same-index-key");
         complete(indexWorkIds(previousWork));
-        complete(indexWorkIds(currentWork));
-        service.reconcilePending();
         nextGeneration.reconcilePending();
+        var current = register(nextGeneration, "retrieval-policy.txt", "same-key");
+        assertThat(current.sourceId()).isEqualTo(previous.sourceId());
+        int queuedBefore = queuedDocuments.size();
+        assertThat(nextGeneration.index(tenantA(), current.sourceId(), "same-index-key").outcome()).isEqualTo("UNCHANGED");
+        assertThat(nextGeneration.index(tenantA(), current.sourceId(), "same-index-key").outcome()).isEqualTo("IDEMPOTENT_REPLAY");
+        assertThat(nextGeneration.index(tenantA(), current.sourceId(), "new-index-key").outcome()).isEqualTo("UNCHANGED");
+        assertThat(queuedDocuments).hasSize(queuedBefore);
 
-        List<Map<String, Object>> hits = queuedDocuments.stream().filter(document -> document.workType() == AIIndexWorkType.UPSERT)
+        List<Map<String, Object>> hits = new ArrayList<>(queuedDocuments.stream().filter(document -> document.workType() == AIIndexWorkType.UPSERT)
             .map(document -> Map.<String, Object>of("id", document.entityId(), "content", document.semanticSearchText(),
-                "metadata", document.vectorMetadata(), "score", 0.9d)).toList();
+                "metadata", document.vectorMetadata(), "score", 0.9d)).toList());
+        for (Map.Entry<String, Object> invalid : Map.<String, Object>of(
+            "releaseId", "release-b", "targetProfileId", "production", "deploymentId", "deployment-b",
+            "datasetId", "foreign-dataset", "knowledgeSourceHandleRef", "foreign-handle",
+            DocumentMetadataKeys.SOURCE_ID, "doc-unregistered", DocumentMetadataKeys.SOURCE_VERSION, 2L).entrySet()) {
+            Map<String, Object> metadata = new LinkedHashMap<>(queuedDocuments.getFirst().vectorMetadata());
+            metadata.put(invalid.getKey(), invalid.getValue());
+            hits.add(Map.of("id", "forged-" + invalid.getKey(), "metadata", metadata, "score", 0.99d));
+        }
+        Map<String, Object> untyped = new LinkedHashMap<>(queuedDocuments.getFirst().vectorMetadata());
+        untyped.remove(DocumentMetadataKeys.SOURCE_ID);
+        hits.add(Map.of("id", "missing-source-id", "metadata", untyped, "score", 0.99d));
         when(coreService.performSearch(any(AISearchRequest.class))).thenReturn(AISearchResponse.builder()
             .results(hits).totalResults(hits.size()).build());
 
         var proof = nextGeneration.retrievalProof(tenantA(), "delivery", 10);
-        assertThat(proof.evidence()).isNotEmpty().allSatisfy(evidence -> {
+        assertThat(proof.evidence()).hasSize(1).allSatisfy(evidence -> {
             assertThat(evidence.sourceId()).isEqualTo(current.sourceId());
-            assertThat(evidence.metadata()).containsEntry("targetProfileId", "staging").containsEntry("releaseId", "release-b");
+            assertThat(evidence.metadata()).containsEntry("targetProfileId", "staging").containsEntry("releaseId", "release-a");
         });
         var request = ArgumentCaptor.forClass(AISearchRequest.class);
         verify(coreService).performSearch(request.capture());
-        assertThat(request.getValue().getMetadata()).containsAllEntriesOf(nextIdentity.requireConfiguredBoundary().metadata());
+        assertThat(request.getValue().getMetadata()).containsAllEntriesOf(nextIdentity.requireConfiguredBoundary().ownerMetadata())
+            .doesNotContainKey("releaseId");
 
-        var filter = new DocumentActiveVersionFilter(sourceRepository, nextIdentity, "document");
+        var filter = new DocumentActiveVersionFilter(sourceRepository, nextIdentity, documentProperties, new ObjectMapper());
         var oldMetadata = new LinkedHashMap<>(queuedDocuments.getFirst().vectorMetadata());
-        assertThat(filter.accepts(oldMetadata)).isFalse();
+        assertThat(filter.accepts(oldMetadata)).isTrue();
         oldMetadata.put("releaseId", "release-b");
         assertThat(filter.accepts(oldMetadata)).isFalse();
         assertThat(queuedDocuments).allSatisfy(document -> assertThat(document.vectorMetadata())
@@ -749,13 +942,18 @@ class DocumentKnowledgeServiceLifecycleTest {
     }
 
     private DocumentKnowledgeService.SourceSummary register(DocumentKnowledgeService generation, String reference, String key) {
+        return register(generation, reference, key, Map.of("sourceCategory", "test"));
+    }
+
+    private DocumentKnowledgeService.SourceSummary register(DocumentKnowledgeService generation, String reference, String key,
+                                                            Map<String, Object> metadata) {
         return generation.register(
             tenantA(),
             new DocumentKnowledgeService.RegisterSourceCommand(
                 "document-knowledge",
                 reference,
                 "tenant",
-                Map.of("sourceCategory", "test")
+                metadata
             ),
             key
         );

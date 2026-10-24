@@ -15,15 +15,14 @@ public interface DocumentManifestRepository extends JpaRepository<DocumentManife
     List<DocumentManifestEntity> findBySourceIdAndStateInOrderBySourceVersionAsc(String sourceId, Collection<DocumentManifestEntity.State> states);
     Optional<DocumentManifestEntity> findBySourceIdAndState(String sourceId, DocumentManifestEntity.State state);
     Optional<DocumentManifestEntity> findFirstBySourceIdAndStateOrderBySourceVersionDesc(String sourceId, DocumentManifestEntity.State state);
-    List<DocumentManifestEntity> findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStateIn(
-        String tenantId, String customerId, String deploymentId, String targetProfileId, String releaseId,
+    List<DocumentManifestEntity> findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndStateIn(
+        String tenantId, String customerId, String deploymentId, String targetProfileId,
         Collection<DocumentManifestEntity.State> states);
-    List<DocumentManifestEntity> findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseIdAndStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
+    List<DocumentManifestEntity> findByTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndStateAndUpdatedAtBeforeOrderByUpdatedAtAsc(
         String tenantId,
         String customerId,
         String deploymentId,
         String targetProfileId,
-        String releaseId,
         DocumentManifestEntity.State state,
         Instant cutoff,
         Pageable pageable

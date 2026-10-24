@@ -21,6 +21,19 @@ class DocumentRuntimeIdentityTest {
     }
 
     @Test
+    void persistentOwnerIsTargetScopedButTheRuntimeStillRequiresItsExactRelease() {
+        var original = identity.requireConfiguredBoundary();
+        var cold = new DocumentRuntimeIdentity("tenant", "customer", "deployment", "staging", "release-b")
+            .requireConfiguredBoundary();
+        assertThat(cold.ownerMetadata()).isEqualTo(original.ownerMetadata()).doesNotContainKey("releaseId");
+        assertThat(cold.matchesOwner(original.metadata())).isTrue();
+        assertThat(cold.matches(original.metadata())).isFalse();
+        var otherTarget = new DocumentRuntimeIdentity("tenant", "customer", "deployment", "production", "release-b")
+            .requireConfiguredBoundary();
+        assertThat(cold.matchesOwner(otherTarget.metadata())).isFalse();
+    }
+
+    @Test
     void missingIdentityAndForeignTenantCustomerOrDeploymentFailClosed() {
         assertThatThrownBy(() -> identity.requireBoundary(null))
             .isInstanceOf(DocumentKnowledgeException.class)

@@ -46,7 +46,7 @@ public class S3DocumentSourceConnector implements DocumentSourceConnector {
     ) {
         this.client = client;
         this.bucket = required(bucket, "S3 bucket");
-        this.prefix = normalizePrefix(prefix);
+        this.prefix = DocumentConnectorSupport.normalizePrefix(prefix);
         this.bindingRef = bindingRef;
         this.versioningAvailable = versioningAvailable;
         this.policy = policy;
@@ -225,20 +225,6 @@ public class S3DocumentSourceConnector implements DocumentSourceConnector {
             return null;
         }
         return key.substring(prefix.length());
-    }
-
-    private String normalizePrefix(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        String normalized = value.trim().replace('\\', '/');
-        while (normalized.startsWith("/")) {
-            normalized = normalized.substring(1);
-        }
-        if (normalized.contains("../") || normalized.equals("..") || normalized.contains("://")) {
-            throw DocumentConnectorSupport.invalid("Configured S3 prefix is invalid.");
-        }
-        return normalized.endsWith("/") ? normalized : normalized + "/";
     }
 
     private String scopeDigest() {

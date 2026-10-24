@@ -63,6 +63,11 @@ public class DocumentRuntimeIdentity {
     }
 
     public record Boundary(String tenantId, String customerId, String deploymentId, String targetProfileId, String releaseId) {
+        public Map<String, Object> ownerMetadata() {
+            return Map.of("tenantId", tenantId, "customerId", customerId, "deploymentId", deploymentId,
+                "targetProfileId", targetProfileId);
+        }
+
         public Map<String, Object> metadata() {
             return Map.of("tenantId", tenantId, "customerId", customerId, "deploymentId", deploymentId,
                 "targetProfileId", targetProfileId, "releaseId", releaseId);
@@ -70,6 +75,11 @@ public class DocumentRuntimeIdentity {
 
         public boolean matches(Map<String, Object> metadata) {
             return metadata != null && metadata().entrySet().stream()
+                .allMatch(entry -> entry.getValue().equals(metadata.get(entry.getKey())));
+        }
+
+        public boolean matchesOwner(Map<String, Object> metadata) {
+            return metadata != null && ownerMetadata().entrySet().stream()
                 .allMatch(entry -> entry.getValue().equals(metadata.get(entry.getKey())));
         }
     }

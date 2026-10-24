@@ -3,10 +3,11 @@ package com.ai.fabric.runtime.documents;
 import ai.fabric.indexing.document.model.DocumentMetadataKeys;
 import com.ai.fabric.runtime.documents.entity.DocumentSourceEntity;
 import com.ai.fabric.runtime.documents.repository.DocumentSourceRepository;
-import org.springframework.beans.factory.annotation.Value;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Service
@@ -14,17 +15,19 @@ public class DocumentActiveVersionFilter {
 
     private final DocumentSourceRepository sourceRepository;
     private final DocumentRuntimeIdentity runtimeIdentity;
-    private final String documentEntityType;
+    private final DocumentKnowledgeProperties properties;
+    private final ObjectMapper objectMapper;
 
     public DocumentActiveVersionFilter(DocumentSourceRepository sourceRepository, DocumentRuntimeIdentity runtimeIdentity,
-                                      @Value("${loomai.documents.entity-type:document}") String documentEntityType) {
+                                      DocumentKnowledgeProperties properties, ObjectMapper objectMapper) {
         this.sourceRepository = sourceRepository;
         this.runtimeIdentity = runtimeIdentity;
-        this.documentEntityType = documentEntityType;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
     }
 
     public boolean accepts(String entityType, Map<String, Object> metadata) {
-        if (documentEntityType.equals(entityType)
+        if (properties.getEntityType().equals(entityType)
             && (metadata == null || !StringUtils.hasText(text(metadata.get(DocumentMetadataKeys.SOURCE_ID))))) {
             return false;
         }
@@ -44,12 +47,18 @@ public class DocumentActiveVersionFilter {
             return false;
         }
         var boundary = runtimeIdentity.configuredBoundary().orElse(null);
-        if (boundary == null || !boundary.matches(metadata)) {
+        if (boundary == null || !boundary.matchesOwner(metadata)) {
             return false;
         }
-        return sourceRepository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileIdAndReleaseId(
+        return sourceRepository.findByIdAndTenantIdAndCustomerIdAndDeploymentIdAndTargetProfileId(
                 sourceId, boundary.tenantId(), boundary.customerId(), boundary.deploymentId(),
-                boundary.targetProfileId(), boundary.releaseId())
+                boundary.targetProfileId())
+            .filter(source -> DocumentSourceScope.permits(boundary, properties, objectMapper, source))
+            .filter(source -> source.getId().equals(metadata.get(DocumentMetadataKeys.SOURCE_ID)))
+            .filter(source -> source.getReleaseId().equals(metadata.get("releaseId")))
+            .filter(source -> source.getDatasetId().equals(metadata.get("datasetId")))
+            .filter(source -> DocumentSourceScope.matchesDatasetHandle(properties, objectMapper, source.getDatasetId(),
+                metadata.get("knowledgeSourceHandleRef")))
             .filter(source -> source.getStatus() != DocumentSourceEntity.Status.DELETED)
             .filter(source -> source.getActiveSourceVersion() != null)
             .filter(source -> source.getActiveSourceVersion().equals(version))
@@ -61,13 +70,13 @@ public class DocumentActiveVersionFilter {
     }
 
     private Long number(Object value) {
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
         if (value != null) {
             try {
-                return Long.parseLong(value.toString().trim());
-            } catch (NumberFormatException ignored) {
+                long version = value instanceof Number
+                    ? new BigDecimal(value.toString()).longValueExact()
+                    : Long.parseLong(value.toString());
+                return version > 0 ? version : null;
+            } catch (NumberFormatException | ArithmeticException ignored) {
                 return null;
             }
         }
