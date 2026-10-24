@@ -202,6 +202,15 @@ export function canonicalChatResult(payload: any): ChatResult | undefined {
   } else if (actions.length > 1) {
     data.actions = actions;
   }
+  if (resultType === "COMPOUND_HANDLED" && Array.isArray(payload.results)) {
+    data.results = payload.results.flatMap((item: unknown) => {
+      const child = objectValue(item);
+      const type = firstText(child.type);
+      if (!type || typeof child.success !== "boolean") return [];
+      return [{ type, success: child.success, message: firstText(child.answer),
+        errorCode: firstText(child.fallbackReason) }];
+    });
+  }
   const documents = resolveChatResultDocuments(payload, data);
   if (documents.length > 0) {
     data.documents = documents;
