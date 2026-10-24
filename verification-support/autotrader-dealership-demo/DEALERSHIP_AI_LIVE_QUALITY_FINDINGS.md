@@ -1,6 +1,28 @@
 # Dealership AI Live Quality Findings
 
-## Decision
+## Current Checkpoint: 24 October 2026
+
+The current customer production workspace is **NEEDS IMPROVEMENT**, not certified
+by the historical result below. Its original20-query baseline produced6 full
+answers,3 partial,5 quality failures and6 honest missing-data responses.
+Two additional policy controls passed before four later controls were interrupted
+by its managed allowance; prepaid OpenAI funds were not exhausted.
+
+The approved internal-canary follow-up completed at15:34 UTC:9 full answers,
+2 partial,4 failures and5 source gaps. A real runtime storage-wrapper bug was
+fixed in `1cdb1047f` (29 focused tests); live history/follow-up now works. The
+framework remains0.8.41. Median turn latency improved8.18s to5.76s, but compound
+questions and unsupported towing advice still need work. This uses a clearly
+labelled manual host with published assets/live routes, not a verified Platform
+Engage assignment. The original production app/runtime are unchanged. No writes
+or hidden lexical routing were introduced.
+
+See [the current quality review](2026-10-24_CUSTOMER_WORKSPACE_QUALITY_REVIEW.md)
+for evidence, settings-first recommendations, current allowance interruption and
+the specific proposed code changes requiring review. Do not replay requests while
+the allowance is interrupted or treat HTTP200 as answer quality.
+
+## Historical Decision: 1 October 2026
 
 The dealership conversational quality canary is green on staging. Deployment
 `dep-f023c863` is live on version `ver-d8d76d70` (`v15`) and release

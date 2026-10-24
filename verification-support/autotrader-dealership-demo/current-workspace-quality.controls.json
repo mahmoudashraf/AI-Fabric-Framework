@@ -1,0 +1,8 @@
+[
+  {"session":"direct-policies","id":"control-warranty-plain","prompt":"What is the approved dealership warranty policy? Use the indexed dealership policy and cite it. This is read-only."},
+  {"session":"direct-policies","id":"control-delivery-plain","prompt":"What is the approved dealership delivery policy? Use the indexed dealership policy and cite it. This is read-only."},
+  {"session":"direct-policies","id":"control-test-drive-plain","prompt":"What is the approved dealership test-drive policy? Use the indexed dealership policy and cite it. This is read-only; do not create a request."},
+  {"session":"fresh-follow-up","id":"control-stock-fresh","prompt":"Show me current electric vehicles under GBP 40,000."},
+  {"session":"fresh-follow-up","id":"control-lowest-fresh","prompt":"Of those, which has the lowest mileage, and what body type is it?"},
+  {"session":"fresh-follow-up","id":"control-compare-fresh","prompt":"Compare the Aster E1 and Morrow C2 for motorway family use using current stock facts."}
+]
