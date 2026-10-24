@@ -1,7 +1,7 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** Direct-service first delivery is verified. The owner has now authorized full removal of legacy operational dependencies from Platform core; that follow-up is in progress. Advanced automatic operations remain deferred, not prerequisites for this work.
-**Date:** 24 October 2026.
+**Status:** Direct-service delivery and full Platform-core decoupling are implemented, committed and verified on staging and production. The fresh customer journey, actual cold replacement, production promotion and owned-only cleanup are complete. Advanced automatic operations remain explicitly deferred, not active core prerequisites or claims of this delivery.
+**Date:** 24-25 October 2026.
 **Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
 **Scope:** Platform/product operations, not AI Fabric semantic orchestration.
 **Initial operating model:** The integration team decides whether and where a deployment can run.
@@ -319,8 +319,8 @@ Deliver the service and core boundary together, then verify two vertical milesto
 **1B - The same product journey reaches production:** Add mode-aware promotion/app activation, source refresh and explicit cold replacement. Verify the same app against the verified production deployment. Keep the current admin/operator layout; show only a compact effective-mode/status indication where needed.
 
 - [x] Add server-controlled mode, bounded client, compact core command/decision record and effective-policy readback.
-- [x] Split security/product prerequisites from capacity/expiry/recovery policy in customer authorization and source operations; both control planes deployed, fresh runtime journey in progress.
-- [x] Remove mandatory allocation binding from manual publish/apply/promotion/activation paths; keep core command/resource identity (local verification; hosted proof pending).
+- [x] Split security/product prerequisites from capacity/expiry/recovery policy in customer authorization and source operations; both control planes and the fresh hosted customer journey are verified.
+- [x] Remove mandatory allocation binding from manual publish/apply/promotion/activation paths; keep core command/resource identity, with local and hosted evidence below.
 - [x] Implement one non-funded provider-use profile for the manual path. Preserve all financial history; existing funded deployments retain their explicitly selected enforcement contract.
 - [x] Make normal UI commands mode-aware; no required probe/list/reserve calls in deployment, Engage, document or integration commands. Live customer create, storage binding, app creation, publishing, external bindings and staging apply made no placement/admission requests.
 - [x] Add straightforward cold replacement and remove legacy automatic worker registration. Inspect actual in-progress destructive operations before hosted cutover.
@@ -342,9 +342,9 @@ Decoupling the existing funded-issuance path from R7 belongs to phase 2; it is n
 
 ### Phase 3: Optional Advanced Operations, Not A First-Delivery Blocker
 
-- [ ] Add graceful drain, expiry notifications or advanced recovery proposals only for a concrete operator need.
-- [ ] Keep all such policy proposals off the normal customer request path; core retains authorized provider effects.
-- [ ] Document difficult legacy recovery cases rather than rebuilding a universal workflow engine.
+- [ ] Explicitly deferred: add graceful drain, expiry notifications or advanced recovery proposals only for a concrete operator need. This is not part of the completed delivery.
+- [x] Keep advanced policy machinery off the normal customer request path; core retains authorized provider effects.
+- [x] Document the existing difficult legacy cases below rather than rebuilding a universal workflow engine.
 
 **Acceptance:** Stopping the service permits the same authorized manual journey, records a policy bypass and does not stop existing runtimes. Service return neither cancels deployed resources nor double-counts a command.
 
@@ -408,8 +408,8 @@ than retaining disabled machinery as a permanent architecture.
 - [x] Keep minimal core target-mutation exclusion, command identity, exact artifact provenance and truthful interruption/failure reporting. Native resource mutations also use the core target guard; ordinary reads never redispatch provider effects.
 - [x] Decouple customer readiness, source access, assignments, funding and required dependency provisioning from old operational classes. Historical records cannot authorize new provider effects. Customer historical operations are scoped read-only projections; retired mutation routes reject explicitly.
 - [x] Add an architectural regression that prevents legacy admission/retirement/generation classes from returning to the active core artifact, plus focused basic lifecycle/security/funding tests.
-- [ ] Verify a fresh hosted staging deployment, same-target cold replacement with retained AI state, production promotion and the same Engage app switch; check indexing, chat, sign-in, actions and handover without the operations service. Failed-stop/non-redispatch behavior is covered by focused tests, not by manufacturing a hosted provider outage.
-- [ ] Record actual images, test results and hosted changes; remove only owned temporary proof resources and coordinate shared firewall closure with the main task.
+- [x] Verify a fresh hosted staging deployment, same-target cold replacement with retained AI state, production promotion and the same Engage app switch; check indexing, chat, sign-in, actions and handover without the operations service. Failed-stop/non-redispatch behavior is covered by focused tests, not by manufacturing a hosted provider outage.
+- [x] Record actual images, test results and hosted changes; remove only owned temporary proof resources and coordinate shared firewall closure with the main task.
 
 The main dealership-quality stream is paused by the owner during this follow-up.
 Its existing canary, original app assignment, financial terms and quality evidence
@@ -615,6 +615,90 @@ failures/errors/skips (`/tmp/01046-manual-recheck-readiness.log`). Positive cove
 accepts both genuine full verification types; negative coverage retains rejection
 of pre-apply/unknown types, foreign ownership/version, failed and stale evidence.
 No runtime or framework source change is included in this correction.
+
+### Full Core Decoupling: Final Hosted Acceptance
+
+The current backend source is `c840f7a58e64651f1fe4b8d0b2d06a9a8187d736`.
+Backend-only image CI `40141452023` passed; the unchanged UI image was skipped.
+Both control planes run
+`ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:a55bf8ba52a8ccdd1c53969291f415ff6ec47bc763eae2ccd43c6f526556b048`.
+Both rollouts required zero active apply commands and passed native source/digest,
+public health, live JAR absence of retired operational packages, required core-class
+presence, schema V210 and preservation checks. Independent read-only review found
+no blocking P1 in either final bounded verifier/readiness correction. Runtime
+remains the independently qualified `5534d5512` image recorded above; there was no
+additional runtime rebuild or AI Fabric framework release for readiness.
+
+The normal customer UI refreshed production readiness with `activationReady=true`
+and explicitly activated `rel-ed561611`, keeping app
+`awi_pub_48c1ceaed1c11dfbcb1d904b60f8ec0d` and its hostname unchanged. The full
+production browser journey then passed every applicable check: normal public
+discovery/manifest/session, compound stock and exact production-policy citations,
+reload without replay, protected-capability challenge and cancelled login, actual
+Supabase sign-in, real vehicle context selection, human-message AI bypass, actual
+production Basic Inbox reply arriving asynchronously, authorized return to AI,
+resumed policy citation and basic mobile composer. It used five user sends and
+zero clarifications. Production business-write execution is explicitly `NOT_RUN`:
+zero confirmation clicks and the scoped external receipt count remained one before
+and after. Staging qualified that write with one explicit confirmation and exactly
+one scoped synthetic receipt. The new proof used 14 user sends in total across
+staging, cold baseline, authenticated cold-history continuation and production;
+this is not a count of all embedding/provider calls.
+
+The production delivery/warranty answers and the cold warranty continuation were
+compared with their returned approved fictional policy documents. The bounded
+policy fact check passed. Overall vehicle recommendations, family-suitability
+judgments and the broader dealership quality suite are not certified by this
+separation proof and remain the main quality stream's work. Raw technical reports
+retain their original status; the separate bounded answer review is
+`target-state-proof/policy-answer-review.actual.json`. The failed browser monitor,
+wrong-tab readiness runner and zero-send anonymous-storage attempt remain recorded;
+none authorized duplicate provider effects or was relabeled as a pass.
+
+Both optional operations-service containers were stopped throughout staging,
+actual cold replacement and the complete production journey. Every new proof
+release records `TEAM_AUTHORIZED` / `DISABLED` / `BYPASSED` with reason
+`DISABLED_MANUAL_TEAM`, zero financial allocations and zero capacity reservations.
+Core customer authorization, exact artifacts, external connection approvals,
+credential/source ownership and real verification remained required. No admission
+sample, reservation, graceful drain certificate, recovery journal or vector-record
+transfer was used to complete the journey.
+
+**Owned-only cleanup completed:** The proof app and consumer are disabled,
+deployment `dep-bf68df32` is archived, and only its entitlement
+`cse-bbafc814-31d8-4f62-9239-4174cac2e049` is revoked. All 11 native
+applications/databases are HTTP-404 confirmed; all 11 captured containers and all
+six volumes are absent. Two anonymous volumes required explicit removal only
+after exact prior container ownership and zero remaining attachments were checked.
+Both newly created Serverless vector clusters have provider-list absence evidence.
+The external business database/backend, pre-existing receipts, customer S3 objects,
+original apps, current main quality canary and audit metadata remain preserved.
+The synthetic receipt is retained as external audit evidence, not deleted directly
+from the business database. Original immutable offers and artifact pins were not
+silently rewritten; the corrected runtime was qualified through a new reviewed
+offer, not an automatic offer-upgrade or legacy-adoption engine.
+
+Both independent operations services are restored and verified healthy,
+authenticated, privately reachable from their control planes and without public
+ports. Their source/image and service-owned databases are unchanged; policy remains
+unconfigured, with no fleet-enforcement claim. At `2026-10-24T23:27:34Z`, both
+control planes were `UP`; original `platform_consumers`, `ai_workspace_installations`,
+`provider_usage_grants` and `provider_usage_allocations` hashes matched the original
+baseline after excluding only the two explicitly owned proof consumers/apps. Native
+configuration and environment matched the accepted current backend rollout. This
+is explicit coverage of those original tables, not a claim that every database
+table was hash-compared.
+
+**Closure boundaries:** Coolify cold replacement and authenticated history
+continuation are hosted-qualified; Railway remains provider-native, and anonymous
+client-state continuity across assignment revisions is not promised. Legacy rows
+without trusted document storage-scope evidence are not adopted automatically.
+Advanced drain/recovery/expiry engines remain absent from core and are not
+reimplemented in the small service. Unknown historical provider effects require
+operator inspection. Shared Hetzner firewall access remains under the main task's
+closure ownership because its separately authorized quality work can resume; this
+follow-up created no new firewall rule. All hosted receipts are private under
+`loomai-separation-01046/target-state-proof/` and `manual-recheck-rollout/`.
 
 - [x] Source-based architecture/coupling analysis and bounded inventory completed.
 - [x] Current provisioning bug distinguished from admission/funding aftermath.
