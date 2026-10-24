@@ -2,6 +2,11 @@
 
 An actual Playwright browser journey for a newly created, active Engage app. It does not provision, deploy, configure, seed or clean up anything. Main owns hosted execution and answer review. No hosted execution was performed when adding this runner.
 
+24 October execution update: real staging and production runs have now completed.
+The single staging business confirmation and the no-write handover journeys are
+recorded separately in the canonical 010.45 execution record. Original stopped
+runs remain retained; no business confirmation was replayed to obtain a green test.
+
 The browser obtains the runtime only from its normal public app bootstrap and installation manifest. There is no runtime URL argument, guessed deployment address, temporary helper import, API query shortcut or injected authentication state. Playwright is loaded from the existing `max-mode-widget` package.
 
 ## Inputs
@@ -11,12 +16,12 @@ Use absolute private paths. Create a scope file **after** actual app activation,
 ```json
 {
   "customerId": "cus-9fd67f55",
-  "tenantId": "ten-7fd3a5f1",
-  "deploymentId": "dep-fbdc2dab",
+  "tenantId": "<actual tenant ID>",
+  "deploymentId": "<actual deployment ID>",
   "releaseId": "<actual release ID>",
   "installationId": "<actual awi_pub_ plus 32 hexadecimal characters>",
   "assignmentRevision": "<actual assignment revision>",
-  "appUrl": "https://northfield-console.apps.loomai.pro",
+  "appUrl": "https://<actual app slug>.apps.loomai.pro",
   "sourceIds": ["<actual registered policy source ID>"],
   "vehicleLabel": "2025 Aster E1",
   "inboxUrl": "https://<actual Basic Inbox host>",
@@ -34,9 +39,9 @@ Use absolute private paths. Create a scope file **after** actual app activation,
 }
 ```
 
-- The known customer/tenant/deployment above identify the current fresh configuration, not proof that an app or release is already live. All scope values are caller-supplied; none are hardcoded in the runner.
+- All scope values are caller-supplied; none are hardcoded in the runner. Capture the actual app assignment after activation, not a previous fixture's IDs.
 - `appUrl` and `inboxUrl` must be HTTPS origins. The app assignment is pinned throughout the run. Promotion needs a new scope file, new assignment/release/document source pins and a new output directory.
-- `sourceIds` must identify registered document sources in this exact release. Alternatively, `--document-evidence` accepts a JSON file containing `customerId`, `tenantId`, `deploymentId`, `releaseId` and `sourceIds`. Both lists must agree if both are supplied. Returned citations must carry an exact registered `_aiDocumentSourceId`; arbitrary source text does not pass.
+- `sourceIds` must identify registered document sources in this exact release. Alternatively, `--document-evidence` accepts a JSON file containing `customerId`, `tenantId`, `deploymentId`, `releaseId` and `sourceIds`. Both lists must agree if both are supplied. Lightweight source references are joined to returned documents by exact document ID, knowledge source ID and vector space. Their metadata must carry an exact registered `_aiDocumentSourceId`; arbitrary source text does not pass.
 - `vehicleLabel` must exactly match the rendered inventory card heading for a current electric automatic SUV below GBP 40,000 and 20,000 miles. Full mode selects it using **Keep in context**, not a hidden resource ID.
 - `receiptStore` points to the existing external demo vendor database, not a new deployment-owned business database. The operations module must export `ssh(environment, command, input, timeout)` and `quote(value)`. The runner executes only a bounded `BEGIN READ ONLY` query on `dealership_lead_request`, scoped by customer, tenant and deployment. It never imports the module unless receipt proof is configured.
 - Full mode requires `inboxUrl`, `vehicleLabel` and `receiptStore`. Read-only mode can omit them. `testDrive` is required only when the explicit receipt flag is present; its date must not be in the past.
@@ -86,9 +91,9 @@ Add `--allow-one-synthetic-receipt` only when explicitly authorizing **one** syn
 3. Reload and compare exact visible message IDs/text. An unsolicited/replayed query is blocked, not accepted as a second chance.
 4. Request a protected test drive anonymously. Require the structured sign-in challenge with `EXPLICIT_NEW_REQUEST`, cancel the actual dialog and verify no identity change or receipt.
 5. Perform real Supabase password sign-in and observe the credential broker's actual subject. Login must not replay the action. Select a vehicle through the authenticated inventory UI; the authenticated conversation must differ from the anonymous one.
-6. With the receipt flag only: send one new explicit request, inspect the confirmation UI, click **Confirm** once, require the receipt renderer and exactly one new external record with its matching reference. Existing receipt records must remain byte-equivalent after JSON readback. Without the flag this step is visibly marked **not run**, never passed.
+6. With the receipt flag only: send one new explicit request, inspect the confirmation UI, click **Confirm** once, require either the custom receipt or the supported generic structured result and exactly one new external record with its matching reference. The successful structured action receipt must match that record too. Existing receipt records must remain byte-equivalent after JSON readback. Without the flag this step is visibly marked **not run**, never passed.
 7. Use the widget's **Talk to a person** / **Continue anonymously** flow. Send a human-bound message; require `202 HUMAN_MESSAGE_ACCEPTED` rather than an AI answer.
-8. Sign in to the actual Basic Inbox with the supplied operator key. Wait at most 45 seconds for its normal queue delivery, select and verify the exact conversation, claim it, reply through its form and observe the reply arriving asynchronously in the workspace. Use the Inbox's **Return to AI** command, then require an AI answer in the same conversation with another registered policy citation.
+8. Sign in to the actual Basic Inbox with the supplied operator key. Wait at most 45 seconds for its normal queue delivery, select the exact handover ID, require a consistent provider-side reference in queue/detail, claim it, reply through its form and observe the reply arriving asynchronously in the workspace. The provider reference is not the runtime chat ID. Use the Inbox's **Return to AI** command, then require an AI answer in the same conversation with another registered policy citation.
 9. Verify an editable, in-viewport composer at 390 x 844 and final external receipt invariants.
 
 The browser guard permits only expected composer sends, bounded session/broker/suggestion traffic, the one real password login, the armed handover, and the three exact Inbox commands. Canonical message dispatches require their real idempotency keys. User sends, including clarification, confirmation and human-bound text, are capped at **10**. Operator replies are separate and limited by their once-only command intents.

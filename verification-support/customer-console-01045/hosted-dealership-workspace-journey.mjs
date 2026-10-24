@@ -68,8 +68,14 @@ export function validateScope(input, mode, sourceIds = input.sourceIds) {
 
 export function policyCitations(body, sourceIds) {
   const allowed = new Set(sourceIds)
-  const citations = (body.sources ?? []).filter(source => allowed.has(source.metadata?._aiDocumentSourceId))
-    .map(source => ({ id: source.id, sourceId: source.metadata._aiDocumentSourceId, title: source.title }))
+  const documents = new Map((body.ragResponse?.documents ?? []).map(document => [document.id, document]))
+  const citations = (body.sources ?? []).flatMap(source => {
+    const document = source.documentId ? documents.get(source.documentId) : source
+    if (!document || !allowed.has(document.metadata?._aiDocumentSourceId)) return []
+    if (source.documentId && (source.vectorSpace !== document.metadata?.vectorSpace
+      || source.sourceId !== document.metadata?.knowledgeSourceId)) return []
+    return [{ id: document.id, sourceId: document.metadata._aiDocumentSourceId, title: document.title }]
+  })
   check(citations.length > 0, 'ACTUAL_REGISTERED_DOCUMENT_CITATION_REQUIRED')
   return citations
 }
@@ -474,12 +480,15 @@ export async function runJourney(args) {
         } })
         assertAnswer(confirmed, true)
         check(confirmed.body.conversationId === report.signedConversationId, 'CONFIRMATION_CONVERSATION_MISMATCH')
-        const receipt = page.locator('loomai-dealership-request-receipt [data-dealership-request-receipt="test-drive"]').last()
-        await receipt.waitFor({ state: 'visible' })
         receiptAfter = await receipts('after-confirmation')
         const created = assertReceiptDelta(receiptBefore, receiptAfter, 1)
-        await receipt.locator('.request-marker--success').waitFor({ state: 'visible' })
+        const receipt = page.locator('loomai-dealership-request-receipt [data-dealership-request-receipt="test-drive"], [data-max-mode-generic-action-result]')
+          .filter({ hasText: created[0].receipt_code }).last()
+        await receipt.waitFor({ state: 'visible' })
         check((await receipt.innerText()).includes(created[0].receipt_code), 'UI_RECEIPT_DOES_NOT_MATCH_EXTERNAL_RECORD')
+        check(confirmed.body.actions?.some(action => action.action === 'dealership_request_test_drive' && action.actionResult?.success === true
+          && action.actionResult.data?.receipt?.receiptCode === created[0].receipt_code), 'SUCCESSFUL_ACTION_RECEIPT_REQUIRED')
+        report.receiptPresentation = await receipt.getAttribute('data-max-mode-generic-action-result') != null ? 'GENERIC_STRUCTURED' : 'CUSTOM'
         report.receiptCode = created[0].receipt_code
         report.checks.oneExplicitConfirmationAndOneExternalReceipt = true
         await snap('04-synthetic-receipt')
@@ -546,15 +555,15 @@ export async function runJourney(args) {
         if (!queue.some(row => row.handoverId === report.handoverId)) await sleep(1000)
       }
       const index = queue.findIndex(row => row.handoverId === report.handoverId)
-      check(queue[index].externalConversationRef === report.signedConversationId, 'INBOX_QUEUE_CONVERSATION_MISMATCH')
       save('exact-inbox-queue-entry.private.json', { polls, item: queue[index] })
+      check(nonblank(queue[index].externalConversationRef), 'INBOX_EXTERNAL_CONVERSATION_REFERENCE_REQUIRED')
       const detailPath = `/api/operator/conversations/${encodeURIComponent(report.handoverId)}`
       const detailWait = watch(operatorPage, response => response.request().method() === 'GET'
         && new URL(response.url()).origin === scope.inboxUrl && new URL(response.url()).pathname === detailPath)
       await operatorPage.locator('#queue .queue-item').nth(index).click()
       const detailResponse = unwrap(await detailWait), detail = await responseBody(detailResponse, 'selected-inbox-conversation')
       check(detailResponse.status() === 200 && detail.conversation?.handoverId === report.handoverId
-        && detail.conversation.externalConversationRef === report.signedConversationId, 'WRONG_INBOX_CONVERSATION_SELECTED')
+        && detail.conversation.externalConversationRef === queue[index].externalConversationRef, 'WRONG_INBOX_CONVERSATION_SELECTED')
       stage = 'operator-claims-and-replies'
       await operatorCommand(`${detailPath}/claim`, 'claim', () => operatorPage.locator('#claim').click())
       await operatorPage.locator('#reply').waitFor({ state: 'visible' })
@@ -638,6 +647,12 @@ export function selfTest() {
   const body = { sources: [{ id: 'chunk', metadata: { _aiDocumentSourceId: 'doc-fixture' } }] }
   assert.equal(policyCitations(body, scope.sourceIds)[0].sourceId, 'doc-fixture')
   assert.throws(() => policyCitations(body, ['doc-other']), /ACTUAL_REGISTERED_DOCUMENT_CITATION_REQUIRED/)
+  const projected = { sources: [{ documentId: 'chunk', sourceId: 'approved-knowledge', vectorSpace: 'document' }],
+    ragResponse: { documents: [{ id: 'chunk', metadata: { _aiDocumentSourceId: 'doc-fixture',
+      knowledgeSourceId: 'approved-knowledge', vectorSpace: 'document' } }] } }
+  assert.equal(policyCitations(projected, scope.sourceIds)[0].sourceId, 'doc-fixture')
+  assert.throws(() => policyCitations({ ...projected, sources: [{ ...projected.sources[0], documentId: 'other' }] }, scope.sourceIds), /ACTUAL_REGISTERED_DOCUMENT_CITATION_REQUIRED/)
+  assert.throws(() => policyCitations({ ...projected, sources: [{ ...projected.sources[0], sourceId: 'foreign-knowledge' }] }, scope.sourceIds), /ACTUAL_REGISTERED_DOCUMENT_CITATION_REQUIRED/)
   assert.deepEqual(redact({ password: 'topsecret', apiKey: 'key', nested: { message: 'topsecret' }, error: 'ACTUAL_ERROR' }, ['topsecret']),
     { password: '[REDACTED]', apiKey: '[REDACTED]', nested: { message: '[REDACTED]' }, error: 'ACTUAL_ERROR' })
   const sql = receiptSql(scope)

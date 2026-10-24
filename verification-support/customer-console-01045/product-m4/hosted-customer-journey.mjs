@@ -4,11 +4,13 @@ import { createRequire } from 'node:module'
 import { parseArgs } from 'node:util'
 const { chromium } = createRequire(new URL('../../../Platfrom/ui/package.json', import.meta.url))('playwright')
 const { values: args } = parseArgs({ options: Object.fromEntries(
-  ['mode', 'root', 'credentials', 'deployment', 'app', 'customer', 'offer', 'staging', 'production']
+  ['mode', 'root', 'credentials', 'deployment', 'app', 'customer', 'offer', 'staging', 'production', 'attempt']
     .map(key => [key, { type: 'string' }])) })
 for (const key of ['mode', 'root', 'credentials', 'deployment', 'app', 'customer', 'offer', 'staging', 'production']) assert.ok(args[key], `Missing --${key}`)
+if (args.attempt) assert.match(args.attempt, /^[a-zA-Z0-9_-]{1,32}$/)
+const commandRecord = args.mode + (args.attempt ? `-${args.attempt}` : '')
 assert.ok(['inspect', 'publish', 'stage', 'observe-stage', 'bind-stage', 'plan-production', 'production',
-  'observe-production', 'refresh-readiness', 'activate-production'].includes(args.mode))
+  'observe-production', 'refresh-readiness', 'activate-production', 'verify-stage', 'verify-production'].includes(args.mode))
 process.umask(0o077)
 mkdirSync(args.root, { recursive: true, mode: 0o700 })
 const save = (name, value) => writeFileSync(`${args.root}/${name}.json`, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 })
@@ -24,11 +26,15 @@ const allowedCommand = (request, url) => {
   if (['/api/platform/auth/login', '/api/platform/auth/logout', '/api/platform/preferences'].includes(url.pathname)) return true
   if (url.pathname === `/api/customer-self-service/catalogue/${args.offer}/targets/${args.staging}/placement-evidence`
     || url.pathname === `/api/customer-self-service/catalogue/${args.offer}/targets/${args.production}/placement-evidence`) return true
+  if (['verify-stage', 'verify-production'].includes(args.mode)
+    && url.pathname === `/api/deployments/${args.deployment}/verification-runs/recheck`) {
+    return url.searchParams.get('releaseId') === state[args.mode === 'verify-stage' ? 'stagingRequestedReleaseId' : 'productionRequestedReleaseId']
+  }
   const body = request.postDataJSON()
   const operations = { stage: 'APPLY', 'bind-stage': 'ACTIVATE', 'plan-production': 'PROMOTION_PLAN',
     production: 'PROMOTION_APPLY', 'refresh-readiness': 'ACTIVATE', 'activate-production': 'ACTIVATE' }
   if (url.pathname === path + '/admission-reservations') {
-    assert.equal(body.operation, operations[args.mode])
+    assert.ok(body.operation === operations[args.mode] || (args.mode === 'production' && body.operation === 'PROMOTION_PLAN'))
     assert.equal(body.targetProfileId, ['stage', 'bind-stage'].includes(args.mode) ? args.staging : args.production)
     assert.equal(body.versionId, state.versionId)
     return true
@@ -42,8 +48,9 @@ const allowedCommand = (request, url) => {
   if (args.mode === 'bind-stage' && url.pathname === path + '/staging-consumer-activations') {
     assert.equal(body.consumerId, state.consumerId); assert.equal(body.releaseId, state.stagingReleaseId); return true
   }
-  const commands = { 'plan-production': 'plan', production: 'production-apply', 'activate-production': 'production-activate' }
-  if (commands[args.mode] && url.pathname === `/api/deployments/${args.deployment}/practical-promotion/${commands[args.mode]}`) {
+  const commands = { 'plan-production': 'plan', production: 'production-apply', 'activate-production': 'activate-production-consumer' }
+  if (commands[args.mode] && (url.pathname === `/api/deployments/${args.deployment}/practical-promotion/${commands[args.mode]}`
+    || (args.mode === 'production' && url.pathname === `/api/deployments/${args.deployment}/practical-promotion/plan`))) {
     assert.equal(body.consumerId, state.consumerId)
     if (args.mode === 'activate-production') assert.equal(body.productionReleaseId, state.productionReleaseId)
     else assert.equal(body.stagingReleaseId, state.stagingReleaseId)
@@ -80,7 +87,7 @@ try {
   const session = await get('/api/platform/auth/session')
   assert.equal(session.role, 'CUSTOMER_ADMIN'); assert.equal(session.customerId, args.customer)
   const app = await get(appPath)
-  if (['inspect', 'publish', 'stage', 'observe-stage', 'bind-stage'].includes(args.mode)) {
+  if (['inspect', 'publish', 'stage', 'observe-stage', 'bind-stage', 'verify-stage'].includes(args.mode)) {
     assert.ok(['DRAFT', 'ACTIVE'].includes(app.status))
   } else assert.equal(app.status, 'ACTIVE')
   assert.equal(app.deploymentId, args.deployment)
@@ -107,7 +114,7 @@ try {
   await page.goto(`${base}/deployments?resourceKind=deployment&resourceId=${args.deployment}&deploymentId=${args.deployment}`, { waitUntil: 'networkidle' })
   const tasks = page.getByRole('region', { name: 'Product setup and operations', exact: true })
   await tasks.waitFor()
-  const production = ['plan-production', 'production', 'observe-production', 'refresh-readiness', 'activate-production'].includes(args.mode)
+  const production = ['plan-production', 'production', 'observe-production', 'refresh-readiness', 'activate-production', 'verify-production'].includes(args.mode)
   await tasks.getByRole('link', { name: production ? 'Review go-live' : 'Test in customer staging', exact: true }).click()
   await page.getByRole('heading', { name: production ? 'Production promotion' : 'Staging release', exact: true }).waitFor()
   await page.waitForLoadState('networkidle')
@@ -134,6 +141,24 @@ try {
       .map(({ id, state, expiryState, expiresAt }) => ({ id, state, expiryState, expiresAt }))
     report.retirements = (await get(path + `/retirements?targetProfileId=${args.staging}`))
       .map(({ id, state, phase, blockers }) => ({ id, state, phase, blockers }))
+  } else if (['verify-stage', 'verify-production'].includes(args.mode)) {
+    const release = await observe(args.mode === 'verify-stage' ? args.staging : args.production)
+    assert.equal(release.provisioningStatus, 'ACTIVE')
+    phase = 'verify-exact-release'
+    assert.equal(existsSync(`${args.root}/${args.mode}.intent.json`), false, 'Consumed verification: inspect its original result')
+    const button = page.getByRole('button', { name: args.mode === 'verify-stage' ? 'Verify staging release' : 'Verify production release', exact: true })
+    assert.ok(await button.isEnabled())
+    save(`${args.mode}.intent`, { at: new Date().toISOString(), releaseId: release.id, rebuild: false, replay: false })
+    const pending = page.waitForResponse(response => response.request().method() === 'POST'
+      && new URL(response.url()).pathname === `/api/deployments/${args.deployment}/verification-runs/recheck`
+      && new URL(response.url()).searchParams.get('releaseId') === release.id, { timeout: 180000 })
+    await button.click()
+    const response = await pending, body = await response.json()
+    save(`${args.mode}.response.private`, { status: response.status(), body })
+    assert.ok([200, 201].includes(response.status())); assert.equal(body.releaseId, release.id)
+    assert.equal(body.deploymentId, args.deployment); assert.equal(body.deploymentVersionId, state.versionId)
+    report.verification = { id: body.id, status: body.status, summaryMessage: body.summaryMessage }
+    assert.equal(body.status, 'PASSED', 'Verification failures remain visible; do not rebuild or bypass')
   } else if (args.mode.startsWith('observe-')) {
     phase = 'observe-exact-release'
     const target = args.mode === 'observe-stage' ? args.staging : args.production
@@ -156,22 +181,41 @@ try {
     }
     phase = `command-${args.mode}`
     const button = page.getByRole('button', { name: labels[args.mode], exact: true })
+    if (args.mode === 'production' && !(await button.isEnabled())) {
+      save(`${commandRecord}-review.intent`, { at: new Date().toISOString(), stagingReleaseId: state.stagingReleaseId, replay: false })
+      const reviewed = page.waitForResponse(response => response.request().method() === 'POST'
+        && new URL(response.url()).pathname === `/api/deployments/${args.deployment}/practical-promotion/plan`)
+      await page.getByRole('button', { name: 'Review production candidate', exact: true }).click()
+      const response = await reviewed, body = await response.json()
+      save(`${commandRecord}-review.response.private`, { status: response.status(), body })
+      assert.ok(response.ok()); assert.equal(body.status, 'READY')
+    }
+    if (args.mode === 'activate-production' && !(await button.isEnabled())) {
+      save(`${commandRecord}-readiness.intent`, { at: new Date().toISOString(), productionReleaseId: state.productionReleaseId, replay: false })
+      const pending = page.waitForResponse(response => response.request().method() === 'POST'
+        && new URL(response.url()).pathname === path + '/admission-reservations')
+      await page.getByRole('button', { name: 'Refresh production readiness', exact: true }).click()
+      const response = await pending, body = await response.json()
+      save(`${commandRecord}-readiness.response.private`, { status: response.status(), body })
+      assert.ok(response.ok())
+      await button.click({ trial: true })
+    }
     report.buttons = await buttons()
     assert.ok(await button.isEnabled(), 'The UI command is blocked; inspect recorded buttons and screenshot')
-    const intent = `${args.mode}.intent`
+    const intent = `${commandRecord}.intent`
     assert.equal(existsSync(`${args.root}/${intent}.json`), false, 'CONSUMED: reconcile the original command, do not replay')
     save(intent, { at: new Date().toISOString(), mode: args.mode, state, replay: false })
     const finalPaths = { publish: path + '/versions', stage: path + '/staging-releases',
       'bind-stage': path + '/staging-consumer-activations', 'plan-production': `/api/deployments/${args.deployment}/practical-promotion/plan`,
       production: `/api/deployments/${args.deployment}/practical-promotion/production-apply`,
-      'activate-production': `/api/deployments/${args.deployment}/practical-promotion/production-activate`,
+      'activate-production': `/api/deployments/${args.deployment}/practical-promotion/activate-production-consumer`,
       'refresh-readiness': path + '/admission-reservations' }
     const responsePromise = page.waitForResponse(response => response.request().method() === 'POST'
       && new URL(response.url()).pathname === finalPaths[args.mode])
     await button.click()
     const response = await responsePromise
     const body = await response.json()
-    save(`${args.mode}.response.private`, { status: response.status(), body })
+    save(`${commandRecord}.response.private`, { status: response.status(), body })
     report.command = { status: response.status(), id: body.id ?? body.versionId, code: body.code ?? body.errorCode,
       message: body.message, statusName: body.status }
     assert.ok(response.ok(), `${args.mode} failed with ${response.status()} ${body.code ?? body.errorCode ?? body.message ?? ''}`)
@@ -181,8 +225,9 @@ try {
       writeFileSync(`${args.root}/state.json`, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 })
     }
     if (args.mode === 'stage' || args.mode === 'production') {
-      assert.ok(typeof body.id === 'string' && body.id.length > 0)
-      state[args.mode === 'stage' ? 'stagingRequestedReleaseId' : 'productionRequestedReleaseId'] = body.id
+      const releaseId = args.mode === 'stage' ? body.id : body.productionReleaseId
+      assert.ok(typeof releaseId === 'string' && releaseId.length > 0)
+      state[args.mode === 'stage' ? 'stagingRequestedReleaseId' : 'productionRequestedReleaseId'] = releaseId
       writeFileSync(`${args.root}/state.json`, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 })
     }
     await page.waitForLoadState('networkidle')

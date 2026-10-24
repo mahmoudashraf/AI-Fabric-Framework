@@ -1,33 +1,99 @@
 # 010.45 Customer Resource Console Execution Record
 
-Date: 2026-10-23. Plan: [010.45](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI_PLAN.md).
+Date: 2026-10-24. Plan: [010.45](010_45_CUSTOMER_RESOURCE_CONSOLE_PROGRESSIVE_UI_PLAN.md).
 
 ## Current Product-Milestone Execution
 
-Owner requested phased, tracked implementation. Existing source/live evidence
-below is retained; it does not close these product-composition milestones.
+Owner requested phased, tracked implementation. M1-M6 implementation and live
+technical verification are now complete. Historical checkpoints/failures below
+are retained; the24October closeout supersedes their pending status. Owner visual
+sign-off is not invented. M7 remains deliberately separate.
 
 - M1 LIVE VERIFIED: delivered at`e798d09d0`, now included in`b18189c2c` on both servers; real customer Home,
   inspectors, both themes/mobile and unchanged assignment; staging staff preserved.
-- M2 LIVE UI PATH VERIFIED: concise product task navigation reuses existing
-  simulator/storage/assignment/setup controls. Fresh full customer commands open.
+- M2 LIVE VERIFIED: product task navigation and fresh actual customer creation,
+  source bindings, publication, staging and production commands completed.
 - M3 SUPPORTED SAVED COMMANDS LIVE VERIFIED: product-linked Engage setup, exact
   customer assignment, real create/reload/edit/reload/delete and visible failures.
   Arbitrary branding/auth/tool edits outside reviewed profiles are not enabled.
-- M4 IN PROGRESS: fresh new-UI staging-to-production customer journey.
-  Configuration/publication live verified. The stale-credential attempt and its
-  failed drain retry are preserved. The disposable attempt has been reset; the
-  valid-input UI journey is running with verified separate S3 identities and
-  one-for-one vector replacements. No additional Free cluster is requested.
+- M4 LIVE VERIFIED: fresh customer UI creation -> staging/app -> real policies,
+  stock, sign-in, single confirmed external request, human reply/AI return ->
+  independent production deployment/indexing -> explicit same-app activation.
+  Failed disposable attempts remain archived, not rewritten as successful recovery.
 - M5 LIVE DAILY COMMANDS VERIFIED: policy refresh, six-vehicle inventory sync,
   and existing-inbox operator enrollment/one-time delivery/effective revocation
   passed through the live customer UI. Fresh-journey handover stays under M4.
-- M6 PARTIAL: bounded read-expiry prerequisite live and verified; owner visual
-  acceptance, new-UI command journey and bounded rollback closure remain open.
+- M6 LIVE TECHNICALLY VERIFIED: final nine customer pages in both themes,
+  Advanced drafts, scope/release guards, basic mobile, staff preservation/logout,
+  earlier bounded UI rollback/restoration and actual fresh M4 commands passed.
+  Owner visual sign-off is still the owner's decision.
 - M7 DEFERRED: Shopify product onboarding after dealership/Engage acceptance.
 
 Each phase must record changes, actual checks, source/publication status and a
 review link. No generic management/recovery/draining workstreams are authorized.
+
+### 24 October Live Closeout
+
+- Review console: https://console.loomai.pro/home . Fresh production workspace:
+  https://northfield-console-live.apps.loomai.pro . Same installation
+  `awi_pub_d33c69a074da480628c2f81358a03144`, deployment `dep-3c4dbe4f`, immutable
+  `ver-26d678f3`; staging `rel-10ad02d0` and production `rel-572ceb27` both verified.
+  Explicit UI production activation changed the assignment revision to
+  `sha256:864ea4bad3c688f54f1120c39ead7555a38bee3ec13190d791dc5f00226246d0`.
+- Each environment independently indexed three customer S3 policies and six
+  external vehicles. Both real public workspace journeys proved sign-in/cancel,
+  isolated identity, stock/policy grounding, reload, asynchronous Inbox reply,
+  explicit AI return and mobile composition. Exactly one staging confirmation
+  created `NFM-3A507F56`, visually matched to the generic structured receipt and
+  external count0->1. No production business write, replay or vector transfer.
+- Final UI `0bfcc4bb78f701682064e369e155d694fd18ff8f`, CI40069305825,
+  image `sha256:538d8cd72b003812f50888bfd523473c3ea0574f374eab035ad61279cca6a6ce`,
+  source/digest/configuration verified on both servers. 10 focused checks,
+  19 browser scope scenarios and build pass. Backend stays `19bdb4ba7`, schema 208;
+  clock-skew fix had 80 focused passes. Runtime artifact `dsa-a5d7d25d` is normally
+  production-approved; AI Fabric remains 0.8.41, no framework release in this work.
+- Final hosted customer proof `/private/tmp/01045-hosted-production-1792823064096`:
+  nine pages/both themes, actual document/integration/handover reads, Advanced
+  draft retention/discard, release lock, basic mobile, staff denial, logout and
+  unchanged assignment pass. Optional Action Review is not installed and returns
+  its truthful unavailable state. Final actual staff proof
+  `/private/tmp/01045-hosted-staging-1792823416239` preserves 30 navigation entries.
+  Main visually reviewed desktop/light/dark and mobile/human-reply screenshots.
+- Both source/digest rollout pairs and live customer/workspace reports are in
+  the private archive below. UI-only rollback/restoration proof remains retained
+  from earlier M6. Owner visual sign-off remains a human decision, not a fabricated
+  automated pass. No promise of unrestricted branding or every provider/profile.
+- Final unused-image/cache cleanup recovered 37.55 GiB staging and 8.89 GiB production
+  (46.44 GiB total). All 25 staging/22 production running container IDs preserved;
+  no live database, volume, source object or vector record deleted. Earlier
+  disposable fixture removals/backups are separately recorded, not normal
+  self-service retirement proof. Historical metadata/audit remains archived.
+- Three-sample operational snapshots (two seconds, NOT capacity/load tests):
+  staging 8 cores/11.13 GB available memory, production 4 cores/11.02 GB available memory;
+  observed peak CPU below 0.44 cores on each. Both hosts have ample current headroom.
+  Do not infer concurrency/admission guarantees from this short snapshot. Normal
+  existing fleet approval expires07:25UTC; canary grants expire25October00:00UTC.
+- Removed only operator `38.126.94.35/32` from TCP22/8000 rules on firewalls
+  10915120/10916648/10918233. All other sources, ports and resource attachments
+  preserved. Pre-existing broad staging8000policy was NOT hardened/changed here.
+  Fresh local SSH attempts correctly timed out; post-close CP/UI/runtime aggregate
+  health remains200/UP on both environments and the app remains200. No owner
+  credential change required: earlier401was a helper reading a shell example
+  instead of the actual private token; corrected lookup and Cloud readbacks passed.
+- Durable evidence: `/Users/mahmoudashraf/.codex/private/loomai-m4/final-live-20261024/evidence.private.tar.gz`,
+  27 directories/15,644,672 bytes/mode 0600; SHA256
+  `ad504aeb76f525c4bf8477bafaab7d329a714c483850e4372d5e44d4c567bd3a`.
+  Exact scope/state and delivered operator credentials are separately preserved in
+  that private directory. No credentials or private archive are committed.
+
+Remaining bounded follow-ups: malformed third image Markdown in compound prose
+(`OBLIGATION 2` appears inside a URL) persists in both environments, while actual
+structured image URLs/cards and stock/policy facts are correct. Preserve the raw
+responses; investigate compound generation/truncation before proposing a change.
+No lexical repair, model-decision override or framework patch was introduced.
+The prior failed-reapply drain case stays deferred; shared-domain propagation is
+owner-accepted. Real AutoTrader partner credentials/approval, universal editors,
+enterprise operator hardening and Shopify M7 are not claimed by M1-M6 acceptance.
 
 ### Owner Decision - Accept Domain Propagation; Proceed With M4
 
@@ -37,12 +103,61 @@ is retained for accuracy, but its proposed M6 correction is no longer required.
 Do not open a routing workstream. Resume one fresh reviewed immutable version,
 customer staging verification, explicit same-app assignment, production review/
 deployment/verification and explicit activation through the customer console.
-Keep external business writes, old bookings and unrelated resource cleanup out
-of this phase. No vector/conversation transfer or compatibility machinery.
+Keep additional external business writes, old bookings and unrelated resource
+cleanup out of this phase. The subsequently authorized single synthetic request
+is recorded above and must not be replayed for a green test. No vector/conversation
+transfer or compatibility machinery.
 
 ### M5/M6 - Actual Daily Commands And Bounded UI Rollback, 24 October
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
+
+05:57UTC: fresh app `awi_pub_d33c69a074da480628c2f81358a03144` is ACTIVE at
+`https://northfield-console-live.apps.loomai.pro`, staging assignment revision
+`sha256:f0f43b34905653189de36d9909f0bd59940825e7e499ec1e571e93b237d2163d`.
+The real public browser run proved compound live stock+registered policy citations,
+reload without replay, protected-action challenge/cancel, real Supabase sign-in,
+isolated signed conversation and UI vehicle selection. Exactly one explicit
+confirmation created external request `NFM-3A507F56`; external DB count0->1,
+prior records unchanged. Generic structured receipt is visible and matches it;
+the runner incorrectly required the optional custom renderer and stopped afterward.
+No write was replayed. A separate no-write full run completed all remaining paths:
+`/private/tmp/01045-valid-staging-workspace-no-write-r4-20261024`,5sends,
+0clarifications: human admission, no-AI human message, real Inbox login/claim/reply,
+asynchronous workspace delivery, authorized return to AI, same-conversation cited
+warranty answer,390px mobile composer. Main reviewed answers/screenshots: stock
+and policies factually grounded; malformed image Markdown in compound prose is a
+nonblocking answer-quality finding, not repaired/hidden by text matching. Earlier
+stopped handover explicitly returned to AI through Inbox UI; no pending test handover.
+Harness corrections: join lightweight source references to exact returned document
+IDs/source IDs/vector space; Inbox provider reference is distinct from runtime chat
+ID and must match queue/detail via exact handover ID; app command guards require the
+normal placement probe; promotion review/apply must occur in the same UI view.
+All original stopped evidence retained. These are test-contract corrections,
+not changes to retrieval/security or result fabrication.
+Runtime artifact `dsa-a5d7d25d` normally approved for production. Customer UI queued
+`rel-572ceb27` from SAME `ver-26d678f3`; app remains on verified staging. No vector
+copy. Production apply response uses `productionReleaseId`, not `id`; the runner
+now records that actual field and its original accepted receipt was reconciled,
+not replayed. Next: production policies/index verification and same-app switch.
+
+05:37UTC: `19bdb4ba770526623ff13e103a8d9d313658af62` is LIVE VERIFIED on
+both control planes and both consoles (CI40065756224). Backend digest
+`sha256:0da2801c8141e554d3cd20c9c4abd6065e1ca9f8a4f015090b0ceea4a0173660`;
+UI digest `sha256:c63d97246e22d15b6466e38d1c5d7b8bdfe33fcf9419ea63cbadf0fa08fce1fc`.
+Schema208, existing configuration/resources preserved. Actual staging staff login
+and30navigation entries passed. All three S3 policies are ACTIVE v1, source writes0
+(`/private/tmp/01045-valid-staging-policy-index-r3-20261024`). The preceding
+browser run stopped before registration on required-field label matching; selector
+corrected, original evidence retained. Exact-release UI recheck returned201/PASSED:
+`vrf-9d8966f5`,29passed/0failed/4skipped. Test expectation now accepts201; no replay.
+Release `rel-10ad02d0` APPLIED_VERIFIED. Allocation reconciled ACTIVE; first premature
+assignment review was rejected with no activation/reservation effect. A fresh
+explicit UI attempt after reconciliation bound the DRAFT app to this release.
+UI stock reconciliation completed6/6 with0failed work. Capacity approval renewed
+normally to07:25UTC using steady-state61samples, no quota/headroom/physical ceiling
+increase. Rollout-peak sample did not qualify and was not used to weaken a budget.
+Next: route/app activation, primary operator, full workspace journey, production.
 
 05:12UTC checkpoint: current valid-input `rel-10ad02d0` reached post-apply checks:
 27passed/1failed/5skipped. S3 connectivity/scope now pass; the remaining gate is

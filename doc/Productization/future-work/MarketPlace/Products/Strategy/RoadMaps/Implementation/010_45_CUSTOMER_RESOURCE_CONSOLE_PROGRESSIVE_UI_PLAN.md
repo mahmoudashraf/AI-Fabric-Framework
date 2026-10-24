@@ -355,7 +355,7 @@ App assignment/configuration unchanged. Shopify fixtures preserve reuse, not M7.
 Done when customers can enter/resume their product without a broad infrastructure
 menu. This is a presentation change over existing resources, not a new entity.
 
-#### M2 - Guided Dealership Setup - PARTIAL
+#### M2 - Guided Dealership Setup - LIVE VERIFIED
 
 Goal: dealership template -> AutoTrader/simulator -> policies -> create/link
 Engage app -> preview. No dealership business database is created.
@@ -370,11 +370,14 @@ that exact scope in navigation. No new commands or duplicated forms. Local build
 20 actual-component scenarios and18 scope checks pass. Publication and the fresh
 customer command journey are separate gates; M2/M3 UI source `b18189c2c` is now
 live on both servers. Exact-release task/policy navigation passed with a real
-customer. The fresh customer command journey remains open.
+customer. On 24 October the fresh customer UI journey completed: a new deployment,
+both source/connection scopes, immutable publication, staging and production
+releases, independent policy/inventory indexing, and one new Engage app. See M4
+and the execution record for actual identities, receipts and retained failures.
 Finish the simulator path first; real AutoTrader partner approval/credentials
 remain a separate integration gate, not a reason to invent another bridge.
 
-#### M3 - Engage App Management - SAVED COMMANDS LIVE VERIFIED
+#### M3 - Engage App Management - LIVE VERIFIED
 
 Goal: create/link an app, use approved branding/tools/access settings, preview
 it, obtain its script or standalone address, and understand connection problems.
@@ -382,12 +385,14 @@ Already: shared creation/configuration, reviewed experience/auth profiles,
 domains, installation/standalone delivery, assignment/readiness, guarded editors.
 Same-account Configuration/Advanced, retained drafts, both themes and the
 existing production app assignment are qualified.
-Remaining: customer-friendly product-linked entry/copy and bounded verification
-of actual supported branding/tools/access edits. Read-only acceptance did not
-live-test every branding field or save path. Reuse the existing app service.
+Completed: product-linked entry/copy, representative supported saved edits and
+fresh standalone app creation/route verification/activation. Not every branding,
+domain or profile option was exercised. Reuse the existing app service; do not
+claim unrestricted configuration outside reviewed profiles.
 Product-linked creation is now source-qualified: exact requested assignment,
 explicit choice for multiple active assignments, visible unknown/foreign denial.
-4 model and21 actual-component scenarios pass. Hosted saves/edits remain open.
+4 model and21 actual-component scenarios pass. The subsequent hosted save/edit
+and fresh app activation results below supersede that source-only checkpoint.
 UI source `b18189c2c` is live on both servers. Actual customer explicit-assignment
 and unavailable-assignment creation/cancel checks pass without resource changes;
 these do not count as a successful save.
@@ -406,18 +411,25 @@ saves are proven, not every domain/profile option or uninterrupted delivery
 during a shared-domain change. The newly observed shared-generation readiness
 coupling is explicitly tracked under M6; the original app is currently ready.
 
-#### M4 - Test And Go Live - PARTIAL
+#### M4 - Test And Go Live - LIVE VERIFIED
 
 Goal: open customer staging, try inventory/policies/actions/human handover,
 understand blockers, then explicitly promote and switch the same app.
 Already: guided staging/production steps, candidate/readiness checks, explicit
 activation and independent production indexing. The underlying same-app
 staging-to-production journey passed earlier010.36 acceptance.
-Remaining: one fresh complete journey through the new product-focused UI; U4's
-hosted gate remains open. Reuse existing promotion/cold replacement without
-adding recovery, draining, parallel-version operation or vector copying.
+Completed 24 October: fresh customer UI creation/publication, verified staging,
+new app activation, real Supabase sign-in/cancel, one explicit confirmed external
+request, real Basic Inbox reply/AI return, verified production and explicit
+same-app switch. Both environments independently indexed three customer S3
+policies and six external stock records. Production repeated the real public
+workspace journey without another business write. No vector records or
+conversations were copied. Current app:
+https://northfield-console-live.apps.loomai.pro . Deployment `dep-3c4dbe4f`,
+immutable `ver-26d678f3`, staging `rel-10ad02d0`, production `rel-572ceb27`.
+Original stopped runs remain visible; see execution record for aggregate proof.
 
-2026-10-24 04:36UTC current checkpoint: fresh valid-input customer UI created
+Historical2026-10-24 04:36UTC checkpoint, superseded by the completed journey above: fresh valid-input customer UI created
 `dep-3c4dbe4f`, app `awi_pub_d33c69a074da480628c2f81358a03144`, and published
 `ver-26d678f3`. Both target S3 identities and approved external stock/business
 connections are configured; vectors separately bound. Actual UI staging request
@@ -463,12 +475,17 @@ effective revocation passed through the live customer UI. M4 separately owns the
 fresh conversation/human-handover proof. Generic Behaviour management, full audit
 and universal integration editors are NOT prerequisites.
 
-#### M6 - Verify And Close This Product Release - PARTIAL
+#### M6 - Verify And Close This Product Release - LIVE TECHNICALLY VERIFIED
 
 Already: clean build,18 customer scope regressions, staff parity, offline
 dealership/Shopify fixtures, UI publication to both servers, nine real customer
 views/both themes, retained drafts, release locking, basic mobile and logout.
-Remaining: final fresh M4 journey and owner visual acceptance. The bounded UI-only
+Fresh M4 journey is complete. Final current-source hosted checks passed on both
+servers: nine customer views/both themes, real operational reads, retained
+Advanced drafts, exact release locking, basic mobile, staff-route denial, logout
+and unchanged app assignment. Actual staff login retained30navigation entries.
+Owner visual sign-off is a human review, not fabricated acceptance by Codex.
+The bounded UI-only
 rollback/restoration and unchanged staff/customer scope checks passed; this does
 not substitute for the fresh command journey. Recurring15-minute operational-read expiry is now
 resolved by backend`c82bb707d`, live on both servers. Final wider customer UI run
@@ -477,6 +494,21 @@ no renewal/probe or write-policy weakening. Earlier failed run is preserved.
 Keep this a narrow product usability/
 authorization task, not a capacity/recovery/infrastructure-management redesign.
 Record harder edge cases as follow-ups; no full framework matrix for UI changes.
+
+Closeout boundaries: source UI `0bfcc4bb78f701682064e369e155d694fd18ff8f`
+adds actual release/allocation progress polling and prevents premature staging
+assignment. Build,10focused checks and19scope scenarios passed, then both hosted
+UI rollouts and final browser checks passed. Backend remains `19bdb4ba7`, runtime
+AI Fabric0.8.41; no framework upgrade/release was made. Malformed image Markdown
+in compound answer prose is recorded as a nonblocking output-quality follow-up;
+structured inventory images and business/policy facts are independently verified.
+The optional Action Review extension is not installed and is truthfully shown as
+unavailable; this does not affect human conversation handover. Shared-domain
+propagation and the earlier failed-reapply drain case remain the accepted/deferred
+limitations, not new recovery work. Canary provider grants expire25October00:00UTC;
+fleet admission evidence expires24October07:25UTC. Existing running services are
+not an indefinite capacity/funding entitlement. Real AutoTrader partner access,
+universal Behaviour/audit editors and Shopify M7 are not claimed by this closeout.
 Owner-accepted operational limitation from M3: creating/removing an unrelated app
 hostname temporarily makes an unchanged existing hostname fail APP_DELIVERY
 because the route store requires the entire shared generation to be current.

@@ -60,7 +60,7 @@ try {
     const row = page.getByRole('row').filter({ hasText: source.displayName }).filter({ has: page.getByRole('button', { name: 'Register', exact: true }) })
     await row.getByRole('button', { name: 'Register', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Register approved document source', exact: true })
-    await dialog.getByLabel('Source category', { exact: true }).fill('policy')
+    await dialog.getByLabel(/^Source category/).fill('policy')
     await dialog.getByLabel('I confirm this file is approved for anonymous public answers.', { exact: true }).check()
     save(`source-${index}-register.intent`, { at: new Date().toISOString(), objectReference: source.objectReference, publicApproved: true, replay: false })
     pending = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === path + '/sources')
