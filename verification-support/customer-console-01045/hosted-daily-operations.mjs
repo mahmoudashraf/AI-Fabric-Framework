@@ -108,7 +108,7 @@ try {
     operatorId = operator.id; report.operatorId = operatorId
     const row = page.getByRole('row').filter({ hasText: name })
     phase = 'deliver-once'
-    await row.getByRole('button', { name: 'Deliver once', exact: true }).click({ trial: true, timeout: 180000 })
+    await row.getByRole('button', { name: 'Deliver once', exact: true }).click({ trial: true, timeout: 300000 })
     pending = waitCommand(`${targetPath}/managed-dependencies/operators/${operatorId}/credential-delivery`)
     await row.getByRole('button', { name: 'Deliver once', exact: true }).click()
     response = await pending
@@ -124,7 +124,7 @@ try {
     response = await pending; assert.equal(response.status(), 200)
     data = await response.json(); assert.equal(data.operators.find(item => item.id === operatorId)?.status, 'REVOKED')
     await row.getByText('REVOKED', { exact: true }).waitFor()
-    const deadline = Date.now() + 180000
+    const deadline = Date.now() + 300000
     do {
       data = await get(`${targetPath}/managed-dependencies`)
       if (data.operators.find(item => item.id === operatorId)?.effectiveAt && data.configurationRevision === data.effectiveConfigurationRevision) break

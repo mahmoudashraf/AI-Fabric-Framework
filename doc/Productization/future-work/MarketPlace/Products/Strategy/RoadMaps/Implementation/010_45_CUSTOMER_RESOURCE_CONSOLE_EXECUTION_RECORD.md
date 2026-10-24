@@ -16,9 +16,11 @@ below is retained; it does not close these product-composition milestones.
   Arbitrary branding/auth/tool edits outside reviewed profiles are not enabled.
 - M4 IN PROGRESS: fresh new-UI staging-to-production customer journey.
   Configuration/publication live verified; new runtime verification and promotion
-  await eligible external staging vector material or explicit provisioning approval.
-- M5 PARTIAL: scoped daily task links and live policy/sync/handover reads exist;
-  necessary daily edit/refresh commands are not freshly qualified through this UI.
+  require eligible vector capacity or a qualified disposable-canary reset. The
+  additional-Free-cluster question was withdrawn: Zilliz allows one per organization.
+- M5 LIVE DAILY COMMANDS VERIFIED: policy refresh, six-vehicle inventory sync,
+  and existing-inbox operator enrollment/one-time delivery/effective revocation
+  passed through the live customer UI. Fresh-journey handover stays under M4.
 - M6 PARTIAL: bounded read-expiry prerequisite live and verified; owner visual
   acceptance, new-UI command journey and bounded rollback closure remain open.
 - M7 DEFERRED: Shopify product onboarding after dealership/Engage acceptance.
@@ -36,6 +38,151 @@ customer staging verification, explicit same-app assignment, production review/
 deployment/verification and explicit activation through the customer console.
 Keep external business writes, old bookings and unrelated resource cleanup out
 of this phase. No vector/conversation transfer or compatibility machinery.
+
+### M5/M6 - Actual Daily Commands And Bounded UI Rollback, 24 October
+
+#### Latest Actual Checkpoint - 01:30 UTC
+
+01:35UTC follow-up: real CUSTOMER_ADMIN operator workflow PASSED. Temporary
+`operator-6b7afa543d4c403a81b56ec287d2658f` enrolled, received its one-time
+credential only after effective configuration, then was revoked effectively.
+No credential was written to test evidence. No blocked unexpected mutations or
+browser errors; original app assignment unchanged. Private report and screenshot:
+`/private/tmp/01045-m5-inbox-qualified-20261024`. This closes the concrete M5
+operator command check; it does not substitute for M4 fresh chat/handover proof.
+
+Existing-inbox configuration backend `5315e3f5f742607c616a7b234a2bcae69f7e6748`
+is LIVE VERIFIED on both control planes, image
+`sha256:f10c46ca754a5b7930ac40685b1a3742c98d3e580c9632d02b3942c3beb846f8`,
+schema208. Staging `ns75iwddv7yynj9qi89okzo7` and production
+`q1zw6rb4jie96ljsqmyb5pj6` finished, preserving configuration and owned resources.
+309 focused checks passed. Exact current ACTIVE production inboxes can reconfigure
+existing recorded resources without renewing historical admission evidence or
+creating missing resources. Initial, candidate and staging paths retain their
+original admission requirements. A fresh real UI enrollment/delivery/revocation
+test is running; this is not yet an operator acceptance claim.
+
+UI `d708f799baac4c482bb3eaed31982aee86a6f88c` is now verified on BOTH servers,
+image `sha256:1bafdeebca570cade99aa29fcf5625c48849301fdeabbb40ee444b913dd20025`.
+Production job `ebx63nvsyuylp5at2ov65y8f` finished. Actual blocked-inbox warning,
+revoked temporary operator and disabled ineffective credential delivery passed.
+
+Actual standalone canonical chat exposed a runtime HTTP500:
+`safeMetadata` normalized an optional blank string to null before `Map.copyOf`.
+The response was lost even when it contained a genuine structured error. Product
+runtime fix `c2e886f804b473d5efc20d52beb8f15df7423228` omits only absent metadata,
+preserves the actual response, and passed18 focused checks plus runtime CI
+`40049465405`. OCI source/digest chain verified:
+`sha256:e27d44e53351c8b778e592e319c74f69698156c5484ccc442dbea57c5a104f38`.
+It is NOT deployed to a customer runtime yet. Fresh journey must use a normally
+reviewed immutable artifact/template/offer, not silently rewrite an old release.
+No framework change, release, semantic matching or hidden provider fallback.
+
+Disposable-canary cleanup remains PLAN/READ-ONLY: finite resource-purpose inventory,
+26 matching metadata pins and preserved financial immutability guards. No native
+stop/delete, vector replacement or metadata settlement has occurred. Preserve
+external simulator/dealership systems, source S3, credentials and financial/audit
+history. Cleanup is attended test-fixture maintenance, not proof of normal product
+retirement. The additional-free-cluster question is withdrawn.
+
+#### Earlier Actual Checkpoint - 00:52 UTC
+
+Source-maintenance backend `85d21c2b851bb3508d552e2e74cdc37e3904e2ad`
+is LIVE VERIFIED on both control planes, schema208, image
+`sha256:616f0c3882c1b8fdd9ecb3b2160c8ab728815d0c42a3ee2230e8671aee108a0d`.
+Staging job `qjm68oojutnjvky9ck1krxvy` and production job
+`b9ceiuz2t8oournzqe9cw0zj` finished; configuration and owned resource projections
+were preserved. 246 focused tests passed without failures/errors/skips.
+
+Real customer UI `Refresh revision` returned200/UNCHANGED and retained the
+approved policy's ACTIVE status. Inventory reconciliation first reached runtime
+but returned504: six terminal indexing jobs recorded BudgetException. This was
+an expired existing runtime operating allowance, not a source-routing workaround.
+The existing staff validity-extension plan/execute/read flow acknowledged
+`01045-m5-production-operating-validity-20261024`, extending only operating
+validity to24October23:30UTC. Original approval payload, dollar/token/chat caps,
+counters and financial history were not replaced or reset. The earlier failure
+remains recorded. A fresh explicit UI reconciliation then returned200/COMPLETED:
+6accepted, 6completed/indexed, 0failed. App/consumer assignment stayed unchanged;
+no S3 object writes or business actions were made.
+
+UI `36dee0c515586cb3b2c8f2acd0843d2c4991c3fe` is LIVE VERIFIED on both servers,
+image `sha256:f140e2704365e488e0330921340a562ccd1f3d257554f83143ce55b8d35ec89b`.
+Staging restore `edwha1nmls2e6t2vxgkb80fd` and production
+`vfafew0pqgziy3phrdspuzm3` finished, preserving domains/env/runtime config.
+The staging rollback/restoration technical check passed. Actual production
+customer checks passed nine views/both themes, basic mobile navigation, advanced
+draft retention/discard, locked release selection, staff-route denial, logout and
+unchanged active app assignment. Optional action review remains explicitly
+unavailable because this canary does not install it; the400 was not hidden.
+Main visually inspected actual Home light and Engage dark screenshots.
+
+Operator enrollment passed200 after scoped placement preparation, but its full
+managed-inbox reconciliation was blocked by historical admission expiry. Delivery
+correctly returned409 and no key was delivered/effective. Temporary operator
+`operator-85900a5a6d924e998c1561d69904aacf` was revoked through the real UI;
+revocation became effective at00:29:44UTC. The original operator was preserved.
+The graph honestly reports `INBOX_OPERATOR_CONFIGURATION_PENDING`, not READY.
+A bounded existing-resource-only configuration correction is in progress; no
+initial-provisioning, staging or missing-resource creation exception is accepted.
+
+UI `d708f799b` adds a visible blocked-inbox warning and prevents delivery until
+READY/current effective revision. Build and19 scope regressions passed. This UI
+is verified on staging (job `zqovuj3cod6rt0ithx8zgnqz`); production rollout is
+pending. These checks do not close the remaining operator or M4 gates.
+
+Private actual evidence: `/private/tmp/01045-m5-daily-qualified-20261024`,
+`/private/tmp/01045-m5-sync-after-validity-20261024`,
+`/private/tmp/01045-m5-budget-validity-20261024`,
+`/private/tmp/01045-m5-backend-rollout-20261024`, and
+`/private/tmp/01045-hosted-production-1792801400535`.
+
+The owner requests completion of the current product milestones, then cleanup
+of task-created fixtures and a new deployment/app journey through the UI.
+This does not add Shopify onboarding (M7), broad recovery work, or permission
+to delete unrelated live customer resources.
+
+Real customer UI commands on `dep-c09b23b4` / `rel-8c7930cc` exposed two
+concrete integration gaps; successful operational GETs did not prove writes:
+
+- Policy `Refresh revision` and inventory baseline `Reconcile` both returned
+  412 `CUSTOMER_CAPACITY_RESERVATION_INVALID`. The production allocation remains
+  ACTIVE/CURRENT, but its historical admission deadline has passed. The runtime
+  is healthy. An additional expired capacity-measurement dependency also needs
+  separation from ordinary source operations, which allocate no new runtime.
+  No lease extension, capacity reservation, or direct database edit was used.
+- Temporary operator enrollment returned 409 `PLACEMENT_EVIDENCE_STALE` before
+  creating an operator. The customer UI must prepare the exact owned target
+  before enrollment/rotation/one-time delivery. Revocation remains independent
+  of that access-granting preflight. Credentials must clear on scope changes.
+
+Source `e0178c357` corrects the product task's connection setup link to the
+existing approved-bindings form. Source `36dee0c51` adds exact customer/operator
+placement preparation, with three focused tests and 18 scope regressions passing.
+The UI build passed. An initial fixture failure caused by the newly required
+offer/context reads was corrected by modelling those real contracts, not by
+relaxing command assertions. The first admission-expiry correction and 124
+focused backend tests passed at `e134db525`; measured-policy freshness follow-up
+is separately required before hosted qualification. These commits are not yet
+claims of corrected live daily commands.
+
+Bounded staging UI-only rollback to pre-console source
+`e12d9e571761297ce7e509a35de15c1daff29f4d` completed in Coolify job
+`u9yoo30m3893h04yu3nbiarj`, image
+`sha256:ea100732145a3c60d26c026b0d0a2172a963e0ff6f22a184943a0f45cf87bb64`.
+Native revision/health, unchanged domains/env/runtime configuration, actual staff
+login, all 30 navigation destinations, and logout passed. No backend or customer
+runtime was rolled back. Restoring the current UI and final customer read checks
+remain required before closing M6. Private actual proof is under
+`/private/tmp/01045-m6-ui-rollback-20261024` and
+`/private/tmp/01045-hosted-staging-1792800806777`.
+
+The original failed source-command and operator checks are retained under
+`/private/tmp/01045-m5-daily-20261024` and
+`/private/tmp/01045-m5-operator-rejection-20261024`. They are rejected commands,
+not successful indexing, operator enrollment, or new-customer journey evidence.
+Fresh M4 staging runtime/promotion still needs eligible external vector material;
+no resource was purchased/provisioned or existing binding bypassed in this cycle.
 
 ### M4 - Publish Preflight Gap Source Qualification
 
