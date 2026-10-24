@@ -315,11 +315,18 @@ shutdown followed by visible core bypass. PostgreSQL/Docker is required.
 This includes zero-disk demand and verified cold-replacement downsizing.
 The executable JAR built successfully. Compose configuration validated.
 
-The Docker image build was attempted but is **not qualified** on this machine:
-BuildKit stalled while resolving base-image metadata; an isolated legacy build
-then failed creating an `overlay2` mount with `invalid argument`. No Docker
-daemon reset, global cleanup or live deployment was performed. Re-run the image
-build/Compose startup in a healthy builder before publishing this service image.
-This limitation does not invalidate the real PostgreSQL/HTTP tests, and it is
-not a claim that the image has been deployed or that all legacy operations
-features have moved.
+The initial local Docker build failed because of the local builder's `overlay2`
+mount state. The independent image workflow subsequently passed, and immutable
+image `ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:167ae0b1ce9b59bf238e45d50c0bf08327d4c86652903dd305f6a82e76fd5f44`
+is deployed and verified on both staging and production. Each instance has its
+own database/user, private network alias, service-only credential and no public
+port. The service role cannot select Platform deployment tables. Both instances
+start with unconfigured capacity policy; they do not claim fleet enforcement.
+
+Both services were explicitly stopped for the fresh customer-journey proof;
+both control planes remained healthy. The canonical 010.46 plan records the
+exact journey results and cleanup, separately from the local enforce/outage
+wire tests. Existing financial terms and customer assignments were preserved.
+Advanced legacy drain/recovery/expiry automation is deliberately dormant, not
+claimed as reimplemented in this service. Manual cold replacement and actual
+provider verification remain Platform responsibilities.

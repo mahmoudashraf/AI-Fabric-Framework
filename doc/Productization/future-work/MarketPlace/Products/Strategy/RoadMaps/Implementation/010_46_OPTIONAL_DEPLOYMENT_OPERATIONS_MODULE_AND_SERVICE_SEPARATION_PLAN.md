@@ -1,6 +1,6 @@
 # 010.46 Optional Deployment Operations Service Separation Plan
 
-**Status:** Direct-service implementation authorized and in progress; customer-journey hosted acceptance pending.
+**Status:** First delivery implemented, deployed and verified on staging and production. The fresh customer journey passed with operations services stopped, then after restoration. Advanced automatic operations remain explicitly deferred.
 **Date:** 24 October 2026.
 **Source baseline:** Initial inventory at `9cc6721f5c4c6c00138d8561477e2d83149575d3`; boundary and database recommendations rechecked at `924c05fc39c17b97a8af4ae7bada8af871b4f833`, with unrelated working-tree changes left untouched.
 **Scope:** Platform/product operations, not AI Fabric semantic orchestration.
@@ -36,7 +36,7 @@ The scope is Platform operations, not a new database beside every dealership. De
 
 The main dealership-quality stream does not depend on implementing this plan. Its existing internal/staff canary can qualify answer settings independently; doing so is not evidence that the customer/manual product path described here has been implemented.
 
-## 2. Current State: Verified Findings
+## 2. Pre-Implementation Baseline: Verified Findings
 
 ### 2.1 Size And Packaging
 
@@ -97,7 +97,7 @@ Verified source cause: [Coolify's caller](/Users/mahmoudashraf/Downloads/Project
 
 The reported aftermath illustrates a second issue: funding preparation has already created an allocation, while admission is conservatively `OUTCOME_UNKNOWN`. Main reported no native vector/runtime creation and one S3-binding handle; this is not a complete no-effect certificate. This document does not clear the reservation, refund/reissue funds or claim all provider effects absent. The architectural goal is to keep the original error visible and separate that failed attempt from optional operational accounting, without demanding an abstract recovery workflow for every cold retry.
 
-No live access, code fix, deployment or policy change was performed for this plan.
+The original analysis made no live changes. The subsequently authorized implementation and hosted changes are recorded in section 10.
 
 **Separate quality-stream update, 24 October13:12 UTC:** The owner subsequently
 approved the narrow caller fix, now committed as `924c05fc3` and verified live on
@@ -286,7 +286,7 @@ A new schema inside the Platform database would not remove application coupling 
 
 If historical operational records are later needed by the service, use an explicit maintenance-window copy/read-only archive with one writer. Financial records and runtime state are not part of that copy. A schema name alone gives no isolation when the same unrestricted database user still has access to everything.
 
-This remains a shared database and failure domain. A separate schema does not make a database outage survivable, and same-database joins or transactions must not become the module's public contract.
+On a shared PostgreSQL host, the host remains a shared failure domain. A separate database does not make a host outage survivable; cross-database joins and transactions must not become the service's public contract.
 
 #### Service Database From The First Delivery
 
@@ -319,12 +319,12 @@ Deliver the service and core boundary together, then verify two vertical milesto
 **1B - The same product journey reaches production:** Add mode-aware promotion/app activation, source refresh and explicit cold replacement. Verify the same app against the verified production deployment. Keep the current admin/operator layout; show only a compact effective-mode/status indication where needed.
 
 - [x] Add server-controlled mode, bounded client, compact core command/decision record and effective-policy readback.
-- [x] Split security/product prerequisites from capacity/expiry/recovery policy in customer authorization and source operations (local verification; hosted proof pending).
+- [x] Split security/product prerequisites from capacity/expiry/recovery policy in customer authorization and source operations; both control planes deployed, fresh runtime journey in progress.
 - [x] Remove mandatory allocation binding from manual publish/apply/promotion/activation paths; keep core command/resource identity (local verification; hosted proof pending).
 - [x] Implement one non-funded provider-use profile for the manual path. Preserve all financial history; existing funded deployments retain their explicitly selected enforcement contract.
-- [x] Make normal UI commands mode-aware; no required probe/list/reserve calls in deployment, Engage, document or integration commands (offline browser verification; hosted journey pending).
+- [x] Make normal UI commands mode-aware; no required probe/list/reserve calls in deployment, Engage, document or integration commands. Live customer create, storage binding, app creation, publishing, external bindings and staging apply made no placement/admission requests.
 - [x] Add straightforward cold replacement and remove legacy automatic worker registration. Inspect actual in-progress destructive operations before hosted cutover.
-- [ ] Verify the complete customer journey with operations implementation absent. Record real provider failures without concealing them.
+- [x] Verify the complete customer journey with operations services stopped. Record real setup/verification failures without concealing them.
 
 **Acceptance:** Authorized customer create -> staging deploy -> Engage chat/indexed sources -> production promotion -> app switch works without measurements, reservations, expiry notices, remote operations, drain proofs or funded-allocation placeholders. Required product features, including sign-in and handover when selected, still work.
 
@@ -336,7 +336,7 @@ Decoupling the existing funded-issuance path from R7 belongs to phase 2; it is n
 - [x] Verify authenticated allow/deny/observe/unavailable decisions, bounded response/deadline and idempotent observations locally.
 - [x] Verify core authorization, source operations, funding and required dependency setup do not require admission records for new releases locally.
 - [x] Verify PostgreSQL financial-history preservation and funded enforcement independently of optional capacity policy locally.
-- [ ] Deploy the service with its own database/user and repeat the same bounded journey with the service healthy, stopped and restored.
+- [x] Deploy the service with its own database/user; verify private authenticated health, stop both services during staging deployment/source/app use and production promotion, then restore them and verify the promoted app and production Inbox.
 
 **Acceptance:** Stopping the service changes policy availability, not core authorization or the ability to deploy/run customer products. Existing financial and operational history remains inspectable. No new recovery feature is required.
 
@@ -378,13 +378,15 @@ The earlier module-first timing estimates are superseded. Track concrete core, s
 
 Accept the initial operational trade-off openly: manual/fail-open admission can overcommit a server; team-observe shared keys can exceed expected spend; cold replacement can interrupt work. These are integration-team choices, not hidden safety guarantees. Provider-native resource failures, authorization failures and real outstanding side effects still need truthful handling.
 
-### Unknowns To Resolve During Implementation, Not By Expanding This Audit
+### Resolved First-Delivery Questions And Remaining Limits
 
-- Exact shared-key observe-mode authorization scope and who may select it; customer-key mode can proceed independently.
-- The smallest existing command/attempt record suitable for non-R7 release authorization and retry identity.
-- Which existing mixed generation/checkpoint fields can remain simple core provenance versus optional graceful-recovery state.
-- One-time disposition of any actually in-progress destructive operation when switching a target to manual mode.
-- Verify service database/user separation and hosted reachability during the direct cutover. Dedicated database infrastructure and high availability are not required now.
+- Shared-key use is explicitly `TEAM_AUTHORIZED`, configured on the server for reviewed target IDs; the browser cannot select it. Existing funded allocations remain funded. `CUSTOMER_KEY` is not implemented and is rejected, not silently mapped to the shared key.
+- Core V210 stores the exact release authorization and retry identity without an R7 foreign key. The service owns its own observations/database, not core command authority or a financial ledger.
+- The normal core path uses explicit cold replacement, preserving state and accepting downtime. Focused tests verify worker-before-runtime stop ordering and truthful stop failure; same-target hosted cold replacement was not separately repeated in this fresh create/promote proof. Graceful fencing, advanced recovery and old history are not reimplemented in the service.
+- No destructive legacy operation was in progress at cutover. The four production retirement records are retained without replay, certificate fabrication or deletion.
+- Independent service databases/users, private aliases, native images, authentication, stop and restore are verified on both hosts. Physical database-host separation, high availability and authoritative fleet adoption before enforcement remain later operational choices.
+- Fresh live `FUNDED` issuance was not exercised here. Financial preservation/enforcement and core-authorized funding were checked in focused tests; the hosted journey explicitly used the approved non-funded team profile.
+- Customer-staging closure remains integration-team/operator managed. The normal product journey does not depend on the advanced retirement engine. The temporary proof resources were explicitly removed through their native provider with ownership and absence evidence; archived audit metadata was retained, not rewritten into fabricated retirement receipts.
 
 ### Non-Goals And Stop Rule
 
@@ -400,11 +402,11 @@ No new public framework release, semantic text matching, AI fallback, business-s
 - [x] Main-session review: verified package/test counts, security versus optional-policy boundary, outage semantics and manual-first milestones. Owner implementation approval remains separate.
 - [x] Dedicated `Separation efforts` review: responsibilities now, module after the manual path, service later; retain current databases/tables first, make an intermediate operations schema optional, and use a single-writer operations database only at service extraction. Source dependencies rechecked at `924c05fc3`.
 - [x] Owner implementation authorization: direct service, no intermediate module-only release; development downtime acceptable.
-- [ ] Core/service integration and focused verification complete.
-- [ ] Hosted cutover complete.
-- [ ] Hosted disabled-component journey verification.
+- [x] Core/service integration and focused verification complete.
+- [x] Hosted core/service/console cutover complete on both environments, preserving original assignments and financial history.
+- [x] Hosted disabled-component staging-to-production customer journey, post-restoration app/Inbox verification and temporary infrastructure cleanup.
 
-The original audit changed this document only. After explicit owner implementation approval, product code and focused tests are being changed. No live deployment, policy cutover or hosted acceptance is claimed until the execution record below contains its actual result. The separate dealership-quality stream and its assignments/financial holds remain untouched by this implementation.
+The original audit changed this document only. After explicit owner implementation approval, core, service and console changes were committed, deployed and verified as recorded below. The separate dealership-quality stream and its original assignments/financial holds remain untouched by this implementation. Bounded integration acceptance is not a claim that its broader semantic answer-quality suite is green.
 
 ### Direct-Service Execution Record
 
@@ -413,13 +415,34 @@ The original audit changed this document only. After explicit owner implementati
 - New cold replacement uses existing provider stop/readback and explicitly disables optional retirement/drain machinery for that release; it does not fabricate a drain certificate.
 - New standalone service owns capacity assessments/observations and its own PostgreSQL database. No Platform/runtime/artifact dependencies, browser credentials, provider effects or central AI request routing.
 - Funding separation preserves existing recorded terms/history. New team-authorized mode is server-configured for reviewed targets; `CUSTOMER_KEY` is explicitly unsupported in this first implementation rather than guessed from a shared key.
-- Required managed-dependency provisioning uses exact core authority rather than R7, including real ownership, scoped secret, callback and PostgreSQL Inbox checks. Legacy automatic expiry/reconciliation/retirement workers are no longer scheduled in Platform. Customer UI final integration is in progress.
+- Required managed-dependency provisioning uses exact core authority rather than R7, including real ownership, scoped secret, callback and PostgreSQL Inbox checks. Legacy automatic expiry/reconciliation/retirement workers are no longer scheduled in Platform. Customer UI integration is deployed on both environments.
 - The stable combined backend suite passed 255 tests. Follow-up client/service/readiness tests passed 21 tests after explicitly pinning ISO timestamps and skipping optional capacity-demand lookup in disabled mode. The actual standalone service JAR and a separate PostgreSQL process passed allow, enforce-deny, observe-deny, outcome and service-shutdown/bypass checks through the Platform client. These are local results, not hosted acceptance.
 - Initial test-fixture problems were corrected: a checked-exception override, Mockito restubbing and cookie construction. Those failed attempts were not counted as successful verification. No framework source or release was changed.
-- Main dealership quality task holds control-plane rollout until its live run is complete. No current canary, production assignment or historical financial record has been changed here.
+- The main dealership-quality task completed its live run and released the control-plane rollout hold before this cutover. Its current canary, original app assignment and historical financial records remain unchanged by this implementation. Remaining answer-quality failures are separate work, not fixed or hidden by this separation.
 - Core/service source is committed and pushed as `7b777686123fd1c7b05ebf71d4cf97acf34bd886`. Core image workflow `40104867575` and independent service workflow `40104867641` both passed. No framework release was required.
 - Hosted service image: `ghcr.io/mahmoudashraf/loomai-deployment-operations-service@sha256:167ae0b1ce9b59bf238e45d50c0bf08327d4c86652903dd305f6a82e76fd5f44`. Staging service `liba1dobh9v9rhcedzlnnajz` and production service `yext75rcvxm7jfs236aprssw` are healthy and authenticated with no public port. Stable private Coolify aliases `loomai-deployment-operations-staging` and `loomai-deployment-operations-production` are verified from their respective control-plane containers. Credentials and private native evidence remain under `~/.codex/private/loomai-separation-01046/`, not this document.
 - Each environment has one service-owned `loomai_deployment_operations` database and ordinary owner role on its existing PostgreSQL host. The role cannot select Platform deployment tables. This is not a per-dealership database, not business inventory storage and not separate physical database infrastructure.
 - Hosted policy starts unconfigured, with no fleet-enforcement claim. Before enabling real enforcement, use one authoritative policy store per physical capacity pool or explicitly partition target budgets: independent developer/customer control planes and target aliases can share a physical host. An empty service database or a missing outcome after bypass is not proof of unused capacity. Fleet adoption and advanced automation remain follow-up work; integration-team manual deployment does not depend on them.
 - Point-in-time hosted service measurements: staging 173.7 MiB RAM / 0.17% CPU, production 173.8 MiB / 0.07%; each has a 384 MiB native limit and 256 MiB JVM heap. These are observations, not a capacity guarantee or a new deployment-admission measurement gate.
 - Pre-cutover audit: staging has no legacy retirement operations; production has two `PLANNED` and two `RETRYABLE_FAILURE` records, all at `DRAIN`, all with `destructive_started=false`; recorded leases are absent or expired. They are retained without replay/deletion. New source removes automatic worker registration even if obsolete worker flags remain true. Difficult historical recovery remains documented follow-up, not a prerequisite for the fresh customer journey.
+- Hosted backend on both control planes: `ghcr.io/mahmoudashraf/loomai-platform-backend@sha256:ebc0db13c415d0f6c7f8a1f60302fd4b6f8a25890c92b0b83e2543bf012441fc`. Schema V210 applied, native health healthy, financial/allocation and original assignment snapshots unchanged.
+- Console source `2317ecf7019d2d667b3705b487af759f01129139`, image `ghcr.io/mahmoudashraf/loomai-platform-ui@sha256:16cd89365bfd282221a2ee27f5e199ace34bd2594507f61f221146020bcfa3a7`, image workflow `40107330500` passed. Both public consoles return HTTP 200 with the verified revision. Final focused UI tests: 60 passed. Admin/operator layout was not extracted or redesigned.
+- Both control planes explicitly use `DISABLED` operations / `TEAM_AUTHORIZED` provider use on the reviewed target allowlist. Existing funded allocations remain funded and keep their original limits. The optional services were stopped on both hosts for the hosted journey; core aggregate health remained `UP`.
+- Fresh CUSTOMER_ADMIN UI verification uses `dep-28f2eae1`, immutable version `ver-af59e23b`, staging request `rel-453ddc17` and a new standalone Engage draft. It retains the full reviewed dealership template, six plugins and existing verified runtime/connector artifacts. Customer S3 staging and production prefixes, exact external integrations and two fresh external Serverless vector clusters are bound. No vector records were transferred; no existing cluster was rebound.
+- The temporary business receiver is an explicitly external verification fixture using the existing external demo business database. It is not created by the AI deployment template and creates no business database beside the runtime. It has a new receiver credential and exact customer/tenant/deployment scope; the original receiver remains unchanged. Only the reviewed external test hostname and offer display name differ from the original offer.
+- Browser harness-only issues were corrected without replaying creation: offer detail requires accepting its invitation first; an outdated heading/selection locator failed after an already-successful HTTP 200 creation. Read-only reconciliation confirmed the owned draft and zero releases before continuing. Failed harness reports are retained and not counted as successful product verification.
+- Hosted staging acceptance: `rel-453ddc17` is `APPLIED_VERIFIED` / `PASSED`, with six completed external stock records and three active S3 policy sources. The first post-apply check correctly reported `document_active_sources_ready` as failed because no policies were registered yet. The customer UI discovered, registered and indexed the three explicitly approved files; verification `vrf-fc9da287` then passed on the same release without rebuild, waiver, fabricated source evidence or a capacity reservation.
+- The new Engage app completed the existing full hosted browser journey with both operations services stopped: normal public discovery, compound stock/policy answer with exact registered citations, reload without replay, protected-action sign-in challenge, cancelled login, real Supabase login, actual UI vehicle selection, one explicit test-drive confirmation with exactly one external receipt, human-bound message, actual Basic Inbox asynchronous reply, authorized return to AI, resumed policy citation and basic mobile composer. Seven user sends, zero clarifications, one confirmation, zero duplicate receipts. Original external receipts remained unchanged. This is a bounded integration proof, not a claim that the broader answer-quality suite is green.
+- Production promotion `rel-72623dab` retained immutable version `ver-af59e23b`. Its six stock records and three separately registered production-prefix S3 policies completed indexing; verification `vrf-d16f8052` passed. The customer UI explicitly activated production, and the same Engage hostname resolved the new production release and assignment. Both releases have core `TEAM_AUTHORIZED` / `DISABLED` / `BYPASSED` records, and zero new financial allocations or capacity reservations. No vector records, staging AI state or conversation data were transferred.
+- Both operations services were restored and reverified healthy, authenticated, privately reachable and without public ports. The promoted app passed the full browser journey again: five user sends, real sign-in/cancel/login, inventory and exact production-policy citations, reload, actual production Inbox asynchronous reply and return to AI. Production business-write verification was deliberately not repeated: it is recorded as not run, with zero confirmation clicks and no second receipt. Combined runs used 12 user sends and one explicitly confirmed synthetic business receipt. Both policy answers were read against the returned approved fictional source documents; the wider quality suite remains separate.
+- Post-proof cleanup disabled the temporary app and consumer, archived `dep-28f2eae1` and retained audit/assignment history. All 11 temporary native applications/databases were removed with HTTP 404 readback, and both newly created Serverless clusters were removed with provider-list absence confirmation. Original external backend/database, its pre-existing receipts, customer S3 files, current customer apps, main quality canary, financial records and the two operations services/databases were preserved. The one synthetic proof receipt remains external business audit evidence; no direct business-database cleanup writes were performed.
+- Original consumers, app installations, financial grants and allocations were hash-compared before cutover, after the live journey and after temporary cleanup on both control planes. Only this proof's new app/consumer are excluded from the original-row comparison. Original rows remained unchanged.
+- Shared temporary Hetzner firewall access remains open for the main task's separately approved runtime/widget canary qualification. Closure ownership was explicitly handed back to `Platform-FW-Main`; this separation did not create new firewall rules. Do not close that shared access while the approved main task is still using it.
+
+### Evidence Location And Reproduction
+
+Private execution receipts, scoped browser screenshots, native ownership/absence checks and service/database verification are under `~/.codex/private/loomai-separation-01046/`. Secrets are not copied into this plan or the repository. The published temporary app address is no longer a live example after cleanup.
+
+Use the service README for the independent build/process test and core mode configuration. Reproduce the customer proof with a new owned reviewed deployment, separately scoped staging/production external vectors and customer-owned S3 prefixes. Use the existing hosted document-indexing and workspace-journey runners against actual activation/source IDs; do not replay a prior confirmation or reuse an old receipt as a new pass.
+
+No framework release, semantic text-matching workaround, fabricated reservation/allowance, source-security waiver, customer business-system provisioning or hidden provider-error fallback was introduced. Real source setup was completed and reverified instead of converting the initial missing-document failure into a pass.
