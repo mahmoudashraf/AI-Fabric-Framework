@@ -1604,7 +1604,9 @@ public class RuntimeConversationHandoverService {
                         500
                     )
                     : bounded(String.valueOf(value), 500);
-                result.put(key.trim(), safeValue);
+                if (safeValue != null) {
+                    result.put(key.trim(), safeValue);
+                }
             }
         });
         return Map.copyOf(result);

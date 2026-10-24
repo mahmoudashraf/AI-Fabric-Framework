@@ -178,6 +178,22 @@ class RuntimeConversationHandoverServiceTest {
     }
 
     @Test
+    void blankOptionalAiMetadataDoesNotDiscardTheActualResponse() {
+        ConversationMessage user = service.appendUserMessage(owner, CONVERSATION_ID,
+            "metadata-message", "Show current stock.", Map.of());
+        RuntimeConversationTurn turn = service.beginAiTurn(owner, CONVERSATION_ID,
+            user.sequence(), "metadata-turn");
+
+        ConversationMessage response = service.appendAiMessage(turn, "metadata-message:ai",
+            "The provider returned a structured error.", Map.of(
+                "providerRequestId", "", "resultType", "ERROR", "optional", " \t"
+            ));
+
+        assertThat(response.content()).isEqualTo("The provider returned a structured error.");
+        assertThat(response.metadata()).containsOnly(Map.entry("resultType", "ERROR"));
+    }
+
+    @Test
     void lifecycleIsOwnerIsolatedReplaySafeAndResumesWithHumanTranscript() throws Exception {
         var activity = org.mockito.Mockito.mock(com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService.class);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "admissionActivity", activity);
