@@ -113,7 +113,9 @@ try {
   await page.waitForLoadState('networkidle')
   const observe = async target => {
     const rows = await get(`/api/deployments/${args.deployment}/releases`)
-    const match = rows.filter(item => item.targetProfileId === target && item.deploymentVersionId === state.versionId)
+    const requestedId = state[target === args.staging ? 'stagingRequestedReleaseId' : 'productionRequestedReleaseId']
+    const match = rows.filter(item => item.targetProfileId === target && item.deploymentVersionId === state.versionId
+      && (!requestedId || item.id === requestedId))
     assert.equal(match.length, 1, 'One exact new-version release is required')
     const release = match[0]
     save(`${stamp}-release.private`, release)
@@ -176,6 +178,11 @@ try {
     if (args.mode === 'publish') {
       assert.ok(typeof body.versionId === 'string' && body.versionId.length > 0)
       state.versionId = body.versionId
+      writeFileSync(`${args.root}/state.json`, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 })
+    }
+    if (args.mode === 'stage' || args.mode === 'production') {
+      assert.ok(typeof body.id === 'string' && body.id.length > 0)
+      state[args.mode === 'stage' ? 'stagingRequestedReleaseId' : 'productionRequestedReleaseId'] = body.id
       writeFileSync(`${args.root}/state.json`, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 })
     }
     await page.waitForLoadState('networkidle')

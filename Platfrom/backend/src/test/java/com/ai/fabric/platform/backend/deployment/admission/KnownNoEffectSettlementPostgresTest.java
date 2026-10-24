@@ -521,8 +521,12 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(count("provider_usage_allocations")).isZero();
     }
 
-    @Test void verificationFailureCanReviewCorrectedBindingWithoutSettlingOrRewritingFailedRelease() {
+    @ParameterizedTest @ValueSource(strings = {"none", "configuration-only"})
+    void verificationFailureCanReviewCorrectedBindingWithoutSettlingOrRewritingFailedRelease(String assignment) {
         var held = provisionedVerificationFailure();
+        if ("configuration-only".equals(assignment)) {
+            jdbc.update("INSERT INTO platform_consumers(id,consumer_id,customer_id,display_name,status,binding_revision,row_version,bound_deployment_id,bound_target_profile_id,bound_release_id,created_at,updated_at) VALUES ('draft-consumer','draft','customer','Draft','ACTIVE',1,0,'deployment',?,NULL,?,?)", TARGET, Timestamp.from(NOW), Timestamp.from(NOW));
+        }
         var failedBefore = jdbc.queryForMap("SELECT * FROM platform_deployment_releases WHERE id='failed-release'");
         String grantsBefore = rows("provider_usage_grants"), fundingBefore = rows("provider_usage_allowance_events");
         var candidate = correctedDocumentManifest();
@@ -555,7 +559,7 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
         assertThat(store.require(held.id())).isEqualTo(replacement);
     }
 
-    @ParameterizedTest @ValueSource(strings = {"missing", "stale", "assigned", "nonterminal", "not-provisioned", "foreign-target", "wrong-fence", "worker"})
+    @ParameterizedTest @ValueSource(strings = {"missing", "stale", "assigned", "assigned-target", "ambiguous-target", "nonterminal", "not-provisioned", "foreign-target", "wrong-fence", "worker"})
     void verificationReapplyRequiresFreshUnassignedExactProvisionedResources(String invalid) {
         var held = provisionedVerificationFailure();
         var candidate = correctedDocumentManifest();
@@ -565,6 +569,8 @@ class KnownNoEffectSettlementPostgresTest extends AdmissionFixture {
             case "assigned" -> {
                 jdbc.update("INSERT INTO platform_consumers(id,consumer_id,customer_id,display_name,status,binding_revision,row_version,bound_deployment_id,bound_target_profile_id,bound_release_id,created_at,updated_at) VALUES ('bound-consumer','bound','customer','Bound','ACTIVE',0,0,'deployment',?,'failed-release',?,?)", TARGET, Timestamp.from(NOW), Timestamp.from(NOW));
             }
+            case "assigned-target" -> jdbc.update("INSERT INTO platform_consumers(id,consumer_id,customer_id,display_name,status,binding_revision,row_version,bound_deployment_id,bound_target_profile_id,bound_release_id,created_at,updated_at) VALUES ('bound-consumer','bound','customer','Bound','ACTIVE',1,0,'deployment',?,'other-release',?,?)", TARGET, Timestamp.from(NOW), Timestamp.from(NOW));
+            case "ambiguous-target" -> jdbc.update("INSERT INTO platform_consumers(id,consumer_id,customer_id,display_name,status,binding_revision,row_version,bound_deployment_id,bound_target_profile_id,bound_release_id,created_at,updated_at) VALUES ('bound-consumer','bound','customer','Bound','ACTIVE',1,0,'deployment',NULL,NULL,?,?)", Timestamp.from(NOW), Timestamp.from(NOW));
             case "nonterminal" -> jdbc.update("UPDATE platform_deployment_releases SET status='VERIFYING' WHERE id='failed-release'");
             case "not-provisioned" -> jdbc.update("UPDATE platform_deployment_releases SET provisioning_status='FAILED' WHERE id='failed-release'");
             case "foreign-target" -> jdbc.update("UPDATE platform_deployment_releases SET target_profile_id='foreign' WHERE id='failed-release'");

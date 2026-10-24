@@ -43,6 +43,16 @@ of this phase. No vector/conversation transfer or compatibility machinery.
 
 #### Fresh UI Journey And Disposable Reset - 02:09 UTC
 
+03:33UTC checkpoint: backend `bac3273ed8cc96989120c67151f6300abb96a817`
+was verified on both control planes with unchanged schema/resources.201 checks
+passed (39readback +162PostgreSQL). Explicit customer reapply progressed beyond
+the readback check but stopped before provider effects at
+`PROVISIONED_VERIFICATION_REAPPLY_UNPROVEN`. The transaction's independent SQL
+guard still counted configuration-only assignments. It now uses the same bounded
+distinction, with actual PostgreSQL cases for draft-only success and rejection of
+release-backed/ambiguous assignments. Focused transaction checks are running.
+The first fix alone did not close the issue; no passing reapply is claimed.
+
 03:16UTC checkpoint: initial post-apply run `vrf-e305447c` honestly FAILED
 26passed/1failed/6skipped. The sole failure was S3 `InvalidAccessKeyId` from the
 stale staging pair in the ignored handoff, not a runtime/framework defect. The

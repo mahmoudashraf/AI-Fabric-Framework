@@ -60,7 +60,8 @@ final class ProvisionedVerificationReapplyEvidence {
             || !authority.matches("[a-f0-9]{64}")) throw denied();
         Long assigned = jdbc.queryForObject("""
             SELECT COUNT(*) FROM platform_consumers WHERE bound_release_id=?
-               OR (bound_deployment_id=? AND (bound_target_profile_id=? OR bound_target_profile_id IS NULL))
+               OR (bound_deployment_id=? AND (bound_target_profile_id=? OR bound_target_profile_id IS NULL)
+                  AND (bound_release_id IS NOT NULL OR bound_target_profile_id IS NULL))
             """, Long.class, binding.releaseId(), allocation.deploymentId(), allocation.targetProfileId());
         if (assigned == null || assigned != 0) throw denied();
         return new Proof(allocation.fence(), binding, json.fingerprint(release), resources);
